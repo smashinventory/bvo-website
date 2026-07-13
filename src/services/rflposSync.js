@@ -4,23 +4,46 @@
  * RFLPOS → BVO Inventory Sync Service
  *
  * SAFETY CONTRACT:
- *   - Only SELECT statements are ever executed on the RFLPOS connection.
- *   - All writes go to bvoPool (the BVO website DB) only.
+ *   - All RFLPOS data comes via the read-only PHP proxy at rflpos.com/bvo_sync.php.
+ *   - The proxy only runs SELECT queries — it never writes to RFLPOS.
  *   - New products arrive as is_active=0 — nothing goes live without admin approval.
- *   - On any RFLPOS connection error, the function throws and BVO continues normally.
  *
- * RFLPOS schema (actual column names, confirmed via phpMyAdmin):
- *   products:                  id, name, sku, brand_id, category_id, product_description,
- *                              image, weight, is_inactive, not_for_selling, deleted_at
- *   brands:                    id, name, deleted_at
- *   categories:                id, name, deleted_at
- *   product_variations:        id, product_id, is_dummy
- *   variation_location_details: product_id, product_variation_id, qty_available
- *   transaction_sell_lines:    product_id, unit_price_inc_tax (sell price inc tax)
+ * Env vars required:
+ *   BVO_SYNC_TOKEN  — must match SYNC_TOKEN in bvo_sync.php
+ *   BVO_SYNC_URL    — optional override (default: https://rflpos.com/bvo_sync.php)
  */
 
-const { bvoPool, getRflPool } = require('../config/database');
-const syncSettings             = require('./syncSettings');
+const https        = require('https');
+const { bvoPool }  = require('../config/database');
+const syncSettings = require('./syncSettings');
+
+const PROXY_BASE = process.env.BVO_SYNC_URL || 'https://rflpos.com/bvo_sync.php';
+
+// ── HTTPS helper ─────────────────────────────────────────────────
+function proxyGet(params) {
+  return new Promise((resolve, reject) => {
+    const token  = process.env.BVO_SYNC_TOKEN || '';
+    const qs     = new URLSearchParams({ token, ...params }).toString();
+    const url    = `${PROXY_BASE}?${qs}`;
+
+    const req = https.get(url, { timeout: 30000 }, (res) => {
+      let raw = '';
+      res.on('data', chunk => { raw += chunk; });
+      res.on('end', () => {
+        try {
+          const data = JSON.parse(raw);
+          if (!data.ok) reject(new Error(data.error || 'Proxy returned ok:false'));
+          else resolve(data);
+        } catch {
+          reject(new Error(`Proxy returned non-JSON: ${raw.slice(0, 300)}`));
+        }
+      });
+    });
+
+    req.on('timeout', () => { req.destroy(); reject(new Error('Proxy request timed out')); });
+    req.on('error',   reject);
+  });
+}
 
 // ── Category name → BVO slug fuzzy map ──────────────────────────
 const CAT_MAP = {
@@ -45,7 +68,7 @@ const CAT_MAP = {
   'cabinet':            'storage',
 };
 
-// Cache BVO category slug → id so we aren't hitting the DB on every product
+// Cache BVO category slug → id
 let _catCache = null;
 async function getCatId(categoryName) {
   if (!_catCache) {
@@ -69,7 +92,7 @@ function toSlug(str) {
 
 async function uniqueSlug(base, existingId = null) {
   let slug = base;
-  let i = 2;
+  let i    = 2;
   for (;;) {
     const [rows] = await bvoPool.query(
       'SELECT id FROM products WHERE slug = ? LIMIT 1', [slug]
@@ -99,12 +122,10 @@ async function finishLog(logId, ok, err, detail) {
 }
 
 // ── Image upsert ─────────────────────────────────────────────────
-// Inserts or updates the primary image for a product.
-// Only overwrites an image that originally came from RFLPOS (URL contains rflpos.com).
+// Only overwrites an image that originally came from RFLPOS.
 // Never touches a manually uploaded primary image.
 async function upsertImage(productId, imgUrl) {
   if (!imgUrl) return;
-  // Is there an existing rflpos-sourced primary image?
   const [existing] = await bvoPool.query(
     `SELECT id FROM product_images
      WHERE product_id = ? AND is_primary = 1 AND url LIKE '%rflpos.com%'
@@ -118,7 +139,6 @@ async function upsertImage(productId, imgUrl) {
     );
     return;
   }
-  // No rflpos image — only insert if there is no primary image at all
   const [anyPrimary] = await bvoPool.query(
     `SELECT id FROM product_images WHERE product_id = ? AND is_primary = 1 LIMIT 1`,
     [productId]
@@ -135,7 +155,7 @@ async function upsertImage(productId, imgUrl) {
 // ── Core upsert ──────────────────────────────────────────────────
 async function upsertProduct(row) {
   const rflId  = String(row.rfl_id);
-  const sku    = (row.sku && row.sku.trim()) ? row.sku.trim() : `RFLPOS-${rflId}`;
+  const sku    = (row.sku && String(row.sku).trim()) ? String(row.sku).trim() : `RFLPOS-${rflId}`;
   const price  = parseFloat(row.sell_price) || 0;
   const stock  = parseFloat(row.stock_qty)  || 0;
   const imgUrl = row.image ? `https://rflpos.com/product_images/${row.image}` : null;
@@ -143,15 +163,13 @@ async function upsertProduct(row) {
   const desc   = row.description || null;
   const brand  = row.brand_name  || null;
 
-  // Check if this product is already in BVO
   const [existing] = await bvoPool.query(
-    'SELECT id FROM products WHERE rflpos_item_id = ? LIMIT 1',
-    [rflId]
+    'SELECT id FROM products WHERE rflpos_item_id = ? LIMIT 1', [rflId]
   );
 
   if (existing.length) {
-    // UPDATE — only sync fields RFLPOS owns: price, brand, stock.
-    // Do NOT touch: is_active, category_id (admin controls these after approval).
+    // UPDATE — only fields RFLPOS owns (price, brand, stock).
+    // Never touch is_active or category_id — admin controls those.
     await bvoPool.query(
       `UPDATE products
        SET name=?, brand=?, price=?, short_desc=?, updated_at=NOW()
@@ -164,8 +182,8 @@ async function upsertProduct(row) {
     );
     await upsertImage(existing[0].id, imgUrl);
   } else {
-    // INSERT — hidden from storefront until admin approves (is_active=0)
-    const slug = await uniqueSlug(toSlug(row.product_name));
+    // INSERT — hidden until approved (is_active=0)
+    const slug  = await uniqueSlug(toSlug(row.product_name));
     const [ins] = await bvoPool.query(
       `INSERT INTO products
          (sku, slug, name, brand, category_id, short_desc, price,
@@ -182,18 +200,12 @@ async function upsertProduct(row) {
   }
 }
 
-// ── Get available brands from RFLPOS (for brand filter UI) ───────
+// ── Get available brands from RFLPOS proxy ───────────────────────
 async function getRflBrands() {
-  const rfl = getRflPool();
-  if (!rfl) return [];
+  if (!process.env.BVO_SYNC_TOKEN) return [];
   try {
-    const [rows] = await rfl.query(`
-      SELECT id, name
-      FROM brands
-      WHERE deleted_at IS NULL
-      ORDER BY name
-    `);
-    return rows;
+    const data = await proxyGet({ action: 'brands' });
+    return data.brands || [];
   } catch {
     return [];
   }
@@ -201,10 +213,10 @@ async function getRflBrands() {
 
 // ── Main sync entry point ────────────────────────────────────────
 async function syncProducts() {
-  const rfl = getRflPool();
-  if (!rfl) throw new Error('RFLPOS DB not configured — add RFLPOS_DB_* env vars.');
+  if (!process.env.BVO_SYNC_TOKEN) {
+    throw new Error('BVO_SYNC_TOKEN not set — add it to env vars.');
+  }
 
-  // Reset category cache each run so new BVO categories are picked up
   _catCache = null;
 
   const settings      = syncSettings.get();
@@ -215,49 +227,11 @@ async function syncProducts() {
   const errMsgs = [];
 
   try {
-    // Build brand filter — empty array means "sync all brands"
-    const brandWhere  = allowedBrands.length > 0
-      ? `AND p.brand_id IN (${allowedBrands.map(() => '?').join(',')})`
-      : '';
+    const params = { action: 'products' };
+    if (allowedBrands.length) params.brands = allowedBrands.join(',');
 
-    // READ ONLY — BVO never writes to the RFLPOS database
-    const [rows] = await rfl.query(`
-      SELECT
-        p.id                  AS rfl_id,
-        p.name                AS product_name,
-        p.sku,
-        p.product_description AS description,
-        p.image,
-        p.weight,
-        b.name                AS brand_name,
-        c.name                AS category_name,
-        COALESCE(SUM(vld.qty_available), 0) AS stock_qty,
-        (
-          SELECT tsl.unit_price_inc_tax
-          FROM transaction_sell_lines tsl
-          WHERE tsl.product_id = p.id
-            AND tsl.unit_price_inc_tax IS NOT NULL
-            AND tsl.unit_price_inc_tax > 0
-          ORDER BY tsl.created_at DESC
-          LIMIT 1
-        ) AS sell_price
-      FROM products p
-      LEFT JOIN brands b
-             ON p.brand_id = b.id AND b.deleted_at IS NULL
-      LEFT JOIN categories c
-             ON p.category_id = c.id AND c.deleted_at IS NULL
-      LEFT JOIN product_variations pv
-             ON p.id = pv.product_id AND pv.is_dummy = 1
-      LEFT JOIN variation_location_details vld
-             ON pv.id = vld.product_variation_id
-      WHERE p.is_inactive    = 0
-        AND p.not_for_selling = 0
-        AND p.deleted_at     IS NULL
-        ${brandWhere}
-      GROUP BY p.id, p.name, p.sku, p.product_description,
-               p.image, p.weight, b.name, c.name
-      ORDER BY b.name, p.name
-    `, allowedBrands);
+    const data = await proxyGet(params);
+    const rows = data.products || [];
 
     for (const row of rows) {
       try {
@@ -277,7 +251,7 @@ async function syncProducts() {
   return { ok, err, total: ok + err, logId };
 }
 
-// ── Last sync summary (for admin dashboard widget) ───────────────
+// ── Last sync summary ────────────────────────────────────────────
 async function lastSyncSummary() {
   const [rows] = await bvoPool.query(
     `SELECT * FROM rflpos_sync_log WHERE sync_type='product' ORDER BY id DESC LIMIT 5`
@@ -285,7 +259,7 @@ async function lastSyncSummary() {
   return rows;
 }
 
-// ── Pending approvals count ──────────────────────────────────────
+// ── Pending count ────────────────────────────────────────────────
 async function pendingCount() {
   const [[row]] = await bvoPool.query(
     `SELECT COUNT(*) AS cnt FROM products WHERE source_flag='rflpos' AND is_active=0`
