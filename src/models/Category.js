@@ -2,20 +2,7 @@
 
 const { bvoPool } = require('../config/database');
 
-/* Seed data — used when DB is unavailable (dev without MySQL) */
-const SEED = [
-  { id: 1, slug: 'vanities',    name: 'Bathroom Vanities', description: 'Single, double &amp; freestanding', image_url: 'https://images.unsplash.com/photo-1552321554-5fefe8c9ef14?auto=format&fit=crop&w=600&q=80', sort_order: 1 },
-  { id: 2, slug: 'mirrors',     name: 'Mirrors',            description: 'Framed, frameless &amp; lighted',  image_url: 'https://images.unsplash.com/photo-1585771724684-38269d6639fd?auto=format&fit=crop&w=600&q=80', sort_order: 2 },
-  { id: 3, slug: 'faucets',     name: 'Faucets',            description: 'Sink, shower &amp; tub',           image_url: 'https://images.unsplash.com/photo-1564540583246-934409427776?auto=format&fit=crop&w=600&q=80', sort_order: 3 },
-  { id: 4, slug: 'accessories', name: 'Accessories',        description: 'Finishing touches',                image_url: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=600&q=80', sort_order: 4 },
-  { id: 5, slug: 'lighting',    name: 'Lighting',           description: 'Vanity lights &amp; sconces',      image_url: 'https://images.unsplash.com/photo-1507652955-f3dcef5a3be5?auto=format&fit=crop&w=600&q=80', sort_order: 5 },
-  { id: 6, slug: 'storage',     name: 'Storage',            description: 'Cabinets &amp; shelving',          image_url: 'https://images.unsplash.com/photo-1560185007-c5ca9d2c4d88?auto=format&fit=crop&w=600&q=80', sort_order: 6 },
-];
-
 const Category = {
-
-  /** Expose seed for controller fallbacks */
-  _seed() { return SEED; },
 
   /** All active root categories */
   async findAll() {
@@ -26,8 +13,8 @@ const Category = {
         WHERE  is_active = 1 AND parent_id IS NULL
         ORDER  BY sort_order, name
       `);
-      return rows.length ? rows : SEED;
-    } catch { return SEED; }
+      return rows;
+    } catch { return []; }
   },
 
   /** Single category by slug */
@@ -40,9 +27,9 @@ const Category = {
          LIMIT  1`,
         [slug]
       );
-      return rows[0] || SEED.find(c => c.slug === slug) || null;
+      return rows[0] || null;
     } catch {
-      return SEED.find(c => c.slug === slug) || null;
+      return null;
     }
   },
 
@@ -58,9 +45,9 @@ const Category = {
       const roots    = rows.filter(r => r.parent_id === null);
       const children = rows.filter(r => r.parent_id !== null);
       roots.forEach(r => { r.children = children.filter(c => c.parent_id === r.id); });
-      return roots.length ? roots : SEED.map(c => ({ ...c, children: [] }));
+      return roots;
     } catch {
-      return SEED.map(c => ({ ...c, children: [] }));
+      return [];
     }
   },
 
@@ -155,15 +142,9 @@ const Category = {
         ORDER  BY brand
       `, [categoryId]);
       if (rows.length) return rows.map(r => r.brand);
-    } catch { /* fall through to placeholder */ }
+    } catch { /* fall through */ }
 
-    // Fallback: derive from placeholder data for THIS category only
-    const Product = require('./Product');
-    return [...new Set(
-      Product._placeholder()
-        .filter(p => p.category_id === categoryId && p.brand)
-        .map(p => p.brand),
-    )].sort();
+    return [];
   },
 
 };

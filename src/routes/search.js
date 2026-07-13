@@ -127,23 +127,7 @@ router.get('/predict', async (req, res) => {
     return res.json({ hits, source: 'mysql', total: hits.length });
 
   } catch (err) {
-    // Last resort: search in-memory placeholder
-    const term = q.toLowerCase();
-    const hits = Product._placeholder()
-      .filter(p => p.name.toLowerCase().includes(term) || (p.brand || '').toLowerCase().includes(term))
-      .slice(0, limit)
-      .map(p => ({
-        id:    p.id,
-        slug:  p.slug,
-        name:  p.name,
-        brand: p.brand,
-        price: p.price,
-        image: p.primary_image,
-        badge: p.badge,
-        url:   `/products/${p.slug}`,
-      }));
-
-    return res.json({ hits, source: 'placeholder', total: hits.length });
+    return res.json({ hits: [], source: 'db', total: 0 });
   }
 });
 

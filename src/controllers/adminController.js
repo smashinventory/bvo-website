@@ -168,8 +168,7 @@ exports.productList = async (req, res, next) => {
       [...params, PER_PAGE, offset]
     );
 
-    // fallback to placeholders when DB unavailable
-    const displayProducts = products.length ? products : Product._placeholder().slice(0, PER_PAGE);
+    const displayProducts = products;
     const categories      = await Category.findAll();
 
     res.render('pages/admin/products', {

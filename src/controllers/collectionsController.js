@@ -4,6 +4,7 @@ const Category                    = require('../models/Category');
 const Product                     = require('../models/Product');
 const { FAMILIES, normalize }     = require('../config/colorFamilies');
 const MODEL_FAMILIES              = require('../data/modelFamilies');
+const { bvoPool }                 = require('../config/database');
 
 const MODELS_PER_PAGE = 12;
 
@@ -84,12 +85,24 @@ exports.show = async (req, res, next) => {
 
     // ── Virtual "sale" collection ─────────────────────────────────────
     if (slug === 'sale') {
+      const [saleRows] = await bvoPool.query(`
+        SELECT p.id, p.slug, p.name, p.brand, p.price, p.compare_price,
+               p.is_new, p.is_featured,
+               COALESCE(p.primary_image_url, pi.url) AS primary_image,
+               'sale' AS badge
+        FROM products p
+        LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
+        WHERE p.is_active = 1 AND p.compare_price IS NOT NULL AND p.compare_price > p.price
+        ORDER BY p.is_featured DESC, p.created_at DESC
+        LIMIT 48
+      `).catch(() => [[]]);
+      const products = Array.isArray(saleRows[0]) ? saleRows[0] : saleRows;
       return res.render('pages/collection', {
         pageTitle:    'Sale | BathroomVanitiesOutlet.com',
         metaDesc:     'Shop discounted bathroom vanities, mirrors, faucets and accessories.',
         category:     { id: null, slug: 'sale', name: 'Sale', description: 'Discounted products — limited time offers', meta_title: 'Sale', meta_desc: '' },
-        products:     Product._placeholder().filter(p => p.compare_price),
-        total: 0, page: 1, pages: 1, perPage: 12,
+        products,
+        total: products.length, page: 1, pages: 1, perPage: 48,
         sort: 'featured',
         brands: [], productTypes: [],
         attrFilters: {}, activeAttrFilters: {},

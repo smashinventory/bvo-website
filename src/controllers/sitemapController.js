@@ -12,7 +12,7 @@ const Product     = require('../models/Product');
  *   - All active category (collection) pages  — changefreq: weekly
  *   - All active product pages                — changefreq: daily
  *
- * Falls back to seed/placeholder data if DB is unreachable.
+ * Omits URLs it can't get from the DB.
  *
  * SEO notes:
  *   - Filtered collection URLs (?brand=...) are intentionally excluded
@@ -32,9 +32,9 @@ exports.xml = async (req, res) => {
         WHERE is_active = 1 AND parent_id IS NULL
         ORDER BY sort_order
       `);
-      categories = rows.length ? rows : Category._seed();
+      categories = rows;
     } catch {
-      categories = Category._seed();
+      categories = [];
     }
 
     /* ── Fetch products ────────────────────────────────────────── */
@@ -46,9 +46,9 @@ exports.xml = async (req, res) => {
         ORDER BY id
         LIMIT 50000
       `);
-      products = rows.length ? rows : Product._placeholder();
+      products = rows;
     } catch {
-      products = Product._placeholder();
+      products = [];
     }
 
     /* ── Build XML ─────────────────────────────────────────────── */
