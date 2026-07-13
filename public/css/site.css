@@ -5,7 +5,8 @@
 
 /* ── Reset ──────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body   { font-family: var(--font-sans); background: var(--whisper); color: var(--navy); -webkit-font-smoothing: antialiased; }
+html   { overflow-x: hidden; }
+body   { font-family: var(--font-sans); background: var(--whisper); color: var(--navy); -webkit-font-smoothing: antialiased; overflow-x: hidden; max-width: 100%; }
 a      { color: var(--amber); text-decoration: none; }
 img    { max-width: 100%; display: block; }
 ul[role="list"] { list-style: none; }
