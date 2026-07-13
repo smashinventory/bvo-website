@@ -12,7 +12,7 @@
   padding: 1.25rem 1.5rem;
 }
 .sync-stat-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: .06em; color: #6b7280; margin-bottom: .4rem; }
-.sync-stat-value { font-size: 1.75rem; font-weight: 700; color: var(--color-ink); line-height: 1; }
+.sync-stat-value { font-size: 1.75rem; font-weight: 700; color: #182840; line-height: 1; }
 .sync-stat-value.pending { color: #d97706; }
 .sync-stat-value.ok     { color: #059669; }
 .sync-stat-value.err    { color: #dc2626; }
@@ -20,7 +20,7 @@
 /* Buttons */
 .btn-sync {
   display: inline-flex; align-items: center; gap: .5rem;
-  background: var(--color-ink); color: #fff;
+  background: #182840; color: #fff;
   padding: .65rem 1.4rem; border-radius: 8px; border: none;
   font-size: .875rem; font-weight: 600; cursor: pointer;
   transition: opacity .15s;
@@ -50,7 +50,7 @@
   padding: 1rem 1.5rem; border-bottom: 1px solid #f3f4f6;
   display: flex; align-items: center; justify-content: space-between;
 }
-.sync-section-title { font-weight: 700; font-size: .95rem; color: var(--color-ink); }
+.sync-section-title { font-weight: 700; font-size: .95rem; color: #182840; }
 .sync-section-body { padding: 0; }
 
 /* Table */
@@ -82,6 +82,18 @@
 .config-row select, .config-row input[type=checkbox] { font-size: .875rem; }
 .config-row select { padding: .4rem .6rem; border: 1px solid #d1d5db; border-radius: 6px; }
 .config-note { font-size: .75rem; color: #6b7280; margin-top: .3rem; }
+
+/* Brand filter */
+.brand-filter-row { grid-column: 1 / -1; border-top: 1px solid #f3f4f6; padding-top: 1.25rem; margin-top: .25rem; }
+.brand-filter-grid { display: flex; flex-wrap: wrap; gap: .5rem .75rem; margin-top: .5rem; }
+.brand-check {
+  display: inline-flex; align-items: center; gap: .4rem;
+  font-size: .85rem; font-weight: 500; color: #374151; cursor: pointer;
+  background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px;
+  padding: .3rem .75rem;
+}
+.brand-check input[type=checkbox] { accent-color: #182840; }
+.brand-check:has(input:checked) { background: #e8ecf4; border-color: #182840; color: #182840; }
 </style>
 
 <div class="sync-page">
@@ -250,6 +262,33 @@
           Leave unchecked (recommended) to review before publishing.
         </div>
       </div>
+
+      <!-- Brand filter — spans full width -->
+      <div class="config-row brand-filter-row">
+        <label style="font-size:.8rem; font-weight:600; color:#374151">Brand Filter</label>
+        <div class="config-note" style="margin-top:0; margin-bottom:.5rem">
+          Check the brands you want to sync. Leave all unchecked to sync every brand.
+        </div>
+        <% if (typeof rflBrands !== 'undefined' && rflBrands.length > 0) { %>
+          <div class="brand-filter-grid">
+            <% const savedBrands = (syncSettings.allowedBrands || []).map(Number); %>
+            <% rflBrands.forEach(brand => { %>
+              <label class="brand-check">
+                <input type="checkbox" class="brand-cb"
+                  value="<%= brand.id %>"
+                  onchange="saveSyncSettings()"
+                  <%= savedBrands.includes(Number(brand.id)) ? 'checked' : '' %>>
+                <%= brand.name %>
+              </label>
+            <% }) %>
+          </div>
+        <% } else { %>
+          <div style="font-size:.82rem; color:#9ca3af; padding:.5rem 0">
+            Brand list will appear here once RFLPOS is connected and a sync has been run.
+          </div>
+        <% } %>
+      </div>
+
     </div>
   </div>
 
@@ -304,12 +343,14 @@ async function approveAll() {
 }
 
 async function saveSyncSettings() {
-  const interval    = document.getElementById('syncInterval').value;
-  const autoApprove = document.getElementById('autoApprove').checked;
+  const interval      = document.getElementById('syncInterval').value;
+  const autoApprove   = document.getElementById('autoApprove').checked;
+  const allowedBrands = Array.from(document.querySelectorAll('.brand-cb:checked'))
+                             .map(cb => Number(cb.value));
   await fetch('/admin/sync/settings', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ interval, autoApprove }),
+    body: JSON.stringify({ interval, autoApprove, allowedBrands }),
   });
 }
 </script>

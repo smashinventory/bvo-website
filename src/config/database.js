@@ -18,21 +18,31 @@ const bvoPool = mysql.createPool({
 });
 
 // ── RFLPOS DB (read-only for sync) ───────────────────────────────
+// Connects via Unix socket (same as PHP) to avoid IPv6 TCP auth issues.
+// Set RFLPOS_DB_SOCKET in env (default: /var/lib/mysql/mysql.sock).
+// Falls back to TCP if RFLPOS_DB_HOST is set and no socket path given.
 let rflPool = null;
 
 function getRflPool() {
-  if (!rflPool && process.env.RFLPOS_DB_HOST) {
+  if (!rflPool && process.env.RFLPOS_DB_NAME) {
+    const socketPath = process.env.RFLPOS_DB_SOCKET || '/var/lib/mysql/mysql.sock';
+    const useSocket  = !process.env.RFLPOS_DB_HOST || process.env.RFLPOS_DB_SOCKET;
+
     rflPool = mysql.createPool({
-      host:              process.env.RFLPOS_DB_HOST,
-      port:              parseInt(process.env.RFLPOS_DB_PORT || '3306', 10),
-      database:          process.env.RFLPOS_DB_NAME,
-      user:              process.env.RFLPOS_DB_USER,
-      password:          process.env.RFLPOS_DB_PASS,
+      ...(useSocket
+        ? { socketPath }
+        : {
+            host: process.env.RFLPOS_DB_HOST,
+            port: parseInt(process.env.RFLPOS_DB_PORT || '3306', 10),
+          }),
+      database:           process.env.RFLPOS_DB_NAME,
+      user:               process.env.RFLPOS_DB_USER,
+      password:           process.env.RFLPOS_DB_PASS,
       waitForConnections: true,
-      connectionLimit:   5,
-      queueLimit:        0,
-      charset:           'utf8mb4',
-      timezone:          '+00:00',
+      connectionLimit:    5,
+      queueLimit:         0,
+      charset:            'utf8mb4',
+      timezone:           '+00:00',
     });
   }
   return rflPool;

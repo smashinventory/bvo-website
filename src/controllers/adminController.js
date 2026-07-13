@@ -511,20 +511,26 @@ exports.syncPage = async (req, res) => {
     );
 
     const pending = await bvoPool.query(`
-      SELECT p.id, p.name, p.sku, p.price, p.primary_image_url,
+      SELECT p.id, p.name, p.sku, p.price, p.brand,
+             pi.url AS primary_image_url,
              c.name AS category_name,
              i.qty_on_hand AS stock_qty
       FROM products p
-      LEFT JOIN categories c ON p.category_id = c.id
-      LEFT JOIN inventory  i ON i.product_id  = p.id
+      LEFT JOIN categories c     ON p.category_id  = c.id
+      LEFT JOIN inventory  i     ON i.product_id   = p.id
+      LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
       WHERE p.source_flag='rflpos' AND p.is_active=0
-      ORDER BY p.created_at DESC
+      ORDER BY p.brand, p.name
       LIMIT 200
     `).then(([rows]) => rows).catch(() => []);
 
     const logs = await bvoPool.query(
       `SELECT * FROM rflpos_sync_log WHERE sync_type='product' ORDER BY id DESC LIMIT 10`
     ).then(([rows]) => rows).catch(() => []);
+
+    // Load RFLPOS brand list for the brand filter UI (non-fatal if not connected yet)
+    let rflBrands = [];
+    try { rflBrands = await rflposSync.getRflBrands(); } catch {}
 
     res.render('pages/admin/sync', {
       layout:   'layouts/admin',
@@ -541,6 +547,7 @@ exports.syncPage = async (req, res) => {
       },
       pending,
       logs,
+      rflBrands,
       syncSettings: syncSettings.get(),
     });
     delete req.session.syncFlash;
@@ -610,8 +617,14 @@ exports.syncApproveAll = async (req, res) => {
 /* POST /admin/sync/settings */
 exports.syncSaveSettings = (req, res) => {
   try {
-    const { interval, autoApprove } = req.body;
-    syncSettings.save({ interval, autoApprove: !!autoApprove });
+    const { interval, autoApprove, allowedBrands } = req.body;
+    syncSettings.save({
+      interval,
+      autoApprove:   !!autoApprove,
+      allowedBrands: Array.isArray(allowedBrands)
+                       ? allowedBrands.map(Number).filter(Boolean)
+                       : [],
+    });
     res.json({ ok: true });
   } catch (err) {
     res.json({ ok: false, error: err.message });

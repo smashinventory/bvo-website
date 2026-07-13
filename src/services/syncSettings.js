@@ -11,8 +11,9 @@ const path = require('path');
 const FILE = path.join(__dirname, '../data/sync_settings.json');
 
 const DEFAULTS = {
-  interval:    'manual',   // 'manual' | 'hourly' | '6h' | 'daily'
-  autoApprove: false,
+  interval:      'manual',  // 'manual' | 'hourly' | '6h' | 'daily'
+  autoApprove:   false,
+  allowedBrands: [],        // RFLPOS brand IDs (numbers); empty = sync all brands
 };
 
 let _cache = null;
