@@ -1,0 +1,241 @@
+/* ============================================================
+   BathroomVanitiesOutlet.com — Brand CSS Variables
+   Final approved palette · Locked
+   ============================================================ */
+
+:root {
+
+  /* ── Core palette ─────────────────────────────────────── */
+  --color-sage:       #6B8C74;   /* Spa Sage   — header bar, nav rule, badges, secondary CTA */
+  --color-amber:      #C4885A;   /* Warm Amber — brand accent, logo text, hero headline      */
+  --color-gold:       #B8963A;   /* Antique Gold— price display, premium accent              */
+  --color-navy:       #182840;   /* Logo Navy  — all body text, primary CTA fill, nav links  */
+  --color-whisper:    #FCFBF8;   /* Whisper    — page background, card background            */
+
+  /* ── Derived / supporting tones ──────────────────────── */
+  --color-sage-deep:  #486854;   /* Deep Sage  — promo strip, hover state on sage elements   */
+  --color-amber-light:#E8C4A0;   /* Light Amber— hover tint, amber-tinted dividers           */
+  --color-gold-light: #D4B870;   /* Light Gold — star ratings, secondary price accent        */
+  --color-navy-deep:  #101828;   /* Deep Navy  — footer background, promo strip on navy      */
+  --color-whisper-hero: #FAF7F2; /* Hero bg    — slightly deeper cream for section contrast  */
+  --color-white:      #FFFFFF;   /* Pure white — nav background, card surface                */
+
+  /* ── Text colours ─────────────────────────────────────── */
+  --text-primary:     var(--color-navy);       /* body copy, headings                        */
+  --text-accent:      var(--color-amber);      /* brand name accent, hero h2, CTA labels     */
+  --text-muted:       #7A7264;                 /* captions, metadata, was-price              */
+  --text-sage:        var(--color-sage);       /* sub-headings, free-shipping note           */
+  --text-price:       var(--color-gold);       /* sale price                                 */
+  --text-on-dark:     var(--color-white);      /* text on navy / sage / amber backgrounds    */
+
+  /* ── Background colours ───────────────────────────────── */
+  --bg-page:          var(--color-whisper);
+  --bg-hero:          var(--color-whisper-hero);
+  --bg-nav:           var(--color-white);
+  --bg-card:          var(--color-white);
+  --bg-promo:         var(--color-sage-deep);
+  --bg-footer:        var(--color-navy-deep);
+  --bg-header-bar:    var(--color-sage);       /* site section header bars                   */
+
+  /* ── Border / rule colours ────────────────────────────── */
+  --border-nav:       var(--color-sage);       /* 2px rule under nav                         */
+  --border-card:      #E8E4DC;                 /* subtle card outline                        */
+  --border-input:     #C8C2B6;                 /* form inputs                                */
+  --border-input-focus: var(--color-amber);
+
+  /* ── Button tokens ────────────────────────────────────── */
+  --btn-primary-bg:   var(--color-navy);
+  --btn-primary-fg:   var(--color-white);
+  --btn-primary-hover-bg: #0E1E38;
+
+  --btn-secondary-bg: var(--color-sage);
+  --btn-secondary-fg: var(--color-white);
+  --btn-secondary-hover-bg: var(--color-sage-deep);
+
+  --btn-amber-bg:     var(--color-amber);
+  --btn-amber-fg:     var(--color-white);
+  --btn-amber-hover-bg: #A87040;
+
+  --btn-outline-bg:   transparent;
+  --btn-outline-fg:   var(--color-navy);
+  --btn-outline-border: var(--color-navy);
+
+  /* ── Badge tokens ─────────────────────────────────────── */
+  --badge-sale-bg:    var(--color-sage);
+  --badge-sale-fg:    var(--color-white);
+  --badge-new-bg:     var(--color-amber);
+  --badge-new-fg:     var(--color-white);
+  --badge-best-bg:    var(--color-navy);
+  --badge-best-fg:    var(--color-white);
+  --badge-premium-bg: var(--color-gold);
+  --badge-premium-fg: var(--color-white);
+
+  /* ── Typography ───────────────────────────────────────── */
+  --font-serif:       'Lora', Georgia, serif;           /* headings, brand name, display     */
+  --font-sans:        'Lato', 'Helvetica Neue', sans-serif; /* body, nav, buttons, labels    */
+
+  --text-xs:   0.75rem;    /* 12px — labels, badges                                          */
+  --text-sm:   0.875rem;   /* 14px — captions, metadata                                      */
+  --text-base: 1rem;       /* 16px — body copy                                               */
+  --text-lg:   1.125rem;   /* 18px — lead text                                               */
+  --text-xl:   1.25rem;    /* 20px — card title                                              */
+  --text-2xl:  1.5rem;     /* 24px — section heading                                         */
+  --text-3xl:  1.875rem;   /* 30px — page heading                                            */
+  --text-4xl:  2.25rem;    /* 36px — hero heading                                            */
+  --text-5xl:  3rem;       /* 48px — hero display                                            */
+
+  /* ── Spacing ──────────────────────────────────────────── */
+  --space-1:  0.25rem;
+  --space-2:  0.5rem;
+  --space-3:  0.75rem;
+  --space-4:  1rem;
+  --space-6:  1.5rem;
+  --space-8:  2rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+  --space-24: 6rem;
+
+  /* ── Layout ───────────────────────────────────────────── */
+  --container-max:    1280px;
+  --container-pad:    clamp(1rem, 4vw, 3rem);
+  --nav-height:       64px;
+  --promo-height:     36px;
+  --card-radius:      8px;
+  --btn-radius:       6px;
+
+  /* ── Shadows ──────────────────────────────────────────── */
+  --shadow-sm:  0 1px 3px rgba(24,40,64,0.08);
+  --shadow-md:  0 4px 12px rgba(24,40,64,0.10);
+  --shadow-lg:  0 8px 24px rgba(24,40,64,0.12);
+  --shadow-card:0 2px 8px  rgba(24,40,64,0.08);
+
+  /* ── Transitions ──────────────────────────────────────── */
+  --transition-fast:  150ms ease;
+  --transition-base:  250ms ease;
+
+  /* ── Logo paths (reference) ───────────────────────────── */
+  /* Primary (website header, favicon, email): /images/logos/BVOLOGOSQ_512.png  */
+  /* Secondary (round contexts only):          /images/logos/BVOLOGOCIRCLE_2000.png */
+}
+
+/* ── Base resets ──────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 16px; scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  color: var(--text-primary);
+  background-color: var(--bg-page);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-serif);
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+a { color: var(--color-amber); text-decoration: none; }
+a:hover { color: var(--color-navy); }
+
+/* ── Buttons ──────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.65rem 1.5rem;
+  border-radius: var(--btn-radius);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+  text-transform: uppercase;
+}
+.btn-primary   { background: var(--btn-primary-bg);   color: var(--btn-primary-fg); }
+.btn-primary:hover { background: var(--btn-primary-hover-bg); color: var(--btn-primary-fg); }
+.btn-secondary { background: var(--btn-secondary-bg); color: var(--btn-secondary-fg); }
+.btn-secondary:hover { background: var(--btn-secondary-hover-bg); color: var(--btn-secondary-fg); }
+.btn-amber     { background: var(--btn-amber-bg);     color: var(--btn-amber-fg); }
+.btn-amber:hover { background: var(--btn-amber-hover-bg); color: var(--btn-amber-fg); }
+.btn-outline   { background: var(--btn-outline-bg); color: var(--btn-outline-fg); border-color: var(--btn-outline-border); }
+.btn-outline:hover { background: var(--color-navy); color: var(--color-white); }
+
+/* ── Badges ───────────────────────────────────────────────────── */
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.badge-sale     { background: var(--badge-sale-bg);    color: var(--badge-sale-fg); }
+.badge-new      { background: var(--badge-new-bg);     color: var(--badge-new-fg); }
+.badge-best     { background: var(--badge-best-bg);    color: var(--badge-best-fg); }
+.badge-premium  { background: var(--badge-premium-bg); color: var(--badge-premium-fg); }
+
+/* ── Price display ────────────────────────────────────────────── */
+.price-current  { font-family: var(--font-sans); font-weight: 700; color: var(--text-price); }
+.price-was      { font-family: var(--font-sans); font-weight: 400; color: var(--text-muted); text-decoration: line-through; }
+
+/* ── Promo strip ──────────────────────────────────────────────── */
+.promo-strip {
+  background: var(--bg-promo);
+  color: #DCF0E2;
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: 400;
+  text-align: center;
+  padding: 0.55rem var(--container-pad);
+  letter-spacing: 0.04em;
+  height: var(--promo-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Nav ──────────────────────────────────────────────────────── */
+.site-nav {
+  background: var(--bg-nav);
+  height: var(--nav-height);
+  border-bottom: 2px solid var(--border-nav);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--container-pad);
+}
+.site-nav .brand-name { font-family: var(--font-serif); font-size: 1.25rem; color: var(--color-navy); }
+.site-nav .brand-name span { color: var(--color-amber); }
+.site-nav .nav-link {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-navy);
+}
+.site-nav .nav-link:hover { color: var(--color-amber); }
+
+/* ── Product card ─────────────────────────────────────────────── */
+.product-card {
+  background: var(--bg-card);
+  border-radius: var(--card-radius);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  transition: box-shadow var(--transition-base), transform var(--transition-base);
+}
+.product-card:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
+}
+.product-card__title   { font-family: var(--font-serif); font-size: var(--text-xl); color: var(--text-primary); }
+.product-card__price   { font-size: var(--text-2xl); font-weight: 700; color: var(--text-price); }
+.product-card__was     { font-size: var(--text-sm); color: var(--text-muted); text-decoration: line-through; }

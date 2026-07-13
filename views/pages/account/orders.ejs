@@ -1,0 +1,46 @@
+<div class="account-page">
+  <div class="account-sidebar">
+    <nav class="account-nav" aria-label="Account navigation">
+      <a href="/account" class="account-nav-item">Dashboard</a>
+      <a href="/account/orders" class="account-nav-item active">Orders</a>
+      <a href="/account/addresses" class="account-nav-item">Addresses</a>
+      <form action="/account/logout" method="POST" style="margin:0">
+        <button type="submit" class="account-nav-item account-nav-logout">Sign Out</button>
+      </form>
+    </nav>
+  </div>
+
+  <div class="account-main">
+    <h1 class="account-title">Order History</h1>
+
+    <% if (orders.length === 0) { %>
+    <div class="account-empty">
+      <p>No orders found.</p>
+      <a href="/collections" class="btn btn-sage" style="margin-top:16px">Start Shopping</a>
+    </div>
+    <% } else { %>
+    <table class="orders-table">
+      <thead>
+        <tr>
+          <th>Order #</th>
+          <th>Date</th>
+          <th>Status</th>
+          <th>Items</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% orders.forEach(order => { %>
+        <tr>
+          <td><a href="/account/orders/<%= order.id %>" class="order-num"><%= order.order_number %></a></td>
+          <td><%= new Date(order.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) %></td>
+          <td><span class="order-status status-<%= order.status %>"><%= order.status %></span></td>
+          <td><%= order.item_count %></td>
+          <td>$<%= parseFloat(order.total).toLocaleString('en-US',{minimumFractionDigits:2}) %></td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+    <% } %>
+  </div>
+</div>

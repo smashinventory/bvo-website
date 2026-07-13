@@ -1,0 +1,52 @@
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <img src="/images/logos/BVOLOGOSQ_512.png" alt="BVO" width="60" height="60">
+    </div>
+    <h1 class="auth-title">Create Account</h1>
+    <p class="auth-sub">Join BathroomVanitiesOutlet.com</p>
+
+    <% if (error) { %>
+    <div class="auth-error" role="alert"><%= error %></div>
+    <% } %>
+
+    <form action="/account/register" method="POST" class="auth-form" novalidate>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="first_name">First name</label>
+          <input type="text" id="first_name" name="first_name" required autocomplete="given-name" placeholder="Jane">
+        </div>
+        <div class="form-group">
+          <label for="last_name">Last name</label>
+          <input type="text" id="last_name" name="last_name" required autocomplete="family-name" placeholder="Smith">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="email">Email address</label>
+        <input type="email" id="email" name="email" required autocomplete="email" placeholder="you@example.com">
+      </div>
+
+      <div class="form-group">
+        <label for="password">Password <span class="form-hint">(min 8 characters)</span></label>
+        <input type="password" id="password" name="password" required autocomplete="new-password" minlength="8" placeholder="••••••••">
+      </div>
+
+      <div class="form-group">
+        <label for="password2">Confirm password</label>
+        <input type="password" id="password2" name="password2" required autocomplete="new-password" placeholder="••••••••">
+      </div>
+
+      <label class="form-checkbox">
+        <input type="checkbox" name="accepts_marketing" value="1">
+        <span>Email me about new products and sale events</span>
+      </label>
+
+      <button type="submit" class="btn btn-amber" style="width:100%;padding:.85rem;margin-top:8px">Create Account</button>
+    </form>
+
+    <p class="auth-switch">
+      Already have an account? <a href="/account/login">Sign in</a>
+    </p>
+  </div>
+</div>

@@ -1,0 +1,154 @@
+<div class="adm-form-page">
+  <div class="adm-form-header">
+    <a href="/admin/products" class="adm-back-link">← Products</a>
+    <h1 class="adm-form-title"><%= isNew ? 'Add New Product' : 'Edit Product' %></h1>
+  </div>
+
+  <form
+    action="<%= isNew ? '/admin/products' : '/admin/products/' + product.id %>"
+    method="POST"
+    class="adm-form"
+    id="productForm"
+  >
+    <div class="adm-form-grid">
+
+      <!-- LEFT: main fields -->
+      <div class="adm-form-main">
+        <div class="adm-card">
+          <h2 class="adm-card-title">Basic Information</h2>
+
+          <div class="adm-form-group">
+            <label for="name">Product Name <span class="adm-required">*</span></label>
+            <input type="text" id="name" name="name" required
+              value="<%= product?.name || '' %>"
+              placeholder="e.g. 48&quot; Single Sink Vanity — White Marble">
+          </div>
+
+          <div class="adm-form-row">
+            <div class="adm-form-group">
+              <label for="slug">URL Slug</label>
+              <input type="text" id="slug" name="slug"
+                value="<%= product?.slug || '' %>"
+                placeholder="auto-generated from name">
+              <span class="adm-form-hint">Leave blank to auto-generate</span>
+            </div>
+            <div class="adm-form-group">
+              <label for="sku">SKU</label>
+              <input type="text" id="sku" name="sku"
+                value="<%= product?.sku || '' %>"
+                placeholder="e.g. JM-48-WM-001">
+            </div>
+          </div>
+
+          <div class="adm-form-row">
+            <div class="adm-form-group">
+              <label for="brand">Brand</label>
+              <input type="text" id="brand" name="brand"
+                value="<%= product?.brand || '' %>"
+                placeholder="e.g. James Martin">
+            </div>
+            <div class="adm-form-group">
+              <label for="category_id">Category</label>
+              <select id="category_id" name="category_id">
+                <option value="">— Select —</option>
+                <% categories.forEach(c => { %>
+                <option value="<%= c.id %>"
+                  <%= (product?.category_id == c.id) ? 'selected' : '' %>>
+                  <%= c.name %>
+                </option>
+                <% }) %>
+              </select>
+            </div>
+          </div>
+
+          <div class="adm-form-group">
+            <label for="description">Description</label>
+            <textarea id="description" name="description" rows="6"
+              placeholder="Product description…"><%= product?.description || '' %></textarea>
+          </div>
+        </div>
+
+        <div class="adm-card">
+          <h2 class="adm-card-title">Pricing</h2>
+          <div class="adm-form-row">
+            <div class="adm-form-group">
+              <label for="price">Price <span class="adm-required">*</span></label>
+              <div class="adm-input-prefix">
+                <span>$</span>
+                <input type="number" id="price" name="price" required
+                  min="0" step="0.01"
+                  value="<%= product?.price || '' %>"
+                  placeholder="0.00">
+              </div>
+            </div>
+            <div class="adm-form-group">
+              <label for="compare_price">Compare-At Price</label>
+              <div class="adm-input-prefix">
+                <span>$</span>
+                <input type="number" id="compare_price" name="compare_price"
+                  min="0" step="0.01"
+                  value="<%= product?.compare_price || '' %>"
+                  placeholder="0.00">
+              </div>
+              <span class="adm-form-hint">Shows a strikethrough "was" price</span>
+            </div>
+          </div>
+        </div>
+      </div><!-- /.adm-form-main -->
+
+      <!-- RIGHT: sidebar fields -->
+      <div class="adm-form-side">
+        <div class="adm-card">
+          <h2 class="adm-card-title">Status</h2>
+          <div class="adm-form-group">
+            <label for="active">Visibility</label>
+            <select id="active" name="active">
+              <option value="1" <%= (!product || product.active) ? 'selected' : '' %>>Active — visible in store</option>
+              <option value="0" <%= (product && !product.active) ? 'selected' : '' %>>Inactive — hidden from store</option>
+            </select>
+          </div>
+          <% if (product?.source_flag && product.source_flag !== 'manual') { %>
+          <div class="adm-form-group">
+            <label>Data Source</label>
+            <p class="adm-source adm-source--<%= product.source_flag %>"><%= product.source_flag %></p>
+            <span class="adm-form-hint">Imported products are updated by the sync service</span>
+          </div>
+          <% } %>
+        </div>
+
+        <div class="adm-card">
+          <h2 class="adm-card-title">Images</h2>
+          <p class="adm-form-hint" style="margin-bottom:12px">
+            Image upload will be available once the product is saved and the media manager is configured.
+          </p>
+          <% if (!isNew && product) { %>
+          <p class="adm-form-hint">Product ID: <strong><%= product.id %></strong></p>
+          <% } %>
+        </div>
+      </div><!-- /.adm-form-side -->
+
+    </div><!-- /.adm-form-grid -->
+
+    <div class="adm-form-actions">
+      <button type="submit" class="btn btn-primary">
+        <%= isNew ? 'Create Product' : 'Save Changes' %>
+      </button>
+      <a href="/admin/products" class="btn btn-outline">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<%- contentFor('script') %>
+<script>
+  // Auto-generate slug from name if slug field is empty
+  const nameInput = document.getElementById('name');
+  const slugInput = document.getElementById('slug');
+  nameInput?.addEventListener('input', () => {
+    if (!slugInput.value.trim()) {
+      slugInput.placeholder = nameInput.value
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+    }
+  });
+</script>

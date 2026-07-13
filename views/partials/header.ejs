@@ -1,0 +1,111 @@
+<% const S = settings || {}; const ps = S.promo_strip || {}; const nav = S.nav || {}; %>
+
+<!-- ── Promo strip ──────────────────────────────────────────────── -->
+<% if (ps.enabled !== false) { %>
+<div class="promo-strip" role="banner" aria-label="Promotional announcement">
+  <%= ps.message || 'Free Shipping on Every Order' %>
+  <% if (ps.link_url && ps.link_text) { %>
+  &nbsp;·&nbsp; <a href="<%= ps.link_url %>"><strong><%= ps.link_text %> →</strong></a>
+  <% } %>
+</div>
+<% } %>
+
+<!-- ── Site navigation ──────────────────────────────────────────── -->
+<header class="site-header">
+  <nav class="site-nav" aria-label="Main navigation">
+
+    <!-- Logo (never regenerated — locked asset) -->
+    <a href="/" class="nav-logo-link" aria-label="<%= (S.global || {}).site_name || 'BathroomVanitiesOutlet.com' %> — Home">
+      <img
+        class="nav-logo"
+        src="/images/logos/BVOLOGOSQ_512.png"
+        alt="<%= (S.global || {}).site_name || 'BathroomVanitiesOutlet.com' %> logo"
+        width="90"
+        height="90"
+        loading="eager"
+      >
+    </a>
+
+    <!-- Brand name -->
+    <a href="/" class="nav-brand" aria-hidden="true">
+      <%= nav.brand_line1 || 'BathroomVanities' %><span><%= nav.brand_line2 || 'Outlet' %></span><%= nav.brand_line3 || '.com' %>
+    </a>
+
+    <!-- Primary links -->
+    <ul class="nav-links" role="list">
+      <% (nav.links || []).forEach(link => { %>
+      <li><a href="<%= link.url %>"<%= link.highlight ? ' class="nav-link-sale"' : '' %>><%= link.label %></a></li>
+      <% }) %>
+    </ul>
+
+    <!-- Icon group: search · account · cart -->
+    <div class="nav-icons" aria-label="Site utilities">
+
+      <button class="nav-icon-btn" aria-label="Open search" aria-expanded="false"
+              aria-controls="site-search-bar" id="nav-search-btn">
+        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/>
+        </svg>
+      </button>
+
+      <a href="/account" class="nav-icon-btn" aria-label="My account">
+        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+        </svg>
+      </a>
+
+      <a href="/cart" class="nav-icon-btn nav-cart-wrap" aria-label="Shopping cart (<%= cart.count %> items)">
+        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+          <line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>
+        </svg>
+        <% if (cart.count > 0) { %>
+        <span class="nav-cart-badge" aria-hidden="true"><%= cart.count %></span>
+        <% } %>
+      </a>
+
+    </div>
+
+    <button class="nav-hamburger" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu">
+      <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" fill="none" stroke-width="2" aria-hidden="true">
+        <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+
+  </nav>
+
+  <!-- ── Search bar (hidden until icon click) ────────────────────── -->
+  <div class="site-search" id="site-search-bar" role="search" aria-label="Search products">
+    <div class="site-search-inner">
+      <label for="search-input" class="sr-only">Search products</label>
+      <svg class="site-search-icon" viewBox="0 0 24 24" width="18" height="18" fill="none"
+        stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/>
+      </svg>
+      <input
+        id="search-input"
+        type="search"
+        name="q"
+        placeholder="Search vanities, faucets, mirrors…"
+        autocomplete="off"
+        spellcheck="false"
+        aria-label="Search products"
+        aria-controls="search-results"
+        aria-autocomplete="list"
+      >
+      <div id="search-results" class="search-results-wrap" hidden role="listbox" aria-label="Search suggestions"></div>
+    </div>
+  </div>
+
+  <!-- Mobile drawer -->
+  <div id="mobile-menu" class="mobile-menu" aria-hidden="true">
+    <ul role="list">
+      <% (nav.links || []).forEach(link => { %>
+      <li><a href="<%= link.url %>"<%= link.highlight ? ' class="nav-link-sale"' : '' %>><%= link.label %></a></li>
+      <% }) %>
+      <li><a href="/account">My Account</a></li>
+      <li><a href="/cart">Cart (<%= cart.count %>)</a></li>
+    </ul>
+  </div>
+
+</header>

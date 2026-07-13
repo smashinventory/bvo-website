@@ -1,0 +1,61 @@
+<% const S = settings || {}; const ft = S.footer || {}; const gl = S.global || {}; const nav = S.nav || {}; %>
+<footer class="site-footer" aria-label="Site footer">
+  <div class="footer-inner">
+
+    <div class="footer-grid">
+
+      <!-- Brand column -->
+      <div class="footer-brand">
+        <a href="/" aria-label="<%= gl.site_name || 'BathroomVanitiesOutlet.com' %> — Home">
+          <img src="/images/logos/BVOLOGOSQ_512.png"
+               alt="<%= gl.site_name || 'BathroomVanitiesOutlet.com' %>"
+               width="52" height="52" loading="lazy">
+        </a>
+        <h3><%= nav.brand_line1 || 'BathroomVanities' %><span><%= nav.brand_line2 || 'Outlet' %></span><%= nav.brand_line3 || '.com' %></h3>
+        <p><%= ft.brand_desc || 'Premium vanities, mirrors, faucets &amp; accessories — at prices that make sense. Free shipping on every order.' %></p>
+        <div class="footer-trust-logos" aria-label="Accepted payment methods">
+          <!-- GMC / trust badges can go here -->
+        </div>
+      </div>
+
+      <!-- Shop column -->
+      <div class="footer-col">
+        <h4><%= ft.col_shop_heading || 'Shop' %></h4>
+        <ul role="list">
+          <% (ft.col_shop_links || []).forEach(l => { %>
+          <li><a href="<%= l.url %>"><%= l.label %></a></li>
+          <% }) %>
+        </ul>
+      </div>
+
+      <!-- Help column -->
+      <div class="footer-col">
+        <h4><%= ft.col_help_heading || 'Help' %></h4>
+        <ul role="list">
+          <% (ft.col_help_links || []).forEach(l => { %>
+          <li><a href="<%= l.url %>"><%= l.label %></a></li>
+          <% }) %>
+        </ul>
+      </div>
+
+      <!-- Company column -->
+      <div class="footer-col">
+        <h4><%= ft.col_company_heading || 'Company' %></h4>
+        <ul role="list">
+          <% (ft.col_company_links || []).forEach(l => { %>
+          <li><a href="<%= l.url %>"><%= l.label %></a></li>
+          <% }) %>
+        </ul>
+      </div>
+
+    </div><!-- /footer-grid -->
+
+    <div class="footer-bottom">
+      <span>&copy; <%= new Date().getFullYear() %> <%= ft.copyright_name || gl.site_name || 'BathroomVanitiesOutlet.com' %>. All rights reserved.</span>
+      <div class="footer-payment-icons" aria-label="Payment methods accepted">
+        <span class="payment-label">Secure checkout</span>
+      </div>
+    </div>
+
+  </div>
+</footer>

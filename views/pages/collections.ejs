@@ -1,0 +1,41 @@
+<!-- All Collections -->
+<section class="cat-header">
+  <div class="cat-header-inner">
+    <h1>All Collections</h1>
+    <p>Browse our full range of premium bathroom products</p>
+  </div>
+</section>
+
+<div class="breadcrumb">
+  <a href="/">Home</a> &rsaquo; Collections
+</div>
+
+<section class="section">
+  <div class="section-header">
+    <p class="section-eyebrow">Shop by Category</p>
+    <h2 class="section-title">Everything Your Bathroom Needs</h2>
+  </div>
+
+  <div class="category-grid">
+    <% categories.forEach(cat => { %>
+    <a href="/collections/<%= cat.slug %>" class="cat-card">
+      <div class="cat-img">
+        <% if (cat.image_url) { %>
+          <img src="<%= cat.image_url %>" alt="<%= cat.name %>" loading="lazy">
+        <% } else { %>
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>
+        <% } %>
+      </div>
+      <div class="cat-body">
+        <h3><%= cat.name %></h3>
+        <% if (cat.description) { %><p><%= cat.description %></p><% } %>
+        <span class="cat-link">Shop Now →</span>
+      </div>
+    </a>
+    <% }) %>
+  </div>
+</section>

@@ -1,0 +1,101 @@
+<div class="cart-page">
+
+  <div class="cart-header">
+    <h1>Your Cart <span class="cart-count-label">(<%= cart.count %> <%= cart.count === 1 ? 'item' : 'items' %>)</span></h1>
+  </div>
+
+  <% if (cart.items.length === 0) { %>
+  <!-- Empty cart -->
+  <div class="cart-empty">
+    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" aria-hidden="true" style="opacity:.3;margin:0 auto 20px">
+      <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+      <line x1="3" y1="6" x2="21" y2="6"/>
+      <path d="M16 10a4 4 0 0 1-8 0"/>
+    </svg>
+    <p>Your cart is empty.</p>
+    <a href="/collections" class="btn btn-sage" style="margin-top:20px">Start Shopping</a>
+  </div>
+
+  <% } else { %>
+  <div class="cart-layout">
+
+    <!-- ── Line items ─────────────────────────────────────────────── -->
+    <div class="cart-items">
+      <% cart.items.forEach(item => { %>
+      <div class="cart-item">
+        <!-- Image -->
+        <div class="cart-item-img">
+          <% if (item.image) { %>
+            <img src="<%= item.image %>" alt="<%= item.name %>" loading="lazy">
+          <% } else { %>
+            <div class="cart-img-placeholder"></div>
+          <% } %>
+        </div>
+
+        <!-- Info -->
+        <div class="cart-item-info">
+          <a href="/products/<%= item.slug %>" class="cart-item-name"><%= item.name %></a>
+          <p class="cart-item-price">$<%= item.price.toLocaleString('en-US',{minimumFractionDigits:2}) %> each</p>
+        </div>
+
+        <!-- Qty + remove -->
+        <div class="cart-item-actions">
+          <form action="/cart/update" method="POST" class="cart-qty-form">
+            <input type="hidden" name="product_id" value="<%= item.product_id %>">
+            <div class="detail-qty" style="margin-bottom:8px">
+              <button class="qty-btn" type="submit" name="qty" value="<%= item.qty - 1 %>" aria-label="Decrease">−</button>
+              <span class="qty-val"><%= item.qty %></span>
+              <button class="qty-btn" type="submit" name="qty" value="<%= item.qty + 1 %>" aria-label="Increase">+</button>
+            </div>
+          </form>
+          <form action="/cart/remove" method="POST">
+            <input type="hidden" name="product_id" value="<%= item.product_id %>">
+            <button type="submit" class="cart-remove-btn">Remove</button>
+          </form>
+        </div>
+
+        <!-- Line total -->
+        <div class="cart-item-total">
+          $<%= (item.qty * item.price).toLocaleString('en-US',{minimumFractionDigits:2}) %>
+        </div>
+      </div>
+      <% }) %>
+    </div><!-- /cart-items -->
+
+    <!-- ── Order summary ──────────────────────────────────────────── -->
+    <aside class="cart-summary">
+      <h2>Order Summary</h2>
+
+      <div class="summary-row">
+        <span>Subtotal</span>
+        <span>$<%= cart.subtotal.toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
+      </div>
+      <div class="summary-row summary-shipping">
+        <span>Shipping</span>
+        <span class="free-label">FREE</span>
+      </div>
+      <div class="summary-row summary-total">
+        <span>Total</span>
+        <span>$<%= cart.subtotal.toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
+      </div>
+
+      <p class="summary-note">Taxes calculated at checkout</p>
+
+      <a href="/checkout" class="btn btn-amber" style="width:100%;margin-bottom:12px;padding:.9rem">
+        Proceed to Checkout
+      </a>
+      <a href="/collections" class="btn btn-outline" style="width:100%;text-align:center">
+        Continue Shopping
+      </a>
+
+      <div class="summary-trust">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        Secure checkout — 256-bit SSL
+      </div>
+    </aside>
+
+  </div><!-- /cart-layout -->
+  <% } %>
+</div>

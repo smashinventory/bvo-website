@@ -1,0 +1,509 @@
+'use strict';
+/* BathroomVanitiesOutlet.com — Site JS */
+
+// ── Before/After Slider ────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function () {
+  var wrap   = document.querySelector('.ba-slider-wrap');
+  var before = document.getElementById('baBefore');
+  var handle = document.getElementById('baHandle');
+  if (!wrap || !before || !handle) return;
+
+  // Keep CSS var in sync so before-image always matches full slider width
+  function syncWidth() {
+    wrap.style.setProperty('--slider-w', wrap.offsetWidth + 'px');
+  }
+  syncWidth();
+  window.addEventListener('resize', syncWidth);
+
+  function setPos(pct) {
+    pct = Math.min(100, Math.max(0, pct));
+    before.style.width = pct + '%';
+    handle.style.left  = pct + '%';
+    handle.setAttribute('aria-valuenow', Math.round(pct));
+  }
+  var _baSlider   = document.getElementById('baSlider');
+  var _baInitial  = _baSlider ? parseFloat(_baSlider.dataset.initial) : NaN;
+  setPos(isNaN(_baInitial) ? 50 : _baInitial);
+
+  function getPct(clientX) {
+    var r = wrap.getBoundingClientRect();
+    return ((clientX - r.left) / r.width) * 100;
+  }
+
+  // Click anywhere to jump, then drag
+  wrap.addEventListener('mousedown', function (e) {
+    e.preventDefault();
+    setPos(getPct(e.clientX));
+    function onMove(e) { setPos(getPct(e.clientX)); }
+    function onUp()   { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup',   onUp);
+  });
+
+  // Touch
+  wrap.addEventListener('touchstart', function (e) {
+    setPos(getPct(e.touches[0].clientX));
+    function onMove(e) { e.preventDefault(); setPos(getPct(e.touches[0].clientX)); }
+    function onEnd()   { wrap.removeEventListener('touchmove', onMove); wrap.removeEventListener('touchend', onEnd); }
+    wrap.addEventListener('touchmove', onMove, { passive: false });
+    wrap.addEventListener('touchend',  onEnd);
+  }, { passive: true });
+
+  // Keyboard on handle
+  handle.addEventListener('keydown', function (e) {
+    var cur = parseFloat(handle.getAttribute('aria-valuenow') || 50);
+    if (e.key === 'ArrowLeft')  { setPos(cur - 2); e.preventDefault(); }
+    if (e.key === 'ArrowRight') { setPos(cur + 2); e.preventDefault(); }
+  });
+});
+
+// ── Newsletter form ────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function () {
+  var nForm = document.getElementById('newsletterForm');
+  if (!nForm) return;
+  nForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var email = nForm.querySelector('[name="email"]').value.trim();
+    if (!email) return;
+    fetch('/account/newsletter', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email })
+    }).catch(function () {});
+    var wrap = nForm.querySelector('.newsletter-input-wrap');
+    if (wrap) wrap.style.display = 'none';
+    var s = document.getElementById('newsletterSuccess');
+    if (s) s.hidden = false;
+  });
+});
+
+// ── Filter sidebar collapse/expand ────────────────────────────────
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('.filter-group-toggle').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var expanded = btn.getAttribute('aria-expanded') === 'true';
+      btn.setAttribute('aria-expanded', String(!expanded));
+      var body = btn.nextElementSibling;
+      if (body) body.classList.toggle('is-collapsed', expanded);
+    });
+  });
+});
+
+// ── Scroll-position preservation across filter/sort changes ───────
+(function () {
+  var SCROLL_KEY = 'bvo_filter_scroll';
+
+  // Restore scroll position immediately on load (before DOMContentLoaded)
+  // so the page doesn't flash at the top. rAF ensures layout is ready first.
+  var savedY = sessionStorage.getItem(SCROLL_KEY);
+  if (savedY !== null) {
+    sessionStorage.removeItem(SCROLL_KEY);
+    requestAnimationFrame(function () {
+      window.scrollTo(0, parseInt(savedY, 10));
+    });
+  }
+
+  function saveScroll() {
+    sessionStorage.setItem(SCROLL_KEY, window.scrollY);
+  }
+
+  // Export so the color-filter block (below) can call it before navigating
+  window._bvoSaveScroll = saveScroll;
+
+  document.addEventListener('DOMContentLoaded', function () {
+    // Save scroll before any filter or sort form submission
+    var filterForm = document.getElementById('filter-form');
+    if (filterForm) filterForm.addEventListener('submit', saveScroll);
+
+    var sortForm = document.getElementById('sort-form');
+    if (sortForm) sortForm.addEventListener('submit', saveScroll);
+
+    // Auto-select price input text on focus so typing immediately replaces
+    // the old value instead of appending to it.
+    document.querySelectorAll('input[name="min_price"], input[name="max_price"]').forEach(function (el) {
+      el.addEventListener('focus', function () { this.select(); });
+    });
+
+    // ── Checkbox filter navigation ─────────────────────────────────
+    // Delegated listener on the whole filter panel so it works for
+    // every checkbox regardless of inline-script restrictions.
+    // Cabinet-color uses its own JS (color swatches + sub-chips);
+    // price range uses a submit button — both are intentionally excluded.
+    var filterPanel = document.querySelector('.filter-panel');
+    if (filterPanel) {
+      filterPanel.addEventListener('change', function (e) {
+        var el = e.target;
+        if (el.type !== 'checkbox') return;
+        // Skip checkboxes inside the cabinet-color group (handled separately)
+        if (el.closest && el.closest('#color-filter-group')) return;
+
+        saveScroll();
+        var sp  = new URLSearchParams(window.location.search);
+        sp.delete('page');
+        var key      = el.name;
+        var value    = el.value;
+        var existing = sp.getAll(key);
+
+        if (el.checked) {
+          if (!existing.includes(value)) sp.append(key, value);
+        } else {
+          sp.delete(key);
+          existing.filter(function (v) { return v !== value; })
+                  .forEach(function (v) { sp.append(key, v); });
+        }
+        window.location.search = sp.toString();
+      });
+    }
+  });
+})();
+
+// ── Product page: gallery switcher + qty stepper ─────────────────
+// Guard: only runs when product detail elements are present.
+(function () {
+  var mainImg = document.getElementById('main-img');
+  if (!mainImg) return;
+
+  // Thumb click → swap main image
+  document.querySelectorAll('.detail-thumb').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      mainImg.src = btn.dataset.src;
+      document.querySelectorAll('.detail-thumb').forEach(function (t) { t.classList.remove('active'); });
+      btn.classList.add('active');
+    });
+  });
+
+  // Qty stepper (changeQty called by onclick in HTML)
+  var qtyVal = document.getElementById('qty-val');
+  var atcQty = document.getElementById('atc-qty');
+  var _qty   = 1;
+  window.changeQty = function (delta) {
+    _qty = Math.max(1, _qty + delta);
+    if (qtyVal) qtyVal.textContent = _qty;
+    if (atcQty) atcQty.value = _qty;
+  };
+})();
+
+// ── Predictive search overlay ─────────────────────────────────────
+(function () {
+  var input   = document.getElementById('search-input');
+  var results = document.getElementById('search-results');
+  if (!input || !results) return;
+
+  var timer;
+
+  function renderHit(h) {
+    var price = h.price ? '$' + parseFloat(h.price).toFixed(2) : '';
+    var img   = h.image
+      ? '<img src="' + h.image + '" alt="' + h.name + '" loading="lazy">'
+      : '<span class="search-hit-img-placeholder"></span>';
+    var badge = h.badge
+      ? '<span class="product-badge badge-' + h.badge + '" style="font-size:.6rem;padding:2px 6px">' + h.badge.toUpperCase() + '</span>'
+      : '';
+    return '<a href="' + h.url + '" class="search-hit">'
+      + '<div class="search-hit-img">' + img + '</div>'
+      + '<div class="search-hit-body">'
+      +   '<span class="search-hit-name">' + h.name + '</span>'
+      +   (h.brand ? '<span class="search-hit-brand">' + h.brand + '</span>' : '')
+      +   '<span class="search-hit-price">' + price + ' ' + badge + '</span>'
+      + '</div>'
+      + '</a>';
+  }
+
+  function search(q) {
+    if (q.length < 2) { results.hidden = true; results.innerHTML = ''; return; }
+    fetch('/api/search/predict?q=' + encodeURIComponent(q) + '&limit=8')
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data.hits || !data.hits.length) {
+          results.innerHTML = '<p class="search-no-results">No results for "' + q + '"</p>';
+        } else {
+          results.innerHTML = data.hits.map(renderHit).join('');
+        }
+        results.hidden = false;
+      })
+      .catch(function () { results.hidden = true; });
+  }
+
+  input.addEventListener('input', function () {
+    clearTimeout(timer);
+    timer = setTimeout(function () { search(input.value.trim()); }, 220);
+  });
+
+  // Hide on click outside
+  document.addEventListener('click', function (e) {
+    if (!input.contains(e.target) && !results.contains(e.target)) {
+      results.hidden = true;
+    }
+  });
+
+  // Keyboard: Escape closes, Enter goes to /search
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { results.hidden = true; input.blur(); }
+    if (e.key === 'Enter') {
+      var q = input.value.trim();
+      if (q) window.location = '/search?q=' + encodeURIComponent(q);
+    }
+  });
+})();
+
+// ── Color family filter ────────────────────────────────────────────
+(function () {
+  var familyRow = document.getElementById('color-family-row');
+  if (!familyRow) return;
+
+  // ── URL param helpers ──────────────────────────────────────────
+  function getColorState() {
+    var sp = new URLSearchParams(window.location.search);
+    return {
+      families: sp.getAll('color_family'),
+      exact:    sp.getAll('color_exact'),
+    };
+  }
+
+  function navigate(families, exact) {
+    if (window._bvoSaveScroll) window._bvoSaveScroll();
+    var sp = new URLSearchParams(window.location.search);
+    sp.delete('color_family');
+    sp.delete('color_exact');
+    sp.delete('page');  // reset pagination on filter change
+    families.forEach(function (f) { sp.append('color_family', f); });
+    exact.forEach(function (e)    { sp.append('color_exact',   e); });
+    window.location.search = sp.toString();
+  }
+
+  // ── Family swatch click ────────────────────────────────────────
+  familyRow.querySelectorAll('[data-color-key]').forEach(function (sw) {
+    sw.addEventListener('click', function () {
+      var key    = sw.dataset.colorKey;
+      var state  = getColorState();
+      var subRow = document.getElementById('color-sub-' + key);
+
+      // Collect all exact values that belong to this family
+      var familyMembers = [];
+      if (subRow) {
+        subRow.querySelectorAll('[data-color-exact]').forEach(function (chip) {
+          familyMembers.push(chip.dataset.colorExact);
+        });
+      }
+
+      var isActive = state.families.includes(key) ||
+        state.exact.some(function (e) { return familyMembers.includes(e); });
+
+      if (isActive) {
+        // Deselect: remove this family + all its exact values
+        navigate(
+          state.families.filter(function (f) { return f !== key; }),
+          state.exact.filter(function (e)    { return !familyMembers.includes(e); })
+        );
+      } else {
+        // Select at family level (clear any stale exact values for this family first)
+        var newFamilies = state.families.concat([key]);
+        var newExact    = state.exact.filter(function (e) { return !familyMembers.includes(e); });
+        navigate(newFamilies, newExact);
+      }
+    });
+
+    // Keyboard accessibility
+    sw.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); sw.click(); }
+    });
+  });
+
+  // ── Sub-chip click (multi-select within family) ────────────────
+  document.querySelectorAll('.color-sub-chip[data-color-exact]').forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      var value     = chip.dataset.colorExact;
+      var familyKey = chip.dataset.colorFamily;
+      var state     = getColorState();
+
+      // All exact values for this family (from the sub-chip row)
+      var subRow = document.getElementById('color-sub-' + familyKey);
+      var familyMembers = [];
+      if (subRow) {
+        subRow.querySelectorAll('[data-color-exact]').forEach(function (c) {
+          familyMembers.push(c.dataset.colorExact);
+        });
+      }
+
+      var newFamilies = state.families.slice();
+      var newExact    = state.exact.slice();
+
+      if (newExact.includes(value)) {
+        // Deselect this chip
+        newExact = newExact.filter(function (e) { return e !== value; });
+        // If no more exact values remain for this family, also clear the family
+        var remaining = newExact.filter(function (e) { return familyMembers.includes(e); });
+        if (!remaining.length) {
+          newFamilies = newFamilies.filter(function (f) { return f !== familyKey; });
+        }
+      } else {
+        // Select this chip
+        // Ensure the family key is present (so family swatch stays highlighted)
+        if (!newFamilies.includes(familyKey)) newFamilies.push(familyKey);
+        // Remove family-level-only entry if switching to sub-chip mode
+        // (family swatch stays active but filter is driven by exact values)
+        newExact.push(value);
+      }
+
+      navigate(newFamilies, newExact);
+    });
+  });
+
+  // ── On page load: open sub-chip rows for families with active state ──
+  // (The server renders is-open via EJS, but JS handles edge cases)
+  document.querySelectorAll('.color-sub-row.is-open').forEach(function (row) {
+    row.style.display = 'block';
+  });
+})();
+
+// ── Search toggle (magnifying glass icon) ─────────────────────────
+(function () {
+  var searchBtn  = document.getElementById('nav-search-btn');
+  var searchBar  = document.getElementById('site-search-bar');
+  var searchInput = document.getElementById('search-input');
+  var searchResults = document.getElementById('search-results');
+  if (!searchBtn || !searchBar) return;
+
+  var _expandTimer;
+
+  function openSearch() {
+    searchBar.classList.add('is-open');
+    searchBtn.setAttribute('aria-expanded', 'true');
+    searchBtn.setAttribute('aria-label', 'Close search');
+    // After the 280ms slide animation, switch overflow to visible so the
+    // results dropdown can render below the search bar (otherwise clipped).
+    _expandTimer = setTimeout(function () {
+      searchBar.classList.add('is-expanded');
+      if (searchInput) searchInput.focus();
+    }, 300);
+  }
+
+  function closeSearch() {
+    clearTimeout(_expandTimer);
+    // Remove is-expanded first so overflow:hidden snaps back before collapsing
+    searchBar.classList.remove('is-expanded');
+    searchBar.classList.remove('is-open');
+    searchBtn.setAttribute('aria-expanded', 'false');
+    searchBtn.setAttribute('aria-label', 'Open search');
+    if (searchResults) { searchResults.hidden = true; searchResults.innerHTML = ''; }
+  }
+
+  searchBtn.addEventListener('click', function () {
+    var isOpen = searchBar.classList.contains('is-open');
+    isOpen ? closeSearch() : openSearch();
+  });
+
+  // Escape key closes search
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && searchBar.classList.contains('is-open')) {
+      closeSearch();
+      searchBtn.focus();
+    }
+  });
+
+  // Click outside header closes search
+  document.addEventListener('click', function (e) {
+    var header = document.querySelector('.site-header');
+    if (header && !header.contains(e.target) && searchBar.classList.contains('is-open')) {
+      closeSearch();
+    }
+  });
+})();
+
+// ── Model card: finish swatch swap + carousel arrows ─────────────────
+(function () {
+
+  // ── Finish swatch swap (works on any page containing model cards) ──
+  // Single document-level listener covers both the homepage carousel
+  // and the full vanity-models grid page.
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.model-card-swatch');
+    if (!btn) return;
+
+    var imgId = btn.dataset.targetImg;
+    var img   = imgId ? document.getElementById(imgId) : null;
+    if (img) img.src = btn.dataset.image;
+
+    var group = btn.closest('.model-card-swatches');
+    if (group) {
+      group.querySelectorAll('.model-card-swatch').forEach(function (s) {
+        s.classList.remove('is-active');
+      });
+      btn.classList.add('is-active');
+    }
+  });
+
+  // ── Homepage carousel arrow buttons ──────────────────────────────
+  var track = document.getElementById('fmCarouselTrack');
+  var btnL  = document.getElementById('fmArrowLeft');
+  var btnR  = document.getElementById('fmArrowRight');
+  if (!track || !btnL || !btnR) return;
+
+  var VISIBLE = 4;   // cards shown at once
+  var GAP     = 20;  // px — matches 1.25rem gap in CSS
+
+  // Set card widths so exactly VISIBLE cards fill the track
+  function sizeCards() {
+    var trackW = track.offsetWidth;
+    if (!trackW) return;
+    var cardW = Math.floor((trackW - (VISIBLE - 1) * GAP) / VISIBLE);
+    track.querySelectorAll('.model-card').forEach(function (card) {
+      card.style.width    = cardW + 'px';
+      card.style.minWidth = cardW + 'px';
+    });
+    syncArrows();
+  }
+
+  // Show/hide arrows based on scroll position
+  function syncArrows() {
+    var atStart = track.scrollLeft <= 2;
+    var atEnd   = track.scrollLeft + track.clientWidth >= track.scrollWidth - 2;
+    if (atStart) { btnL.setAttribute('hidden', ''); } else { btnL.removeAttribute('hidden'); }
+    if (atEnd)   { btnR.setAttribute('hidden', ''); } else { btnR.removeAttribute('hidden'); }
+  }
+
+  // Scroll by one card width (plus gap) per arrow click
+  function scrollAmt() {
+    var card = track.querySelector('.model-card');
+    return card ? card.offsetWidth + GAP : 280;
+  }
+
+  btnL.addEventListener('click', function () {
+    track.scrollBy({ left: -scrollAmt(), behavior: 'smooth' });
+  });
+  btnR.addEventListener('click', function () {
+    track.scrollBy({ left: scrollAmt(), behavior: 'smooth' });
+  });
+  track.addEventListener('scroll', syncArrows, { passive: true });
+
+  // Init — wait for layout to settle
+  sizeCards();
+  window.addEventListener('resize', sizeCards);
+  // Re-run after fonts/images may have shifted layout
+  window.addEventListener('load', sizeCards);
+})();
+
+// ── Mobile nav toggle ──────────────────────────────────────────────
+(function () {
+  var hamburger  = document.querySelector('.nav-hamburger');
+  var mobileMenu = document.getElementById('mobile-menu');
+
+  if (hamburger && mobileMenu) {
+    hamburger.addEventListener('click', function () {
+      var open = mobileMenu.classList.toggle('is-open');
+      hamburger.setAttribute('aria-expanded', String(open));
+      mobileMenu.setAttribute('aria-hidden', String(!open));
+    });
+  }
+
+  // Close mobile menu on outside click
+  document.addEventListener('click', function (e) {
+    if (mobileMenu && mobileMenu.classList.contains('is-open')) {
+      if (!mobileMenu.contains(e.target) && !hamburger.contains(e.target)) {
+        mobileMenu.classList.remove('is-open');
+        hamburger.setAttribute('aria-expanded', 'false');
+        mobileMenu.setAttribute('aria-hidden', 'true');
+      }
+    }
+  });
+})();

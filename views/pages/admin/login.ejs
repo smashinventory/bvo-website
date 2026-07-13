@@ -1,0 +1,28 @@
+<div class="admin-login-page">
+  <div class="admin-login-card">
+    <div class="admin-login-logo">
+      <img src="/images/logos/BVOLOGOSQ_512.png" alt="BVO" width="64" height="64">
+    </div>
+    <h1 class="admin-login-title">BVO Admin</h1>
+
+    <% if (error) { %>
+    <div class="admin-flash admin-flash-error" role="alert"><%= error %></div>
+    <% } %>
+
+    <form action="/admin/login" method="POST" class="admin-login-form" autocomplete="on">
+      <div class="adm-form-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" required autocomplete="username" placeholder="admin">
+      </div>
+      <div class="adm-form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required autocomplete="current-password" placeholder="••••••••">
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%;padding:.85rem;margin-top:8px">Sign In</button>
+    </form>
+
+    <p style="text-align:center;margin-top:20px;font-size:.8rem;color:var(--color-sage)">
+      <a href="/" style="color:var(--color-sage)">← Back to store</a>
+    </p>
+  </div>
+</div>

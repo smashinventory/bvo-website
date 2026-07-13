@@ -1,0 +1,246 @@
+<!-- Breadcrumb -->
+<div class="breadcrumb">
+  <a href="/">Home</a> &rsaquo;
+  <% if (category) { %><a href="/collections/<%= category.slug %>"><%= category.name %></a> &rsaquo;<% } %>
+  <span><%= product.name %></span>
+</div>
+
+<!-- ── Product Detail Layout ──────────────────────────────────────── -->
+<div class="detail-layout">
+
+  <!-- ── Gallery ──────────────────────────────────────────────────── -->
+  <div class="detail-gallery">
+    <!-- Main image -->
+    <div class="detail-main-img" id="main-img-wrap">
+      <% const primaryImg = product.images.find(i => i.is_primary) || product.images[0]; %>
+      <% if (primaryImg) { %>
+        <img id="main-img" src="<%= primaryImg.url %>" alt="<%= primaryImg.alt_text || product.name %>" loading="eager">
+      <% } else { %>
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" aria-hidden="true">
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+          <circle cx="8.5" cy="8.5" r="1.5"/>
+          <polyline points="21 15 16 10 5 21"/>
+        </svg>
+      <% } %>
+    </div>
+    <!-- Thumbnails -->
+    <% if (product.images.length > 1) { %>
+    <div class="detail-thumbs" role="list" aria-label="Product images">
+      <% product.images.forEach((img, idx) => { %>
+      <button
+        class="detail-thumb <%= idx === 0 ? 'active' : '' %>"
+        data-src="<%= img.url %>"
+        aria-label="View image <%= idx + 1 %>"
+        onclick="switchImg(this)"
+      >
+        <img src="<%= img.url %>" alt="<%= img.alt_text || '' %>" loading="lazy">
+      </button>
+      <% }) %>
+    </div>
+    <% } %>
+  </div>
+
+  <!-- ── Product info ──────────────────────────────────────────────── -->
+  <div class="detail-info">
+
+    <!-- Badges -->
+    <div class="detail-badges">
+      <% if (product.badge === 'sale')  { %><span class="product-badge badge-sale">SALE</span><% } %>
+      <% if (product.badge === 'new')   { %><span class="product-badge badge-new">NEW</span><% } %>
+      <% if (product.badge === 'best')  { %><span class="product-badge badge-best">BEST SELLER</span><% } %>
+      <% if (!product.inStock)          { %><span class="product-badge" style="background:#7A7264">OUT OF STOCK</span><% } %>
+    </div>
+
+    <% if (product.brand) { %><p class="product-brand" style="margin-bottom:6px"><%= product.brand %></p><% } %>
+    <h1 class="detail-title"><%= product.name %></h1>
+    <p class="detail-sku">SKU: <%= product.sku %></p>
+
+    <!-- Price -->
+    <div class="detail-price-row">
+      <span class="detail-price">$<%= product.price.toLocaleString('en-US', {minimumFractionDigits:2}) %></span>
+      <% if (product.compare_price && product.compare_price > product.price) { %>
+      <span class="detail-was">$<%= product.compare_price.toLocaleString('en-US', {minimumFractionDigits:2}) %></span>
+      <span class="detail-save">Save <%= product.savingsPct %>%</span>
+      <% } %>
+    </div>
+    <p class="detail-shipping">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+        <rect x="1" y="3" width="15" height="13" rx="1"/>
+        <path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+      </svg>
+      Free shipping — arrives in 5–10 business days
+    </p>
+
+    <hr class="detail-rule">
+
+    <!-- Short description -->
+    <% if (product.short_desc) { %>
+    <p class="detail-short-desc"><%= product.short_desc %></p>
+    <hr class="detail-rule">
+    <% } %>
+
+    <!-- Qty stepper -->
+    <div class="detail-qty" role="group" aria-label="Quantity">
+      <button class="qty-btn" type="button" aria-label="Decrease quantity" onclick="changeQty(-1)">−</button>
+      <span class="qty-val" id="qty-val">1</span>
+      <button class="qty-btn" type="button" aria-label="Increase quantity" onclick="changeQty(1)">+</button>
+    </div>
+
+    <!-- CTAs -->
+    <div class="detail-ctas">
+      <form action="/cart/add" method="POST">
+        <input type="hidden" name="product_id" value="<%= product.id %>">
+        <input type="hidden" name="slug"        value="<%= product.slug %>">
+        <input type="hidden" name="name"        value="<%= product.name %>">
+        <input type="hidden" name="price"       value="<%= product.price %>">
+        <input type="hidden" name="image"       value="<%= (product.images[0]||{}).url||'' %>">
+        <input type="hidden" name="qty"         id="atc-qty" value="1">
+        <button type="submit" class="btn btn-amber" <%= !product.inStock ? 'disabled' : '' %> style="width:100%">
+          <%= product.inStock ? 'Add to Cart' : 'Out of Stock' %>
+        </button>
+      </form>
+      <a href="#" class="btn btn-outline" style="width:100%;text-align:center">♡ &nbsp;Save to Wishlist</a>
+    </div>
+
+    <!-- Specs -->
+    <% if (product.attributes.length > 0) { %>
+    <div class="detail-specs">
+      <h4>Specifications</h4>
+      <%
+        /* Attr keys whose numeric/text values represent inches — display with " suffix */
+        var _inchKeys = new Set(['size_in','width_in','depth_in','height_in',
+                                 'sink_depth_in','sink_width_in','sink_basin_depth_in',
+                                 'countertop_thickness','faucet_spread_in']);
+      %>
+      <% product.attributes.forEach(function(attr) {
+           /* Label: prefer display_name from DB; fall back to prettifying attr_key.
+              Strip trailing _in from machine keys (size_in → Size, height_in → Height). */
+           var _label = (attr.display_name && attr.display_name !== attr.attr_key)
+             ? attr.display_name
+             : attr.attr_key.replace(/_in$/, '').replace(/_/g, ' ')
+                            .replace(/\b\w/g, function(c){ return c.toUpperCase(); });
+
+           /* Value: append " for inch measurements; show boolean as Yes/No */
+           var _isInch = _inchKeys.has(attr.attr_key);
+           var _val;
+           if (attr.value_text) {
+             _val = _isInch ? attr.value_text + '”' : attr.value_text;
+           } else if (attr.value_num != null) {
+             _val = _isInch ? attr.value_num + '”' : String(attr.value_num);
+           } else {
+             _val = attr.attr_value || '';
+           }
+      %>
+      <div class="spec-row">
+        <span class="spec-label"><%= _label %></span>
+        <span class="spec-val"><%= _val %></span>
+      </div>
+      <% }) %>
+      <% if (product.width_in) { %>
+      <div class="spec-row"><span class="spec-label">Width</span><span class="spec-val"><%= product.width_in %>"</span></div>
+      <% } %>
+      <% if (product.depth_in) { %>
+      <div class="spec-row"><span class="spec-label">Depth</span><span class="spec-val"><%= product.depth_in %>"</span></div>
+      <% } %>
+      <% if (product.height_in) { %>
+      <div class="spec-row"><span class="spec-label">Height</span><span class="spec-val"><%= product.height_in %>"</span></div>
+      <% } %>
+      <% if (product.weight_lbs) { %>
+      <div class="spec-row"><span class="spec-label">Weight</span><span class="spec-val"><%= product.weight_lbs %> lbs</span></div>
+      <% } %>
+    </div>
+    <% } %>
+
+  </div><!-- /detail-info -->
+</div><!-- /detail-layout -->
+
+<!-- Long description -->
+<% if (product.long_desc) { %>
+<section class="section product-desc-section">
+  <div class="product-desc-inner">
+    <h2>Product Description</h2>
+    <div class="product-desc-body"><%- product.long_desc %></div>
+  </div>
+</section>
+<% } %>
+
+<!-- Related products -->
+<% if (related.length > 0) { %>
+<section class="related-section" aria-labelledby="related-heading">
+  <div class="section-header">
+    <p class="section-eyebrow">You May Also Like</p>
+    <h2 class="section-title" id="related-heading">Related Products</h2>
+  </div>
+  <div class="product-grid" style="grid-template-columns:repeat(4,1fr)">
+    <% related.forEach(p => { %>
+    <article class="product-card">
+      <a href="/products/<%= p.slug %>" class="product-img-link">
+        <div class="product-img">
+          <% if (p.primary_image) { %>
+            <img src="<%= p.primary_image %>" alt="<%= p.name %>" loading="lazy">
+          <% } else { %>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" aria-hidden="true">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <polyline points="21 15 16 10 5 21"/>
+            </svg>
+          <% } %>
+          <% if (p.badge) { %><span class="product-badge badge-<%= p.badge %>"><%= p.badge.toUpperCase() %></span><% } %>
+        </div>
+      </a>
+      <div class="product-body">
+        <% if (p.brand) { %><p class="product-brand"><%= p.brand %></p><% } %>
+        <h3 class="product-title"><a href="/products/<%= p.slug %>"><%= p.name %></a></h3>
+        <div class="product-price-row">
+          <span class="product-price">$<%= p.price.toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
+          <% if (p.compare_price && p.compare_price > p.price) { %>
+          <span class="product-was">$<%= p.compare_price.toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
+          <% } %>
+        </div>
+        <a href="/products/<%= p.slug %>" class="btn btn-sage">View Details</a>
+      </div>
+    </article>
+    <% }) %>
+  </div>
+</section>
+<% } %>
+
+<%
+/*
+ * Product JSON-LD — schema.org/Product
+ * Helps Google display rich results (price, availability, ratings).
+ * Images: prefer product.images array; fall back to primary_image field.
+ */
+const _pdUrl   = typeof siteUrl !== 'undefined' ? siteUrl : 'https://bathroomvanitiesoutlet.com';
+const _pdImages = (product.images && product.images.length)
+  ? product.images.map(i => i.url)
+  : (product.primary_image ? [product.primary_image] : []);
+const _pdAvail  = product.inStock
+  ? 'https://schema.org/InStock'
+  : 'https://schema.org/OutOfStock';
+const _pdJsonLd = {
+  '@context': 'https://schema.org/',
+  '@type':    'Product',
+  name:        product.name,
+  description: product.short_desc || '',
+  sku:         product.sku || product.slug,
+  image:       _pdImages,
+  brand: product.brand ? { '@type': 'Brand', name: product.brand } : undefined,
+  offers: {
+    '@type':          'Offer',
+    url:              `${_pdUrl}/products/${product.slug}`,
+    priceCurrency:    'USD',
+    price:            product.price.toFixed(2),
+    availability:     _pdAvail,
+    itemCondition:    'https://schema.org/NewCondition',
+    seller: {
+      '@type': 'Organization',
+      name:    'BathroomVanitiesOutlet.com',
+    },
+  },
+};
+if (product.compare_price && product.compare_price > product.price) {
+  _pdJsonLd.offers.priceValidUntil = new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0];
+}
+%>
+<script type="application/ld+json"><%- JSON.stringify(_pdJsonLd) %></script>

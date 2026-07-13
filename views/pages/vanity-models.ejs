@@ -1,0 +1,246 @@
+<!-- ── VANITY MODELS page ──────────────────────────────────────────── -->
+
+<!-- Page header -->
+<section class="cat-header">
+  <div class="cat-header-inner">
+    <h1>Vanity Models</h1>
+    <p>Every collection we carry — explore finishes, sizes, and styles at a glance.</p>
+  </div>
+</section>
+
+<!-- Breadcrumb -->
+<div class="breadcrumb">
+  <a href="/">Home</a> &rsaquo;
+  <a href="/collections">Collections</a> &rsaquo;
+  Vanity Models
+</div>
+
+<!-- ── Two-column layout: sidebar + main ──────────────────────────── -->
+<div class="listing-layout">
+
+  <!-- ── Filter sidebar ─────────────────────────────────────────── -->
+  <aside class="filter-panel" aria-label="Filter collections">
+    <form method="GET" id="filter-form">
+
+      <div class="filter-header">
+        <h3>Filters</h3>
+        <% if (hasActiveFilters) { %>
+        <a href="/collections/vanity-models" class="filter-clear-top">Clear all</a>
+        <% } %>
+      </div>
+
+      <!-- ── Size ──────────────────────────────────────────────── -->
+      <% var sizeExpanded = activeSizes.length > 0; %>
+      <div class="filter-group">
+        <button type="button" class="filter-group-toggle" aria-expanded="<%= sizeExpanded ? 'true' : 'true' %>">
+          Size
+          <% if (activeSizes.length) { %><span class="filter-badge"><%= activeSizes.length %></span><% } %>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="filter-group-body">
+          <% allSizes.forEach(function(sz) { %>
+          <label class="filter-option">
+            <input type="checkbox" name="size" value="<%= sz %>"
+              <%= activeSizes.includes(sz) ? 'checked' : '' %>>
+            <span><%= sz %>"</span>
+          </label>
+          <% }); %>
+        </div>
+      </div>
+
+      <!-- ── Brand ─────────────────────────────────────────────── -->
+      <% var brandExpanded = activeBrands.length > 0; %>
+      <div class="filter-group">
+        <button type="button" class="filter-group-toggle" aria-expanded="<%= brandExpanded ? 'true' : 'false' %>">
+          Brand
+          <% if (activeBrands.length) { %><span class="filter-badge"><%= activeBrands.length %></span><% } %>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="filter-group-body<%= brandExpanded ? '' : ' is-collapsed' %>">
+          <% allBrands.forEach(function(b) { %>
+          <label class="filter-option">
+            <input type="checkbox" name="brand" value="<%= b %>"
+              <%= activeBrands.includes(b) ? 'checked' : '' %>>
+            <span><%= b %></span>
+          </label>
+          <% }); %>
+        </div>
+      </div>
+
+      <!-- ── Finish / Cabinet Color ─────────────────────────────── -->
+      <% var finishExpanded = activeFinishes.length > 0; %>
+      <div class="filter-group">
+        <button type="button" class="filter-group-toggle" aria-expanded="<%= finishExpanded ? 'true' : 'false' %>">
+          Cabinet Color
+          <% if (activeFinishes.length) { %><span class="filter-badge"><%= activeFinishes.length %></span><% } %>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="filter-group-body<%= finishExpanded ? '' : ' is-collapsed' %>">
+          <% allFinishes.forEach(function(fname) { %>
+          <%
+            var fhex = finishMap[fname] || '#CCCCCC';
+            var isLight = ['#F0F0EF','#F5F5F5','#FAFAFA','#FFFFFF','#C4A882'].indexOf(fhex) !== -1;
+          %>
+          <label class="filter-option filter-option-color">
+            <input type="checkbox" name="finish" value="<%= fname %>"
+              <%= activeFinishes.includes(fname) ? 'checked' : '' %>>
+            <span class="color-swatch"
+              style="background:<%= fhex %>;border:1.5px solid <%= isLight ? '#ccc' : fhex %>"
+              title="<%= fname %>"></span>
+            <span><%= fname %></span>
+          </label>
+          <% }); %>
+        </div>
+      </div>
+
+      <!-- ── Price range ────────────────────────────────────────── -->
+      <div class="filter-group">
+        <button type="button" class="filter-group-toggle"
+          aria-expanded="<%= (vmMinPrice != null || vmMaxPrice != null) ? 'true' : 'false' %>">
+          Starting Price
+          <% if (vmMinPrice != null || vmMaxPrice != null) { %><span class="filter-badge">1</span><% } %>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="filter-group-body<%= (vmMinPrice != null || vmMaxPrice != null) ? '' : ' is-collapsed' %>">
+          <p class="filter-price-hint">Filter by "From" price</p>
+          <div class="filter-price">
+            <input type="number" name="min_price" placeholder="Min $"
+              value="<%= vmMinPrice != null ? vmMinPrice : '' %>" min="0" step="100">
+            <span>–</span>
+            <input type="number" name="max_price" placeholder="Max $"
+              value="<%= vmMaxPrice != null ? vmMaxPrice : '' %>" min="0" step="100">
+          </div>
+          <button type="submit" class="btn btn-sage btn-filter-apply">Apply</button>
+        </div>
+      </div>
+
+    </form>
+  </aside><!-- /.filter-panel -->
+
+  <!-- ── Main content ───────────────────────────────────────────── -->
+  <main class="listing-main">
+
+    <!-- Results bar -->
+    <div class="listing-toolbar">
+      <p class="listing-count">
+        <% if (hasActiveFilters) { %>
+        <strong><%= total %></strong> collection<%= total !== 1 ? 's' : '' %> found
+        <% } else { %>
+        <strong><%= total %></strong> collection<%= total !== 1 ? 's' : '' %>
+        <% } %>
+      </p>
+    </div>
+
+    <% if (models.length === 0) { %>
+    <div class="no-results">
+      <p>No collections match your current filters.</p>
+      <a href="/collections/vanity-models" class="btn btn-outline">Clear Filters</a>
+    </div>
+    <% } else { %>
+
+    <!-- Model card grid -->
+    <div class="models-grid models-grid--page" id="modelsGrid">
+      <% models.forEach(function(m) { %>
+      <%
+        var _discPct         = m.compare_price_from ? Math.round((1 - m.price_from / m.compare_price_from) * 100) : 0;
+        var _visibleSwatches = m.finishes.slice(0, 4);
+        var _extraSwatches   = m.finishes.length > 4 ? m.finishes.length - 4 : 0;
+      %>
+      <article class="model-card" data-slug="<%= m.slug %>" data-sizes="<%= m.sizes.join(',') %>">
+
+        <div class="model-card-img-wrap">
+          <% if (_discPct > 0) { %>
+          <span class="model-card-badge"><%= _discPct %>% OFF</span>
+          <% } %>
+          <a href="/collections/vanities?model=<%= m.slug %>" class="model-card-img-link" tabindex="-1" aria-hidden="true">
+            <img src="<%= m.finishes[0].image %>"
+                 alt="<%= m.name %> vanity"
+                 class="model-card-img"
+                 id="model-img-<%= m.slug %>"
+                 loading="lazy">
+          </a>
+        </div>
+
+        <div class="model-card-body">
+          <div class="model-card-price-row">
+            <% if (m.price_to && m.price_to > m.price_from) { %>
+            <span class="model-card-price">$<%= m.price_from.toLocaleString('en-US') %> – $<%= m.price_to.toLocaleString('en-US') %></span>
+            <% } else { %>
+            <span class="model-card-price">From $<%= m.price_from.toLocaleString('en-US') %></span>
+            <% if (m.compare_price_from) { %>
+            <span class="model-card-was">$<%= m.compare_price_from.toLocaleString('en-US') %></span>
+            <% } %>
+            <% } %>
+          </div>
+
+          <h3 class="model-card-name">
+            <a href="/collections/vanities?model=<%= m.slug %>">The <%= m.name %> Collection</a>
+          </h3>
+          <p class="model-card-brand">Brand: <%= m.brand %></p>
+
+          <div class="model-card-swatches" role="group" aria-label="Available finishes">
+            <span class="model-card-swatches-label">Finishes:</span>
+            <% _visibleSwatches.forEach(function(f, i) { %>
+            <%
+              var _isLight      = ['#F0F0EF','#F5F5F5','#FAFAFA','#FFFFFF','#C4A882'].indexOf(f.hex) !== -1;
+              var _swatchBorder = _isLight ? '#ccc' : f.hex;
+            %>
+            <button class="model-card-swatch<%= i === 0 ? ' is-active' : '' %>"
+                    data-target-img="model-img-<%= m.slug %>"
+                    data-image="<%= f.image %>"
+                    data-finish="<%= f.name %>"
+                    style="background:<%= f.hex %>;border-color:<%= _swatchBorder %>"
+                    aria-label="<%= f.name %>"
+                    title="<%= f.name %>"></button>
+            <% }); %>
+            <% if (_extraSwatches > 0) { %>
+            <span class="model-card-swatch-more" aria-hidden="true">+<%= _extraSwatches %></span>
+            <% } %>
+          </div>
+
+          <div class="model-card-sizes-row">
+            <span class="model-card-sizes-label">Size Options:</span>
+            <span class="model-card-sizes-text"><%= m.sizes.join(' | ') %></span>
+          </div>
+
+          <a href="/collections/vanities?model=<%= m.slug %>" class="btn btn-outline model-card-cta">
+            Shop the <%= m.name %>
+          </a>
+        </div>
+      </article>
+      <% }); %>
+    </div><!-- /.models-grid -->
+
+    <!-- ── Pagination ──────────────────────────────────────────── -->
+    <% if (pages > 1) { %>
+    <%
+      /* Build base query string preserving active filters */
+      var _pBase = [];
+      activeSizes.forEach(function(s)    { _pBase.push('size=' + s); });
+      activeBrands.forEach(function(b)   { _pBase.push('brand=' + encodeURIComponent(b)); });
+      activeFinishes.forEach(function(f) { _pBase.push('finish=' + encodeURIComponent(f)); });
+      if (vmMinPrice != null) _pBase.push('min_price=' + vmMinPrice);
+      if (vmMaxPrice != null) _pBase.push('max_price=' + vmMaxPrice);
+      var _pQS = _pBase.length ? '&' + _pBase.join('&') : '';
+    %>
+    <nav class="pagination" aria-label="Model pages">
+      <% if (page > 1) { %>
+      <a href="?page=<%= page - 1 %><%= _pQS %>" class="page-btn page-prev">&lsaquo; Prev</a>
+      <% } %>
+      <% for (var pi = 1; pi <= pages; pi++) { %>
+      <% if (pi === page) { %>
+      <span class="page-btn page-current" aria-current="page"><%= pi %></span>
+      <% } else { %>
+      <a href="?page=<%= pi %><%= _pQS %>" class="page-btn"><%= pi %></a>
+      <% } %>
+      <% } %>
+      <% if (page < pages) { %>
+      <a href="?page=<%= page + 1 %><%= _pQS %>" class="page-btn page-next">Next &rsaquo;</a>
+      <% } %>
+    </nav>
+    <% } %>
+
+    <% } /* end models.length > 0 */ %>
+  </main><!-- /.listing-main -->
+
+</div><!-- /.listing-layout -->

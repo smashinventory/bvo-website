@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BathroomVanitiesOutlet.com — Visual Mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ── RESET ── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Lato',sans-serif;font-size:15px;color:#333;background:#fff}
+a{color:inherit;text-decoration:none}
+img{max-width:100%;display:block}
+button{cursor:pointer;font-family:'Lato',sans-serif}
+
+/* ── PAGE SWITCHER ── */
+#page-nav{position:fixed;top:0;left:0;right:0;z-index:9999;background:#2c2c2c;display:flex;gap:0;height:38px;align-items:stretch}
+#page-nav span{color:#888;font-size:.7rem;padding:0 .75rem;display:flex;align-items:center;letter-spacing:.05em;text-transform:uppercase}
+.pnav-btn{padding:0 1.25rem;border:none;background:transparent;color:#aaa;font-size:.78rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;transition:background .15s,color .15s;border-right:1px solid #444}
+.pnav-btn:hover{background:#444;color:#fff}
+.pnav-btn.active{background:#1a4a7a;color:#fff}
+.page{display:none}
+.page.active{display:block}
+.spacer{height:38px}/* push content below fixed bar */
+
+/* ── TOKENS ── */
+:root{
+  --navy:#1a4a7a;--navy2:#163d66;--navy3:#0f2d4e;
+  --gold:#c8a96e;--yellow:#f5d000;--yellow2:#e8c400;
+  --border:#e2e2e2;--bg:#f7f7f7;--muted:#777;--text:#2c2c2c
+}
+
+/* ── ANNOUNCEMENT BAR ── */
+.announce{background:#f5f5f5;border-bottom:1px solid var(--border);text-align:center;padding:.45rem 1rem;font-size:.78rem;color:var(--muted)}
+.announce a{color:var(--navy);font-weight:700;text-decoration:underline}
+
+/* ── HEADER ── */
+.site-header{background:#fff;border-bottom:1px solid var(--border);padding:.75rem 0}
+.hdr-inner{max-width:1260px;margin:0 auto;padding:0 1.5rem;display:flex;align-items:center;gap:1rem}
+.logo-wrap{flex-shrink:0;line-height:1}
+.logo-wrap img{height:52px;width:auto}
+.logo-text{font-family:'Playfair Display',serif;font-size:1.35rem;font-weight:700;color:var(--navy);line-height:1.1}
+.logo-text small{display:block;font-family:'Lato',sans-serif;font-size:.62rem;font-weight:400;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;margin-top:.1rem}
+.search-wrap{flex:1;max-width:520px;margin:0 auto;display:flex}
+.search-wrap input{flex:1;border:1.5px solid var(--border);border-right:none;border-radius:4px 0 0 4px;padding:.55rem 1rem;font-size:.88rem;outline:none;font-family:'Lato',sans-serif}
+.search-wrap input:focus{border-color:var(--navy)}
+.search-wrap button{padding:.55rem 1rem;background:var(--navy);color:#fff;border:none;border-radius:0 4px 4px 0;font-size:.9rem}
+.hdr-actions{margin-left:auto;display:flex;align-items:center;gap:1.5rem}
+.hdr-action{display:flex;flex-direction:column;align-items:center;font-size:.65rem;color:var(--muted);gap:.15rem}
+.hdr-action svg,.hdr-action i{font-size:1.3rem;color:var(--text)}
+.cart-wrap{position:relative}
+.cart-count{position:absolute;top:-4px;right:-6px;background:var(--navy);color:#fff;font-size:.6rem;font-weight:900;width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+
+/* ── MAIN NAV ── */
+.main-nav{background:#fff;border-bottom:2px solid var(--navy)}
+.nav-inner{max-width:1260px;margin:0 auto;padding:0 1rem;display:flex;align-items:stretch}
+.nav-item{padding:.6rem .85rem;font-size:.82rem;font-weight:700;color:#333;white-space:nowrap;display:flex;align-items:center;gap:.25rem;letter-spacing:.02em;border-bottom:3px solid transparent;transition:color .15s,border-color .15s}
+.nav-item:hover,.nav-item.active{color:var(--navy);border-bottom-color:var(--navy)}
+.nav-item.new-item{color:#d32f2f}
+.nav-item.sale{color:#d32f2f;font-weight:900}
+.nav-chevron{font-size:.6rem;opacity:.6}
+
+/* ── HERO SLIDER ── */
+.hero{position:relative;background:var(--navy3);overflow:hidden}
+.hero-slide{display:none}
+.hero-slide.active{display:flex}
+.hero-content{max-width:1260px;margin:0 auto;padding:3rem 1.5rem;display:flex;align-items:center;gap:3rem}
+.hero-text{flex:0 0 44%;color:#fff}
+.hero-text .eyebrow{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--gold);margin-bottom:.6rem}
+.hero-text h1{font-family:'Playfair Display',serif;font-size:2.4rem;font-weight:700;line-height:1.2;margin-bottom:1rem}
+.hero-text p{color:rgba(255,255,255,.8);line-height:1.65;font-size:.95rem;margin-bottom:1.75rem}
+.hero-ctas{display:flex;gap:.75rem;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:.4rem;padding:.6rem 1.4rem;border-radius:3px;font-weight:700;font-size:.85rem;letter-spacing:.04em;text-transform:uppercase;border:2px solid transparent;transition:all .15s}
+.btn-primary{background:var(--navy);color:#fff;border-color:var(--navy)}
+.btn-primary:hover{background:var(--navy2)}
+.btn-white{background:#fff;color:var(--navy);border-color:#fff}
+.btn-white:hover{background:rgba(255,255,255,.9)}
+.btn-outline-white{background:transparent;color:#fff;border-color:rgba(255,255,255,.6)}
+.btn-outline-white:hover{background:rgba(255,255,255,.1)}
+.btn-navy{background:var(--navy);color:#fff;border-color:var(--navy)}
+.hero-img{flex:1;border-radius:6px;overflow:hidden;max-height:380px}
+.hero-img img{width:100%;height:380px;object-fit:cover}
+
+/* ── PROMO STRIP (yellow CTAs) ── */
+.promo-strip{background:#fff;padding:1.5rem 0;border-bottom:1px solid var(--border)}
+.promo-strip-inner{max-width:1260px;margin:0 auto;padding:0 1.5rem;display:flex;gap:1rem;justify-content:center;align-items:center;flex-wrap:wrap}
+.promo-tile{display:flex;align-items:center;justify-content:center;background:var(--yellow);color:var(--navy);font-family:'Playfair Display',serif;font-size:1.25rem;font-weight:700;text-align:center;padding:1rem 2rem;border-radius:8px;border:3px solid var(--navy);min-width:180px;flex:1;max-width:220px;line-height:1.2;transition:transform .15s}
+.promo-tile:hover{transform:translateY(-2px)}
+
+/* ── PROMO BANNER (10% off) ── */
+.promo-banner{overflow:hidden;margin:.5rem 0}
+.promo-banner img{width:100%;max-height:140px;object-fit:cover}
+.promo-banner-inner{background:linear-gradient(135deg,#2c4a6e 0%,#1a3555 100%);padding:1.75rem 2rem;display:flex;align-items:center;justify-content:center;gap:3rem}
+.promo-banner-text h2{font-family:'Playfair Display',serif;font-size:2rem;font-weight:700;color:#fff;line-height:1}
+.promo-banner-text .eyebrow{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.15em;color:var(--gold);margin-bottom:.3rem}
+.promo-banner-text .fine{font-size:.78rem;color:rgba(255,255,255,.65);margin-top:.4rem;letter-spacing:.05em}
+.promo-banner-text .fine strong{color:#fff}
+
+/* ── SECTION ── */
+.section{padding:3.5rem 0}
+.section-inner{max-width:1260px;margin:0 auto;padding:0 1.5rem}
+.section-hdr{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:2rem}
+.section-hdr h2{font-family:'Playfair Display',serif;font-size:1.65rem;font-weight:700;color:var(--text)}
+.section-hdr a{font-size:.82rem;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.06em}
+.section-divider{width:48px;height:3px;background:var(--gold);margin-bottom:1.5rem}
+
+/* ── PRODUCT CARDS ── */
+.product-grid{display:grid;gap:1.25rem}
+.grid-4{grid-template-columns:repeat(4,1fr)}
+.grid-3{grid-template-columns:repeat(3,1fr)}
+.pcard{background:#fff;border:1px solid var(--border);border-radius:4px;overflow:hidden;transition:box-shadow .2s,transform .2s;display:flex;flex-direction:column}
+.pcard:hover{box-shadow:0 6px 24px rgba(0,0,0,.1);transform:translateY(-3px)}
+.pcard-img{aspect-ratio:1;overflow:hidden;background:#f9f9f9;position:relative}
+.pcard-img img{width:100%;height:100%;object-fit:contain;padding:.5rem;transition:transform .35s}
+.pcard:hover .pcard-img img{transform:scale(1.04)}
+.sale-badge{position:absolute;top:.5rem;left:.5rem;background:#d32f2f;color:#fff;font-size:.65rem;font-weight:900;padding:.2rem .5rem;border-radius:2px;letter-spacing:.03em;text-transform:uppercase}
+.pcard-body{padding:.9rem;flex:1;display:flex;flex-direction:column}
+.pcard-vendor{font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.25rem}
+.pcard-title{font-size:.88rem;font-weight:700;color:var(--text);line-height:1.35;margin-bottom:.65rem;flex:1}
+.pcard-footer{display:flex;align-items:center;justify-content:space-between;gap:.5rem}
+.price-current{font-size:1.05rem;font-weight:900;color:var(--navy)}
+.price-was{font-size:.78rem;color:var(--muted);text-decoration:line-through;margin-left:.25rem}
+.price-save{font-size:.68rem;background:#dcfce7;color:#166534;font-weight:700;padding:.1rem .35rem;border-radius:2px}
+.btn-sm{padding:.35rem .85rem;font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+
+/* ── SPLIT SECTION ── */
+.split-section{display:grid;grid-template-columns:1fr 1fr;align-items:center}
+.split-img{height:400px;overflow:hidden}
+.split-img img{width:100%;height:100%;object-fit:cover}
+.split-content{padding:3rem 3.5rem;background:#f0ece4}
+.split-content .eyebrow{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--gold);margin-bottom:.5rem}
+.split-content h2{font-family:'Playfair Display',serif;font-size:2rem;font-weight:700;line-height:1.25;margin-bottom:1rem;color:var(--text)}
+.split-content p{color:#555;line-height:1.7;font-size:.92rem;margin-bottom:1.5rem}
+
+/* ── QUALITY BANNER ── */
+.quality-banner{position:relative;overflow:hidden}
+.quality-banner-img{width:100%;height:380px;object-fit:cover;display:block}
+.quality-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+.quality-card{background:rgba(255,255,255,.93);backdrop-filter:blur(4px);padding:2.5rem 3rem;max-width:440px;border-left:4px solid var(--gold)}
+.quality-card .eyebrow{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--gold);margin-bottom:.4rem}
+.quality-card h2{font-family:'Playfair Display',serif;font-size:1.75rem;font-weight:700;margin-bottom:.75rem;color:var(--text)}
+.quality-card p{color:#555;line-height:1.65;font-size:.88rem;margin-bottom:1.25rem}
+
+/* ── SHOWROOMS ── */
+.showrooms{background:var(--bg);padding:3.5rem 0}
+.showroom-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem;margin-top:2rem}
+.showroom-card{background:#fff;border:1px solid var(--border);border-radius:4px;overflow:hidden}
+.showroom-card img{width:100%;height:180px;object-fit:cover}
+.showroom-body{padding:1.1rem}
+.showroom-body h3{font-family:'Playfair Display',serif;font-size:1rem;font-weight:700;margin-bottom:.35rem}
+.showroom-body p{font-size:.8rem;color:var(--muted);line-height:1.5;margin-bottom:.75rem}
+.showroom-body a{font-size:.75rem;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:.3rem}
+
+/* ── BLOG ── */
+.blog-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem;margin-top:.5rem}
+.blog-card{border:1px solid var(--border);border-radius:4px;overflow:hidden}
+.blog-card img{width:100%;height:200px;object-fit:cover}
+.blog-body{padding:1rem}
+.blog-cat{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--gold);margin-bottom:.35rem}
+.blog-title{font-family:'Playfair Display',serif;font-size:.95rem;font-weight:700;color:var(--text);line-height:1.3;margin-bottom:.4rem}
+.blog-excerpt{font-size:.8rem;color:var(--muted);line-height:1.5}
+
+/* ── REVIEWS ── */
+.reviews-section{background:var(--bg);padding:3rem 0}
+.review-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.25rem}
+.review-card{background:#fff;border:1px solid var(--border);padding:1.25rem;border-radius:4px}
+.review-top{display:flex;align-items:center;gap:.65rem;margin-bottom:.75rem}
+.review-avatar{width:40px;height:40px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:1rem;flex-shrink:0}
+.review-meta{flex:1}
+.review-name{font-weight:700;font-size:.85rem}
+.review-when{font-size:.72rem;color:var(--muted)}
+.review-google{width:20px;height:20px;flex-shrink:0}
+.stars{color:#f59e0b;font-size:.9rem;margin-bottom:.5rem}
+.review-text{font-size:.85rem;color:#444;line-height:1.6;font-style:italic}
+
+/* ── EMAIL SIGNUP ── */
+.email-section{background:#e8e4dc;padding:3rem 0;text-align:center}
+.email-section h2{font-size:1.15rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.4rem}
+.email-section p{color:var(--muted);font-size:.88rem;margin-bottom:1.25rem}
+.email-form{display:flex;justify-content:center;gap:0;max-width:480px;margin:0 auto 1rem}
+.email-form input{flex:1;padding:.6rem 1.1rem;border:1.5px solid #ccc;border-right:none;border-radius:3px 0 0 3px;font-size:.88rem;font-family:'Lato',sans-serif}
+.email-form button{padding:.6rem 1.4rem;background:#1a4a7a;color:#fff;border:none;border-radius:0 3px 3px 0;font-weight:700;text-transform:uppercase;font-size:.82rem;letter-spacing:.05em}
+.social-icons{display:flex;justify-content:center;gap:1.25rem;margin-top:.75rem}
+.social-icons a{color:var(--muted);font-size:1.1rem}
+
+/* ── FOOTER ── */
+.site-footer{background:#2c2c2c;color:#999;padding:3rem 0 1.5rem}
+.footer-grid{display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr;gap:2rem;margin-bottom:2rem}
+.footer-brand .name{font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:700;color:#fff;margin-bottom:.65rem}
+.footer-brand p{font-size:.8rem;line-height:1.6;margin-bottom:.35rem}
+.footer-col h4{font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:#fff;font-weight:700;margin-bottom:.85rem}
+.footer-col ul{list-style:none}
+.footer-col li{margin-bottom:.4rem}
+.footer-col a{font-size:.82rem;color:#999}
+.footer-col a:hover{color:#fff}
+.footer-bottom{border-top:1px solid #444;padding-top:1.25rem;display:flex;justify-content:space-between;font-size:.75rem}
+
+/* ── BREADCRUMB ── */
+.breadcrumb{border-bottom:1px solid var(--border);background:#fff;padding:.5rem 0}
+.breadcrumb-inner{max-width:1260px;margin:0 auto;padding:0 1.5rem;display:flex;gap:.3rem;font-size:.78rem;color:var(--muted);align-items:center}
+.breadcrumb-inner a{color:var(--muted)}
+.breadcrumb-inner a:hover{color:var(--navy);text-decoration:underline}
+.breadcrumb-sep{opacity:.4}
+.breadcrumb-cur{color:var(--text);font-weight:600}
+
+/* ── CATEGORY PAGE ── */
+.cat-hero{background:linear-gradient(to right,var(--navy3),var(--navy));padding:2rem 0}
+.cat-hero-inner{max-width:1260px;margin:0 auto;padding:0 1.5rem}
+.cat-hero h1{font-family:'Playfair Display',serif;font-size:2rem;font-weight:700;color:#fff}
+.cat-hero p{color:rgba(255,255,255,.75);margin-top:.4rem;font-size:.9rem}
+.cat-meta{font-size:.75rem;color:rgba(255,255,255,.55);margin-top:.3rem}
+
+/* Sub-collection nav */
+.subcol-bar{background:var(--bg);border-bottom:1px solid var(--border);padding:.75rem 0;overflow-x:auto}
+.subcol-inner{max-width:1260px;margin:0 auto;padding:0 1.5rem;display:flex;gap:.5rem;flex-wrap:nowrap;white-space:nowrap}
+.subcol-chip{padding:.3rem .9rem;border:1.5px solid var(--border);border-radius:20px;font-size:.75rem;font-weight:700;color:var(--text);background:#fff;transition:all .15s;letter-spacing:.02em}
+.subcol-chip:hover,.subcol-chip.active{border-color:var(--navy);color:var(--navy);background:#eef3fa}
+
+/* Toolbar */
+.cat-toolbar{max-width:1260px;margin:0 auto;padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center}
+.cat-count{font-size:.85rem;color:var(--muted)}
+.cat-count strong{color:var(--text)}
+.toolbar-right{display:flex;align-items:center;gap:.75rem}
+.sort-sel{padding:.35rem .75rem;border:1px solid var(--border);border-radius:3px;font-size:.82rem;font-family:'Lato',sans-serif;color:var(--text)}
+.view-btns{display:flex;gap:.25rem}
+.view-btn{width:30px;height:30px;border:1px solid var(--border);background:#fff;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:.85rem;color:var(--muted)}
+.view-btn.active{border-color:var(--navy);color:var(--navy);background:#eef3fa}
+
+/* Filter sidebar */
+.cat-layout{max-width:1260px;margin:0 auto;padding:0 1.5rem 3rem;display:grid;grid-template-columns:220px 1fr;gap:2rem;align-items:start}
+.filter-panel{border:1px solid var(--border);border-radius:4px;background:#fff;padding:1.25rem;position:sticky;top:50px}
+.filter-hdr{display:flex;justify-content:space-between;align-items:center;padding-bottom:.85rem;border-bottom:1px solid var(--border);margin-bottom:1rem}
+.filter-hdr h3{font-size:.9rem;font-weight:900;letter-spacing:.03em}
+.filter-clear{font-size:.72rem;color:var(--muted);border:none;background:none;font-family:'Lato',sans-serif}
+.filter-group{margin-bottom:1.1rem;padding-bottom:1.1rem;border-bottom:1px solid var(--border)}
+.filter-group:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
+.filter-group-lbl{font-size:.68rem;font-weight:900;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.5rem;display:block}
+.filter-opt{display:flex;align-items:center;gap:.4rem;margin-bottom:.3rem;font-size:.82rem;cursor:pointer}
+.filter-opt input{accent-color:var(--navy)}
+.size-btns{display:flex;flex-wrap:wrap;gap:.3rem}
+.size-btn{padding:.25rem .5rem;border:1px solid var(--border);border-radius:3px;font-size:.72rem;font-weight:700;cursor:pointer;color:var(--muted);background:#fff}
+.size-btn.active,.size-btn:hover{border-color:var(--navy);color:var(--navy);background:#eef3fa}
+
+/* Pagination */
+.pagination{display:flex;justify-content:center;align-items:center;gap:.3rem;padding:2rem 0 1rem}
+.page-info{text-align:center;font-size:.8rem;color:var(--muted);margin-bottom:.75rem}
+.pg-btn{padding:.35rem .75rem;border:1px solid var(--border);background:#fff;border-radius:3px;font-size:.82rem;color:var(--text)}
+.pg-btn.active{background:var(--navy);color:#fff;border-color:var(--navy)}
+.pg-btn:hover:not(.active){background:var(--bg)}
+
+/* ── PRODUCT DETAIL ── */
+.pdp-wrap{max-width:1260px;margin:0 auto;padding:2rem 1.5rem}
+.pdp-grid{display:grid;grid-template-columns:1fr 1fr;gap:3.5rem;align-items:start}
+
+.pdp-gallery{position:sticky;top:50px}
+.gallery-main-wrap{border:1px solid var(--border);border-radius:4px;overflow:hidden;background:#f9f9f9;position:relative;aspect-ratio:1}
+.gallery-main-wrap img{width:100%;height:100%;object-fit:contain;padding:1rem}
+.gallery-zoom{position:absolute;top:.75rem;right:.75rem;width:32px;height:32px;background:rgba(255,255,255,.85);border:1px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.9rem;cursor:pointer;color:var(--muted)}
+.gallery-prev,.gallery-next{position:absolute;top:50%;transform:translateY(-50%);width:36px;height:36px;background:#fff;border:1px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1rem;cursor:pointer;color:var(--text)}
+.gallery-prev{left:.5rem}
+.gallery-next{right:.5rem}
+.gallery-thumbs{display:flex;gap:.5rem;margin-top:.65rem;overflow-x:auto;padding-bottom:.2rem}
+.gallery-thumb{width:72px;height:72px;border:2px solid transparent;border-radius:3px;overflow:hidden;flex-shrink:0;cursor:pointer;background:#f9f9f9}
+.gallery-thumb img{width:100%;height:100%;object-fit:contain;padding:.2rem}
+.gallery-thumb.active,.gallery-thumb:hover{border-color:var(--navy)}
+
+.pdp-info{}
+.pdp-vendor{font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:.4rem}
+.pdp-title{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:700;line-height:1.25;margin-bottom:.75rem;color:var(--text)}
+.pdp-sku{font-size:.75rem;color:var(--muted);margin-bottom.75rem}
+.pdp-avail{margin:.65rem 0}
+.avail-tag{display:inline-flex;align-items:center;gap:.35rem;font-size:.8rem;font-weight:700;padding:.25rem .7rem;border-radius:3px}
+.avail-in{background:#dcfce7;color:#166534}
+.pdp-price-row{display:flex;align-items:baseline;gap:.75rem;margin:1rem 0}
+.pdp-price{font-size:1.9rem;font-weight:900;color:var(--navy)}
+.pdp-was{font-size:1rem;color:var(--muted);text-decoration:line-through}
+.pdp-save-tag{background:#dcfce7;color:#166534;font-size:.75rem;font-weight:700;padding:.2rem .5rem;border-radius:3px}
+.pdp-desc{font-size:.88rem;color:#555;line-height:1.7;margin-bottom:1.25rem;border-bottom:1px solid var(--border);padding-bottom:1.25rem}
+
+/* Bundle box */
+.bundle-box{background:#f0f7ff;border:1.5px solid #b8d4ef;border-radius:6px;padding:1.1rem;margin-bottom:1.25rem}
+.bundle-box-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:.25rem}
+.bundle-box-hdr h4{font-size:.9rem;font-weight:900;color:var(--navy)}
+.bundle-save-pill{background:var(--navy);color:#fff;font-size:.68rem;font-weight:700;padding:.15rem .5rem;border-radius:10px}
+.bundle-sub{font-size:.75rem;color:var(--muted);margin-bottom:.85rem}
+.bundle-item{display:flex;align-items:center;gap:.65rem;padding:.5rem 0;border-top:1px solid #d0e4f8}
+.bundle-item:first-of-type{border-top:none}
+.bundle-check{width:16px;height:16px;accent-color:var(--navy);flex-shrink:0}
+.bundle-item-img{width:48px;height:48px;border-radius:4px;background:#e0eefa;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1.3rem}
+.bundle-item-info{flex:1;min-width:0}
+.bundle-item-name{font-size:.8rem;font-weight:700;line-height:1.25}
+.bundle-item-save{font-size:.7rem;color:#166534;font-weight:700}
+.bundle-item-price{font-size:.85rem;font-weight:900;color:var(--navy);flex-shrink:0}
+
+/* ATC */
+.atc-section{}
+.qty-row{display:flex;align-items:center;gap:1rem;margin-bottom:.85rem}
+.qty-label{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.qty-picker{display:flex;align-items:center;border:1.5px solid var(--border);border-radius:3px;overflow:hidden}
+.qty-btn{width:38px;height:42px;border:none;background:var(--bg);font-size:1.1rem;font-weight:700}
+.qty-val{width:44px;text-align:center;font-weight:900;font-size:1rem;border-left:1.5px solid var(--border);border-right:1.5px solid var(--border);line-height:42px}
+.atc-btn{width:100%;padding:.85rem;background:var(--navy);color:#fff;border:none;border-radius:3px;font-size:.95rem;font-weight:900;letter-spacing:.06em;text-transform:uppercase;margin-bottom:.65rem}
+.atc-btn:hover{background:var(--navy2)}
+.trust-bar{display:flex;flex-wrap:wrap;gap:.75rem 1.25rem;padding:.85rem 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin-top:.25rem}
+.trust-item{display:flex;align-items:center;gap:.35rem;font-size:.77rem;color:var(--muted)}
+.trust-item svg{width:14px;height:14px;color:var(--navy)}
+
+/* Accordions */
+.accordions{margin-top:2rem}
+.accordion{border-bottom:1px solid var(--border)}
+.accordion-hdr{display:flex;justify-content:space-between;align-items:center;padding:1rem 0;cursor:pointer;font-weight:700;font-size:.9rem}
+.accordion-icon{color:var(--muted);font-size:1.1rem;font-weight:300}
+.accordion-body{padding:0 0 1rem;font-size:.87rem;color:#555;line-height:1.7}
+.specs-tbl{width:100%;border-collapse:collapse}
+.specs-tbl th,.specs-tbl td{padding:.5rem .75rem;border-bottom:1px solid var(--border);font-size:.85rem;text-align:left}
+.specs-tbl th{background:var(--bg);font-weight:700;width:40%}
+</style>
+</head>
+<body>
+
+<!-- ══ PAGE SWITCHER ══ -->
+<div id="page-nav">
+  <span>VIEW:</span>
+  <button class="pnav-btn active" onclick="go('home',this)">🏠 Homepage</button>
+  <button class="pnav-btn" onclick="go('category',this)">📦 Single Vanities (Collection)</button>
+  <button class="pnav-btn" onclick="go('product',this)">🪞 Product Detail Page</button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     PAGE 1 — HOMEPAGE
+═══════════════════════════════════════════════════════════ -->
+<div id="pg-home" class="page active">
+<div class="spacer"></div>
+
+<!-- ANNOUNCE -->
+<div class="announce">Questions? ☎ Call Us! <a href="#">833-329-1365</a></div>
+
+<!-- HEADER -->
+<header class="site-header">
+  <div class="hdr-inner">
+    <div class="logo-wrap">
+      <div class="logo-text">BathroomVanities<span style="color:var(--gold)">Outlet</span><small>Atlanta's #1 Bathroom Showroom</small></div>
+    </div>
+    <div class="search-wrap">
+      <input type="text" placeholder="Search vanities, mirrors, faucets...">
+      <button>🔍</button>
+    </div>
+    <div class="hdr-actions">
+      <a href="#" class="hdr-action"><span style="font-size:1.3rem">👤</span><span>Account</span></a>
+      <a href="#" class="hdr-action cart-wrap"><span style="font-size:1.3rem">🛒</span><span class="cart-count">3</span><span>Cart</span></a>
+    </div>
+  </div>
+</header>
+
+<!-- NAV -->
+<nav class="main-nav">
+  <div class="nav-inner">
+    <a href="#" class="nav-item new-item">🏷 NEW Products</a>
+    <a href="#" class="nav-item">Shop All Products</a>
+    <a href="#" class="nav-item">Single Vanities <span class="nav-chevron">▾</span></a>
+    <a href="#" class="nav-item">Double Vanities <span class="nav-chevron">▾</span></a>
+    <a href="#" class="nav-item">Mirrors <span class="nav-chevron">▾</span></a>
+    <a href="#" class="nav-item">Collections <span class="nav-chevron">▾</span></a>
+    <a href="#" class="nav-item">Styles <span class="nav-chevron">▾</span></a>
+    <a href="#" class="nav-item">Sizes <span class="nav-chevron">▾</span></a>
+    <a href="#" class="nav-item">Finishes <span class="nav-chevron">▾</span></a>
+    <a href="#" class="nav-item sale">SALE</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-slide active">
+    <div class="hero-content">
+      <div class="hero-text">
+        <div class="eyebrow">New Arrivals — James Martin Vanities</div>
+        <h1>The Latest Collections.<br>In Stock, Ready Today.</h1>
+        <p>Shop brand-new James Martin collections with real-time inventory from our Atlanta showrooms. What you see is what's on the shelf.</p>
+        <div class="hero-ctas">
+          <a href="#" class="btn btn-white">Shop New Arrivals</a>
+          <a href="#" class="btn btn-outline-white">Visit Our Showroom</a>
+        </div>
+      </div>
+      <div class="hero-img">
+        <img src="https://cdn.shopify.com/s/files/1/0679/6378/1435/products/etalwzsckpzf06unarhw_caa447b9-2aa2-49dd-bcf8-31c861c7fd17.jpg?v=1754581030" alt="James Martin Amberly Vanity" onerror="this.style.background='#2c4a6e';this.src='';this.alt=''">
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PROMO STRIP: Yellow CTAs -->
+<div class="promo-strip">
+  <div class="promo-strip-inner">
+    <div class="promo-tile">Pick Up<br>Today!</div>
+    <div class="promo-tile">Custom<br>Tops!</div>
+    <div class="promo-tile">Custom<br>Paint!</div>
+    <div style="flex:2;padding-left:1.5rem">
+      <p style="font-size:.88rem;color:var(--muted);line-height:1.6">All vanities in stock at our 3 Metro Atlanta showrooms.<br>Custom vanity tops fabricated on-site. Ask about custom paint finishes.</p>
+      <a href="#" class="btn btn-primary btn-sm" style="margin-top:.65rem;display:inline-flex">Learn More →</a>
+    </div>
+  </div>
+</div>
+
+<!-- PROMO BANNER: 10% OFF MIRRORS -->
+<div class="promo-banner-inner" style="margin:0">
+  <div class="promo-banner-text">
+    <div class="eyebrow" style="color:var(--gold)">Reflect Your Perfect Style!</div>
+    <h2 style="font-family:'Playfair Display',serif;font-size:2.2rem;font-weight:700;color:#fff;line-height:1">10% OFF<br>MIRRORS</h2>
+    <div class="fine">Use code <strong>MIRROR10</strong> at checkout &nbsp;·&nbsp; Now through 10/16</div>
+  </div>
+  <div style="background:rgba(255,255,255,.15);border:2px solid rgba(255,255,255,.3);border-radius:8px;width:100px;height:120px;display:flex;align-items:center;justify-content:center;font-size:3rem">🪞</div>
+</div>
+
+<!-- FEATURED PRODUCTS -->
+<div class="section" style="background:#fff">
+  <div class="section-inner">
+    <div class="section-hdr">
+      <div>
+        <div class="section-divider"></div>
+        <h2>Featured Vanities</h2>
+      </div>
+      <a href="#" onclick="go('category',document.querySelectorAll('.pnav-btn')[1]);return false">View All Vanities →</a>
+    </div>
+    <div class="product-grid grid-4">
+
+      <div class="pcard">
+        <div class="pcard-img"><img src="https://cdn.shopify.com/s/files/1/0679/6378/1435/products/tpx8ps6eandrsh63lt5m_e7ae0e86-af20-4d7f-82c1-a6e05f5e6aa5.jpg?v=1754581266" alt="Chianti 20 Single Vanity" loading="lazy"><span class="sale-badge">Save 34%</span></div>
+        <div class="pcard-body">
+          <div class="pcard-vendor">James Martin Vanities</div>
+          <div class="pcard-title">Chianti 20" Single Vanity Cabinet, Glossy White, Matte Black</div>
+          <div class="pcard-footer">
+            <div><span class="price-current">$1,018</span><span class="price-was">$1,542</span></div>
+            <a href="#" onclick="go('product',document.querySelectorAll('.pnav-btn')[2]);return false" class="btn btn-navy btn-sm">View</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="pcard">
+        <div class="pcard-img"><img src="https://cdn.shopify.com/s/files/1/0679/6378/1435/products/l1vra553q4avniuqiuil_8f00a534-9f16-49bf-866e-83313e86a217.jpg?v=1754581287" alt="Chianti 24 Single Vanity" loading="lazy"><span class="sale-badge">Save 34%</span></div>
+        <div class="pcard-body">
+          <div class="pcard-vendor">James Martin Vanities</div>
+          <div class="pcard-title">Chianti 24" Single Vanity Cabinet, Whitewashed Walnut, Brushed Nickel</div>
+          <div class="pcard-footer">
+            <div><span class="price-current">$1,094</span><span class="price-was">$1,658</span></div>
+            <a href="#" onclick="go('product',document.querySelectorAll('.pnav-btn')[2]);return false" class="btn btn-navy btn-sm">View</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="pcard">
+        <div class="pcard-img"><img src="https://cdn.shopify.com/s/files/1/0679/6378/1435/products/42295c30008306af301d79da146b8ffc359a565d_4d614ecc-afff-497f-bf30-105d9f9975b5.jpg?v=1668937368" alt="Copper Cove Vanity" loading="lazy"><span class="sale-badge">Save 33%</span></div>
+        <div class="pcard-body">
+          <div class="pcard-vendor">James Martin</div>
+          <div class="pcard-title">Copper Cove 26" Single Vanity Cabinet, Driftwood Patina</div>
+          <div class="pcard-footer">
+            <div><span class="price-current">$1,180</span><span class="price-was">$1,768</span></div>
+            <a href="#" onclick="go('product',document.querySelectorAll('.pnav-btn')[2]);return false" class="btn btn-navy btn-sm">View</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="pcard">
+        <div class="pcard-img"><img src="https://cdn.shopify.com/s/files/1/0679/6378/1435/products/6c22e1a9eba5ed9c2476f42fbf0e9a724d1c6ab2_4b65e24d-98c0-47ca-8b7b-bfba802b30b3.jpg?v=1668936548" alt="Wellington Console" loading="lazy"><span class="sale-badge">Save 34%</span></div>
+        <div class="pcard-body">
+          <div class="pcard-vendor">James Martin</div>
+          <div class="pcard-title">Wellington 24" Single Console Sink w/ Brass Finish Stand</div>
+          <div class="pcard-footer">
+            <div><span class="price-current">$1,239</span><span class="price-was">$1,877</span></div>
+            <a href="#" onclick="go('product',document.querySelectorAll('.pnav-btn')[2]);return false" class="btn btn-navy btn-sm">View</a>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- SPLIT: Latest James Martin Collections -->
+<div class="split-section">
+  <div class="split-img"><img src="https://cdn.shopify.com/s/files/1/0679/6378/1435/files/hd388v72d-gw-pg-3_1.webp?v=1739647971" alt="James Martin Brenlyn Collection" onerror="this.style.background='#c8bfb0';this.src='';"></div>
+  <div class="split-content">
+    <div class="eyebrow">Just Arrived</div>
+    <h2>The Latest Collections from James Martin Vanities</h2>
+    <p>Shop the newest pieces from James Martin Vanities. Nine brand new collections, with a few updates to some of our best sellers.</p>
+    <p>Dreamy designs and fresh finishes for single vanities, double vanities and mirrors you won't want to miss.</p>
+    <a href="#" class="btn btn-primary">Shop New Collections</a>
+  </div>
+</div>
+
+<!-- QUALITY BANNER -->
+<div class="quality-banner">
+  <img class="quality-banner-img" src="https://cdn.shopify.com/s/files/1/0679/6378/1435/products/b9sh39f3mv5ypqyg9owp_83baa6f8-214b-4390-8395-59bda41b37e4.jpg?v=1668931597" alt="Quality Vanities" style="width:100%;height:360px;object-fit:cover" onerror="this.style.background='#d0c9be';this.src=''">
+  <div class="quality-overlay">
+    <div class="quality-card">
+      <div class="eyebrow">Our Promise</div>
+      <h2>Quality That You Can Count On.</h2>
+      <p>At Vanities Depot, our goal is to make sure you receive a top-notch product with top-notch service. We offer an extensive selection of unique bathroom vanities, with unmatched construction and material quality at the most competitive prices.</p>
+      <a href="#" class="btn btn-primary">About Us</a>
+    </div>
+  </div>
+</div>
+
+<!-- 3 METRO ATLANTA SHOWROOMS -->
+<div class="showrooms">
+  <div class="section-inner">
+    <div class="section-hdr" style="margin-bottom:0">
+      <div>
+        <div class="section-divider"></div>
+        <h2 style="font-family:'Playfair Display',serif;font-size:1.65rem;font-weight:700;text-align:center;width:100%">3 Metro Atlanta Showrooms</h2>
+      </div>
+    </div>
+    <div class="showroom-grid">
+      <div class="showroom-card">
+        <div style="background:#c8bfb0;height:180px;display:flex;align-items:center;justify-content:center;font-size:3rem">🏢</div>
+        <div class="showroom-body">
+          <h3>Roswell | Alpharetta Showroom</h3>
+          <p>6225 Old Ellis Rd Roswell G 30076 · Minutes from Maxwell Rd and HWY 400</p>
+          <a href="#">Shop Roswell Inventory</a>
+          <a href="#" style="color:var(--muted)">Directions to Roswell →</a>
+        </div>
+      </div>
+      <div class="showroom-card">
+        <div style="background:#b8c4cc;height:180px;display:flex;align-items:center;justify-content:center;font-size:3rem">🏢</div>
+        <div class="showroom-body">
+          <h3>Marietta | Kennesaw Showroom</h3>
+          <p>30 Ernest Barrett Pkwy NW Suite 1035 (Belted Road) Marietta, GA 30068 · Near I-75 and 575</p>
+          <a href="#">Shop Marietta/Kennesaw Inventory</a>
+          <a href="#" style="color:var(--muted)">Directions to Marietta →</a>
+        </div>
+      </div>
+      <div class="showroom-card">
+        <div style="background:#c4bdb4;height:180px;display:flex;align-items:center;justify-content:center;font-size:3rem">🏢</div>
+        <div class="showroom-body">
+          <h3>Norcross | Duluth Showroom</h3>
+          <p>6125 Jimmy Carter Blvd Norcross GA 30071 · Minutes from HWY 85 Exit Jimmy Carter Blvd</p>
+          <a href="#">Shop Norcross Inventory</a>
+          <a href="#" style="color:var(--muted)">Directions to Norcross →</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DESIGN & INSPIRATION BLOG -->
+<div class="section" style="background:#fff">
+  <div class="section-inner">
+    <div class="section-hdr">
+      <div>
+        <div class="section-divider"></div>
+        <h2>Design &amp; Inspiration</h2>
+      </div>
+      <a href="#">View All Articles →</a>
+    </div>
+    <div class="blog-grid">
+      <div class="blog-card">
+        <img src="https://cdn.shopify.com/s/files/1/0679/6378/1435/products/j3qntunu5epzvgua1apo_e2e780ab-cffd-44e0-8f3e-e920410bd7da.jpg?v=1668931234" alt="Design Trends" style="height:200px;object-fit:cover;width:100%">
+        <div class="blog-body">
+          <div class="blog-cat">Design Trends</div>
+          <div class="blog-title">Bathroom Design Trends for 2024</div>
+          <div class="blog-excerpt">Just like fashion and hairstyles, interior design constantly evolves...</div>
+        </div>
+      </div>
+      <div class="blog-card">
+        <img src="https://cdn.shopify.com/s/files/1/0679/6378/1435/products/b9sh39f3mv5ypqyg9owp_83baa6f8-214b-4390-8395-59bda41b37e4.jpg?v=1668931597" alt="Floating Vanity" style="height:200px;object-fit:cover;width:100%">
+        <div class="blog-body">
+          <div class="blog-cat">How-To Guide</div>
+          <div class="blog-title">Choosing a Floating Bathroom Vanity</div>
+          <div class="blog-excerpt">When it comes to transforming your bathroom into a modern retreat...</div>
+        </div>
+      </div>
+      <div class="blog-card">
+        <img src="https://cdn.shopify.com/s/files/1/0679/6378/1435/products/drvfev6rpwiqcqhbsbhc_53ddf803-31ea-4093-a28a-74445470ad84.jpg?v=1754581277" alt="Small Bathroom" style="height:200px;object-fit:cover;width:100%">
+        <div class="blog-body">
+          <div class="blog-cat">Small Spaces</div>
+          <div class="blog-title">Small Bathroom Remodel Design Inspiration</div>
+          <div class="blog-excerpt">Despite their smaller footage, small baths can pack a big design punch...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- GOOGLE REVIEWS -->
+<div class="reviews-section">
+  <div class="section-inner">
+    <div style="text-align:center;margin-bottom:1.5rem">
+      <div style="font-size:1.5rem;color:#f59e0b;margin-bottom:.25rem">★★★★★</div>
+      <div style="font-size:.8rem;color:var(--muted)">Rated 4.9 / 5 from 380+ Google Reviews</div>
+    </div>
+    <div class="review-grid">
+      <div class="review-card">
+        <div class="review-top">
+          <div class="review-avatar">S</div>
+          <div class="review-meta"><div class="review-name">Samantha Shrager</div><div class="review-when">a year ago</div></div>
+          <span style="font-size:.7rem;font-weight:700;color:#4285F4">G</span>
+        </div>
+        <div class="stars">★★★★★</div>
+        <p class="review-text">"Excellent experience with Willow! It is hard to find a good quality vanity that won't break the bank, and after pouring over reviews I took a chance on Willow. The quality exceeded my expectations."</p>
+      </div>
+      <div class="review-card">
+        <div class="review-top">
+          <div class="review-avatar" style="background:#5f6368">O</div>
+          <div class="review-meta"><div class="review-name">Occasional Outdoorswoman</div><div class="review-when">a year ago</div></div>
+          <span style="font-size:.7rem;font-weight:700;color:#4285F4">G</span>
+        </div>
+        <div class="stars">★★★★★</div>
+        <p class="review-text">"So happy with my vanity. The mangowood whitewash is gorgeous and the service was always responsive. Allow an extra week for your vanity to arrive. They seem really busy!"</p>
+      </div>
+      <div class="review-card">
+        <div class="review-top">
+          <div class="review-avatar" style="background:#34a853">K</div>
+          <div class="review-meta"><div class="review-name">K B</div><div class="review-when">2 years ago</div></div>
+          <span style="font-size:.7rem;font-weight:700;color:#4285F4">G</span>
+        </div>
+        <div class="stars">★★★★★</div>
+        <p class="review-text">"Gorgeous vanity! I was in a time crunch when my contractor told me the custom vanity I was going to order had a 16-week lead time. Found this and it shipped in 5 days. Absolutely love it!"</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EMAIL SIGNUP -->
+<div class="email-section">
+  <h2>Get Free Shipping on Your Order.</h2>
+  <p>Plus, we'll send you bathroom design inspiration from customers just like you, news from our design team <em>and more.</em></p>
+  <div class="email-form">
+    <input type="email" placeholder="Email Address">
+    <button>Join</button>
+  </div>
+  <div class="social-icons">
+    <a href="#">f</a>
+    <a href="#">📷</a>
+    <a href="#">P</a>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer class="site-footer">
+  <div class="section-inner">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <div class="name">BathroomVanitiesOutlet.com</div>
+        <p>Atlanta's #1 source for in-stock bathroom vanities, mirrors, and accessories.</p>
+        <p>☎ 833-329-1365</p>
+        <p>📍 3 Metro Atlanta Showrooms</p>
+        <p style="margin-top:.5rem;font-size:.72rem;color:#666">Mon–Sat 9am–5pm</p>
+      </div>
+      <div class="footer-col">
+        <h4>Shop</h4>
+        <ul>
+          <li><a href="#">Single Vanities</a></li>
+          <li><a href="#">Double Vanities</a></li>
+          <li><a href="#">Mirrors</a></li>
+          <li><a href="#">Vanity Tops</a></li>
+          <li><a href="#">Collections</a></li>
+          <li><a href="#">SALE</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Help</h4>
+        <ul>
+          <li><a href="#">Shipping Policy</a></li>
+          <li><a href="#">Damage &amp; Returns</a></li>
+          <li><a href="#">FAQs</a></li>
+          <li><a href="#">Contact Us</a></li>
+          <li><a href="#">Trade Program</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Company</h4>
+        <ul>
+          <li><a href="#">About Us</a></li>
+          <li><a href="#">Design Blog</a></li>
+          <li><a href="#">Our Showrooms</a></li>
+          <li><a href="#">Privacy Policy</a></li>
+        </ul>
+        <h4 style="margin-top:1.25rem">Showrooms</h4>
+        <ul>
+          <li><a href="#">Roswell / Alpharetta</a></li>
+          <li><a href="#">Marietta / Kennesaw</a></li>
+          <li><a href="#">Norcross / Duluth</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>All prices are subject to change without notice. &nbsp;© 2026 BathroomVanitiesOutlet.com. All rights reserved.</span>
+      <span>💳 Visa · MC · Amex · Discover</span>
+    </div>
+  </div>
+</footer>
+</div><!-- /pg-home -->
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     PAGE 2 — CATEGORY: SINGLE VANITIES
+═══════════════════════════════════════════════════════════ -->
+<div id="pg-category" class="page">
+<div class="spacer"></div>
+
+<div class="announce">Questions? ☎ Call Us! <a href="#">833-329-1365</a></div>
+<header class="site-header"><div class="hdr-inner"><div class="logo-text">BathroomVanities<span style="color:var(--gold)">Outlet</span><small>Atlanta's #1 Bathroom Showroom</small></div><div class="search-wrap"><input type="text" placeholder="Search vanities, mirrors, faucets..."><button>🔍</button></div><div class="hdr-actions"><a href="#" class="hdr-action cart-wrap"><span style="font-size:1.3rem">🛒</span><span class="cart-count">3</span><span>Cart</span></a></div></div></header>
+<nav class="main-nav"><div class="nav-inner"><a href="#" class="nav-item new-item">🏷 NEW Products</a><a href="#" class="nav-item">Shop All Products</a><a href="#" class="nav-item active">Single Vanities <span class="nav-chevron">▾</span></a><a href="#" class="nav-item">Double Vanities <span class="nav-chevron">▾</span></a><a href="#" class="nav-item">Mirrors <span class="nav-chevron">▾</span></a><a href="#" class="nav-item">Collections <span class="nav-chevron">▾</span></a><a href="#" class="nav-item">Styles <span class="nav-chevron">▾</span></a><a href="#" class="nav-item">Sizes <span class="nav-chevron">▾</span></a><a href="#" class="nav-item">Finishes <span class="nav-chevron">▾</span></a><a href="#" class="nav-item sale">SALE</a></div></nav>
+
+<!-- BREADCRUMB -->
+<div class="breadcrumb"><div class="breadcrumb-inner"><a href="#">Home</a><span class="breadcrumb-sep"> › </span><span class="breadcrumb-cur">Single Vanities</span></div></div>
+
+<!-- CAT HERO -->
+<div class="cat-hero">
+  <div class="cat-hero-inner">
+    <h1>Single Vanities</h1>
+    <p>Premium single-sink bathroom vanities in stock and ready for pickup or nationwide shipping.</p>
+    <div class="cat-meta">James Martin Vanities · Chianti · Addison · Wellington · Brooklyn · Copper Cove · Brenlyn</div>
+  </div>
+</div>
+
+<!-- SUB-COLLECTION CHIPS -->
+<div class="subcol-bar">
+  <div class="subcol-inner">
+    <a href="#" class="subcol-chip active">All Single Vanities</a>
+    <a href="#" class="subcol-chip">Chianti Collection</a>
+    <a href="#" class="subcol-chip">Addison Collection</a>
+    <a href="#" class="subcol-chip">Wellington / Console</a>
+    <a href="#" class="subcol-chip">Brooklyn Collection</a>
+    <a href="#" class="subcol-chip">Copper Cove</a>
+    <a href="#" class="subcol-chip">Breckenridge</a>
+    <a href="#" class="subcol-chip">Hudson</a>
+    <a href="#" class="subcol-chip">Brittany</a>
+    <a href="#" class="subcol-chip">Under $1,500</a>
+    <a href="#" class="subcol-chip">Wall Mount</a>
+  </div>
+</div>
+
+<!-- TOOLBAR -->
+<div class="cat-toolbar">
+  <div class="cat-count">Showing items <strong>1–18</strong> of <strong>247</strong></div>
+  <div class="toolbar-right">
+    <label style="font-size:.82rem;color:var(--muted)">Sort by:</label>
+    <select class="sort-sel">
+      <option>Featured</option>
+      <option>Price: Low to High</option>
+      <option>Price: High to Low</option>
+      <option>Newest</option>
+      <option>Name A–Z</option>
+    </select>
+    <div class="view-btns">
+      <button class="view-btn">⊞</button>
+      <button class="view-btn active">⊟</button>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN LAYOUT: SIDEBAR + GRID -->
+<div class="cat-layout">
+
+  <!-- SIDEBAR FILTERS -->
+  <aside class="filter-panel">
+    <div class="filter-hdr"><h3>Filter</h3><button class="filter-clear">Clear all</button></div>
+
+    <div class="filter-group">
+      <span class="filter-group-lbl">Brand</span>
+      <label class="filter-opt"><input type="checkbox" checked> James Martin Vanities (156)</label>
+      <label class="filter-opt"><input type="checkbox"> James Martin (91)</label>
+      <label class="filter-opt"><input type="checkbox"> Fresca (22)</label>
+      <label class="filter-opt"><input type="checkbox"> Wyndham (18)</label>
+      <a href="#" style="font-size:.72rem;color:var(--navy);margin-top:.25rem;display:block">+ 8 more</a>
+    </div>
+
+    <div class="filter-group">
+      <span class="filter-group-lbl">Width</span>
+      <div class="size-btns">
+        <span class="size-btn">16"</span><span class="size-btn">20"</span><span class="size-btn">24"</span>
+        <span class="size-btn active">30"</span><span class="size-btn">36"</span><span class="size-btn">42"</span>
+        <span class="size-btn">48"</span><span class="size-btn">60"</span><span class="size-btn">72"</span>
+      </div>
+    </div>
+
+    <div class="filter-group">
+      <span class="filter-group-lbl">Hardware Finish</span>
+      <label class="filter-opt"><input type="checkbox" checked> Matte Black</label>
+      <label class="filter-opt"><input type="checkbox"> Brushed Nickel</label>
+      <label class="filter-opt"><input type="checkbox"> Radiant Gold</label>
+      <label class="filter-opt"><input type="checkbox"> Chrome</label>
+      <label class="filter-opt"><input type="checkbox"> Brass</label>
+    </div>
+
+    <div class="filter-group">
+      <span class="filter-group-lbl">Cabinet Finish</span>
+      <label class="filter-opt"><input type="checkbox"> Glossy White</label>
+      <label class="filter-opt"><input type="checkbox"> Mineral Grey</label>
+      <label class="filter-opt"><input type="checkbox"> Whitewashed Walnut</label>
+      <label class="filter-opt"><input type="checkbox"> Driftwood Patina</label>
+      <label class="filter-opt"><input type="checkbox"> Mid Century Acacia</label>
+    </div>
+
+    <div class="filter-group">
+      <span class="filter-group-lbl">Price Range</span>
+      <div style="display:flex;align-items:center;gap:.4rem;margin-top:.35rem">
+        <input type="text" placeholder="$0" style="flex:1;padding:.3rem .5rem;border:1px solid var(--border);border-radius:3px;font-size:.8rem;width:65px">
+        <span style="color:var(--muted);font-size:.8rem">–</span>
+        <input type="text" placeholder="$5,000" style="flex:1;padding:.3rem .5rem;border:1px solid var(--border);border-radius:3px;font-size:.8rem;width:65px">
+      </div>
+      <button class="btn btn-primary btn-sm" style="margin-top:.65rem;width:100%;justify-content:center;display:flex">Apply</button>
+    </div>
+  </aside>
+
+  <!-- PRODUCT GRID -->
+  <div>
+    <div class="product-grid grid-3">
+
+      <div class="pcard">
+        <div class="pcard-img"><img src="https://cdn.shopify.com/s/files/1/0679/6378/1435/products/tpx8ps6eandrsh63lt5m_e7ae0e86-af20-4d7f-82c1-a6e05f5e6aa5.jpg?v=1754581266" alt loading="lazy"><span class="sale-badge">Save 34%</span></div>
+        <div class="pcard-body"><div class="pcard-vendor">James Martin Vanities</div><div class="pcard-title">Chianti 20" Single Vanity Cabinet, Glossy White, Matte Black</div><div class="pcard-footer"><div><span class="price-current">$1,018</span><span class="price-was">$1,542</span></div><a href="#" onclick="go('product',document.querySelectorAll('.pnav-btn')[2]);return false" class="btn btn-navy btn-sm">View</a></div></div>
+      </div>
+
+      <div class="pcard">
+        <div class="pcard-img"><img src="https://cdn.shopify.com/s/files/1/0679/6378/1435/products/kiop6nrumgcvyvs26azc_44bbc1f5-adf0-43b7-8c33-dd335f02ccc4.jpg?v=1754581270" alt loading="lazy"><span class="sale-badge">Save 34%</span></div>
+        <div class="pcard-body"><div class="pcard-vendor">James Martin Vanities</div><div class="pcard-title">Chianti 20" Single Vanity Cabinet, Mineral Grey, Radiant Gold</div><div class="pcard-footer"><div><span class="price-current">$1,090</span><span class="price-was">$1,652</span></div><a href="#" onclick="go('product',document.querySelectorAll('.pnav-btn')[2]);return false" class="btn btn-navy btn-sm">View</a></div></div>
+      </div>
+
+      <div class="pcard">
+        <div class="pcard-img"><img src="https://cdn.shopify.com/s/files/1/0679/6378/1435/products/hjrgaou4rt2lyfbxhvew_92db0d56-496f-4374-a8a4-d6d5f5751417.jpg?v=1754581275" alt loading="lazy"><span class="sale-badge">Save 34%</span></div>
+        <div class="pcard-body"><div class="pcard-vendor">James Martin Vanities</div><div class="pcard-title">Chianti 20" Single Vanity Cabinet, Whitewashed Walnut, Radiant Gold</div><div class="pcard-footer"><div><span class="price-current">$1,090</span><span class="price-was">$1,652</span></div><a href="#" onclick="go('product',document.querySelectorAll('.pnav-btn')[2]);return false" class="btn btn-navy btn-sm">View</a></div></div>
+      </div>
+
+      <div class="pcard">
+        <div class="pcard-img"><img src="https://cdn.shopify.com/s/files/1/0679/6378/1435/products/jwynojypqpv0zkmfltib_6a95aed0-a428-4469-b0bf-a91f288fddc7.jpg?v=1754581282" alt loading="lazy"><span class="sale-badge">Save 34%</span></div>
+        <div class="pcard-body"><div class="pcard-vendor">James Martin Vanities</div><div class="pcard-title">Chianti 24" Single Vanity Cabinet, Mineral Grey, Brushed Nickel</div><div class="pcard-footer"><div><span class="price-current">$1,094</span><span class="price-was">$1,658</span></div><a href="#" onclick="go('product',document.querySelectorAll('.pnav-btn')[2]);return false" class="btn btn-navy btn-sm">View</a></div></div>
+      </div>
+
+      <div class="pcard">
+        <div class="pcard-img"><img src="https://cdn.shopify.com/s/files/1/0679/6378/1435/products/stsi54lttpr934l5yake_560882a2-67ea-42ea-a735-e4e9b81e216d.jpg?v=1754581283" alt loading="lazy"><span class="sale-badge">Save 34%</span></div>
+        <div class="pcard-body"><div class="pcard-vendor">James Martin Vanities</div><div class="pcard-title">Chianti 24" Single Vanity Cabinet, Mineral Grey, Matte Black</div><div class="pcard-footer"><div><span class="price-current">$1,094</span><span class="price-was">$1,658</span></div><a href="#" onclick="go('product',document.querySelectorAll('.pnav-btn')[2]);return false" class="btn btn-navy btn-sm">View</a></div></div>
+      </div>
+
+      <div class="pcard">
+        <div class="pcard-img"><img src="https://cdn.shopify.com/s/files/1/0679/6378/1435/products/l1vra553q4avniuqiuil_8f00a534-9f16-49bf-866e-83313e86a217.jpg?v=1754581287" alt loading="lazy"><span class="sale-badge">Save 34%</span></div>
+        <div class="pcard-body"><div class="pcard-vendor">James Martin Vanities</div><div class="pcard-title">Chianti 24" Single Vanity Cabinet, Whitewashed Walnut, Brushed Nickel</div><div class="pcard-footer"><div><span class="price-current">$1,094</span><span class="price-was">$1,658</span></div><a href="#" onclick="go('product',document.querySelectorAll('.pnav-btn')[2]);return false" class="btn btn-navy btn-sm">View</a></div></div>
+      </div>
+
+      <div class="pcard">
+        <div class="pcard-img"><img src="https://cdn.shopify.com/s/files/1/0679/6378/1435/products/j3qntunu5epzvgua1apo_e2e780ab-cffd-44e0-8f3e-e920410bd7da.jpg?v=1668931234" alt loading="lazy"><span class="sale-badge">Save 34%</span></div>
+        <div class="pcard-body"><div class="pcard-vendor">James Martin</div><div class="pcard-title">Addison 30" Single Vanity Cabinet (w/Doors), Mid Century Acacia</div><div class="pcard-footer"><div><span class="price-current">$1,139</span><span class="price-was">$1,726</span></div><a href="#" onclick="go('product',document.querySelectorAll('.pnav-btn')[2]);return false" class="btn btn-navy btn-sm">View</a></div></div>
+      </div>
+
+      <div class="pcard">
+        <div class="pcard-img"><img src="https://cdn.shopify.com/s/files/1/0679/6378/1435/products/559e5d59aedf2670cfab1af255a0953833afd2a3.jpg?v=1668936536" alt loading="lazy"><span class="sale-badge">Save 34%</span></div>
+        <div class="pcard-body"><div class="pcard-vendor">James Martin</div><div class="pcard-title">Wellington 24" Single Console Single Sink w/ Chrome Finish Stand</div><div class="pcard-footer"><div><span class="price-current">$1,145</span><span class="price-was">$1,735</span></div><a href="#" onclick="go('product',document.querySelectorAll('.pnav-btn')[2]);return false" class="btn btn-navy btn-sm">View</a></div></div>
+      </div>
+
+      <div class="pcard">
+        <div class="pcard-img"><img src="https://cdn.shopify.com/s/files/1/0679/6378/1435/products/b9sh39f3mv5ypqyg9owp_83baa6f8-214b-4390-8395-59bda41b37e4.jpg?v=1668931597" alt loading="lazy"><span class="sale-badge">Save 33%</span></div>
+        <div class="pcard-body"><div class="pcard-vendor">James Martin</div><div class="pcard-title">Brooklyn 47" Wooden Sink Console, Platinum Ash</div><div class="pcard-footer"><div><span class="price-current">$1,149</span><span class="price-was">$1,727</span></div><a href="#" onclick="go('product',document.querySelectorAll('.pnav-btn')[2]);return false" class="btn btn-navy btn-sm">View</a></div></div>
+      </div>
+
+      <div class="pcard">
+        <div class="pcard-img"><img src="https://cdn.shopify.com/s/files/1/0679/6378/1435/products/42295c30008306af301d79da146b8ffc359a565d_4d614ecc-afff-497f-bf30-105d9f9975b5.jpg?v=1668937368" alt loading="lazy"><span class="sale-badge">Save 33%</span></div>
+        <div class="pcard-body"><div class="pcard-vendor">James Martin</div><div class="pcard-title">Copper Cove 26" Single Vanity Cabinet, Driftwood Patina</div><div class="pcard-footer"><div><span class="price-current">$1,180</span><span class="price-was">$1,768</span></div><a href="#" onclick="go('product',document.querySelectorAll('.pnav-btn')[2]);return false" class="btn btn-navy btn-sm">View</a></div></div>
+      </div>
+
+      <div class="pcard">
+        <div class="pcard-img"><img src="https://cdn.shopify.com/s/files/1/0679/6378/1435/products/drvfev6rpwiqcqhbsbhc_53ddf803-31ea-4093-a28a-74445470ad84.jpg?v=1754581277" alt loading="lazy"><span class="sale-badge">Save 34%</span></div>
+        <div class="pcard-body"><div class="pcard-vendor">James Martin Vanities</div><div class="pcard-title">Chianti 24" Single Vanity Cabinet, Glossy White, Brushed Nickel</div><div class="pcard-footer"><div><span class="price-current">$1,198</span><span class="price-was">$1,815</span></div><a href="#" onclick="go('product',document.querySelectorAll('.pnav-btn')[2]);return false" class="btn btn-navy btn-sm">View</a></div></div>
+      </div>
+
+      <div class="pcard">
+        <div class="pcard-img"><img src="https://cdn.shopify.com/s/files/1/0679/6378/1435/products/6c22e1a9eba5ed9c2476f42fbf0e9a724d1c6ab2_4b65e24d-98c0-47ca-8b7b-bfba802b30b3.jpg?v=1668936548" alt loading="lazy"><span class="sale-badge">Save 34%</span></div>
+        <div class="pcard-body"><div class="pcard-vendor">James Martin</div><div class="pcard-title">Wellington 24" Single Console Single Sink w/ Brass Finish Stand</div><div class="pcard-footer"><div><span class="price-current">$1,239</span><span class="price-was">$1,877</span></div><a href="#" onclick="go('product',document.querySelectorAll('.pnav-btn')[2]);return false" class="btn btn-navy btn-sm">View</a></div></div>
+      </div>
+
+    </div>
+
+    <!-- PAGINATION -->
+    <div>
+      <p class="page-info">Showing items 1–18 of 247.</p>
+      <div class="pagination">
+        <button class="pg-btn">‹ Prev</button>
+        <button class="pg-btn active">1</button>
+        <button class="pg-btn">2</button>
+        <button class="pg-btn">3</button>
+        <span style="color:var(--muted);padding:0 .25rem">…</span>
+        <button class="pg-btn">14</button>
+        <button class="pg-btn">Next ›</button>
+      </div>
+    </div>
+  </div><!-- /grid col -->
+
+</div><!-- /cat-layout -->
+</div><!-- /pg-category -->
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     PAGE 3 — PRODUCT DETAIL
+═══════════════════════════════════════════════════════════ -->
+<div id="pg-product" class="page">
+<div class="spacer"></div>
+
+<div class="announce">Questions? ☎ Call Us! <a href="#">833-329-1365</a></div>
+<header class="site-header"><div class="hdr-inner"><div class="logo-text">BathroomVanities<span style="color:var(--gold)">Outlet</span><small>Atlanta's #1 Bathroom Showroom</small></div><div class="search-wrap"><input type="text" placeholder="Search vanities, mirrors, faucets..."><button>🔍</button></div><div class="hdr-actions"><a href="#" class="hdr-action cart-wrap"><span style="font-size:1.3rem">🛒</span><span class="cart-count">3</span><span>Cart</span></a></div></div></header>
+<nav class="main-nav"><div class="nav-inner"><a href="#" class="nav-item new-item">🏷 NEW Products</a><a href="#" class="nav-item">Shop All Products</a><a href="#" class="nav-item active">Single Vanities <span class="nav-chevron">▾</span></a><a href="#" class="nav-item">Double Vanities <span class="nav-chevron">▾</span></a><a href="#" class="nav-item">Mirrors <span class="nav-chevron">▾</span></a><a href="#" class="nav-item">Collections <span class="nav-chevron">▾</span></a><a href="#" class="nav-item">Styles <span class="nav-chevron">▾</span></a><a href="#" class="nav-item">Sizes <span class="nav-chevron">▾</span></a><a href="#" class="nav-item">Finishes <span class="nav-chevron">▾</span></a><a href="#" class="nav-item sale">SALE</a></div></nav>
+
+<!-- BREADCRUMB -->
+<div class="breadcrumb"><div class="breadcrumb-inner"><a href="#">Home</a><span class="breadcrumb-sep"> › </span><a href="#">Single Vanities</a><span class="breadcrumb-sep"> › </span><span class="breadcrumb-cur">Amberly 72" Double Vanity, Mid-Century Walnut</span></div></div>
+
+<!-- PDP -->
+<div class="pdp-wrap">
+  <div class="pdp-grid">
+
+    <!-- GALLERY -->
+    <div class="pdp-gallery">
+      <div class="gallery-main-wrap">
+        <img id="main-img" src="https://cdn.shopify.com/s/files/1/0679/6378/1435/products/etalwzsckpzf06unarhw_caa447b9-2aa2-49dd-bcf8-31c861c7fd17.jpg?v=1754581030" alt="Amberly 72 Double Vanity">
+        <div class="gallery-zoom">🔍</div>
+        <div class="gallery-prev">‹</div>
+        <div class="gallery-next">›</div>
+      </div>
+      <div class="gallery-thumbs">
+        <div class="gallery-thumb active"><img src="https://cdn.shopify.com/s/files/1/0679/6378/1435/products/etalwzsckpzf06unarhw_caa447b9-2aa2-49dd-bcf8-31c861c7fd17.jpg?v=1754581030" alt></div>
+        <div class="gallery-thumb"><img src="https://cdn.shopify.com/s/files/1/0679/6378/1435/products/b9sh39f3mv5ypqyg9owp_83baa6f8-214b-4390-8395-59bda41b37e4.jpg?v=1668931597" alt></div>
+        <div class="gallery-thumb"><img src="https://cdn.shopify.com/s/files/1/0679/6378/1435/products/j3qntunu5epzvgua1apo_e2e780ab-cffd-44e0-8f3e-e920410bd7da.jpg?v=1668931234" alt></div>
+        <div class="gallery-thumb"><img src="https://cdn.shopify.com/s/files/1/0679/6378/1435/products/42295c30008306af301d79da146b8ffc359a565d_4d614ecc-afff-497f-bf30-105d9f9975b5.jpg?v=1668937368" alt></div>
+        <div class="gallery-thumb"><img src="https://cdn.shopify.com/s/files/1/0679/6378/1435/products/tpx8ps6eandrsh63lt5m_e7ae0e86-af20-4d7f-82c1-a6e05f5e6aa5.jpg?v=1754581266" alt></div>
+      </div>
+    </div>
+
+    <!-- INFO -->
+    <div class="pdp-info">
+      <div class="pdp-vendor">James Martin Vanities</div>
+      <h1 class="pdp-title">Amberly 72" Double Vanity, Mid-Century Walnut w/ 3CM Grey Expo Top</h1>
+      <div class="pdp-sku" style="font-size:.75rem;color:var(--muted);margin-bottom:.5rem">SKU: 670-V72-WLT-3GEX</div>
+
+      <div class="pdp-avail"><span class="avail-tag avail-in">✔ In Stock — 2 available</span></div>
+
+      <div class="pdp-price-row">
+        <span class="pdp-price">$4,081</span>
+        <span class="pdp-was">$6,183</span>
+        <span class="pdp-save-tag">Save $2,102 (34% off)</span>
+      </div>
+
+      <p class="pdp-desc">The Amberly collection combines Mid-Century modern design with exceptional craftsmanship. This 72" double vanity features a warm Mid-Century Walnut cabinet with premium 3CM Grey Expo quartz top, undermount rectangular sinks, and brushed gold hardware.</p>
+
+      <!-- BUNDLE & SAVE -->
+      <div class="bundle-box">
+        <div class="bundle-box-hdr">
+          <h4>Bundle &amp; Save</h4>
+          <span class="bundle-save-pill">Save up to 10%</span>
+        </div>
+        <p class="bundle-sub">Add a top or faucet and save automatically at checkout.</p>
+
+        <div class="bundle-item">
+          <input type="checkbox" class="bundle-check">
+          <div class="bundle-item-img">🪨</div>
+          <div class="bundle-item-info">
+            <div class="bundle-item-name">Add a Top — Amberly 72" Quartz Vanity Top, White Zeus</div>
+            <div class="bundle-item-save">Save 8% when bundled</div>
+          </div>
+          <div class="bundle-item-price">+$689</div>
+        </div>
+
+        <div class="bundle-item">
+          <input type="checkbox" class="bundle-check">
+          <div class="bundle-item-img">🚿</div>
+          <div class="bundle-item-info">
+            <div class="bundle-item-name">Add a Faucet — Danze Parma 2-Handle, Brushed Gold</div>
+            <div class="bundle-item-save">Save 10% when bundled</div>
+          </div>
+          <div class="bundle-item-price">+$219</div>
+        </div>
+      </div>
+
+      <!-- VIDEO -->
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:1rem;margin-bottom:1.25rem;display:flex;align-items:center;gap:.75rem">
+        <span style="font-size:1.75rem">▶️</span>
+        <div>
+          <div style="font-size:.82rem;font-weight:700">Video Viewer</div>
+          <div style="font-size:.75rem;color:var(--muted)">Watch this product on YouTube or local video</div>
+        </div>
+      </div>
+
+      <!-- QTY + ATC -->
+      <div class="qty-row">
+        <span class="qty-label">Qty</span>
+        <div class="qty-picker">
+          <button class="qty-btn" onclick="adjQty(-1)">−</button>
+          <div class="qty-val" id="qty">1</div>
+          <button class="qty-btn" onclick="adjQty(1)">+</button>
+        </div>
+      </div>
+      <button class="atc-btn">Add to Cart</button>
+
+      <div class="trust-bar">
+        <div class="trust-item">🔒 Secure Checkout</div>
+        <div class="trust-item">🚚 Free Shipping on $99+</div>
+        <div class="trust-item">☎ 833-329-1365</div>
+        <div class="trust-item">🏢 Pickup in Atlanta</div>
+      </div>
+
+      <!-- ACCORDIONS -->
+      <div class="accordions">
+        <div class="accordion">
+          <div class="accordion-hdr" onclick="toggleAcc(this)">Specifications <span class="accordion-icon">+</span></div>
+          <div class="accordion-body" style="display:block">
+            <table class="specs-tbl">
+              <tr><th>Width</th><td>72 inches</td></tr>
+              <tr><th>Depth</th><td>23.5 inches</td></tr>
+              <tr><th>Height</th><td>34.3 inches (without top)</td></tr>
+              <tr><th>Sinks</th><td>2 (Double)</td></tr>
+              <tr><th>Cabinet Finish</th><td>Mid-Century Walnut</td></tr>
+              <tr><th>Top Material</th><td>3CM Grey Expo Quartz</td></tr>
+              <tr><th>SKU</th><td>670-V72-WLT-3GEX</td></tr>
+              <tr><th>Brand</th><td>James Martin Vanities</td></tr>
+            </table>
+          </div>
+        </div>
+        <div class="accordion">
+          <div class="accordion-hdr" onclick="toggleAcc(this)">Additional Information <span class="accordion-icon">+</span></div>
+          <div class="accordion-body" style="display:none">
+            <p>This vanity ships fully assembled. The quartz top is shipped separately and is ready to install. All hardware is included. Please allow 3–7 business days for delivery.</p>
+          </div>
+        </div>
+        <div class="accordion">
+          <div class="accordion-hdr" onclick="toggleAcc(this)">Shipping Policy <span class="accordion-icon">+</span></div>
+          <div class="accordion-body" style="display:none">
+            <p>Free shipping on all orders over $99. Large vanities ship via freight carrier with curbside delivery. White-glove delivery available at checkout for an additional fee.</p>
+          </div>
+        </div>
+        <div class="accordion">
+          <div class="accordion-hdr" onclick="toggleAcc(this)">Damage &amp; Return Policy <span class="accordion-icon">+</span></div>
+          <div class="accordion-body" style="display:none">
+            <p>Inspect all deliveries before signing. Damage must be reported within 48 hours. Returns accepted within 30 days for unused items in original packaging. Custom/special orders are final sale.</p>
+          </div>
+        </div>
+        <div class="accordion">
+          <div class="accordion-hdr" onclick="toggleAcc(this)">About James Martin Vanities <span class="accordion-icon">+</span></div>
+          <div class="accordion-body" style="display:none">
+            <p>James Martin Furniture has been creating exceptional bathroom furniture for over 20 years. Their vanities are crafted from solid hardwood and premium veneers, designed and built to last a lifetime.</p>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /pdp-info -->
+  </div><!-- /pdp-grid -->
+</div><!-- /pdp-wrap -->
+
+<!-- RELATED PRODUCTS -->
+<div class="section" style="background:var(--bg);border-top:1px solid var(--border)">
+  <div class="section-inner">
+    <div class="section-hdr"><div><div class="section-divider"></div><h2>You May Also Like</h2></div><a href="#">View All →</a></div>
+    <div class="product-grid grid-4">
+      <div class="pcard"><div class="pcard-img"><img src="https://cdn.shopify.com/s/files/1/0679/6378/1435/products/tpx8ps6eandrsh63lt5m_e7ae0e86-af20-4d7f-82c1-a6e05f5e6aa5.jpg?v=1754581266" alt loading="lazy"><span class="sale-badge">Save 34%</span></div><div class="pcard-body"><div class="pcard-vendor">James Martin Vanities</div><div class="pcard-title">Chianti 20" Single Vanity, Glossy White</div><div class="pcard-footer"><span class="price-current">$1,018</span><a href="#" class="btn btn-navy btn-sm">View</a></div></div></div>
+      <div class="pcard"><div class="pcard-img"><img src="https://cdn.shopify.com/s/files/1/0679/6378/1435/products/l1vra553q4avniuqiuil_8f00a534-9f16-49bf-866e-83313e86a217.jpg?v=1754581287" alt loading="lazy"><span class="sale-badge">Save 34%</span></div><div class="pcard-body"><div class="pcard-vendor">James Martin Vanities</div><div class="pcard-title">Chianti 24" Single Vanity, Whitewashed Walnut</div><div class="pcard-footer"><span class="price-current">$1,094</span><a href="#" class="btn btn-navy btn-sm">View</a></div></div></div>
+      <div class="pcard"><div class="pcard-img"><img src="https://cdn.shopify.com/s/files/1/0679/6378/1435/products/b9sh39f3mv5ypqyg9owp_83baa6f8-214b-4390-8395-59bda41b37e4.jpg?v=1668931597" alt loading="lazy"><span class="sale-badge">Save 33%</span></div><div class="pcard-body"><div class="pcard-vendor">James Martin</div><div class="pcard-title">Brooklyn 47" Wooden Sink Console, Platinum Ash</div><div class="pcard-footer"><span class="price-current">$1,149</span><a href="#" class="btn btn-navy btn-sm">View</a></div></div></div>
+      <div class="pcard"><div class="pcard-img"><img src="https://cdn.shopify.com/s/files/1/0679/6378/1435/products/42295c30008306af301d79da146b8ffc359a565d_4d614ecc-afff-497f-bf30-105d9f9975b5.jpg?v=1668937368" alt loading="lazy"><span class="sale-badge">Save 33%</span></div><div class="pcard-body"><div class="pcard-vendor">James Martin</div><div class="pcard-title">Copper Cove 26" Single Vanity, Driftwood Patina</div><div class="pcard-footer"><span class="price-current">$1,180</span><a href="#" class="btn btn-navy btn-sm">View</a></div></div></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /pg-product -->
+
+<script>
+// Page switcher
+function go(id, btn) {
+  document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('active'); });
+  document.querySelectorAll('.pnav-btn').forEach(function(b){ b.classList.remove('active'); });
+  document.getElementById('pg-' + id).classList.add('active');
+  if (btn) btn.classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+// Thumbnail switcher
+document.querySelectorAll('.gallery-thumb').forEach(function(thumb) {
+  thumb.addEventListener('click', function() {
+    var src = this.querySelector('img').src;
+    document.getElementById('main-img').src = src;
+    document.querySelectorAll('.gallery-thumb').forEach(function(t){ t.classList.remove('active'); });
+    this.classList.add('active');
+  });
+});
+
+// Qty
+function adjQty(d) {
+  var el = document.getElementById('qty');
+  var v = parseInt(el.textContent) + d;
+  if (v >= 1 && v <= 10) el.textContent = v;
+}
+
+// Accordion
+function toggleAcc(hdr) {
+  var body = hdr.nextElementSibling;
+  var icon = hdr.querySelector('.accordion-icon');
+  if (body.style.display === 'none') {
+    body.style.display = 'block';
+    icon.textContent = '−';
+  } else {
+    body.style.display = 'none';
+    icon.textContent = '+';
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,83 @@
+<!-- Toolbar -->
+<div class="adm-toolbar">
+  <form action="/admin/products" method="GET" class="adm-search-form">
+    <input type="text" name="q" value="<%= search %>" placeholder="Search by name, SKU, or brand…" class="adm-search-input">
+    <button type="submit" class="btn btn-outline">Search</button>
+    <% if (search) { %><a href="/admin/products" class="btn btn-outline">Clear</a><% } %>
+  </form>
+  <a href="/admin/products/new" class="btn btn-primary">+ Add Product</a>
+</div>
+
+<!-- Count -->
+<p class="adm-count"><%= total %> product<%= total !== 1 ? 's' : '' %><% if (search) { %> matching "<%= search %>"<% } %></p>
+
+<!-- Table -->
+<% if (products.length === 0) { %>
+<div class="adm-empty"><p>No products found.</p></div>
+<% } else { %>
+<div class="adm-table-wrap">
+  <table class="adm-table adm-table--products">
+    <thead>
+      <tr>
+        <th style="width:56px">Image</th>
+        <th>Name / SKU</th>
+        <th>Brand</th>
+        <th>Category</th>
+        <th>Price</th>
+        <th>Source</th>
+        <th>Status</th>
+        <th style="width:110px">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% products.forEach(p => { %>
+      <tr>
+        <td>
+          <% if (p.thumb) { %>
+          <img src="<%= p.thumb %>" alt="" width="44" height="44" style="object-fit:contain;border-radius:4px;border:1px solid var(--color-whisper-hero)">
+          <% } else { %>
+          <div class="adm-thumb-placeholder">—</div>
+          <% } %>
+        </td>
+        <td>
+          <strong><%= p.name %></strong>
+          <% if (p.sku) { %><br><span class="adm-meta">SKU: <%= p.sku %></span><% } %>
+        </td>
+        <td><%= p.brand || '—' %></td>
+        <td><%= p.category_name || '—' %></td>
+        <td>
+          <span class="adm-price">$<%= parseFloat(p.price||0).toFixed(2) %></span>
+          <% if (p.compare_price) { %>
+          <br><span class="adm-was">$<%= parseFloat(p.compare_price).toFixed(2) %></span>
+          <% } %>
+        </td>
+        <td><span class="adm-source adm-source--<%= p.source_flag || 'manual' %>"><%= p.source_flag || 'manual' %></span></td>
+        <td>
+          <% if (p.active) { %>
+          <span class="adm-status adm-status--active">Active</span>
+          <% } else { %>
+          <span class="adm-status adm-status--inactive">Inactive</span>
+          <% } %>
+        </td>
+        <td class="adm-actions">
+          <a href="/admin/products/<%= p.id %>/edit" class="adm-action-link">Edit</a>
+          <form action="/admin/products/<%= p.id %>/delete" method="POST" style="display:inline" onsubmit="return confirm('Delete this product?')">
+            <button type="submit" class="adm-action-link adm-action-link--danger">Del</button>
+          </form>
+        </td>
+      </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+
+<!-- Pagination -->
+<% if (pages > 1) { %>
+<nav class="adm-pagination">
+  <% for (let i = 1; i <= pages; i++) { %>
+  <a href="/admin/products?page=<%= i %><%= search ? '&q=' + encodeURIComponent(search) : '' %>"
+     class="adm-page-btn<%= i === page ? ' active' : '' %>"><%= i %></a>
+  <% } %>
+</nav>
+<% } %>
+<% } %>

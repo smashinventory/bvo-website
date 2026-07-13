@@ -1,0 +1,70 @@
+<!-- Status filter tabs -->
+<div class="adm-tabs">
+  <a href="/admin/orders" class="adm-tab<%= !status ? ' active' : '' %>">All</a>
+  <% statuses.forEach(s => { %>
+  <a href="/admin/orders?status=<%= s %>" class="adm-tab<%= status === s ? ' active' : '' %>">
+    <%= s.charAt(0).toUpperCase() + s.slice(1) %>
+  </a>
+  <% }) %>
+</div>
+
+<p class="adm-count">
+  <%= total %> order<%= total !== 1 ? 's' : '' %>
+  <% if (status) { %> · <%= status %><% } %>
+</p>
+
+<% if (orders.length === 0) { %>
+<div class="adm-empty">
+  <p>No orders found<% if (status) { %> with status "<%= status %>"<% } %>.</p>
+</div>
+<% } else { %>
+<div class="adm-table-wrap">
+  <table class="adm-table">
+    <thead>
+      <tr>
+        <th>Order #</th>
+        <th>Customer</th>
+        <th>Date</th>
+        <th>Items</th>
+        <th>Total</th>
+        <th>Status</th>
+        <th style="width:160px">Update Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% orders.forEach(o => { %>
+      <tr>
+        <td><strong><%= o.order_number || ('#' + o.id) %></strong></td>
+        <td>
+          <%= o.customer_name || 'Guest' %>
+          <% if (o.email) { %><br><span class="adm-meta"><%= o.email %></span><% } %>
+        </td>
+        <td><%= new Date(o.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) %></td>
+        <td><%= o.item_count || 0 %></td>
+        <td>$<%= parseFloat(o.total||0).toLocaleString('en-US',{minimumFractionDigits:2}) %></td>
+        <td><span class="adm-status adm-status--<%= o.status %>"><%= o.status %></span></td>
+        <td>
+          <form action="/admin/orders/<%= o.id %>/status" method="POST" class="adm-inline-form">
+            <select name="status" class="adm-status-select" onchange="this.form.submit()">
+              <% statuses.forEach(s => { %>
+              <option value="<%= s %>" <%= o.status === s ? 'selected' : '' %>><%= s %></option>
+              <% }) %>
+            </select>
+          </form>
+        </td>
+      </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+
+<!-- Pagination -->
+<% if (pages > 1) { %>
+<nav class="adm-pagination">
+  <% for (let i = 1; i <= pages; i++) { %>
+  <a href="/admin/orders?page=<%= i %><%= status ? '&status=' + status : '' %>"
+     class="adm-page-btn<%= i === page ? ' active' : '' %>"><%= i %></a>
+  <% } %>
+</nav>
+<% } %>
+<% } %>

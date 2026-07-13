@@ -1,0 +1,93 @@
+<!-- Stat cards -->
+<div class="adm-stats-grid">
+  <div class="adm-stat-card">
+    <div class="adm-stat-icon adm-stat-icon--navy">
+      <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+    </div>
+    <div>
+      <p class="adm-stat-label">Total Products</p>
+      <p class="adm-stat-value"><%= stats.totalProducts.toLocaleString() %></p>
+      <p class="adm-stat-sub"><%= stats.activeProducts %> active</p>
+    </div>
+  </div>
+
+  <div class="adm-stat-card">
+    <div class="adm-stat-icon adm-stat-icon--amber">
+      <svg viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+    </div>
+    <div>
+      <p class="adm-stat-label">Orders Today</p>
+      <p class="adm-stat-value"><%= stats.ordersToday.toLocaleString() %></p>
+      <p class="adm-stat-sub"><%= stats.totalOrders.toLocaleString() %> total</p>
+    </div>
+  </div>
+
+  <div class="adm-stat-card">
+    <div class="adm-stat-icon adm-stat-icon--gold">
+      <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+    </div>
+    <div>
+      <p class="adm-stat-label">Revenue This Month</p>
+      <p class="adm-stat-value">$<%= stats.revenueMonth.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) %></p>
+      <p class="adm-stat-sub">current month</p>
+    </div>
+  </div>
+
+  <div class="adm-stat-card">
+    <div class="adm-stat-icon adm-stat-icon--sage">
+      <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    </div>
+    <div>
+      <p class="adm-stat-label">Customers</p>
+      <p class="adm-stat-value"><%= stats.totalCustomers.toLocaleString() %></p>
+      <p class="adm-stat-sub">registered accounts</p>
+    </div>
+  </div>
+</div>
+
+<!-- Quick actions -->
+<div class="adm-section-header">
+  <h2 class="adm-section-title">Quick Actions</h2>
+</div>
+<div class="adm-quick-actions">
+  <a href="/admin/products/new" class="btn btn-primary">+ Add Product</a>
+  <a href="/admin/orders" class="btn btn-outline">View All Orders</a>
+  <a href="/admin/products" class="btn btn-outline">Manage Products</a>
+</div>
+
+<!-- Recent orders -->
+<div class="adm-section-header" style="margin-top:32px">
+  <h2 class="adm-section-title">Recent Orders</h2>
+  <a href="/admin/orders" class="adm-section-link">View all →</a>
+</div>
+
+<% if (!recentOrders || recentOrders.length === 0) { %>
+<div class="adm-empty">
+  <p>No orders yet. <a href="/">Share the store</a> to start getting orders.</p>
+</div>
+<% } else { %>
+<div class="adm-table-wrap">
+  <table class="adm-table">
+    <thead>
+      <tr>
+        <th>Order #</th>
+        <th>Customer</th>
+        <th>Date</th>
+        <th>Status</th>
+        <th>Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% recentOrders.forEach(o => { %>
+      <tr>
+        <td><strong><%= o.order_number || '#' + o.id %></strong></td>
+        <td><%= o.customer_name || 'Guest' %></td>
+        <td><%= new Date(o.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) %></td>
+        <td><span class="adm-status adm-status--<%= o.status %>"><%= o.status %></span></td>
+        <td>$<%= parseFloat(o.total||0).toLocaleString('en-US',{minimumFractionDigits:2}) %></td>
+      </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+<% } %>

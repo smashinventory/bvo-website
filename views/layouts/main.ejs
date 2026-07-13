@@ -1,0 +1,148 @@
+<%
+/* ── Build dynamic Google Fonts URL ───────────────────────────── */
+const _d      = (settings && settings.design) ? settings.design : {};
+const _seo    = (settings && settings.seo)    ? settings.seo    : {};
+const _colors = _d.colors || {};
+const _hFont  = _d.heading_font || 'Lora';
+const _bFont  = _d.body_font    || 'Lato';
+const _baseSize = parseInt(_d.base_size_px) || 16;
+const _hWeight  = _d.heading_weight || '600';
+const _btnR     = _d.button_radius  || '6px';
+const _cardR    = _d.card_radius    || '12px';
+
+// Build Google Fonts family string
+const _fontFamilies = [...new Set([_hFont, _bFont])];
+const _gfQuery = _fontFamilies.map(f => {
+  const enc = encodeURIComponent(f);
+  return `family=${enc}:ital,wght@0,300;0,400;0,600;0,700;1,400`;
+}).join('&');
+const _gfUrl = `https://fonts.googleapis.com/css2?${_gfQuery}&display=swap`;
+
+// CSS color overrides (only output if diverging from brand defaults)
+const _navyC   = _colors.navy    || '#182840';
+const _amberC  = _colors.amber   || '#B8862A';
+const _sageC   = _colors.sage    || '#5A7A5A';
+const _whisperC= _colors.whisper || '#F8F6F2';
+const _whiteC  = _colors.white   || '#FFFFFF';
+
+// SEO
+const _pageTitle = typeof pageTitle !== 'undefined' && pageTitle
+                 ? pageTitle : (_seo.home_title || 'BathroomVanitiesOutlet.com');
+const _metaDesc  = typeof metaDesc !== 'undefined' && metaDesc
+                 ? metaDesc : (_seo.home_description || '');
+const _ogImg     = _seo.og_image || '/images/og-default.jpg';
+const _siteName  = (settings && settings.global) ? (settings.global.site_name || 'BathroomVanitiesOutlet.com') : 'BathroomVanitiesOutlet.com';
+%>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- SEO -->
+  <title><%= _pageTitle %></title>
+  <meta name="description" content="<%= _metaDesc %>">
+
+  <!-- Canonical + robots -->
+  <% if (typeof canonicalUrl !== 'undefined' && canonicalUrl) { %>
+  <link rel="canonical" href="<%= canonicalUrl %>">
+  <% } %>
+  <% if (typeof noindex !== 'undefined' && noindex) { %>
+  <meta name="robots" content="noindex,follow">
+  <% } %>
+
+  <!-- Sitemap discovery -->
+  <link rel="sitemap" type="application/xml" href="/sitemap.xml">
+
+  <!-- Open Graph -->
+  <meta property="og:title"       content="<%= _pageTitle %>">
+  <meta property="og:description" content="<%= _metaDesc %>">
+  <meta property="og:image"       content="<%= _ogImg %>">
+  <meta property="og:type"        content="<% if (typeof product !== 'undefined' && product) { %>product<% } else { %>website<% } %>">
+  <meta property="og:url"         content="<%= typeof canonicalUrl !== 'undefined' ? canonicalUrl : '' %>">
+  <meta property="og:site_name"   content="<%= _siteName %>">
+  <meta name="twitter:card"       content="summary_large_image">
+
+  <!-- Google Fonts (dynamic from theme settings) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="<%- _gfUrl %>" rel="stylesheet">
+
+  <!-- Brand CSS tokens -->
+  <link rel="stylesheet" href="/css/brand.css">
+  <!-- Site CSS -->
+  <link rel="stylesheet" href="/css/site.css">
+
+  <!-- Design token overrides from theme settings -->
+  <style>
+    :root {
+      --color-navy:    <%= _navyC %>;
+      --color-amber:   <%= _amberC %>;
+      --color-sage:    <%= _sageC %>;
+      --color-whisper: <%= _whisperC %>;
+      --color-white:   <%= _whiteC %>;
+      --navy:    <%= _navyC %>;
+      --amber:   <%= _amberC %>;
+      --sage:    <%= _sageC %>;
+      --whisper: <%= _whisperC %>;
+      --font-serif: '<%= _hFont %>', Georgia, serif;
+      --font-sans:  '<%= _bFont %>', system-ui, sans-serif;
+      --base-size:  <%= _baseSize %>px;
+      --h-weight:   <%= _hWeight %>;
+      --radius-btn:  <%= _btnR %>;
+      --radius-card: <%= _cardR %>;
+    }
+    html { font-size: <%= _baseSize %>px; }
+  </style>
+
+  <!-- Page-level styles injected by individual views -->
+  <%- style %>
+
+  <!-- Google Tag Manager -->
+  <% if (typeof gtmId !== 'undefined' && gtmId) { %>
+  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+  new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+  j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+  'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+  })(window,document,'script','dataLayer','<%= gtmId %>');</script>
+  <% } %>
+
+  <!-- GA4 -->
+  <% const _gaId = (typeof ga4Id !== 'undefined' && ga4Id) ? ga4Id : _seo.google_analytics_id; %>
+  <% if (_gaId && !(typeof gtmId !== 'undefined' && gtmId)) { %>
+  <script async src="https://www.googletagmanager.com/gtag/js?id=<%= _gaId %>"></script>
+  <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','<%= _gaId %>');</script>
+  <% } %>
+</head>
+<body>
+
+  <!-- GTM noscript -->
+  <% if (typeof gtmId !== 'undefined' && gtmId) { %>
+  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=<%= gtmId %>"
+  height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+  <% } %>
+
+  <!-- Cart drawer (included once, JS toggles visibility) -->
+  <%- include('../partials/cart-drawer') %>
+
+  <%- include('../partials/header') %>
+
+  <main id="main-content">
+    <%- body %>
+  </main>
+
+  <%- include('../partials/footer') %>
+
+  <!-- Site JS -->
+  <script src="/js/site.js"></script>
+
+  <!-- Page-level scripts -->
+  <%- script %>
+
+  <!-- Tidio Live Chat -->
+  <% if (typeof tidioKey !== 'undefined' && tidioKey) { %>
+  <script src="//code.tidio.co/<%= tidioKey %>.js" async></script>
+  <% } %>
+
+</body>
+</html>

@@ -1,0 +1,1607 @@
+<%
+/* ════════════════════════════════════════════════════════════════
+   THEME EDITOR — Shopify-style UI
+   ════════════════════════════════════════════════════════════════ */
+
+const HEADING_FONTS = ['Lora','Playfair Display','Cormorant Garamond','Libre Baskerville','EB Garamond','Crimson Pro','Fraunces','Bodoni Moda','DM Serif Display','Gilda Display'];
+const BODY_FONTS    = ['Lato','Montserrat','Nunito Sans','Open Sans','Raleway','Jost','DM Sans','Inter','Poppins','Source Sans 3'];
+
+const t    = ts || {};
+const des  = t.design || {};
+const seo  = t.seo    || {};
+const desC = des.colors || {};
+
+/* ── Section registry ─────────────────────────────────────── */
+const HEADER_SECS = [
+  { key:'nav',         label:'Navigation',      hasEnabled:false },
+  { key:'promo_strip', label:'Promo Strip',     hasEnabled:true  },
+];
+const FOOTER_SECS = [
+  { key:'footer',      label:'Footer',          hasEnabled:false },
+  { key:'cart_drawer', label:'Cart Drawer',     hasEnabled:true  },
+];
+const THEME_SECS = [
+  { key:'design',  label:'Typography & Colors' },
+  { key:'seo',     label:'SEO & Meta' },
+  { key:'global',  label:'Global Settings' },
+];
+const ALL_TEMPLATE_KEYS = ['scrolling_ticker','hero','brand_logos','categories_section','featured_section','image_with_text','before_after','trust_band','parallax','testimonials','newsletter'];
+const TEMPLATE_META = {
+  scrolling_ticker:   { label:'Announcement Bar',  desc:'Scrolling promo ticker at page top' },
+  hero:               { label:'Hero Banner',        desc:'Full-width hero with CTAs' },
+  brand_logos:        { label:'Brand Logos',        desc:'Scrolling brand marquee' },
+  categories_section: { label:'Category Grid',      desc:'Shop-by-category cards' },
+  featured_section:   { label:'Featured Products',  desc:'Handpicked product grid' },
+  image_with_text:    { label:'Image with Text',    desc:'Split image + copy block' },
+  before_after:       { label:'Before / After',     desc:'Drag-handle comparison slider' },
+  trust_band:         { label:'Trust Band',         desc:'Three key stats / trust signals' },
+  parallax:           { label:'Parallax Band',      desc:'Full-width parallax CTA section' },
+  testimonials:       { label:'Testimonials',        desc:'Customer review cards' },
+  newsletter:         { label:'Newsletter',          desc:'Email capture / sign-up section' },
+};
+
+const savedOrder = (t.homepage_section_order && t.homepage_section_order.length)
+  ? t.homepage_section_order
+  : ALL_TEMPLATE_KEYS;
+
+// Build display-order list (saved order first, then any extras not yet in saved)
+const orderedKeys = [];
+savedOrder.forEach(function(k){ if(ALL_TEMPLATE_KEYS.includes(k)) orderedKeys.push(k); });
+ALL_TEMPLATE_KEYS.forEach(function(k){ if(!orderedKeys.includes(k)) orderedKeys.push(k); });
+
+function isSectionEnabled(key) {
+  const sec = t[key];
+  if (!sec || sec.enabled === undefined) return true;
+  return sec.enabled !== false;
+}
+
+/* ── Section icon helper ─────────────────────────────────── */
+function secIcon(key) {
+  const icons = {
+    nav:         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>',
+    promo_strip: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>',
+    scrolling_ticker:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14M12 5l7 7-7 7"/></svg>',
+    hero:        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',
+    brand_logos: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+    categories_section:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>',
+    featured_section:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="2" width="9" height="9" rx="1"/><rect x="13" y="2" width="9" height="9" rx="1"/><rect x="2" y="13" width="9" height="9" rx="1"/><rect x="13" y="13" width="9" height="9" rx="1"/></svg>',
+    image_with_text:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>',
+    before_after:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg>',
+    trust_band:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+    parallax:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
+    testimonials:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+    newsletter:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>',
+    footer:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="3" y1="21" x2="21" y2="21"/><polyline points="9 3 3 9 3 21"/><polyline points="15 3 21 9 21 21"/><line x1="3" y1="9" x2="21" y2="9"/></svg>',
+    cart_drawer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>',
+    design:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+    seo:         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+    global:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
+  };
+  return icons[key] || icons['design'];
+}
+
+/* ── EJS helpers ─────────────────────────────────────────── */
+function esc(v){ return (v===undefined||v===null)?'':String(v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function teField(type,name,label,value,compact){
+  var v=esc(value); var cls=compact?'te4-field compact':'te4-field';
+  if(type==='textarea') return '<div class="'+cls+'"><label>'+label+'</label><textarea name="'+name+'" rows="3">'+v+'</textarea></div>';
+  return '<div class="'+cls+'"><label>'+label+'</label><input type="'+type+'" name="'+name+'" value="'+v+'"></div>';
+}
+function teToggle(name,label,checked,compact){
+  var cls=compact?'te4-toggle compact':'te4-toggle'; var chk=checked?'checked':'';
+  return '<label class="'+cls+'"><input type="hidden" name="'+name+'" value="false"><input type="checkbox" name="'+name+'" value="true" '+chk+' class="te4-toggle-cb"><span class="te4-toggle-track"><span class="te4-toggle-thumb"></span></span><span class="te4-toggle-lbl">'+label+'</span></label>';
+}
+function teColor(name,label,value){
+  var v=esc(value||'#000000');
+  return '<div class="te4-color-field"><label>'+label+'</label><div class="te4-color-wrap"><input type="color" class="te4-color-swatch" value="'+v+'" data-for="'+name+'"><input type="text" name="'+name+'" value="'+v+'" class="te4-color-hex" maxlength="7"></div></div>';
+}
+function teImageField(name,label,value,compact){
+  var v=esc(value||''); var cls=compact?'te4-image-field compact':'te4-image-field';
+  return '<div class="'+cls+'"><label>'+label+'</label><div class="te4-img-row">'+(v?'<img class="te4-img-thumb" src="'+v+'" alt="">':'<div class="te4-img-empty">No image</div>')+'<div class="te4-img-controls"><input type="text" name="'+name+'" value="'+v+'" class="te4-img-url" placeholder="Paste URL or upload"><label class="te4-upload-label"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload<input type="file" accept="image/*" class="te4-upload-input" data-target-name="'+name+'"></label></div></div></div>';
+}
+/* Heading level picker (H1–H6) */
+function teHeadingLevel(name,value,compact){
+  var cls=compact?'te4-field compact':'te4-field';
+  var v=value||'h2';
+  var opts=['h1','h2','h3','h4','h5','h6'].map(function(h){
+    return '<option value="'+h+'"'+(v===h?' selected':'')+'>'+h.toUpperCase()+'</option>';
+  }).join('');
+  return '<div class="'+cls+'"><label>Heading Level</label><select name="'+name+'" class="te4-select">'+opts+'</select></div>';
+}
+
+/* Text alignment picker (left / center / right) */
+function teAlignment(name,value,compact){
+  var cls=compact?'te4-field compact':'te4-field';
+  var v=value||'left';
+  var btns=[['left','<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="18" y2="18"/></svg>'],
+             ['center','<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>'],
+             ['right','<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="9" y1="12" x2="21" y2="12"/><line x1="6" y1="18" x2="21" y2="18"/></svg>']].map(function(pair){
+    var active=v===pair[0]?' is-active':'';
+    return '<button type="button" class="te4-align-btn'+active+'" data-val="'+pair[0]+'" title="'+pair[0]+'">'+pair[1]+'</button>';
+  }).join('');
+  return '<div class="'+cls+'"><label>Alignment</label><div class="te4-align-group">'+btns+'<input type="hidden" name="'+name+'" value="'+esc(v)+'" class="te4-align-hidden"></div></div>';
+}
+
+/* Text size picker */
+function teTextSize(name,value,label,min,max,compact){
+  min=min||12; max=max||48; var v=parseInt(value)||16; var cls=compact?'te4-field compact':'te4-field';
+  return '<div class="'+cls+'"><label>'+(label||'Font Size')+'</label><div class="te4-slider-wrap"><input type="range" class="te4-slider" name="'+name+'" min="'+min+'" max="'+max+'" step="1" value="'+v+'"><input type="number" class="te4-slider-num" min="'+min+'" max="'+max+'" step="1" value="'+v+'" aria-label="Font size"><span class="te4-slider-unit">px</span></div></div>';
+}
+
+/* Image upload field with preview, alt text, and SEO filename display */
+function teImage(imgName,altName,imgValue,altValue,label,compact){
+  var v=esc(imgValue||''); var av=esc(altValue||''); var cls=compact?'te4-image-block compact':'te4-image-block';
+  var thumb=v?'<img class="te4-img-thumb" src="'+v+'" alt="">':'<div class="te4-img-empty"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".4"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><span>No image</span></div>';
+  var fname=v?('<span class="te4-img-fname">'+v.split('/').pop()+'</span>'):'';
+  return '<div class="'+cls+'"><div class="te4-img-block-label">'+label+'</div>'
+    +'<div class="te4-img-preview-wrap">'+thumb+'</div>'
+    +'<div class="te4-img-actions">'
+    +'<label class="te4-upload-btn"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload image<input type="file" accept="image/*" class="te4-upload-input" data-target-name="'+imgName+'"></label>'
+    +'<button type="button" class="te4-img-remove-btn" data-target-name="'+imgName+'">Remove</button>'
+    +'</div>'
+    +fname
+    +'<input type="text" name="'+imgName+'" value="'+v+'" class="te4-img-url-hidden" placeholder="Or paste URL">'
+    +'<div class="te4-field" style="margin-top:6px"><label>Alt text (SEO)</label><input type="text" name="'+altName+'" value="'+av+'" placeholder="Describe the image for screen readers"></div>'
+    +'</div>';
+}
+
+function teArrayLinks(prefix,listId,tplId,items){
+  var rows=items.map(function(l,i){ return '<div class="te4-array-row"><span class="te4-array-drag">⠿</span><div class="te4-array-fields te4-row2">'+teField('text',prefix+'['+i+'].label','Label',l.label,true)+teField('url',prefix+'['+i+'].url','URL',l.url,true)+'</div><button type="button" class="te4-remove-row" title="Remove">×</button></div>'; }).join('');
+  var tpl='<div class="te4-array-row"><span class="te4-array-drag">⠿</span><div class="te4-array-fields te4-row2">'+teField('text',prefix+'[__i__].label','Label','',true)+teField('url',prefix+'[__i__].url','URL','',true)+'</div><button type="button" class="te4-remove-row" title="Remove">×</button></div>';
+  return '<div class="te4-array-list" id="'+listId+'">'+rows+'</div><button type="button" class="te4-add-btn" data-target="'+listId+'" data-tpl="'+tplId+'">+ Add Link</button><template id="'+tplId+'">'+tpl+'</template>';
+}
+%>
+
+<link rel="stylesheet" href="/css/admin-theme-editor.css">
+
+<!-- ════════════════════════════════════════════════════════
+     THEME EDITOR SHELL
+     ════════════════════════════════════════════════════════ -->
+<div class="te4-shell">
+
+  <!-- ── TOP BAR ─────────────────────────────────────────── -->
+  <div class="te4-topbar">
+    <div class="te4-topbar-start">
+      <a href="/admin" class="te4-back-pill" title="Back to Admin">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        Admin
+      </a>
+    </div>
+    <div class="te4-topbar-center">
+      <span class="te4-page-pill">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Home page
+      </span>
+      <span class="te4-status-pill">Active</span>
+    </div>
+    <div class="te4-topbar-end">
+      <div class="te4-undo-redo">
+        <button class="te4-ur-btn" id="te4UndoBtn" disabled title="Undo (Ctrl+Z)">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.42"/></svg>
+        </button>
+        <button class="te4-ur-btn" id="te4RedoBtn" disabled title="Redo (Ctrl+Y)">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.49-3.42"/></svg>
+        </button>
+      </div>
+      <div class="te4-device-btns">
+        <button class="te4-dev-btn is-active" data-w="100%" title="Desktop">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        </button>
+        <button class="te4-dev-btn" data-w="768px" title="Tablet">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><circle cx="12" cy="18" r="1"/></svg>
+        </button>
+        <button class="te4-dev-btn" data-w="390px" title="Mobile">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="18" r="1"/></svg>
+        </button>
+      </div>
+      <span class="te4-dirty-dot" id="te4DirtyDot" hidden title="Unsaved changes"></span>
+      <button class="te4-save-btn" id="te4SaveBtn" type="submit" form="te4Form">Save</button>
+    </div>
+  </div>
+
+  <!-- ── BODY: form wraps sidebar + preview ──────────────── -->
+  <form id="te4Form" action="/admin/theme" method="POST" class="te4-body">
+
+    <!-- Hidden: section order (updated by drag-to-reorder JS) -->
+    <input type="hidden" name="homepage_section_order" id="te4OrderInput"
+           value="<%= JSON.stringify(orderedKeys) %>">
+
+    <!-- ════ SIDEBAR ══════════════════════════════════════ -->
+    <aside class="te4-sidebar" id="te4Sidebar">
+
+      <!-- ── STATE A: Section list ───────────────────────── -->
+      <div class="te4-list-view" id="te4ListView">
+
+        <!-- Theme Settings button -->
+        <div class="te4-list-toprow">
+          <button type="button" class="te4-theme-settings-btn" id="te4ThemeSettingsBtn">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            Theme settings
+          </button>
+        </div>
+
+        <div class="te4-list-scroll">
+
+          <!-- Header group (fixed, not reorderable) -->
+          <div class="te4-sec-group">
+            <div class="te4-group-label">Header</div>
+            <% HEADER_SECS.forEach(function(sec){ %>
+            <div class="te4-sec-row te4-sec-fixed" data-key="<%= sec.key %>" data-label="<%= sec.label %>">
+              <span class="te4-sec-icon"><%- secIcon(sec.key) %></span>
+              <span class="te4-sec-name"><%= sec.label %></span>
+              <div class="te4-sec-actions">
+                <button type="button" class="te4-sec-chevron" title="Edit">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
+              </div>
+            </div>
+            <% }) %>
+          </div>
+
+          <!-- Template group (draggable) -->
+          <div class="te4-sec-group">
+            <div class="te4-group-label">Template</div>
+            <div class="te4-drag-list" id="te4DragList">
+              <% orderedKeys.forEach(function(key){ var enabled=isSectionEnabled(key); var meta=TEMPLATE_META[key]||{}; %>
+              <div class="te4-sec-row te4-sec-draggable<%= enabled?'':' is-hidden' %>"
+                   draggable="true"
+                   data-key="<%= key %>"
+                   data-label="<%= meta.label||key %>">
+                <span class="te4-drag-handle" title="Drag to reorder">⠿</span>
+                <span class="te4-sec-icon"><%- secIcon(key) %></span>
+                <span class="te4-sec-name"><%= meta.label||key %></span>
+                <div class="te4-sec-actions">
+                  <button type="button" class="te4-vis-btn <%= enabled?'is-visible':'is-hidden-btn' %>"
+                          data-key="<%= key %>"
+                          title="<%= enabled?'Hide section':'Show section' %>">
+                    <% if(enabled){ %>
+                    <svg class="icon-eye" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    <% } else { %>
+                    <svg class="icon-eye-off" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                    <% } %>
+                  </button>
+                  <button type="button" class="te4-sec-chevron" title="Edit settings">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                  </button>
+                </div>
+              </div>
+              <% }) %>
+            </div>
+            <button type="button" class="te4-add-section-btn" id="te4AddSectionBtn">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add section
+            </button>
+          </div>
+
+          <!-- Footer group (fixed) -->
+          <div class="te4-sec-group">
+            <div class="te4-group-label">Footer</div>
+            <% FOOTER_SECS.forEach(function(sec){ %>
+            <div class="te4-sec-row te4-sec-fixed" data-key="<%= sec.key %>" data-label="<%= sec.label %>">
+              <span class="te4-sec-icon"><%- secIcon(sec.key) %></span>
+              <span class="te4-sec-name"><%= sec.label %></span>
+              <div class="te4-sec-actions">
+                <button type="button" class="te4-sec-chevron" title="Edit">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
+              </div>
+            </div>
+            <% }) %>
+          </div>
+
+        </div><!-- /te4-list-scroll -->
+      </div><!-- /te4-list-view -->
+
+      <!-- ── STATE B: Section settings ───────────────────── -->
+      <div class="te4-settings-view" id="te4SettingsView" hidden>
+        <div class="te4-settings-head">
+          <button type="button" class="te4-settings-back" id="te4BackBtn">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+            <span class="te4-back-label" id="te4BackLabel">Home page</span>
+          </button>
+          <span class="te4-settings-title" id="te4SettingsTitle">Section</span>
+        </div>
+        <div class="te4-settings-body" id="te4SettingsBody">
+
+          <!-- ═══════════════════════════════════════════════════
+               ALL SECTION PANELS — only the active one visible
+               ═══════════════════════════════════════════════════ -->
+
+          <!-- ── THEME SETTINGS (accordion router) ─────────── -->
+          <div class="te4-panel" id="panel-theme-settings">
+            <p class="te4-panel-desc">Controls that apply across your entire storefront.</p>
+
+            <details class="te4-accord" open>
+              <summary class="te4-accord-head">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                General
+                <svg class="te4-accord-arrow" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+              </summary>
+              <div class="te4-accord-body">
+                <% const gl2 = t.global||{}; %>
+                <%- teField('text','global.site_name','Site Name',gl2.site_name) %>
+                <%- teField('text','global.site_tagline','Tagline',gl2.site_tagline) %>
+                <%- teField('email','global.contact_email','Contact Email',gl2.contact_email) %>
+                <%- teField('text','global.contact_phone','Contact Phone',gl2.contact_phone) %>
+                <%- teField('text','global.free_shipping_label','Free Shipping Label',gl2.free_shipping_label) %>
+              </div>
+            </details>
+
+            <details class="te4-accord">
+              <summary class="te4-accord-head">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                Colors
+                <svg class="te4-accord-arrow" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+              </summary>
+              <div class="te4-accord-body">
+                <div class="te4-colors-grid">
+                  <%- teColor('design.colors.navy',   'Navy (text / ink)',    desC.navy   ||'#182840') %>
+                  <%- teColor('design.colors.amber',  'Amber (accent)',       desC.amber  ||'#B8862A') %>
+                  <%- teColor('design.colors.sage',   'Sage (buttons)',       desC.sage   ||'#5A7A5A') %>
+                  <%- teColor('design.colors.whisper','Whisper (alt bg)',     desC.whisper||'#F8F6F2') %>
+                  <%- teColor('design.colors.white',  'White (main bg)',      desC.white  ||'#FFFFFF') %>
+                </div>
+                <div class="te4-row2">
+                  <%- teField('text','design.button_radius','Button Radius',des.button_radius||'6px') %>
+                  <%- teField('text','design.card_radius',  'Card Radius',  des.card_radius  ||'12px') %>
+                </div>
+              </div>
+            </details>
+
+            <details class="te4-accord">
+              <summary class="te4-accord-head">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+                Typography
+                <svg class="te4-accord-arrow" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+              </summary>
+              <div class="te4-accord-body">
+                <div class="te4-row2">
+                  <div class="te4-field">
+                    <label>Heading Font</label>
+                    <select name="design.heading_font2" class="te4-select">
+                      <% HEADING_FONTS.forEach(function(f){ %><option value="<%= f %>" <%= (des.heading_font||'Lora')===f?'selected':'' %>><%= f %></option><% }) %>
+                    </select>
+                  </div>
+                  <div class="te4-field">
+                    <label>Body Font</label>
+                    <select name="design.body_font2" class="te4-select">
+                      <% BODY_FONTS.forEach(function(f){ %><option value="<%= f %>" <%= (des.body_font||'Lato')===f?'selected':'' %>><%= f %></option><% }) %>
+                    </select>
+                  </div>
+                </div>
+                <div class="te4-row2">
+                  <div class="te4-field">
+                    <label>Base Font Size</label>
+                    <div class="te4-slider-wrap">
+                      <input type="range" name="design.base_size_px2" min="14" max="20" step="1"
+                             value="<%= des.base_size_px||16 %>" class="te4-slider te4-slider-linked"
+                             id="baseSizeSlider2">
+                      <input type="number" class="te4-slider-num" value="<%= des.base_size_px||16 %>"
+                             min="14" max="20" step="1" id="baseSizeNum2" aria-label="Font size px">
+                      <span class="te4-slider-unit">px</span>
+                    </div>
+                  </div>
+                  <div class="te4-field">
+                    <label>Heading Weight</label>
+                    <select name="design.heading_weight2" class="te4-select">
+                      <% ['400','500','600','700'].forEach(function(w){ %><option value="<%= w %>" <%= (des.heading_weight||'600')===w?'selected':'' %>><%= w %></option><% }) %>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </details>
+
+            <details class="te4-accord">
+              <summary class="te4-accord-head">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                SEO & Meta
+                <svg class="te4-accord-arrow" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+              </summary>
+              <div class="te4-accord-body">
+                <%- teField('text','seo.home_title2','Homepage Title',seo.home_title) %>
+                <%- teField('textarea','seo.home_description2','Meta Description',seo.home_description) %>
+                <%- teImageField('seo.og_image2','OG / Share Image',seo.og_image) %>
+                <%- teField('text','seo.google_analytics_id2','Google Analytics ID',seo.google_analytics_id) %>
+              </div>
+            </details>
+
+          </div><!-- /panel-theme-settings -->
+
+          <!-- ── DESIGN (legacy — kept for direct nav) ─────── -->
+          <!-- ── DESIGN ─────────────────────────────────────── -->
+          <div class="te4-panel" id="panel-design">
+            <p class="te4-panel-desc">Controls typography, brand colors, and UI shape across the entire site.</p>
+            <div class="te4-section-label">Typography</div>
+            <div class="te4-row2">
+              <div class="te4-field">
+                <label>Heading Font</label>
+                <select name="design.heading_font" class="te4-select">
+                  <% HEADING_FONTS.forEach(function(f){ %><option value="<%= f %>" <%= (des.heading_font||'Lora')===f?'selected':'' %>><%= f %></option><% }) %>
+                </select>
+              </div>
+              <div class="te4-field">
+                <label>Body Font</label>
+                <select name="design.body_font" class="te4-select">
+                  <% BODY_FONTS.forEach(function(f){ %><option value="<%= f %>" <%= (des.body_font||'Lato')===f?'selected':'' %>><%= f %></option><% }) %>
+                </select>
+              </div>
+            </div>
+            <div class="te4-row2">
+              <div class="te4-field">
+                <label>Base Font Size</label>
+                <div class="te4-slider-wrap">
+                  <input type="range" name="design.base_size_px" min="14" max="20" step="1" value="<%= des.base_size_px||16 %>" class="te4-slider" id="baseSizeSlider">
+                  <span class="te4-slider-val" id="baseSizeVal"><%= des.base_size_px||16 %>px</span>
+                </div>
+              </div>
+              <div class="te4-field">
+                <label>Heading Weight</label>
+                <select name="design.heading_weight" class="te4-select">
+                  <% ['400','500','600','700'].forEach(function(w){ %><option value="<%= w %>" <%= (des.heading_weight||'600')===w?'selected':'' %>><%= w %></option><% }) %>
+                </select>
+              </div>
+            </div>
+            <div class="te4-section-label">Brand Colors</div>
+            <div class="te4-colors-grid">
+              <%- teColor('design.colors.navy',   'Navy (text/ink)',  desC.navy   ||'#182840') %>
+              <%- teColor('design.colors.amber',  'Amber (accent)',   desC.amber  ||'#B8862A') %>
+              <%- teColor('design.colors.sage',   'Sage (buttons)',   desC.sage   ||'#5A7A5A') %>
+              <%- teColor('design.colors.whisper','Whisper (bg alt)', desC.whisper||'#F8F6F2') %>
+              <%- teColor('design.colors.white',  'White (bg main)',  desC.white  ||'#FFFFFF') %>
+            </div>
+            <div class="te4-section-label">Shape</div>
+            <div class="te4-row2">
+              <%- teField('text','design.button_radius','Button Radius',des.button_radius||'6px') %>
+              <%- teField('text','design.card_radius',  'Card Radius',  des.card_radius  ||'12px') %>
+            </div>
+          </div>
+
+          <!-- ── SEO ────────────────────────────────────────── -->
+          <div class="te4-panel" id="panel-seo">
+            <p class="te4-panel-desc">Meta tags, Open Graph, and analytics IDs. Page-level SEO overrides come from Products and Categories.</p>
+            <%- teField('text','seo.home_title','Homepage Title',seo.home_title) %>
+            <%- teField('textarea','seo.home_description','Homepage Description',seo.home_description) %>
+            <%- teImageField('seo.og_image','OG / Share Image',seo.og_image) %>
+            <%- teField('text','seo.google_analytics_id','Google Analytics ID (G-XXXXXX)',seo.google_analytics_id) %>
+          </div>
+
+          <!-- ── GLOBAL ─────────────────────────────────────── -->
+          <div class="te4-panel" id="panel-global">
+            <% const gl = t.global||{}; %>
+            <%- teField('text','global.site_name','Site Name',gl.site_name) %>
+            <%- teField('text','global.site_tagline','Tagline',gl.site_tagline) %>
+            <%- teField('email','global.contact_email','Contact Email',gl.contact_email) %>
+            <%- teField('text','global.contact_phone','Contact Phone',gl.contact_phone) %>
+            <%- teField('text','global.free_shipping_label','Free Shipping Label',gl.free_shipping_label) %>
+          </div>
+
+          <!-- ── PROMO STRIP ────────────────────────────────── -->
+          <div class="te4-panel" id="panel-promo_strip">
+            <% const ps = t.promo_strip||{}; %>
+            <%- teToggle('promo_strip.enabled','Show Promo Strip',ps.enabled) %>
+            <%- teField('text','promo_strip.message','Message',ps.message) %>
+            <div class="te4-row2">
+              <%- teField('text','promo_strip.link_text','Link Label',ps.link_text) %>
+              <%- teField('url', 'promo_strip.link_url', 'Link URL',  ps.link_url) %>
+            </div>
+          </div>
+
+          <!-- ── NAVIGATION ─────────────────────────────────── -->
+          <div class="te4-panel" id="panel-nav">
+            <% const nav=t.nav||{}; %>
+            <div class="te4-section-label">Brand Name (3 lines)</div>
+            <div class="te4-row3">
+              <%- teField('text','nav.brand_line1','Line 1',nav.brand_line1,true) %>
+              <%- teField('text','nav.brand_line2','Line 2 (amber)',nav.brand_line2,true) %>
+              <%- teField('text','nav.brand_line3','Line 3',nav.brand_line3,true) %>
+            </div>
+            <div class="te4-array-header">
+              <span class="te4-section-label">Nav Links</span>
+              <button type="button" class="te4-add-btn" data-target="navLinksList" data-tpl="navLinkTpl">+ Add</button>
+            </div>
+            <div class="te4-array-list" id="navLinksList">
+              <% (nav.links||[]).forEach(function(lnk,i){ %>
+              <div class="te4-array-row">
+                <span class="te4-array-drag">⠿</span>
+                <div class="te4-array-fields te4-row3">
+                  <%- teField('text','nav.links['+i+'].label','Label',lnk.label,true) %>
+                  <%- teField('url', 'nav.links['+i+'].url',  'URL',  lnk.url,  true) %>
+                  <%- teToggle('nav.links['+i+'].highlight','Highlight',lnk.highlight,true) %>
+                </div>
+                <button type="button" class="te4-remove-row">×</button>
+              </div>
+              <% }) %>
+            </div>
+            <template id="navLinkTpl">
+              <div class="te4-array-row">
+                <span class="te4-array-drag">⠿</span>
+                <div class="te4-array-fields te4-row3">
+                  <%- teField('text','nav.links[__i__].label','Label','',true) %>
+                  <%- teField('url', 'nav.links[__i__].url',  'URL',  '',true) %>
+                  <%- teToggle('nav.links[__i__].highlight','Highlight',false,true) %>
+                </div>
+                <button type="button" class="te4-remove-row">×</button>
+              </div>
+            </template>
+          </div>
+
+          <!-- ── SCROLLING TICKER ───────────────────────────── -->
+          <div class="te4-panel" id="panel-scrolling_ticker">
+            <% const stk=t.scrolling_ticker||{}; %>
+            <%- teToggle('scrolling_ticker.enabled','Show announcement bar',stk.enabled) %>
+            <%- teField('number','scrolling_ticker.speed_seconds','Scroll speed (seconds)',stk.speed_seconds||40) %>
+            <div class="te4-array-header">
+              <span class="te4-section-label">Messages</span>
+              <button type="button" class="te4-add-btn" data-target="tickerItemsList" data-tpl="tickerItemTpl">+ Add</button>
+            </div>
+            <div class="te4-array-list" id="tickerItemsList">
+              <% (stk.items||[]).forEach(function(item,i){ %>
+              <div class="te4-array-row">
+                <span class="te4-array-drag">⠿</span>
+                <div class="te4-array-fields"><%- teField('text','scrolling_ticker.items['+i+'].text','Message',item,true) %></div>
+                <button type="button" class="te4-remove-row">×</button>
+              </div>
+              <% }) %>
+            </div>
+            <template id="tickerItemTpl">
+              <div class="te4-array-row">
+                <span class="te4-array-drag">⠿</span>
+                <div class="te4-array-fields"><%- teField('text','scrolling_ticker.items[__i__].text','Message','',true) %></div>
+                <button type="button" class="te4-remove-row">×</button>
+              </div>
+            </template>
+          </div>
+
+          <!-- ── HERO ───────────────────────────────────────── -->
+          <div class="te4-panel" id="panel-hero">
+            <% const h=t.hero||{}; %>
+            <div class="te4-section-label">Background Image</div>
+            <%- teImage('hero.image_url','hero.image_alt',h.image_url,h.image_alt,'Hero Image') %>
+            <div class="te4-section-label">Layout</div>
+            <div class="te4-row2">
+              <%- teAlignment('hero.text_align',h.text_align) %>
+              <div class="te4-field"><label>Section Height</label><select name="hero.height" class="te4-select"><option value="full" <%=(h.height||'full')==='full'?'selected':''%>>Full screen</option><option value="large" <%=h.height==='large'?'selected':''%>>Large (80vh)</option><option value="medium" <%=h.height==='medium'?'selected':''%>>Medium (60vh)</option></select></div>
+            </div>
+            <div class="te4-section-label">Overlay</div>
+            <div class="te4-row2">
+              <%- teColor('hero.overlay_color','Overlay color',h.overlay_color||'#0f1f35') %>
+              <div class="te4-field"><label>Overlay opacity</label><div class="te4-slider-wrap"><input type="range" class="te4-slider" name="hero.overlay_opacity" min="0" max="90" step="5" value="<%=h.overlay_opacity||55%>"><input type="number" class="te4-slider-num" min="0" max="90" step="5" value="<%=h.overlay_opacity||55%>"><span class="te4-slider-unit">%</span></div></div>
+            </div>
+            <div class="te4-section-label">Headline</div>
+            <%- teField('text','hero.eyebrow','Eyebrow text',h.eyebrow) %>
+            <div class="te4-row2">
+              <%- teHeadingLevel('hero.heading_level',h.heading_level||'h1') %>
+              <%- teTextSize('hero.heading_size',h.heading_size,'Heading size',28,80) %>
+            </div>
+            <%- teField('text','hero.heading_line1','Heading line 1',h.heading_line1) %>
+            <%- teField('text','hero.heading_line2','Heading line 2 (amber accent)',h.heading_line2) %>
+            <div class="te4-row2">
+              <%- teTextSize('hero.subtext_size',h.subtext_size,'Subtext size',14,28) %>
+            </div>
+            <%- teField('textarea','hero.subtext','Subtext',h.subtext) %>
+            <%- teField('text','hero.sub2_text','Brand list line',h.sub2_text) %>
+            <%- teField('text','hero.badge_text','Badge text',h.badge_text) %>
+            <div class="te4-section-label">Buttons</div>
+            <div class="te4-row2"><%- teField('text','hero.cta1_text','Button 1 label',h.cta1_text) %><%- teField('url','hero.cta1_url','Button 1 URL',h.cta1_url) %></div>
+            <div class="te4-row2"><%- teField('text','hero.cta2_text','Button 2 label',h.cta2_text) %><%- teField('url','hero.cta2_url','Button 2 URL',h.cta2_url) %></div>
+          </div>
+
+          <!-- ── BRAND LOGOS ─────────────────────────────────── -->
+          <div class="te4-panel" id="panel-brand_logos">
+            <% const bll=t.brand_logos||{}; %>
+            <%- teToggle('brand_logos.enabled','Show brand logos',bll.enabled) %>
+            <%- teField('text','brand_logos.eyebrow','Eyebrow',bll.eyebrow) %>
+            <div class="te4-array-header">
+              <span class="te4-section-label">Logos</span>
+              <button type="button" class="te4-add-btn" data-target="brandLogosList" data-tpl="brandLogoTpl">+ Add</button>
+            </div>
+            <div class="te4-array-list" id="brandLogosList">
+              <% (bll.logos||[]).forEach(function(logo,i){ %>
+              <div class="te4-array-row">
+                <span class="te4-array-drag">⠿</span>
+                <div class="te4-array-fields">
+                  <div class="te4-row2"><%- teField('text','brand_logos.logos['+i+'].name','Brand Name',logo.name,true) %><%- teField('url','brand_logos.logos['+i+'].url','Link URL',logo.url,true) %></div>
+                  <%- teImageField('brand_logos.logos['+i+'].image_url','Logo Image',logo.image_url,true) %>
+                </div>
+                <button type="button" class="te4-remove-row">×</button>
+              </div>
+              <% }) %>
+            </div>
+            <template id="brandLogoTpl">
+              <div class="te4-array-row">
+                <span class="te4-array-drag">⠿</span>
+                <div class="te4-array-fields">
+                  <div class="te4-row2"><%- teField('text','brand_logos.logos[__i__].name','Brand Name','',true) %><%- teField('url','brand_logos.logos[__i__].url','Link URL','',true) %></div>
+                  <%- teImageField('brand_logos.logos[__i__].image_url','Logo Image','',true) %>
+                </div>
+                <button type="button" class="te4-remove-row">×</button>
+              </div>
+            </template>
+          </div>
+
+          <!-- ── CATEGORIES ─────────────────────────────────── -->
+          <div class="te4-panel" id="panel-categories_section">
+            <% const catsec=t.categories_section||{}; %>
+            <p class="te4-panel-desc">Category cards come from your Products → Categories database. Edit headings and layout here.</p>
+            <%- teToggle('categories_section.enabled','Show section',catsec.enabled) %>
+            <div class="te4-section-label">Section header</div>
+            <%- teField('text','categories_section.eyebrow','Eyebrow',catsec.eyebrow) %>
+            <div class="te4-row2">
+              <%- teHeadingLevel('categories_section.title_level',catsec.title_level||'h2') %>
+              <%- teAlignment('categories_section.text_align',catsec.text_align||'center') %>
+            </div>
+            <%- teField('text','categories_section.title','Title',catsec.title) %>
+            <%- teField('text','categories_section.subtitle','Subtitle',catsec.subtitle) %>
+            <div class="te4-section-label">Grid layout</div>
+            <div class="te4-field"><label>Columns</label><select name="categories_section.columns" class="te4-select"><option value="2" <%=(catsec.columns||'4')==='2'?'selected':''%>>2 columns</option><option value="3" <%=catsec.columns==='3'?'selected':''%>>3 columns</option><option value="4" <%=(catsec.columns||'4')==='4'?'selected':''%>>4 columns (default)</option></select></div>
+            <div class="te4-field"><label>Card style</label><select name="categories_section.card_style" class="te4-select"><option value="image-top" <%=(catsec.card_style||'image-top')==='image-top'?'selected':''%>>Image top</option><option value="overlay" <%=catsec.card_style==='overlay'?'selected':''%>>Text overlay</option></select></div>
+          </div>
+
+          <!-- ── FEATURED PRODUCTS ──────────────────────────── -->
+          <div class="te4-panel" id="panel-featured_section">
+            <% const fsec=t.featured_section||{}; %>
+            <%- teToggle('featured_section.enabled','Show section',fsec.enabled) %>
+            <div class="te4-section-label">Section header</div>
+            <%- teField('text','featured_section.eyebrow','Eyebrow',fsec.eyebrow) %>
+            <div class="te4-row2">
+              <%- teHeadingLevel('featured_section.title_level',fsec.title_level||'h2') %>
+              <%- teAlignment('featured_section.text_align',fsec.text_align||'center') %>
+            </div>
+            <%- teField('text','featured_section.title','Title',fsec.title) %>
+            <%- teField('text','featured_section.subtitle','Subtitle',fsec.subtitle) %>
+            <div class="te4-section-label">Grid layout</div>
+            <div class="te4-row2">
+              <div class="te4-field"><label>Products to show</label><div class="te4-slider-wrap"><input type="range" class="te4-slider" name="featured_section.limit" min="2" max="12" step="1" value="<%=fsec.limit||4%>"><input type="number" class="te4-slider-num" min="2" max="12" step="1" value="<%=fsec.limit||4%>"><span class="te4-slider-unit"></span></div></div>
+              <div class="te4-field"><label>Columns</label><select name="featured_section.columns" class="te4-select"><option value="2" <%=(fsec.columns||'4')==='2'?'selected':''%>>2</option><option value="3" <%=fsec.columns==='3'?'selected':''%>>3</option><option value="4" <%=(fsec.columns||'4')==='4'?'selected':''%>>4 (default)</option></select></div>
+            </div>
+            <div class="te4-section-label">Card options</div>
+            <%- teToggle('featured_section.show_price','Show price',fsec.show_price!==false) %>
+            <%- teToggle('featured_section.show_badge','Show badges (Sale / New / Best)',fsec.show_badge!==false) %>
+            <%- teToggle('featured_section.show_button','Show Add-to-Cart button',fsec.show_button!==false) %>
+            <div class="te4-section-label">Call to action</div>
+            <div class="te4-row2">
+              <%- teField('text','featured_section.cta_text','CTA label',fsec.cta_text) %>
+              <%- teField('url', 'featured_section.cta_url', 'CTA URL',  fsec.cta_url) %>
+            </div>
+          </div>
+
+          <!-- ── IMAGE WITH TEXT ────────────────────────────── -->
+          <div class="te4-panel" id="panel-image_with_text">
+            <% const iwtsec=t.image_with_text||{}; %>
+            <%- teToggle('image_with_text.enabled','Show section',iwtsec.enabled) %>
+            <div class="te4-section-label">Image</div>
+            <%- teImage('image_with_text.image_url','image_with_text.image_alt',iwtsec.image_url,iwtsec.image_alt,'Section image') %>
+            <div class="te4-section-label">Layout</div>
+            <div class="te4-row2">
+              <div class="te4-field"><label>Image side</label><select name="image_with_text.image_position" class="te4-select"><option value="left" <%=(iwtsec.image_position||'left')==='left'?'selected':''%>>Image left</option><option value="right" <%=iwtsec.image_position==='right'?'selected':''%>>Image right</option></select></div>
+              <div class="te4-field"><label>Image width</label><select name="image_with_text.image_width" class="te4-select"><option value="40%" <%=(iwtsec.image_width||'50%')==='40%'?'selected':''%>>40%</option><option value="50%" <%=(iwtsec.image_width||'50%')==='50%'?'selected':''%>>50% (equal)</option><option value="60%" <%=iwtsec.image_width==='60%'?'selected':''%>>60%</option></select></div>
+            </div>
+            <div class="te4-section-label">Text content</div>
+            <%- teField('text','image_with_text.eyebrow','Eyebrow',iwtsec.eyebrow) %>
+            <div class="te4-row2">
+              <%- teHeadingLevel('image_with_text.heading_level',iwtsec.heading_level||'h2') %>
+              <%- teTextSize('image_with_text.heading_size',iwtsec.heading_size,'Heading size',20,56) %>
+            </div>
+            <%- teField('text','image_with_text.heading','Heading',iwtsec.heading) %>
+            <%- teTextSize('image_with_text.body_size',iwtsec.body_size,'Body text size',14,22) %>
+            <%- teField('textarea','image_with_text.body','Body copy',iwtsec.body) %>
+            <div class="te4-row2">
+              <%- teField('text','image_with_text.cta_text','CTA label',iwtsec.cta_text) %>
+              <%- teField('url', 'image_with_text.cta_url', 'CTA URL',  iwtsec.cta_url) %>
+            </div>
+          </div>
+
+          <!-- ── BEFORE / AFTER ─────────────────────────────── -->
+          <div class="te4-panel" id="panel-before_after">
+            <% const basec=t.before_after||{}; %>
+            <%- teToggle('before_after.enabled','Show section',basec.enabled) %>
+            <div class="te4-section-label">Section header</div>
+            <%- teField('text','before_after.eyebrow','Eyebrow',basec.eyebrow) %>
+            <div class="te4-row2">
+              <%- teHeadingLevel('before_after.heading_level',basec.heading_level||'h2') %>
+              <%- teAlignment('before_after.text_align',basec.text_align||'center') %>
+            </div>
+            <%- teField('text','before_after.heading','Heading',basec.heading) %>
+            <%- teField('text','before_after.subtitle','Subtitle',basec.subtitle) %>
+            <div class="te4-section-label">Before image</div>
+            <%- teImage('before_after.before_image','before_after.before_alt',basec.before_image,basec.before_alt,'Before') %>
+            <%- teField('text','before_after.before_label','Label overlay',basec.before_label) %>
+            <div class="te4-section-label">After image</div>
+            <%- teImage('before_after.after_image','before_after.after_alt',basec.after_image,basec.after_alt,'After') %>
+            <%- teField('text','before_after.after_label','Label overlay',basec.after_label) %>
+            <div class="te4-section-label">Slider</div>
+            <div class="te4-field"><label>Starting position</label><div class="te4-slider-wrap"><input type="range" class="te4-slider" name="before_after.initial_pos" min="10" max="90" step="5" value="<%=basec.initial_pos||50%>"><input type="number" class="te4-slider-num" min="10" max="90" step="5" value="<%=basec.initial_pos||50%>"><span class="te4-slider-unit">%</span></div></div>
+          </div>
+
+          <!-- ── TRUST BAND ─────────────────────────────────── -->
+          <div class="te4-panel" id="panel-trust_band">
+            <% const tbsec=t.trust_band||{}; %>
+            <%- teToggle('trust_band.enabled','Show trust band',tbsec.enabled) %>
+            <div class="te4-section-label">Stat 1</div>
+            <div class="te4-row2"><%- teField('text','trust_band.stat1_value','Number',tbsec.stat1_value) %><%- teField('text','trust_band.stat1_label','Label',tbsec.stat1_label) %></div>
+            <div class="te4-section-label">Stat 2</div>
+            <div class="te4-row2"><%- teField('text','trust_band.stat2_value','Number',tbsec.stat2_value) %><%- teField('text','trust_band.stat2_label','Label',tbsec.stat2_label) %></div>
+            <div class="te4-section-label">Stat 3</div>
+            <div class="te4-row2"><%- teField('text','trust_band.stat3_value','Number',tbsec.stat3_value) %><%- teField('text','trust_band.stat3_label','Label',tbsec.stat3_label) %></div>
+          </div>
+
+          <!-- ── PARALLAX ───────────────────────────────────── -->
+          <div class="te4-panel" id="panel-parallax">
+            <% const parsec=t.parallax||{}; %>
+            <%- teToggle('parallax.enabled','Show section',parsec.enabled) %>
+            <div class="te4-section-label">Background</div>
+            <%- teImage('parallax.image_url','parallax.image_alt',parsec.image_url,parsec.image_alt,'Background image') %>
+            <div class="te4-row2">
+              <%- teColor('parallax.overlay_color','Overlay color',parsec.overlay_color||'#0f1f35') %>
+              <div class="te4-field"><label>Overlay opacity</label><div class="te4-slider-wrap"><input type="range" class="te4-slider" name="parallax.overlay_opacity" min="0" max="90" step="5" value="<%=parsec.overlay_opacity||65%>"><input type="number" class="te4-slider-num" min="0" max="90" step="5" value="<%=parsec.overlay_opacity||65%>"><span class="te4-slider-unit">%</span></div></div>
+            </div>
+            <div class="te4-section-label">Content</div>
+            <%- teField('text','parallax.eyebrow','Eyebrow',parsec.eyebrow) %>
+            <div class="te4-row2">
+              <%- teHeadingLevel('parallax.heading_level',parsec.heading_level||'h2') %>
+              <%- teAlignment('parallax.text_align',parsec.text_align||'center') %>
+            </div>
+            <%- teField('text','parallax.title_line1','Title line 1',parsec.title_line1) %>
+            <%- teField('text','parallax.title_line2','Title line 2 (amber)',parsec.title_line2) %>
+            <%- teField('textarea','parallax.subtitle','Subtitle',parsec.subtitle) %>
+            <div class="te4-section-label">Buttons</div>
+            <div class="te4-row2"><%- teField('text','parallax.cta1_text','Button 1 label',parsec.cta1_text) %><%- teField('url','parallax.cta1_url','Button 1 URL',parsec.cta1_url) %></div>
+            <div class="te4-row2"><%- teField('text','parallax.cta2_text','Button 2 label',parsec.cta2_text) %><%- teField('url','parallax.cta2_url','Button 2 URL',parsec.cta2_url) %></div>
+          </div>
+
+          <!-- ── TESTIMONIALS ───────────────────────────────── -->
+          <div class="te4-panel" id="panel-testimonials">
+            <% const tstsec=t.testimonials||{}; %>
+            <%- teToggle('testimonials.enabled','Show section',tstsec.enabled) %>
+            <div class="te4-section-label">Section header</div>
+            <%- teField('text','testimonials.eyebrow','Eyebrow',tstsec.eyebrow) %>
+            <div class="te4-row2">
+              <%- teHeadingLevel('testimonials.heading_level',tstsec.heading_level||'h2') %>
+              <%- teAlignment('testimonials.text_align',tstsec.text_align||'center') %>
+            </div>
+            <%- teField('text','testimonials.heading','Heading',tstsec.heading) %>
+            <%- teField('text','testimonials.subtitle','Subtitle',tstsec.subtitle) %>
+            <div class="te4-array-header">
+              <span class="te4-section-label">Reviews</span>
+              <button type="button" class="te4-add-btn" data-target="testimonialsList" data-tpl="testimonialTpl">+ Add</button>
+            </div>
+            <div class="te4-array-list" id="testimonialsList">
+              <% (tstsec.items||[]).forEach(function(item,i){ %>
+              <div class="te4-array-row">
+                <span class="te4-array-drag">⠿</span>
+                <div class="te4-array-fields">
+                  <%- teField('textarea','testimonials.items['+i+'].text','Review',item.text,true) %>
+                  <div class="te4-row3">
+                    <%- teField('text','testimonials.items['+i+'].author','Author',item.author,true) %>
+                    <%- teField('text','testimonials.items['+i+'].location','Location',item.location,true) %>
+                    <%- teField('number','testimonials.items['+i+'].rating','Stars',item.rating||5,true) %>
+                  </div>
+                </div>
+                <button type="button" class="te4-remove-row">×</button>
+              </div>
+              <% }) %>
+            </div>
+            <template id="testimonialTpl">
+              <div class="te4-array-row">
+                <span class="te4-array-drag">⠿</span>
+                <div class="te4-array-fields">
+                  <%- teField('textarea','testimonials.items[__i__].text','Review','',true) %>
+                  <div class="te4-row3">
+                    <%- teField('text','testimonials.items[__i__].author','Author','',true) %>
+                    <%- teField('text','testimonials.items[__i__].location','Location','',true) %>
+                    <%- teField('number','testimonials.items[__i__].rating','Stars',5,true) %>
+                  </div>
+                </div>
+                <button type="button" class="te4-remove-row">×</button>
+              </div>
+            </template>
+          </div>
+
+          <!-- ── NEWSLETTER ─────────────────────────────────── -->
+          <div class="te4-panel" id="panel-newsletter">
+            <% const newsec=t.newsletter||{}; %>
+            <%- teToggle('newsletter.enabled','Show section',newsec.enabled) %>
+            <div class="te4-section-label">Content</div>
+            <%- teField('text','newsletter.eyebrow','Eyebrow',newsec.eyebrow) %>
+            <div class="te4-row2">
+              <%- teHeadingLevel('newsletter.heading_level',newsec.heading_level||'h2') %>
+              <%- teAlignment('newsletter.text_align',newsec.text_align||'center') %>
+            </div>
+            <%- teField('text','newsletter.heading','Heading',newsec.heading) %>
+            <%- teField('textarea','newsletter.subtitle','Subtitle',newsec.subtitle) %>
+            <div class="te4-section-label">Form</div>
+            <%- teField('text','newsletter.placeholder','Input placeholder',newsec.placeholder) %>
+            <%- teField('text','newsletter.button_text','Button label',newsec.button_text) %>
+            <%- teField('text','newsletter.success_message','Success message',newsec.success_message) %>
+            <%- teField('text','newsletter.disclaimer','Disclaimer text',newsec.disclaimer) %>
+            <div class="te4-section-label">Background</div>
+            <%- teImage('newsletter.bg_image','newsletter.bg_alt',newsec.bg_image,newsec.bg_alt,'Background image (optional)') %>
+          </div>
+
+          <!-- ── CART DRAWER ────────────────────────────────── -->
+          <div class="te4-panel" id="panel-cart_drawer">
+            <% const cdsec=t.cart_drawer||{}; %>
+            <%- teToggle('cart_drawer.enabled','Enable cart drawer',cdsec.enabled) %>
+            <%- teField('number','cart_drawer.free_shipping_threshold','Free shipping threshold ($ — 0 = disabled)',cdsec.free_shipping_threshold||0) %>
+            <%- teField('text','cart_drawer.free_shipping_message','Qualified message',cdsec.free_shipping_message) %>
+            <%- teField('text','cart_drawer.progress_message','Progress message (use {{remaining}})',cdsec.progress_message) %>
+            <%- teField('text','cart_drawer.empty_message','Empty cart message',cdsec.empty_message) %>
+            <div class="te4-row2">
+              <%- teField('text','cart_drawer.empty_cta_text','Empty CTA label',cdsec.empty_cta_text) %>
+              <%- teField('url', 'cart_drawer.empty_cta_url', 'Empty CTA URL',  cdsec.empty_cta_url) %>
+            </div>
+          </div>
+
+          <!-- ── FOOTER ─────────────────────────────────────── -->
+          <div class="te4-panel" id="panel-footer">
+            <% const ftsec=t.footer||{}; %>
+            <%- teField('textarea','footer.brand_desc','Brand description',ftsec.brand_desc) %>
+            <%- teField('text','footer.copyright_name','Copyright name',ftsec.copyright_name) %>
+            <div class="te4-section-label">Shop column</div>
+            <%- teField('text','footer.col_shop_heading','Heading',ftsec.col_shop_heading) %>
+            <%- teArrayLinks('footer.col_shop_links','footerShopList','footerShopTpl',ftsec.col_shop_links||[]) %>
+            <div class="te4-section-label">Help column</div>
+            <%- teField('text','footer.col_help_heading','Heading',ftsec.col_help_heading) %>
+            <%- teArrayLinks('footer.col_help_links','footerHelpList','footerHelpTpl',ftsec.col_help_links||[]) %>
+            <div class="te4-section-label">Company column</div>
+            <%- teField('text','footer.col_company_heading','Heading',ftsec.col_company_heading) %>
+            <%- teArrayLinks('footer.col_company_links','footerCompanyList','footerCompanyTpl',ftsec.col_company_links||[]) %>
+          </div>
+
+        </div><!-- /te4-settings-body -->
+
+        <!-- Panel footer: Custom CSS + Theme Settings link + Remove section -->
+        <div class="te4-panel-footer" id="te4PanelFooter"></div>
+
+      </div><!-- /te4-settings-view -->
+
+    </aside><!-- /te4-sidebar -->
+
+    <!-- ════ PREVIEW ═════════════════════════════════════════ -->
+    <div class="te4-preview" id="te4Preview">
+      <div class="te4-preview-bar">
+        <span class="te4-preview-label">Live Preview</span>
+        <a href="/" target="_blank" class="te4-open-link" title="Open store in new tab">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          Open ↗
+        </a>
+      </div>
+      <div class="te4-iframe-outer" id="te4IframeOuter">
+        <div class="te4-iframe-wrap" id="te4IframeWrap">
+          <iframe id="te4Frame" src="/?te_preview=1" title="Store preview"></iframe>
+        </div>
+      </div>
+    </div>
+
+  </form><!-- /te4-body -->
+
+</div><!-- /te4-shell -->
+
+<!-- ── "Add section" modal ──────────────────────────────────── -->
+<div class="te4-modal-bg" id="te4ModalBg" hidden>
+  <div class="te4-modal">
+    <div class="te4-modal-head">
+      <h3>Add section</h3>
+      <button type="button" class="te4-modal-close" id="te4ModalClose">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <p class="te4-modal-hint">Toggle visibility of existing sections using the eye icon in the list, or contact your developer to add new section types.</p>
+    <div class="te4-modal-grid">
+      <% orderedKeys.forEach(function(key){ var meta=TEMPLATE_META[key]||{}; var enabled=isSectionEnabled(key); %>
+      <div class="te4-modal-card<%= enabled?' is-active':'' %>" data-key="<%= key %>">
+        <div class="te4-modal-icon"><%- secIcon(key) %></div>
+        <div class="te4-modal-card-body">
+          <strong><%= meta.label||key %></strong>
+          <span><%= meta.desc||'' %></span>
+          <span class="te4-modal-status"><%= enabled?'Visible':'Hidden' %></span>
+        </div>
+        <button type="button" class="te4-modal-toggle-btn" data-key="<%= key %>">
+          <%= enabled?'Hide':'Show' %>
+        </button>
+      </div>
+      <% }) %>
+    </div>
+  </div>
+</div>
+
+<!-- ── Toast notification ────────────────────────────────────── -->
+<div class="te4-toast" id="te4Toast" hidden></div>
+
+<%- contentFor('script') %>
+<script>
+(function () {
+'use strict';
+
+/* ════════════════════════════════════════════════════════════════
+   STATE
+   ════════════════════════════════════════════════════════════════ */
+var currentView    = 'list';      // 'list' | 'settings' | 'theme'
+var currentSection = null;
+var isDirty        = false;
+
+// Undo/redo history (array of serialized form states)
+var history        = [];
+var histIdx        = -1;
+var MAX_HIST       = 50;
+var _supressHist   = false;
+
+/* ════════════════════════════════════════════════════════════════
+   ELEMENT REFS
+   ════════════════════════════════════════════════════════════════ */
+var form       = document.getElementById('te4Form');
+var sidebar    = document.getElementById('te4Sidebar');
+var listView   = document.getElementById('te4ListView');
+var settView   = document.getElementById('te4SettingsView');
+var backBtn    = document.getElementById('te4BackBtn');
+var backLabel  = document.getElementById('te4BackLabel');
+var settTitle  = document.getElementById('te4SettingsTitle');
+var saveBtn    = document.getElementById('te4SaveBtn');
+var dirtyDot   = document.getElementById('te4DirtyDot');
+var undoBtn    = document.getElementById('te4UndoBtn');
+var redoBtn    = document.getElementById('te4RedoBtn');
+var frame      = document.getElementById('te4Frame');
+var iframeWrap = document.getElementById('te4IframeWrap');
+var orderInput = document.getElementById('te4OrderInput');
+var toast      = document.getElementById('te4Toast');
+
+/* ════════════════════════════════════════════════════════════════
+   SECTION ROW WIRING
+   ════════════════════════════════════════════════════════════════ */
+// Template section keys (can be removed/hidden)
+var TEMPLATE_KEYS = ['scrolling_ticker','hero','brand_logos','categories_section',
+  'featured_section','image_with_text','before_after','trust_band','parallax',
+  'testimonials','newsletter'];
+
+function openSection(key, label, backText) {
+  // Fix: must set flex, not '' (which falls back to CSS display:none)
+  document.querySelectorAll('.te4-panel').forEach(function (p) { p.style.display = 'none'; });
+  var panel = document.getElementById('panel-' + key);
+  if (panel) panel.style.display = 'flex';
+
+  // Switch sidebar state
+  listView.hidden  = true;
+  settView.hidden  = false;
+  settTitle.textContent = label || key;
+  backLabel.textContent = backText || 'Home page';
+  currentSection = key;
+  currentView    = 'settings';
+
+  // Highlight active row
+  document.querySelectorAll('.te4-sec-row').forEach(function (r) {
+    r.classList.toggle('is-active', r.dataset.key === key);
+  });
+
+  // Scroll settings body to top
+  var body = document.getElementById('te4SettingsBody');
+  if (body) body.scrollTop = 0;
+
+  // Populate panel footer
+  updatePanelFooter(key, backText);
+
+  // Tell iframe to scroll to this section
+  var isTemplate = TEMPLATE_KEYS.indexOf(key) !== -1;
+  if (isTemplate && frame && frame.contentWindow) {
+    frame.contentWindow.postMessage({ te4_scroll: key }, '*');
+  }
+}
+
+function closeSection() {
+  listView.hidden = false;
+  settView.hidden = true;
+  currentSection  = null;
+  currentView     = 'list';
+  document.querySelectorAll('.te4-sec-row').forEach(function (r) { r.classList.remove('is-active'); });
+  // Clear iframe highlight
+  if (frame && frame.contentWindow) {
+    frame.contentWindow.postMessage({ te4_scroll: null }, '*');
+  }
+}
+
+// Back button
+backBtn.addEventListener('click', function () {
+  // If we came from theme settings, go back to theme settings panel
+  if (backBtn._returnToTheme) {
+    backBtn._returnToTheme = false;
+    openSection('theme-settings', 'Theme settings');
+    backLabel.textContent = 'Home page';
+    return;
+  }
+  closeSection();
+});
+
+// Click any section row (fixed or draggable) → open settings
+document.querySelectorAll('.te4-sec-row').forEach(function (row) {
+  row.addEventListener('click', function (e) {
+    if (e.target.closest('.te4-vis-btn') || e.target.closest('.te4-drag-handle')) return;
+    openSection(row.dataset.key, row.dataset.label);
+    backBtn._returnToTheme = false;
+  });
+});
+
+// Theme settings gear button
+document.getElementById('te4ThemeSettingsBtn').addEventListener('click', function () {
+  openSection('theme-settings', 'Theme settings');
+  backLabel.textContent = 'Home page';
+  backBtn._returnToTheme = false;
+});
+
+/* ── Panel footer (Theme Settings link + Custom CSS + Remove) ── */
+var _panelFooter = document.getElementById('te4PanelFooter');
+
+function updatePanelFooter(key, backText) {
+  if (!_panelFooter) return;
+  _panelFooter.innerHTML = '';
+
+  var isTheme    = (key === 'theme-settings' || key === 'design' || key === 'seo' || key === 'global');
+  var isTemplate = TEMPLATE_KEYS.indexOf(key) !== -1;
+
+  // Custom CSS accordion (for template sections)
+  if (isTemplate) {
+    var cssAccord = document.createElement('details');
+    cssAccord.className = 'te4-accord';
+    var cssSummary = document.createElement('summary');
+    cssSummary.className = 'te4-accord-head';
+    cssSummary.textContent = 'Custom CSS';
+    var cssBody = document.createElement('div');
+    cssBody.className = 'te4-accord-body';
+    var cssHint = document.createElement('p');
+    cssHint.className = 'te4-css-hint';
+    cssHint.textContent = 'Add custom CSS for this section only.';
+    var cssTA = document.createElement('textarea');
+    cssTA.name = key + '.custom_css';
+    cssTA.className = 'te4-css-textarea';
+    cssTA.placeholder = '.selector { property: value; }';
+    // Restore existing value from form if it was set
+    var existing = document.querySelector('input[name="' + key + '.custom_css_hidden"]');
+    if (existing) cssTA.value = existing.value;
+    cssTA.addEventListener('input', function () { markDirty(); schedulePreview(); });
+    cssBody.appendChild(cssHint);
+    cssBody.appendChild(cssTA);
+    cssAccord.appendChild(cssSummary);
+    cssAccord.appendChild(cssBody);
+    _panelFooter.appendChild(cssAccord);
+  }
+
+  // Theme Settings shortcut (for section panels, not theme panels)
+  if (!isTheme) {
+    var tsBtn = document.createElement('button');
+    tsBtn.type = 'button';
+    tsBtn.className = 'te4-footer-theme-btn';
+    tsBtn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Theme settings';
+    tsBtn.addEventListener('click', function () {
+      backBtn._returnToTheme = false;
+      openSection('theme-settings', 'Theme settings');
+    });
+    _panelFooter.appendChild(tsBtn);
+  }
+
+  // Remove section button (only for template sections)
+  if (isTemplate) {
+    var sep = document.createElement('hr');
+    sep.className = 'te4-footer-sep';
+    _panelFooter.appendChild(sep);
+
+    var removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'te4-remove-section-btn';
+    removeBtn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Remove section';
+    removeBtn.addEventListener('click', function () {
+      var visBtn = document.querySelector('.te4-vis-btn[data-key="' + key + '"]');
+      // Only hide if currently visible
+      if (visBtn && visBtn.classList.contains('is-visible')) visBtn.click();
+      closeSection();
+    });
+    _panelFooter.appendChild(removeBtn);
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   SECTION VISIBILITY TOGGLE (eye icon)
+   ════════════════════════════════════════════════════════════════ */
+document.querySelectorAll('.te4-vis-btn').forEach(wireVisBtn);
+
+function wireVisBtn(btn) {
+  btn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    var key     = btn.dataset.key;
+    var row     = btn.closest('.te4-sec-row');
+    var enabled = btn.classList.contains('is-visible');
+
+    // Toggle
+    enabled = !enabled;
+    btn.classList.toggle('is-visible',    enabled);
+    btn.classList.toggle('is-hidden-btn', !enabled);
+    btn.title = enabled ? 'Hide section' : 'Show section';
+    // Swap icon
+    btn.innerHTML = enabled
+      ? '<svg class="icon-eye" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
+      : '<svg class="icon-eye-off" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+    row.classList.toggle('is-hidden', !enabled);
+
+    // Update the corresponding form toggle
+    var cbName = key + '.enabled';
+    var hiddenInput = form.querySelector('input[type="hidden"][name="' + cbName + '"]');
+    var checkInput  = form.querySelector('input[type="checkbox"][name="' + cbName + '"]');
+    if (hiddenInput) hiddenInput.value = String(!enabled); // hidden = "false" when enabled
+    if (checkInput)  checkInput.checked = enabled;
+
+    // Sync modal card status
+    var modalCard = document.querySelector('.te4-modal-card[data-key="' + key + '"]');
+    if (modalCard) {
+      modalCard.classList.toggle('is-active', enabled);
+      var status = modalCard.querySelector('.te4-modal-status');
+      if (status) status.textContent = enabled ? 'Visible' : 'Hidden';
+      var toggleBtn = modalCard.querySelector('.te4-modal-toggle-btn');
+      if (toggleBtn) toggleBtn.textContent = enabled ? 'Hide' : 'Show';
+    }
+
+    pushHistory(); markDirty(); schedulePreview();
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════
+   DRAG-TO-REORDER (template sections)
+   ════════════════════════════════════════════════════════════════ */
+var dragList     = document.getElementById('te4DragList');
+var dragging     = null;
+var dropTarget   = null;
+
+dragList.addEventListener('dragstart', function (e) {
+  dragging = e.target.closest('.te4-sec-draggable');
+  if (!dragging) return;
+  dragging.classList.add('is-dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', dragging.dataset.key);
+});
+
+dragList.addEventListener('dragend', function () {
+  if (dragging) dragging.classList.remove('is-dragging');
+  document.querySelectorAll('.te4-sec-draggable').forEach(function (r) {
+    r.classList.remove('drag-over-above', 'drag-over-below');
+  });
+  dragging = null; dropTarget = null;
+  saveOrder();
+});
+
+dragList.addEventListener('dragover', function (e) {
+  e.preventDefault();
+  var target = e.target.closest('.te4-sec-draggable');
+  if (!target || target === dragging) return;
+  document.querySelectorAll('.te4-sec-draggable').forEach(function (r) {
+    r.classList.remove('drag-over-above', 'drag-over-below');
+  });
+  var rect   = target.getBoundingClientRect();
+  var midY   = rect.top + rect.height / 2;
+  var above  = e.clientY < midY;
+  target.classList.add(above ? 'drag-over-above' : 'drag-over-below');
+  dropTarget = { el: target, above: above };
+});
+
+dragList.addEventListener('dragleave', function (e) {
+  if (!dragList.contains(e.relatedTarget)) {
+    document.querySelectorAll('.te4-sec-draggable').forEach(function (r) {
+      r.classList.remove('drag-over-above', 'drag-over-below');
+    });
+  }
+});
+
+dragList.addEventListener('drop', function (e) {
+  e.preventDefault();
+  if (!dragging || !dropTarget) return;
+  var { el, above } = dropTarget;
+  if (above) dragList.insertBefore(dragging, el);
+  else el.after(dragging);
+  document.querySelectorAll('.te4-sec-draggable').forEach(function (r) {
+    r.classList.remove('drag-over-above', 'drag-over-below');
+  });
+  saveOrder(); pushHistory(); markDirty();
+});
+
+function saveOrder() {
+  var order = [];
+  dragList.querySelectorAll('.te4-sec-draggable').forEach(function (r) { order.push(r.dataset.key); });
+  orderInput.value = JSON.stringify(order);
+  // Async persist order
+  fetch('/admin/theme/reorder', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ order: order })
+  }).catch(function () {});
+  schedulePreview();
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ADD SECTION MODAL
+   ════════════════════════════════════════════════════════════════ */
+var modalBg    = document.getElementById('te4ModalBg');
+var modalClose = document.getElementById('te4ModalClose');
+
+document.getElementById('te4AddSectionBtn').addEventListener('click', function () { modalBg.hidden = false; });
+modalClose.addEventListener('click', function () { modalBg.hidden = true; });
+modalBg.addEventListener('click', function (e) { if (e.target === modalBg) modalBg.hidden = true; });
+
+// Modal toggle buttons sync with sidebar eye buttons
+document.querySelectorAll('.te4-modal-toggle-btn').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var key     = btn.dataset.key;
+    var sideBtn = document.querySelector('.te4-vis-btn[data-key="' + key + '"]');
+    if (sideBtn) sideBtn.click(); // reuses sidebar logic
+    // Update button text
+    var card    = btn.closest('.te4-modal-card');
+    var enabled = card.classList.contains('is-active');
+    btn.textContent = enabled ? 'Hide' : 'Show';
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════
+   DYNAMIC ARRAY ROWS (add/remove)
+   ════════════════════════════════════════════════════════════════ */
+document.querySelectorAll('.te4-add-btn').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var listId = btn.dataset.target;
+    var tplId  = btn.dataset.tpl;
+    var list   = document.getElementById(listId);
+    var tpl    = document.getElementById(tplId);
+    if (!list || !tpl) return;
+    var idx  = list.querySelectorAll('.te4-array-row').length;
+    var html = tpl.innerHTML.replace(/__i__/g, idx);
+    var div  = document.createElement('div');
+    div.innerHTML = html;
+    var row  = div.firstElementChild;
+    list.appendChild(row);
+    wireRemoveBtn(row.querySelector('.te4-remove-row'));
+    wireUploadBtns(row);
+    pushHistory(); markDirty(); schedulePreview();
+  });
+});
+
+document.querySelectorAll('.te4-remove-row').forEach(wireRemoveBtn);
+
+function wireRemoveBtn(btn) {
+  if (!btn) return;
+  btn.addEventListener('click', function () {
+    var row  = btn.closest('.te4-array-row');
+    var list = btn.closest('.te4-array-list');
+    if (row) row.remove();
+    if (list) reindex(list);
+    pushHistory(); markDirty(); schedulePreview();
+  });
+}
+
+function reindex(list) {
+  list.querySelectorAll('.te4-array-row').forEach(function (row, i) {
+    row.querySelectorAll('[name]').forEach(function (el) {
+      el.name = el.name.replace(/\[\d+\]/g, '[' + i + ']');
+    });
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════
+   IMAGE UPLOAD
+   ════════════════════════════════════════════════════════════════ */
+function wireUploadBtns(root) {
+  (root || document).querySelectorAll('.te4-upload-input').forEach(function (input) {
+    if (input._wired) return; input._wired = true;
+    input.addEventListener('change', function () {
+      var file = input.files[0]; if (!file) return;
+      var fd = new FormData(); fd.append('image', file);
+      fetch('/admin/upload', { method: 'POST', body: fd })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (!data.ok) return;
+          var urlInput = document.querySelector('input[name="' + input.dataset.targetName + '"]');
+          if (urlInput) {
+            urlInput.value = data.url;
+            // Support both new .te4-image-block and legacy .te4-image-field/.te4-img-row
+            var wrap = urlInput.closest('.te4-image-block') || urlInput.closest('.te4-image-field') || urlInput.closest('.te4-img-row');
+            if (wrap) {
+              var previewWrap = wrap.querySelector('.te4-img-preview-wrap') || wrap;
+              var thumb = previewWrap.querySelector('.te4-img-thumb');
+              var empty = previewWrap.querySelector('.te4-img-empty');
+              if (thumb) { thumb.src = data.url; }
+              else if (empty) { var img2 = document.createElement('img'); img2.src = data.url; img2.className = 'te4-img-thumb'; img2.alt = ''; empty.replaceWith(img2); }
+              // Update filename label
+              var fname = wrap.querySelector('.te4-img-fname');
+              if (fname) fname.textContent = data.url.split('/').pop();
+            }
+          }
+          pushHistory(); markDirty(); schedulePreview();
+        }).catch(function (e) { console.error('Upload failed', e); });
+    });
+  });
+}
+wireUploadBtns(document);
+
+/* ── Image remove buttons ─────────────────────────────────── */
+function wireImageRemoveBtns(root) {
+  (root || document).querySelectorAll('.te4-img-remove-btn').forEach(function (btn) {
+    if (btn._wired) return; btn._wired = true;
+    btn.addEventListener('click', function () {
+      var targetName = btn.dataset.targetName;
+      // Clear URL hidden field
+      var urlInput = btn.closest('.te4-image-block').querySelector('.te4-img-url-hidden');
+      if (urlInput) urlInput.value = '';
+      // Clear preview
+      var wrap = btn.closest('.te4-image-block').querySelector('.te4-img-preview-wrap');
+      if (wrap) wrap.innerHTML = '<div class="te4-img-empty"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".4"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><span>No image</span></div>';
+      // Clear filename label
+      var fname = btn.closest('.te4-image-block').querySelector('.te4-img-fname');
+      if (fname) fname.textContent = '';
+      pushHistory(); markDirty(); schedulePreview();
+    });
+  });
+}
+wireImageRemoveBtns(document);
+
+/* ── Image URL paste → thumbnail refresh ──────────────────── */
+document.querySelectorAll('.te4-img-url-hidden').forEach(function (input) {
+  input.addEventListener('change', function () {
+    var wrap = input.closest('.te4-image-block').querySelector('.te4-img-preview-wrap');
+    if (!wrap) return;
+    var v = input.value.trim();
+    if (v) { wrap.innerHTML = '<img class="te4-img-thumb" src="' + v + '" alt="">'; }
+    else   { wrap.innerHTML = '<div class="te4-img-empty"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".4"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><span>No image</span></div>'; }
+    markDirty(); schedulePreview();
+  });
+});
+
+/* ── Alignment buttons ────────────────────────────────────── */
+document.querySelectorAll('.te4-align-group').forEach(function (group) {
+  var hidden = group.querySelector('.te4-align-hidden');
+  group.querySelectorAll('.te4-align-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      group.querySelectorAll('.te4-align-btn').forEach(function (b) { b.classList.remove('is-active'); });
+      btn.classList.add('is-active');
+      if (hidden) hidden.value = btn.dataset.val;
+      markDirty(); schedulePreview();
+    });
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════
+   COLOR SWATCH ↔ HEX SYNC
+   ════════════════════════════════════════════════════════════════ */
+document.querySelectorAll('.te4-color-swatch').forEach(function (sw) {
+  var hex = sw.parentElement.querySelector('.te4-color-hex');
+  sw.addEventListener('input',  function () { if (hex) hex.value = sw.value; markDirty(); schedulePreview(); });
+  if (hex) hex.addEventListener('input', function () {
+    if (/^#[0-9a-fA-F]{6}$/.test(hex.value)) sw.value = hex.value;
+    markDirty(); schedulePreview();
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════
+   SLIDERS — bidirectional range ↔ number sync
+   ════════════════════════════════════════════════════════════════ */
+
+// Legacy: single-field slider with a .te4-slider-val span
+var bsSlider = document.getElementById('baseSizeSlider');
+var bsVal    = document.getElementById('baseSizeVal');
+if (bsSlider && bsVal) {
+  bsSlider.addEventListener('input', function () { bsVal.textContent = bsSlider.value + 'px'; markDirty(); schedulePreview(); });
+}
+
+// Generic bidirectional: range + paired <input type=number> in same .te4-slider-wrap
+document.querySelectorAll('.te4-slider-wrap').forEach(function (wrap) {
+  var range = wrap.querySelector('input[type="range"]');
+  var num   = wrap.querySelector('input[type="number"]');
+  if (!range || !num) return;
+  range.addEventListener('input', function () {
+    num.value = range.value;
+    markDirty(); schedulePreview();
+  });
+  num.addEventListener('input', function () {
+    var v = parseFloat(num.value);
+    var mn = parseFloat(range.min), mx = parseFloat(range.max);
+    if (!isNaN(v) && v >= mn && v <= mx) {
+      range.value = v;
+      markDirty(); schedulePreview();
+    }
+  });
+  num.addEventListener('blur', function () {
+    // clamp on blur
+    var v = parseFloat(num.value);
+    var mn = parseFloat(range.min), mx = parseFloat(range.max);
+    if (isNaN(v)) { num.value = range.value; return; }
+    v = Math.min(mx, Math.max(mn, v));
+    num.value = v;
+    range.value = v;
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════
+   LIVE PREVIEW
+   ════════════════════════════════════════════════════════════════ */
+var previewTimer;
+var lastReload = 0;
+
+function schedulePreview() {
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(sendPreview, 650);
+}
+
+function sendPreview() {
+  var fd = new FormData(form);
+  fetch('/admin/theme/preview', { method: 'POST', body: fd })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d.ok && frame) {
+        lastReload = Date.now();
+        frame.src = '/?te_preview=1&_ts=' + lastReload;
+      }
+    }).catch(function () {});
+}
+
+// Trigger preview on any form change
+form.addEventListener('input',  function () { markDirty(); schedulePreview(); });
+form.addEventListener('change', function () { markDirty(); schedulePreview(); });
+
+/* ════════════════════════════════════════════════════════════════
+   CLICK-TO-EDIT — receive te4_open from preview iframe
+   ════════════════════════════════════════════════════════════════ */
+window.addEventListener('message', function (e) {
+  var d = e.data;
+  if (!d || typeof d !== 'object') return;
+  if (d.te4_open) {
+    var key   = d.te4_open;
+    var label = d.te4_label || key;
+    // Map key → TEMPLATE_META label if available
+    var meta  = { scrolling_ticker:'Announcement Bar', hero:'Hero Banner', brand_logos:'Brand Logos',
+                  categories_section:'Category Grid', featured_section:'Featured Products',
+                  image_with_text:'Image with Text', before_after:'Before / After',
+                  trust_band:'Trust Band', parallax:'Parallax Band',
+                  testimonials:'Testimonials', newsletter:'Newsletter' };
+    openSection(key, meta[key] || label, 'Home page');
+  }
+});
+
+/* ════════════════════════════════════════════════════════════════
+   DEVICE WIDTH BUTTONS
+   ════════════════════════════════════════════════════════════════ */
+document.querySelectorAll('.te4-dev-btn').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    document.querySelectorAll('.te4-dev-btn').forEach(function (b) { b.classList.remove('is-active'); });
+    btn.classList.add('is-active');
+    var w = btn.dataset.w;
+    if (w === '100%') {
+      iframeWrap.style.maxWidth = '';
+      iframeWrap.style.margin   = '';
+      iframeWrap.style.borderRadius = '';
+    } else {
+      iframeWrap.style.maxWidth     = w;
+      iframeWrap.style.margin       = '16px auto';
+      iframeWrap.style.borderRadius = '12px';
+      iframeWrap.style.overflow     = 'hidden';
+      iframeWrap.style.boxShadow    = '0 4px 24px rgba(0,0,0,.18)';
+    }
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════
+   DIRTY STATE & SAVE BUTTON
+   ════════════════════════════════════════════════════════════════ */
+function markDirty() {
+  if (isDirty) return;
+  isDirty = true;
+  dirtyDot.hidden = false;
+  saveBtn.textContent = 'Save';
+  saveBtn.classList.add('is-dirty');
+}
+
+function markClean() {
+  isDirty = false;
+  dirtyDot.hidden = true;
+  saveBtn.classList.remove('is-dirty');
+}
+
+form.addEventListener('submit', function () {
+  // Brief delay so browser submits normally
+  setTimeout(markClean, 200);
+});
+
+/* ════════════════════════════════════════════════════════════════
+   UNDO / REDO
+   ════════════════════════════════════════════════════════════════ */
+function captureState() {
+  var state = {};
+  var fd = new FormData(form);
+  fd.forEach(function (v, k) {
+    if (state[k] !== undefined) {
+      if (!Array.isArray(state[k])) state[k] = [state[k]];
+      state[k].push(v);
+    } else { state[k] = v; }
+  });
+  return state;
+}
+
+function applyState(state) {
+  _supressHist = true;
+  // Reset all inputs to state
+  form.querySelectorAll('input:not([type="file"]), textarea, select').forEach(function (el) {
+    if (!el.name) return;
+    var val = state[el.name];
+    if (el.type === 'checkbox') {
+      // Checkboxes: state might be 'true'/'false' or array
+      var arr = Array.isArray(val) ? val : [val];
+      el.checked = arr.includes(el.value);
+    } else if (el.type === 'color') {
+      // Color swatches sync from hidden hex inputs
+    } else {
+      if (val !== undefined) el.value = Array.isArray(val) ? val[val.length - 1] : val;
+    }
+  });
+  // Sync color swatches from hex inputs
+  form.querySelectorAll('.te4-color-hex').forEach(function (hex) {
+    var swatch = hex.closest('.te4-color-wrap')?.querySelector('.te4-color-swatch');
+    if (swatch && hex.value) swatch.value = hex.value;
+  });
+  // Sync slider label
+  if (bsSlider && bsVal) bsVal.textContent = bsSlider.value + 'px';
+  _supressHist = false;
+  markDirty();
+  schedulePreview();
+}
+
+function pushHistory() {
+  if (_supressHist) return;
+  // Truncate future
+  if (histIdx < history.length - 1) history.splice(histIdx + 1);
+  history.push(captureState());
+  if (history.length > MAX_HIST) history.shift();
+  histIdx = history.length - 1;
+  updateUndoRedo();
+}
+
+function updateUndoRedo() {
+  undoBtn.disabled = histIdx <= 0;
+  redoBtn.disabled = histIdx >= history.length - 1;
+}
+
+undoBtn.addEventListener('click', function () {
+  if (histIdx <= 0) return;
+  histIdx--;
+  applyState(history[histIdx]);
+  updateUndoRedo();
+});
+
+redoBtn.addEventListener('click', function () {
+  if (histIdx >= history.length - 1) return;
+  histIdx++;
+  applyState(history[histIdx]);
+  updateUndoRedo();
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function (e) {
+  var ctrl = e.ctrlKey || e.metaKey;
+  if (ctrl && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undoBtn.click(); }
+  if (ctrl && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); redoBtn.click(); }
+  if (ctrl && e.key === 's') { e.preventDefault(); form.submit(); }
+});
+
+// Capture initial state
+setTimeout(function () { pushHistory(); }, 100);
+
+/* ════════════════════════════════════════════════════════════════
+   TOAST HELPER
+   ════════════════════════════════════════════════════════════════ */
+function showToast(msg, type) {
+  toast.textContent = msg;
+  toast.className   = 'te4-toast te4-toast-' + (type || 'success');
+  toast.hidden = false;
+  clearTimeout(toast._t);
+  toast._t = setTimeout(function () { toast.hidden = true; }, 3000);
+}
+
+// Check for flash message passed from server redirect
+<% if (typeof flash !== 'undefined' && flash) { %>
+showToast('<%= flash.msg %>', '<%= flash.type %>');
+<% } %>
+
+})();
+</script>
+
+<%# CSS for this page is in /public/css/admin-theme-editor.css, linked below %>
+

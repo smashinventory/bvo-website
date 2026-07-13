@@ -1,0 +1,564 @@
+<%
+const S    = settings || {};
+const hero = S.hero               || {};
+const tick = S.scrolling_ticker   || {};
+const bl   = S.brand_logos        || {};
+const cs   = S.categories_section || {};
+const fs_  = S.featured_section   || {};
+const iwt  = S.image_with_text    || {};
+const ba   = S.before_after       || {};
+const tb   = S.trust_band         || {};
+const par  = S.parallax           || {};
+const test = S.testimonials       || {};
+const news = S.newsletter         || {};
+%>
+
+<!-- ── SCROLLING TICKER ──────────────────────────────────────────── -->
+<% if (tick.enabled !== false && tick.items && tick.items.length) { %>
+<div class="ticker-wrap" data-section="scrolling_ticker" data-section-label="Announcement Bar" aria-label="Announcements">
+  <div class="ticker-track" style="animation-duration:<%= tick.speed_seconds || 40 %>s">
+    <% const _tickItems = tick.items; %>
+    <% ;[..._tickItems, ..._tickItems].forEach(item => { %>
+    <span class="ticker-item"><%= item %></span>
+    <% }) %>
+  </div>
+</div>
+<% } %>
+
+<!-- ── HERO ──────────────────────────────────────────────────────── -->
+<%
+  var _heroTag   = hero.heading_level || 'h1';
+  var _heroAlign = hero.text_align    || 'left';
+  var _heroHSize = hero.heading_size  ? 'font-size:'+hero.heading_size+'px;' : '';
+  var _heroSSize = hero.subtext_size  ? 'font-size:'+hero.subtext_size+'px;' : '';
+%>
+<section class="hero" data-section="hero" data-section-label="Hero Banner" aria-label="Hero">
+  <div class="hero-content" style="text-align:<%= _heroAlign %>">
+    <p class="hero-eyebrow"><%= hero.eyebrow || 'Curated for Your Bathroom Renovation' %></p>
+    <<%- _heroTag %> class="hero-h1" style="<%= _heroHSize %>"><%= hero.heading_line1 || 'Premium Vanities.' %></<%- _heroTag %>>
+    <p class="hero-h2"><%= hero.heading_line2 || 'Outlet Prices.' %></p>
+    <div class="hero-rule" aria-hidden="true"></div>
+    <p class="hero-sub" style="<%= _heroSSize %>"><%= hero.subtext || 'Top brands, delivered free to your door.' %></p>
+    <p class="hero-sub2"><%= hero.sub2_text || 'James Martin · Kohler · Moen · Delta and more' %></p>
+    <div class="hero-ctas" style="<%= _heroAlign==='center'?'justify-content:center':_heroAlign==='right'?'justify-content:flex-end':'' %>">
+      <a href="<%= hero.cta1_url || '/collections/vanities' %>" class="btn btn-navy"><%= hero.cta1_text || 'Shop Vanities' %></a>
+      <a href="<%= hero.cta2_url || '/collections/sale' %>"     class="btn btn-sage"><%= hero.cta2_text || 'View Sale' %></a>
+    </div>
+  </div>
+  <div class="hero-image" aria-hidden="true">
+    <% if (hero.image_url) { %>
+      <img src="<%= hero.image_url %>" alt="<%= hero.image_alt || 'Hero image' %>" style="width:100%;height:100%;object-fit:cover;display:block;">
+    <% } else { %>
+    <div class="hero-img-placeholder">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+      <span>Hero image</span>
+    </div>
+    <% } %>
+    <% if (hero.badge_text) { %><span class="hero-badge"><%= hero.badge_text %></span><% } %>
+  </div>
+</section>
+
+<!-- ── VALUE PROPS ──────────────────────────────────────────────── -->
+<div class="value-bar" aria-label="Why shop with us">
+  <div class="value-item">
+    <svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+    <h4>Free Shipping</h4><p>On every order, every time — no minimums</p>
+  </div>
+  <div class="value-item">
+    <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    <h4>Secure Checkout</h4><p>256-bit SSL encryption on every transaction</p>
+  </div>
+  <div class="value-item">
+    <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+    <h4>Easy Returns</h4><p>30-day hassle-free returns on all items</p>
+  </div>
+  <div class="value-item">
+    <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.18h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.77a16 16 0 0 0 6 6l.86-.86a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+    <h4>Expert Support</h4><p>Live chat &amp; phone help from bath specialists</p>
+  </div>
+</div>
+
+<!-- ── BRAND LOGOS ───────────────────────────────────────────────── -->
+<% if (bl.enabled !== false && bl.logos && bl.logos.length) { %>
+<section class="brand-logos-section" data-section="brand_logos" data-section-label="Brand Logos" aria-label="Brands we carry">
+  <% if (bl.eyebrow) { %><p class="brand-logos-eyebrow"><%= bl.eyebrow %></p><% } %>
+  <div class="brand-logos-marquee">
+    <div class="brand-logos-track" aria-hidden="false">
+      <% ;[...bl.logos, ...bl.logos].forEach(logo => { %>
+      <a href="<%= logo.url || '#' %>" class="brand-logo-item" aria-label="<%= logo.name %>">
+        <% if (logo.image_url) { %>
+        <img src="<%= logo.image_url %>" alt="<%= logo.name %>" loading="lazy">
+        <% } %>
+        <span class="brand-logo-text"><%= logo.name %></span>
+      </a>
+      <% }) %>
+    </div>
+  </div>
+</section>
+<% } %>
+
+<!-- ── CATEGORY GRID ─────────────────────────────────────────────── -->
+<% if (cs.enabled !== false) { %>
+<%
+  var _csTag   = cs.title_level || 'h2';
+  var _csAlign = cs.text_align  || 'center';
+  var _csCols  = cs.columns     || '4';
+%>
+<section class="section" data-section="categories_section" data-section-label="Category Grid" aria-labelledby="cat-heading">
+  <div class="section-header" style="text-align:<%= _csAlign %>">
+    <p class="section-eyebrow"><%= cs.eyebrow || 'Browse by Category' %></p>
+    <<%- _csTag %> class="section-title" id="cat-heading"><%= cs.title || 'Everything Your Bathroom Needs' %></<%- _csTag %>>
+    <% if (cs.subtitle) { %><p class="section-sub"><%= cs.subtitle %></p><% } %>
+  </div>
+  <div class="category-grid category-grid-cols-<%= _csCols %>">
+    <% categories.forEach(cat => { %>
+    <a href="/collections/<%= cat.slug %>" class="cat-card">
+      <div class="cat-img">
+        <% if (cat.image_url) { %>
+          <img src="<%= cat.image_url %>" alt="" loading="lazy">
+        <% } else { %>
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        <% } %>
+      </div>
+      <div class="cat-body">
+        <h3><%= cat.name %></h3>
+        <p><%- cat.description %></p>
+        <span class="cat-link">Shop Now →</span>
+      </div>
+    </a>
+    <% }) %>
+  </div>
+</section>
+<% } %>
+
+<!-- ── FEATURED PRODUCTS ─────────────────────────────────────────── -->
+<% if (fs_.enabled !== false) { %>
+<%
+  var _fsTag   = fs_.title_level || 'h2';
+  var _fsAlign = fs_.text_align  || 'center';
+%>
+<section class="section section-alt" data-section="featured_section" data-section-label="Featured Products" aria-labelledby="feat-heading">
+  <div class="section-header" style="text-align:<%= _fsAlign %>">
+    <p class="section-eyebrow"><%= fs_.eyebrow || 'Staff Picks' %></p>
+    <<%- _fsTag %> class="section-title" id="feat-heading"><%= fs_.title || 'Featured Products' %></<%- _fsTag %>>
+    <% if (fs_.subtitle) { %><p class="section-sub"><%= fs_.subtitle %></p><% } %>
+  </div>
+  <div class="product-grid">
+    <% products.forEach(function(product) { %>
+    <%
+      /* Match product to a model family for finishes/sizes display */
+      var _hpMF = null;
+      if (typeof modelFamilies !== 'undefined' && modelFamilies) {
+        var _hpName = product.name.toLowerCase();
+        for (var _hfi = 0; _hfi < modelFamilies.length; _hfi++) {
+          if (_hpName.startsWith(modelFamilies[_hfi].name.toLowerCase())) {
+            _hpMF = modelFamilies[_hfi]; break;
+          }
+        }
+      }
+      var _hpImgId       = 'feat-img-' + product.id;
+      var _hpSwatches    = _hpMF ? _hpMF.finishes.slice(0, 4) : [];
+      var _hpSwatchExtra = _hpMF && _hpMF.finishes.length > 4 ? _hpMF.finishes.length - 4 : 0;
+    %>
+    <article class="product-card">
+      <a href="/products/<%= product.slug %>" class="product-img-link" aria-label="<%= product.name %>">
+        <div class="product-img">
+          <% if (product.primary_image) { %>
+            <img src="<%= product.primary_image %>" alt="<%= product.name %>" loading="lazy"
+                 id="<%= _hpImgId %>">
+          <% } else { %>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          <% } %>
+          <% if (product.badge) { %>
+          <span class="product-badge badge-<%= product.badge %>"><%= product.badge.toUpperCase() %></span>
+          <% } %>
+        </div>
+      </a>
+      <div class="product-body">
+        <% if (product.brand) { %><p class="product-brand"><%= product.brand %></p><% } %>
+        <h3 class="product-title"><a href="/products/<%= product.slug %>"><%= product.name %></a></h3>
+        <div class="product-price-row">
+          <span class="product-price">$<%= product.price.toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
+          <% if (product.compare_price && product.compare_price > product.price) { %>
+          <span class="product-was">$<%= product.compare_price.toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
+          <% } %>
+        </div>
+
+        <% if (_hpMF) { %>
+        <!-- Finishes -->
+        <div class="model-card-swatches" role="group" aria-label="Available finishes">
+          <span class="model-card-swatches-label">Finishes:</span>
+          <% _hpSwatches.forEach(function(f, i) { %>
+          <%
+            var _hl = ['#F0F0EF','#F5F5F5','#FAFAFA','#FFFFFF','#C4A882'].indexOf(f.hex) !== -1;
+            var _hb = _hl ? '#ccc' : f.hex;
+          %>
+          <button class="model-card-swatch<%= i === 0 ? ' is-active' : '' %>"
+                  data-target-img="<%= _hpImgId %>"
+                  data-image="<%= f.image %>"
+                  data-finish="<%= f.name %>"
+                  style="background:<%= f.hex %>;border-color:<%= _hb %>"
+                  aria-label="<%= f.name %>"
+                  title="<%= f.name %>"></button>
+          <% }); %>
+          <% if (_hpSwatchExtra > 0) { %>
+          <span class="model-card-swatch-more" aria-hidden="true">+<%= _hpSwatchExtra %></span>
+          <% } %>
+        </div>
+        <!-- Size Options -->
+        <div class="model-card-sizes-row">
+          <span class="model-card-sizes-label">Size Options:</span>
+          <span class="model-card-sizes-text"><%= _hpMF.sizes.join(' | ') %></span>
+        </div>
+        <% } %>
+
+        <a href="/products/<%= product.slug %>" class="btn btn-sage">View Details</a>
+      </div>
+    </article>
+    <% }) %>
+  </div>
+  <div class="section-cta">
+    <a href="<%= fs_.cta_url || '/collections/vanities' %>" class="btn btn-outline"><%= fs_.cta_text || 'View All Products' %></a>
+  </div>
+</section>
+<% } %>
+
+<!-- ── FEATURED MODELS ─────────────────────────────────────────────── -->
+<% if (typeof modelFamilies !== 'undefined' && modelFamilies && modelFamilies.length) { %>
+<% var _carouselModels = modelFamilies.slice(0, 8); %>
+<section class="section section-alt" id="featured-models-section" aria-labelledby="feat-models-heading">
+  <div class="section-header">
+    <p class="section-eyebrow">Shop by Collection</p>
+    <h2 class="section-title" id="feat-models-heading">Featured Models</h2>
+    <p class="section-sub">Explore our most popular vanity collections — click a finish to see it in action.</p>
+  </div>
+
+  <!-- Carousel -->
+  <div class="fm-carousel-outer">
+    <!-- Left arrow -->
+    <button class="fm-arrow fm-arrow--left" id="fmArrowLeft" aria-label="Scroll left" hidden>
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+
+    <!-- Scrollable track -->
+    <div class="fm-carousel-track" id="fmCarouselTrack">
+      <% _carouselModels.forEach(function(m) { %>
+      <%
+        var _discPct         = m.compare_price_from ? Math.round((1 - m.price_from / m.compare_price_from) * 100) : 0;
+        var _visibleSwatches = m.finishes.slice(0, 4);
+        var _extraSwatches   = m.finishes.length > 4 ? m.finishes.length - 4 : 0;
+      %>
+      <article class="model-card" data-slug="<%= m.slug %>" data-sizes="<%= m.sizes.join(',') %>">
+
+        <div class="model-card-img-wrap">
+          <% if (_discPct > 0) { %>
+          <span class="model-card-badge"><%= _discPct %>% OFF</span>
+          <% } %>
+          <a href="/collections/vanities?model=<%= m.slug %>" class="model-card-img-link" tabindex="-1" aria-hidden="true">
+            <img src="<%= m.finishes[0].image %>"
+                 alt="<%= m.name %> vanity"
+                 class="model-card-img"
+                 id="model-img-<%= m.slug %>"
+                 loading="lazy">
+          </a>
+        </div>
+
+        <div class="model-card-body">
+          <div class="model-card-price-row">
+            <% if (m.price_to && m.price_to > m.price_from) { %>
+            <span class="model-card-price">$<%= m.price_from.toLocaleString('en-US') %> – $<%= m.price_to.toLocaleString('en-US') %></span>
+            <% } else { %>
+            <span class="model-card-price">From $<%= m.price_from.toLocaleString('en-US') %></span>
+            <% if (m.compare_price_from) { %>
+            <span class="model-card-was">$<%= m.compare_price_from.toLocaleString('en-US') %></span>
+            <% } %>
+            <% } %>
+          </div>
+
+          <h3 class="model-card-name">
+            <a href="/collections/vanities?model=<%= m.slug %>">The <%= m.name %> Collection</a>
+          </h3>
+          <p class="model-card-brand">Brand: <%= m.brand %></p>
+
+          <div class="model-card-swatches" role="group" aria-label="Available finishes">
+            <span class="model-card-swatches-label">Finishes:</span>
+            <% _visibleSwatches.forEach(function(f, i) { %>
+            <%
+              var _isLight      = ['#F0F0EF','#F5F5F5','#FAFAFA','#FFFFFF','#C4A882'].indexOf(f.hex) !== -1;
+              var _swatchBorder = _isLight ? '#ccc' : f.hex;
+            %>
+            <button class="model-card-swatch<%= i === 0 ? ' is-active' : '' %>"
+                    data-target-img="model-img-<%= m.slug %>"
+                    data-image="<%= f.image %>"
+                    data-finish="<%= f.name %>"
+                    style="background:<%= f.hex %>;border-color:<%= _swatchBorder %>"
+                    aria-label="<%= f.name %>"
+                    title="<%= f.name %>"></button>
+            <% }); %>
+            <% if (_extraSwatches > 0) { %>
+            <span class="model-card-swatch-more" aria-hidden="true">+<%= _extraSwatches %></span>
+            <% } %>
+          </div>
+
+          <div class="model-card-sizes-row">
+            <span class="model-card-sizes-label">Size Options:</span>
+            <span class="model-card-sizes-text"><%= m.sizes.join(' | ') %></span>
+          </div>
+
+          <a href="/collections/vanities?model=<%= m.slug %>" class="btn btn-outline model-card-cta">
+            Shop the <%= m.name %>
+          </a>
+        </div>
+      </article>
+      <% }); %>
+    </div><!-- /#fmCarouselTrack -->
+
+    <!-- Right arrow -->
+    <button class="fm-arrow fm-arrow--right" id="fmArrowRight" aria-label="Scroll right">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+  </div><!-- /.fm-carousel-outer -->
+
+  <div class="section-cta">
+    <a href="/collections/vanity-models" class="btn btn-navy">See All Our Models</a>
+  </div>
+</section>
+<% } %>
+
+<!-- ── IMAGE WITH TEXT ───────────────────────────────────────────── -->
+<% if (iwt.enabled !== false) { %>
+<%
+  var _iwtTag    = iwt.heading_level   || 'h2';
+  var _iwtHSize  = iwt.heading_size    ? 'font-size:'+iwt.heading_size+'px;' : '';
+  var _iwtBSize  = iwt.body_size       ? 'font-size:'+iwt.body_size+'px;'    : '';
+  var _iwtImgW   = iwt.image_width     || '50%';
+  var _iwtIsRight= iwt.image_position  === 'right';
+%>
+<section class="section iwt-section" data-section="image_with_text" data-section-label="Image with Text" aria-labelledby="iwt-heading">
+  <div class="container">
+    <div class="iwt-grid<%= _iwtIsRight ? ' iwt-reverse' : '' %>">
+      <div class="iwt-image-col" style="flex:0 0 <%= _iwtImgW %>; max-width:<%= _iwtImgW %>">
+        <% if (iwt.image_url) { %>
+        <img src="<%= iwt.image_url %>" alt="<%= iwt.image_alt || '' %>" loading="lazy" class="iwt-img">
+        <% } %>
+      </div>
+      <div class="iwt-text-col">
+        <% if (iwt.eyebrow) { %><p class="section-eyebrow"><%= iwt.eyebrow %></p><% } %>
+        <<%- _iwtTag %> class="iwt-heading" id="iwt-heading" style="<%= _iwtHSize %>"><%= iwt.heading || 'The Bathroom Renovation Experts' %></<%- _iwtTag %>>
+        <% if (iwt.body) { %><p class="iwt-body" style="<%= _iwtBSize %>"><%= iwt.body %></p><% } %>
+        <% if (iwt.cta_text) { %>
+        <a href="<%= iwt.cta_url || '#' %>" class="btn btn-navy"><%= iwt.cta_text %></a>
+        <% } %>
+      </div>
+    </div>
+  </div>
+</section>
+<% } %>
+
+<!-- ── BEFORE / AFTER SLIDER ─────────────────────────────────────── -->
+<% if (ba.enabled !== false) { %>
+<%
+  var _baTag     = ba.heading_level || 'h2';
+  var _baAlign   = ba.text_align    || 'center';
+  var _baInitPos = ba.initial_pos   || 50;
+%>
+<section class="section section-alt ba-section" data-section="before_after" data-section-label="Before / After" aria-labelledby="ba-heading">
+  <div class="section-header" style="text-align:<%= _baAlign %>">
+    <% if (ba.eyebrow) { %><p class="section-eyebrow"><%= ba.eyebrow %></p><% } %>
+    <<%- _baTag %> class="section-title" id="ba-heading"><%= ba.heading || 'See the Transformation' %></<%- _baTag %>>
+    <% if (ba.subtitle) { %><p class="section-sub"><%= ba.subtitle %></p><% } %>
+  </div>
+  <div class="ba-slider-wrap">
+    <div class="ba-slider" id="baSlider" data-initial="<%= _baInitPos %>">
+      <div class="ba-after">
+        <% if (ba.after_image) { %>
+        <img src="<%= ba.after_image %>" alt="<%= ba.after_label || 'After' %>" draggable="false">
+        <% } else { %>
+        <div class="ba-placeholder"><span><%= ba.after_label || 'After' %></span></div>
+        <% } %>
+        <span class="ba-label ba-label-right"><%= ba.after_label || 'After' %></span>
+      </div>
+      <div class="ba-before" id="baBefore">
+        <% if (ba.before_image) { %>
+        <img src="<%= ba.before_image %>" alt="<%= ba.before_label || 'Before' %>" draggable="false">
+        <% } else { %>
+        <div class="ba-placeholder ba-placeholder-dark"><span><%= ba.before_label || 'Before' %></span></div>
+        <% } %>
+        <span class="ba-label ba-label-left"><%= ba.before_label || 'Before' %></span>
+      </div>
+      <div class="ba-handle" id="baHandle" role="slider" aria-label="Before/After" aria-valuenow="50" aria-valuemin="0" aria-valuemax="100" tabindex="0">
+        <div class="ba-handle-line"></div>
+        <div class="ba-handle-circle">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="9 18 3 12 9 6"/>
+            <polyline points="15 6 21 12 15 18"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<% } %>
+
+<!-- ── TRUST BAND ────────────────────────────────────────────────── -->
+<% if (tb.enabled !== false) { %>
+<section class="trust-band" data-section="trust_band" data-section-label="Trust Band" aria-label="Trust statistics">
+  <div class="trust-item"><h3><%= tb.stat1_value || '10,000+' %></h3><p><%= tb.stat1_label || 'Happy customers nationwide' %></p></div>
+  <div class="trust-item"><h3><%= tb.stat2_value || '500+' %></h3><p><%= tb.stat2_label || 'Premium products in stock' %></p></div>
+  <div class="trust-item"><h3><%= tb.stat3_value || 'Free' %></h3><p><%= tb.stat3_label || 'Shipping on every single order' %></p></div>
+</section>
+<% } %>
+
+<!-- ── PARALLAX BAND ─────────────────────────────────────────────── -->
+<% if (par.enabled !== false) { %>
+<section class="parallax-band" data-section="parallax" data-section-label="Parallax Band" aria-label="Design inspiration"
+  <% if (par.image_url) { %>style="background-image:url('<%= par.image_url %>'),linear-gradient(135deg,#101828 0%,#182840 40%,#1e3a5f 70%,#14243a 100%)"<% } %>>
+  <div class="parallax-overlay"></div>
+<%
+  var _parTag   = par.heading_level || 'h2';
+  var _parAlign = par.text_align    || 'center';
+  var _parOC    = par.overlay_color   || '#0f1f35';
+  var _parOO    = (par.overlay_opacity !== undefined ? par.overlay_opacity : 65) / 100;
+%>
+  <div class="parallax-overlay" style="background:<%- _parOC %>;opacity:<%- _parOO %>"></div>
+  <div class="parallax-inner" style="text-align:<%= _parAlign %>">
+    <p class="parallax-eyebrow"><%= par.eyebrow || 'Design Inspiration' %></p>
+    <<%- _parTag %> class="parallax-title"><%= par.title_line1 || 'Your Dream Bathroom' %><br><span><%= par.title_line2 || 'Starts Here' %></span></<%- _parTag %>>
+    <div class="parallax-rule"></div>
+    <% if (par.subtitle) { %><p class="parallax-sub"><%= par.subtitle %></p><% } %>
+    <div class="hero-ctas">
+      <a href="<%= par.cta1_url || '/collections/vanities' %>" class="btn btn-amber"><%= par.cta1_text || 'Shop All Vanities' %></a>
+      <a href="<%= par.cta2_url || '/pages/inspiration' %>"    class="btn btn-outline" style="color:#fff;border-color:rgba(255,255,255,.6)"><%= par.cta2_text || 'View Lookbook' %></a>
+    </div>
+  </div>
+</section>
+<% } %>
+
+<!-- ── TESTIMONIALS ───────────────────────────────────────────────── -->
+<% if (test.enabled !== false && test.items && test.items.length) { %>
+<%
+  var _testTag   = test.heading_level || 'h2';
+  var _testAlign = test.text_align    || 'center';
+%>
+<section class="section testimonials-section" data-section="testimonials" data-section-label="Testimonials" aria-labelledby="test-heading">
+  <div class="section-header" style="text-align:<%= _testAlign %>">
+    <% if (test.eyebrow) { %><p class="section-eyebrow"><%= test.eyebrow %></p><% } %>
+    <<%- _testTag %> class="section-title" id="test-heading"><%= test.heading || 'What Our Customers Say' %></<%- _testTag %>>
+    <% if (test.subtitle) { %><p class="section-sub"><%= test.subtitle %></p><% } %>
+  </div>
+  <div class="testimonials-grid">
+    <% test.items.forEach(function(t) { %>
+    <article class="testimonial-card">
+      <div class="testimonial-stars">
+        <% for (var si=0; si<5; si++) { %>
+        <svg viewBox="0 0 20 20" width="16" height="16"><polygon points="10,1 12.9,7 19.5,7.6 14.5,12 16.2,18.5 10,15 3.8,18.5 5.5,12 0.5,7.6 7.1,7" fill="<%= si < (t.rating||5) ? '#B8862A' : '#D1D5DB' %>"/></svg>
+        <% } %>
+      </div>
+      <blockquote class="testimonial-text">"<%= t.text %>"</blockquote>
+      <footer class="testimonial-author">
+        <strong><%= t.author %></strong><% if (t.location) { %> &nbsp;·&nbsp; <span><%= t.location %></span><% } %>
+      </footer>
+    </article>
+    <% }) %>
+  </div>
+</section>
+<% } %>
+
+<!-- ── NEWSLETTER ─────────────────────────────────────────────────── -->
+<% if (news.enabled !== false) { %>
+<section class="newsletter-section" data-section="newsletter" data-section-label="Newsletter" aria-labelledby="news-heading">
+  <div class="newsletter-inner">
+<%
+  var _newsTag   = news.heading_level || 'h2';
+  var _newsAlign = news.text_align    || 'center';
+%>
+    <div class="newsletter-copy" style="text-align:<%= _newsAlign %>">
+      <% if (news.eyebrow) { %><p class="section-eyebrow" style="color:rgba(255,255,255,.7)"><%= news.eyebrow %></p><% } %>
+      <<%- _newsTag %> class="newsletter-heading" id="news-heading"><%= news.heading || 'Get Exclusive Deals & Design Ideas' %></<%- _newsTag %>>
+      <% if (news.subtitle) { %><p class="newsletter-sub"><%= news.subtitle %></p><% } %>
+    </div>
+    <form class="newsletter-form" id="newsletterForm" novalidate>
+      <div class="newsletter-input-wrap">
+        <input type="email" name="email" placeholder="<%= news.placeholder || 'Your email address' %>" class="newsletter-input" required aria-label="Email address">
+        <button type="submit" class="btn btn-amber newsletter-btn"><%= news.button_text || 'Get Early Access' %></button>
+      </div>
+      <p class="newsletter-success" id="newsletterSuccess" hidden><%= news.success_message || "You're in!" %></p>
+      <p class="newsletter-disclaimer"><%= news.disclaimer || 'No spam. Unsubscribe anytime.' %></p>
+    </form>
+  </div>
+</section>
+<% } %>
+
+<!-- ── THEME EDITOR INTEGRATION — click-to-edit + section scroll ──── -->
+<style>
+  /* Only active inside the theme editor preview iframe */
+  body.te4-preview-mode [data-section] {
+    cursor: pointer;
+    position: relative;
+    transition: outline .12s;
+  }
+  body.te4-preview-mode [data-section]:hover::after {
+    content: 'Click to edit';
+    position: absolute;
+    top: 8px; left: 8px;
+    background: #5A7A5A;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: system-ui, sans-serif;
+    padding: 3px 8px;
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 9999;
+    letter-spacing: .02em;
+  }
+  body.te4-preview-mode [data-section]:hover {
+    outline: 2px solid #5A7A5A;
+    outline-offset: 2px;
+  }
+  [data-section].te4-preview-highlight {
+    outline: 3px solid #5A7A5A;
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+</style>
+<script>
+(function () {
+  var isPreview = window.location.search.indexOf('te_preview') !== -1;
+  if (isPreview) document.body.classList.add('te4-preview-mode');
+
+  var _lastHighlight = null;
+
+  /* ── Receive messages from the editor ── */
+  window.addEventListener('message', function (e) {
+    var d = e.data;
+    if (!d || typeof d !== 'object') return;
+    if ('te4_scroll' in d) {
+      if (_lastHighlight) { _lastHighlight.classList.remove('te4-preview-highlight'); _lastHighlight = null; }
+      var key = d.te4_scroll;
+      if (!key) return;
+      var target = document.querySelector('[data-section="' + key + '"]');
+      if (!target) return;
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target.classList.add('te4-preview-highlight');
+      _lastHighlight = target;
+      setTimeout(function () {
+        if (_lastHighlight === target) { target.classList.remove('te4-preview-highlight'); _lastHighlight = null; }
+      }, 2500);
+    }
+  });
+
+  /* ── Send click-to-edit messages to the editor ── */
+  if (isPreview) {
+    document.addEventListener('click', function (e) {
+      var el = e.target.closest('[data-section]');
+      if (!el) return;
+      e.preventDefault();
+      e.stopPropagation();
+      var key = el.dataset.section;
+      var label = el.dataset.sectionLabel || key;
+      window.parent.postMessage({ te4_open: key, te4_label: label }, '*');
+    }, true);
+  }
+}());
+</script>
