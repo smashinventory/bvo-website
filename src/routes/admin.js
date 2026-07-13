@@ -17,12 +17,18 @@ router.use(requireAdmin);
 router.get('/', ctrl.dashboard);
 
 /* ── Products ───────────────────────────────────────────────── */
-router.get ('/products',          ctrl.productList);
-router.get ('/products/new',      ctrl.productNew);
-router.post('/products',          ctrl.productCreate);
-router.get ('/products/:id/edit', ctrl.productEdit);
-router.post('/products/:id',      ctrl.productUpdate);
-router.post('/products/:id/delete', ctrl.productDelete);
+router.get ('/products',                                          ctrl.productList);
+router.get ('/products/export.csv',                               ctrl.productExport);
+router.post('/products/import',  ctrl.productImportMiddleware,    ctrl.productImport);
+router.get ('/products/new',                                      ctrl.productNew);
+router.post('/products',                                          ctrl.productCreate);
+router.get ('/products/:id/edit',                                 ctrl.productEdit);
+router.post('/products/:id',                                      ctrl.productUpdate);
+router.post('/products/:id/delete',                               ctrl.productDelete);
+/* Image management */
+router.post('/products/:id/images', ctrl.productAddImageMiddleware, ctrl.productAddImage);
+router.post('/products/:id/images/:imgId/delete',                 ctrl.productDeleteImage);
+router.post('/products/:id/images/:imgId/primary',                ctrl.productSetPrimaryImage);
 
 /* ── Orders ─────────────────────────────────────────────────── */
 router.get ('/orders',            ctrl.orderList);
@@ -34,7 +40,7 @@ router.post('/theme',          ctrl.themeSave);
 router.post('/theme/preview',  ctrl.themeSavePreview);
 router.post('/theme/reorder',  ctrl.themeSaveOrder);
 
-/* ── Image Upload ───────────────────────────────────────────── */
+/* ── Image Upload (theme editor) ────────────────────────────── */
 router.post('/upload', ctrl.uploadMiddleware, ctrl.uploadImage);
 
 /* ── RFLPOS Sync ─────────────────────────────────────────────── */

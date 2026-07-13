@@ -5,8 +5,40 @@
     <button type="submit" class="btn btn-outline">Search</button>
     <% if (search) { %><a href="/admin/products" class="btn btn-outline">Clear</a><% } %>
   </form>
-  <a href="/admin/products/new" class="btn btn-primary">+ Add Product</a>
+  <div class="adm-toolbar-actions">
+    <a href="/admin/products/export.csv" class="btn btn-outline" title="Download all products as CSV">⬇ Export CSV</a>
+    <button type="button" class="btn btn-outline" id="importBtn" title="Upload a filled CSV to import products">⬆ Import CSV</button>
+    <a href="/admin/products/new" class="btn btn-primary">+ Add Product</a>
+  </div>
 </div>
+
+<!-- Hidden import form -->
+<form id="importForm" action="/admin/products/import" method="POST" enctype="multipart/form-data" style="display:none">
+  <input type="file" id="importFile" name="csv_file" accept=".csv,text/csv">
+</form>
+
+<% if (locals.flash) { %>
+<div class="adm-flash adm-flash--<%= flash.type %>" style="margin-bottom:12px"><%= flash.msg %></div>
+<% } %>
+
+<style>
+.adm-toolbar-actions { display:flex; gap:8px; align-items:center; }
+.adm-flash { padding:10px 16px; border-radius:8px; font-size:.875rem; }
+.adm-flash--success { background:#f0faf2; border:1px solid #7A9E7E; color:#2d6a38; }
+.adm-flash--error   { background:#fff5f5; border:1px solid #c00; color:#900; }
+</style>
+<script>
+document.getElementById('importBtn')?.addEventListener('click', () => {
+  document.getElementById('importFile').click();
+});
+document.getElementById('importFile')?.addEventListener('change', function() {
+  if (this.files[0]) {
+    if (confirm(`Import "${this.files[0].name}"? Existing products matched by SKU will be updated.`)) {
+      document.getElementById('importForm').submit();
+    }
+  }
+});
+</script>
 
 <!-- Count -->
 <p class="adm-count"><%= total %> product<%= total !== 1 ? 's' : '' %><% if (search) { %> matching "<%= search %>"<% } %></p>

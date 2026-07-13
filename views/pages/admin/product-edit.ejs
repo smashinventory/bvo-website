@@ -4,6 +4,10 @@
     <h1 class="adm-form-title"><%= isNew ? 'Add New Product' : 'Edit Product' %></h1>
   </div>
 
+  <% if (locals.flash) { %>
+  <div class="adm-flash adm-flash--<%= flash.type %>"><%= flash.msg %></div>
+  <% } %>
+
   <form
     action="<%= isNew ? '/admin/products' : '/admin/products/' + product.id %>"
     method="POST"
@@ -12,8 +16,10 @@
   >
     <div class="adm-form-grid">
 
-      <!-- LEFT: main fields -->
+      <!-- ══ LEFT: main fields ════════════════════════════════════ -->
       <div class="adm-form-main">
+
+        <!-- Basic Info -->
         <div class="adm-card">
           <h2 class="adm-card-title">Basic Information</h2>
 
@@ -21,7 +27,7 @@
             <label for="name">Product Name <span class="adm-required">*</span></label>
             <input type="text" id="name" name="name" required
               value="<%= product?.name || '' %>"
-              placeholder="e.g. 48&quot; Single Sink Vanity — White Marble">
+              placeholder="e.g. James Martin Brookfield 60&quot; Single Vanity">
           </div>
 
           <div class="adm-form-row">
@@ -36,7 +42,7 @@
               <label for="sku">SKU</label>
               <input type="text" id="sku" name="sku"
                 value="<%= product?.sku || '' %>"
-                placeholder="e.g. JM-48-WM-001">
+                placeholder="e.g. JM-BROOK-60-WW">
             </div>
           </div>
 
@@ -60,14 +66,26 @@
               </select>
             </div>
           </div>
+        </div>
 
+        <!-- Descriptions -->
+        <div class="adm-card">
+          <h2 class="adm-card-title">Descriptions</h2>
           <div class="adm-form-group">
-            <label for="description">Description</label>
-            <textarea id="description" name="description" rows="6"
-              placeholder="Product description…"><%= product?.description || '' %></textarea>
+            <label for="short_desc">Short Description</label>
+            <textarea id="short_desc" name="short_desc" rows="3"
+              placeholder="One or two sentences shown on the product page and in search results."><%= product?.short_desc || '' %></textarea>
+            <span class="adm-form-hint">Shown directly beneath the product title</span>
+          </div>
+          <div class="adm-form-group">
+            <label for="long_desc">Full Description</label>
+            <textarea id="long_desc" name="long_desc" rows="8"
+              placeholder="Detailed product description — HTML is supported."><%= product?.long_desc || '' %></textarea>
+            <span class="adm-form-hint">Displayed in the "Product Description" section below the fold. HTML allowed.</span>
           </div>
         </div>
 
+        <!-- Pricing -->
         <div class="adm-card">
           <h2 class="adm-card-title">Pricing</h2>
           <div class="adm-form-row">
@@ -90,14 +108,119 @@
                   value="<%= product?.compare_price || '' %>"
                   placeholder="0.00">
               </div>
-              <span class="adm-form-hint">Shows a strikethrough "was" price</span>
+              <span class="adm-form-hint">Shows strikethrough "was" price + savings badge</span>
             </div>
           </div>
         </div>
+
+        <!-- Dimensions -->
+        <div class="adm-card">
+          <h2 class="adm-card-title">Dimensions</h2>
+          <div class="adm-form-row adm-form-row--4">
+            <div class="adm-form-group">
+              <label for="width_in">Width (in)</label>
+              <input type="number" id="width_in" name="width_in" min="0" step="0.25"
+                value="<%= product?.width_in || '' %>" placeholder="60">
+            </div>
+            <div class="adm-form-group">
+              <label for="depth_in">Depth (in)</label>
+              <input type="number" id="depth_in" name="depth_in" min="0" step="0.25"
+                value="<%= product?.depth_in || '' %>" placeholder="22">
+            </div>
+            <div class="adm-form-group">
+              <label for="height_in">Height (in)</label>
+              <input type="number" id="height_in" name="height_in" min="0" step="0.25"
+                value="<%= product?.height_in || '' %>" placeholder="34">
+            </div>
+            <div class="adm-form-group">
+              <label for="weight_lbs">Weight (lbs)</label>
+              <input type="number" id="weight_lbs" name="weight_lbs" min="0" step="0.1"
+                value="<%= product?.weight_lbs || '' %>" placeholder="250">
+            </div>
+          </div>
+        </div>
+
+        <!-- Specifications -->
+        <div class="adm-card">
+          <h2 class="adm-card-title">Specifications</h2>
+          <p class="adm-form-hint" style="margin-bottom:14px">These appear in the Specifications table on the product page and power the collection filters.</p>
+
+          <datalist id="spec-keys">
+            <!-- Vanity core -->
+            <option value="product_type">
+            <option value="size_in">
+            <option value="style">
+            <option value="mount_type">
+            <!-- Finish / Color -->
+            <option value="cabinet_finish">
+            <option value="color_family">
+            <option value="hardware_finish">
+            <!-- Sink / Countertop -->
+            <option value="sink_count">
+            <option value="sink_type">
+            <option value="sink_included">
+            <option value="countertop_material">
+            <option value="countertop_included">
+            <!-- Cabinet details -->
+            <option value="door_style">
+            <option value="drawer_count">
+            <option value="mirror_included">
+            <!-- Faucet / Accessory -->
+            <option value="faucet_holes">
+            <option value="faucet_spread_in">
+            <option value="finish">
+            <!-- Mirror -->
+            <option value="shape">
+            <option value="has_led">
+            <option value="has_defogger">
+            <!-- Generic -->
+            <option value="material">
+            <option value="width_in">
+            <option value="depth_in">
+            <option value="height_in">
+          </datalist>
+
+          <div id="specs-list">
+            <%
+              var _existingSpecs = (typeof productAttrs !== 'undefined' && productAttrs.length)
+                ? productAttrs
+                : [];
+            %>
+            <% _existingSpecs.forEach(function(s, i) { %>
+            <div class="spec-row-edit" data-idx="<%= i %>">
+              <input type="text" name="spec[<%= i %>][key]"
+                value="<%= s.attr_key %>"
+                placeholder="attr_key (e.g. size_in)"
+                list="spec-keys"
+                class="spec-key-input">
+              <input type="text" name="spec[<%= i %>][text]"
+                value="<%= s.value_text || '' %>"
+                placeholder="Text value (e.g. White Washed Walnut)">
+              <input type="number" name="spec[<%= i %>][num]"
+                value="<%= s.value_num != null ? s.value_num : '' %>"
+                placeholder="Numeric value (e.g. 60)"
+                step="any">
+              <button type="button" class="spec-remove-btn" title="Remove row">✕</button>
+            </div>
+            <% }) %>
+          </div>
+
+          <button type="button" id="add-spec-btn" class="btn btn-outline" style="margin-top:10px;font-size:.8rem;padding:6px 14px">
+            + Add Spec Row
+          </button>
+          <p class="adm-form-hint" style="margin-top:8px">
+            Use <strong>value_num</strong> for anything numeric (size, count, inches).
+            Use <strong>value_text</strong> for text (finish color, material name).
+            Both can be filled if the value has both forms.
+          </p>
+        </div>
+
       </div><!-- /.adm-form-main -->
 
-      <!-- RIGHT: sidebar fields -->
+      <!-- ══ RIGHT: sidebar ════════════════════════════════════════ -->
       <div class="adm-form-side">
+
+        <!-- Status & Flags -->
         <div class="adm-card">
           <h2 class="adm-card-title">Status</h2>
           <div class="adm-form-group">
@@ -107,24 +230,116 @@
               <option value="0" <%= (product && !product.is_active) ? 'selected' : '' %>>Inactive — hidden from store</option>
             </select>
           </div>
+          <div class="adm-form-row" style="gap:16px;margin-top:4px">
+            <label class="adm-toggle-label">
+              <input type="checkbox" name="is_featured" value="1"
+                <%= (product?.is_featured) ? 'checked' : '' %>>
+              Featured
+            </label>
+            <label class="adm-toggle-label">
+              <input type="checkbox" name="is_new" value="1"
+                <%= (product?.is_new) ? 'checked' : '' %>>
+              New Arrival
+            </label>
+          </div>
           <% if (product?.source_flag && product.source_flag !== 'manual') { %>
-          <div class="adm-form-group">
+          <div class="adm-form-group" style="margin-top:12px">
             <label>Data Source</label>
             <p class="adm-source adm-source--<%= product.source_flag %>"><%= product.source_flag %></p>
-            <span class="adm-form-hint">Imported products are updated by the sync service</span>
+            <span class="adm-form-hint">Synced fields update automatically — manual edits may be overwritten on next sync</span>
           </div>
           <% } %>
         </div>
 
+        <!-- Inventory -->
+        <div class="adm-card">
+          <h2 class="adm-card-title">Inventory</h2>
+          <div class="adm-form-group">
+            <label for="qty_on_hand">Quantity on Hand</label>
+            <input type="number" id="qty_on_hand" name="qty_on_hand" min="0" step="1"
+              value="<%= product?.qty_on_hand ?? 0 %>">
+          </div>
+          <label class="adm-toggle-label">
+            <input type="checkbox" name="allow_backorder" value="1"
+              <%= (product?.allow_backorder) ? 'checked' : '' %>>
+            Allow backorders
+          </label>
+        </div>
+
+        <!-- Images -->
         <div class="adm-card">
           <h2 class="adm-card-title">Images</h2>
-          <p class="adm-form-hint" style="margin-bottom:12px">
-            Image upload will be available once the product is saved and the media manager is configured.
-          </p>
-          <% if (!isNew && product) { %>
-          <p class="adm-form-hint">Product ID: <strong><%= product.id %></strong></p>
+
+          <% if (isNew) { %>
+          <p class="adm-form-hint">Save the product first, then you can upload images.</p>
+          <% } else { %>
+
+          <!-- Existing images -->
+          <%
+            var _imgs = (typeof productImages !== 'undefined') ? productImages : [];
+          %>
+          <% if (_imgs.length) { %>
+          <div class="adm-img-grid">
+            <% _imgs.forEach(function(img) { %>
+            <div class="adm-img-thumb <%= img.is_primary ? 'adm-img-thumb--primary' : '' %>">
+              <img src="<%= img.url %>" alt="<%= img.alt_text || '' %>">
+              <% if (img.is_primary) { %><span class="adm-img-primary-badge">Primary</span><% } %>
+              <div class="adm-img-actions">
+                <% if (!img.is_primary) { %>
+                <form method="POST" action="/admin/products/<%= product.id %>/images/<%= img.id %>/primary" style="display:inline">
+                  <button type="submit" class="adm-img-btn" title="Set as primary">★</button>
+                </form>
+                <% } %>
+                <form method="POST" action="/admin/products/<%= product.id %>/images/<%= img.id %>/delete" style="display:inline"
+                  onsubmit="return confirm('Delete this image?')">
+                  <button type="submit" class="adm-img-btn adm-img-btn--del" title="Delete">✕</button>
+                </form>
+              </div>
+            </div>
+            <% }) %>
+          </div>
+          <% } else { %>
+          <p class="adm-form-hint" style="margin-bottom:12px">No images yet.</p>
+          <% } %>
+
+          <!-- Upload form -->
+          <form method="POST" action="/admin/products/<%= product.id %>/images"
+            enctype="multipart/form-data" class="adm-img-upload-form" id="imgUploadForm">
+            <label class="adm-img-drop" id="imgDropZone">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              <span id="imgDropLabel">Click or drag to upload image</span>
+              <input type="file" name="image_file" id="imgFileInput" accept="image/*" style="display:none">
+            </label>
+            <button type="submit" class="btn btn-sage" style="width:100%;margin-top:8px" id="imgUploadBtn" disabled>
+              Upload Image
+            </button>
+          </form>
+
           <% } %>
         </div>
+
+        <!-- SEO -->
+        <div class="adm-card">
+          <h2 class="adm-card-title">SEO</h2>
+          <div class="adm-form-group">
+            <label for="meta_title">Meta Title</label>
+            <input type="text" id="meta_title" name="meta_title"
+              value="<%= product?.meta_title || '' %>"
+              placeholder="Defaults to product name if blank"
+              maxlength="255">
+          </div>
+          <div class="adm-form-group">
+            <label for="meta_desc">Meta Description</label>
+            <textarea id="meta_desc" name="meta_desc" rows="3"
+              maxlength="500"
+              placeholder="Defaults to short_desc if blank"><%= product?.meta_desc || '' %></textarea>
+          </div>
+        </div>
+
       </div><!-- /.adm-form-side -->
 
     </div><!-- /.adm-form-grid -->
@@ -134,13 +349,19 @@
         <%= isNew ? 'Create Product' : 'Save Changes' %>
       </button>
       <a href="/admin/products" class="btn btn-outline">Cancel</a>
+      <% if (!isNew && product) { %>
+      <a href="/products/<%= product.slug %>" target="_blank" class="btn btn-outline" style="margin-left:auto">
+        View in Store ↗
+      </a>
+      <% } %>
     </div>
   </form>
 </div>
 
 <%- contentFor('script') %>
 <script>
-  // Auto-generate slug from name if slug field is empty
+(function() {
+  // ── Auto-generate slug from name ─────────────────────────────
   const nameInput = document.getElementById('name');
   const slugInput = document.getElementById('slug');
   nameInput?.addEventListener('input', () => {
@@ -151,4 +372,193 @@
         .replace(/^-|-$/g, '');
     }
   });
+
+  // ── Dynamic spec rows ─────────────────────────────────────────
+  const specsList = document.getElementById('specs-list');
+  const addSpecBtn = document.getElementById('add-spec-btn');
+
+  function getNextIdx() {
+    const rows = specsList.querySelectorAll('.spec-row-edit');
+    return rows.length;
+  }
+
+  function addSpecRow(key, text, num) {
+    const i = getNextIdx();
+    const div = document.createElement('div');
+    div.className = 'spec-row-edit';
+    div.dataset.idx = i;
+    div.innerHTML = `
+      <input type="text" name="spec[${i}][key]"
+        value="${key || ''}" placeholder="attr_key (e.g. size_in)"
+        list="spec-keys" class="spec-key-input">
+      <input type="text" name="spec[${i}][text]"
+        value="${text || ''}" placeholder="Text value (e.g. White Washed Walnut)">
+      <input type="number" name="spec[${i}][num]"
+        value="${num != null ? num : ''}" placeholder="Numeric value (e.g. 60)" step="any">
+      <button type="button" class="spec-remove-btn" title="Remove row">✕</button>
+    `;
+    specsList.appendChild(div);
+    div.querySelector('.spec-key-input').focus();
+  }
+
+  addSpecBtn?.addEventListener('click', () => addSpecRow());
+
+  specsList?.addEventListener('click', (e) => {
+    if (e.target.classList.contains('spec-remove-btn')) {
+      e.target.closest('.spec-row-edit').remove();
+      // Re-index remaining rows so names stay sequential
+      specsList.querySelectorAll('.spec-row-edit').forEach((row, idx) => {
+        row.querySelectorAll('[name]').forEach(input => {
+          input.name = input.name.replace(/spec\[\d+\]/, `spec[${idx}]`);
+        });
+      });
+    }
+  });
+
+  // ── Image upload area ─────────────────────────────────────────
+  const fileInput   = document.getElementById('imgFileInput');
+  const dropZone    = document.getElementById('imgDropZone');
+  const dropLabel   = document.getElementById('imgDropLabel');
+  const uploadBtn   = document.getElementById('imgUploadBtn');
+
+  if (fileInput) {
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('is-over');
+    });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('is-over'));
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('is-over');
+      if (e.dataTransfer.files[0]) {
+        fileInput.files = e.dataTransfer.files;
+        fileInput.dispatchEvent(new Event('change'));
+      }
+    });
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files[0]) {
+        dropLabel.textContent = fileInput.files[0].name;
+        uploadBtn.disabled = false;
+      }
+    });
+  }
+})();
 </script>
+
+<style>
+/* ── Spec rows ──────────────────────────────────────────────── */
+.spec-row-edit {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr 0.8fr auto;
+  gap: 8px;
+  margin-bottom: 8px;
+  align-items: center;
+}
+.spec-remove-btn {
+  background: none;
+  border: 1px solid var(--border-card, #ddd);
+  border-radius: 6px;
+  cursor: pointer;
+  color: #999;
+  padding: 4px 8px;
+  font-size: .85rem;
+  line-height: 1;
+}
+.spec-remove-btn:hover { color: #c00; border-color: #c00; }
+
+/* ── Image grid ─────────────────────────────────────────────── */
+.adm-img-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.adm-img-thumb {
+  position: relative;
+  border: 2px solid var(--border-card, #ddd);
+  border-radius: 8px;
+  overflow: hidden;
+  aspect-ratio: 1;
+  background: #f5f5f5;
+}
+.adm-img-thumb--primary { border-color: var(--amber, #C68B2F); }
+.adm-img-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.adm-img-primary-badge {
+  position: absolute;
+  top: 4px; left: 4px;
+  background: var(--amber, #C68B2F);
+  color: #fff;
+  font-size: .65rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.adm-img-actions {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  background: rgba(0,0,0,.55);
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px;
+  opacity: 0;
+  transition: opacity .15s;
+}
+.adm-img-thumb:hover .adm-img-actions { opacity: 1; }
+.adm-img-btn {
+  background: rgba(255,255,255,.9);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 3px 8px;
+  font-size: .8rem;
+  color: #333;
+}
+.adm-img-btn--del:hover { background: #c00; color: #fff; }
+
+/* ── Image upload drop zone ─────────────────────────────────── */
+.adm-img-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  border: 2px dashed var(--border-card, #ddd);
+  border-radius: 8px;
+  padding: 20px 12px;
+  cursor: pointer;
+  text-align: center;
+  color: #888;
+  font-size: .85rem;
+  transition: border-color .15s, background .15s;
+}
+.adm-img-drop:hover, .adm-img-drop.is-over {
+  border-color: var(--sage, #7A9E7E);
+  background: #f7faf7;
+  color: #444;
+}
+
+/* ── Misc ───────────────────────────────────────────────────── */
+.adm-form-row--4 { grid-template-columns: repeat(4, 1fr); }
+.adm-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: .875rem;
+  cursor: pointer;
+  color: var(--navy, #182840);
+}
+.adm-toggle-label input[type=checkbox] { width: 15px; height: 15px; cursor: pointer; }
+.adm-flash {
+  padding: 10px 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: .875rem;
+}
+.adm-flash--success { background: #f0faf2; border: 1px solid #7A9E7E; color: #2d6a38; }
+.adm-flash--error   { background: #fff5f5; border: 1px solid #c00; color: #900; }
+</style>
