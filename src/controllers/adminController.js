@@ -504,6 +504,10 @@ exports.syncProbe = async (req, res) => {
   const env = {
     BVO_SYNC_TOKEN:   token ? `(set, ${token.length} chars)` : '*** NOT SET ***',
     BVO_SYNC_URL:     process.env.BVO_SYNC_URL || '(using default)',
+    DB_HOST:          process.env.DB_HOST  || '(not set)',
+    DB_NAME:          process.env.DB_NAME  || '(not set)',
+    DB_USER:          process.env.DB_USER  || '(not set)',
+    DB_PASS:          process.env.DB_PASS  ? '(set)' : '(not set)',
     RFLPOS_DB_NAME:   process.env.RFLPOS_DB_NAME  || '(not set)',
     RFLPOS_DB_HOST:   process.env.RFLPOS_DB_HOST  || '(not set)',
     RFLPOS_DB_USER:   process.env.RFLPOS_DB_USER  || '(not set)',
