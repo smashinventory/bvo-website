@@ -20,8 +20,7 @@ exports.show = async (req, res, next) => {
         );
         if (rows[0]) category = rows[0];
       } catch {
-        // Use seed fallback
-        category = Category._seed().find(c => c.id === product.category_id) || null;
+        category = null; // graceful fallback — category is display-only
       }
     }
 

@@ -374,7 +374,7 @@
     <div class="listing-grid">
       <% products.forEach(function(product) { %>
       <%
-        /* Match product to a model family by name prefix for finishes/sizes display */
+        /* Match product to a static model family (James Martin collections) */
         var _pMF = null;
         if (typeof modelFamilies !== 'undefined' && modelFamilies) {
           var _pName = product.name.toLowerCase();
@@ -387,6 +387,11 @@
         var _pImgId       = 'prod-img-' + product.id;
         var _pSwatches    = _pMF ? _pMF.finishes.slice(0, 4) : [];
         var _pSwatchExtra = _pMF && _pMF.finishes.length > 4 ? _pMF.finishes.length - 4 : 0;
+
+        /* Dynamic sibling lookup for size options */
+        var _pBaseKey = product.name.replace(/\s+\d{2,3}\s*["'"]?\s*(?:in(?:ch(?:es)?)?)?\s*$/i, '').trim().toLowerCase();
+        var _pSibling = (typeof productSiblingMap !== 'undefined') ? productSiblingMap[_pBaseKey] : null;
+        var _pSizes   = _pMF ? _pMF.sizes : (_pSibling && _pSibling.sizes.length > 1 ? _pSibling.sizes : null);
       %>
       <article class="product-card">
         <a href="/products/<%= product.slug %>" class="product-img-link" aria-label="<%= product.name %>">
@@ -411,40 +416,41 @@
           <h3 class="product-title">
             <a href="/products/<%= product.slug %>"><%= product.name %></a>
           </h3>
-          <div class="product-price-row">
-            <span class="product-price">$<%= product.price.toLocaleString('en-US', {minimumFractionDigits:2}) %></span>
-            <% if (product.compare_price && product.compare_price > product.price) { %>
-            <span class="product-was">$<%= product.compare_price.toLocaleString('en-US', {minimumFractionDigits:2}) %></span>
-            <% } %>
-          </div>
 
-          <% if (_pMF) { %>
           <!-- Finishes -->
           <div class="model-card-swatches" role="group" aria-label="Available finishes">
             <span class="model-card-swatches-label">Finishes:</span>
-            <% _pSwatches.forEach(function(f, i) { %>
-            <%
-              var _sl = ['#F0F0EF','#F5F5F5','#FAFAFA','#FFFFFF','#C4A882'].indexOf(f.hex) !== -1;
-              var _sb = _sl ? '#ccc' : f.hex;
-            %>
-            <button class="model-card-swatch<%= i === 0 ? ' is-active' : '' %>"
-                    data-target-img="<%= _pImgId %>"
-                    data-image="<%= f.image %>"
-                    data-finish="<%= f.name %>"
-                    style="background:<%= f.hex %>;border-color:<%= _sb %>"
-                    aria-label="<%= f.name %>"
-                    title="<%= f.name %>"></button>
-            <% }); %>
-            <% if (_pSwatchExtra > 0) { %>
-            <span class="model-card-swatch-more" aria-hidden="true">+<%= _pSwatchExtra %></span>
+            <% if (_pMF && _pSwatches.length) { %>
+              <% _pSwatches.forEach(function(f, i) { %>
+              <%
+                var _sl = ['#F0F0EF','#F5F5F5','#FAFAFA','#FFFFFF','#C4A882'].indexOf(f.hex) !== -1;
+                var _sb = _sl ? '#ccc' : f.hex;
+              %>
+              <button class="model-card-swatch<%= i === 0 ? ' is-active' : '' %>"
+                      data-target-img="<%= _pImgId %>"
+                      data-image="<%= f.image %>"
+                      data-finish="<%= f.name %>"
+                      style="background:<%= f.hex %>;border-color:<%= _sb %>"
+                      aria-label="<%= f.name %>"
+                      title="<%= f.name %>"></button>
+              <% }); %>
+              <% if (_pSwatchExtra > 0) { %>
+              <span class="model-card-swatch-more" aria-hidden="true">+<%= _pSwatchExtra %></span>
+              <% } %>
+            <% } else { %>
+            <span class="model-card-sizes-text">See details</span>
             <% } %>
           </div>
+
           <!-- Size Options -->
           <div class="model-card-sizes-row">
             <span class="model-card-sizes-label">Size Options:</span>
-            <span class="model-card-sizes-text"><%= _pMF.sizes.join(' | ') %></span>
+            <% if (_pSizes && _pSizes.length) { %>
+            <span class="model-card-sizes-text"><%= _pSizes.join('" | ') %>"</span>
+            <% } else { %>
+            <span class="model-card-sizes-text">See details</span>
+            <% } %>
           </div>
-          <% } %>
 
           <a href="/products/<%= product.slug %>" class="btn btn-sage">View Details</a>
         </div>

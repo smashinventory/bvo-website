@@ -108,7 +108,9 @@ const Product = {
           continue;
         }
 
-        // size_in is stored as value_num; checkbox values are numeric strings + optional '84+' sentinel
+        // size_in: ±1" fuzzy match to catch adjacent sizes (e.g. 59"/60"/61" all match "60").
+        // Text fallback via MySQL CAST handles variant formats: '60"', '60 Inch', '60"', '60 in'
+        // MySQL CAST(expr AS UNSIGNED) stops at the first non-numeric char, so all variants → integer.
         if (key === 'size_in') {
           const has84Plus  = vals.includes('84+');
           const exactSizes = vals.filter(v => v !== '84+').map(Number).filter(n => !isNaN(n));
@@ -116,11 +118,19 @@ const Product = {
           const sizeParams = [];
 
           if (exactSizes.length) {
-            orParts.push(`pav.value_num IN (${exactSizes.map(() => '?').join(',')})`);
-            sizeParams.push(...exactSizes);
+            // Numeric storage: ±1" tolerance per selected size
+            const numRanges = exactSizes.map(() => 'pav.value_num BETWEEN ? AND ?').join(' OR ');
+            orParts.push(`(pav.value_num IS NOT NULL AND (${numRanges}))`);
+            exactSizes.forEach(sz => sizeParams.push(sz - 1, sz + 1));
+
+            // Text fallback: strips "  /" Inch etc. — covers manufacturers who store value_text only
+            const txtRanges = exactSizes.map(() => 'CAST(pav.value_text AS UNSIGNED) BETWEEN ? AND ?').join(' OR ');
+            orParts.push(`(pav.value_num IS NULL AND (${txtRanges}))`);
+            exactSizes.forEach(sz => sizeParams.push(sz - 1, sz + 1));
           }
           if (has84Plus) {
             orParts.push('pav.value_num >= 84');
+            orParts.push('(pav.value_num IS NULL AND CAST(pav.value_text AS UNSIGNED) >= 84)');
           }
           if (!orParts.length) continue;
 
@@ -341,7 +351,10 @@ const Product = {
 
       product.images     = images;
       product.attributes = attrs;
-      product.inStock    = (product.qty_on_hand > 0) || !!product.allow_backorder;
+      // MySQL returns DECIMAL columns as strings — cast to avoid toFixed() crashes
+      product.price         = parseFloat(product.price) || 0;
+      product.compare_price = product.compare_price != null ? parseFloat(product.compare_price) : null;
+      product.inStock       = (product.qty_on_hand > 0) || !!product.allow_backorder;
       return product;
     } catch {
       return null;
@@ -366,7 +379,12 @@ const Product = {
         ORDER BY p.is_featured DESC, RAND()
         LIMIT ?
       `, [categoryId, excludeId, limit]);
-      return rows;
+      // Cast DECIMAL strings to numbers
+      return rows.map(r => ({
+        ...r,
+        price:         parseFloat(r.price) || 0,
+        compare_price: r.compare_price != null ? parseFloat(r.compare_price) : null,
+      }));
     } catch {
       return [];
     }

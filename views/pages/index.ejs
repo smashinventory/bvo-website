@@ -456,7 +456,13 @@ const news = S.newsletter         || {};
       </div>
       <blockquote class="testimonial-text">"<%= t.text %>"</blockquote>
       <footer class="testimonial-author">
-        <strong><%= t.author %></strong><% if (t.location) { %> &nbsp;·&nbsp; <span><%= t.location %></span><% } %>
+        <div class="testimonial-author-info">
+          <strong class="testimonial-name"><%= t.author %></strong>
+          <% if (t.location) { %><span class="testimonial-location"><%= t.location %></span><% } %>
+        </div>
+        <div class="testimonial-avatar">
+          <% if (t.avatar) { %><img src="<%= t.avatar %>" alt="<%= t.author %>"><% } %>
+        </div>
       </footer>
     </article>
     <% }) %>

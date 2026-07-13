@@ -55,7 +55,8 @@ exports.show = async (req, res, next) => {
 
       // ── Filter MODEL_FAMILIES ────────────────────────────────────
       let filtered = MODEL_FAMILIES;
-      if (activeSizes.length)    filtered = filtered.filter(m => activeSizes.some(sz => m.sizes.includes(sz)));
+      // ±1" fuzzy: a model matches if any of its sizes is within 1" of any selected size
+      if (activeSizes.length)    filtered = filtered.filter(m => activeSizes.some(sz => m.sizes.some(ms => Math.abs(ms - sz) <= 1)));
       if (activeBrands.length)   filtered = filtered.filter(m => activeBrands.includes(m.brand));
       if (activeFinishes.length) filtered = filtered.filter(m => m.finishes.some(f => activeFinishes.includes(f.name)));
       if (vmMinPrice != null)    filtered = filtered.filter(m => m.price_from >= vmMinPrice);
@@ -244,6 +245,24 @@ exports.show = async (req, res, next) => {
       Product.getPriceRange(category.id),
     ]);
 
+    // ── Dynamic sibling map: group by base-name to derive size options ──
+    // Strips trailing size (e.g. "48"", "60 in", "36") to find the model name,
+    // then aggregates all sizes found in this page's product set.
+    const _sizeRE = /\s+(\d{2,3})\s*["'"]?\s*(?:in(?:ch(?:es)?)?)?\s*$/i;
+    const productSiblingMap = {};
+    for (const p of result.products) {
+      const key = p.name.replace(_sizeRE, '').trim().toLowerCase();
+      if (!productSiblingMap[key]) productSiblingMap[key] = { sizes: [] };
+      const sm = p.name.match(_sizeRE);
+      if (sm) {
+        const sz = parseInt(sm[1]);
+        if (!productSiblingMap[key].sizes.includes(sz)) productSiblingMap[key].sizes.push(sz);
+      }
+    }
+    for (const key of Object.keys(productSiblingMap)) {
+      productSiblingMap[key].sizes.sort((a, b) => a - b);
+    }
+
     res.render('pages/collection', {
       pageTitle:    `${category.meta_title || category.name} | BathroomVanitiesOutlet.com`,
       metaDesc:     category.meta_desc || category.description || '',
@@ -255,6 +274,7 @@ exports.show = async (req, res, next) => {
       brands, productTypes,
       model,
       modelFamilies: MODEL_FAMILIES,
+      productSiblingMap,
       attrFilters,
       rangeFilters,
       minPrice, maxPrice,
