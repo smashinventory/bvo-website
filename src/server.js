@@ -14,6 +14,9 @@ const path           = require('path');
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
+// Trust reverse proxy (Hostinger, nginx) so secure cookies work over HTTPS
+app.set('trust proxy', 1);
+
 // ── Ensure upload directory exists ───────────────────────────────
 const fs = require('fs');
 const uploadDir = path.join(__dirname, '..', 'public', 'images', 'uploads');
