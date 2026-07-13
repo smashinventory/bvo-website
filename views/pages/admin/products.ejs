@@ -53,7 +53,7 @@
         </td>
         <td><span class="adm-source adm-source--<%= p.source_flag || 'manual' %>"><%= p.source_flag || 'manual' %></span></td>
         <td>
-          <% if (p.active) { %>
+          <% if (p.is_active) { %>
           <span class="adm-status adm-status--active">Active</span>
           <% } else { %>
           <span class="adm-status adm-status--inactive">Inactive</span>

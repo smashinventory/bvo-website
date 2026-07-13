@@ -158,8 +158,8 @@ exports.productList = async (req, res, next) => {
 
     const products = await safeQuery(
       `SELECT p.id, p.name, p.slug, p.sku, p.brand, p.price, p.compare_price,
-              p.active, p.source_flag, c.name AS category_name,
-              (SELECT url FROM product_images WHERE product_id=p.id ORDER BY position LIMIT 1) AS thumb
+              p.is_active, p.source_flag, c.name AS category_name,
+              (SELECT url FROM product_images WHERE product_id=p.id ORDER BY is_primary DESC, sort_order ASC LIMIT 1) AS thumb
        FROM products p
        LEFT JOIN categories c ON c.id = p.category_id
        ${where}
