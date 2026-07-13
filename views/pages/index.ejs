@@ -15,7 +15,7 @@ const news = S.newsletter         || {};
 
 <!-- ── SCROLLING TICKER ──────────────────────────────────────────── -->
 <% if (tick.enabled !== false && tick.items && tick.items.length) { %>
-<div class="ticker-wrap" data-section="scrolling_ticker" data-section-label="Announcement Bar" aria-label="Announcements">
+<div class="scrolling-ticker" data-section="scrolling_ticker" data-section-label="Announcement Bar" aria-label="Announcements">
   <div class="ticker-track" style="animation-duration:<%= tick.speed_seconds || 40 %>s">
     <% const _tickItems = tick.items; %>
     <% ;[..._tickItems, ..._tickItems].forEach(item => { %>

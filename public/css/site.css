@@ -5,7 +5,7 @@
 
 /* ── Reset ──────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html   { overflow-x: hidden; }
+html   { overflow-x: clip; }
 body   { font-family: var(--font-sans); background: var(--whisper); color: var(--navy); -webkit-font-smoothing: antialiased; overflow-x: hidden; max-width: 100%; }
 a      { color: var(--amber); text-decoration: none; }
 img    { max-width: 100%; display: block; }
@@ -973,6 +973,7 @@ ul[role="list"] { list-style: none; }
 .brand-logos-marquee {
   overflow: hidden;
   position: relative;
+  contain: paint;
 }
 /* Fade edges */
 .brand-logos-marquee::before,
