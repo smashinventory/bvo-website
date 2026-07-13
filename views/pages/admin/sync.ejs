@@ -1,0 +1,316 @@
+<%- style %>
+<style>
+.sync-page { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+.sync-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem; }
+.sync-title { font-size: 1.5rem; font-weight: 700; color: var(--color-ink); }
+.sync-subtitle { color: #6b7280; font-size: 0.875rem; margin-top: 0.25rem; }
+
+/* Status banner */
+.sync-status-bar { display: flex; gap: 1rem; margin-bottom: 2rem; flex-wrap: wrap; }
+.sync-stat-card {
+  flex: 1; min-width: 160px;
+  background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+}
+.sync-stat-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: .06em; color: #6b7280; margin-bottom: .4rem; }
+.sync-stat-value { font-size: 1.75rem; font-weight: 700; color: var(--color-ink); line-height: 1; }
+.sync-stat-value.pending { color: #d97706; }
+.sync-stat-value.ok     { color: #059669; }
+.sync-stat-value.err    { color: #dc2626; }
+
+/* Buttons */
+.btn-sync {
+  display: inline-flex; align-items: center; gap: .5rem;
+  background: var(--color-ink); color: #fff;
+  padding: .65rem 1.4rem; border-radius: 8px; border: none;
+  font-size: .875rem; font-weight: 600; cursor: pointer;
+  transition: opacity .15s;
+}
+.btn-sync:hover { opacity: .85; }
+.btn-sync:disabled { opacity: .5; cursor: not-allowed; }
+.btn-sync.loading .btn-sync-text { display: none; }
+.btn-sync.loading .btn-sync-loading { display: inline; }
+.btn-sync-loading { display: none; }
+
+.btn-approve {
+  background: #059669; color: #fff;
+  padding: .3rem .8rem; border-radius: 6px; border: none;
+  font-size: .8rem; font-weight: 600; cursor: pointer;
+}
+.btn-approve:hover { background: #047857; }
+.btn-hide {
+  background: #e5e7eb; color: #374151;
+  padding: .3rem .8rem; border-radius: 6px; border: none;
+  font-size: .8rem; font-weight: 600; cursor: pointer;
+}
+.btn-hide:hover { background: #d1d5db; }
+
+/* Sections */
+.sync-section { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; margin-bottom: 1.5rem; overflow: hidden; }
+.sync-section-head {
+  padding: 1rem 1.5rem; border-bottom: 1px solid #f3f4f6;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.sync-section-title { font-weight: 700; font-size: .95rem; color: var(--color-ink); }
+.sync-section-body { padding: 0; }
+
+/* Table */
+.sync-table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+.sync-table th {
+  padding: .7rem 1rem; text-align: left;
+  font-size: .72rem; text-transform: uppercase; letter-spacing: .05em;
+  color: #6b7280; background: #f9fafb; border-bottom: 1px solid #e5e7eb;
+}
+.sync-table td { padding: .75rem 1rem; border-bottom: 1px solid #f3f4f6; color: var(--color-ink); vertical-align: middle; }
+.sync-table tr:last-child td { border-bottom: none; }
+.sync-table tr:hover td { background: #f9fafb; }
+.product-img { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; border: 1px solid #e5e7eb; }
+.product-img-placeholder { width: 44px; height: 44px; background: #f3f4f6; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #9ca3af; font-size: .75rem; }
+.badge { display: inline-block; padding: .2rem .55rem; border-radius: 20px; font-size: .72rem; font-weight: 600; }
+.badge-pending { background: #fef3c7; color: #92400e; }
+.badge-ok      { background: #d1fae5; color: #065f46; }
+.badge-err     { background: #fee2e2; color: #991b1b; }
+.badge-running { background: #dbeafe; color: #1e40af; }
+.empty-state { padding: 3rem; text-align: center; color: #9ca3af; }
+.flash-msg { padding: .75rem 1.25rem; border-radius: 8px; margin-bottom: 1.5rem; font-size: .875rem; }
+.flash-ok  { background: #d1fae5; color: #065f46; }
+.flash-err { background: #fee2e2; color: #991b1b; }
+
+/* Config grid */
+.sync-config { padding: 1.5rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+@media (max-width: 640px) { .sync-config { grid-template-columns: 1fr; } }
+.config-row label { display: block; font-size: .8rem; font-weight: 600; color: #374151; margin-bottom: .4rem; }
+.config-row select, .config-row input[type=checkbox] { font-size: .875rem; }
+.config-row select { padding: .4rem .6rem; border: 1px solid #d1d5db; border-radius: 6px; }
+.config-note { font-size: .75rem; color: #6b7280; margin-top: .3rem; }
+</style>
+
+<div class="sync-page">
+
+  <div class="sync-header">
+    <div>
+      <div class="sync-title">RFLPOS Inventory Sync</div>
+      <div class="sync-subtitle">
+        Pulls products &amp; stock from RFLPOS (read-only). New items need approval before going live.
+      </div>
+    </div>
+    <button class="btn-sync" id="syncNowBtn" onclick="runSync()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      <span class="btn-sync-text">Sync Now</span>
+      <span class="btn-sync-loading">Syncing…</span>
+    </button>
+  </div>
+
+  <% if (typeof flash !== 'undefined' && flash) { %>
+    <div class="flash-msg <%= flash.type === 'ok' ? 'flash-ok' : 'flash-err' %>">
+      <%= flash.msg %>
+    </div>
+  <% } %>
+
+  <!-- Stats row -->
+  <div class="sync-status-bar">
+    <div class="sync-stat-card">
+      <div class="sync-stat-label">Total Synced Products</div>
+      <div class="sync-stat-value"><%= stats.total %></div>
+    </div>
+    <div class="sync-stat-card">
+      <div class="sync-stat-label">Pending Approval</div>
+      <div class="sync-stat-value pending"><%= stats.pending %></div>
+    </div>
+    <div class="sync-stat-card">
+      <div class="sync-stat-label">Live on Store</div>
+      <div class="sync-stat-value ok"><%= stats.live %></div>
+    </div>
+    <div class="sync-stat-card">
+      <div class="sync-stat-label">Last Sync</div>
+      <div class="sync-stat-value" style="font-size:1rem; padding-top:.25rem">
+        <%= stats.lastSync || 'Never' %>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pending approval -->
+  <div class="sync-section">
+    <div class="sync-section-head">
+      <span class="sync-section-title">⏳ Pending Approval (<%= pending.length %>)</span>
+      <% if (pending.length > 0) { %>
+        <button class="btn-approve" onclick="approveAll()">Approve All</button>
+      <% } %>
+    </div>
+    <div class="sync-section-body">
+      <% if (pending.length === 0) { %>
+        <div class="empty-state">No products awaiting approval — you're all caught up.</div>
+      <% } else { %>
+        <table class="sync-table">
+          <thead>
+            <tr>
+              <th>Image</th>
+              <th>Name</th>
+              <th>SKU</th>
+              <th>Price</th>
+              <th>Stock</th>
+              <th>Category</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% pending.forEach(p => { %>
+            <tr id="row-<%= p.id %>">
+              <td>
+                <% if (p.primary_image_url) { %>
+                  <img src="<%= p.primary_image_url %>" alt="" class="product-img" onerror="this.style.display='none'">
+                <% } else { %>
+                  <div class="product-img-placeholder">no img</div>
+                <% } %>
+              </td>
+              <td><strong><%= p.name %></strong></td>
+              <td style="color:#6b7280; font-family:monospace"><%= p.sku %></td>
+              <td>$<%= Number(p.price).toFixed(2) %></td>
+              <td><%= p.stock_qty !== null ? p.stock_qty : '—' %></td>
+              <td><%= p.category_name || '<span style="color:#9ca3af">Uncategorised</span>' %></td>
+              <td style="white-space:nowrap">
+                <button class="btn-approve" onclick="approveProduct(<%= p.id %>)">Approve</button>
+                &nbsp;
+                <button class="btn-hide" onclick="hideProduct(<%= p.id %>)">Skip</button>
+              </td>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      <% } %>
+    </div>
+  </div>
+
+  <!-- Sync log -->
+  <div class="sync-section">
+    <div class="sync-section-head">
+      <span class="sync-section-title">📋 Recent Sync Log</span>
+    </div>
+    <div class="sync-section-body">
+      <% if (!logs.length) { %>
+        <div class="empty-state">No sync runs yet. Click "Sync Now" to start.</div>
+      <% } else { %>
+        <table class="sync-table">
+          <thead>
+            <tr><th>Started</th><th>Finished</th><th>Added/Updated</th><th>Errors</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            <% logs.forEach(log => { %>
+            <tr>
+              <td><%= new Date(log.started_at).toLocaleString() %></td>
+              <td><%= log.finished_at ? new Date(log.finished_at).toLocaleString() : '—' %></td>
+              <td><%= log.records_ok %></td>
+              <td>
+                <% if (log.records_err > 0) { %>
+                  <span class="badge badge-err" title="<%= log.error_detail || '' %>"><%= log.records_err %> errors</span>
+                <% } else { %>
+                  <span style="color:#9ca3af">0</span>
+                <% } %>
+              </td>
+              <td>
+                <% if (!log.finished_at) { %>
+                  <span class="badge badge-running">Running</span>
+                <% } else if (log.records_err === 0) { %>
+                  <span class="badge badge-ok">OK</span>
+                <% } else { %>
+                  <span class="badge badge-err">Partial</span>
+                <% } %>
+              </td>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      <% } %>
+    </div>
+  </div>
+
+  <!-- Config -->
+  <div class="sync-section">
+    <div class="sync-section-head">
+      <span class="sync-section-title">⚙️ Sync Settings</span>
+    </div>
+    <div class="sync-config">
+      <div class="config-row">
+        <label>Auto-sync Interval</label>
+        <select id="syncInterval" onchange="saveSyncSettings()">
+          <option value="manual"   <%= syncSettings.interval === 'manual'   ? 'selected' : '' %>>Manual only</option>
+          <option value="hourly"   <%= syncSettings.interval === 'hourly'   ? 'selected' : '' %>>Every hour</option>
+          <option value="6h"       <%= syncSettings.interval === '6h'       ? 'selected' : '' %>>Every 6 hours</option>
+          <option value="daily"    <%= syncSettings.interval === 'daily'    ? 'selected' : '' %>>Daily</option>
+        </select>
+        <div class="config-note">How often BVO automatically pulls from RFLPOS.</div>
+      </div>
+      <div class="config-row">
+        <label>
+          <input type="checkbox" id="autoApprove" onchange="saveSyncSettings()"
+            <%= syncSettings.autoApprove ? 'checked' : '' %>>
+          &nbsp;Auto-approve new products
+        </label>
+        <div class="config-note">
+          If checked, new products from RFLPOS go live immediately.
+          Leave unchecked (recommended) to review before publishing.
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+async function runSync() {
+  const btn = document.getElementById('syncNowBtn');
+  btn.disabled = true;
+  btn.classList.add('loading');
+  try {
+    const res = await fetch('/admin/sync/run', { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) {
+      location.reload();
+    } else {
+      alert('Sync error: ' + (data.error || 'Unknown error'));
+      btn.disabled = false;
+      btn.classList.remove('loading');
+    }
+  } catch (e) {
+    alert('Network error — check console.');
+    btn.disabled = false;
+    btn.classList.remove('loading');
+  }
+}
+
+async function approveProduct(id) {
+  const res = await fetch('/admin/sync/approve/' + id, { method: 'POST' });
+  const data = await res.json();
+  if (data.ok) {
+    const row = document.getElementById('row-' + id);
+    if (row) row.style.opacity = '0.4';
+    setTimeout(() => { if (row) row.remove(); }, 400);
+  }
+}
+
+async function hideProduct(id) {
+  const res = await fetch('/admin/sync/skip/' + id, { method: 'POST' });
+  const data = await res.json();
+  if (data.ok) {
+    const row = document.getElementById('row-' + id);
+    if (row) row.remove();
+  }
+}
+
+async function approveAll() {
+  if (!confirm('Approve all pending products and make them live on the store?')) return;
+  const res = await fetch('/admin/sync/approve-all', { method: 'POST' });
+  const data = await res.json();
+  if (data.ok) location.reload();
+}
+
+async function saveSyncSettings() {
+  const interval    = document.getElementById('syncInterval').value;
+  const autoApprove = document.getElementById('autoApprove').checked;
+  await fetch('/admin/sync/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ interval, autoApprove }),
+  });
+}
+</script>

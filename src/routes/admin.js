@@ -37,4 +37,12 @@ router.post('/theme/reorder',  ctrl.themeSaveOrder);
 /* ── Image Upload ───────────────────────────────────────────── */
 router.post('/upload', ctrl.uploadMiddleware, ctrl.uploadImage);
 
+/* ── RFLPOS Sync ─────────────────────────────────────────────── */
+router.get ('/sync',              ctrl.syncPage);
+router.post('/sync/run',          ctrl.syncRun);
+router.post('/sync/approve/:id',  ctrl.syncApprove);
+router.post('/sync/skip/:id',     ctrl.syncSkip);
+router.post('/sync/approve-all',  ctrl.syncApproveAll);
+router.post('/sync/settings',     ctrl.syncSaveSettings);
+
 module.exports = router;

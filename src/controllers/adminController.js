@@ -1,12 +1,14 @@
 'use strict';
 
-const { bvoPool }  = require('../config/database');
-const Product       = require('../models/Product');
-const Category      = require('../models/Category');
-const themeSettings = require('../services/themeSettings');
-const path          = require('path');
-const fs            = require('fs');
-const multer        = require('multer');
+const { bvoPool }   = require('../config/database');
+const Product        = require('../models/Product');
+const Category       = require('../models/Category');
+const themeSettings  = require('../services/themeSettings');
+const rflposSync     = require('../services/rflposSync');
+const syncSettings   = require('../services/syncSettings');
+const path           = require('path');
+const fs             = require('fs');
+const multer         = require('multer');
 
 /* ── Multer — image uploads ──────────────────────────────────── */
 const _storage = multer.diskStorage({
@@ -486,4 +488,132 @@ exports.uploadImage = (req, res) => {
   if (!req.file) return res.status(400).json({ ok: false, error: 'No file received' });
   const url = `/images/uploads/${req.file.filename}`;
   res.json({ ok: true, url });
+};
+
+/* ════════════════════════════════════════════════════════════════
+   RFLPOS SYNC
+   ════════════════════════════════════════════════════════════════ */
+
+/* GET /admin/sync */
+exports.syncPage = async (req, res) => {
+  try {
+    const [totalRow]   = await safeQuery(
+      `SELECT COUNT(*) AS cnt FROM products WHERE source_flag='rflpos'`
+    );
+    const [liveRow]    = await safeQuery(
+      `SELECT COUNT(*) AS cnt FROM products WHERE source_flag='rflpos' AND is_active=1`
+    );
+    const [pendingRow] = await safeQuery(
+      `SELECT COUNT(*) AS cnt FROM products WHERE source_flag='rflpos' AND is_active=0`
+    );
+    const [lastLog]    = await safeQuery(
+      `SELECT started_at FROM rflpos_sync_log WHERE sync_type='product' ORDER BY id DESC LIMIT 1`
+    );
+
+    const pending = await bvoPool.query(`
+      SELECT p.id, p.name, p.sku, p.price, p.primary_image_url,
+             c.name AS category_name,
+             i.qty_on_hand AS stock_qty
+      FROM products p
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN inventory  i ON i.product_id  = p.id
+      WHERE p.source_flag='rflpos' AND p.is_active=0
+      ORDER BY p.created_at DESC
+      LIMIT 200
+    `).then(([rows]) => rows).catch(() => []);
+
+    const logs = await bvoPool.query(
+      `SELECT * FROM rflpos_sync_log WHERE sync_type='product' ORDER BY id DESC LIMIT 10`
+    ).then(([rows]) => rows).catch(() => []);
+
+    res.render('pages/admin/sync', {
+      layout:   'layouts/admin',
+      pageTitle: 'RFLPOS Sync | BVO Admin',
+      activePage: 'sync',
+      flash: req.session.syncFlash || null,
+      stats: {
+        total:    totalRow?.cnt   || 0,
+        live:     liveRow?.cnt    || 0,
+        pending:  pendingRow?.cnt || 0,
+        lastSync: lastLog?.started_at
+                    ? new Date(lastLog.started_at).toLocaleString()
+                    : null,
+      },
+      pending,
+      logs,
+      syncSettings: syncSettings.get(),
+    });
+    delete req.session.syncFlash;
+  } catch (err) {
+    console.error('[SYNC PAGE]', err);
+    res.status(500).send('Error loading sync page');
+  }
+};
+
+/* POST /admin/sync/run */
+exports.syncRun = async (req, res) => {
+  try {
+    const result = await rflposSync.syncProducts();
+    // If autoApprove is on, activate all newly synced products
+    if (syncSettings.get().autoApprove) {
+      await bvoPool.query(
+        `UPDATE products SET is_active=1 WHERE source_flag='rflpos' AND is_active=0`
+      );
+    }
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error('[SYNC RUN]', err);
+    res.json({ ok: false, error: err.message });
+  }
+};
+
+/* POST /admin/sync/approve/:id */
+exports.syncApprove = async (req, res) => {
+  try {
+    await bvoPool.query(
+      `UPDATE products SET is_active=1 WHERE id=? AND source_flag='rflpos'`,
+      [req.params.id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.json({ ok: false, error: err.message });
+  }
+};
+
+/* POST /admin/sync/skip/:id */
+exports.syncSkip = async (req, res) => {
+  try {
+    // Mark with a special status so it won't keep re-appearing after every sync
+    // We set source_flag to 'rflpos_skipped' so the upsert won't re-add it as pending
+    await bvoPool.query(
+      `UPDATE products SET source_flag='rflpos_skipped' WHERE id=? AND source_flag='rflpos'`,
+      [req.params.id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.json({ ok: false, error: err.message });
+  }
+};
+
+/* POST /admin/sync/approve-all */
+exports.syncApproveAll = async (req, res) => {
+  try {
+    await bvoPool.query(
+      `UPDATE products SET is_active=1 WHERE source_flag='rflpos' AND is_active=0`
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.json({ ok: false, error: err.message });
+  }
+};
+
+/* POST /admin/sync/settings */
+exports.syncSaveSettings = (req, res) => {
+  try {
+    const { interval, autoApprove } = req.body;
+    syncSettings.save({ interval, autoApprove: !!autoApprove });
+    res.json({ ok: true });
+  } catch (err) {
+    res.json({ ok: false, error: err.message });
+  }
 };
