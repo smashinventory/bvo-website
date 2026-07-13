@@ -81,6 +81,21 @@ async function getCatId(categoryName) {
   return slug ? (_catCache[slug] || null) : null;
 }
 
+// ── Strip HTML tags from a string ────────────────────────────────
+function stripHtml(str) {
+  if (!str) return str;
+  return String(str)
+    .replace(/<[^>]*>/g, '')   // remove all tags
+    .replace(/&amp;/g,  '&')
+    .replace(/&lt;/g,   '<')
+    .replace(/&gt;/g,   '>')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g,  "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 // ── Slug generator ───────────────────────────────────────────────
 function toSlug(str) {
   return str
@@ -160,8 +175,9 @@ async function upsertProduct(row) {
   const stock  = parseFloat(row.stock_qty)  || 0;
   const imgUrl = row.image ? `https://rflpos.com/product_images/${row.image}` : null;
   const catId  = await getCatId(row.category_name || null);
-  const desc   = row.description || null;
-  const brand  = row.brand_name  || null;
+  const name   = stripHtml(row.product_name);   // strip any <p>, <br>, etc from RFLPOS
+  const desc   = row.description || null;        // keep HTML in desc — rendered via <%- %>
+  const brand  = stripHtml(row.brand_name) || null;
 
   const [existing] = await bvoPool.query(
     'SELECT id FROM products WHERE rflpos_item_id = ? LIMIT 1', [rflId]
@@ -174,7 +190,7 @@ async function upsertProduct(row) {
       `UPDATE products
        SET name=?, brand=?, price=?, short_desc=?, updated_at=NOW()
        WHERE rflpos_item_id=?`,
-      [row.product_name, brand, price, desc, rflId]
+      [name, brand, price, desc, rflId]
     );
     await bvoPool.query(
       `UPDATE inventory SET qty_on_hand=?, last_synced_at=NOW() WHERE product_id=?`,
@@ -183,13 +199,13 @@ async function upsertProduct(row) {
     await upsertImage(existing[0].id, imgUrl);
   } else {
     // INSERT — hidden until approved (is_active=0)
-    const slug  = await uniqueSlug(toSlug(row.product_name));
+    const slug  = await uniqueSlug(toSlug(name));
     const [ins] = await bvoPool.query(
       `INSERT INTO products
          (sku, slug, name, brand, category_id, short_desc, price,
           source_flag, rflpos_item_id, is_active, is_featured, is_new)
        VALUES (?, ?, ?, ?, ?, ?, ?, 'rflpos', ?, 0, 0, 0)`,
-      [sku, slug, row.product_name, brand, catId, desc, price, rflId]
+      [sku, slug, name, brand, catId, desc, price, rflId]
     );
     const newId = ins.insertId;
     await bvoPool.query(

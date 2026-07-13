@@ -219,7 +219,16 @@ const Product = {
         LIMIT ? OFFSET ?
       `, listParams);
 
-      return { products, total, page, perPage: PER_PAGE, pages: Math.ceil(total / PER_PAGE) };
+      // Strip HTML from plain-text fields; cast DECIMAL to number
+      const clean = products.map(p => ({
+        ...p,
+        name:          p.name  ? p.name.replace(/<[^>]*>/g, '').replace(/&amp;/g,'&').replace(/\s+/g,' ').trim() : p.name,
+        brand:         p.brand ? p.brand.replace(/<[^>]*>/g, '').trim() : p.brand,
+        price:         parseFloat(p.price) || 0,
+        compare_price: p.compare_price != null ? parseFloat(p.compare_price) : null,
+      }));
+
+      return { products: clean, total, page, perPage: PER_PAGE, pages: Math.ceil(total / PER_PAGE) };
 
     } catch {
       return { products: [], total: 0, page, perPage: PER_PAGE, pages: 0 };
@@ -351,6 +360,9 @@ const Product = {
 
       product.images     = images;
       product.attributes = attrs;
+      // Strip any HTML tags RFLPOS may have injected into plain-text fields
+      product.name  = product.name  ? product.name.replace(/<[^>]*>/g, '').replace(/&amp;/g,'&').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim() : product.name;
+      product.brand = product.brand ? product.brand.replace(/<[^>]*>/g, '').trim() : product.brand;
       // MySQL returns DECIMAL columns as strings — cast to avoid toFixed() crashes
       product.price         = parseFloat(product.price) || 0;
       product.compare_price = product.compare_price != null ? parseFloat(product.compare_price) : null;
@@ -379,9 +391,11 @@ const Product = {
         ORDER BY p.is_featured DESC, RAND()
         LIMIT ?
       `, [categoryId, excludeId, limit]);
-      // Cast DECIMAL strings to numbers
+      // Cast DECIMAL strings to numbers; strip HTML from plain-text fields
       return rows.map(r => ({
         ...r,
+        name:          r.name  ? r.name.replace(/<[^>]*>/g, '').replace(/&amp;/g,'&').replace(/\s+/g,' ').trim() : r.name,
+        brand:         r.brand ? r.brand.replace(/<[^>]*>/g, '').trim() : r.brand,
         price:         parseFloat(r.price) || 0,
         compare_price: r.compare_price != null ? parseFloat(r.compare_price) : null,
       }));
