@@ -38,6 +38,7 @@ router.post('/theme/reorder',  ctrl.themeSaveOrder);
 router.post('/upload', ctrl.uploadMiddleware, ctrl.uploadImage);
 
 /* ── RFLPOS Sync ─────────────────────────────────────────────── */
+router.get ('/sync/probe',        ctrl.syncProbe);
 router.get ('/sync',              ctrl.syncPage);
 router.post('/sync/run',          ctrl.syncRun);
 router.post('/sync/approve/:id',  ctrl.syncApprove);

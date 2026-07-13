@@ -494,6 +494,47 @@ exports.uploadImage = (req, res) => {
    RFLPOS SYNC
    ════════════════════════════════════════════════════════════════ */
 
+/* GET /admin/sync/probe — diagnostic: test PHP proxy from Node.js */
+exports.syncProbe = async (req, res) => {
+  const https = require('https');
+  const token  = process.env.BVO_SYNC_TOKEN || '';
+  const base   = process.env.BVO_SYNC_URL || 'https://rflpos.com/bvo_sync.php';
+
+  // Show which env vars are present (masks passwords)
+  const env = {
+    BVO_SYNC_TOKEN:   token ? `(set, ${token.length} chars)` : '*** NOT SET ***',
+    BVO_SYNC_URL:     process.env.BVO_SYNC_URL || '(using default)',
+    RFLPOS_DB_NAME:   process.env.RFLPOS_DB_NAME  || '(not set)',
+    RFLPOS_DB_HOST:   process.env.RFLPOS_DB_HOST  || '(not set)',
+    RFLPOS_DB_USER:   process.env.RFLPOS_DB_USER  || '(not set)',
+    RFLPOS_DB_PASS:   process.env.RFLPOS_DB_PASS  ? '(set)' : '(not set)',
+    RFLPOS_DB_SOCKET: process.env.RFLPOS_DB_SOCKET || '(not set)',
+  };
+
+  function fetchUrl(url) {
+    return new Promise((resolve) => {
+      const r = https.get(url, { rejectUnauthorized: false }, (resp) => {
+        let raw = '';
+        resp.on('data', c => { raw += c; });
+        resp.on('end', () => resolve({ status: resp.statusCode, body: raw.slice(0, 600) }));
+      });
+      r.on('error', e => resolve({ status: 'NET_ERROR', body: e.message }));
+      r.setTimeout(12000, () => { r.destroy(); resolve({ status: 'TIMEOUT', body: 'no response in 12s' }); });
+    });
+  }
+
+  const brandsUrl   = `${base}?token=${encodeURIComponent(token)}&action=brands`;
+  const productsUrl = `${base}?token=${encodeURIComponent(token)}&action=products&brands=628,26,44`;
+
+  const [br, pr] = await Promise.all([ fetchUrl(brandsUrl), fetchUrl(productsUrl) ]);
+
+  res.json({
+    env,
+    brands:   { url: brandsUrl,   status: br.status, body: br.body },
+    products: { url: productsUrl, status: pr.status, body: pr.body.slice(0, 300) },
+  });
+};
+
 /* GET /admin/sync */
 exports.syncPage = async (req, res) => {
   try {
