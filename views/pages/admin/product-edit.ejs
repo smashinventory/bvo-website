@@ -101,10 +101,10 @@
         <div class="adm-card">
           <h2 class="adm-card-title">Status</h2>
           <div class="adm-form-group">
-            <label for="active">Visibility</label>
-            <select id="active" name="active">
-              <option value="1" <%= (!product || product.active) ? 'selected' : '' %>>Active — visible in store</option>
-              <option value="0" <%= (product && !product.active) ? 'selected' : '' %>>Inactive — hidden from store</option>
+            <label for="is_active">Visibility</label>
+            <select id="is_active" name="is_active">
+              <option value="1" <%= (!product || product.is_active) ? 'selected' : '' %>>Active — visible in store</option>
+              <option value="0" <%= (product && !product.is_active) ? 'selected' : '' %>>Inactive — hidden from store</option>
             </select>
           </div>
           <% if (product?.source_flag && product.source_flag !== 'manual') { %>

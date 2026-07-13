@@ -101,7 +101,7 @@ exports.dashboard = async (req, res, next) => {
       recentOrders,
     ] = await Promise.all([
       safeQueryOne('SELECT COUNT(*) AS n FROM products'),
-      safeQueryOne('SELECT COUNT(*) AS n FROM products WHERE active = 1'),
+      safeQueryOne('SELECT COUNT(*) AS n FROM products WHERE is_active = 1'),
       safeQueryOne('SELECT COUNT(*) AS n FROM orders'),
       safeQueryOne('SELECT COUNT(*) AS n FROM orders WHERE DATE(created_at) = CURDATE()'),
       safeQueryOne('SELECT COALESCE(SUM(total),0) AS rev FROM orders WHERE MONTH(created_at)=MONTH(CURDATE()) AND YEAR(created_at)=YEAR(CURDATE())'),
@@ -227,9 +227,9 @@ exports.productCreate = async (req, res, next) => {
     const d = _extractProductFields(req.body);
     await bvoPool.query(
       `INSERT INTO products (name,slug,sku,brand,category_id,price,compare_price,
-        description,active,source_flag) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+        description,is_active,source_flag) VALUES (?,?,?,?,?,?,?,?,?,?)`,
       [d.name, d.slug, d.sku, d.brand, d.category_id, d.price,
-       d.compare_price, d.description, d.active, 'manual']
+       d.compare_price, d.description, d.is_active ?? 1, 'manual']
     );
     req.session.flash = { type: 'success', msg: 'Product created.' };
     res.redirect('/admin/products');
@@ -241,9 +241,9 @@ exports.productUpdate = async (req, res, next) => {
     const d = _extractProductFields(req.body);
     await bvoPool.query(
       `UPDATE products SET name=?,slug=?,sku=?,brand=?,category_id=?,price=?,
-        compare_price=?,description=?,active=? WHERE id=?`,
+        compare_price=?,description=?,is_active=? WHERE id=?`,
       [d.name, d.slug, d.sku, d.brand, d.category_id, d.price,
-       d.compare_price, d.description, d.active, req.params.id]
+       d.compare_price, d.description, d.is_active ?? 1, req.params.id]
     ).catch(() => {}); // DB may not exist in dev — silent
     req.session.flash = { type: 'success', msg: 'Product updated.' };
     res.redirect('/admin/products');
@@ -272,7 +272,7 @@ function _extractProductFields(body) {
     price:        parseFloat(body.price)      || 0,
     compare_price:parseFloat(body.compare_price) || null,
     description:  (body.description  || '').trim(),
-    active:       body.active === '1' ? 1 : 0,
+    is_active:    body.is_active === '1' ? 1 : 0,
   };
 }
 
