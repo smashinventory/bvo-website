@@ -539,19 +539,18 @@
         <!-- ── Inventory ─────────────────────────────────────── -->
         <div class="adm-card">
           <h2 class="adm-card-title">Inventory</h2>
-          <div class="adm-form-row">
-            <div class="adm-form-group">
-              <label for="qty_on_hand">Qty on Hand</label>
-              <input type="number" id="qty_on_hand" name="qty_on_hand" min="0" step="1"
-                value="<%= product?.qty_on_hand ?? 0 %>">
-            </div>
-            <div class="adm-form-group">
-              <label>Qty Reserved</label>
-              <input type="number" value="<%= product?.qty_reserved ?? 0 %>" disabled
-                style="background:#f5f5f5;color:#999">
-              <span class="adm-form-hint">Held in open orders — auto-managed</span>
-            </div>
+          <div class="adm-form-group">
+            <label for="qty_on_hand">Qty on Hand</label>
+            <input type="number" id="qty_on_hand" name="qty_on_hand" min="0" step="1"
+              value="<%= product?.qty_on_hand ?? 0 %>">
           </div>
+          <% if (!isNew) { %>
+          <div class="adm-form-group">
+            <label>Qty Reserved</label>
+            <p style="margin:4px 0;font-size:.95rem;color:#555"><%= product?.qty_reserved ?? 0 %></p>
+            <span class="adm-form-hint">Held in open orders — auto-managed</span>
+          </div>
+          <% } %>
           <div class="adm-form-group">
             <label for="reorder_point">Reorder Point</label>
             <input type="number" id="reorder_point" name="reorder_point" min="0" step="1"
