@@ -6,6 +6,7 @@ const Category       = require('../models/Category');
 const themeSettings  = require('../services/themeSettings');
 const rflposSync     = require('../services/rflposSync');
 const syncSettings   = require('../services/syncSettings');
+const { normalize: normalizeColor } = require('../config/colorFamilies');
 const path           = require('path');
 const fs             = require('fs');
 const multer         = require('multer');
@@ -376,7 +377,7 @@ exports.productCreate = async (req, res, next) => {
           age_group, gender, shipping_label,
           custom_label_0, custom_label_1, custom_label_2, custom_label_3, custom_label_4,
           excluded_destinations, ads_redirect, identifier_exists,
-          color_primary, color_secondary,
+          model, color_family,
           source_flag)
        VALUES (?,?,?,?,?, ?,?,?,?,?,?, ?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?, ?,?,?,?,?,?, ?,?, ?,?,?,?,?, ?,?,?, ?,?,?,?,?, ?,?,?,?,?,'manual')`,
       [sku, d.slug, d.name, d.brand, d.category_id,
@@ -394,7 +395,7 @@ exports.productCreate = async (req, res, next) => {
        d.age_group, d.gender, d.shipping_label,
        d.custom_label_0, d.custom_label_1, d.custom_label_2, d.custom_label_3, d.custom_label_4,
        d.excluded_destinations, d.ads_redirect, d.identifier_exists,
-       d.color_primary, d.color_secondary]
+       d.model, d.color_family]
     );
     const productId = ins.insertId;
     await _upsertInventory(productId, d.qty_on_hand, d.allow_backorder, d.reorder_point);
@@ -425,7 +426,7 @@ exports.productUpdate = async (req, res, next) => {
          age_group=?, gender=?, shipping_label=?,
          custom_label_0=?, custom_label_1=?, custom_label_2=?, custom_label_3=?, custom_label_4=?,
          excluded_destinations=?, ads_redirect=?, identifier_exists=?,
-         color_primary=?, color_secondary=?,
+         model=?, color_family=?,
          updated_at=NOW()
        WHERE id=?`,
       [d.name, d.slug, d.sku, d.brand, d.category_id,
@@ -443,7 +444,7 @@ exports.productUpdate = async (req, res, next) => {
        d.age_group, d.gender, d.shipping_label,
        d.custom_label_0, d.custom_label_1, d.custom_label_2, d.custom_label_3, d.custom_label_4,
        d.excluded_destinations, d.ads_redirect, d.identifier_exists,
-       d.color_primary, d.color_secondary,
+       d.model, d.color_family,
        id]
     );
     await _upsertInventory(id, d.qty_on_hand, d.allow_backorder, d.reorder_point);
@@ -551,7 +552,7 @@ exports.productSetPrimaryImage = async (req, res, next) => {
 
 // Attribute keys included in the CSV — matches our filter definitions + JM spreadsheet fields
 const CSV_ATTR_KEYS = [
-  'product_type', 'size_in', 'cabinet_finish', 'color_family',
+  'product_type', 'size_in', 'cabinet_finish',
   'hardware_finish', 'style', 'mount_type', 'sink_count', 'sink_included',
   'countertop_material', 'countertop_included', 'mirror_included',
   'door_style', 'drawer_count', 'sink_type', 'faucet_holes',
@@ -625,7 +626,7 @@ async function _buildAndSendCSV(res, ids, next) {
         p.age_group, p.gender, p.shipping_label,
         p.custom_label_0, p.custom_label_1, p.custom_label_2, p.custom_label_3, p.custom_label_4,
         p.excluded_destinations, p.ads_redirect, p.identifier_exists,
-        p.color_primary, p.color_secondary,
+        p.model, p.color_family,
         ${attrSelects},
         ${docSelects}
       FROM products p
@@ -654,7 +655,7 @@ async function _buildAndSendCSV(res, ids, next) {
       'age_group','gender','shipping_label',
       'custom_label_0','custom_label_1','custom_label_2','custom_label_3','custom_label_4',
       'excluded_destinations','ads_redirect','identifier_exists',
-      'color_primary','color_secondary',
+      'model','color_family',
       ...CSV_ATTR_KEYS.map(k => `attr_${k}`),
       ...DOC_TYPES.map(t => `doc_${t}`),
     ];
@@ -848,8 +849,9 @@ exports.productImport = async (req, res, next) => {
         const excluded_destinations = g('excluded_destinations');
         const ads_redirect         = g('ads_redirect');
         const identifier_exists    = get(row,'identifier_exists') === '0' ? 0 : 1;
-        const color_primary        = g('color_primary');
-        const color_secondary      = g('color_secondary');
+        const model                = g('model');
+        // color_family: use CSV value if provided, otherwise derive from color via normalize()
+        const color_family         = g('color_family') || normalizeColor(color) || null;
         // Document URLs from CSV
         const docTypes = ['spec_sheet','installation_guide','warranty','rebate_form',
                           'cad_drawing','measurement_guide','care_guide'];
@@ -885,7 +887,7 @@ exports.productImport = async (req, res, next) => {
                age_group=?, gender=?, shipping_label=?,
                custom_label_0=?, custom_label_1=?, custom_label_2=?, custom_label_3=?, custom_label_4=?,
                excluded_destinations=?, ads_redirect=?, identifier_exists=?,
-               color_primary=?, color_secondary=?,
+               model=?, color_family=?,
                updated_at=NOW()
              WHERE id=?`,
             [name, brand, category_id,
@@ -904,7 +906,7 @@ exports.productImport = async (req, res, next) => {
              age_group, gender, shipping_label,
              custom_label_0, custom_label_1, custom_label_2, custom_label_3, custom_label_4,
              excluded_destinations, ads_redirect, identifier_exists,
-             color_primary, color_secondary,
+             model, color_family,
              productId]
           );
         } else {
@@ -934,7 +936,7 @@ exports.productImport = async (req, res, next) => {
                 age_group, gender, shipping_label,
                 custom_label_0, custom_label_1, custom_label_2, custom_label_3, custom_label_4,
                 excluded_destinations, ads_redirect, identifier_exists,
-                color_primary, color_secondary,
+                model, color_family,
                 source_flag)
              VALUES (?,?,?,?,?, ?,?,?,?,?,?, ?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?, ?,?,?, ?,?,?, ?,?, ?,?,?,?,?, ?,?,?, ?,?,?,?,?, ?,?,?,?,?,'manual')`,
             [sku, finalSlug, name, brand, category_id,
@@ -953,7 +955,7 @@ exports.productImport = async (req, res, next) => {
              age_group, gender, shipping_label,
              custom_label_0, custom_label_1, custom_label_2, custom_label_3, custom_label_4,
              excluded_destinations, ads_redirect, identifier_exists,
-             color_primary, color_secondary]
+             model, color_family]
           );
           productId = ins.insertId;
         }
@@ -1125,9 +1127,9 @@ function _extractProductFields(body) {
     custom_label_4:           (body.custom_label_4           || '').trim() || null,
     excluded_destinations:    (body.excluded_destinations     || '').trim() || null,
     ads_redirect:             (body.ads_redirect              || '').trim() || null,
-    // ── Filter colors
-    color_primary:            (body.color_primary             || '').trim() || null,
-    color_secondary:          (body.color_secondary           || '').trim() || null,
+    // ── Model + color family
+    model:                    (body.model                     || '').trim() || null,
+    color_family:             (body.color_family              || '').trim() || normalizeColor((body.color || '').trim()) || null,
     specs,
   };
 }

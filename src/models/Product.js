@@ -156,7 +156,8 @@ const Product = {
       }
 
       // ── Color family filter ──────────────────────────────────────────
-      // Combines family-level (color_family column) and exact (value_text) in one EXISTS.
+      // Family-level: match products.color_family directly (no EAV JOIN needed).
+      // Exact-level:  match products.color (brand name) for sub-chip dropdown.
       const cfFamilies = (colorFilters.families || []).filter(Boolean);
       const cfExact    = (colorFilters.exact    || []).filter(Boolean);
 
@@ -165,21 +166,15 @@ const Product = {
         const cfParams = [];
 
         if (cfFamilies.length) {
-          orParts.push(`pav.color_family IN (${cfFamilies.map(() => '?').join(',')})`);
+          orParts.push(`p.color_family IN (${cfFamilies.map(() => '?').join(',')})`);
           cfParams.push(...cfFamilies);
         }
         if (cfExact.length) {
-          orParts.push(`pav.value_text IN (${cfExact.map(() => '?').join(',')})`);
+          orParts.push(`p.color IN (${cfExact.map(() => '?').join(',')})`);
           cfParams.push(...cfExact);
         }
 
-        where += `
-          AND EXISTS (
-            SELECT 1 FROM product_attribute_values pav
-            WHERE pav.product_id = p.id
-              AND pav.attr_key = 'cabinet_finish'
-              AND (${orParts.join(' OR ')})
-          )`;
+        where += ` AND (${orParts.join(' OR ')})`;
         params.push(...cfParams);
       }
 

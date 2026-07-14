@@ -374,24 +374,22 @@
     <div class="listing-grid">
       <% products.forEach(function(product) { %>
       <%
-        /* Match product to a static model family (James Martin collections) */
-        var _pMF = null;
-        if (typeof modelFamilies !== 'undefined' && modelFamilies) {
-          var _pName = product.name.toLowerCase();
-          for (var _fi = 0; _fi < modelFamilies.length; _fi++) {
-            if (_pName.startsWith(modelFamilies[_fi].name.toLowerCase())) {
-              _pMF = modelFamilies[_fi]; break;
-            }
-          }
-        }
+        /* DB-driven model color swatches */
         var _pImgId       = 'prod-img-' + product.id;
-        var _pSwatches    = _pMF ? _pMF.finishes.slice(0, 4) : [];
-        var _pSwatchExtra = _pMF && _pMF.finishes.length > 4 ? _pMF.finishes.length - 4 : 0;
-
-        /* Dynamic sibling lookup for size options */
-        var _pBaseKey = product.name.replace(/\s+\d{2,3}\s*["'"]?\s*(?:in(?:ch(?:es)?)?)?\s*$/i, '').trim().toLowerCase();
-        var _pSibling = (typeof productSiblingMap !== 'undefined') ? productSiblingMap[_pBaseKey] : null;
-        var _pSizes   = _pMF ? _pMF.sizes : (_pSibling && _pSibling.sizes.length > 1 ? _pSibling.sizes : null);
+        var _mcSwatches   = (product.model && typeof modelColorMap !== 'undefined' && modelColorMap[product.model])
+                              ? modelColorMap[product.model] : [];
+        /* Fallback: if no model swatches, show single swatch for this product's own color */
+        if (!_mcSwatches.length && product.color_family && typeof familyHex !== 'undefined') {
+          _mcSwatches = [{
+            color:        product.color || '',
+            color_family: product.color_family,
+            hex:          familyHex[product.color_family]               || '#ccc',
+            border:       familyHex[product.color_family + '_border']   || '#aaa',
+          }];
+        }
+        var _pSwatches    = _mcSwatches.slice(0, 4);
+        var _pSwatchExtra = _mcSwatches.length > 4 ? _mcSwatches.length - 4 : 0;
+        var _pSizes       = null;  /* size options shown via product name / details */
       %>
       <article class="product-card">
         <a href="/products/<%= product.slug %>" class="product-img-link" aria-label="<%= product.name %>">
@@ -420,19 +418,17 @@
           <!-- Finishes -->
           <div class="model-card-swatches" role="group" aria-label="Available finishes">
             <span class="model-card-swatches-label">Finishes:</span>
-            <% if (_pMF && _pSwatches.length) { %>
+            <% if (_pSwatches.length) { %>
               <% _pSwatches.forEach(function(f, i) { %>
               <%
-                var _sl = ['#F0F0EF','#F5F5F5','#FAFAFA','#FFFFFF','#C4A882'].indexOf(f.hex) !== -1;
-                var _sb = _sl ? '#ccc' : f.hex;
+                var _isLight = f.hex && ['#f5f5f3','#F0F0EF','#F5F5F5','#FAFAFA','#FFFFFF','#e8d9b8'].indexOf(f.hex.toLowerCase()) !== -1;
+                var _sb = _isLight ? '#ccc' : (f.border || f.hex);
               %>
               <button class="model-card-swatch<%= i === 0 ? ' is-active' : '' %>"
-                      data-target-img="<%= _pImgId %>"
-                      data-image="<%= f.image %>"
-                      data-finish="<%= f.name %>"
+                      data-finish="<%= f.color %>"
                       style="background:<%= f.hex %>;border-color:<%= _sb %>"
-                      aria-label="<%= f.name %>"
-                      title="<%= f.name %>"></button>
+                      aria-label="<%= f.color %>"
+                      title="<%= f.color %>"></button>
               <% }); %>
               <% if (_pSwatchExtra > 0) { %>
               <span class="model-card-swatch-more" aria-hidden="true">+<%= _pSwatchExtra %></span>

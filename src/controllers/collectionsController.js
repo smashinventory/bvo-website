@@ -2,9 +2,12 @@
 
 const Category                    = require('../models/Category');
 const Product                     = require('../models/Product');
-const { FAMILIES, normalize }     = require('../config/colorFamilies');
-const MODEL_FAMILIES              = require('../data/modelFamilies');
-const { bvoPool }                 = require('../config/database');
+const { FAMILIES, normalize, getFamily } = require('../config/colorFamilies');
+const { bvoPool }                        = require('../config/database');
+
+/* ── Build a color family hex lookup: family_key → hex ─────────── */
+const FAMILY_HEX = {};
+FAMILIES.forEach(f => { FAMILY_HEX[f.key] = f.hex; FAMILY_HEX[f.key + '_border'] = f.border; });
 
 const MODELS_PER_PAGE = 12;
 
@@ -26,14 +29,14 @@ exports.show = async (req, res, next) => {
     const { slug } = req.params;
 
     // ── Virtual "vanity-models" collection ───────────────────────────
-    // Dedicated browse page for model families — with filter sidebar.
+    // DB-driven browse page — groups products by products.model column.
     if (slug === 'vanity-models') {
       const page = Math.max(1, parseInt(req.query.page || '1', 10));
 
       // ── Parse filter params ──────────────────────────────────────
       const activeSizes    = [].concat(req.query.size   || []).filter(Boolean).map(Number);
       const activeBrands   = [].concat(req.query.brand  || []).filter(Boolean);
-      const activeFinishes = [].concat(req.query.finish || []).filter(Boolean);
+      const activeFinishes = [].concat(req.query.finish || []).filter(Boolean);  // color values
       const vmMinPrice     = req.query.min_price ? parseFloat(req.query.min_price) : undefined;
       const vmMaxPrice     = req.query.max_price ? parseFloat(req.query.max_price) : undefined;
 
@@ -42,45 +45,115 @@ exports.show = async (req, res, next) => {
         vmMinPrice != null || vmMaxPrice != null
       );
 
-      // ── Build available option lists from ALL families ───────────
-      const allSizes = [...new Set(MODEL_FAMILIES.flatMap(m => m.sizes))].sort((a, b) => a - b);
-      const allBrands = [...new Set(MODEL_FAMILIES.map(m => m.brand))].sort();
-      // Collect every finish name + its hex for swatch rendering
-      const finishMap = {};   // { 'Antique Black': '#2C2C2C', ... }
-      MODEL_FAMILIES.forEach(m => m.finishes.forEach(f => { finishMap[f.name] = f.hex; }));
-      const allFinishes = Object.keys(finishMap).sort();
+      // ── Build available filter options from DB ───────────────────
+      const [optRows] = await bvoPool.query(`
+        SELECT DISTINCT
+          FLOOR(p.width_in) AS size_in,
+          p.brand,
+          p.color,
+          p.color_family
+        FROM products p
+        WHERE p.is_active = 1 AND p.model IS NOT NULL
+      `);
+      const allSizes    = [...new Set(optRows.map(r => r.size_in).filter(Boolean))].sort((a,b)=>a-b);
+      const allBrands   = [...new Set(optRows.map(r => r.brand).filter(Boolean))].sort();
+      const allFinishes = [...new Set(optRows.map(r => r.color).filter(Boolean))].sort();
+      /* Build color-name → hex map for sidebar filter swatches */
+      const finishMap = {};
+      optRows.forEach(r => {
+        if (r.color && !finishMap[r.color]) {
+          finishMap[r.color] = FAMILY_HEX[r.color_family] || '#CCCCCC';
+        }
+      });
 
-      const vmPriceMin = Math.min(...MODEL_FAMILIES.map(m => m.price_from));
-      const vmPriceMax = Math.max(...MODEL_FAMILIES.map(m => m.price_from));
+      // ── Query model groups from DB ───────────────────────────────
+      let vmWhere  = 'p.is_active = 1 AND p.model IS NOT NULL';
+      const vmParams = [];
 
-      // ── Filter MODEL_FAMILIES ────────────────────────────────────
-      let filtered = MODEL_FAMILIES;
-      // ±1" fuzzy: a model matches if any of its sizes is within 1" of any selected size
-      if (activeSizes.length)    filtered = filtered.filter(m => activeSizes.some(sz => m.sizes.some(ms => Math.abs(ms - sz) <= 1)));
-      if (activeBrands.length)   filtered = filtered.filter(m => activeBrands.includes(m.brand));
-      if (activeFinishes.length) filtered = filtered.filter(m => m.finishes.some(f => activeFinishes.includes(f.name)));
-      if (vmMinPrice != null)    filtered = filtered.filter(m => m.price_from >= vmMinPrice);
-      if (vmMaxPrice != null)    filtered = filtered.filter(m => m.price_from <= vmMaxPrice);
+      if (activeBrands.length) {
+        vmWhere += ` AND p.brand IN (${activeBrands.map(()=>'?').join(',')})`;
+        vmParams.push(...activeBrands);
+      }
+      if (activeFinishes.length) {
+        vmWhere += ` AND p.color IN (${activeFinishes.map(()=>'?').join(',')})`;
+        vmParams.push(...activeFinishes);
+      }
+      if (vmMinPrice != null) { vmWhere += ' AND p.price >= ?'; vmParams.push(vmMinPrice); }
+      if (vmMaxPrice != null) { vmWhere += ' AND p.price <= ?'; vmParams.push(vmMaxPrice); }
 
-      // ── Paginate ─────────────────────────────────────────────────
-      const total  = filtered.length;
+      // Fetch all matching models (we filter sizes in JS since GROUP_CONCAT is easier)
+      const [modelRows] = await bvoPool.query(`
+        SELECT
+          p.model,
+          p.brand,
+          MIN(p.price)          AS price_from,
+          MAX(p.price)          AS price_to,
+          MIN(p.compare_price)  AS compare_price_from,
+          GROUP_CONCAT(DISTINCT FLOOR(p.width_in) ORDER BY p.width_in) AS sizes_csv,
+          COALESCE(
+            MIN(CASE WHEN p.primary_image_url IS NOT NULL THEN p.primary_image_url END),
+            MIN(pi.url)
+          ) AS image_url
+        FROM products p
+        LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
+        WHERE ${vmWhere}
+        GROUP BY p.model, p.brand
+        ORDER BY p.brand, p.model
+      `, vmParams);
+
+      // Fetch per-model color swatches: [{model, color, color_family}]
+      const [swatchRows] = await bvoPool.query(`
+        SELECT DISTINCT model, color, color_family
+        FROM products
+        WHERE is_active = 1 AND model IS NOT NULL AND color IS NOT NULL
+        ORDER BY model, color
+      `);
+      const swatchMap = {};  // { 'London': [{color, color_family, hex, border}] }
+      for (const r of swatchRows) {
+        if (!swatchMap[r.model]) swatchMap[r.model] = [];
+        swatchMap[r.model].push({
+          color:        r.color,
+          color_family: r.color_family,
+          hex:          FAMILY_HEX[r.color_family]        || '#ccc',
+          border:       FAMILY_HEX[r.color_family + '_border'] || '#aaa',
+        });
+      }
+
+      // Parse sizes and apply size filter
+      let models = modelRows.map(r => ({
+        ...r,
+        sizes: r.sizes_csv ? r.sizes_csv.split(',').map(Number).filter(Boolean) : [],
+        finishes: swatchMap[r.model] || [],
+      }));
+
+      if (activeSizes.length) {
+        models = models.filter(m => activeSizes.some(sz => m.sizes.some(ms => Math.abs(ms - sz) <= 1)));
+      }
+
+      // Price range for slider
+      const allPrices = modelRows.map(r => r.price_from).filter(Boolean);
+      const vmPriceMin = allPrices.length ? Math.min(...allPrices) : 0;
+      const vmPriceMax = allPrices.length ? Math.max(...allPrices) : 9999;
+
+      // Paginate
+      const total  = models.length;
       const pages  = Math.ceil(total / MODELS_PER_PAGE) || 1;
       const offset = (page - 1) * MODELS_PER_PAGE;
-      const models = filtered.slice(offset, offset + MODELS_PER_PAGE);
+      const pagedModels = models.slice(offset, offset + MODELS_PER_PAGE);
 
       return res.render('pages/vanity-models', {
         pageTitle: 'Vanity Models | BathroomVanitiesOutlet.com',
         metaDesc:  'Browse all bathroom vanity collections — explore every model, finish, and size we carry.',
-        models,
+        models: pagedModels,
         page, pages, total,
         perPage: MODELS_PER_PAGE,
-        // Filter state
         activeSizes, activeBrands, activeFinishes,
         vmMinPrice, vmMaxPrice,
         hasActiveFilters,
-        // Available options
-        allSizes, allBrands, allFinishes, finishMap,
+        allSizes, allBrands, allFinishes,
+        finishMap,
         vmPriceMin, vmPriceMax,
+        familyHex: FAMILY_HEX,
       });
     }
 
@@ -245,22 +318,27 @@ exports.show = async (req, res, next) => {
       Product.getPriceRange(category.id),
     ]);
 
-    // ── Dynamic sibling map: group by base-name to derive size options ──
-    // Strips trailing size (e.g. "48"", "60 in", "36") to find the model name,
-    // then aggregates all sizes found in this page's product set.
-    const _sizeRE = /\s+(\d{2,3})\s*["'"]?\s*(?:in(?:ch(?:es)?)?)?\s*$/i;
-    const productSiblingMap = {};
-    for (const p of result.products) {
-      const key = p.name.replace(_sizeRE, '').trim().toLowerCase();
-      if (!productSiblingMap[key]) productSiblingMap[key] = { sizes: [] };
-      const sm = p.name.match(_sizeRE);
-      if (sm) {
-        const sz = parseInt(sm[1]);
-        if (!productSiblingMap[key].sizes.includes(sz)) productSiblingMap[key].sizes.push(sz);
+    // ── Build model → color swatches map from DB ─────────────────────
+    // For each model on this page, fetch all available color variants.
+    const pageModels = [...new Set(result.products.map(p => p.model).filter(Boolean))];
+    let modelColorMap = {};  // { 'London': [{color, color_family, hex, border}] }
+    if (pageModels.length) {
+      const [mcRows] = await bvoPool.query(`
+        SELECT DISTINCT model, color, color_family
+        FROM products
+        WHERE model IN (${pageModels.map(() => '?').join(',')})
+          AND color IS NOT NULL AND is_active = 1
+        ORDER BY model, color
+      `, pageModels);
+      for (const r of mcRows) {
+        if (!modelColorMap[r.model]) modelColorMap[r.model] = [];
+        modelColorMap[r.model].push({
+          color:        r.color,
+          color_family: r.color_family,
+          hex:          FAMILY_HEX[r.color_family]               || '#ccc',
+          border:       FAMILY_HEX[(r.color_family || '') + '_border'] || '#aaa',
+        });
       }
-    }
-    for (const key of Object.keys(productSiblingMap)) {
-      productSiblingMap[key].sizes.sort((a, b) => a - b);
     }
 
     res.render('pages/collection', {
@@ -273,8 +351,8 @@ exports.show = async (req, res, next) => {
       sort,
       brands, productTypes,
       model,
-      modelFamilies: MODEL_FAMILIES,
-      productSiblingMap,
+      modelColorMap,
+      familyHex: FAMILY_HEX,
       attrFilters,
       rangeFilters,
       minPrice, maxPrice,
@@ -282,7 +360,6 @@ exports.show = async (req, res, next) => {
       availableBrands,
       attributeDefs,
       availableAttrValues,
-      finishHex: Product.FINISH_HEX,
       hasActiveFilters,
       // Color filter state
       colorFamiliesConfig,

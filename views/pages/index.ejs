@@ -146,19 +146,7 @@ const news = S.newsletter         || {};
   <div class="product-grid">
     <% products.forEach(function(product) { %>
     <%
-      /* Match product to a model family for finishes/sizes display */
-      var _hpMF = null;
-      if (typeof modelFamilies !== 'undefined' && modelFamilies) {
-        var _hpName = product.name.toLowerCase();
-        for (var _hfi = 0; _hfi < modelFamilies.length; _hfi++) {
-          if (_hpName.startsWith(modelFamilies[_hfi].name.toLowerCase())) {
-            _hpMF = modelFamilies[_hfi]; break;
-          }
-        }
-      }
-      var _hpImgId       = 'feat-img-' + product.id;
-      var _hpSwatches    = _hpMF ? _hpMF.finishes.slice(0, 4) : [];
-      var _hpSwatchExtra = _hpMF && _hpMF.finishes.length > 4 ? _hpMF.finishes.length - 4 : 0;
+      var _hpImgId = 'feat-img-' + product.id;
     %>
     <article class="product-card">
       <a href="/products/<%= product.slug %>" class="product-img-link" aria-label="<%= product.name %>">
@@ -184,33 +172,6 @@ const news = S.newsletter         || {};
           <% } %>
         </div>
 
-        <% if (_hpMF) { %>
-        <!-- Finishes -->
-        <div class="model-card-swatches" role="group" aria-label="Available finishes">
-          <span class="model-card-swatches-label">Finishes:</span>
-          <% _hpSwatches.forEach(function(f, i) { %>
-          <%
-            var _hl = ['#F0F0EF','#F5F5F5','#FAFAFA','#FFFFFF','#C4A882'].indexOf(f.hex) !== -1;
-            var _hb = _hl ? '#ccc' : f.hex;
-          %>
-          <button class="model-card-swatch<%= i === 0 ? ' is-active' : '' %>"
-                  data-target-img="<%= _hpImgId %>"
-                  data-image="<%= f.image %>"
-                  data-finish="<%= f.name %>"
-                  style="background:<%= f.hex %>;border-color:<%= _hb %>"
-                  aria-label="<%= f.name %>"
-                  title="<%= f.name %>"></button>
-          <% }); %>
-          <% if (_hpSwatchExtra > 0) { %>
-          <span class="model-card-swatch-more" aria-hidden="true">+<%= _hpSwatchExtra %></span>
-          <% } %>
-        </div>
-        <!-- Size Options -->
-        <div class="model-card-sizes-row">
-          <span class="model-card-sizes-label">Size Options:</span>
-          <span class="model-card-sizes-text"><%= _hpMF.sizes.join(' | ') %></span>
-        </div>
-        <% } %>
 
         <a href="/products/<%= product.slug %>" class="btn btn-sage">View Details</a>
       </div>
@@ -224,8 +185,8 @@ const news = S.newsletter         || {};
 <% } %>
 
 <!-- ── FEATURED MODELS ─────────────────────────────────────────────── -->
-<% if (typeof modelFamilies !== 'undefined' && modelFamilies && modelFamilies.length) { %>
-<% var _carouselModels = modelFamilies.slice(0, 8); %>
+<% if (typeof featuredModels !== 'undefined' && featuredModels && featuredModels.length) { %>
+<% var _carouselModels = featuredModels; %>
 <section class="section section-alt" id="featured-models-section" aria-labelledby="feat-models-heading">
   <div class="section-header">
     <p class="section-eyebrow">Shop by Collection</p>
@@ -247,18 +208,21 @@ const news = S.newsletter         || {};
         var _discPct         = m.compare_price_from ? Math.round((1 - m.price_from / m.compare_price_from) * 100) : 0;
         var _visibleSwatches = m.finishes.slice(0, 4);
         var _extraSwatches   = m.finishes.length > 4 ? m.finishes.length - 4 : 0;
+        var _mId             = m.model ? m.model.toLowerCase().replace(/[^a-z0-9]+/g, '-') : 'model';
+        var _mHref           = '/collections/vanities?model=' + encodeURIComponent(m.model || '');
+        var _mImg            = m.image_url || '/images/placeholder-vanity.jpg';
       %>
-      <article class="model-card" data-slug="<%= m.slug %>" data-sizes="<%= m.sizes.join(',') %>">
+      <article class="model-card" data-model="<%= m.model %>" data-sizes="<%= m.sizes.join(',') %>">
 
         <div class="model-card-img-wrap">
           <% if (_discPct > 0) { %>
           <span class="model-card-badge"><%= _discPct %>% OFF</span>
           <% } %>
-          <a href="/collections/vanities?model=<%= m.slug %>" class="model-card-img-link" tabindex="-1" aria-hidden="true">
-            <img src="<%= m.finishes[0].image %>"
-                 alt="<%= m.name %> vanity"
+          <a href="<%= _mHref %>" class="model-card-img-link" tabindex="-1" aria-hidden="true">
+            <img src="<%= _mImg %>"
+                 alt="<%= m.model %> vanity"
                  class="model-card-img"
-                 id="model-img-<%= m.slug %>"
+                 id="model-img-<%= _mId %>"
                  loading="lazy">
           </a>
         </div>
@@ -276,7 +240,7 @@ const news = S.newsletter         || {};
           </div>
 
           <h3 class="model-card-name">
-            <a href="/collections/vanities?model=<%= m.slug %>">The <%= m.name %> Collection</a>
+            <a href="<%= _mHref %>">The <%= m.model %> Collection</a>
           </h3>
           <p class="model-card-brand">Brand: <%= m.brand %></p>
 
@@ -285,15 +249,14 @@ const news = S.newsletter         || {};
             <% _visibleSwatches.forEach(function(f, i) { %>
             <%
               var _isLight      = ['#F0F0EF','#F5F5F5','#FAFAFA','#FFFFFF','#C4A882'].indexOf(f.hex) !== -1;
-              var _swatchBorder = _isLight ? '#ccc' : f.hex;
+              var _swatchBorder = _isLight ? '#ccc' : (f.border || f.hex);
             %>
             <button class="model-card-swatch<%= i === 0 ? ' is-active' : '' %>"
-                    data-target-img="model-img-<%= m.slug %>"
-                    data-image="<%= f.image %>"
-                    data-finish="<%= f.name %>"
+                    data-target-img="model-img-<%= _mId %>"
+                    data-finish="<%= f.color %>"
                     style="background:<%= f.hex %>;border-color:<%= _swatchBorder %>"
-                    aria-label="<%= f.name %>"
-                    title="<%= f.name %>"></button>
+                    aria-label="<%= f.color %>"
+                    title="<%= f.color %>"></button>
             <% }); %>
             <% if (_extraSwatches > 0) { %>
             <span class="model-card-swatch-more" aria-hidden="true">+<%= _extraSwatches %></span>
@@ -305,8 +268,8 @@ const news = S.newsletter         || {};
             <span class="model-card-sizes-text"><%= m.sizes.join(' | ') %></span>
           </div>
 
-          <a href="/collections/vanities?model=<%= m.slug %>" class="btn btn-outline model-card-cta">
-            Shop the <%= m.name %>
+          <a href="<%= _mHref %>" class="btn btn-outline model-card-cta">
+            Shop the <%= m.model %>
           </a>
         </div>
       </article>
