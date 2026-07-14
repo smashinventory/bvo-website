@@ -1,115 +1,548 @@
-<!-- Toolbar -->
-<div class="adm-toolbar">
-  <form action="/admin/products" method="GET" class="adm-search-form">
-    <input type="text" name="q" value="<%= search %>" placeholder="Search by name, SKU, or brand…" class="adm-search-input">
+<%
+/* Build a URL preserving all current filters, with specific overrides */
+function filterUrl(overrides) {
+  var base = {
+    q:           filters.q || '',
+    category_id: filters.category_id || '',
+    brand:       filters.brands,
+    is_active:   (filters.is_active != null && filters.is_active !== '') ? String(filters.is_active) : '',
+    status:      filters.status || '',
+    source_flag: filters.source_flag || '',
+    price_min:   filters.price_min || '',
+    price_max:   filters.price_max || '',
+    in_stock:    filters.in_stock ? '1' : '',
+    sort:        filters.sort,
+    page:        1,
+  };
+  Object.assign(base, overrides);
+  var parts = [];
+  Object.entries(base).forEach(function(kv) {
+    var k = kv[0], v = kv[1];
+    if (Array.isArray(v)) { v.forEach(function(i) { if (i) parts.push(k + '=' + encodeURIComponent(i)); }); }
+    else if (v !== '' && v != null) parts.push(k + '=' + encodeURIComponent(v));
+  });
+  return '/admin/products?' + parts.join('&');
+}
+%>
+
+<!-- ══ Toolbar ══════════════════════════════════════════════════════ -->
+<div class="adm-toolbar adm-pl-toolbar">
+  <button type="button" class="btn btn-outline adm-filter-toggle-btn" id="filterToggle">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0">
+      <line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/>
+    </svg>
+    Filters<% if (hasFilters) { %><span class="adm-filter-dot"></span><% } %>
+  </button>
+
+  <form action="/admin/products" method="GET" class="adm-search-form" id="searchForm">
+    <% if (filters.category_id) { %><input type="hidden" name="category_id" value="<%= filters.category_id %>"><% } %>
+    <% (filters.brands||[]).forEach(function(b) { %><input type="hidden" name="brand" value="<%= b %>"><% }); %>
+    <% if (filters.is_active != null && filters.is_active !== '') { %><input type="hidden" name="is_active" value="<%= filters.is_active %>"><% } %>
+    <% if (filters.status) { %><input type="hidden" name="status" value="<%= filters.status %>"><% } %>
+    <% if (filters.source_flag) { %><input type="hidden" name="source_flag" value="<%= filters.source_flag %>"><% } %>
+    <% if (filters.price_min) { %><input type="hidden" name="price_min" value="<%= filters.price_min %>"><% } %>
+    <% if (filters.price_max) { %><input type="hidden" name="price_max" value="<%= filters.price_max %>"><% } %>
+    <% if (filters.in_stock) { %><input type="hidden" name="in_stock" value="1"><% } %>
+    <input type="hidden" name="sort" value="<%= filters.sort %>">
+    <input type="text" name="q" value="<%= filters.q %>" placeholder="Search name, SKU, brand, vendor SKU…" class="adm-search-input">
     <button type="submit" class="btn btn-outline">Search</button>
-    <% if (search) { %><a href="/admin/products" class="btn btn-outline">Clear</a><% } %>
+    <% if (filters.q) { %><a href="<%= filterUrl({q:'',page:1}) %>" class="btn btn-outline">Clear</a><% } %>
   </form>
+
   <div class="adm-toolbar-actions">
-    <a href="/admin/products/export.csv" class="btn btn-outline" title="Download all products as CSV">⬇ Export CSV</a>
-    <button type="button" class="btn btn-outline" id="importBtn" title="Upload a filled CSV to import products">⬆ Import CSV</button>
+    <a href="/admin/products/export.csv" class="btn btn-outline" title="Download all products as CSV">⬇ Export All</a>
+    <button type="button" class="btn btn-outline" id="importBtn">⬆ Import CSV</button>
     <a href="/admin/products/new" class="btn btn-primary">+ Add Product</a>
   </div>
 </div>
 
-<!-- Hidden import form -->
 <form id="importForm" action="/admin/products/import" method="POST" enctype="multipart/form-data" style="display:none">
   <input type="file" id="importFile" name="csv_file" accept=".csv,text/csv">
 </form>
 
 <% if (locals.flash) { %>
-<div class="adm-flash adm-flash--<%= flash.type %>" style="margin-bottom:12px"><%= flash.msg %></div>
+<div class="adm-flash adm-flash--<%= flash.type %>" style="margin-bottom:12px"><%- flash.msg %></div>
 <% } %>
 
-<style>
-.adm-toolbar-actions { display:flex; gap:8px; align-items:center; }
-.adm-flash { padding:10px 16px; border-radius:8px; font-size:.875rem; }
-.adm-flash--success { background:#f0faf2; border:1px solid #7A9E7E; color:#2d6a38; }
-.adm-flash--error   { background:#fff5f5; border:1px solid #c00; color:#900; }
-</style>
+<!-- ══ Layout: filter sidebar + product table ═══════════════════════ -->
+<div class="adm-pl-layout" id="plLayout">
+
+  <!-- Filter sidebar -->
+  <aside class="adm-pl-sidebar" id="filterSidebar">
+    <form method="GET" action="/admin/products" id="filterForm">
+      <% if (filters.q) { %><input type="hidden" name="q" value="<%= filters.q %>"><% } %>
+      <input type="hidden" name="sort" value="<%= filters.sort %>">
+
+      <div class="adm-fs-header">
+        <span class="adm-fs-title">Filters</span>
+        <% if (hasFilters) { %><a href="/admin/products<%= filters.q ? '?q='+encodeURIComponent(filters.q) : '' %>" class="adm-fs-clear">Clear all</a><% } %>
+      </div>
+
+      <!-- Category -->
+      <div class="adm-fg">
+        <button type="button" class="adm-fg-toggle" aria-expanded="true">Category
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="adm-fg-body">
+          <select name="category_id" onchange="this.form.submit()" class="adm-fg-select">
+            <option value="">All categories</option>
+            <% (categories||[]).forEach(function(c) { %>
+            <option value="<%= c.id %>" <%= filters.category_id == c.id ? 'selected' : '' %>><%= c.name %></option>
+            <% }); %>
+          </select>
+        </div>
+      </div>
+
+      <!-- Brand -->
+      <% if (allBrands && allBrands.length > 0) { %>
+      <div class="adm-fg">
+        <button type="button" class="adm-fg-toggle" aria-expanded="<%= (filters.brands&&filters.brands.length) ? 'true' : 'false' %>">
+          Brand<% if (filters.brands&&filters.brands.length) { %><span class="adm-fg-badge"><%= filters.brands.length %></span><% } %>
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="adm-fg-body<%= (filters.brands&&filters.brands.length) ? '' : ' is-collapsed' %>">
+          <% if (allBrands.length > 8) { %>
+          <input type="text" class="adm-fg-search" placeholder="Search brands…" oninput="filterOpts(this)">
+          <% } %>
+          <div class="adm-fg-opts">
+            <% allBrands.forEach(function(b) { %>
+            <label class="adm-fg-opt">
+              <input type="checkbox" name="brand" value="<%= b %>"
+                <%= (filters.brands&&filters.brands.includes(b)) ? 'checked' : '' %>
+                onchange="this.form.submit()"> <%= b %>
+            </label>
+            <% }); %>
+          </div>
+        </div>
+      </div>
+      <% } %>
+
+      <!-- Visibility -->
+      <div class="adm-fg">
+        <button type="button" class="adm-fg-toggle" aria-expanded="true">
+          Visibility<% if (filters.is_active!=null && filters.is_active!=='') { %><span class="adm-fg-badge">1</span><% } %>
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="adm-fg-body">
+          <% [['','All'],['1','Active'],['0','Inactive']].forEach(function(o) {
+            var isChk = (o[0]==='' && (filters.is_active===null||filters.is_active===''||filters.is_active==null))
+                     || (o[0]!=='' && String(filters.is_active)===o[0]);
+          %>
+          <label class="adm-fg-opt">
+            <input type="radio" name="is_active" value="<%= o[0] %>" <%= isChk?'checked':'' %> onchange="this.form.submit()">
+            <%= o[1] %>
+          </label>
+          <% }); %>
+        </div>
+      </div>
+
+      <!-- Product Status ENUM -->
+      <div class="adm-fg">
+        <button type="button" class="adm-fg-toggle" aria-expanded="<%= filters.status ? 'true' : 'false' %>">
+          Product Status<% if (filters.status) { %><span class="adm-fg-badge">1</span><% } %>
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="adm-fg-body<%= filters.status ? '' : ' is-collapsed' %>">
+          <select name="status" onchange="this.form.submit()" class="adm-fg-select">
+            <option value="">All statuses</option>
+            <% [['active','Active'],['coming_soon','Coming Soon'],['special_order','Special Order'],['discontinued','Discontinued']].forEach(function(o) { %>
+            <option value="<%= o[0] %>" <%= filters.status===o[0]?'selected':'' %>><%= o[1] %></option>
+            <% }); %>
+          </select>
+        </div>
+      </div>
+
+      <!-- Data Source -->
+      <div class="adm-fg">
+        <button type="button" class="adm-fg-toggle" aria-expanded="<%= filters.source_flag ? 'true' : 'false' %>">
+          Data Source<% if (filters.source_flag) { %><span class="adm-fg-badge">1</span><% } %>
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="adm-fg-body<%= filters.source_flag ? '' : ' is-collapsed' %>">
+          <select name="source_flag" onchange="this.form.submit()" class="adm-fg-select">
+            <option value="">All sources</option>
+            <option value="manual"  <%= filters.source_flag==='manual'  ?'selected':'' %>>Manual</option>
+            <option value="rflpos"  <%= filters.source_flag==='rflpos'  ?'selected':'' %>>RFLPOS Sync</option>
+            <option value="salsify" <%= filters.source_flag==='salsify' ?'selected':'' %>>Salsify</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Price Range -->
+      <div class="adm-fg">
+        <button type="button" class="adm-fg-toggle" aria-expanded="<%= (filters.price_min||filters.price_max)?'true':'false' %>">
+          Price Range<% if (filters.price_min||filters.price_max) { %><span class="adm-fg-badge">✓</span><% } %>
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="adm-fg-body<%= (filters.price_min||filters.price_max)?'':' is-collapsed' %>">
+          <div class="adm-range-row">
+            <input type="number" name="price_min" value="<%= filters.price_min||'' %>" placeholder="Min $" min="0" step="50" class="adm-range-input">
+            <span class="adm-range-dash">–</span>
+            <input type="number" name="price_max" value="<%= filters.price_max||'' %>" placeholder="Max $" min="0" step="50" class="adm-range-input">
+          </div>
+          <button type="submit" class="btn btn-outline" style="width:100%;margin-top:8px;font-size:.8rem">Apply</button>
+        </div>
+      </div>
+
+      <!-- Stock -->
+      <div class="adm-fg">
+        <button type="button" class="adm-fg-toggle" aria-expanded="true">
+          Stock
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="adm-fg-body">
+          <label class="adm-fg-opt">
+            <input type="checkbox" name="in_stock" value="1"
+              <%= filters.in_stock ? 'checked' : '' %> onchange="this.form.submit()">
+            In stock only
+          </label>
+        </div>
+      </div>
+
+    </form>
+  </aside><!-- /.adm-pl-sidebar -->
+
+  <!-- Main content area -->
+  <div class="adm-pl-main">
+
+    <!-- Count + sort bar -->
+    <div class="adm-pl-bar">
+      <span class="adm-count">
+        <%= total %> product<%= total !== 1 ? 's' : '' %>
+        <% if (hasFilters) { %><span style="color:#999;font-weight:400"> — filtered</span><% } %>
+      </span>
+      <select class="adm-sort-select" onchange="applySort(this.value)">
+        <% [['newest','Newest'],['name_asc','Name A–Z'],['name_desc','Name Z–A'],
+            ['price_asc','Price ↑'],['price_desc','Price ↓'],['brand','Brand'],['sku','SKU']
+           ].forEach(function(o) { %>
+        <option value="<%= o[0] %>" <%= filters.sort===o[0]?'selected':'' %>><%= o[1] %></option>
+        <% }); %>
+      </select>
+    </div>
+
+    <!-- Bulk action bar (JS shows when items checked) -->
+    <div class="adm-bulk-bar" id="bulkBar">
+      <span class="adm-bulk-count" id="bulkCount">0 selected</span>
+      <button type="button" class="btn btn-sm btn-outline" onclick="bulkSubmit('activate')">Activate</button>
+      <button type="button" class="btn btn-sm btn-outline" onclick="bulkSubmit('deactivate')">Deactivate</button>
+      <button type="button" class="btn btn-sm btn-outline" onclick="bulkSubmit('export')">⬇ Export</button>
+      <button type="button" class="btn btn-sm adm-bulk-del" onclick="bulkSubmit('delete')">Delete</button>
+      <button type="button" class="btn btn-sm btn-outline" onclick="clearSel()" style="margin-left:auto">✕ Deselect</button>
+    </div>
+
+    <!-- Hidden form for bulk submission -->
+    <form method="POST" action="/admin/products/bulk" id="bulkForm" style="display:none">
+      <input type="hidden" name="action" id="bulkActionInp" value="">
+      <div id="bulkIds"></div>
+    </form>
+
+    <% if (products.length === 0) { %>
+    <div class="adm-empty">
+      <p>No products found.<% if (hasFilters) { %> Try adjusting or <a href="/admin/products">clearing the filters</a>.<% } %></p>
+    </div>
+    <% } else { %>
+
+    <div class="adm-table-wrap">
+      <table class="adm-table adm-table--products">
+        <thead>
+          <tr>
+            <th style="width:34px;padding-right:0"><input type="checkbox" id="selectAllCb" title="Select / deselect all"></th>
+            <th style="width:50px">Img</th>
+            <th>Name / SKU</th>
+            <th>Brand</th>
+            <th>Category</th>
+            <th>Price</th>
+            <th style="width:58px" title="Qty on hand">Stock</th>
+            <th style="width:68px">Source</th>
+            <th style="width:82px">Status</th>
+            <th style="width:96px">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% products.forEach(function(p) { %>
+          <tr class="adm-row" data-id="<%= p.id %>">
+            <td style="padding-right:0"><input type="checkbox" class="row-cb" value="<%= p.id %>"></td>
+            <td>
+              <% if (p.thumb) { %>
+              <a href="/admin/products/<%= p.id %>/edit">
+                <img src="<%= p.thumb %>" alt="" width="44" height="44"
+                  style="object-fit:contain;border-radius:4px;border:1px solid #e8e5e1;vertical-align:middle;display:block">
+              </a>
+              <% } else { %>
+              <div class="adm-thumb-placeholder">—</div>
+              <% } %>
+            </td>
+            <td>
+              <a href="/admin/products/<%= p.id %>/edit" class="adm-pl-link"><strong><%= p.name %></strong></a>
+              <div class="adm-meta-row">
+                <% if (p.sku) { %><span class="adm-meta">SKU: <%= p.sku %></span><% } %>
+                <% if (p.vendor_sku && p.vendor_sku !== p.sku) { %><span class="adm-meta" style="color:#bbb">· <%= p.vendor_sku %></span><% } %>
+                <% if (p.product_type) { %><span class="adm-type-tag"><%= p.product_type %></span><% } %>
+              </div>
+            </td>
+            <td><%= p.brand || '—' %></td>
+            <td><%= p.category_name || '—' %></td>
+            <td>
+              <span class="adm-price">$<%= parseFloat(p.price||0).toFixed(2) %></span>
+              <% if (p.compare_price && parseFloat(p.compare_price) > parseFloat(p.price)) { %>
+              <br><span class="adm-was">$<%= parseFloat(p.compare_price).toFixed(2) %></span>
+              <% } %>
+            </td>
+            <td>
+              <span class="adm-stock<%= p.qty_on_hand > 0 ? ' in' : ' out' %>"><%= p.qty_on_hand %></span>
+            </td>
+            <td>
+              <span class="adm-source adm-source--<%= p.source_flag||'manual' %>">
+                <%= p.source_flag==='rflpos' ? 'RFLPOS' : (p.source_flag||'manual') %>
+              </span>
+            </td>
+            <td>
+              <span class="adm-status adm-status--<%= p.is_active?'active':'inactive' %>">
+                <%= p.is_active ? 'Active' : 'Inactive' %>
+              </span>
+              <% if (p.status && p.status !== 'active') { %>
+              <div style="font-size:.68rem;color:#888;margin-top:2px"><%= p.status.replace('_',' ') %></div>
+              <% } %>
+            </td>
+            <td class="adm-actions">
+              <a href="/admin/products/<%= p.id %>/edit" class="adm-action-link">Edit</a>
+              <a href="/products/<%= p.slug %>" target="_blank" class="adm-action-link" title="View in store">↗</a>
+              <form action="/admin/products/<%= p.id %>/delete" method="POST" style="display:inline"
+                onsubmit="return confirm('Delete «<%= p.name.replace(/'/g,'\\\'') %>»?')">
+                <button type="submit" class="adm-action-link adm-action-link--danger">Del</button>
+              </form>
+            </td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div><!-- /.adm-table-wrap -->
+
+    <!-- Pagination -->
+    <% if (pages > 1) { %>
+    <nav class="adm-pagination">
+      <% if (page > 1) { %><a href="<%= filterUrl({page:page-1}) %>" class="adm-page-btn">‹ Prev</a><% } %>
+      <%
+        var ps = Math.max(1, page - 3), pe = Math.min(pages, page + 3);
+      %>
+      <% if (ps > 1) { %><a href="<%= filterUrl({page:1}) %>" class="adm-page-btn">1</a><% if (ps > 2) { %><span style="color:#bbb;padding:0 4px">…</span><% } %><% } %>
+      <% for (var pi = ps; pi <= pe; pi++) { %><a href="<%= filterUrl({page:pi}) %>" class="adm-page-btn<%= pi===page?' active':'' %>"><%= pi %></a><% } %>
+      <% if (pe < pages) { %><% if (pe < pages-1) { %><span style="color:#bbb;padding:0 4px">…</span><% } %><a href="<%= filterUrl({page:pages}) %>" class="adm-page-btn"><%= pages %></a><% } %>
+      <% if (page < pages) { %><a href="<%= filterUrl({page:page+1}) %>" class="adm-page-btn">Next ›</a><% } %>
+    </nav>
+    <% } %>
+
+    <% } /* end products.length */ %>
+
+  </div><!-- /.adm-pl-main -->
+</div><!-- /.adm-pl-layout -->
+
+<%- contentFor('script') %>
 <script>
-document.getElementById('importBtn')?.addEventListener('click', () => {
-  document.getElementById('importFile').click();
-});
-document.getElementById('importFile')?.addEventListener('change', function() {
-  if (this.files[0]) {
-    if (confirm(`Import "${this.files[0].name}"? Existing products matched by SKU will be updated.`)) {
-      document.getElementById('importForm').submit();
+(function() {
+  /* ── Sidebar toggle ──────────────────────────────────────── */
+  var layout  = document.getElementById('plLayout');
+  var toggle  = document.getElementById('filterToggle');
+  var KEY     = 'bvoAdminFilterOpen';
+
+  function setSidebar(open) {
+    layout.classList.toggle('sidebar-open', !!open);
+    toggle.classList.toggle('is-active', !!open);
+    try { localStorage.setItem(KEY, open ? '1' : '0'); } catch(e) {}
+  }
+
+  // Restore last state (default: open)
+  var stored = null;
+  try { stored = localStorage.getItem(KEY); } catch(e) {}
+  setSidebar(stored !== '0');
+
+  toggle.addEventListener('click', function() {
+    setSidebar(!layout.classList.contains('sidebar-open'));
+  });
+
+  /* ── Filter group accordions ─────────────────────────────── */
+  document.querySelectorAll('.adm-fg-toggle').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var body = btn.nextElementSibling;
+      var open = btn.getAttribute('aria-expanded') !== 'true';
+      btn.setAttribute('aria-expanded', String(open));
+      body.classList.toggle('is-collapsed', !open);
+    });
+  });
+
+  /* ── Brand search within sidebar ─────────────────────────── */
+  window.filterOpts = function(input) {
+    var q = input.value.toLowerCase();
+    input.closest('.adm-fg-body').querySelectorAll('.adm-fg-opt').forEach(function(opt) {
+      opt.style.display = opt.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+  };
+
+  /* ── Sort select ─────────────────────────────────────────── */
+  window.applySort = function(val) {
+    var url = '<%= filterUrl({sort:"__S__",page:1}) %>'.replace('__S__', encodeURIComponent(val));
+    window.location.href = url;
+  };
+
+  /* ── Row checkbox selection + bulk bar ───────────────────── */
+  var selectAllCb = document.getElementById('selectAllCb');
+  var bulkBar     = document.getElementById('bulkBar');
+  var bulkCountEl = document.getElementById('bulkCount');
+
+  function getSelected() {
+    return Array.from(document.querySelectorAll('.row-cb:checked')).map(function(cb) { return cb.value; });
+  }
+
+  function syncBulkBar() {
+    var sel  = getSelected();
+    var all  = document.querySelectorAll('.row-cb');
+    bulkBar.classList.toggle('is-visible', sel.length > 0);
+    bulkCountEl.textContent = sel.length + ' selected';
+    if (selectAllCb) {
+      selectAllCb.indeterminate = sel.length > 0 && sel.length < all.length;
+      selectAllCb.checked       = sel.length > 0 && sel.length === all.length;
     }
   }
-});
+
+  document.querySelectorAll('.row-cb').forEach(function(cb) {
+    cb.addEventListener('change', syncBulkBar);
+  });
+
+  if (selectAllCb) {
+    selectAllCb.addEventListener('change', function() {
+      document.querySelectorAll('.row-cb').forEach(function(cb) { cb.checked = selectAllCb.checked; });
+      syncBulkBar();
+    });
+  }
+
+  /* Click anywhere on row to toggle checkbox */
+  document.querySelectorAll('.adm-row').forEach(function(row) {
+    row.addEventListener('click', function(e) {
+      if (['A','BUTTON','INPUT','FORM'].indexOf(e.target.tagName) !== -1) return;
+      var cb = row.querySelector('.row-cb');
+      if (cb) { cb.checked = !cb.checked; syncBulkBar(); }
+    });
+  });
+
+  window.clearSel = function() {
+    document.querySelectorAll('.row-cb').forEach(function(cb) { cb.checked = false; });
+    if (selectAllCb) { selectAllCb.checked = false; selectAllCb.indeterminate = false; }
+    syncBulkBar();
+  };
+
+  window.bulkSubmit = function(action) {
+    var ids = getSelected();
+    if (!ids.length) { alert('Select at least one product first.'); return; }
+    if (action === 'delete' && !confirm('Permanently delete ' + ids.length + ' product(s)? This cannot be undone.')) return;
+
+    var form = document.getElementById('bulkForm');
+    var ai   = document.getElementById('bulkActionInp');
+    var cont = document.getElementById('bulkIds');
+
+    ai.value = action;
+    cont.innerHTML = '';
+    ids.forEach(function(id) {
+      var inp = document.createElement('input');
+      inp.type = 'hidden'; inp.name = 'ids'; inp.value = id;
+      cont.appendChild(inp);
+    });
+    form.submit();
+  };
+
+  /* ── Import CSV ──────────────────────────────────────────── */
+  var importBtn  = document.getElementById('importBtn');
+  var importFile = document.getElementById('importFile');
+  var importForm = document.getElementById('importForm');
+  if (importBtn) {
+    importBtn.addEventListener('click', function() { importFile.click(); });
+    importFile.addEventListener('change', function() {
+      if (this.files[0] && confirm('Import "' + this.files[0].name + '"?\nExisting products matched by SKU will be updated.')) {
+        importForm.submit();
+      }
+    });
+  }
+})();
 </script>
 
-<!-- Count -->
-<p class="adm-count"><%= total %> product<%= total !== 1 ? 's' : '' %><% if (search) { %> matching "<%= search %>"<% } %></p>
+<style>
+/* ── Layout ─────────────────────────────────────────────────── */
+.adm-pl-toolbar { flex-wrap: wrap; gap: 10px; }
+.adm-pl-layout  { display: flex; align-items: flex-start; }
 
-<!-- Table -->
-<% if (products.length === 0) { %>
-<div class="adm-empty"><p>No products found.</p></div>
-<% } else { %>
-<div class="adm-table-wrap">
-  <table class="adm-table adm-table--products">
-    <thead>
-      <tr>
-        <th style="width:56px">Image</th>
-        <th>Name / SKU</th>
-        <th>Brand</th>
-        <th>Category</th>
-        <th>Price</th>
-        <th>Source</th>
-        <th>Status</th>
-        <th style="width:110px">Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      <% products.forEach(p => { %>
-      <tr>
-        <td>
-          <% if (p.thumb) { %>
-          <img src="<%= p.thumb %>" alt="" width="44" height="44" style="object-fit:contain;border-radius:4px;border:1px solid var(--color-whisper-hero)">
-          <% } else { %>
-          <div class="adm-thumb-placeholder">—</div>
-          <% } %>
-        </td>
-        <td>
-          <strong><%= p.name %></strong>
-          <% if (p.sku) { %><br><span class="adm-meta">SKU: <%= p.sku %></span><% } %>
-        </td>
-        <td><%= p.brand || '—' %></td>
-        <td><%= p.category_name || '—' %></td>
-        <td>
-          <span class="adm-price">$<%= parseFloat(p.price||0).toFixed(2) %></span>
-          <% if (p.compare_price) { %>
-          <br><span class="adm-was">$<%= parseFloat(p.compare_price).toFixed(2) %></span>
-          <% } %>
-        </td>
-        <td><span class="adm-source adm-source--<%= p.source_flag || 'manual' %>"><%= p.source_flag || 'manual' %></span></td>
-        <td>
-          <% if (p.is_active) { %>
-          <span class="adm-status adm-status--active">Active</span>
-          <% } else { %>
-          <span class="adm-status adm-status--inactive">Inactive</span>
-          <% } %>
-        </td>
-        <td class="adm-actions">
-          <a href="/admin/products/<%= p.id %>/edit" class="adm-action-link">Edit</a>
-          <form action="/admin/products/<%= p.id %>/delete" method="POST" style="display:inline" onsubmit="return confirm('Delete this product?')">
-            <button type="submit" class="adm-action-link adm-action-link--danger">Del</button>
-          </form>
-        </td>
-      </tr>
-      <% }) %>
-    </tbody>
-  </table>
-</div>
+/* Sidebar */
+.adm-pl-sidebar {
+  width: 0; flex-shrink: 0; overflow: hidden;
+  transition: width .2s ease, border .2s ease;
+  border-right: 1px solid transparent;
+}
+.adm-pl-layout.sidebar-open .adm-pl-sidebar {
+  width: 236px; border-right-color: var(--color-whisper-hero,#e8e5e1);
+}
+.adm-pl-main { flex: 1; min-width: 0; padding-left: 0; transition: padding .2s ease; }
+.adm-pl-layout.sidebar-open .adm-pl-main { padding-left: 20px; }
 
-<!-- Pagination -->
-<% if (pages > 1) { %>
-<nav class="adm-pagination">
-  <% for (let i = 1; i <= pages; i++) { %>
-  <a href="/admin/products?page=<%= i %><%= search ? '&q=' + encodeURIComponent(search) : '' %>"
-     class="adm-page-btn<%= i === page ? ' active' : '' %>"><%= i %></a>
-  <% } %>
-</nav>
-<% } %>
-<% } %>
+/* Toggle button */
+.adm-filter-toggle-btn { display: inline-flex; align-items: center; gap: 6px; font-size: .83rem; }
+.adm-filter-toggle-btn.is-active { background: var(--color-sage,#7A9E7E); color: #fff; border-color: var(--color-sage,#7A9E7E); }
+.adm-filter-dot { width: 7px; height: 7px; background: var(--color-amber,#C68B2F); border-radius: 50%; display: inline-block; }
+
+/* Sidebar header */
+.adm-fs-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px 8px; }
+.adm-fs-title  { font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: #777; }
+.adm-fs-clear  { font-size: .75rem; color: var(--color-amber,#C68B2F); text-decoration: none; }
+.adm-fs-clear:hover { text-decoration: underline; }
+
+/* Filter groups */
+.adm-fg        { border-bottom: 1px solid var(--color-whisper-hero,#e8e5e1); }
+.adm-fg-toggle {
+  width: 100%; background: none; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 9px 14px; font-size: .8rem; font-weight: 600; color: #444; gap: 6px;
+}
+.adm-fg-toggle:hover { background: #f8f8f6; }
+.adm-fg-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+.adm-fg-body   { padding: 2px 14px 12px; }
+.adm-fg-body.is-collapsed { display: none; }
+.adm-fg-select { width: 100%; font-size: .8rem; border: 1px solid #ddd; border-radius: 6px; padding: 5px 8px; }
+.adm-fg-badge  { font-size: .68rem; font-weight: 700; background: var(--color-sage,#7A9E7E); color: #fff; border-radius: 999px; padding: 1px 6px; margin-left: auto; }
+.adm-fg-search { width: 100%; font-size: .78rem; border: 1px solid #e0e0e0; border-radius: 6px; padding: 5px 8px; margin-bottom: 8px; box-sizing: border-box; }
+.adm-fg-opts   { max-height: 180px; overflow-y: auto; }
+.adm-fg-opt    { display: flex; align-items: center; gap: 7px; font-size: .8rem; cursor: pointer; padding: 3px 0; line-height: 1.3; }
+.adm-range-row { display: flex; align-items: center; gap: 6px; }
+.adm-range-input { flex: 1; min-width: 0; font-size: .8rem; border: 1px solid #ddd; border-radius: 6px; padding: 5px 6px; }
+.adm-range-dash { color: #aaa; font-size: .8rem; }
+
+/* Sort + count bar */
+.adm-pl-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.adm-sort-select { font-size: .8rem; border: 1px solid #ddd; border-radius: 6px; padding: 5px 10px; }
+
+/* Bulk bar */
+.adm-bulk-bar {
+  display: none; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 8px 12px; background: #ecf5ee; border: 1px solid #aed4b6;
+  border-radius: 8px; margin-bottom: 10px; font-size: .82rem;
+}
+.adm-bulk-bar.is-visible { display: flex; }
+.adm-bulk-count { font-weight: 600; color: #1e5c28; min-width: 75px; }
+.adm-bulk-del { color: #b00; border: 1px solid #b00; background: none; border-radius: 6px; }
+.adm-bulk-del:hover { background: #b00; color: #fff; }
+.btn-sm { font-size: .78rem !important; padding: 5px 10px !important; }
+
+/* Table */
+.adm-pl-link { color: inherit; text-decoration: none; }
+.adm-pl-link:hover { color: var(--color-amber,#C68B2F); }
+.adm-meta-row { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 2px; }
+.adm-type-tag { font-size: .68rem; background: #f0f0ef; color: #666; border-radius: 4px; padding: 1px 5px; }
+.adm-row { cursor: pointer; transition: background .1s; }
+.adm-row:hover { background: #fafaf8; }
+.adm-row td { vertical-align: middle; }
+.adm-stock     { font-size: .78rem; font-weight: 600; }
+.adm-stock.in  { color: #1e6e28; }
+.adm-stock.out { color: #b00; }
+
+/* Flash */
+.adm-flash { padding: 10px 16px; border-radius: 8px; font-size: .875rem; }
+.adm-flash--success { background: #f0faf2; border: 1px solid #7A9E7E; color: #2d6a38; }
+.adm-flash--error   { background: #fff5f5; border: 1px solid #c00; color: #900; }
+.adm-toolbar-actions { display: flex; gap: 8px; align-items: center; }
+</style>

@@ -1,0 +1,381 @@
+name,sku,brand,category_slug,price,compare_price,short_desc,long_desc,width_in,depth_in,height_in,weight_lbs,is_active,is_featured,is_new,qty_on_hand,allow_backorder,meta_title,meta_desc,image_url,attr_product_type,attr_size_in,attr_cabinet_finish,attr_color_family,attr_hardware_finish,attr_style,attr_mount_type,attr_sink_count,attr_sink_included,attr_countertop_material,attr_countertop_included,attr_mirror_included,attr_door_style,attr_drawer_count,attr_sink_type,attr_faucet_holes
+Atlanta-47.5-DKBLU-BG,PR1058,Atlanta Vanity,vanities,875.49,,<p>Atlanta-47.5-DKBLU-BG</p>,,47.5,21.5,34.5,,1,0,0,2,0,,,https://rflpos.com/product_images/1706991238_Atlanta 48%22 Blue.jpeg,,,,,,,,,,,,,,,,
+Atlanta-47.5-WH-BN,PR1057,Atlanta Vanity,vanities,799.99,,<p>Atlanta-47.5-WH-BN</p>,,47.5,21.5,34.5,,1,0,0,3,0,,,https://rflpos.com/product_images/1706991133_Atlanta 48%22 White.jpeg,,,,,,,,,,,,,,,,
+Atlanta-59.5D-DKBLU-BG,PR1060,Atlanta Vanity,vanities,854.99,,<p>Atlanta-59.5D-DKBLU-BG</p>,,59.5,21.5,34.5,,1,0,0,7,0,,,https://rflpos.com/product_images/1706992965_Atlanta 60D Blue.jpg,,,,,,,,,,,,,,,,
+Atlanta-59.5D-WH-BN,PR1059,Atlanta Vanity,vanities,899.99,,<p>Atlanta-59.5D-WH-BN</p>,,59.5,21.5,34.5,,1,0,0,8,0,,,https://rflpos.com/product_images/1706992992_Atlanta 60D White.jpeg,,,,,,,,,,,,,,,,
+Atlanta-59.5S-DKBLU-BG,PR1062,Atlanta Vanity,vanities,999.99,,<p>Atlanta-59.5S-DKBLU-BG</p>,,59.5,21.5,34.5,,1,0,0,11,0,,,https://rflpos.com/product_images/1706993038_Atlanta 60S Blue.jpeg,,,,,,,,,,,,,,,,
+Atlanta-59.5S-WH-BN,PR1061,Atlanta Vanity,vanities,949.99,,<p>Atlanta-59.5S-WH-BN</p>,,59.5,21.5,34.5,,1,0,0,9,0,,,https://rflpos.com/product_images/1706993062_Atlanta 60S White.jpeg,,,,,,,,,,,,,,,,
+Atlanta-71.5-DKBLU-BG,PR1064,Atlanta Vanity,vanities,1099.99,,<p>Atlanta-71.5-DKBLU-BG</p>,,71.5,21.5,34.5,,1,0,0,0,0,,,https://rflpos.com/product_images/1706993098_Atlanta 72 Blue.jpg,,,,,,,,,,,,,,,,
+Atlanta-71.5-WH-BN,PR1063,Atlanta Vanity,vanities,944.99,,<p>Atlanta-71.5-WH-BN</p>,,71.5,21.5,34.5,,1,0,0,0,0,,,https://rflpos.com/product_images/1706993126_Atlanta 72 White.jpeg,,,,,,,,,,,,,,,,
+Kennesaw-29.5-DKGR-BN,PR1046,Atlanta Vanity,vanities,299.99,,<p>Kennesaw-29.5-DKGR-BN</p>,,29.5,21.5,34.5,,1,0,0,9,0,,,https://rflpos.com/product_images/1706993179_Kennesaw 30%22 Grey.webp,,,,,,,,,,,,,,,,
+Kennesaw-29.5-WH-BN,PR1045,Atlanta Vanity,vanities,449.99,,<p>Kennesaw-29.5-WH-BN</p>,,29.5,21.5,34.5,,1,0,0,8,0,,,https://rflpos.com/product_images/1706993224_Kennesaw 30%22 White.webp,,,,,,,,,,,,,,,,
+Kennesaw-35.5L-DKGR-BN,PR1048,Atlanta Vanity,vanities,549.99,,<p>Kennesaw-35.5L-DKGR-BN</p>,,29.5,21.5,34.5,,1,0,0,4,0,,,https://rflpos.com/product_images/1706993259_Kennesaw 36%22 Grey.jpeg,,,,,,,,,,,,,,,,
+Kennesaw-35.5L-WH-BN,PR1047,Atlanta Vanity,vanities,549.99,,<p>Kennesaw-35.5L-WH-BN</p>,,29.5,21.5,34.5,,1,0,0,0,0,,,https://rflpos.com/product_images/1706993320_Kennesaw 36%22 White.avif,,,,,,,,,,,,,,,,
+Kennesaw-41.5-BLK-BG,Kennesaw-41.5-BLK-BG,Atlanta Vanity,vanities,749.99,,"<table width=""249"">
+<tbody>
+<tr>
+<td style=""width: 234.203px;"" width=""249"">Kennesaw-41.5-BLK-BG</td>
+</tr>
+</tbody>
+</table>",,41.5,21.5,34.5,,1,0,0,5,0,,,,,,,,,,,,,,,,,,,
+Kennesaw-41.5-CAMGRN-BG,Kennesaw-41.5-CAMGRN-BG,Atlanta Vanity,vanities,749.99,,"<table width=""249"">
+<tbody>
+<tr>
+<td style=""width: 234.203px;"" width=""249"">Kennesaw-41.5-CAMGRN-BG</td>
+</tr>
+</tbody>
+</table>",,41.5,21.5,34.5,,1,0,0,4,0,,,,,,,,,,,,,,,,,,,
+Kennesaw-41.5-DRKG-BN,Kennesaw-41.5-DRKG-BN,Atlanta Vanity,vanities,749.99,,"<table width=""249"">
+<tbody>
+<tr>
+<td style=""width: 234.203px;"" width=""249"">Kennesaw-41.5-DRKG-BN</td>
+</tr>
+</tbody>
+</table>",,41.5,21.5,34.5,,1,0,0,6,0,,,,,,,,,,,,,,,,,,,
+Kennesaw-41.5-WH-BN,Kennesaw-41.5-WH-BN,Atlanta Vanity,vanities,749.99,,"<table width=""249"">
+<tbody>
+<tr>
+<td style=""width: 234.203px;"" width=""249"">Kennesaw-41.5-WH-BN</td>
+</tr>
+</tbody>
+</table>",,41.5,21.5,34.5,,1,0,0,6,0,,,,,,,,,,,,,,,,,,,
+Kennesaw-47.5-BLK-BG,Kennesaw-47.5-BLK-BG,Atlanta Vanity,vanities,799.99,,"<table width=""249"">
+<tbody>
+<tr>
+<td width=""249"">Kennesaw-47.5-BLK-BG</td>
+</tr>
+</tbody>
+</table>",,47.5,21.5,34.5,,1,0,0,3,0,,,,,,,,,,,,,,,,,,,
+Kennesaw-47.5-CAMGRN-BG,Kennesaw-47.5-CAMGRN-BG,Atlanta Vanity,vanities,799.99,,"<table width=""249"">
+<tbody>
+<tr>
+<td width=""249"">Kennesaw-47.5-CAMGRN-BG</td>
+</tr>
+</tbody>
+</table>",,47.5,21.5,34.5,,1,0,0,2,0,,,,,,,,,,,,,,,,,,,
+Kennesaw-47.5-DKGR-BN,PR1050,Atlanta Vanity,vanities,759.99,,<p>Kennesaw-47.5-DKGR-BN</p>,,47.5,21.5,34.5,,1,0,0,1,0,,,https://rflpos.com/product_images/1706993358_Kennesaw 48%22 Grey.jpeg,,,,,,,,,,,,,,,,
+Kennesaw-47.5-WH-BN,PR1049,Atlanta Vanity,vanities,799.99,,<p>Kennesaw-47.5-WH-BN</p>,,47.5,21.5,34.5,,1,0,0,0,0,,,https://rflpos.com/product_images/1706997148_Kennesaw 48%22 White.jpeg,,,,,,,,,,,,,,,,
+Kennesaw-59.5D-DKGR-BN,PR1052,Atlanta Vanity,vanities,849.99,,<p>Kennesaw-59.5D-DKGR-BN</p>,,59.5,21.5,34.5,,1,0,0,4,0,,,https://rflpos.com/product_images/1706997192_Kennesaw 60%22 grey.jpeg,,,,,,,,,,,,,,,,
+Kennesaw-59.5D-WH-BN,PR1051,Atlanta Vanity,vanities,749.99,,<p>Kennesaw-59.5D-WH-BN</p>,,59.5,21.5,34.5,,1,0,0,3,0,,,https://rflpos.com/product_images/1706997235_Kennesaw 60D%22 white.webp,,,,,,,,,,,,,,,,
+Kennesaw-59.5S-DKGR-BN,PR1054,Atlanta Vanity,vanities,924.99,,<p>Kennesaw-59.5S-DKGR-BN</p>,,59.5,21.5,34.5,,1,0,0,4,0,,,https://rflpos.com/product_images/1706997267_Kennesaw 60S%22 grey.jpeg,,,,,,,,,,,,,,,,
+Kennesaw-59.5S-WH-BN,PR1053,Atlanta Vanity,vanities,914.99,,<p>Kennesaw-59.5S-WH-BN</p>,,59.5,21.5,34.5,,1,0,0,6,0,,,https://rflpos.com/product_images/1706997295_Kennesaw 60S%22 white.jpeg,,,,,,,,,,,,,,,,
+Kennesaw-71.5-DKGR-BN,PR1056,Atlanta Vanity,vanities,949.99,,<p>Kennesaw-71.5-DKGR-BN</p>,,71.5,21.5,34.5,,1,0,0,6,0,,,https://rflpos.com/product_images/1706997337_Kennesaw 72%22 grey.jpeg,,,,,,,,,,,,,,,,
+Kennesaw-71.5-WH-BN,PR1055,Atlanta Vanity,vanities,949.99,,<p>Kennesaw-71.5-WH-BN</p>,,71.5,21.5,34.5,,1,0,0,2,0,,,https://rflpos.com/product_images/1706997369_Kennesaw 72%22 white.jpeg,,,,,,,,,,,,,,,,
+Marietta-29.5-DKBLU-BG,PR1032,Atlanta Vanity,vanities,499.99,,<p>Marietta-29.5-DKBLU-BG</p>,,29.5,21.5,34.5,,1,0,0,4,0,,,https://rflpos.com/product_images/1707099485_Marietta 30.png,,,,,,,,,,,,,,,,
+Marietta-29.5-DOAK-MB,Marietta-29.5-DOAK-MB,Atlanta Vanity,vanities,599.99,,<p>Marietta-29.5-DOAK-MB</p>,,29.5,21.5,34.5,,1,0,0,5,0,,,,,,,,,,,,,,,,,,,
+Marietta-29.5-WH-BN,PR1031,Atlanta Vanity,vanities,404.99,,<p>Marietta-29.5-WH-BN</p>,,29.5,21.5,34.5,,1,0,0,6,0,,,https://rflpos.com/product_images/1707099522_Marietta 30.png,,,,,,,,,,,,,,,,
+Marietta-35.5R-DKBLU-BG,PR1034,Atlanta Vanity,vanities,599.99,,<p>Marietta-35.5R-DKBLU-BG</p>,,35.5,21.5,34.5,,1,0,0,8,0,,,https://rflpos.com/product_images/1707099570_Marietta 36.png,,,,,,,,,,,,,,,,
+Marietta-35.5R-DOAK-MB,Marietta-35.5R-DOAK-MB,Atlanta Vanity,vanities,629.99,,<p>Marietta-35.5R-DOAK-MB</p>,,35.5,21.5,34.5,,1,0,0,0,0,,,,,,,,,,,,,,,,,,,
+Marietta-35.5R-WH-BN,PR1033,Atlanta Vanity,vanities,467.49,,<p>Marietta-35.5R-WH-BN</p>,,35.5,21.5,34.5,,1,0,0,4,0,,,https://rflpos.com/product_images/1707099605_Marietta 36.png,,,,,,,,,,,,,,,,
+Marietta-41.5D-DKBLU-BG,Marietta-41.5D-DKBLU-BG,Atlanta Vanity,vanities,799.99,,"<table width=""249"">
+<tbody>
+<tr>
+<td style=""width: 234.203px;"" width=""249"">Marietta-41.5D-DKBLU-BG</td>
+</tr>
+</tbody>
+</table>",,41.5,21.5,34.5,,1,0,0,8,0,,,,,,,,,,,,,,,,,,,
+Marietta-41.5D-DOAK-MB,Marietta-41.5D-DOAK-MB,Atlanta Vanity,vanities,949.99,,<p>Marietta-41.5D-DOAK-MB</p>,,41.5,21.5,34.5,,1,0,0,5,0,,,,,,,,,,,,,,,,,,,
+Marietta-41.5D-WH-BN,Marietta-41.5D-WH-BN,Atlanta Vanity,vanities,749.99,,"<table width=""249"">
+<tbody>
+<tr>
+<td style=""width: 234.203px;"" width=""249"">Marietta-41.5D-WH-BN</td>
+</tr>
+</tbody>
+</table>",,41.5,21.5,34.5,,1,0,0,9,0,,,,,,,,,,,,,,,,,,,
+Marietta-47.5D-DOAK-MB,Marietta-47.5D-DOAK-MB,Atlanta Vanity,vanities,899.99,,<p>Marietta-47.5D-DOAK-MB</p>,,47.5,21.5,34.5,,1,0,0,1,0,,,,,,,,,,,,,,,,,,,
+Marietta-47.5D-WH-BN,PR1035,Atlanta Vanity,vanities,799.99,,<p>Marietta-47.5D-WH-BN</p>,,47.5,21.5,34.5,,1,0,0,6,0,,,https://rflpos.com/product_images/1706998340_Marietta 48 White.avif,,,,,,,,,,,,,,,,
+Marietta-47D-DKBLU-BG,PR1036,Atlanta Vanity,vanities,764.99,,<p>Marietta-47D-DKBLU-BG</p>,,47.5,21.5,34.5,,1,0,0,7,0,,,https://rflpos.com/product_images/1706998303_Marietta 48 blue.jpeg,,,,,,,,,,,,,,,,
+Marietta-53.5S-DKBLU-BG,PR1038,Atlanta Vanity,vanities,874.99,,<p>Marietta-53.5S-DKBLU-BG</p>,,53.5,21.5,34.5,,1,0,0,6,0,,,https://rflpos.com/product_images/1706998264_Marietta 60S Blue.jpg,,,,,,,,,,,,,,,,
+Marietta-53.5S-WH-BN,PR1037,Atlanta Vanity,vanities,824.99,,<p>Marietta-53.5S-WH-BN</p>,,53.5,21.5,34.5,,1,0,0,2,0,,,https://rflpos.com/product_images/1706998233_Marietta 60S White.jpg,,,,,,,,,,,,,,,,
+Marietta-59.5D-DKBLU-BG,PR1040,Atlanta Vanity,vanities,949.99,,<p>Marietta-59.5D-DKBLU-BG</p>,,59.5,21.5,34.5,,1,0,0,6,0,,,https://rflpos.com/product_images/1706997789_Marietta 60D Blue.jpeg,,,,,,,,,,,,,,,,
+Marietta-59.5D-DOAK-MB,Marietta-59.5D-DOAK-MB,Atlanta Vanity,vanities,1079.99,,<p>Marietta-59.5D-DOAK-MB</p>,,59.5,21.5,34.5,,1,0,0,10,0,,,,,,,,,,,,,,,,,,,
+Marietta-59.5D-WH-BN,PR1039,Atlanta Vanity,vanities,899.99,,<p>Marietta-59.5D-WH-BN</p>,,59.5,21.5,34.5,,1,0,0,3,0,,,https://rflpos.com/product_images/1706997745_Marietta 60D White.jpg,,,,,,,,,,,,,,,,
+Marietta-59.5S-DKBLU-BG,PR1042,Atlanta Vanity,vanities,849.99,,<p>Marietta-59.5S-DKBLU-BG</p>,,59.5,21.5,34.5,,1,0,0,6,0,,,https://rflpos.com/product_images/1706997582_Marietta 60S Blue.jpg,,,,,,,,,,,,,,,,
+Marietta-59.5S-DOAK-MB,Marietta-59.5S-DOAK-MB,Atlanta Vanity,vanities,1147.49,,<p>Marietta-59.5S-DOAK-MB</p>,,59.5,21.5,34.5,,1,0,0,0,0,,,,,,,,,,,,,,,,,,,
+Marietta-59.5S-WH-BN,PR1041,Atlanta Vanity,vanities,924.99,,<p>Marietta-59.5S-WH-BN</p>,,59.5,21.5,34.5,,1,0,0,2,0,,,https://rflpos.com/product_images/1706997704_Marietta 60S White.jpg,,,,,,,,,,,,,,,,
+Marietta-71.5-DKBLU-BG,PR1044,Atlanta Vanity,vanities,899.99,,<p>Marietta-71.5-DKBLU-BG</p>,,71.5,21.5,34.5,,1,0,0,3,0,,,https://rflpos.com/product_images/1706997538_Marietta 72 Blue.jpeg,,,,,,,,,,,,,,,,
+Marietta-71.5-DOAK-MB,Marietta-71.5-DOAK-MB,Atlanta Vanity,vanities,1149.99,,"<table width=""249"">
+<tbody>
+<tr>
+<td width=""249"">Marietta-71.5-DOAK-MB</td>
+</tr>
+</tbody>
+</table>",,71.5,21.5,34.5,,1,0,0,0,0,,,,,,,,,,,,,,,,,,,
+Marietta-71.5-WH-BN,PR1043,Atlanta Vanity,vanities,949.99,,<p>Marietta-71.5-WH-BN</p>,,71.5,21.5,34.5,,1,0,0,10,0,,,https://rflpos.com/product_images/1706997507_Marietta 72 White.webp,,,,,,,,,,,,,,,,
+24 In Channel Drain BG,PR1102,Ethan Roth,,0,,24 In Channel Drain BG,,24,5,3,,1,0,0,12,0,,,https://rflpos.com/product_images/1706904822_brushed-gold-oatey-shower-drains-dl32240bg-64_600.jpg,,,,,,,,,,,,,,,,
+24 In Channel Drain BN,PR1101,Ethan Roth,,0,,24 In Channel Drain BN,,24,5,3,,1,0,0,12,0,,,"https://rflpos.com/product_images/1706904822_51hbDzY7R4L._AC_UF894,1000_QL80_.jpg",,,,,,,,,,,,,,,,
+24 In Channel Drain MB,PR1103,Ethan Roth,,0,,24 In Channel Drain MB,,24,5,3,,1,0,0,12,0,,,https://rflpos.com/product_images/1706904822_matte-black-oatey-shower-drains-dl32240-64_600.jpg,,,,,,,,,,,,,,,,
+28 In Channel Drain BG,PR1105,Ethan Roth,,109,,28 In Channel Drain BG,,28,5,3,,1,0,0,11,0,,,https://rflpos.com/product_images/1706904822_brushed-gold-oatey-shower-drains-dl32240bg-64_600.jpg,,,,,,,,,,,,,,,,
+28 In Channel Drain BN,PR1104,Ethan Roth,,0,,28 In Channel Drain BN,,28,5,3,,1,0,0,12,0,,,"https://rflpos.com/product_images/1706904822_51hbDzY7R4L._AC_UF894,1000_QL80_.jpg",,,,,,,,,,,,,,,,
+28 In Channel Drain MB,PR1106,Ethan Roth,,85,,28 In Channel Drain MB,,28,5,3,,1,0,0,11,0,,,https://rflpos.com/product_images/1706904822_matte-black-oatey-shower-drains-dl32240-64_600.jpg,,,,,,,,,,,,,,,,
+"2cm 24.5""Carrara Wh Quartz Top",PR1310,Ethan Roth,,200,,<strong>Carrara White 2cm Top,,24.5,22,0.75,,1,0,0,0,0,,,,,,,,,,,,,,,,,,,
+"2cm 24.5""Pure Wh Quartz Top",PR1300,Ethan Roth,,250,,<strong>Pure White 2cm Top,,24.5,22,0.75,,1,0,0,6,0,,,,,,,,,,,,,,,,,,,
+"2cm 30.5""Calacatta Wh Quartz Top",PR1318,Ethan Roth,,250,,<strong>Calacatta White 2cm Top,,30.5,22,0.75,,1,0,0,0,0,,,,,,,,,,,,,,,,,,,
+"2cm 30.5""Carrara Wh Quartz Top",PR1311,Ethan Roth,,250,,<strong>Carrara White 2cm Top,,30.5,22,0.75,,1,0,0,1,0,,,,,,,,,,,,,,,,,,,
+"2cm 30.5""Pure Wh Quartz Top",PR1301,Ethan Roth,,225,,<strong>Pure White 2cm Top,,30.5,22,0.75,,1,0,0,0,0,,,,,,,,,,,,,,,,,,,
+"2cm 36.5""Calacatta Wh Quartz Top",PR1319,Ethan Roth,,350,,<strong>Calacatta White 2cm Top,,36.5,22,0.75,,1,0,0,6,0,,,,,,,,,,,,,,,,,,,
+"2cm 36.5""Carrara Wh Quartz Top",PR1312,Ethan Roth,,325,,<strong>Carrara White 2cm Top,,36.5,22,0.75,,1,0,0,0,0,,,,,,,,,,,,,,,,,,,
+"2cm 36.5""Pure Wh Quartz Top",PR1302,Ethan Roth,,250,,<strong>Pure White 2cm Top,,36.5,22,0.75,,1,0,0,1,0,,,,,,,,,,,,,,,,,,,
+"2cm 42.5""Calacatta Wh Quartz Top",PR1320,Ethan Roth,,425,,<strong>Calacatta White 2cm Top,,42.5,22,0.75,,1,0,0,13,0,,,,,,,,,,,,,,,,,,,
+"2cm 42.5""Carrara Wh Quartz Top",PR1313,Ethan Roth,,375,,<strong>Carrara White 2cm Top,,42.5,22,0.75,,1,0,0,11,0,,,,,,,,,,,,,,,,,,,
+"2cm 42.5""Pure Wh Quartz Top",PR1303,Ethan Roth,,300,,<strong>Pure White 2cm Top,,42.5,22,0.75,,1,0,0,6,0,,,,,,,,,,,,,,,,,,,
+"2cm 48.5""Calacatta Wh Quartz Top",PR1321,Ethan Roth,,450,,<strong>Calacatta White 2cm Top,,48.5,22,0.75,,1,0,0,3,0,,,,,,,,,,,,,,,,,,,
+"2cm 48.5""Carrara Wh Quartz Top",PR1314,Ethan Roth,,400,,<strong>Carrara White 2cm Top,,48.5,22,0.75,,1,0,0,0,0,,,,,,,,,,,,,,,,,,,
+"2cm 48.5""Pure Wh Quartz Top",PR1304,Ethan Roth,,325,,<strong>Pure White 2cm Top,,48.5,22,0.75,,1,0,0,0,0,,,,,,,,,,,,,,,,,,,
+"2cm 54.5""Pure Wh Quartz Top",PR1305,Ethan Roth,,400,,<strong>Pure White 2cm Top,,54.5,22,0.75,,1,0,0,15,0,,,,,,,,,,,,,,,,,,,
+"2cm 72.5""Calacatta Wh Quartz Top",PR1322,Ethan Roth,,725,,<strong>Calacatta White 2cm Top,,72.5,22,0.75,,1,0,0,15,0,,,,,,,,,,,,,,,,,,,
+"2cm 72.5""Carrara Wh Quartz Top",PR1316,Ethan Roth,,675,,<strong>Carrara White 2cm Top,,72.5,22,0.75,,1,0,0,6,0,,,,,,,,,,,,,,,,,,,
+"2cm 72.5""Pure Wh Quartz Top",PR1308,Ethan Roth,,550,,<strong>Pure White 2cm Top,,72.5,22,0.75,,1,0,0,0,0,,,,,,,,,,,,,,,,,,,
+"2cm Double 60.5""Pure Wh Quartz Top",PR1307,Ethan Roth,,450,,<strong>Pure White 2cm Top,,60.5,22,0.75,,1,0,0,9,0,,,,,,,,,,,,,,,,,,,
+2cm New B.Splash Calacatta Quartz Top,PR1317,Ethan Roth,,25,,<strong>Calacatta White 2cm Top,,,22,0.75,,1,0,0,36,0,,,,,,,,,,,,,,,,,,,
+2cm New B.Splash Carrara Wh Quartz Top,PR1309,Ethan Roth,,25,,<strong>Carrara White 2cm Top,,,22,0.75,,1,0,0,28,0,,,,,,,,,,,,,,,,,,,
+2cm New B.Splash Pure Wh Quartz Top,PR1299,Ethan Roth,,25,,<strong>Pure White 2cm Top,,,22,0.75,,1,0,0,45,0,,,,,,,,,,,,,,,,,,,
+"2cm Single 60.5""Carrara Wh Quartz Top",PR1315,Ethan Roth,,550,,<strong>Carrara White 2cm Top,,60.5,22,0.75,,1,0,0,0,0,,,,,,,,,,,,,,,,,,,
+"2cm Single 60.5""Pure Wh Quartz Top",PR1306,Ethan Roth,,450,,<strong>Pure White 2cm Top,,60.5,22,0.75,,1,0,0,12,0,,,,,,,,,,,,,,,,,,,
+2CM Stock Top 24.5 Inch,PR1132,Ethan Roth,,100,,<p>Custom Top 24.5 Inch</p>,,24.5,22,0.75,,1,0,0,0,0,,,https://rflpos.com/product_images/1709001150_2CM 24 Top.png,,,,,,,,,,,,,,,,
+2CM Stock Top 30.5 Inch,PR1133,Ethan Roth,,225,,<p>Custom Top 30 Inch</p>,,30.5,22,0.75,,1,0,0,0,0,,,https://rflpos.com/product_images/1709003072_2 CM 30 Top.png,,,,,,,,,,,,,,,,
+2CM Stock Top 36.5 Inch,PR1134,Ethan Roth,,250,,<p>Custom Top 36 Inch</p>,,36.5,22,0.75,,1,0,0,0,0,,,https://rflpos.com/product_images/1709003315_2CM 36 Top.png,,,,,,,,,,,,,,,,
+2CM Stock Top 42.5 Inch,PR1247,Ethan Roth,,325,,<p>Custom Top 42.5 Inch</p>,,42.5,22,0.75,,1,0,0,0,0,,,,,,,,,,,,,,,,,,,
+2CM Stock Top 48.5 Inch,PR1135,Ethan Roth,,350,,<p>Custom Top 48 Inch</p>,,48.5,22,0.75,,1,0,0,0,0,,,https://rflpos.com/product_images/1709004277_2CM 48 Top.png,,,,,,,,,,,,,,,,
+2CM Stock Top 53.5 Inch,PR1169,Ethan Roth,,450,,<p>Custom Top 53 Inch</p>,,53.5,22,0.75,,1,0,0,0,0,,,,,,,,,,,,,,,,,,,
+2CM Stock Top Double 60.5 Inch,PR1137,Ethan Roth,,300,,<p>Custom Top 60D Inch</p>,,60.5,22,0.75,,1,0,0,0,0,,,https://rflpos.com/product_images/1709005263_2 CM 60 Double top.png,,,,,,,,,,,,,,,,
+2CM Stock Top Double 72.5 Inch,PR1138,Ethan Roth,,650,,<p>Custom Top 72D Inch</p>,,72.5,22,0.75,,1,0,0,0,0,,,https://rflpos.com/product_images/1709005182_2 CM Double Top.png,,,,,,,,,,,,,,,,
+2CM Stock Top Single 60.5 Inch,PR1136,Ethan Roth,,450,,<p>Custom Top 60S Inch</p>,,60.5,22,0.75,,1,0,0,0,0,,,https://rflpos.com/product_images/1709004658_2 CM 60 Single Top.png,,,,,,,,,,,,,,,,
+3CM Woodgrain Vanity Top Tier 3,PR1148,Ethan Roth,,750,,<p>Woodgrain Vanity Top - similar to JM Arctic Fall top.</p>,,,22,0.75,,1,0,0,0,0,,,https://rflpos.com/product_images/1710839397_Arctic Fall 73 inch vanity counter top.webp,,,,,,,,,,,,,,,,
+4 In Channel Drain BG,PR1108,Ethan Roth,,35,,4 In Channel Drain BG,,4,4,3,,1,0,0,11,0,,,https://rflpos.com/product_images/1706904823_brushed-gold-oatey-shower-drains-ds32040bg-64_600.jpg,,,,,,,,,,,,,,,,
+4 In Channel Drain BN,PR1107,Ethan Roth,,0,,4 In Channel Drain BN,,4,4,3,,1,0,0,12,0,,,https://rflpos.com/product_images/1706904822_stainless-steel-oatey-shower-drains-dss2040r2-64_600.jpg,,,,,,,,,,,,,,,,
+4 In Channel Drain MB,PR1109,Ethan Roth,,0,,4 In Channel Drain MB,,4,4,3,,1,0,0,12,0,,,https://rflpos.com/product_images/1706904823_matte-black-oatey-shower-drains-ds32040-e1_600.jpg,,,,,,,,,,,,,,,,
+6 In Channel Drain BG,PR1111,Ethan Roth,,40,,6 In Channel Drain BG,,6,6,3,,1,0,0,13,0,,,https://rflpos.com/product_images/1706904823_brushed-gold-oatey-shower-drains-ds32040bg-64_600.jpg,,,,,,,,,,,,,,,,
+6 In Channel Drain BN,PR1110,Ethan Roth,,35,,6 In Channel Drain BN,,6,6,3,,1,0,0,14,0,,,https://rflpos.com/product_images/1706904823_stainless-steel-oatey-shower-drains-dss2040r2-64_600.jpg,,,,,,,,,,,,,,,,
+6 In Channel Drain MB,PR1112,Ethan Roth,,40,,6 In Channel Drain MB,,6,6,3,,1,0,0,13,0,,,https://rflpos.com/product_images/1706904823_matte-black-oatey-shower-drains-ds32040-e1_600.jpg,,,,,,,,,,,,,,,,
+A2532 Brushed Gold London Knob,100443,Ethan Roth,accessories,5,,A2532 Brushed Gold London Knob,,,,,,1,0,0,129,0,,,,,,,,,,,,,,,,,,,
+Bristol-23.5-NWA-BG,PR1268,Ethan Roth,vanities,0,,<p>Bristol-23.5-NWA-BG</p>,,,,,,1,0,0,0,0,,,,,,,,,,,,,,,,,,,
+Bristol-29.5-NWA-BG,PR1269,Ethan Roth,vanities,699.99,,<p>Bristol-29.5-NWA-BG</p>,,,,,,1,0,0,3,0,,,,,,,,,,,,,,,,,,,
+Bristol-35.5-NWA-BG,PR1270,Ethan Roth,vanities,849.99,,<p>Bristol-35.5-NWA-BG</p>,,,,,,1,0,0,9,0,,,,,,,,,,,,,,,,,,,
+Bristol-41.5-NWA-BG,PR1271,Ethan Roth,vanities,1099.99,,<p>Bristol-41.5-NWA-BG</p>,,,,,,1,0,0,11,0,,,,,,,,,,,,,,,,,,,
+Bristol-47.5-NWA-BG,PR1272,Ethan Roth,vanities,1079.99,,<p>Bristol-47.5-NWA-BG</p>,,,,,,1,0,0,9,0,,,,,,,,,,,,,,,,,,,
+Bristol-59.5D-NWA-BG,PR1273,Ethan Roth,vanities,1349.99,,<p>Bristol-59.5D-NWA-BG</p>,,,,,,1,0,0,9,0,,,,,,,,,,,,,,,,,,,
+Bristol-59.5S-NWA-BG,PR1274,Ethan Roth,vanities,1399.99,,<p>Bristol-59.5S-NWA-BG</p>,,,,,,1,0,0,7,0,,,,,,,,,,,,,,,,,,,
+Bristol-71.5-NWA-BG,PR1275,Ethan Roth,vanities,1499.99,,<p>Bristol-71.5-NWA-BG</p>,,,,,,1,0,0,6,0,,,,,,,,,,,,,,,,,,,
+Bristol-Bridge3DE-NWA-BG,PR1277,Ethan Roth,vanities,499.99,,<p>Bristol-Bridge-3DrawerExtension-NWA-BG</p>,,,,,,1,0,0,11,0,,,,,,,,,,,,,,,,,,,
+Bristol-BridgeMUCounter-NWA-BG,PR1276,Ethan Roth,vanities,399.99,,<p>Bristol-Bridge-MakeUpCounter-NWA-BG</p>,,,,,,1,0,0,12,0,,,,,,,,,,,,,,,,,,,
+Curvita Tub Filler BG,PR1117,Ethan Roth,,399,,<p>Curvita Tub Filler BG</p>,,,,,,1,0,0,2,0,,,https://rflpos.com/product_images/1706904824_miseno-109215-btf-bg-3102533.jpg,,,,,,,,,,,,,,,,
+Curvita Tub Filler BN,PR1116,Ethan Roth,,325,,<p>Curvita Tub Filler BN</p>,,,,,,1,0,0,2,0,,,https://rflpos.com/product_images/1706904824_miseno-mno194bn-brushed-nickel-pvd.jpg,,,,,,,,,,,,,,,,
+Curvita Tub Filler MB,PR1118,Ethan Roth,,275,,<p>Curvita Tub Filler MB</p>,,,,,,1,0,0,1,0,,,https://rflpos.com/product_images/1706904825_MNO194AFB-W-S.jpg,,,,,,,,,,,,,,,,
+Ethan Roth 24 x 32 in. Mirror in Desert Oak,PR1286,Ethan Roth,mirrors,99.99,,<p>Ethan Roth 24 x 32 in. Mirror in Desert Oak</p>,,,,,,1,0,0,18,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth 24 x 32 in. Mirror in Natural White Ash,PR1287,Ethan Roth,mirrors,99.99,,<p>Ethan Roth 24 x 32 in. Mirror in Natural White Ash</p>,,,,,,1,0,0,20,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth 24 x 32 in. Mirror in White,PR1285,Ethan Roth,mirrors,99.99,,<p>Ethan Roth 24 x 32 in. Mirror in White</p>,,,,,,1,0,0,18,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth 30 x 32 in. Mirror in Desert Oak,PR1290,Ethan Roth,mirrors,124.99,,<p>Ethan Roth 30 x 32 in. Mirror in Desert Oak</p>,,,,,,1,0,0,18,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth 30 x 32 in. Mirror in Natural White Ash,PR1291,Ethan Roth,mirrors,124.99,,<p>Ethan Roth 30 x 32 in. Mirror in Natural White Ash</p>,,,,,,1,0,0,19,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth 30 x 32 in. Mirror in White,PR1288,Ethan Roth,mirrors,75,,<p>Ethan Roth 30 x 32 in. Mirror in White</p>,,,,,,1,0,0,17,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth 42 x 32 in. Mirror in Desert Oak,PR1293,Ethan Roth,mirrors,149.99,,<p>Ethan Roth 42 x 32 in. Mirror in Desert Oak</p>,,,,,,1,0,0,19,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth 42 x 32 in. Mirror in Natural White Ash,PR1294,Ethan Roth,mirrors,0,,<p>Ethan Roth 42 x 32 in. Mirror in Natural White Ash</p>,,,,,,1,0,0,20,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth 42 x 32 in. Mirror in White,PR1292,Ethan Roth,mirrors,0,,<p>Ethan Roth 42 x 32 in. Mirror in White</p>,,,,,,1,0,0,20,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth 43 Inch Mirror *Discontinued*,PR0941,Ethan Roth,mirrors,100,,<p>Ethan Roth 43 Inch Mirror</p>,,,,,,1,0,0,0,0,,,https://rflpos.com/product_images/1704064403_Screenshot 2023-12-31 at 5.56.36 PM.png,,,,,,,,,,,,,,,,
+"Ethan Roth Calacatta White 24"" Countertop",100377,Ethan Roth,,350,,<p>Ethan Roth Calacatta White 24 Bridge</p>,,,,,,1,0,0,6,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Calacatta White 30 Inch,100378,Ethan Roth,,450,,Ethan Roth Calacatta White 30 Inch,,,,,,1,0,0,0,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Calacatta White 36 Inch,100379,Ethan Roth,,550,,Ethan Roth Calacatta White 36 Inch,,,,,,1,0,0,0,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Calacatta White 42 Inch,100380,Ethan Roth,,450,,Ethan Roth Calacatta White 42 Inch,,,,,,1,0,0,1,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Calacatta White 48 Inch,100381,Ethan Roth,,750,,Ethan Roth Calacatta White 48 Inch,,,,,,1,0,0,10,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Calacatta White 60D Inch,100383,Ethan Roth,,650,,Ethan Roth Calacatta White 60D Inch,,,,,,1,0,0,9,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Calacatta White 60S Inch,100382,Ethan Roth,,850,,Ethan Roth Calacatta White 60S Inch,,,,,,1,0,0,6,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Calacatta White 72 Inch,100384,Ethan Roth,,1050,,Ethan Roth Calacatta White 72 Inch,,,,,,1,0,0,3,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Carrara White 24 Bridge,100369,Ethan Roth,,300,,Ethan Roth Carrara White 24 Bridge,,,,,,1,0,0,1,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Carrara White 24 Top,PR1255,Ethan Roth,,300,,<p>Ethan Roth Carrara White 24 top</p>,,,,,,1,0,0,3,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Carrara White 30 Inch,100370,Ethan Roth,,375,,Ethan Roth Carrara White 30 Inch,,,,,,1,0,0,1,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Carrara White 36 Inch,100371,Ethan Roth,,450,,Ethan Roth Carrara White 36 Inch,,,,,,1,0,0,0,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Carrara White 42 Inch,100372,Ethan Roth,,525,,Ethan Roth Carrara White 42 Inch,,,,,,1,0,0,0,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Carrara White 48 Inch,100373,Ethan Roth,,600,,Ethan Roth Carrara White 48 Inch,,,,,,1,0,0,0,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Carrara White 60D Inch,100375,Ethan Roth,,750,,Ethan Roth Carrara White 60D Inch,,,,,,1,0,0,6,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Carrara White 60S Inch,100374,Ethan Roth,,750,,Ethan Roth Carrara White 60S Inch,,,,,,1,0,0,1,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Carrara White 72 Inch,100376,Ethan Roth,,900,,Ethan Roth Carrara White 72 Inch,,,,,,1,0,0,-1,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Panda White 24 Bridge,100385,Ethan Roth,,0,,Ethan Roth Panda White 24 Bridge,,,,,,1,0,0,4,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Panda White 30 Inch,100386,Ethan Roth,,450,,Ethan Roth Panda White 30 Inch,,,,,,1,0,0,2,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Panda White 36 Inch,100387,Ethan Roth,,550,,Ethan Roth Panda White 36 Inch,,,,,,1,0,0,0,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Panda White 42 Inch,100388,Ethan Roth,,650,,Ethan Roth Panda White 42 Inch,,,,,,1,0,0,8,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Panda White 48 Inch,100389,Ethan Roth,,750,,Ethan Roth Panda White 48 Inch,,,,,,1,0,0,1,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Panda White 60D Inch,100391,Ethan Roth,,807.5,,Ethan Roth Panda White 60D Inch,,,,,,1,0,0,1,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Panda White 60S Inch,100390,Ethan Roth,,850,,Ethan Roth Panda White 60S Inch,,,,,,1,0,0,5,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Panda White 72 Inch,100392,Ethan Roth,,900,,Ethan Roth Panda White 72 Inch,,,,,,1,0,0,2,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Pure White 24 Bridge,100361,Ethan Roth,,250,,Ethan Roth Pure White 24 Bridge,,,,,,1,0,0,1,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Pure White 24 Top,PR1254,Ethan Roth,,250,,<p>Ethan Roth Pure White 24 Top</p>,,,,,,1,0,0,6,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Pure White 30 Inch,100362,Ethan Roth,,325,,Ethan Roth Pure White 30 Inch,,,,,,1,0,0,3,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Pure White 36 Inch,100363,Ethan Roth,,400,,Ethan Roth Pure White 36 Inch,,,,,,1,0,0,1,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Pure White 42 Inch,100364,Ethan Roth,,475,,Ethan Roth Pure White 42 Inch,,,,,,1,0,0,0,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Pure White 48 Inch,100365,Ethan Roth,,550,,Ethan Roth Pure White 48 Inch,,,,,,1,0,0,0,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Pure White 60D Inch,100367,Ethan Roth,,625,,Ethan Roth Pure White 60D Inch,,,,,,1,0,0,6,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Pure White 60S Inch,100366,Ethan Roth,,625,,Ethan Roth Pure White 60S Inch,,,,,,1,0,0,6,0,,,,,,,,,,,,,,,,,,,
+Ethan Roth Pure White 72 Inch,100368,Ethan Roth,,775,,Ethan Roth Pure White 72 Inch,,,,,,1,0,0,0,0,,,,,,,,,,,,,,,,,,,
+K-1218 Brushed Nickel Gold Knobs,100445,Ethan Roth,accessories,5,,<p>K-1218 Brushed Nickel Gold Knobs</p>,,,,,,1,0,0,27,0,,,,,,,,,,,,,,,,,,,
+K-1218 Rose Gold Knobs,100444,Ethan Roth,accessories,3,,K-1218 Rose Gold Knobs,,,,,,1,0,0,116,0,,,,,,,,,,,,,,,,,,,
+Kensington-29.5L-DOAK-MB,Kensington-29.5L-DOAK-MB,Ethan Roth,vanities,699.99,,<p>Kensington-29.5L-DOAK-MB</p>,,,,,,1,0,0,5,0,,,,,,,,,,,,,,,,,,,
+Kensington-29.5L-MGR-BN,PR0973,Ethan Roth,vanities,699.99,,<p>Kensington-29.5L-MGR-BN</p>,,,,,,1,0,0,10,0,,,,,,,,,,,,,,,,,,,
+Kensington-29.5L-NVBLU-BG,PR0974,Ethan Roth,vanities,749.99,,<p>Kensington-29.5L-NVBLU-BG</p>,,,,,,1,0,0,6,0,,,,,,,,,,,,,,,,,,,
+Kensington-29.5L-WH-BN,PR0972,Ethan Roth,vanities,699.99,,<p>Kensington-29.5L-WH-BN</p>,,,,,,1,0,0,1,0,,,,,,,,,,,,,,,,,,,
+Kensington-29.5R-DOAK-MB,Kensington-29.5R-DOAK-MB,Ethan Roth,vanities,849.99,,<p>Kensington-29.5R-DOAK-MB</p>,,,,,,1,0,0,2,0,,,,,,,,,,,,,,,,,,,
+Kensington-29.5R-MGR-BN,PR0970,Ethan Roth,vanities,699.99,,<p>Kensington-29.5R-MGR-BN</p>,,,,,,1,0,0,16,0,,,,,,,,,,,,,,,,,,,
+Kensington-29.5R-NVBLU-BG,PR0971,Ethan Roth,vanities,699.99,,<p>Kensington-29.5R-NVBLU-BG</p>,,,,,,1,0,0,7,0,,,,,,,,,,,,,,,,,,,
+Kensington-29.5R-WH-BN,PR0969,Ethan Roth,vanities,699.99,,<p>Kensington-29.5R-WH-BN</p>,,,,,,1,0,0,1,0,,,,,,,,,,,,,,,,,,,
+Kensington-35.5L-DOAK-MB,Kensington-35.5L-DOAK-MB,Ethan Roth,vanities,974.99,,<p>Kensington-35.5L-DOAK-MB</p>,,,,,,1,0,0,8,0,,,,,,,,,,,,,,,,,,,
+Kensington-35.5L-MGR-BN,PR0979,Ethan Roth,vanities,799.99,,<p>Kensington-35.5L-MGR-BN</p>,,,,,,1,0,0,14,0,,,,,,,,,,,,,,,,,,,
+Kensington-35.5L-NVBLU-BG,PR0980,Ethan Roth,vanities,849.99,,<p>Kensington-35.5L-NVBLU-BG</p>,,,,,,1,0,0,12,0,,,,,,,,,,,,,,,,,,,
+Kensington-35.5L-WH-BN,PR0978,Ethan Roth,vanities,799.99,,<p>Kensington-35.5L-WH-BN</p>,,,,,,1,0,0,9,0,,,,,,,,,,,,,,,,,,,
+Kensington-35.5R-DOAK-MB,Kensington-35.5R-DOAK-MB,Ethan Roth,vanities,974.99,,<p>Kensington-35.5R-DOAK-MB</p>,,,,,,1,0,0,11,0,,,,,,,,,,,,,,,,,,,
+Kensington-35.5R-MGR-BN,PR0976,Ethan Roth,vanities,759.99,,<p>Kensington-35.5R-MGR-BN</p>,,,,,,1,0,0,1,0,,,,,,,,,,,,,,,,,,,
+Kensington-35.5R-NVBLU-BG,PR0977,Ethan Roth,vanities,849.99,,<p>Kensington-35.5R-NVBLU-BG</p>,,,,,,1,0,0,6,0,,,,,,,,,,,,,,,,,,,
+Kensington-35.5R-WH-BN,PR0975,Ethan Roth,vanities,799.99,,<p>Kensington-35.5L-WH-BN</p>,,,,,,1,0,0,2,0,,,,,,,,,,,,,,,,,,,
+Kensington-41.5-DOAK-MB,Kensington-41.5-DOAK-MB,Ethan Roth,vanities,1124.99,,<p>Kensington-41.5-DOAK-MB</p>,,,,,,1,0,0,4,0,,,,,,,,,,,,,,,,,,,
+Kensington-41.5-MGR-BN,PR0982,Ethan Roth,vanities,999.99,,<p>Kensington-41.5-MGR-BN</p>,,,,,,1,0,0,6,0,,,,,,,,,,,,,,,,,,,
+Kensington-41.5-NVBLU-BG,PR0983,Ethan Roth,vanities,1074.99,,<p>Kensington-41.5-NVBLU-BG</p>,,,,,,1,0,0,6,0,,,,,,,,,,,,,,,,,,,
+Kensington-41.5-WH-BN,PR0981,Ethan Roth,vanities,999.99,,<p>Kensington-41.5-WH-BN</p>,,,,,,1,0,0,5,0,,,,,,,,,,,,,,,,,,,
+Kensington-47.5-MGR-BN,PR0986,Ethan Roth,vanities,1274.99,,<p>Kensington-47.5-MGR-BN</p>,,,,,,1,0,0,6,0,,,,,,,,,,,,,,,,,,,
+Kensington-47.5-WH-BN,PR0985,Ethan Roth,vanities,1274.99,,<p>Kensington-47.5-WH-BN</p>,,,,,,1,0,0,5,0,,,,,,,,,,,,,,,,,,,
+Kensington-59.5D-MGR-BN,PR0988,Ethan Roth,vanities,1399.99,,<p>Kensington-59.5D-MGR-BN</p>,,,,,,1,0,0,7,0,,,,,,,,,,,,,,,,,,,
+Kensington-59.5D-WH-BN,PR0987,Ethan Roth,vanities,1399.99,,<p>Kensington-59.5D-WH-BN</p>,,,,,,1,0,0,2,0,,,,,,,,,,,,,,,,,,,
+Kensington-59.5S-MGR-BN,PR0990,Ethan Roth,vanities,1449.99,,<p>Kensington-59.5S-MGR-BN</p>,,,,,,1,0,0,2,0,,,,,,,,,,,,,,,,,,,
+Kensington-59S-WH-BN,PR0989,Ethan Roth,vanities,1449.99,,<p>Kensington-59S-WH-BN</p>,,,,,,1,0,0,1,0,,,,,,,,,,,,,,,,,,,
+Kensington-71.5-MGR-BN,PR0992,Ethan Roth,vanities,1549.99,,<p>Kensington-71.5-MGR-BN</p>,,,,,,1,0,0,7,0,,,,,,,,,,,,,,,,,,,
+Kensington-71.5-WH-BN,PR0991,Ethan Roth,vanities,1549.99,,<p>Kensington-71.5-WH-BN</p>,,,,,,1,0,0,4,0,,,,,,,,,,,,,,,,,,,
+Kensington-BridgeCabinet-DOAK-MB,Kensington-BridgeCabinet-DOAK-MB,Ethan Roth,vanities,349.99,,"<table width=""249"">
+<tbody>
+<tr>
+<td width=""249"">Kensington-BridgeCabinet-DOAK-MB</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Cabinet only- 299.99</strong></p>
+<p>&nbsp;</p>
+<p><strong>Bright White&nbsp;Bridge Cabinet for Ethan Roth&nbsp;Bathroom Vanity Set</strong></p>
+<p>&lt;p d</p>",,,,,,1,0,0,3,0,,,,,,,,,,,,,,,,,,,
+Kensington-BridgeCabinet-MG-BN,Kensington-BridgeCabinet-MG-BN,Ethan Roth,vanities,274.99,,"<p data-mce-fragment=""1""><strong data-mce-fragment=""1"">Cabinet only- 299.99</strong></p>
+<p data-mce-fragment=""1"">&nbsp;</p>
+<p data-mce-fragment=""1""><strong data-mce-fragment=""1"">Metal Gray Bridge Cabinet for Ethan Roth&nbsp;Bathroom Vanity Set</strong></p>
+<p>&lt;p dat</p>",,,,,,1,0,0,3,0,,,https://rflpos.com/product_images/1704041889_Kensington-84-GR_74ec1171-253d-47c3-8757-828f57c2fb4e.jpg,,,,,,,,,,,,,,,,
+Kensington-BridgeCabinet-NVBLU-BG,PR0984,Ethan Roth,vanities,349.99,,<p>Kensington-BridgeCabinet-NVBLU-BG</p>,,,,,,1,0,0,13,0,,,,,,,,,,,,,,,,,,,
+Kensington-BridgeCabinet-WH-BN,Kensington-BridgeCabinet-WH-BN,Ethan Roth,vanities,274.99,,"<p data-mce-fragment=""1""><strong data-mce-fragment=""1"">Cabinet only- 299.99</strong></p>
+<p data-mce-fragment=""1"">&nbsp;</p>
+<p data-mce-fragment=""1""><strong data-mce-fragment=""1"">Bright White&nbsp;Bridge Cabinet for Ethan Roth&nbsp;Bathroom Vanity Set</strong></p>
+<p>&lt;p d</p>",,,,,,1,0,0,2,0,,,https://rflpos.com/product_images/1704041889_Kensington-84-WH_6369892d-5175-47f6-aa6b-744a3cc88c52.jpg,,,,,,,,,,,,,,,,
+LA- Brushed Gold Windsor Pull (Long),100441,Ethan Roth,accessories,5,,LA- Brushed Gold Windsor Pull (Long),,,,,,1,0,0,28,0,,,,,,,,,,,,,,,,,,,
+LA- Brushed Gold Windsor Pull (Short),100442,Ethan Roth,accessories,0,,LA- Brushed Gold Windsor Pull (Short),,,,,,1,0,0,1,0,,,,,,,,,,,,,,,,,,,
+LA- Brushed Nickel Windsor Pull (Long),100439,Ethan Roth,accessories,5,,LA- Brushed Nickel Windsor Pull (Long),,,,,,1,0,0,214,0,,,,,,,,,,,,,,,,,,,
+LA- Brushed Nickel Windsor Pull (Short),100440,Ethan Roth,accessories,5,,LA- Brushed Nickel Windsor Pull (Short),,,,,,1,0,0,18,0,,,,,,,,,,,,,,,,,,,
+LA2218 Matte Black Knob,100436,Ethan Roth,accessories,5,,LA2218 Matte Black Knob,,,,,,1,0,0,88,0,,,,,,,,,,,,,,,,,,,
+LA2524 Gold Handle Pull Long,100432,Ethan Roth,accessories,5,,LA2524 Gold Handle Pull Long,,,,,,1,0,0,278,0,,,,,,,,,,,,,,,,,,,
+LA2524 Gold Handle Pull Short,100433,Ethan Roth,accessories,5,,LA2524 Gold Handle Pull Short,,,,,,1,0,0,135,0,,,,,,,,,,,,,,,,,,,
+LA2524 Matt Black Pull Short,100435,Ethan Roth,accessories,5,,LA2524 Matt Black Pull Short,,,,,,1,0,0,184,0,,,,,,,,,,,,,,,,,,,
+LA2524 Matte Black Pull Long,100434,Ethan Roth,accessories,5,,LA2524 Matte Black Pull Long,,,,,,1,0,0,280,0,,,,,,,,,,,,,,,,,,,
+LA2560 Brushed Gold Windsor Knob,100437,Ethan Roth,accessories,0,,LA2560 Brushed Gold Windsor Knob,,,,,,1,0,0,43,0,,,,,,,,,,,,,,,,,,,
+LA2560 Brushed Nickel Windsor Knob,100438,Ethan Roth,accessories,5,,LA2560 Brushed Nickel Windsor Knob,,,,,,1,0,0,87,0,,,,,,,,,,,,,,,,,,,
+Layla Slipper 59 031D-59 - 2.21.24,PR1094,Ethan Roth,,599.99,,<p>Layla Slipper 59 - 2.21.24</p>,,,,,,1,0,0,0,0,,,https://rflpos.com/product_images/1708628076_031D-S59&67 (3).jpg,,,,,,,,,,,,,,,,
+Layla Slipper 67 031D-S/67 - 2.21.24,PR1095,Ethan Roth,,799.99,,<p>Layla Slipper 67 - 2.21.25</p>,,,,,,1,0,0,2,0,,,https://rflpos.com/product_images/1708712390_031D-S59&67 (3).jpg,,,,,,,,,,,,,,,,
+Linear Shower Drain 24-Inch In Brushed Gold,100308,Ethan Roth,,60,,"<ul class=""a-unordered-list a-vertical a-spacing-mini"" data-mce-fragment=""1"">
+<li class=""a-spacing-mini""><span class=""a-list-item"">„ÄêLinear Shower Drain Size„Äë The size of Black linear drain is 24 inches in length and 2.75 inches in width. The diameter ",,,,,,1,0,0,3,0,,,https://rflpos.com/product_images/1704042550_60016072.jpg,,,,,,,,,,,,,,,,
+Linear Shower Drain 24-Inch In Brushed Nickel,100309,Ethan Roth,,80,,"<ul class=""a-unordered-list a-vertical a-spacing-mini"" data-mce-fragment=""1"">
+<li class=""a-spacing-mini""><span class=""a-list-item"">„ÄêLinear Shower Drain Size„Äë The size of Black linear drain is 24 inches in length and 2.75 inches in width. The diameter ",,,,,,1,0,0,23,0,,,https://rflpos.com/product_images/1704042550_71OfMeJNfkL._AC_SL1500.jpg,,,,,,,,,,,,,,,,
+Linear Shower Drain 24-Inch In Matte Black,100310,Ethan Roth,,40,,"<ul class=""a-unordered-list a-vertical a-spacing-mini"" data-mce-fragment=""1"">
+<li class=""a-spacing-mini""><span class=""a-list-item"">„ÄêLinear Shower Drain Size„Äë The size of Black linear drain is 24 inches in length and 2.75 inches in width. The diameter ",,,,,,1,0,0,17,0,,,https://rflpos.com/product_images/1704042550_51dgIFUix2L._AC_SL1000.jpg,,,,,,,,,,,,,,,,
+Linear Shower Drain 24-Inch In Polished Nickel/ Nickel,100311,Ethan Roth,,80,,"<ul class=""a-unordered-list a-vertical a-spacing-mini"" data-mce-fragment=""1"">
+<li class=""a-spacing-mini"" data-mce-fragment=""1""><span class=""a-list-item"" data-mce-fragment=""1"">Linear Shower Drain Size:24"" length, 2.75"" width, 2"" central outlet. 36 L/min Hi",,,,,,1,0,0,28,0,,,https://rflpos.com/product_images/1704042550_71OfMeJNfkL._AC_SL1500.jpg,,,,,,,,,,,,,,,,
+Linear Square Shower Drain Brushed Gold,100312,Ethan Roth,,40,,Linear Square Shower Drain Brushed Gold,,,,,,1,0,0,3,0,,,https://rflpos.com/product_images/1704042550_brushed-gold-oatey-shower-drains-ds32040bg-40_600.jpg,,,,,,,,,,,,,,,,
+Linear Square Shower Drain Brushed Nickel,100313,Ethan Roth,,30,,Linear Square Shower Drain Brushed Nickel,,,,,,1,0,0,15,0,,,"https://rflpos.com/product_images/1704042550_518ZhRrzakL._AC_UF894,1000_QL80_.jpg",,,,,,,,,,,,,,,,
+Linear Square Shower Drain Matte Black,100314,Ethan Roth,,35,,Linear Square Shower Drain Matte Black,,,,,,1,0,0,13,0,,,https://rflpos.com/product_images/1704042550_matte-black-oatey-shower-drains-ds32040-40_600.jpg,,,,,,,,,,,,,,,,
+Linear Square Shower Drain Polished Nickel/ Nickel,100315,Ethan Roth,,30,,Linear Square Shower Drain Polished Nickel/ Nickel,,,,,,1,0,0,18,0,,,"https://rflpos.com/product_images/1704042550_518ZhRrzakL._AC_UF894,1000_QL80_.jpg",,,,,,,,,,,,,,,,
+London-23.5-DOAK-MB,PR0994,Ethan Roth,vanities,574.99,,<p>London-23.5-DOAK-MB</p>,,,,,,1,0,0,13,0,,,,,,,,,,,,,,,,,,,
+London-23.5-WH-BN,PR0993,Ethan Roth,vanities,424.99,,<p>London-23.5-WH-BN</p>,,,,,,1,0,0,1,0,,,,,,,,,,,,,,,,,,,
+London-29-WH-BN,PR0995,Ethan Roth,vanities,367.49,,<p>London-29-WH-BN</p>,,,,,,1,0,0,1,0,,,,,,,,,,,,,,,,,,,
+London-29.5-DOAK-MB,PR0996,Ethan Roth,vanities,474.99,,<p>London-29.5-DOAK-MB</p>,,,,,,1,0,0,5,0,,,,,,,,,,,,,,,,,,,
+London-35.5R-DOAK-MB,PR0998,Ethan Roth,vanities,719.99,,<p>London-35.5R-DOAK-MB</p>,,,,,,1,0,0,1,0,,,,,,,,,,,,,,,,,,,
+London-35.5R-WH-BN,PR0997,Ethan Roth,vanities,649.99,,<p>London-35.5R-WH-BN</p>,,,,,,1,0,0,6,0,,,,,,,,,,,,,,,,,,,
+London-47.5-DOAK-MB,PR1000,Ethan Roth,vanities,1149.99,,<p>London-47.5-DOAK-MB</p>,,,,,,1,0,0,2,0,,,,,,,,,,,,,,,,,,,
+London-47.5-WH-BN,PR0999,Ethan Roth,vanities,999.99,,<p>London-47.5-WH-BN</p>,,,,,,1,0,0,2,0,,,,,,,,,,,,,,,,,,,
+London-59.5D-DOAK-MB,PR1002,Ethan Roth,vanities,1324.99,,<p>London-59.5D-DOAK-MB</p>,,,,,,1,0,0,4,0,,,,,,,,,,,,,,,,,,,
+London-59.5D-WH-BN,PR1001,Ethan Roth,vanities,1199.99,,<p>London-59.5D-WH-BN</p>,,,,,,1,0,0,4,0,,,,,,,,,,,,,,,,,,,
+London-59.5S-DOAK-MB,PR1004,Ethan Roth,vanities,1374.99,,<p>London-59.5S-DOAK-MB</p>,,,,,,1,0,0,0,0,,,,,,,,,,,,,,,,,,,
+London-59.5S-WH-BN,PR1003,Ethan Roth,vanities,1274.99,,<p>London-59.5S-WH-BN</p>,,,,,,1,0,0,5,0,,,,,,,,,,,,,,,,,,,
+London-71.5-DOAK-MB,PR1006,Ethan Roth,vanities,1399,,<p>London-71.5-DOAK-MB</p>,,,,,,1,0,0,2,0,,,,,,,,,,,,,,,,,,,
+London-71.5-WH-BN,PR1005,Ethan Roth,vanities,1349.99,,<p>London-71.5-WH-BN</p>,,,,,,1,0,0,1,0,,,,,,,,,,,,,,,,,,,
+London-Bridge3DE-Doak-MB,PR1281,Ethan Roth,vanities,499.99,,<p>London-Bridge3DrawerExtensionCabinet-Doak-MB</p>,,,,,,1,0,0,12,0,,,,,,,,,,,,,,,,,,,
+London-Bridge3DE-Wh-BN,PR1282,Ethan Roth,vanities,399.99,,<p>London-Bridge3DrawerExtension-Wh-BN</p>,,,,,,1,0,0,11,0,,,,,,,,,,,,,,,,,,,
+London-BridgeHutch-Doak-MB,PR1283,Ethan Roth,vanities,449.99,,<p>London-BridgeHutch-Doak-MB</p>,,,,,,1,0,0,12,0,,,,,,,,,,,,,,,,,,,
+London-BridgeHutch-Wh-BN,PR1284,Ethan Roth,vanities,349.99,,<p>London-BridgeHutch-Wh-BN</p>,,,,,,1,0,0,8,0,,,,,,,,,,,,,,,,,,,
+London-BridgeMUCabinet-Doak-MB,PR1280,Ethan Roth,vanities,299.99,,<p>London-BridgeMakeUpCabinet-Doak-MB</p>,,,,,,1,0,0,12,0,,,,,,,,,,,,,,,,,,,
+London-BridgeMUCabinet-Wh-BN,PR1279,Ethan Roth,vanities,299.99,,<p>London-BridgeMakeUpCabinet-Wh-BN</p>,,,,,,1,0,0,11,0,,,,,,,,,,,,,,,,,,,
+Mere 59 - 2.21.24,PR1096,Ethan Roth,,749.99,,<p>Mere 59 - 2.21.24</p>,,,,,,1,0,0,4,0,,,https://rflpos.com/product_images/1708628140_025D-S67 (3).jpg,,,,,,,,,,,,,,,,
+Mere 67 - 2.21.25,PR1097,Ethan Roth,,799.99,,<p>Mere 67 - 2.21.25</p>,,,,,,1,0,0,0,0,,,https://rflpos.com/product_images/1708628164_025D-S67 (3).jpg,,,,,,,,,,,,,,,,
+Moderna Tub Filler BG,PR1114,Ethan Roth,,399,,<p>Moderna Tub Filler BG</p>,,,,,,1,0,0,3,0,,,"https://rflpos.com/product_images/1706904823_517UF3Y16nL._AC_UF894,1000_QL80_.jpg",,,,,,,,,,,,,,,,
+Moderna Tub Filler BN,PR1113,Ethan Roth,,275,,<p>Moderna Tub Filler BN</p>,,,,,,1,0,0,2,0,,,https://rflpos.com/product_images/1706904823_brushed-nickel-wellfor-claw-foot-tub-faucets-wn0855-64_600.jpg,,,,,,,,,,,,,,,,
+Moderna Tub Filler MB,PR1115,Ethan Roth,,399,,<p>Moderna Tub Filler MB</p>,,,,,,1,0,0,2,0,,,https://rflpos.com/product_images/1706904823_https%3A%2F%2Fslimages.macysassets.com%2Fis%2Fimage%2FMCY%2Fproducts%2F5%2Foptimized%2F26104965_fpx.tif%3Fwid%3D1200%26fmt%3Djpeg%26qlt%3D100_large.webp,,,,,,,,,,,,,,,,
+Oxford-29.5-BLK-BG,PR1024,Ethan Roth,vanities,624.99,,<p>Oxford-29.5-BLK-BG</p>,,,,,,1,0,0,2,0,,,,,,,,,,,,,,,,,,,
+Oxford-29.5-CAMGRN-BG,PR1023,Ethan Roth,vanities,624.99,,<p>Oxford-29.5-CAMGRN-BG</p>,,,,,,1,0,0,9,0,,,,,,,,,,,,,,,,,,,
+Oxford-29.5-WA-MB,PR1264,Ethan Roth,vanities,749.99,,<p>Oxford-29.5-WA-MB</p>,,,,,,1,0,0,10,0,,,,,,,,,,,,,,,,,,,
+Oxford-35.5-BLK-BG,PR1026,Ethan Roth,vanities,749.99,,<p>Oxford-35.5-BLK-BG</p>,,,,,,1,0,0,8,0,,,,,,,,,,,,,,,,,,,
+Oxford-35.5-CAMGRN-BG,PR1025,Ethan Roth,vanities,749.99,,<p>Oxford-35.5-CAMGRN-BG</p>,,,,,,1,0,0,11,0,,,,,,,,,,,,,,,,,,,
+Oxford-35.5-WA-MB,PR1265,Ethan Roth,vanities,849.99,,<p>Oxford-35.5-WA-MB</p>,,,,,,1,0,0,10,0,,,,,,,,,,,,,,,,,,,
+Oxford-41.5-BLK-BG,PR1028,Ethan Roth,vanities,924.99,,<p>Oxford-41.5-BLK-BG</p>,,,,,,1,0,0,3,0,,,,,,,,,,,,,,,,,,,
+Oxford-41.5-CAMGRN-BG,PR1027,Ethan Roth,vanities,924.99,,<p>Oxford-41.5-CAMGRN-BG</p>,,,,,,1,0,0,8,0,,,,,,,,,,,,,,,,,,,
+Oxford-41.5-WA-MB,PR1266,Ethan Roth,vanities,922.49,,<p>Oxford-41.5-WA-MB</p>,,,,,,1,0,0,9,0,,,,,,,,,,,,,,,,,,,
+Oxford-47-CAMGRN-BG,PR1029,Ethan Roth,vanities,944.99,,<p>Oxford-47-CAMGRN-BG</p>,,,,,,1,0,0,10,0,,,,,,,,,,,,,,,,,,,
+Oxford-47.5-BLK-BG,PR1030,Ethan Roth,vanities,1049.99,,<p>Oxford-47.5-BLK-BG</p>,,,,,,1,0,0,6,0,,,,,,,,,,,,,,,,,,,
+Oxford-47.5-WA-MB,PR1267,Ethan Roth,vanities,1034.99,,<p>Oxford-47.5-WA-MB</p>,,,,,,1,0,0,12,0,,,,,,,,,,,,,,,,,,,
+P-92926 Rose Gold Windsor Pull,100446,Ethan Roth,accessories,0,,P-92926 Rose Gold Windsor Pull,,,,,,1,0,0,56,0,,,,,,,,,,,,,,,,,,,
+"Sarah 63""x30"" Freestanding Soaking bathtub",100301,Ethan Roth,,749.99,,"<p><span data-mce-fragment=""1"">The&not;&dagger;Sarah&not;&dagger;63 inch stand alone flat bottom bathtub is designed with an attention to detail and quality, and focused on bathing comfort. With a wider-than-standard tear drop shape and softly contoured sides, this&not;&dagger;attractive ba</span></p>",,,,,,1,0,0,1,0,,,https://rflpos.com/product_images/1704042550_092D-S63_1_4e6df2ec-03ac-4801-a51c-1d41c638d748.jpg,,,,,,,,,,,,,,,,
+"Schon Lyndsay Premium 60"" Rolling Shower Glass Doors - Chrome",100302,Ethan Roth,,550,,"<span data-mce-fragment=""1"">The Lindsay 60 in. Shower Door was made using ultramodern technology for a smooth and sleek design. The frameless glass creates a striking upgrade for any bathroom, and the reversible design can be installed to open on the left",,,,,,1,0,0,34,0,,,https://rflpos.com/product_images/1704042550_Renovate-for-Less-Outlet-Schon-Premium-60--Rolling-Shower-Glass-Doors-Renovate-for-Less-Outlet-1657849200.jpg,,,,,,,,,,,,,,,,
+Sofi 60 in. x 79 in. Frameless Rolling Shower Door in Black,100303,Ethan Roth,,849.99,,"<meta charset=""utf-8""><span>This shower glass panel stuns with an elegant black frame design that rivals custom glass for an amazing value. The stylish black hardware is a perfect mix of exceptional quality and cool urban style. Premium-3/8 in. thick temp",,,,,,1,0,0,63,0,,,https://rflpos.com/product_images/1704042550_21-2G-6079-MB_1.jpg,,,,,,,,,,,,,,,,
+Sofi 60 in. x 79 in. Frameless Rolling Shower Door in Brushed Nickel,100304,Ethan Roth,,599.99,,"<meta charset=""utf-8""><span>This shower glass panel stuns with an elegant¬†Brushed¬†Nickel¬†design that rivals custom glass for an amazing value. The stylish black hardware is a perfect mix of exceptional quality and cool urban style. Premium-3/8 in. thic",,,,,,1,0,0,56,0,,,https://rflpos.com/product_images/1704042550_21-2G-6079-BN_1.jpg,,,,,,,,,,,,,,,,
+Sofi 60 in. x 79 in. Frameless Rolling Shower Door in Champaign Gold,100305,Ethan Roth,,849.99,,"<meta charset=""utf-8""><span>This shower glass panel stuns with an elegant¬†Brushed Gold design that rivals custom glass for an amazing value. The stylish black hardware is a perfect mix of exceptional quality and cool urban style. Premium-3/8 in. thick te",,,,,,1,0,0,21,0,,,https://rflpos.com/product_images/1704042550_21-2G-6079-BG_1.jpg,,,,,,,,,,,,,,,,
+Stock Top Single 60 Inch,PR1149,Ethan Roth,,750,,<p>Custom Top 55-63 Inch Sink</p>,,,,,,1,0,0,0,0,,,https://rflpos.com/product_images/1710843519_60 S top.png,,,,,,,,,,,,,,,,
+Summer 67 025D-S- 2.21.24,PR1098,Ethan Roth,,799.99,,<p>Summer 67 - 2.21.24</p>,,,,,,1,0,0,14,0,,,https://rflpos.com/product_images/1706904821_white-polished-chrome-vanity-art-freestanding-tubs-va6817-64_400.jpg,,,,,,,,,,,,,,,,
+Trish 59 - 2.21.24,PR1092,Ethan Roth,,749.99,,<p>Trish 59 - 2.21.24</p>,,,,,,1,0,0,0,0,,,https://rflpos.com/product_images/1706904820_020D-S59_S67verticalview_1024x1024@2x.jpg,,,,,,,,,,,,,,,,
+Trish 67 - 2.21.25,PR1093,Ethan Roth,,799.99,,<p>Trish 67 - 2.21.24</p>,,,,,,1,0,0,3,0,,,https://rflpos.com/product_images/1706904820_020D-S59_S67verticalview_1024x1024@2x.jpg,,,,,,,,,,,,,,,,
+Tub Drain Hardware/BG,PR1100,Ethan Roth,,39.99,,Tub Drain Hardware/BG,,,,,,1,0,0,0,0,,,https://rflpos.com/product_images/1706904821_1699_1.jpg,,,,,,,,,,,,,,,,
+Tub Drain Hardware/MB,PR1099,Ethan Roth,,39.99,,Tub Drain Hardware/MB,,,,,,1,0,0,0,0,,,https://rflpos.com/product_images/1706904821_mebafjwntvrx.jpg,,,,,,,,,,,,,,,,
+Windsor-29.5-NVBLU-BG,PR1008,Ethan Roth,vanities,624.99,,<p>Windsor-29.5-NVBLU-BG</p>,,,,,,1,0,0,5,0,,,,,,,,,,,,,,,,,,,
+Windsor-29.5-WH-BN,PR1007,Ethan Roth,vanities,574.99,,<p>Windsor-29.5-WH-BN</p>,,,,,,1,0,0,12,0,,,,,,,,,,,,,,,,,,,
+Windsor-35.5L-NVBLU-BG,PR1012,Ethan Roth,vanities,799.99,,<p>Windsor-35.5L-NVBLU-BG</p>,,,,,,1,0,0,7,0,,,,,,,,,,,,,,,,,,,
+Windsor-35.5L-WH-BN,PR1011,Ethan Roth,vanities,749.99,,<p>Windsor-35.5L-WH-BN</p>,,,,,,1,0,0,6,0,,,,,,,,,,,,,,,,,,,
+Windsor-35.5R-NVBLU-BG,PR1010,Ethan Roth,vanities,799.99,,<p>Windsor-35.5R-NVBLU-BG</p>,,,,,,1,0,0,3,0,,,,,,,,,,,,,,,,,,,
+Windsor-35.5R-WH-BN,PR1009,Ethan Roth,vanities,749.99,,<p>Windsor-35.5R-WH-BN</p>,,,,,,1,0,0,3,0,,,,,,,,,,,,,,,,,,,
+Windsor-47.5-NVBLU-BG,PR1014,Ethan Roth,vanities,999.99,,<p>Windsor-47.5-NVBLU-BG</p>,,,,,,1,0,0,2,0,,,,,,,,,,,,,,,,,,,
+Windsor-47.5-WH-BN,PR1013,Ethan Roth,vanities,1049.99,,<p>Windsor-47.5-WH-BN</p>,,,,,,1,0,0,1,0,,,,,,,,,,,,,,,,,,,
+Windsor-59.5D-WH-BN,PR1015,Ethan Roth,vanities,1274.99,,<p>Windsor-59.5D-WH-BN</p>,,,,,,1,0,0,8,0,,,,,,,,,,,,,,,,,,,
+Windsor-59.5S-NVBLU-BG,PR1018,Ethan Roth,vanities,1399.99,,<p>Windsor-59.5S-NVBLU-BG</p>,,,,,,1,0,0,8,0,,,,,,,,,,,,,,,,,,,
+Windsor-59.5S-WH-BN,PR1017,Ethan Roth,vanities,1324.99,,<p>Windsor-59.5S-WH-BN</p>,,,,,,1,0,0,4,0,,,,,,,,,,,,,,,,,,,
+Windsor-59D-NVBLU-BG,PR1016,Ethan Roth,vanities,944.99,,<p>Windsor-59D-NVBLU-BG</p>,,,,,,1,0,0,6,0,,,,,,,,,,,,,,,,,,,
+Windsor-71.5-NVBLU-BG,PR1020,Ethan Roth,vanities,1549.99,,<p>Windsor-71.5-NVBLU-BG</p>,,,,,,1,0,0,0,0,,,,,,,,,,,,,,,,,,,
+Windsor-71.5-WH-BN,PR1019,Ethan Roth,vanities,1449.99,,<p>Windsor-71.5-WH-BN</p>,,,,,,1,0,0,1,0,,,,,,,,,,,,,,,,,,,
+Windsor-LC-NVBLU-BG,PR1022,Ethan Roth,vanities,749.99,,<p>Windsor-LC-NVBLU-BG</p>,,,,,,1,0,0,12,0,,,,,,,,,,,,,,,,,,,
+Windsor-LC-WH-BN,PR1021,Ethan Roth,vanities,849.99,,<p>Windsor-LC-WH-BN</p>,,,,,,1,0,0,0,0,,,,,,,,,,,,,,,,,,,
+Dallas-23.5-BLK-BG,PR1077,Nearme,vanities,399.99,,<p>Dallas-23.5-BLK-BG</p>,,,,,,1,0,0,5,0,,,,,,,,,,,,,,,,,,,
+Dallas-23.5-VNGRN-BG,PR1078,Nearme,vanities,399.99,,<p>Dallas-23.5-VNGRN-BG</p>,,,,,,1,0,0,1,0,,,,,,,,,,,,,,,,,,,
+Dallas-29.5-BLK-BG,PR1079,Nearme,vanities,449.99,,<p>Dallas-29.5-BLK-BG</p>,,,,,,1,0,0,6,0,,,,,,,,,,,,,,,,,,,
+Dallas-29.5-VNGRN-BG,PR1080,Nearme,vanities,449.99,,<p>Dallas-29.5-VNGRN-BG</p>,,,,,,1,0,0,0,0,,,,,,,,,,,,,,,,,,,
+Dallas-35.5-BLK-BG,PR1081,Nearme,vanities,549.99,,<p>Dallas-35.5-BLK-BG</p>,,,,,,1,0,0,9,0,,,,,,,,,,,,,,,,,,,
+Dallas-35.5-VNGRN-BG,PR1082,Nearme,vanities,494.99,,<p>Dallas-35.5-VNGRN-BG</p>,,,,,,1,0,0,7,0,,,,,,,,,,,,,,,,,,,
+Dallas-47.5-BLK-BG,Dallas-47.5-BLK-BG,Nearme,vanities,799.99,,"<table width=""239"">
+<tbody>
+<tr>
+<td width=""239"">Dallas-47.5-BLK-BG</td>
+</tr>
+</tbody>
+</table>",,,,,,1,0,0,7,0,,,https://rflpos.com/product_images/1727177773_Dallas 47.5 Black.webp,,,,,,,,,,,,,,,,
+Dallas-47.5-VNGRN-BG,Dallas-47.5-VNGRN-BG,Nearme,vanities,799.99,,<p>Dallas-47.5-VNGRN-BG</p>,,,,,,1,0,0,3,0,,,https://rflpos.com/product_images/1727178722_Screenshot 2024-09-24 at 7.51.01 AM.png,,,,,,,,,,,,,,,,
+Dallas-47.5-WH-BN,Dallas-47.5-WH-BN,Nearme,vanities,719.99,,"<table width=""239"">
+<tbody>
+<tr>
+<td width=""239"">Dallas-47.5-WH-BN</td>
+</tr>
+</tbody>
+</table>",,,,,,1,0,0,8,0,,,https://rflpos.com/product_images/1727178900_Dallas 47.5 White.jpeg,,,,,,,,,,,,,,,,
+Miami-23.5-LTGR-BN,PR1066,Nearme,vanities,399.99,,<p>Miami-23.5-LTGR-BN</p>,,,,,,1,0,0,12,0,,,,,,,,,,,,,,,,,,,
+Miami-23.5-WH-BN,PR1065,Nearme,vanities,399.99,,<p>Miami-23.5-WH-BN</p>,,,,,,1,0,0,7,0,,,https://rflpos.com/product_images/1707099650_Miami 24 Wh.png,,,,,,,,,,,,,,,,
+Miami-29-LTGR-BN,PR1068,Nearme,vanities,449.99,,<p>Miami-29-LTGR-BN</p>,,,,,,1,0,0,11,0,,,,,,,,,,,,,,,,,,,
+Miami-29.5-WH-BN,PR1067,Nearme,vanities,449.99,,<p>Miami-29.5-WH-BN</p>,,,,,,1,0,0,7,0,,,https://rflpos.com/product_images/1707099682_Miami 30 Wht.png,,,,,,,,,,,,,,,,
+Miami-35.5-LTGR-BN,PR1070,Nearme,vanities,449.99,,<p>Miami-35.5-LTGR-BN</p>,,,,,,1,0,0,12,0,,,,,,,,,,,,,,,,,,,
+Miami-35.5-WH-BN,PR1069,Nearme,vanities,549.99,,<p>Miami-35.5-WH-BN</p>,,,,,,1,0,0,10,0,,,https://rflpos.com/product_images/1707099722_Miami 36 Wht.png,,,,,,,,,,,,,,,,
+NewYork-23.5-DKBLU-BG,PR1072,Nearme,vanities,449.99,,<p>NewYork-23.5-DKBLU-BG</p>,,,,,,1,0,0,6,0,,,,,,,,,,,,,,,,,,,
+NewYork-23.5-WH-BN,PR1071,Nearme,vanities,324.99,,<p>NewYork-23.5-WH-BN</p>,,,,,,1,0,0,5,0,,,https://rflpos.com/product_images/1707099771_New York 24 Wht.png,,,,,,,,,,,,,,,,
+NewYork-29.5-DKBLU-BG,PR1074,Nearme,vanities,361.25,,<p>NewYork-29.5-DKBLU-BG</p>,,,,,,1,0,0,12,0,,,,,,,,,,,,,,,,,,,
+NewYork-29.5-WH-BN,PR1073,Nearme,vanities,349.99,,<p>NewYork-29.5-WH-BN</p>,,,,,,1,0,0,10,0,,,https://rflpos.com/product_images/1707099814_New York 30 Wht.png,,,,,,,,,,,,,,,,
+NewYork-35.5-DKBLU-BG,PR1076,Nearme,vanities,449.99,,<p>NewYork-35.5-DKBLU-BG</p>,,,,,,1,0,0,4,0,,,,,,,,,,,,,,,,,,,
+NewYork-35.5-WH-BN,PR1075,Nearme,vanities,499.99,,<p>NewYork-35.5-WH-BN</p>,,,,,,1,0,0,6,0,,,https://rflpos.com/product_images/1707099849_New York 36 Wht.png,,,,,,,,,,,,,,,,

@@ -20,6 +20,7 @@ router.get('/', ctrl.dashboard);
 router.get ('/products',                                          ctrl.productList);
 router.get ('/products/export.csv',                               ctrl.productExport);
 router.post('/products/import',  ctrl.productImportMiddleware,    ctrl.productImport);
+router.post('/products/bulk',                                     ctrl.productBulkAction);
 router.get ('/products/new',                                      ctrl.productNew);
 router.post('/products',                                          ctrl.productCreate);
 router.get ('/products/:id/edit',                                 ctrl.productEdit);

@@ -138,47 +138,125 @@ const PER_PAGE = 20;
 exports.productList = async (req, res, next) => {
   try {
     const page   = Math.max(1, parseInt(req.query.page) || 1);
-    const search = (req.query.q || '').trim();
     const offset = (page - 1) * PER_PAGE;
 
-    let where = '';
-    let params = [];
+    // ── Parse filter params ──────────────────────────────────────────
+    const search     = (req.query.q || '').trim();
+    const fCategory  = req.query.category_id ? parseInt(req.query.category_id) : null;
+    const fBrands    = [].concat(req.query.brand  || []).filter(Boolean);
+    const fIsActive  = (req.query.is_active !== undefined && req.query.is_active !== '')
+                         ? parseInt(req.query.is_active) : null;
+    const fStatus    = (req.query.status || '').trim() || null;
+    const fSource    = (req.query.source_flag || '').trim() || null;
+    const fPriceMin  = req.query.price_min ? parseFloat(req.query.price_min) : null;
+    const fPriceMax  = req.query.price_max ? parseFloat(req.query.price_max) : null;
+    const fInStock   = req.query.in_stock === '1';
+    const sort       = req.query.sort || 'newest';
+
+    // ── Build WHERE clause ───────────────────────────────────────────
+    const clauses = [];
+    const qParams = [];
+
     if (search) {
-      where = 'WHERE p.name LIKE ? OR p.sku LIKE ? OR p.brand LIKE ?';
+      clauses.push('(p.name LIKE ? OR p.sku LIKE ? OR p.brand LIKE ? OR p.vendor_sku LIKE ?)');
       const like = `%${search}%`;
-      params = [like, like, like];
+      qParams.push(like, like, like, like);
+    }
+    if (fCategory !== null) {
+      clauses.push('p.category_id = ?');
+      qParams.push(fCategory);
+    }
+    if (fBrands.length) {
+      clauses.push(`p.brand IN (${fBrands.map(() => '?').join(',')})`);
+      qParams.push(...fBrands);
+    }
+    if (fIsActive !== null) {
+      clauses.push('p.is_active = ?');
+      qParams.push(fIsActive);
+    }
+    if (fStatus) {
+      clauses.push('p.status = ?');
+      qParams.push(fStatus);
+    }
+    if (fSource) {
+      clauses.push('p.source_flag = ?');
+      qParams.push(fSource);
+    }
+    if (fPriceMin !== null) {
+      clauses.push('p.price >= ?');
+      qParams.push(fPriceMin);
+    }
+    if (fPriceMax !== null) {
+      clauses.push('p.price <= ?');
+      qParams.push(fPriceMax);
+    }
+    if (fInStock) {
+      clauses.push('(COALESCE(i.qty_on_hand, 0) > 0 OR COALESCE(i.allow_backorder, 0) = 1)');
     }
 
+    const where = clauses.length ? 'WHERE ' + clauses.join(' AND ') : '';
+
+    // Sort
+    const sortMap = {
+      newest:     'p.id DESC',
+      name_asc:   'p.name ASC',
+      name_desc:  'p.name DESC',
+      price_asc:  'p.price ASC',
+      price_desc: 'p.price DESC',
+      brand:      'p.brand ASC, p.name ASC',
+      sku:        'p.sku ASC',
+    };
+    const orderBy = sortMap[sort] || 'p.id DESC';
+
+    // Count + data
     const countRow = await safeQueryOne(
-      `SELECT COUNT(*) AS n FROM products p ${where}`,
-      params
+      `SELECT COUNT(*) AS n FROM products p LEFT JOIN inventory i ON i.product_id=p.id ${where}`,
+      qParams
     );
     const total = countRow?.n ?? 0;
-    const pages = Math.ceil(total / PER_PAGE);
+    const pages = Math.ceil(total / PER_PAGE) || 1;
 
     const products = await safeQuery(
-      `SELECT p.id, p.name, p.slug, p.sku, p.brand, p.price, p.compare_price,
-              p.is_active, p.source_flag, c.name AS category_name,
-              (SELECT url FROM product_images WHERE product_id=p.id ORDER BY is_primary DESC, sort_order ASC LIMIT 1) AS thumb
+      `SELECT p.id, p.name, p.slug, p.sku, p.vendor_sku, p.brand, p.price, p.compare_price,
+              p.is_active, p.source_flag, p.status, p.product_type,
+              COALESCE(i.qty_on_hand, 0) AS qty_on_hand,
+              c.name AS category_name,
+              (SELECT url FROM product_images WHERE product_id=p.id
+               ORDER BY is_primary DESC, sort_order ASC LIMIT 1) AS thumb
        FROM products p
-       LEFT JOIN categories c ON c.id = p.category_id
+       LEFT JOIN categories c  ON c.id = p.category_id
+       LEFT JOIN inventory  i  ON i.product_id = p.id
        ${where}
-       ORDER BY p.id DESC
+       ORDER BY ${orderBy}
        LIMIT ? OFFSET ?`,
-      [...params, PER_PAGE, offset]
+      [...qParams, PER_PAGE, offset]
     );
 
-    const displayProducts = products;
-    const categories      = await Category.findAll();
+    // Pre-fetch data for filter sidebar
+    const [categories, brandRows] = await Promise.all([
+      Category.findAll(),
+      safeQuery('SELECT DISTINCT brand FROM products WHERE brand IS NOT NULL ORDER BY brand'),
+    ]);
+    const allBrands = brandRows.map(r => r.brand).filter(Boolean);
+
+    const filters = {
+      q: search, category_id: fCategory, brands: fBrands,
+      is_active: fIsActive, status: fStatus, source_flag: fSource,
+      price_min: fPriceMin, price_max: fPriceMax, in_stock: fInStock, sort,
+    };
+    const hasFilters = !!(search || fCategory || fBrands.length || fIsActive !== null ||
+                         fStatus || fSource || fPriceMin || fPriceMax || fInStock);
 
     res.render('pages/admin/products', {
       ...LAYOUT,
       pageTitle: 'Products | BVO Admin',
       activePage: 'products',
-      flash:      req.session.flash || null,
-      products:   displayProducts,
+      flash:     req.session.flash || null,
+      products,
       categories,
-      search,
+      allBrands,
+      filters,
+      hasFilters,
       total,
       page,
       pages,
@@ -223,13 +301,15 @@ exports.productEdit = async (req, res, next) => {
         [product.id]
       ),
       safeQueryOne(
-        'SELECT qty_on_hand, allow_backorder FROM inventory WHERE product_id = ?',
+        'SELECT qty_on_hand, qty_reserved, allow_backorder, reorder_point FROM inventory WHERE product_id = ?',
         [product.id]
       ),
     ]);
 
-    product.qty_on_hand    = inventoryRow?.qty_on_hand    ?? 0;
-    product.allow_backorder = inventoryRow?.allow_backorder ?? 0;
+    product.qty_on_hand     = inventoryRow?.qty_on_hand     ?? 0;
+    product.qty_reserved    = inventoryRow?.qty_reserved    ?? 0;
+    product.allow_backorder  = inventoryRow?.allow_backorder  ?? 0;
+    product.reorder_point   = inventoryRow?.reorder_point   ?? 0;
 
     res.render('pages/admin/product-edit', {
       ...LAYOUT,
@@ -253,20 +333,29 @@ exports.productCreate = async (req, res, next) => {
     const [ins] = await bvoPool.query(
       `INSERT INTO products
          (sku, slug, name, brand, category_id,
-          short_desc, long_desc,
-          price, compare_price,
+          product_type, vendor_sku, upc, component_role, vendor_group_id,
+          short_desc, long_desc, warranty,
+          price, compare_price, cost,
           width_in, depth_in, height_in, weight_lbs,
+          total_ship_weight_lbs, ships_ltl, freight_class, harmonized_code, lead_time_days,
+          country_origin, prop65, release_date, status,
           is_active, is_featured, is_new,
+          sort_order, primary_image_url,
           meta_title, meta_desc, source_flag)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'manual')`,
+       VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?, ?,?,'manual')`,
       [sku, d.slug, d.name, d.brand, d.category_id,
-       d.short_desc, d.long_desc, d.price, d.compare_price,
+       d.product_type, d.vendor_sku, d.upc, d.component_role, d.vendor_group_id,
+       d.short_desc, d.long_desc, d.warranty,
+       d.price, d.compare_price, d.cost,
        d.width_in, d.depth_in, d.height_in, d.weight_lbs,
+       d.total_ship_weight_lbs, d.ships_ltl, d.freight_class, d.harmonized_code, d.lead_time_days,
+       d.country_origin, d.prop65, d.release_date, d.status,
        d.is_active, d.is_featured, d.is_new,
+       d.sort_order, d.primary_image_url,
        d.meta_title, d.meta_desc]
     );
     const productId = ins.insertId;
-    await _upsertInventory(productId, d.qty_on_hand, d.allow_backorder);
+    await _upsertInventory(productId, d.qty_on_hand, d.allow_backorder, d.reorder_point);
     await _saveSpecs(productId, d.specs);
     req.session.flash = { type: 'success', msg: 'Product created.' };
     res.redirect(`/admin/products/${productId}/edit`);
@@ -280,20 +369,30 @@ exports.productUpdate = async (req, res, next) => {
     await bvoPool.query(
       `UPDATE products SET
          name=?, slug=?, sku=?, brand=?, category_id=?,
-         short_desc=?, long_desc=?,
-         price=?, compare_price=?,
+         product_type=?, vendor_sku=?, upc=?, component_role=?, vendor_group_id=?,
+         short_desc=?, long_desc=?, warranty=?,
+         price=?, compare_price=?, cost=?,
          width_in=?, depth_in=?, height_in=?, weight_lbs=?,
+         total_ship_weight_lbs=?, ships_ltl=?, freight_class=?, harmonized_code=?, lead_time_days=?,
+         country_origin=?, prop65=?, release_date=?, status=?,
          is_active=?, is_featured=?, is_new=?,
+         sort_order=?, primary_image_url=?,
          meta_title=?, meta_desc=?,
          updated_at=NOW()
        WHERE id=?`,
       [d.name, d.slug, d.sku, d.brand, d.category_id,
-       d.short_desc, d.long_desc, d.price, d.compare_price,
+       d.product_type, d.vendor_sku, d.upc, d.component_role, d.vendor_group_id,
+       d.short_desc, d.long_desc, d.warranty,
+       d.price, d.compare_price, d.cost,
        d.width_in, d.depth_in, d.height_in, d.weight_lbs,
+       d.total_ship_weight_lbs, d.ships_ltl, d.freight_class, d.harmonized_code, d.lead_time_days,
+       d.country_origin, d.prop65, d.release_date, d.status,
        d.is_active, d.is_featured, d.is_new,
-       d.meta_title, d.meta_desc, id]
+       d.sort_order, d.primary_image_url,
+       d.meta_title, d.meta_desc,
+       id]
     );
-    await _upsertInventory(id, d.qty_on_hand, d.allow_backorder);
+    await _upsertInventory(id, d.qty_on_hand, d.allow_backorder, d.reorder_point);
     await _saveSpecs(id, d.specs);
     req.session.flash = { type: 'success', msg: 'Product saved.' };
     res.redirect(`/admin/products/${id}/edit`);
@@ -305,6 +404,46 @@ exports.productDelete = async (req, res, next) => {
     await bvoPool.query('DELETE FROM products WHERE id = ?', [req.params.id])
       .catch(() => {});
     req.session.flash = { type: 'success', msg: 'Product deleted.' };
+    res.redirect('/admin/products');
+  } catch (err) { next(err); }
+};
+
+/* POST /admin/products/bulk — bulk actions on selected product IDs */
+exports.productBulkAction = async (req, res, next) => {
+  try {
+    const { action } = req.body;
+    const ids = [].concat(req.body.ids || []).map(n => parseInt(n)).filter(n => n > 0);
+
+    if (!ids.length) {
+      req.session.flash = { type: 'error', msg: 'No products selected.' };
+      return res.redirect('/admin/products');
+    }
+
+    const ph = ids.map(() => '?').join(',');
+
+    if (action === 'activate') {
+      await bvoPool.query(`UPDATE products SET is_active=1, updated_at=NOW() WHERE id IN (${ph})`, ids);
+      req.session.flash = { type: 'success', msg: `${ids.length} product(s) activated.` };
+      return res.redirect('back');
+    }
+
+    if (action === 'deactivate') {
+      await bvoPool.query(`UPDATE products SET is_active=0, updated_at=NOW() WHERE id IN (${ph})`, ids);
+      req.session.flash = { type: 'success', msg: `${ids.length} product(s) deactivated.` };
+      return res.redirect('back');
+    }
+
+    if (action === 'delete') {
+      await bvoPool.query(`DELETE FROM products WHERE id IN (${ph})`, ids);
+      req.session.flash = { type: 'success', msg: `${ids.length} product(s) deleted.` };
+      return res.redirect('/admin/products');
+    }
+
+    if (action === 'export') {
+      return _buildAndSendCSV(res, ids, next);
+    }
+
+    req.session.flash = { type: 'error', msg: `Unknown action: ${action}` };
     res.redirect('/admin/products');
   } catch (err) { next(err); }
 };
@@ -379,10 +518,17 @@ function _csvRow(vals) {
   return vals.map(_csvEscape).join(',');
 }
 
-/* GET /admin/products/export.csv */
-exports.productExport = async (req, res, next) => {
+/* GET /admin/products/export.csv — optionally ?ids=1,2,3 for a subset */
+exports.productExport = (req, res, next) => {
+  const ids = req.query.ids
+    ? req.query.ids.split(',').map(Number).filter(Boolean)
+    : null;
+  return _buildAndSendCSV(res, ids, next);
+};
+
+/* Private: build CSV and stream to response. ids=null → all products */
+async function _buildAndSendCSV(res, ids, next) {
   try {
-    // Build subquery columns for each attribute key
     const attrSelects = CSV_ATTR_KEYS.map(k => {
       const col = NUMERIC_ATTR_KEYS.has(k)
         ? `(SELECT value_num  FROM product_attribute_values WHERE product_id=p.id AND attr_key=${bvoPool.escape(k)} LIMIT 1) AS ${bvoPool.escapeId('attr_' + k)}`
@@ -390,32 +536,48 @@ exports.productExport = async (req, res, next) => {
       return col;
     }).join(',\n  ');
 
+    const idFilter = (ids && ids.length)
+      ? `WHERE p.id IN (${ids.map(() => '?').join(',')})`
+      : '';
+
     const [rows] = await bvoPool.query(`
       SELECT
-        p.name, p.sku, p.brand,
+        p.name, p.sku, p.brand, p.product_type,
         c.slug AS category_slug,
-        p.price, p.compare_price,
-        p.short_desc, p.long_desc,
+        p.vendor_sku, p.upc, p.component_role, p.vendor_group_id,
+        p.price, p.compare_price, p.cost,
+        p.short_desc, p.long_desc, p.warranty,
         p.width_in, p.depth_in, p.height_in, p.weight_lbs,
-        p.is_active, p.is_featured, p.is_new,
-        COALESCE(i.qty_on_hand, 0)    AS qty_on_hand,
-        COALESCE(i.allow_backorder, 0) AS allow_backorder,
+        p.total_ship_weight_lbs, p.ships_ltl, p.freight_class,
+        p.harmonized_code, p.lead_time_days,
+        p.country_origin, p.prop65, p.release_date,
+        p.status, p.is_active, p.is_featured, p.is_new,
+        p.sort_order, p.primary_image_url,
+        COALESCE(i.qty_on_hand, 0)     AS qty_on_hand,
+        COALESCE(i.allow_backorder, 0)  AS allow_backorder,
+        COALESCE(i.reorder_point, 0)    AS reorder_point,
         p.meta_title, p.meta_desc,
         (SELECT url FROM product_images WHERE product_id=p.id AND is_primary=1 LIMIT 1) AS image_url,
         ${attrSelects}
       FROM products p
       LEFT JOIN categories c ON c.id = p.category_id
       LEFT JOIN inventory  i ON i.product_id = p.id
+      ${idFilter}
       ORDER BY p.brand, p.name
-    `);
+    `, ids || []);
 
     const headers = [
-      'name','sku','brand','category_slug',
-      'price','compare_price',
-      'short_desc','long_desc',
+      'name','sku','brand','product_type','category_slug',
+      'vendor_sku','upc','component_role','vendor_group_id',
+      'price','compare_price','cost',
+      'short_desc','long_desc','warranty',
       'width_in','depth_in','height_in','weight_lbs',
-      'is_active','is_featured','is_new',
-      'qty_on_hand','allow_backorder',
+      'total_ship_weight_lbs','ships_ltl','freight_class',
+      'harmonized_code','lead_time_days',
+      'country_origin','prop65','release_date',
+      'status','is_active','is_featured','is_new',
+      'sort_order','primary_image_url',
+      'qty_on_hand','allow_backorder','reorder_point',
       'meta_title','meta_desc','image_url',
       ...CSV_ATTR_KEYS.map(k => `attr_${k}`),
     ];
@@ -425,12 +587,13 @@ exports.productExport = async (req, res, next) => {
       lines.push(_csvRow(headers.map(h => r[h] ?? '')));
     }
 
-    const csv = lines.join('\r\n');
+    const label = (ids && ids.length) ? `bvo-selected-${ids.length}` : 'bvo-products';
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="bvo-products-${new Date().toISOString().slice(0,10)}.csv"`);
-    res.send(csv);
+    res.setHeader('Content-Disposition',
+      `attachment; filename="${label}-${new Date().toISOString().slice(0,10)}.csv"`);
+    res.send(lines.join('\r\n'));
   } catch (err) { next(err); }
-};
+}
 
 /* POST /admin/products/import  (multipart — uses multer .single('csv_file')) */
 exports.productImportMiddleware = multer({
@@ -498,26 +661,51 @@ exports.productImport = async (req, res, next) => {
       if (!name) continue;
 
       try {
-        const sku          = get(row, 'sku') || `IMPORT-${Date.now()}`;
-        const brand        = get(row, 'brand') || null;
-        const catSlug      = get(row, 'category_slug');
-        const category_id  = catMap[catSlug] || null;
-        const price        = parseFloat(get(row, 'price'))         || 0;
-        const compare_price= parseFloat(get(row, 'compare_price')) || null;
-        const short_desc   = get(row, 'short_desc')  || null;
-        const long_desc    = get(row, 'long_desc')   || null;
-        const width_in     = parseFloat(get(row, 'width_in'))  || null;
-        const depth_in     = parseFloat(get(row, 'depth_in'))  || null;
-        const height_in    = parseFloat(get(row, 'height_in')) || null;
-        const weight_lbs   = parseFloat(get(row, 'weight_lbs'))|| null;
-        const is_active    = get(row, 'is_active')  === '0' ? 0 : 1;
-        const is_featured  = get(row, 'is_featured') === '1' ? 1 : 0;
-        const is_new       = get(row, 'is_new')      === '1' ? 1 : 0;
-        const qty_on_hand  = parseInt(get(row, 'qty_on_hand'))    || 0;
-        const allow_back   = get(row, 'allow_backorder') === '1' ? 1 : 0;
-        const meta_title   = get(row, 'meta_title')  || null;
-        const meta_desc    = get(row, 'meta_desc')   || null;
-        const image_url    = get(row, 'image_url')   || null;
+        // ── Parse all columns from CSV row
+        const g     = (k) => get(row, k) || null;
+        const gNum  = (k) => { const v = get(row, k); const n = parseFloat(v); return (!isNaN(n) && v) ? n : null; };
+        const gInt  = (k) => { const v = get(row, k); const n = parseInt(v);   return (!isNaN(n) && v) ? n : null; };
+        const gBool = (k, def = 0) => get(row, k) === '1' ? 1 : (get(row, k) === '0' ? 0 : def);
+
+        const sku                  = g('sku')         || `IMPORT-${Date.now()}`;
+        const brand                = g('brand');
+        const catSlug              = get(row, 'category_slug');
+        const category_id          = catMap[catSlug] || null;
+        const product_type         = g('product_type');
+        const vendor_sku           = g('vendor_sku');
+        const upc                  = g('upc');
+        const component_role       = g('component_role');
+        const vendor_group_id      = g('vendor_group_id');
+        const price                = gNum('price')         || 0;
+        const compare_price        = gNum('compare_price');
+        const cost                 = gNum('cost');
+        const short_desc           = g('short_desc');
+        const long_desc            = g('long_desc');
+        const warranty             = g('warranty');
+        const width_in             = gNum('width_in');
+        const depth_in             = gNum('depth_in');
+        const height_in            = gNum('height_in');
+        const weight_lbs           = gNum('weight_lbs');
+        const total_ship_weight    = gNum('total_ship_weight_lbs');
+        const ships_ltl            = gBool('ships_ltl');
+        const freight_class        = g('freight_class');
+        const harmonized_code      = g('harmonized_code');
+        const lead_time_days       = gInt('lead_time_days');
+        const country_origin       = g('country_origin');
+        const prop65               = gBool('prop65');
+        const release_date         = g('release_date');
+        const status               = g('status') || 'active';
+        const is_active            = gBool('is_active', 1);
+        const is_featured          = gBool('is_featured');
+        const is_new               = gBool('is_new');
+        const sort_order           = gInt('sort_order') || 0;
+        const primary_image_url    = g('primary_image_url');
+        const qty_on_hand          = gInt('qty_on_hand') || 0;
+        const allow_back           = gBool('allow_backorder');
+        const reorder_point        = gInt('reorder_point') || 0;
+        const meta_title           = g('meta_title');
+        const meta_desc            = g('meta_desc');
+        const image_url            = g('image_url');
 
         // Generate slug
         const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -532,13 +720,27 @@ exports.productImport = async (req, res, next) => {
           productId = existing[0].id;
           await bvoPool.query(
             `UPDATE products SET
-               name=?, brand=?, category_id=?, short_desc=?, long_desc=?,
-               price=?, compare_price=?, width_in=?, depth_in=?, height_in=?, weight_lbs=?,
-               is_active=?, is_featured=?, is_new=?, meta_title=?, meta_desc=?, updated_at=NOW()
+               name=?, brand=?, category_id=?,
+               product_type=?, vendor_sku=?, upc=?, component_role=?, vendor_group_id=?,
+               short_desc=?, long_desc=?, warranty=?,
+               price=?, compare_price=?, cost=?,
+               width_in=?, depth_in=?, height_in=?, weight_lbs=?,
+               total_ship_weight_lbs=?, ships_ltl=?, freight_class=?, harmonized_code=?, lead_time_days=?,
+               country_origin=?, prop65=?, release_date=?, status=?,
+               is_active=?, is_featured=?, is_new=?,
+               sort_order=?, primary_image_url=?,
+               meta_title=?, meta_desc=?, updated_at=NOW()
              WHERE id=?`,
-            [name, brand, category_id, short_desc, long_desc,
-             price, compare_price, width_in, depth_in, height_in, weight_lbs,
-             is_active, is_featured, is_new, meta_title, meta_desc, productId]
+            [name, brand, category_id,
+             product_type, vendor_sku, upc, component_role, vendor_group_id,
+             short_desc, long_desc, warranty,
+             price, compare_price, cost,
+             width_in, depth_in, height_in, weight_lbs,
+             total_ship_weight, ships_ltl, freight_class, harmonized_code, lead_time_days,
+             country_origin, prop65, release_date, status,
+             is_active, is_featured, is_new,
+             sort_order, primary_image_url,
+             meta_title, meta_desc, productId]
           );
         } else {
           // Make slug unique
@@ -551,19 +753,33 @@ exports.productImport = async (req, res, next) => {
           }
           const [ins] = await bvoPool.query(
             `INSERT INTO products
-               (sku, slug, name, brand, category_id, short_desc, long_desc,
-                price, compare_price, width_in, depth_in, height_in, weight_lbs,
-                is_active, is_featured, is_new, meta_title, meta_desc, source_flag)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'manual')`,
-            [sku, finalSlug, name, brand, category_id, short_desc, long_desc,
-             price, compare_price, width_in, depth_in, height_in, weight_lbs,
-             is_active, is_featured, is_new, meta_title, meta_desc]
+               (sku, slug, name, brand, category_id,
+                product_type, vendor_sku, upc, component_role, vendor_group_id,
+                short_desc, long_desc, warranty,
+                price, compare_price, cost,
+                width_in, depth_in, height_in, weight_lbs,
+                total_ship_weight_lbs, ships_ltl, freight_class, harmonized_code, lead_time_days,
+                country_origin, prop65, release_date, status,
+                is_active, is_featured, is_new,
+                sort_order, primary_image_url,
+                meta_title, meta_desc, source_flag)
+             VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?, ?,?,'manual')`,
+            [sku, finalSlug, name, brand, category_id,
+             product_type, vendor_sku, upc, component_role, vendor_group_id,
+             short_desc, long_desc, warranty,
+             price, compare_price, cost,
+             width_in, depth_in, height_in, weight_lbs,
+             total_ship_weight, ships_ltl, freight_class, harmonized_code, lead_time_days,
+             country_origin, prop65, release_date, status,
+             is_active, is_featured, is_new,
+             sort_order, primary_image_url,
+             meta_title, meta_desc]
           );
           productId = ins.insertId;
         }
 
         // Inventory
-        await _upsertInventory(productId, qty_on_hand, allow_back);
+        await _upsertInventory(productId, qty_on_hand, allow_back, reorder_point);
 
         // Primary image
         if (image_url) {
@@ -629,39 +845,75 @@ function _extractProductFields(body) {
     i++;
   }
 
+  // Helper — numeric field, null when blank
+  const num = (v) => { const n = parseFloat(v); return (!isNaN(n) && v !== '' && v != null) ? n : null; };
+  const int = (v) => { const n = parseInt(v);   return (!isNaN(n) && v !== '' && v != null) ? n : null; };
+
   return {
+    // ── Basic
     name,
     slug,
-    sku:            (body.sku   || '').trim() || null,
-    brand:          (body.brand || '').trim() || null,
-    category_id:    parseInt(body.category_id)     || null,
-    price:          parseFloat(body.price)          || 0,
-    compare_price:  parseFloat(body.compare_price)  || null,
-    short_desc:     (body.short_desc || '').trim()  || null,
-    long_desc:      (body.long_desc  || '').trim()  || null,
-    width_in:       parseFloat(body.width_in)        || null,
-    depth_in:       parseFloat(body.depth_in)        || null,
-    height_in:      parseFloat(body.height_in)       || null,
-    weight_lbs:     parseFloat(body.weight_lbs)      || null,
-    is_active:      body.is_active   === '1' ? 1 : 0,
-    is_featured:    body.is_featured  ? 1 : 0,
-    is_new:         body.is_new       ? 1 : 0,
-    qty_on_hand:    parseInt(body.qty_on_hand)       || 0,
-    allow_backorder:body.allow_backorder ? 1 : 0,
-    meta_title:     (body.meta_title || '').trim()   || null,
-    meta_desc:      (body.meta_desc  || '').trim()   || null,
+    sku:               (body.sku            || '').trim() || null,
+    brand:             (body.brand          || '').trim() || null,
+    category_id:       int(body.category_id),
+    product_type:      (body.product_type   || '').trim() || null,
+    vendor_sku:        (body.vendor_sku     || '').trim() || null,
+    upc:               (body.upc            || '').trim() || null,
+    component_role:    (body.component_role || '').trim() || null,
+    vendor_group_id:   (body.vendor_group_id|| '').trim() || null,
+    // ── Descriptions
+    short_desc:        (body.short_desc || '').trim() || null,
+    long_desc:         (body.long_desc  || '').trim() || null,
+    warranty:          (body.warranty   || '').trim() || null,
+    // ── Pricing
+    price:             parseFloat(body.price) || 0,
+    compare_price:     num(body.compare_price),
+    cost:              num(body.cost),
+    // ── Dimensions
+    width_in:          num(body.width_in),
+    depth_in:          num(body.depth_in),
+    height_in:         num(body.height_in),
+    weight_lbs:        num(body.weight_lbs),
+    // ── Shipping / logistics
+    total_ship_weight_lbs: num(body.total_ship_weight_lbs),
+    ships_ltl:         body.ships_ltl  ? 1 : 0,
+    freight_class:     (body.freight_class   || '').trim() || null,
+    harmonized_code:   (body.harmonized_code || '').trim() || null,
+    lead_time_days:    int(body.lead_time_days),
+    // ── Compliance / origin
+    country_origin:    (body.country_origin || '').trim() || null,
+    prop65:            body.prop65     ? 1 : 0,
+    // ── Status / availability
+    release_date:      (body.release_date || '').trim() || null,
+    status:            (body.status || 'active').trim(),
+    is_active:         body.is_active === '1' ? 1 : 0,
+    is_featured:       body.is_featured  ? 1 : 0,
+    is_new:            body.is_new       ? 1 : 0,
+    sort_order:        int(body.sort_order) ?? 0,
+    // ── Images
+    primary_image_url: (body.primary_image_url || '').trim() || null,
+    // ── Inventory
+    qty_on_hand:       int(body.qty_on_hand)    ?? 0,
+    allow_backorder:   body.allow_backorder ? 1 : 0,
+    reorder_point:     int(body.reorder_point)  ?? 0,
+    // ── SEO
+    meta_title:        (body.meta_title || '').trim() || null,
+    meta_desc:         (body.meta_desc  || '').trim() || null,
     specs,
   };
 }
 
 /* ── Private helpers ─────────────────────────────────────────────── */
 
-async function _upsertInventory(productId, qty, allowBackorder) {
+async function _upsertInventory(productId, qty, allowBackorder, reorderPoint) {
   await bvoPool.query(`
-    INSERT INTO inventory (product_id, qty_on_hand, allow_backorder)
-    VALUES (?, ?, ?)
-    ON DUPLICATE KEY UPDATE qty_on_hand=VALUES(qty_on_hand), allow_backorder=VALUES(allow_backorder)
-  `, [productId, qty || 0, allowBackorder ? 1 : 0]);
+    INSERT INTO inventory (product_id, qty_on_hand, allow_backorder, reorder_point)
+    VALUES (?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+      qty_on_hand=VALUES(qty_on_hand),
+      allow_backorder=VALUES(allow_backorder),
+      reorder_point=VALUES(reorder_point)
+  `, [productId, qty || 0, allowBackorder ? 1 : 0, reorderPoint || 0]);
 }
 
 async function _saveSpecs(productId, specs) {
