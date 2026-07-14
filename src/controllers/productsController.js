@@ -24,10 +24,16 @@ exports.show = async (req, res, next) => {
       }
     }
 
-    // Related products
-    const related = product.category_id
-      ? await Product.findRelated(product.category_id, product.id, 4)
-      : [];
+    // Related products + documents (parallel)
+    const [related, docRows] = await Promise.all([
+      product.category_id
+        ? Product.findRelated(product.category_id, product.id, 4)
+        : Promise.resolve([]),
+      bvoPool.query(
+        'SELECT doc_type, url, label FROM product_documents WHERE product_id = ? ORDER BY sort_order ASC, id ASC',
+        [product.id]
+      ).then(([rows]) => rows).catch(() => []),
+    ]);
 
     // Savings
     if (!product.savings && product.compare_price) {
@@ -47,6 +53,7 @@ exports.show = async (req, res, next) => {
       product,
       category,
       related,
+      productDocs: docRows,
     });
   } catch (err) { next(err); }
 };

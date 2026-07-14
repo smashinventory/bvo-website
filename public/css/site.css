@@ -464,6 +464,35 @@ ul[role="list"] { list-style: none; }
 .product-desc-inner h2 { font-family: var(--font-serif); font-size: 1.5rem; color: var(--navy); margin-bottom: 20px; }
 .product-desc-body    { font-size: .9rem; color: var(--muted); line-height: 1.8; }
 
+/* Downloads & Resources */
+.product-docs-section { background: var(--whisper); padding: 40px 64px; }
+.product-docs-inner   { max-width: 960px; margin: 0 auto; }
+.product-docs-inner h2 { font-family: var(--font-serif); font-size: 1.4rem; color: var(--navy); margin-bottom: 18px; }
+.product-docs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+.product-doc-card {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 18px 14px; background: var(--white);
+  border: 1px solid #e8e5e1; border-radius: 10px;
+  text-decoration: none; color: inherit;
+  transition: border-color .15s, box-shadow .15s;
+  text-align: center;
+}
+.product-doc-card:hover {
+  border-color: var(--sage, #7A9E7E);
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
+}
+.product-doc-icon  { font-size: 1.6rem; line-height: 1; }
+.product-doc-name  { font-size: .82rem; font-weight: 600; color: var(--navy); line-height: 1.3; }
+.product-doc-dl    { font-size: .72rem; color: var(--sage, #7A9E7E); font-weight: 600; margin-top: 2px; }
+@media (max-width: 700px) {
+  .product-docs-section { padding: 28px 20px; }
+  .product-docs-grid    { grid-template-columns: repeat(2, 1fr); }
+}
+
 .related-section      { padding: 48px 64px; background: var(--whisper); }
 
 /* ================================================================

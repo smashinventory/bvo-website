@@ -21,6 +21,8 @@ router.get ('/products',                                          ctrl.productLi
 router.get ('/products/export.csv',                               ctrl.productExport);
 router.post('/products/import',  ctrl.productImportMiddleware,    ctrl.productImport);
 router.post('/products/bulk',                                     ctrl.productBulkAction);
+router.get ('/products/bulk-edit',                                ctrl.productBulkEdit);
+router.post('/products/bulk-edit',                                ctrl.productBulkEditSave);
 router.get ('/products/new',                                      ctrl.productNew);
 router.post('/products',                                          ctrl.productCreate);
 router.get ('/products/:id/edit',                                 ctrl.productEdit);
@@ -30,6 +32,9 @@ router.post('/products/:id/delete',                               ctrl.productDe
 router.post('/products/:id/images', ctrl.productAddImageMiddleware, ctrl.productAddImage);
 router.post('/products/:id/images/:imgId/delete',                 ctrl.productDeleteImage);
 router.post('/products/:id/images/:imgId/primary',                ctrl.productSetPrimaryImage);
+/* Document management */
+router.post('/products/:id/docs',   ctrl.productAddDocumentMiddleware, ctrl.productAddDocument);
+router.post('/products/:id/docs/:docId/delete',                   ctrl.productDeleteDocument);
 
 /* ── Orders ─────────────────────────────────────────────────── */
 router.get ('/orders',            ctrl.orderList);

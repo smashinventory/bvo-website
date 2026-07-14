@@ -223,9 +223,10 @@ function filterUrl(overrides) {
     <!-- Bulk action bar (JS shows when items checked) -->
     <div class="adm-bulk-bar" id="bulkBar">
       <span class="adm-bulk-count" id="bulkCount">0 selected</span>
+      <button type="button" class="btn btn-sm btn-primary" onclick="bulkEditSelected()">✏ Edit Selected</button>
+      <button type="button" class="btn btn-sm btn-outline" onclick="bulkSubmit('export')">⬇ Export Selected</button>
       <button type="button" class="btn btn-sm btn-outline" onclick="bulkSubmit('activate')">Activate</button>
       <button type="button" class="btn btn-sm btn-outline" onclick="bulkSubmit('deactivate')">Deactivate</button>
-      <button type="button" class="btn btn-sm btn-outline" onclick="bulkSubmit('export')">⬇ Export</button>
       <button type="button" class="btn btn-sm adm-bulk-del" onclick="bulkSubmit('delete')">Delete</button>
       <button type="button" class="btn btn-sm btn-outline" onclick="clearSel()" style="margin-left:auto">✕ Deselect</button>
     </div>
@@ -428,6 +429,12 @@ function filterUrl(overrides) {
     document.querySelectorAll('.row-cb').forEach(function(cb) { cb.checked = false; });
     if (selectAllCb) { selectAllCb.checked = false; selectAllCb.indeterminate = false; }
     syncBulkBar();
+  };
+
+  window.bulkEditSelected = function() {
+    var ids = getSelected();
+    if (!ids.length) { alert('Select at least one product first.'); return; }
+    window.location.href = '/admin/products/bulk-edit?ids=' + ids.join(',');
   };
 
   window.bulkSubmit = function(action) {

@@ -294,6 +294,141 @@
             style="margin-top:10px;font-size:.8rem;padding:6px 14px">+ Add Spec Row</button>
         </div>
 
+        <!-- ── Google Merchant Center ────────────────────────── -->
+        <div class="adm-card">
+          <h2 class="adm-card-title">Google Merchant Center</h2>
+          <p class="adm-form-hint" style="margin-bottom:14px">
+            These fields power the GMC product feed. Required fields are <strong>google_condition</strong> and <strong>google_product_category</strong>.
+          </p>
+
+          <div class="adm-form-row">
+            <div class="adm-form-group">
+              <label for="mpn">MPN (Manufacturer Part #)</label>
+              <input type="text" id="mpn" name="mpn"
+                value="<%= product?.mpn || '' %>" placeholder="e.g. JM-BROOK-60-WW">
+            </div>
+            <div class="adm-form-group">
+              <label for="google_condition">Condition</label>
+              <select id="google_condition" name="google_condition">
+                <option value="new"          <%= (!product?.google_condition || product.google_condition==='new')         ? 'selected':'' %>>New</option>
+                <option value="refurbished"  <%= product?.google_condition==='refurbished' ? 'selected':'' %>>Refurbished</option>
+                <option value="used"         <%= product?.google_condition==='used'        ? 'selected':'' %>>Used</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="adm-form-group">
+            <label for="google_product_category">Google Product Category</label>
+            <input type="text" id="google_product_category" name="google_product_category"
+              value="<%= product?.google_product_category || '' %>"
+              placeholder="e.g. Home & Garden > Bath > Vanities"
+              list="gpc-list">
+            <datalist id="gpc-list">
+              <option value="Home &amp; Garden > Bath > Vanities">
+              <option value="Home &amp; Garden > Bath > Bathroom Mirrors">
+              <option value="Home &amp; Garden > Bath > Bathroom Faucets">
+              <option value="Home &amp; Garden > Bath > Bathroom Accessories">
+              <option value="Home &amp; Garden > Bath > Bathtubs">
+              <option value="Home &amp; Garden > Bath > Showers">
+              <option value="Home &amp; Garden > Bath > Toilets &amp; Bidets">
+              <option value="Home &amp; Garden > Lighting">
+            </datalist>
+            <span class="adm-form-hint">Use Google's <a href="https://support.google.com/merchants/answer/6324436" target="_blank">product taxonomy</a></span>
+          </div>
+
+          <div class="adm-form-row adm-form-row--3">
+            <div class="adm-form-group">
+              <label for="color">Color</label>
+              <input type="text" id="color" name="color"
+                value="<%= product?.color || '' %>" placeholder="e.g. White">
+            </div>
+            <div class="adm-form-group">
+              <label for="material">Material</label>
+              <input type="text" id="material" name="material"
+                value="<%= product?.material || '' %>" placeholder="e.g. Solid Wood">
+            </div>
+            <div class="adm-form-group">
+              <label for="pattern">Pattern</label>
+              <input type="text" id="pattern" name="pattern"
+                value="<%= product?.pattern || '' %>" placeholder="e.g. Solid">
+            </div>
+          </div>
+
+          <div class="adm-form-row">
+            <div class="adm-form-group">
+              <label for="age_group">Age Group</label>
+              <select id="age_group" name="age_group">
+                <option value="">— None —</option>
+                <% ['newborn','infant','toddler','kids','adult','all ages'].forEach(function(ag) { %>
+                <option value="<%= ag %>" <%= product?.age_group===ag ? 'selected':'' %>><%= ag.charAt(0).toUpperCase()+ag.slice(1) %></option>
+                <% }); %>
+              </select>
+            </div>
+            <div class="adm-form-group">
+              <label for="gender">Gender</label>
+              <select id="gender" name="gender">
+                <option value="">— None —</option>
+                <option value="male"   <%= product?.gender==='male'   ? 'selected':'' %>>Male</option>
+                <option value="female" <%= product?.gender==='female' ? 'selected':'' %>>Female</option>
+                <option value="unisex" <%= product?.gender==='unisex' ? 'selected':'' %>>Unisex</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="adm-form-row">
+            <div class="adm-form-group">
+              <label for="shipping_label">Shipping Label</label>
+              <input type="text" id="shipping_label" name="shipping_label"
+                value="<%= product?.shipping_label || '' %>" placeholder="e.g. bulky">
+            </div>
+            <div class="adm-form-group">
+              <label for="custom_label_0">Custom Label 0</label>
+              <input type="text" id="custom_label_0" name="custom_label_0"
+                value="<%= product?.custom_label_0 || '' %>" placeholder="Custom segmentation">
+            </div>
+          </div>
+
+          <div class="adm-form-row adm-form-row--3">
+            <div class="adm-form-group">
+              <label for="custom_label_1">Custom Label 1</label>
+              <input type="text" id="custom_label_1" name="custom_label_1"
+                value="<%= product?.custom_label_1 || '' %>">
+            </div>
+            <div class="adm-form-group">
+              <label for="custom_label_2">Custom Label 2</label>
+              <input type="text" id="custom_label_2" name="custom_label_2"
+                value="<%= product?.custom_label_2 || '' %>">
+            </div>
+            <div class="adm-form-group">
+              <label for="custom_label_3">Custom Label 3</label>
+              <input type="text" id="custom_label_3" name="custom_label_3"
+                value="<%= product?.custom_label_3 || '' %>">
+            </div>
+          </div>
+
+          <div class="adm-form-row">
+            <div class="adm-form-group">
+              <label for="custom_label_4">Custom Label 4</label>
+              <input type="text" id="custom_label_4" name="custom_label_4"
+                value="<%= product?.custom_label_4 || '' %>">
+            </div>
+            <div class="adm-form-group">
+              <label for="excluded_destinations">Excluded Destinations</label>
+              <input type="text" id="excluded_destinations" name="excluded_destinations"
+                value="<%= product?.excluded_destinations || '' %>"
+                placeholder="e.g. Shopping_ads">
+            </div>
+          </div>
+
+          <div class="adm-form-group">
+            <label for="ads_redirect">Ads Redirect URL</label>
+            <input type="url" id="ads_redirect" name="ads_redirect"
+              value="<%= product?.ads_redirect || '' %>"
+              placeholder="https://…">
+            <span class="adm-form-hint">Override landing page URL for Google ads</span>
+          </div>
+        </div>
+
       </div><!-- /.adm-form-main -->
 
       <!-- ══ RIGHT COLUMN ═════════════════════════════════════════ -->
@@ -391,6 +526,17 @@
             <span class="adm-form-hint">Used as fallback if no uploaded image is set as primary</span>
           </div>
 
+          <!-- Additional image URLs (image_2 – image_7) -->
+          <p class="adm-card-subtitle" style="margin-top:12px">Additional Image URLs</p>
+          <% for (var _imgN = 2; _imgN <= 7; _imgN++) { %>
+          <div class="adm-form-group" style="margin-bottom:8px">
+            <label for="image_<%= _imgN %>_url">Image <%= _imgN %> URL</label>
+            <input type="url" id="image_<%= _imgN %>_url" name="image_<%= _imgN %>_url"
+              value="<%= product?.['image_' + _imgN + '_url'] || '' %>"
+              placeholder="https://…/image-<%= _imgN %>.jpg">
+          </div>
+          <% } %>
+
           <% if (isNew) { %>
           <p class="adm-form-hint">Save the product first, then upload images below.</p>
           <% } else { %>
@@ -476,6 +622,87 @@
         </div>
         <% } %>
 
+        <!-- ── Documents & Downloads ────────────────────────── -->
+        <div class="adm-card">
+          <h2 class="adm-card-title">Documents &amp; Downloads</h2>
+
+          <% if (!isNew && product) { %>
+          <%
+            var _docs = (typeof productDocs !== 'undefined') ? productDocs : [];
+            var _docTypeLabels = {
+              spec_sheet:'Spec Sheet', installation_guide:'Installation Guide',
+              warranty:'Warranty', rebate_form:'Rebate Form',
+              cad_drawing:'CAD Drawing', measurement_guide:'Measurement Guide',
+              care_guide:'Care Guide', other:'Other'
+            };
+          %>
+
+          <% if (_docs.length) { %>
+          <div class="adm-doc-list">
+            <% _docs.forEach(function(doc) { %>
+            <div class="adm-doc-row">
+              <div class="adm-doc-info">
+                <span class="adm-doc-type"><%= _docTypeLabels[doc.doc_type] || doc.doc_type %></span>
+                <a href="<%= doc.url %>" target="_blank" class="adm-doc-link" title="<%= doc.url %>">
+                  <%= doc.label || doc.url.split('/').pop() %>
+                </a>
+              </div>
+              <form method="POST" action="/admin/products/<%= product.id %>/docs/<%= doc.id %>/delete"
+                onsubmit="return confirm('Remove this document?')" style="display:inline">
+                <button type="submit" class="adm-doc-del" title="Remove">✕</button>
+              </form>
+            </div>
+            <% }); %>
+          </div>
+          <% } else { %>
+          <p class="adm-form-hint" style="margin-bottom:12px">No documents yet.</p>
+          <% } %>
+
+          <!-- Add document form -->
+          <form method="POST" action="/admin/products/<%= product.id %>/docs"
+            enctype="multipart/form-data" class="adm-doc-add-form">
+
+            <div class="adm-form-row" style="margin-bottom:8px">
+              <div class="adm-form-group" style="margin-bottom:0">
+                <label>Doc Type</label>
+                <select name="doc_type" class="adm-doc-type-sel">
+                  <% Object.entries(_docTypeLabels).forEach(function(kv) { %>
+                  <option value="<%= kv[0] %>"><%= kv[1] %></option>
+                  <% }); %>
+                </select>
+              </div>
+              <div class="adm-form-group" style="margin-bottom:0">
+                <label>Label (optional)</label>
+                <input type="text" name="label" placeholder="Custom label…">
+              </div>
+            </div>
+
+            <div class="adm-form-group" style="margin-bottom:8px">
+              <label>Paste URL</label>
+              <input type="url" name="doc_url" placeholder="https://…/spec-sheet.pdf">
+            </div>
+
+            <div class="adm-doc-or">— or upload a file —</div>
+
+            <div class="adm-doc-upload-row">
+              <label class="adm-doc-file-label">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                <span id="docFileLabel">Choose PDF / Word / image</span>
+                <input type="file" name="doc_file" id="docFileInput"
+                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" style="display:none">
+              </label>
+              <button type="submit" class="btn btn-sage" style="white-space:nowrap">Add Document</button>
+            </div>
+          </form>
+
+          <% } else { %>
+          <p class="adm-form-hint">Save the product first, then add documents.</p>
+          <% } %>
+        </div>
+
       </div><!-- /.adm-form-side -->
     </div><!-- /.adm-form-grid -->
 
@@ -546,6 +773,15 @@
     }
   });
 
+  // Doc file input label update
+  const docFileInput = document.getElementById('docFileInput');
+  const docFileLabel = document.getElementById('docFileLabel');
+  if (docFileInput && docFileLabel) {
+    docFileInput.addEventListener('change', () => {
+      docFileLabel.textContent = docFileInput.files[0]?.name || 'Choose PDF / Word / image';
+    });
+  }
+
   // Image upload drop zone
   const fileInput = document.getElementById('imgFileInput');
   const dropZone  = document.getElementById('imgDropZone');
@@ -591,4 +827,20 @@
 .adm-flash--error   { background:#fff5f5; border:1px solid #c00; color:#900; }
 .adm-source-grid { display:grid; grid-template-columns:auto 1fr; gap:6px 12px; font-size:.8rem; }
 .adm-source-label { color:#888; font-weight:600; white-space:nowrap; }
+
+/* Documents */
+.adm-doc-list { display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
+.adm-doc-row { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; padding:7px 10px; background:#f7f5f0; border-radius:7px; border:1px solid #e8e5e1; }
+.adm-doc-info { flex:1; min-width:0; }
+.adm-doc-type { display:block; font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:#888; margin-bottom:2px; }
+.adm-doc-link { font-size:.8rem; color:var(--color-amber,#C68B2F); text-decoration:none; word-break:break-all; }
+.adm-doc-link:hover { text-decoration:underline; }
+.adm-doc-del { background:none; border:none; cursor:pointer; color:#bbb; font-size:.9rem; padding:2px 6px; border-radius:4px; flex-shrink:0; }
+.adm-doc-del:hover { color:#c00; background:#fff0f0; }
+.adm-doc-add-form { margin-top:8px; }
+.adm-doc-or { text-align:center; color:#aaa; font-size:.78rem; margin:8px 0; }
+.adm-doc-upload-row { display:flex; gap:8px; align-items:center; }
+.adm-doc-file-label { flex:1; display:flex; align-items:center; gap:7px; border:1px dashed #ccc; border-radius:7px; padding:7px 10px; cursor:pointer; font-size:.8rem; color:#666; min-width:0; transition:border-color .15s; }
+.adm-doc-file-label:hover { border-color:var(--color-sage,#7A9E7E); color:#333; }
+.adm-doc-type-sel { font-size:.8rem; }
 </style>

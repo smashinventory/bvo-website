@@ -164,6 +164,37 @@
 </section>
 <% } %>
 
+<!-- Downloads & Resources -->
+<% if (typeof productDocs !== 'undefined' && productDocs.length) { %>
+<%
+  var _dlLabels = {
+    spec_sheet:'Spec Sheet', installation_guide:'Installation Guide',
+    warranty:'Warranty', rebate_form:'Rebate Form',
+    cad_drawing:'CAD Drawing', measurement_guide:'Measurement Guide',
+    care_guide:'Care Guide', other:'Document'
+  };
+  var _dlIcons = {
+    spec_sheet:'📄', installation_guide:'🔧', warranty:'🛡',
+    rebate_form:'💰', cad_drawing:'📐', measurement_guide:'📏',
+    care_guide:'✨', other:'📎'
+  };
+%>
+<section class="section product-docs-section">
+  <div class="product-docs-inner">
+    <h2>Downloads &amp; Resources</h2>
+    <div class="product-docs-grid">
+      <% productDocs.forEach(function(doc) { %>
+      <a href="<%= doc.url %>" target="_blank" rel="noopener" class="product-doc-card">
+        <span class="product-doc-icon"><%= _dlIcons[doc.doc_type] || '📎' %></span>
+        <span class="product-doc-name"><%= doc.label || _dlLabels[doc.doc_type] || doc.doc_type %></span>
+        <span class="product-doc-dl">Download ↓</span>
+      </a>
+      <% }); %>
+    </div>
+  </div>
+</section>
+<% } %>
+
 <!-- Related products -->
 <% if (related.length > 0) { %>
 <section class="related-section" aria-labelledby="related-heading">

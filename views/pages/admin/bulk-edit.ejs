@@ -1,0 +1,205 @@
+<!-- ══ Bulk Edit ══════════════════════════════════════════════════ -->
+<div class="adm-form-page">
+  <div class="adm-form-header">
+    <a href="/admin/products" class="adm-back-link">← Products</a>
+    <h1 class="adm-form-title">Bulk Edit — <%= products.length %> Product<%= products.length !== 1 ? 's' : '' %></h1>
+  </div>
+
+  <% if (locals.flash) { %>
+  <div class="adm-flash adm-flash--<%= flash.type %>"><%= flash.msg %></div>
+  <% } %>
+
+  <p class="be-hint">
+    Edit fields inline — only values you change will take effect after saving.<br>
+    <strong>Tip:</strong> Click any cell to edit. Tab through rows. Press Save when done.
+  </p>
+
+  <form method="POST" action="/admin/products/bulk-edit" id="bulkEditForm">
+    <input type="hidden" name="_returnIds" value="<%= ids %>">
+
+    <div class="be-table-wrap">
+      <table class="be-table" id="beTable">
+        <thead>
+          <tr>
+            <th style="min-width:240px">Product</th>
+            <th style="min-width:100px">Price ($)</th>
+            <th style="min-width:110px">Compare ($)</th>
+            <th style="min-width:130px">Category</th>
+            <th style="min-width:130px">Status</th>
+            <th style="width:64px;text-align:center">Active</th>
+            <th style="width:64px;text-align:center">Featured</th>
+            <th style="width:56px;text-align:center">New</th>
+            <th style="min-width:76px">Qty</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% products.forEach(function(p, idx) { %>
+          <tr class="be-row">
+            <!-- Hidden product_id -->
+            <input type="hidden" name="product_id" value="<%= p.id %>">
+
+            <td class="be-name-cell">
+              <a href="/admin/products/<%= p.id %>/edit" target="_blank" class="be-name-link">
+                <%= p.name %>
+              </a>
+              <div class="be-sku"><%= p.sku || '' %></div>
+            </td>
+
+            <!-- Price -->
+            <td>
+              <input type="number" class="be-input" name="price"
+                value="<%= parseFloat(p.price||0).toFixed(2) %>"
+                step="0.01" min="0" placeholder="0.00">
+            </td>
+
+            <!-- Compare price -->
+            <td>
+              <input type="number" class="be-input" name="compare_price"
+                value="<%= p.compare_price ? parseFloat(p.compare_price).toFixed(2) : '' %>"
+                step="0.01" min="0" placeholder="—">
+            </td>
+
+            <!-- Category -->
+            <td>
+              <select class="be-select" name="category_id">
+                <option value="">— None —</option>
+                <% categories.forEach(function(c) { %>
+                <option value="<%= c.id %>"
+                  <%= (p.category_id == c.id) ? 'selected' : '' %>>
+                  <%= c.name %>
+                </option>
+                <% }); %>
+              </select>
+            </td>
+
+            <!-- Status -->
+            <td>
+              <select class="be-select" name="status">
+                <option value="active"        <%= p.status==='active'         ? 'selected':'' %>>Active</option>
+                <option value="discontinued"  <%= p.status==='discontinued'   ? 'selected':'' %>>Discontinued</option>
+                <option value="coming_soon"   <%= p.status==='coming_soon'    ? 'selected':'' %>>Coming Soon</option>
+                <option value="special_order" <%= p.status==='special_order'  ? 'selected':'' %>>Special Order</option>
+              </select>
+            </td>
+
+            <!-- is_active -->
+            <td style="text-align:center">
+              <input type="hidden"   name="is_active" value="0">
+              <input type="checkbox" name="is_active" value="1"
+                class="be-checkbox" <%= p.is_active ? 'checked' : '' %>>
+            </td>
+
+            <!-- is_featured -->
+            <td style="text-align:center">
+              <input type="hidden"   name="is_featured" value="0">
+              <input type="checkbox" name="is_featured" value="1"
+                class="be-checkbox" <%= p.is_featured ? 'checked' : '' %>>
+            </td>
+
+            <!-- is_new -->
+            <td style="text-align:center">
+              <input type="hidden"   name="is_new" value="0">
+              <input type="checkbox" name="is_new" value="1"
+                class="be-checkbox" <%= p.is_new ? 'checked' : '' %>>
+            </td>
+
+            <!-- qty_on_hand -->
+            <td>
+              <input type="number" class="be-input be-input--qty" name="qty_on_hand"
+                value="<%= p.qty_on_hand || 0 %>" step="1" min="0">
+            </td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div><!-- /.be-table-wrap -->
+
+    <div class="be-footer">
+      <a href="/admin/products" class="btn btn-outline">Cancel</a>
+      <button type="submit" class="btn btn-primary">Save <%= products.length %> Product<%= products.length !== 1 ? 's' : '' %></button>
+    </div>
+  </form>
+</div><!-- /.adm-form-page -->
+
+<%- contentFor('script') %>
+<script>
+(function () {
+  /* Fix checkbox arrays — HTML checkboxes with the same name send ONLY
+     the checked value; unchecked boxes are absent. Since we interleave
+     product_id, price, ..., is_active, is_featured, is_new, qty inputs,
+     the server relies on positional index. We use the hidden-input trick
+     (hidden value=0 before each checkbox) so position is preserved. */
+
+  /* Keyboard nav: Tab on last input of a row jumps to first of next row */
+  var table = document.getElementById('beTable');
+  if (table) {
+    table.querySelectorAll('.be-row').forEach(function(row) {
+      var inputs = row.querySelectorAll('input,select');
+      if (!inputs.length) return;
+      var last = inputs[inputs.length - 1];
+      last.addEventListener('keydown', function(e) {
+        if (e.key !== 'Tab' || e.shiftKey) return;
+        var nextRow = row.nextElementSibling;
+        if (!nextRow) return;
+        var first = nextRow.querySelector('input[type="number"],select');
+        if (first) { e.preventDefault(); first.focus(); }
+      });
+    });
+  }
+
+  /* Highlight changed cells */
+  document.querySelectorAll('.be-input, .be-select').forEach(function(el) {
+    var orig = el.value;
+    el.addEventListener('input', function() {
+      el.classList.toggle('be-changed', el.value !== orig);
+    });
+  });
+  document.querySelectorAll('.be-checkbox').forEach(function(el) {
+    var orig = el.checked;
+    el.addEventListener('change', function() {
+      el.closest('td').classList.toggle('be-changed-cell', el.checked !== orig);
+    });
+  });
+})();
+</script>
+
+<style>
+.be-hint { color: #666; font-size: .85rem; margin: 0 0 18px; line-height: 1.5; }
+.be-table-wrap { overflow-x: auto; border: 1px solid var(--color-whisper-hero,#e8e5e1); border-radius: 10px; margin-bottom: 20px; }
+.be-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+.be-table thead th {
+  background: #f7f5f0;
+  padding: 9px 10px;
+  text-align: left;
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: #666;
+  border-bottom: 1px solid #e8e5e1;
+  white-space: nowrap;
+}
+.be-row td { padding: 6px 8px; border-bottom: 1px solid #f0ede8; vertical-align: middle; }
+.be-row:last-child td { border-bottom: none; }
+.be-row:hover td { background: #fafaf8; }
+.be-name-cell { min-width: 220px; }
+.be-name-link { color: inherit; text-decoration: none; font-weight: 600; font-size: .82rem; }
+.be-name-link:hover { color: var(--color-amber,#C68B2F); }
+.be-sku { font-size: .7rem; color: #999; margin-top: 2px; }
+.be-input {
+  width: 100%; border: 1px solid #ddd; border-radius: 6px;
+  padding: 5px 7px; font-size: .82rem; box-sizing: border-box;
+  transition: border-color .15s, background .15s;
+}
+.be-input--qty { max-width: 70px; }
+.be-input:focus { outline: none; border-color: var(--color-sage,#7A9E7E); }
+.be-input.be-changed { border-color: var(--color-amber,#C68B2F); background: #fffaf0; }
+.be-select {
+  width: 100%; border: 1px solid #ddd; border-radius: 6px;
+  padding: 5px 7px; font-size: .82rem; box-sizing: border-box; background: #fff;
+}
+.be-select:focus { outline: none; border-color: var(--color-sage,#7A9E7E); }
+.be-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: var(--color-sage,#7A9E7E); }
+.be-changed-cell { background: #fffaf0 !important; }
+.be-footer { display: flex; gap: 10px; align-items: center; padding-top: 4px; }
+</style>
