@@ -48,7 +48,7 @@ const FAMILIES = [
       'Gray', 'Grey', 'Dove Gray', 'Silver', 'Storm Gray', 'Fog', 'Pewter',
       'Slate', 'Ash', 'Light Gray', 'Dark Gray', 'Charcoal Gray', 'Cement',
       'Smoke', 'Steel Gray', 'Moon Gray', 'Mineral Gray', 'Stonehenge Gray',
-      'Graphite Gray',
+      'Graphite Gray', 'Metal Gray',
     ],
   },
   {
@@ -92,6 +92,7 @@ const FAMILIES = [
       'Gray Oak', 'Natural Oak', 'Oak', 'Blonde', 'Maple', 'Birch',
       'Light Wood', 'Honey Oak', 'Whitewashed Oak', 'Weathered Oak',
       'Cerused Oak', 'Driftwood', 'Pale Oak', 'White Oak', 'Ash Wood',
+      'White Ash', 'Natural White Ash', 'Whitewashed Ash',
     ],
   },
   {
@@ -102,6 +103,7 @@ const FAMILIES = [
     members: [
       'Walnut', 'Chestnut', 'Warm Brown', 'Teak', 'Medium Wood', 'Caramel',
       'Hazelnut', 'Auburn', 'Tobacco', 'Cognac', 'Cinnamon', 'Terracotta',
+      'Desert Oak',
     ],
   },
   {
