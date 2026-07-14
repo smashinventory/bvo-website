@@ -427,6 +427,16 @@
               placeholder="https://…">
             <span class="adm-form-hint">Override landing page URL for Google ads</span>
           </div>
+
+          <div class="adm-form-group">
+            <label class="adm-checkbox-label">
+              <input type="hidden" name="identifier_exists" value="0">
+              <input type="checkbox" name="identifier_exists" value="1"
+                <%= (product?.identifier_exists == null || product?.identifier_exists == 1) ? 'checked' : '' %>>
+              Has GTIN / MPN (identifier_exists)
+            </label>
+            <span class="adm-form-hint">Uncheck for custom/handmade products with no barcode or MPN — tells Google not to penalize missing identifiers</span>
+          </div>
         </div>
 
       </div><!-- /.adm-form-main -->

@@ -375,9 +375,9 @@ exports.productCreate = async (req, res, next) => {
           google_product_category, google_condition, color, material, pattern,
           age_group, gender, shipping_label,
           custom_label_0, custom_label_1, custom_label_2, custom_label_3, custom_label_4,
-          excluded_destinations, ads_redirect,
+          excluded_destinations, ads_redirect, identifier_exists,
           source_flag)
-       VALUES (?,?,?,?,?, ?,?,?,?,?,?, ?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?, ?,?,?,?,?,?, ?,?, ?,?,?,?,?, ?,?,?, ?,?,?,?,?, ?,?,'manual')`,
+       VALUES (?,?,?,?,?, ?,?,?,?,?,?, ?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?, ?,?,?,?,?,?, ?,?, ?,?,?,?,?, ?,?,?, ?,?,?,?,?, ?,?,?,'manual')`,
       [sku, d.slug, d.name, d.brand, d.category_id,
        d.product_type, d.vendor_sku, d.upc, d.mpn, d.component_role, d.vendor_group_id,
        d.short_desc, d.long_desc, d.warranty,
@@ -392,7 +392,7 @@ exports.productCreate = async (req, res, next) => {
        d.google_product_category, d.google_condition, d.color, d.material, d.pattern,
        d.age_group, d.gender, d.shipping_label,
        d.custom_label_0, d.custom_label_1, d.custom_label_2, d.custom_label_3, d.custom_label_4,
-       d.excluded_destinations, d.ads_redirect]
+       d.excluded_destinations, d.ads_redirect, d.identifier_exists]
     );
     const productId = ins.insertId;
     await _upsertInventory(productId, d.qty_on_hand, d.allow_backorder, d.reorder_point);
@@ -422,7 +422,7 @@ exports.productUpdate = async (req, res, next) => {
          google_product_category=?, google_condition=?, color=?, material=?, pattern=?,
          age_group=?, gender=?, shipping_label=?,
          custom_label_0=?, custom_label_1=?, custom_label_2=?, custom_label_3=?, custom_label_4=?,
-         excluded_destinations=?, ads_redirect=?,
+         excluded_destinations=?, ads_redirect=?, identifier_exists=?,
          updated_at=NOW()
        WHERE id=?`,
       [d.name, d.slug, d.sku, d.brand, d.category_id,
@@ -439,7 +439,7 @@ exports.productUpdate = async (req, res, next) => {
        d.google_product_category, d.google_condition, d.color, d.material, d.pattern,
        d.age_group, d.gender, d.shipping_label,
        d.custom_label_0, d.custom_label_1, d.custom_label_2, d.custom_label_3, d.custom_label_4,
-       d.excluded_destinations, d.ads_redirect,
+       d.excluded_destinations, d.ads_redirect, d.identifier_exists,
        id]
     );
     await _upsertInventory(id, d.qty_on_hand, d.allow_backorder, d.reorder_point);
@@ -620,7 +620,7 @@ async function _buildAndSendCSV(res, ids, next) {
         p.google_product_category, p.google_condition, p.color, p.material, p.pattern,
         p.age_group, p.gender, p.shipping_label,
         p.custom_label_0, p.custom_label_1, p.custom_label_2, p.custom_label_3, p.custom_label_4,
-        p.excluded_destinations, p.ads_redirect,
+        p.excluded_destinations, p.ads_redirect, p.identifier_exists,
         ${attrSelects},
         ${docSelects}
       FROM products p
@@ -648,7 +648,7 @@ async function _buildAndSendCSV(res, ids, next) {
       'google_product_category','google_condition','color','material','pattern',
       'age_group','gender','shipping_label',
       'custom_label_0','custom_label_1','custom_label_2','custom_label_3','custom_label_4',
-      'excluded_destinations','ads_redirect',
+      'excluded_destinations','ads_redirect','identifier_exists',
       ...CSV_ATTR_KEYS.map(k => `attr_${k}`),
       ...DOC_TYPES.map(t => `doc_${t}`),
     ];
@@ -841,6 +841,7 @@ exports.productImport = async (req, res, next) => {
         const custom_label_4       = g('custom_label_4');
         const excluded_destinations = g('excluded_destinations');
         const ads_redirect         = g('ads_redirect');
+        const identifier_exists    = get(row,'identifier_exists') === '0' ? 0 : 1;
         // Document URLs from CSV
         const docTypes = ['spec_sheet','installation_guide','warranty','rebate_form',
                           'cad_drawing','measurement_guide','care_guide'];
@@ -875,7 +876,7 @@ exports.productImport = async (req, res, next) => {
                google_product_category=?, google_condition=?, color=?, material=?, pattern=?,
                age_group=?, gender=?, shipping_label=?,
                custom_label_0=?, custom_label_1=?, custom_label_2=?, custom_label_3=?, custom_label_4=?,
-               excluded_destinations=?, ads_redirect=?,
+               excluded_destinations=?, ads_redirect=?, identifier_exists=?,
                updated_at=NOW()
              WHERE id=?`,
             [name, brand, category_id,
@@ -893,7 +894,7 @@ exports.productImport = async (req, res, next) => {
              google_product_category, google_condition, color, material, pattern,
              age_group, gender, shipping_label,
              custom_label_0, custom_label_1, custom_label_2, custom_label_3, custom_label_4,
-             excluded_destinations, ads_redirect,
+             excluded_destinations, ads_redirect, identifier_exists,
              productId]
           );
         } else {
@@ -922,9 +923,9 @@ exports.productImport = async (req, res, next) => {
                 google_product_category, google_condition, color, material, pattern,
                 age_group, gender, shipping_label,
                 custom_label_0, custom_label_1, custom_label_2, custom_label_3, custom_label_4,
-                excluded_destinations, ads_redirect,
+                excluded_destinations, ads_redirect, identifier_exists,
                 source_flag)
-             VALUES (?,?,?,?,?, ?,?,?,?,?,?, ?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?, ?,?,?, ?,?,?, ?,?, ?,?,?,?,?, ?,?,?, ?,?,?,?,?, ?,?,'manual')`,
+             VALUES (?,?,?,?,?, ?,?,?,?,?,?, ?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?, ?,?,?, ?,?,?, ?,?, ?,?,?,?,?, ?,?,?, ?,?,?,?,?, ?,?,?,'manual')`,
             [sku, finalSlug, name, brand, category_id,
              product_type, vendor_sku, upc, mpn, component_role, vendor_group_id,
              short_desc, long_desc, warranty,
@@ -940,7 +941,7 @@ exports.productImport = async (req, res, next) => {
              google_product_category, google_condition, color, material, pattern,
              age_group, gender, shipping_label,
              custom_label_0, custom_label_1, custom_label_2, custom_label_3, custom_label_4,
-             excluded_destinations, ads_redirect]
+             excluded_destinations, ads_redirect, identifier_exists]
           );
           productId = ins.insertId;
         }
@@ -1092,6 +1093,7 @@ function _extractProductFields(body) {
     meta_title:        (body.meta_title || '').trim() || null,
     meta_desc:         (body.meta_desc  || '').trim() || null,
     // ── Google Merchant Center
+    identifier_exists:        body.identifier_exists === '0' ? 0 : 1,
     mpn:                      (body.mpn                      || '').trim() || null,
     google_product_category:  (body.google_product_category  || '').trim() || null,
     google_condition:         ['new','refurbished','used'].includes(body.google_condition)
