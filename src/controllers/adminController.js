@@ -376,8 +376,9 @@ exports.productCreate = async (req, res, next) => {
           age_group, gender, shipping_label,
           custom_label_0, custom_label_1, custom_label_2, custom_label_3, custom_label_4,
           excluded_destinations, ads_redirect, identifier_exists,
+          color_primary, color_secondary,
           source_flag)
-       VALUES (?,?,?,?,?, ?,?,?,?,?,?, ?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?, ?,?,?,?,?,?, ?,?, ?,?,?,?,?, ?,?,?, ?,?,?,?,?, ?,?,?,'manual')`,
+       VALUES (?,?,?,?,?, ?,?,?,?,?,?, ?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?, ?,?,?,?,?,?, ?,?, ?,?,?,?,?, ?,?,?, ?,?,?,?,?, ?,?,?,?,?,'manual')`,
       [sku, d.slug, d.name, d.brand, d.category_id,
        d.product_type, d.vendor_sku, d.upc, d.mpn, d.component_role, d.vendor_group_id,
        d.short_desc, d.long_desc, d.warranty,
@@ -392,7 +393,8 @@ exports.productCreate = async (req, res, next) => {
        d.google_product_category, d.google_condition, d.color, d.material, d.pattern,
        d.age_group, d.gender, d.shipping_label,
        d.custom_label_0, d.custom_label_1, d.custom_label_2, d.custom_label_3, d.custom_label_4,
-       d.excluded_destinations, d.ads_redirect, d.identifier_exists]
+       d.excluded_destinations, d.ads_redirect, d.identifier_exists,
+       d.color_primary, d.color_secondary]
     );
     const productId = ins.insertId;
     await _upsertInventory(productId, d.qty_on_hand, d.allow_backorder, d.reorder_point);
@@ -423,6 +425,7 @@ exports.productUpdate = async (req, res, next) => {
          age_group=?, gender=?, shipping_label=?,
          custom_label_0=?, custom_label_1=?, custom_label_2=?, custom_label_3=?, custom_label_4=?,
          excluded_destinations=?, ads_redirect=?, identifier_exists=?,
+         color_primary=?, color_secondary=?,
          updated_at=NOW()
        WHERE id=?`,
       [d.name, d.slug, d.sku, d.brand, d.category_id,
@@ -440,6 +443,7 @@ exports.productUpdate = async (req, res, next) => {
        d.age_group, d.gender, d.shipping_label,
        d.custom_label_0, d.custom_label_1, d.custom_label_2, d.custom_label_3, d.custom_label_4,
        d.excluded_destinations, d.ads_redirect, d.identifier_exists,
+       d.color_primary, d.color_secondary,
        id]
     );
     await _upsertInventory(id, d.qty_on_hand, d.allow_backorder, d.reorder_point);
@@ -621,6 +625,7 @@ async function _buildAndSendCSV(res, ids, next) {
         p.age_group, p.gender, p.shipping_label,
         p.custom_label_0, p.custom_label_1, p.custom_label_2, p.custom_label_3, p.custom_label_4,
         p.excluded_destinations, p.ads_redirect, p.identifier_exists,
+        p.color_primary, p.color_secondary,
         ${attrSelects},
         ${docSelects}
       FROM products p
@@ -649,6 +654,7 @@ async function _buildAndSendCSV(res, ids, next) {
       'age_group','gender','shipping_label',
       'custom_label_0','custom_label_1','custom_label_2','custom_label_3','custom_label_4',
       'excluded_destinations','ads_redirect','identifier_exists',
+      'color_primary','color_secondary',
       ...CSV_ATTR_KEYS.map(k => `attr_${k}`),
       ...DOC_TYPES.map(t => `doc_${t}`),
     ];
@@ -842,6 +848,8 @@ exports.productImport = async (req, res, next) => {
         const excluded_destinations = g('excluded_destinations');
         const ads_redirect         = g('ads_redirect');
         const identifier_exists    = get(row,'identifier_exists') === '0' ? 0 : 1;
+        const color_primary        = g('color_primary');
+        const color_secondary      = g('color_secondary');
         // Document URLs from CSV
         const docTypes = ['spec_sheet','installation_guide','warranty','rebate_form',
                           'cad_drawing','measurement_guide','care_guide'];
@@ -877,6 +885,7 @@ exports.productImport = async (req, res, next) => {
                age_group=?, gender=?, shipping_label=?,
                custom_label_0=?, custom_label_1=?, custom_label_2=?, custom_label_3=?, custom_label_4=?,
                excluded_destinations=?, ads_redirect=?, identifier_exists=?,
+               color_primary=?, color_secondary=?,
                updated_at=NOW()
              WHERE id=?`,
             [name, brand, category_id,
@@ -895,6 +904,7 @@ exports.productImport = async (req, res, next) => {
              age_group, gender, shipping_label,
              custom_label_0, custom_label_1, custom_label_2, custom_label_3, custom_label_4,
              excluded_destinations, ads_redirect, identifier_exists,
+             color_primary, color_secondary,
              productId]
           );
         } else {
@@ -924,8 +934,9 @@ exports.productImport = async (req, res, next) => {
                 age_group, gender, shipping_label,
                 custom_label_0, custom_label_1, custom_label_2, custom_label_3, custom_label_4,
                 excluded_destinations, ads_redirect, identifier_exists,
+                color_primary, color_secondary,
                 source_flag)
-             VALUES (?,?,?,?,?, ?,?,?,?,?,?, ?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?, ?,?,?, ?,?,?, ?,?, ?,?,?,?,?, ?,?,?, ?,?,?,?,?, ?,?,?,'manual')`,
+             VALUES (?,?,?,?,?, ?,?,?,?,?,?, ?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?, ?,?,?, ?,?,?, ?,?, ?,?,?,?,?, ?,?,?, ?,?,?,?,?, ?,?,?,?,?,'manual')`,
             [sku, finalSlug, name, brand, category_id,
              product_type, vendor_sku, upc, mpn, component_role, vendor_group_id,
              short_desc, long_desc, warranty,
@@ -941,7 +952,8 @@ exports.productImport = async (req, res, next) => {
              google_product_category, google_condition, color, material, pattern,
              age_group, gender, shipping_label,
              custom_label_0, custom_label_1, custom_label_2, custom_label_3, custom_label_4,
-             excluded_destinations, ads_redirect, identifier_exists]
+             excluded_destinations, ads_redirect, identifier_exists,
+             color_primary, color_secondary]
           );
           productId = ins.insertId;
         }
@@ -1113,6 +1125,9 @@ function _extractProductFields(body) {
     custom_label_4:           (body.custom_label_4           || '').trim() || null,
     excluded_destinations:    (body.excluded_destinations     || '').trim() || null,
     ads_redirect:             (body.ads_redirect              || '').trim() || null,
+    // ── Filter colors
+    color_primary:            (body.color_primary             || '').trim() || null,
+    color_secondary:          (body.color_secondary           || '').trim() || null,
     specs,
   };
 }

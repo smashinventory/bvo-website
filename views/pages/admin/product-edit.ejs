@@ -258,7 +258,7 @@
           <datalist id="spec-keys">
             <option value="product_type"><option value="size_in">
             <option value="style"><option value="mount_type">
-            <option value="cabinet_finish"><option value="color_family">
+            <option value="cabinet_finish">
             <option value="hardware_finish"><option value="hardware_color">
             <option value="sink_count"><option value="sink_type"><option value="sink_included">
             <option value="countertop_material"><option value="countertop_included">
@@ -292,6 +292,50 @@
           </div>
           <button type="button" id="add-spec-btn" class="btn btn-outline"
             style="margin-top:10px;font-size:.8rem;padding:6px 14px">+ Add Spec Row</button>
+        </div>
+
+        <!-- ── Colors ────────────────────────────────────────── -->
+        <div class="adm-card">
+          <h2 class="adm-card-title">Colors</h2>
+          <p class="adm-form-hint" style="margin-bottom:14px">
+            <strong>Primary Color</strong> is the normalized filter value (Black, White, Gray…) that
+            powers the color filter on collection pages.
+            <strong>Secondary Color</strong> is the vendor's specific name (Dark Onyx, Antique Coffee…)
+            shown on the product page and submitted to Google Merchant Center.
+          </p>
+
+          <div class="adm-form-row">
+            <div class="adm-form-group">
+              <label for="color_primary">Primary Color <span class="adm-form-hint" style="font-weight:400">(filter)</span></label>
+              <input type="text" id="color_primary" name="color_primary"
+                value="<%= product?.color_primary || '' %>"
+                placeholder="e.g. Black"
+                list="color-primary-list">
+              <datalist id="color-primary-list">
+                <option value="Black">
+                <option value="White">
+                <option value="Gray">
+                <option value="Brown">
+                <option value="Blue">
+                <option value="Green">
+                <option value="Navy">
+                <option value="Gold">
+                <option value="Silver">
+                <option value="Natural Wood">
+                <option value="Two-Tone">
+                <option value="Red">
+                <option value="Off-White">
+              </datalist>
+              <span class="adm-form-hint">Broad color for collection filter — must match your filter taxonomy exactly</span>
+            </div>
+            <div class="adm-form-group">
+              <label for="color_secondary">Secondary Color <span class="adm-form-hint" style="font-weight:400">(vendor name)</span></label>
+              <input type="text" id="color_secondary" name="color_secondary"
+                value="<%= product?.color_secondary || '' %>"
+                placeholder="e.g. Dark Onyx">
+              <span class="adm-form-hint">Vendor's specific color name — shown on product page &amp; sent to Google</span>
+            </div>
+          </div>
         </div>
 
         <!-- ── Google Merchant Center ────────────────────────── -->
