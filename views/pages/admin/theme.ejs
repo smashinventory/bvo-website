@@ -359,13 +359,13 @@ function teArrayLinks(prefix,listId,tplId,items){
                 <div class="te4-row2">
                   <div class="te4-field">
                     <label>Heading Font</label>
-                    <select name="design.heading_font2" class="te4-select">
+                    <select name="design.heading_font" class="te4-select">
                       <% HEADING_FONTS.forEach(function(f){ %><option value="<%= f %>" <%= (des.heading_font||'Lora')===f?'selected':'' %>><%= f %></option><% }) %>
                     </select>
                   </div>
                   <div class="te4-field">
                     <label>Body Font</label>
-                    <select name="design.body_font2" class="te4-select">
+                    <select name="design.body_font" class="te4-select">
                       <% BODY_FONTS.forEach(function(f){ %><option value="<%= f %>" <%= (des.body_font||'Lato')===f?'selected':'' %>><%= f %></option><% }) %>
                     </select>
                   </div>
@@ -374,17 +374,16 @@ function teArrayLinks(prefix,listId,tplId,items){
                   <div class="te4-field">
                     <label>Base Font Size</label>
                     <div class="te4-slider-wrap">
-                      <input type="range" name="design.base_size_px2" min="14" max="20" step="1"
-                             value="<%= des.base_size_px||16 %>" class="te4-slider te4-slider-linked"
-                             id="baseSizeSlider2">
+                      <input type="range" name="design.base_size_px" min="14" max="20" step="1"
+                             value="<%= des.base_size_px||16 %>" class="te4-slider">
                       <input type="number" class="te4-slider-num" value="<%= des.base_size_px||16 %>"
-                             min="14" max="20" step="1" id="baseSizeNum2" aria-label="Font size px">
+                             min="14" max="20" step="1" aria-label="Font size px">
                       <span class="te4-slider-unit">px</span>
                     </div>
                   </div>
                   <div class="te4-field">
                     <label>Heading Weight</label>
-                    <select name="design.heading_weight2" class="te4-select">
+                    <select name="design.heading_weight" class="te4-select">
                       <% ['400','500','600','700'].forEach(function(w){ %><option value="<%= w %>" <%= (des.heading_weight||'600')===w?'selected':'' %>><%= w %></option><% }) %>
                     </select>
                   </div>
@@ -399,82 +398,14 @@ function teArrayLinks(prefix,listId,tplId,items){
                 <svg class="te4-accord-arrow" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
               </summary>
               <div class="te4-accord-body">
-                <%- teField('text','seo.home_title2','Homepage Title',seo.home_title) %>
-                <%- teField('textarea','seo.home_description2','Meta Description',seo.home_description) %>
-                <%- teImageField('seo.og_image2','OG / Share Image',seo.og_image) %>
-                <%- teField('text','seo.google_analytics_id2','Google Analytics ID',seo.google_analytics_id) %>
+                <%- teField('text','seo.home_title','Homepage Title',seo.home_title) %>
+                <%- teField('textarea','seo.home_description','Meta Description',seo.home_description) %>
+                <%- teImageField('seo.og_image','OG / Share Image',seo.og_image) %>
+                <%- teField('text','seo.google_analytics_id','Google Analytics ID',seo.google_analytics_id) %>
               </div>
             </details>
 
           </div><!-- /panel-theme-settings -->
-
-          <!-- ── DESIGN (legacy — kept for direct nav) ─────── -->
-          <!-- ── DESIGN ─────────────────────────────────────── -->
-          <div class="te4-panel" id="panel-design">
-            <p class="te4-panel-desc">Controls typography, brand colors, and UI shape across the entire site.</p>
-            <div class="te4-section-label">Typography</div>
-            <div class="te4-row2">
-              <div class="te4-field">
-                <label>Heading Font</label>
-                <select name="design.heading_font" class="te4-select">
-                  <% HEADING_FONTS.forEach(function(f){ %><option value="<%= f %>" <%= (des.heading_font||'Lora')===f?'selected':'' %>><%= f %></option><% }) %>
-                </select>
-              </div>
-              <div class="te4-field">
-                <label>Body Font</label>
-                <select name="design.body_font" class="te4-select">
-                  <% BODY_FONTS.forEach(function(f){ %><option value="<%= f %>" <%= (des.body_font||'Lato')===f?'selected':'' %>><%= f %></option><% }) %>
-                </select>
-              </div>
-            </div>
-            <div class="te4-row2">
-              <div class="te4-field">
-                <label>Base Font Size</label>
-                <div class="te4-slider-wrap">
-                  <input type="range" name="design.base_size_px" min="14" max="20" step="1" value="<%= des.base_size_px||16 %>" class="te4-slider" id="baseSizeSlider">
-                  <span class="te4-slider-val" id="baseSizeVal"><%= des.base_size_px||16 %>px</span>
-                </div>
-              </div>
-              <div class="te4-field">
-                <label>Heading Weight</label>
-                <select name="design.heading_weight" class="te4-select">
-                  <% ['400','500','600','700'].forEach(function(w){ %><option value="<%= w %>" <%= (des.heading_weight||'600')===w?'selected':'' %>><%= w %></option><% }) %>
-                </select>
-              </div>
-            </div>
-            <div class="te4-section-label">Brand Colors</div>
-            <div class="te4-colors-grid">
-              <%- teColor('design.colors.navy',   'Navy (text/ink)',  desC.navy   ||'#182840') %>
-              <%- teColor('design.colors.amber',  'Amber (accent)',   desC.amber  ||'#B8862A') %>
-              <%- teColor('design.colors.sage',   'Sage (buttons)',   desC.sage   ||'#5A7A5A') %>
-              <%- teColor('design.colors.whisper','Whisper (bg alt)', desC.whisper||'#F8F6F2') %>
-              <%- teColor('design.colors.white',  'White (bg main)',  desC.white  ||'#FFFFFF') %>
-            </div>
-            <div class="te4-section-label">Shape</div>
-            <div class="te4-row2">
-              <%- teField('text','design.button_radius','Button Radius',des.button_radius||'6px') %>
-              <%- teField('text','design.card_radius',  'Card Radius',  des.card_radius  ||'12px') %>
-            </div>
-          </div>
-
-          <!-- ── SEO ────────────────────────────────────────── -->
-          <div class="te4-panel" id="panel-seo">
-            <p class="te4-panel-desc">Meta tags, Open Graph, and analytics IDs. Page-level SEO overrides come from Products and Categories.</p>
-            <%- teField('text','seo.home_title','Homepage Title',seo.home_title) %>
-            <%- teField('textarea','seo.home_description','Homepage Description',seo.home_description) %>
-            <%- teImageField('seo.og_image','OG / Share Image',seo.og_image) %>
-            <%- teField('text','seo.google_analytics_id','Google Analytics ID (G-XXXXXX)',seo.google_analytics_id) %>
-          </div>
-
-          <!-- ── GLOBAL ─────────────────────────────────────── -->
-          <div class="te4-panel" id="panel-global">
-            <% const gl = t.global||{}; %>
-            <%- teField('text','global.site_name','Site Name',gl.site_name) %>
-            <%- teField('text','global.site_tagline','Tagline',gl.site_tagline) %>
-            <%- teField('email','global.contact_email','Contact Email',gl.contact_email) %>
-            <%- teField('text','global.contact_phone','Contact Phone',gl.contact_phone) %>
-            <%- teField('text','global.free_shipping_label','Free Shipping Label',gl.free_shipping_label) %>
-          </div>
 
           <!-- ── PROMO STRIP ────────────────────────────────── -->
           <div class="te4-panel" id="panel-promo_strip">
@@ -1376,13 +1307,6 @@ document.querySelectorAll('.te4-color-swatch').forEach(function (sw) {
    SLIDERS — bidirectional range ↔ number sync
    ════════════════════════════════════════════════════════════════ */
 
-// Legacy: single-field slider with a .te4-slider-val span
-var bsSlider = document.getElementById('baseSizeSlider');
-var bsVal    = document.getElementById('baseSizeVal');
-if (bsSlider && bsVal) {
-  bsSlider.addEventListener('input', function () { bsVal.textContent = bsSlider.value + 'px'; markDirty(); schedulePreview(); });
-}
-
 // Generic bidirectional: range + paired <input type=number> in same .te4-slider-wrap
 document.querySelectorAll('.te4-slider-wrap').forEach(function (wrap) {
   var range = wrap.querySelector('input[type="range"]');
@@ -1537,8 +1461,12 @@ function applyState(state) {
     var swatch = hex.closest('.te4-color-wrap')?.querySelector('.te4-color-swatch');
     if (swatch && hex.value) swatch.value = hex.value;
   });
-  // Sync slider label
-  if (bsSlider && bsVal) bsVal.textContent = bsSlider.value + 'px';
+  // Sync slider number display inputs (unnamed) from their paired range inputs
+  form.querySelectorAll('.te4-slider-wrap').forEach(function (wrap) {
+    var range = wrap.querySelector('input[type="range"]');
+    var num   = wrap.querySelector('input[type="number"]');
+    if (range && num && !num.name) num.value = range.value;
+  });
   _supressHist = false;
   markDirty();
   schedulePreview();
