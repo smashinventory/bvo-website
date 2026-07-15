@@ -106,23 +106,23 @@ async function upsertCollection(conn, name, brand, description) {
 async function upsertProduct(conn, data) {
   await conn.query(`
     INSERT INTO products (
-      sku, vendor_sku, name, brand, price, compare_price,
-      description, product_type, component_role, vendor_group_id,
+      sku, slug, vendor_sku, name, brand, price, compare_price,
+      long_desc, product_type, component_role, vendor_group_id,
       category_id, collection_id,
       upc, country_origin, warranty, lead_time_days,
       ships_ltl, freight_class, harmonized_code, total_ship_weight_lbs,
       prop65, release_date, status,
       model, color, color_family,
-      is_active, is_new, is_featured, qty_on_hand
+      is_active, is_new, is_featured
     ) VALUES (
-      :sku, :vendor_sku, :name, :brand, :price, :compare_price,
-      :description, :product_type, :component_role, :vendor_group_id,
+      :sku, :slug, :vendor_sku, :name, :brand, :price, :compare_price,
+      :long_desc, :product_type, :component_role, :vendor_group_id,
       :category_id, :collection_id,
       :upc, :country_origin, :warranty, :lead_time_days,
       :ships_ltl, :freight_class, :harmonized_code, :total_ship_weight_lbs,
       :prop65, :release_date, :status,
       :model, :color, :color_family,
-      :is_active, :is_new, :is_featured, :qty_on_hand
+      :is_active, :is_new, :is_featured
     )
     ON DUPLICATE KEY UPDATE
       vendor_sku            = VALUES(vendor_sku),
@@ -130,7 +130,7 @@ async function upsertProduct(conn, data) {
       brand                 = VALUES(brand),
       price                 = VALUES(price),
       compare_price         = VALUES(compare_price),
-      description           = VALUES(description),
+      long_desc             = VALUES(long_desc),
       product_type          = VALUES(product_type),
       component_role        = VALUES(component_role),
       vendor_group_id       = VALUES(vendor_group_id),
@@ -405,12 +405,13 @@ async function importFromWorkbook(wb, opts = {}) {
         const rawColor = clean(row['Vanity Base Color/Finish']);
         const productData = {
           sku,
+          slug:                  slugify(sku),
           vendor_sku:            vendorSku,
           name:                  clean(row['Product Name']),
           brand:                 clean(row['Mfg Name']) || 'James Martin',
           price:                 cleanNum(row['MAP Price']),
           compare_price:         cleanNum(row['MSRP']),
-          description:           clean(row['One Paragraph Product Description']),
+          long_desc:             clean(row['One Paragraph Product Description']),
           product_type:          productType,
           component_role:        clean(row['Group/Component']),
           vendor_group_id:       clean(row['Group Number']),
@@ -433,7 +434,6 @@ async function importFromWorkbook(wb, opts = {}) {
           is_active:             (isSample || rowStatus !== 'active') ? 0 : 1,
           is_new:                0,
           is_featured:           0,
-          qty_on_hand:           0,
         };
 
         if (dry) {
