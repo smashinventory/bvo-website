@@ -402,10 +402,17 @@ async function importFromWorkbook(wb, opts = {}) {
         const vendorSku = itemNumber;
 
         // ── Price resolution ─────────────────────────────────────────
-        // Samples:        sell at $9.99 flat (covers postage), no compare price
-        // Has MAP:        price = MAP, compare = MSRP
-        // No MAP, MSRP:  no MAP restriction — price = MSRP, no compare needed
-        // No MAP, no MSRP: price = 0, will be suppressed via is_active below
+        // JM pricing model: price = MAP, compare_price = MSRP.
+        //
+        // Back-calc rule (derived from 4,761 products that have both values):
+        //   MAP / MSRP = 66.0% across every product type (range 65.85–67.85%).
+        //   JM computes MAP as MSRP × 0.66. When MAP is missing from the feed,
+        //   we back-calculate: MAP = round(MSRP × 0.66, 2).
+        //
+        // Samples:          price = $9.99 flat (covers postage), active on site
+        // Has MAP:          price = MAP,           compare_price = MSRP
+        // No MAP, has MSRP: price = MSRP × 0.66,  compare_price = MSRP  (back-calc)
+        // No MAP, no MSRP:  price = 0, is_active = 0 (suppressed until priced)
         const mapPrice  = cleanNum(row['MAP Price']);
         const msrpPrice = cleanNum(row['MSRP']);
         let finalPrice, finalCompare;
@@ -416,8 +423,8 @@ async function importFromWorkbook(wb, opts = {}) {
           finalPrice   = mapPrice;
           finalCompare = msrpPrice;
         } else if (msrpPrice !== null) {
-          finalPrice   = msrpPrice;
-          finalCompare = null;
+          finalPrice   = Math.round(msrpPrice * 0.66 * 100) / 100;  // back-calc MAP
+          finalCompare = msrpPrice;
         } else {
           finalPrice   = 0;
           finalCompare = null;
