@@ -552,10 +552,16 @@ exports.productSetPrimaryImage = async (req, res, next) => {
 
 // Attribute keys included in the CSV — matches our filter definitions + JM spreadsheet fields
 const CSV_ATTR_KEYS = [
+  // Core / universal
   'product_type', 'size_in', 'cabinet_finish',
   'hardware_finish', 'style', 'mount_type', 'sink_count', 'sink_included',
   'countertop_material', 'countertop_included', 'mirror_included',
   'door_style', 'drawer_count', 'sink_type', 'faucet_holes',
+  // JM-specific & extended specs
+  'soft_close_hinges', 'soft_close_slides', 'backsplash_included',
+  'wireless_charging', 'freepower_compatible', 'ada_compliant',
+  'bowl_shape', 'distressed_finish', 'countertop_finish', 'countertop_thickness',
+  'sink_material', 'sink_installation', 'has_makeup_counter',
 ];
 // Keys stored as numeric values
 const NUMERIC_ATTR_KEYS = new Set(['size_in', 'sink_count', 'drawer_count', 'faucet_holes']);
