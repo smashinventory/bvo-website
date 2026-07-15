@@ -409,7 +409,7 @@ async function importFromWorkbook(wb, opts = {}) {
           vendor_sku:            vendorSku,
           name:                  clean(row['Product Name']),
           brand:                 clean(row['Mfg Name']) || 'James Martin',
-          price:                 cleanNum(row['MAP Price']),
+          price:                 cleanNum(row['MAP Price']) ?? 0,
           compare_price:         cleanNum(row['MSRP']),
           long_desc:             clean(row['One Paragraph Product Description']),
           product_type:          productType,
