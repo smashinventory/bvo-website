@@ -452,10 +452,14 @@ async function main() {
                                        ['faucet_spread_in',   'num'],
         'ADA Compliant?':              ['ada_compliant',       'bool'],
         ' Electrical component (Y/N)': ['has_electrical',      'bool'],
-        'FreePower Compatible?':        ['freepower_compatible','bool'],
-        'Wireless Charging Unit (Y/N)':['wireless_charging',   'bool'],
+        'FreePower Compatible?':        ['freepower_compatible',         'bool'],
+        'Wireless Charging Unit (Y/N)':['wireless_charging',            'bool'],
+        'Wireless Charging Unit FC Certified?': ['wireless_charging_fc_certified', 'bool'],
+        'Wireless Charging Unit UL Certification': ['wireless_charging_ul',        'text'],
         'Theme (Contemporary/Modern, Transitional, Traditional, or Commercial)':
                                        ['style',               'text'],
+        'Vanity Type':                 ['vanity_type',         'text'],
+        'Substitute SKU (If Applicable)': ['substitute_sku',  'text'],
         'Includes Makeup Counter and Top (Y/N)': ['has_makeup_counter', 'bool'],
       };
 

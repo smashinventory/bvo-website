@@ -107,20 +107,44 @@
     <div class="detail-specs">
       <h4>Specifications</h4>
       <%
-        /* Attr keys whose numeric/text values represent inches — display with " suffix */
+        /* Attr keys whose numeric/text values represent inches — display with “ suffix */
         var _inchKeys = new Set(['size_in','width_in','depth_in','height_in',
                                  'sink_depth_in','sink_width_in','sink_basin_depth_in',
                                  'countertop_thickness','faucet_spread_in']);
+
+        /* Operational EAV keys — stored in DB for internal use, never shown to customers */
+        var _hiddenKeys = new Set(['substitute_sku']);
+
+        /* Label overrides for keys whose auto-generated labels look wrong (e.g. acronyms) */
+        var _labelOverrides = {
+          'wireless_charging_fc_certified': 'Wireless Charging FC Certified',
+          'wireless_charging_ul':           'Wireless Charging UL Certification',
+          'tip_out_drawers':                'Tip-Out Drawers',
+          'num_drawers':                    'Number of Drawers',
+          'num_doors':                      'Number of Doors',
+          'num_shelves':                    'Number of Shelves',
+          'sink_width_in':                  'Sink Width',
+          'sink_depth_in':                  'Sink Depth',
+          'sink_basin_depth_in':            'Sink Basin Depth',
+          'faucet_spread_in':               'Faucet Spread',
+          'ada_compliant':                  'ADA Compliant',
+          'has_electrical':                 'Electrical Component',
+          'has_makeup_counter':             'Includes Makeup Counter',
+          'primary_material':               'Primary Material',
+          'vanity_type':                    'Vanity Type',
+        };
       %>
       <% product.attributes.forEach(function(attr) {
-           /* Label: prefer display_name from DB; fall back to prettifying attr_key.
-              Strip trailing _in from machine keys (size_in → Size, height_in → Height). */
-           var _label = (attr.display_name && attr.display_name !== attr.attr_key)
-             ? attr.display_name
-             : attr.attr_key.replace(/_in$/, '').replace(/_/g, ' ')
-                            .replace(/\b\w/g, function(c){ return c.toUpperCase(); });
+           /* Skip keys that are internal-only */
+           if (_hiddenKeys.has(attr.attr_key)) return;
 
-           /* Value: append " for inch measurements; show boolean as Yes/No */
+           /* Label: explicit override → display_name from DB → auto-prettify attr_key */
+           var _label = _labelOverrides[attr.attr_key]
+             || (attr.display_name && attr.display_name !== attr.attr_key ? attr.display_name : null)
+             || attr.attr_key.replace(/_in$/, '').replace(/_/g, ' ')
+                             .replace(/\b\w/g, function(c){ return c.toUpperCase(); });
+
+           /* Value: append “ for inch measurements */
            var _isInch = _inchKeys.has(attr.attr_key);
            var _val;
            if (attr.value_text) {
@@ -131,9 +155,9 @@
              _val = '';
            }
       %>
-      <div class="spec-row">
-        <span class="spec-label"><%= _label %></span>
-        <span class="spec-val"><%= _val %></span>
+      <div class=”spec-row”>
+        <span class=”spec-label”><%= _label %></span>
+        <span class=”spec-val”><%= _val %></span>
       </div>
       <% }) %>
       <% if (product.width_in) { %>

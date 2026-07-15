@@ -570,6 +570,8 @@ const CSV_ATTR_KEYS = [
   'backsplash_material', 'drawer_organizer',
   'num_doors', 'num_shelves', 'num_drawers', 'tip_out_drawers',
   'has_makeup_counter',
+  'vanity_type', 'substitute_sku',
+  'wireless_charging_fc_certified', 'wireless_charging_ul',
 ];
 // Keys stored as numeric values
 const NUMERIC_ATTR_KEYS = new Set([
