@@ -401,6 +401,28 @@ async function importFromWorkbook(wb, opts = {}) {
         const sku       = itemNumber;
         const vendorSku = itemNumber;
 
+        // ── Price resolution ─────────────────────────────────────────
+        // Samples:        sell at $9.99 flat (covers postage), no compare price
+        // Has MAP:        price = MAP, compare = MSRP
+        // No MAP, MSRP:  no MAP restriction — price = MSRP, no compare needed
+        // No MAP, no MSRP: price = 0, will be suppressed via is_active below
+        const mapPrice  = cleanNum(row['MAP Price']);
+        const msrpPrice = cleanNum(row['MSRP']);
+        let finalPrice, finalCompare;
+        if (isSample) {
+          finalPrice   = 9.99;
+          finalCompare = null;
+        } else if (mapPrice !== null) {
+          finalPrice   = mapPrice;
+          finalCompare = msrpPrice;
+        } else if (msrpPrice !== null) {
+          finalPrice   = msrpPrice;
+          finalCompare = null;
+        } else {
+          finalPrice   = 0;
+          finalCompare = null;
+        }
+
         // ── Product core data ────────────────────────────────────────
         const rawColor = clean(row['Vanity Base Color/Finish']);
         const productData = {
@@ -409,8 +431,8 @@ async function importFromWorkbook(wb, opts = {}) {
           vendor_sku:            vendorSku,
           name:                  clean(row['Product Name']),
           brand:                 clean(row['Mfg Name']) || 'James Martin',
-          price:                 cleanNum(row['MAP Price']) ?? 0,
-          compare_price:         cleanNum(row['MSRP']),
+          price:                 finalPrice,
+          compare_price:         finalCompare,
           long_desc:             clean(row['One Paragraph Product Description']),
           product_type:          productType,
           component_role:        clean(row['Group/Component']),
@@ -431,7 +453,7 @@ async function importFromWorkbook(wb, opts = {}) {
           model:                 clean(row['Collection Name']),
           color:                 rawColor,
           color_family:          rawColor ? (normalizeColor(rawColor) || null) : null,
-          is_active:             (isSample || rowStatus !== 'active') ? 0 : 1,
+          is_active:             (rowStatus !== 'active' || finalPrice === 0) ? 0 : 1,
           is_new:                0,
           is_featured:           0,
         };
