@@ -67,10 +67,10 @@ const Product = {
       if (minPrice != null) { where += ' AND p.price >= ?'; params.push(minPrice); }
       if (maxPrice != null) { where += ' AND p.price <= ?'; params.push(maxPrice); }
       if (model) {
-        // Match product names that start with the model collection name
-        const modelName = model.replace(/-/g, ' ');
-        where += ' AND LOWER(p.name) LIKE ?';
-        params.push(`${modelName.toLowerCase()}%`);
+        // Filter by products.model column (exact match, case-insensitive).
+        // Previously used LIKE on p.name — replaced now that products.model is populated.
+        where += ' AND LOWER(p.model) = LOWER(?)';
+        params.push(model.replace(/-/g, ' '));
       }
 
       // ── EAV attribute filters — one EXISTS subquery per active attribute ──

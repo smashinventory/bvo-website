@@ -13,7 +13,7 @@ async function getFeaturedProducts() {
     const [rows] = await bvoPool.query(`
       SELECT
         p.id, p.slug, p.name, p.brand, p.price, p.compare_price, p.is_new,
-        pi.url AS primary_image,
+        COALESCE(p.primary_image_url, pi.url) AS primary_image,
         CASE
           WHEN p.compare_price IS NOT NULL AND p.compare_price > p.price THEN 'sale'
           WHEN p.is_new = 1 THEN 'new'

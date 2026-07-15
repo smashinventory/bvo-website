@@ -559,6 +559,8 @@ const CSV_ATTR_KEYS = [
 ];
 // Keys stored as numeric values
 const NUMERIC_ATTR_KEYS = new Set(['size_in', 'sink_count', 'drawer_count', 'faucet_holes']);
+// Numeric keys that also need value_text for checkbox filtering (all NUMERIC_ATTR_KEYS except size_in which uses range)
+const NUMERIC_CHECKBOX_KEYS = new Set(['sink_count', 'drawer_count', 'faucet_holes']);
 
 function _csvEscape(v) {
   if (v == null) return '';
@@ -989,7 +991,10 @@ exports.productImport = async (req, res, next) => {
           const isNum = NUMERIC_ATTR_KEYS.has(k);
           specs.push({
             key:  k,
-            text: isNum ? null : val,
+            // Numeric-checkbox keys (sink_count, drawer_count, faucet_holes) need value_text populated
+            // so the checkbox filter (which queries value_text IN (...)) can find them.
+            // size_in uses a range filter that queries value_num, so value_text stays null there.
+            text: (isNum && !NUMERIC_CHECKBOX_KEYS.has(k)) ? null : val,
             num:  isNum ? (parseFloat(val) || null) : (isNaN(parseFloat(val)) ? null : parseFloat(val)),
           });
         }

@@ -421,7 +421,7 @@
             <% if (_pSwatches.length) { %>
               <% _pSwatches.forEach(function(f, i) { %>
               <%
-                var _isLight = f.hex && ['#f5f5f3','#F0F0EF','#F5F5F5','#FAFAFA','#FFFFFF','#e8d9b8'].indexOf(f.hex.toLowerCase()) !== -1;
+                var _isLight = f.hex && ['#f5f5f3','#f0f0ef','#f5f5f5','#fafafa','#ffffff','#e8d9b8'].indexOf(f.hex.toLowerCase()) !== -1;
                 var _sb = _isLight ? '#ccc' : (f.border || f.hex);
               %>
               <button class="model-card-swatch<%= i === 0 ? ' is-active' : '' %>"
