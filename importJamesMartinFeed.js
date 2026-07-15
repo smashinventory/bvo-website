@@ -20,8 +20,8 @@ require('dotenv').config();
 const path    = require('path');
 const fs      = require('fs');
 const XLSX    = require('xlsx');
-const { bvoPool }                  = require('../config/database');
-const { normalize: normalizeColor } = require('../config/colorFamilies');
+const { bvoPool }                  = require('./src/config/database');
+const { normalize: normalizeColor } = require('./src/config/colorFamilies');
 
 // ── CLI args ──────────────────────────────────────────────────────────
 const args    = process.argv.slice(2);
