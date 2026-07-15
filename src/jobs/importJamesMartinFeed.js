@@ -21,6 +21,54 @@ const XLSX                               = require('xlsx');
 const { bvoPool }                        = require('../config/database');
 const { normalize: normalizeColor }      = require('../config/colorFamilies');
 
+// ── BVO Style Map — maps JM raw Theme strings to BVO canonical buckets ─
+// JM stores comma-separated themes in one field (e.g. "Transitional, Traditional").
+// BVO canonical style buckets (Section 18D / Section 18E):
+//   Traditional | Transitional | Modern | Farmhouse | Mid-Century Modern
+//   Industrial | Coastal | Scandinavian | European / Old World
+// Values are pipe-separated; split on '|' to insert multiple EAV rows.
+const JM_STYLE_MAP = {
+  // ── Exact BVO buckets (pass-through, stored as-is) ───────────
+  'Transitional':                      'Transitional',
+  'Traditional':                       'Traditional',
+  'Modern':                            'Modern',
+  'Farmhouse':                         'Farmhouse',
+  'Mid-Century Modern':                'Mid-Century Modern',
+  'Industrial':                        'Industrial',
+  'Coastal':                           'Coastal',
+  'Scandinavian':                      'Scandinavian',
+  'European / Old World':              'European / Old World',
+
+  // ── JM multi-value / non-standard → BVO canonical ────────────
+  'Transitional, Traditional':         'Traditional|Transitional',
+  'Traditional, Transitional':         'Traditional|Transitional',
+  'Contemporary/Modern, Transitional': 'Transitional|Modern',
+  'Modern, Transitional':              'Transitional|Modern',
+  'Transitional, Modern':              'Transitional|Modern',
+  'Transitional, Farmhouse':           'Transitional|Farmhouse',
+  'Farmhouse, Traditional':            'Traditional|Farmhouse',
+  'Old World':                         'Traditional|European / Old World',
+  'Traditional, Old World':            'Traditional|European / Old World',
+
+  // ── Single-value normalizations ──────────────────────────────
+  'Contemporary':                      'Modern',
+  'Contemporary/Modern':               'Modern',
+  'Contemporary, Modern':              'Modern',
+  'Modern Farmhouse':                  'Farmhouse',
+  'Modern Luxe':                       'Modern',
+  'Commercial':                        'Modern',
+
+  // ── JM 2-style combos ────────────────────────────────────────
+  'Boho, Contemporary/Modern':                              'Modern|Farmhouse',
+  'Farmhouse, Rustic-Modern, Contemporary/Modern':          'Modern|Farmhouse',
+  'Modern Farmhouse, Transitional':                         'Transitional|Farmhouse',
+
+  // ── JM 3-style combos (comma + period delimiter variants) ────
+  'Contemporary/Modern, Modern Farmhouse, Transitional':    'Transitional|Modern|Farmhouse',
+  'Contemporary/Modern, Modern Farmhouse. Transitional':    'Transitional|Modern|Farmhouse',
+  'Contemporary/Modern, Modern Farmhouse.Transitional':     'Transitional|Modern|Farmhouse',
+};
+
 // ── Helpers ───────────────────────────────────────────────────────────
 const slugify = s => String(s || '').toLowerCase().trim()
   .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
@@ -157,15 +205,37 @@ async function upsertProduct(conn, data) {
   return row ? row.id : null;
 }
 
+// Migration 011 changed product_attribute_values PK from compound (product_id, attr_key)
+// to a surrogate AUTO_INCREMENT id. ON DUPLICATE KEY UPDATE no longer applies.
+// replaceAttr now uses DELETE + INSERT to guarantee single-value attrs stay single-row.
 async function replaceAttr(conn, productId, attrKey, valueText, valueNum) {
   if (valueText === null && valueNum === null) return;
-  await conn.query(`
-    INSERT INTO product_attribute_values (product_id, attr_key, value_text, value_num)
-    VALUES (?, ?, ?, ?)
-    ON DUPLICATE KEY UPDATE
-      value_text = VALUES(value_text),
-      value_num  = VALUES(value_num)
-  `, [productId, attrKey, valueText, valueNum]);
+  await conn.query(
+    'DELETE FROM product_attribute_values WHERE product_id = ? AND attr_key = ?',
+    [productId, attrKey]
+  );
+  await conn.query(
+    'INSERT INTO product_attribute_values (product_id, attr_key, value_text, value_num) VALUES (?, ?, ?, ?)',
+    [productId, attrKey, valueText, valueNum]
+  );
+}
+
+// Multi-value style insert — deletes all existing style rows for this product,
+// then inserts one row per BVO style bucket. Uses JM_STYLE_MAP for lookup.
+async function insertStyleAttrs(conn, productId, rawTheme) {
+  await conn.query(
+    'DELETE FROM product_attribute_values WHERE product_id = ? AND attr_key = ?',
+    [productId, 'style']
+  );
+  if (!rawTheme) return;
+  const mapped = JM_STYLE_MAP[rawTheme.trim()];
+  if (!mapped) return;  // unknown JM theme — skip rather than store garbage
+  for (const styleVal of mapped.split('|')) {
+    await conn.query(
+      'INSERT INTO product_attribute_values (product_id, attr_key, value_text, value_num) VALUES (?, ?, ?, NULL)',
+      [productId, 'style', styleVal.trim()]
+    );
+  }
 }
 
 async function replaceBullets(conn, productId, bullets) {
@@ -334,9 +404,13 @@ const ATTR_MAP = {
   'Wireless Charging Unit (Y/N)':['wireless_charging',           'bool'],
   'Wireless Charging Unit FC Certified?': ['wireless_charging_fc_certified', 'bool'],
   'Wireless Charging Unit UL Certification': ['wireless_charging_ul',        'text'],
-  'Theme (Contemporary/Modern, Transitional, Traditional, or Commercial)':
-                                 ['style',                        'text'],
-  'Vanity Type':                 ['vanity_type',                  'text'],
+  // 'style' removed from ATTR_MAP — handled by insertStyleAttrs() below.
+  // JM_STYLE_MAP maps raw theme strings to BVO canonical buckets and
+  // inserts one EAV row per style value. (See Section 18E in PROJECT_BRIEF.md)
+  //
+  // 'Vanity Type' removed from ATTR_MAP — its content (e.g. "Freestanding")
+  // is already stored in products.product_type. The EAV key 'vanity_type'
+  // had no attribute_definition and was an orphan that never appeared in filters.
   'Substitute SKU (If Applicable)': ['substitute_sku',            'text'],
   'Includes Makeup Counter and Top (Y/N)': ['has_makeup_counter', 'bool'],
 };
@@ -394,7 +468,10 @@ async function importFromWorkbook(wb, opts = {}) {
         // ── Product type + category routing ─────────────────────────
         const vanityType    = clean(row['Vanity Type']);
         const productTypRaw = clean(row['Product Type']);
-        const productType   = slugify(vanityType || productTypRaw || '');
+        // Fix JM-3: store human-readable value (not slugified) so the
+        // sidebar filter shows "Freestanding", "Floating Console", etc.
+        // resolveCategoryId() still uses productTypRaw (unchanged).
+        const productType   = vanityType || productTypRaw || null;
         const categoryId    = resolveCategoryId(productTypRaw);
         const isSample      = /sample/i.test(productTypRaw || '');
 
@@ -491,9 +568,26 @@ async function importFromWorkbook(wb, opts = {}) {
           await replaceAttr(conn, productId, attrKey, textVal, numVal);
         }
 
+        // ── Style — multi-value via JM_STYLE_MAP ─────────────────────
+        // Removed from ATTR_MAP. insertStyleAttrs() applies JM_STYLE_MAP
+        // and inserts one EAV row per BVO style bucket. (Fix JM-2)
+        const rawTheme = clean(row['Theme (Contemporary/Modern, Transitional, Traditional, or Commercial)']);
+        await insertStyleAttrs(conn, productId, rawTheme);
+
         // ── Derived: mount_type (vanities only) ──────────────────────
-        if (categoryId === 1 && productType) {
-          const mountType = /wall/i.test(productType) ? 'Wall-Mount' : 'Freestanding';
+        // Fix JM-1: BVO canonical = 'Wall Mounted' | 'Floor Standing' | 'Pedestal'
+        // Detect from raw JM fields (vanityType, productTypRaw) not from slugified productType.
+        if (categoryId === 1) {
+          const vtLower  = (vanityType    || '').toLowerCase();
+          const ptLower  = (productTypRaw || '').toLowerCase();
+          let mountType;
+          if (/wall/i.test(vtLower) || /wall/i.test(ptLower)) {
+            mountType = 'Wall Mounted';
+          } else if (/pedestal|console/i.test(vtLower) || /pedestal|console/i.test(ptLower)) {
+            mountType = 'Pedestal';
+          } else {
+            mountType = 'Floor Standing';
+          }
           await replaceAttr(conn, productId, 'mount_type', mountType, null);
         }
 
