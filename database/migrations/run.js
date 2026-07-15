@@ -49,6 +49,10 @@ async function run() {
 }
 
 run().catch(err => {
-  console.error('[migrate] Fatal:', err.message);
+  // Show code + message — mysql2 connection errors sometimes have empty .message
+  const detail = err.message || err.code || err.sqlMessage || JSON.stringify(err);
+  console.error('[migrate] Fatal:', detail);
+  if (err.code) console.error('[migrate] Error code:', err.code);
+  if (err.address) console.error('[migrate] Host:', err.address, 'Port:', err.port);
   process.exit(1);
 });

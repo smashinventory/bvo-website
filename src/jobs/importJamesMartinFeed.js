@@ -146,7 +146,7 @@ async function upsertCollection(conn, name, brand, description) {
     VALUES (?, ?, ?, ?)
     ON DUPLICATE KEY UPDATE name=VALUES(name), brand=VALUES(brand),
       description=COALESCE(VALUES(description), description)
-  `, [slug, name, brand || 'James Martin', description || null]);
+  `, [slug, name, brand || 'James Martin Vanities', description || null]);
   const [[row]] = await conn.query('SELECT id FROM collections WHERE slug = ?', [slug]);
   return row ? row.id : null;
 }
@@ -460,7 +460,7 @@ async function importFromWorkbook(wb, opts = {}) {
           collectionId = await upsertCollection(
             conn,
             clean(row['Collection Name']),
-            clean(row['Mfg Name']) || 'James Martin',
+            clean(row['Mfg Name']) || 'James Martin Vanities',
             clean(row['One Paragraph Collection Description'])
           );
         }
@@ -514,7 +514,7 @@ async function importFromWorkbook(wb, opts = {}) {
           slug:                  slugify(sku),
           vendor_sku:            vendorSku,
           name:                  clean(row['Product Name']),
-          brand:                 clean(row['Mfg Name']) || 'James Martin',
+          brand:                 clean(row['Mfg Name']) || 'James Martin Vanities',
           price:                 finalPrice,
           compare_price:         finalCompare,
           long_desc:             clean(row['One Paragraph Product Description']),
