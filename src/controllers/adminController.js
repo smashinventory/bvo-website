@@ -568,7 +568,7 @@ const CSV_ATTR_KEYS = [
   'sink_material', 'sink_installation', 'sink_overflow', 'drain_included',
   'sink_width_in', 'sink_depth_in', 'sink_basin_depth_in',
   'backsplash_material', 'drawer_organizer',
-  'num_doors', 'num_shelves', 'num_drawers', 'tip_out_drawers',
+  'num_doors', 'num_shelves', 'drawer_count', 'tip_out_drawers',
   'has_makeup_counter',
   'vanity_type', 'substitute_sku',
   'wireless_charging_fc_certified', 'wireless_charging_ul',
@@ -577,7 +577,7 @@ const CSV_ATTR_KEYS = [
 const NUMERIC_ATTR_KEYS = new Set([
   'size_in', 'height_in', 'depth_in', 'weight_lbs',
   'sink_count', 'drawer_count', 'faucet_holes', 'faucet_spread_in',
-  'num_doors', 'num_shelves', 'num_drawers', 'tip_out_drawers',
+  'num_doors', 'num_shelves', 'tip_out_drawers',
   'sink_width_in', 'sink_depth_in', 'sink_basin_depth_in',
 ]);
 // Numeric keys that also need value_text for checkbox filtering (all NUMERIC_ATTR_KEYS except size_in which uses range)

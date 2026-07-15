@@ -291,27 +291,51 @@ async function replaceAccessories(conn, sku, accessories) {
   }
 }
 
-// ── Resolve category_id from JM Product Category string ──────────────
-const CATEGORY_MAP = {
-  'vanity':           1,
-  'vanities':         1,
-  'bathroom vanity':  1,
-  'mirror':           2,
-  'mirrors':          2,
-  'faucet':           3,
-  'faucets':          3,
-  'accessory':        4,
-  'accessories':      4,
-  'lighting':         5,
-  'storage':          6,
+// ── Resolve category_id from JM Product Type string ──────────────────
+// Routes on Product Type column (2026 feed) — far more granular than
+// the old Product Category column ("General Products" contained
+// everything: vanities, mirrors, tops, hutches).
+//
+// Category IDs match the seeded categories table:
+//   migration 001 → 1=Vanities, 2=Mirrors, 3=Faucets,
+//                   4=Accessories, 5=Lighting, 6=Storage
+//   migration 010 → 7=Vanity Tops
+const PRODUCT_TYPE_MAP = {
+  // Vanities (1)
+  'vanity':            1,
+  'floating console':  1,
+  'console':           1,
+  'console base':      1,
+  // Mirrors (2)
+  'mirror':            2,
+  // Vanity Tops (7 — added migration 010)
+  'top':               7,
+  'countertop unit':   7,
+  // Storage (6)
+  'cabinet':           6,
+  'side cabinet':      6,
+  'storage cabinet':   6,
+  'linen cabinet':     6,
+  'hutch':             6,
+  'shelf':             6,
+  // Accessories (4)
+  'backsplash':        4,
+  'drawer unit':       4,
+  'metal base':        4,
+  'knobs and legs':    4,
+  'pull':              4,
+  'bench':             4,
 };
 
-function resolveCategoryId(categoryStr) {
-  const s = String(categoryStr || '').toLowerCase().trim();
-  for (const [key, id] of Object.entries(CATEGORY_MAP)) {
+function resolveCategoryId(productTypeStr) {
+  const s = String(productTypeStr || '').toLowerCase().trim();
+  // Exact match first — prevents "cabinet" from swallowing "linen cabinet" etc.
+  if (PRODUCT_TYPE_MAP[s] !== undefined) return PRODUCT_TYPE_MAP[s];
+  // Substring fallback for future Product Type variants
+  for (const [key, id] of Object.entries(PRODUCT_TYPE_MAP)) {
     if (s.includes(key)) return id;
   }
-  return 1; // default to vanities (JM primary product)
+  return 1; // default: vanities
 }
 
 // ── Main ──────────────────────────────────────────────────────────────
@@ -361,6 +385,11 @@ async function main() {
       const productTypRaw = clean(row['Product Type']);
       const productType   = slugify(vanityType || productTypRaw || '');
 
+      // Routing: resolve BVO category from JM Product Type (2026 feed)
+      const categoryId = resolveCategoryId(productTypRaw);
+      // Samples (Wood/Stone/Metal) are catalogue reference items — import inactive
+      const isSample   = /sample/i.test(productTypRaw || '');
+
       // ── SKU: use Item Number as the canonical SKU ───────────────
       const sku       = itemNumber;
       const vendorSku = itemNumber;  // same for JM; future vendors may differ
@@ -378,7 +407,7 @@ async function main() {
         product_type:     productType,
         component_role:   clean(row['Group/Component']),
         vendor_group_id:  clean(row['Group Number']),
-        category_id:      resolveCategoryId(row['Product Category']),
+        category_id:      categoryId,
         collection_id:    collectionId,
         upc:              clean(row['UPC Code']),
         country_origin:   clean(row['Country of Origin']),
@@ -395,7 +424,7 @@ async function main() {
         model:            clean(row['Collection Name']),
         color:            rawColor,
         color_family:     rawColor ? (normalizeColor(rawColor) || null) : null,
-        is_active:        rowStatus === 'active' ? 1 : 0,
+        is_active:        (isSample || rowStatus !== 'active') ? 0 : 1,
         is_new:           0,
         is_featured:      0,
         qty_on_hand:      0,   // stock comes from RFLPOS sync, not JM feed
@@ -433,7 +462,7 @@ async function main() {
         'Adjustable Shelves (Y/N)':   ['adjustable_shelves',  'bool'],
         'Number of Doors':             ['num_doors',           'num'],
         'Soft Close Hinges? (Y/N)':   ['soft_close_hinges',   'bool'],
-        'Number of Drawers':           ['num_drawers',         'num'],
+        'Number of Drawers':           ['drawer_count',        'num'],
         'Number of Tip Out Style Drawers': ['tip_out_drawers', 'num'],
         'Soft Close Slides? (Y/N)':   ['soft_close_slides',   'bool'],
         'Backsplash Included? (Y/N)': ['backsplash_included', 'bool'],
@@ -481,18 +510,22 @@ async function main() {
 
       // ── Derived attributes not directly in attrMap ────────────────
 
-      // mount_type: derive from product_type slug
-      //   wall-mount-vanity → 'Wall-Mount'
-      //   everything else   → 'Freestanding'
-      if (productType) {
-        const mountType = /wall/i.test(productType) ? 'Wall-Mount' : 'Freestanding';
-        await replaceAttr(conn, productId, 'mount_type', mountType, null);
-      }
+      // mount_type and sink_included are vanity-specific; skip for
+      // mirrors, tops, storage, and accessories.
+      if (categoryId === 1) {
+        // mount_type: derive from product_type slug
+        //   wall-mount-vanity → 'Wall-Mount'
+        //   everything else   → 'Freestanding'
+        if (productType) {
+          const mountType = /wall/i.test(productType) ? 'Wall-Mount' : 'Freestanding';
+          await replaceAttr(conn, productId, 'mount_type', mountType, null);
+        }
 
-      // sink_included: Yes if sink_count > 0, No otherwise
-      const rawSinkCount = cleanNum(row['Number of Sinks Included (0, 1, or 2)']);
-      if (rawSinkCount !== null) {
-        await replaceAttr(conn, productId, 'sink_included', rawSinkCount > 0 ? 'Yes' : 'No', null);
+        // sink_included: Yes if sink_count > 0, No otherwise
+        const rawSinkCount = cleanNum(row['Number of Sinks Included (0, 1, or 2)']);
+        if (rawSinkCount !== null) {
+          await replaceAttr(conn, productId, 'sink_included', rawSinkCount > 0 ? 'Yes' : 'No', null);
+        }
       }
 
       // ── Bullet features ─────────────────────────────────────────
