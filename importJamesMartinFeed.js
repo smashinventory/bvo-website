@@ -510,8 +510,8 @@ async function main() {
 
       // ── Derived attributes not directly in attrMap ────────────────
 
-      // mount_type and sink_included are vanity-specific; skip for
-      // mirrors, tops, storage, and accessories.
+      // mount_type is cabinet-specific (wall-mount vs freestanding);
+      // sink_included also applies to tops (integrated sink vs slab only).
       if (categoryId === 1) {
         // mount_type: derive from product_type slug
         //   wall-mount-vanity → 'Wall-Mount'
@@ -521,7 +521,11 @@ async function main() {
           await replaceAttr(conn, productId, 'mount_type', mountType, null);
         }
 
-        // sink_included: Yes if sink_count > 0, No otherwise
+      }
+
+      // sink_included: applies to vanities (combos vs cabinet-only)
+      // AND tops (integrated sink slab vs countertop-only).
+      if (categoryId === 1 || categoryId === 7) {
         const rawSinkCount = cleanNum(row['Number of Sinks Included (0, 1, or 2)']);
         if (rawSinkCount !== null) {
           await replaceAttr(conn, productId, 'sink_included', rawSinkCount > 0 ? 'Yes' : 'No', null);
