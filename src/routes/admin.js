@@ -19,7 +19,8 @@ router.get('/', ctrl.dashboard);
 /* ── Products ───────────────────────────────────────────────── */
 router.get ('/products',                                          ctrl.productList);
 router.get ('/products/export.csv',                               ctrl.productExport);
-router.post('/products/import',  ctrl.productImportMiddleware,    ctrl.productImport);
+router.post('/products/import',    ctrl.productImportMiddleware,    ctrl.productImport);
+router.post('/products/import-jm', ctrl.productImportJMMiddleware,  ctrl.productImportJM);
 router.post('/products/bulk',                                     ctrl.productBulkAction);
 router.get ('/products/bulk-edit',                                ctrl.productBulkEdit);
 router.post('/products/bulk-edit',                                ctrl.productBulkEditSave);

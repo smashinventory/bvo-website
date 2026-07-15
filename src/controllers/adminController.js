@@ -1055,6 +1055,44 @@ exports.productImport = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+/* ── James Martin XLSX Import ────────────────────────────────────────
+ * Runs server-side using the existing bvoPool — the correct approach.
+ * Do NOT run importJamesMartinFeed.js as a standalone local script;
+ * local .env has DB_HOST=127.0.0.1 which has no MySQL. Always trigger
+ * imports via this admin route so the server's DB connection is used.
+ */
+const _jmImporter = require('../jobs/importJamesMartinFeed');
+const _xlsxLib     = require('xlsx');
+
+exports.productImportJMMiddleware = multer({
+  storage: multer.memoryStorage(),
+  limits:  { fileSize: 50 * 1024 * 1024 }, // JM feed is ~10-15 MB
+  fileFilter: (req, file, cb) => {
+    const ok = /\.(xlsx|xlsm)$/i.test(file.originalname);
+    cb(ok ? null : new Error('Only .xlsx files are accepted'), ok);
+  },
+}).single('xlsx_file');
+
+exports.productImportJM = async (req, res, next) => {
+  if (!req.file) {
+    req.session.flash = { type: 'error', msg: 'No XLSX file uploaded.' };
+    return res.redirect('/admin/products');
+  }
+  try {
+    const wb     = _xlsxLib.read(req.file.buffer, { cellDates: false });
+    const result = await _jmImporter.importFromWorkbook(wb);
+    const type   = result.errors === 0 ? 'success' : 'warning';
+    const errs   = result.errorList.slice(0, 3).join('; ');
+    req.session.flash = {
+      type,
+      msg: `JM Import — ${result.imported} imported, ${result.skipped} skipped, ${result.errors} errors.${errs ? ' ' + errs : ''}`,
+    };
+  } catch (err) {
+    req.session.flash = { type: 'error', msg: `JM Import failed: ${err.message}` };
+  }
+  return res.redirect('/admin/products');
+};
+
 function _extractProductFields(body) {
   const name    = (body.name || '').trim();
   const rawSlug = (body.slug || '').trim();

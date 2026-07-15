@@ -50,14 +50,56 @@ function filterUrl(overrides) {
   </form>
 
   <div class="adm-toolbar-actions">
-    <a href="/admin/products/export.csv" class="btn btn-outline" title="Download all products as CSV">⬇ Export All</a>
-    <button type="button" class="btn btn-outline" id="importBtn">⬆ Import CSV</button>
+    <a href="/admin/products/export.csv" class="btn btn-outline" title="Download all products as CSV">⬇ Export CSV</a>
+    <button type="button" class="btn btn-outline" id="importMenuBtn">⬆ Import ▾</button>
     <a href="/admin/products/new" class="btn btn-primary">+ Add Product</a>
   </div>
 </div>
 
-<form id="importForm" action="/admin/products/import" method="POST" enctype="multipart/form-data" style="display:none">
-  <input type="file" id="importFile" name="csv_file" accept=".csv,text/csv">
+<!-- ── Vendor Import Dropdown ─────────────────────────────────────── -->
+<div id="importMenu" class="vendor-import-menu" style="display:none">
+  <div class="vim-header">Vendor Data Import</div>
+  <div class="vim-cards">
+
+    <!-- James Martin XLSX -->
+    <div class="vim-card">
+      <div class="vim-card-logo">JM</div>
+      <div class="vim-card-body">
+        <strong>James Martin</strong>
+        <span class="vim-card-hint">Etail Feed (.xlsx)</span>
+      </div>
+      <button type="button" class="btn btn-primary btn-sm" id="jmImportBtn">Upload</button>
+    </div>
+
+    <!-- BVO CSV (manual / enrichment output) -->
+    <div class="vim-card">
+      <div class="vim-card-logo" style="background:#7A7264">BVO</div>
+      <div class="vim-card-body">
+        <strong>BVO CSV</strong>
+        <span class="vim-card-hint">Export / enrichment format</span>
+      </div>
+      <button type="button" class="btn btn-outline btn-sm" id="csvImportBtn">Upload</button>
+    </div>
+
+    <!-- RFL — Phase 2 -->
+    <div class="vim-card vim-card--disabled">
+      <div class="vim-card-logo" style="background:#b0b0b0">RFL</div>
+      <div class="vim-card-body">
+        <strong>RFL / POS Sync</strong>
+        <span class="vim-card-hint">Phase 2 — coming soon</span>
+      </div>
+      <button type="button" class="btn btn-outline btn-sm" disabled>Soon</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- Hidden upload forms -->
+<form id="jmImportForm" action="/admin/products/import-jm" method="POST" enctype="multipart/form-data" style="display:none">
+  <input type="file" id="jmImportFile" name="xlsx_file" accept=".xlsx,.xlsm">
+</form>
+<form id="csvImportForm" action="/admin/products/import" method="POST" enctype="multipart/form-data" style="display:none">
+  <input type="file" id="csvImportFile" name="csv_file" accept=".csv,text/csv">
 </form>
 
 <% if (locals.flash) { %>
@@ -455,22 +497,84 @@ function filterUrl(overrides) {
     form.submit();
   };
 
-  /* ── Import CSV ──────────────────────────────────────────── */
-  var importBtn  = document.getElementById('importBtn');
-  var importFile = document.getElementById('importFile');
-  var importForm = document.getElementById('importForm');
-  if (importBtn) {
-    importBtn.addEventListener('click', function() { importFile.click(); });
-    importFile.addEventListener('change', function() {
-      if (this.files[0] && confirm('Import "' + this.files[0].name + '"?\nExisting products matched by SKU will be updated.')) {
-        importForm.submit();
+  /* ── Vendor Import Menu ──────────────────────────────────── */
+  var importMenuBtn = document.getElementById('importMenuBtn');
+  var importMenu    = document.getElementById('importMenu');
+
+  if (importMenuBtn) {
+    importMenuBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      importMenu.style.display = importMenu.style.display === 'none' ? 'block' : 'none';
+    });
+    document.addEventListener('click', function() {
+      importMenu.style.display = 'none';
+    });
+  }
+
+  function wireImport(btnId, fileId, formId, label) {
+    var btn  = document.getElementById(btnId);
+    var file = document.getElementById(fileId);
+    var form = document.getElementById(formId);
+    if (!btn) return;
+    btn.addEventListener('click', function(e) { e.stopPropagation(); file.click(); });
+    file.addEventListener('change', function() {
+      if (this.files[0] && confirm('Import "' + this.files[0].name + '" as ' + label + '?\nExisting products matched by SKU will be updated.')) {
+        importMenu.style.display = 'none';
+        form.submit();
       }
     });
   }
+
+  wireImport('jmImportBtn',  'jmImportFile',  'jmImportForm',  'James Martin XLSX');
+  wireImport('csvImportBtn', 'csvImportFile', 'csvImportForm', 'BVO CSV');
 })();
 </script>
 
 <style>
+/* ── Vendor Import Menu ──────────────────────────────────────── */
+.vendor-import-menu {
+  position: absolute;
+  z-index: 200;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.12);
+  padding: 12px;
+  min-width: 380px;
+}
+.vim-header {
+  font-size: .72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: #888;
+  margin-bottom: 10px;
+}
+.vim-cards { display: flex; flex-direction: column; gap: 8px; }
+.vim-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  background: #fafafa;
+}
+.vim-card--disabled { opacity: .5; }
+.vim-card-logo {
+  width: 36px; height: 36px;
+  border-radius: 6px;
+  background: #182840;
+  color: #fff;
+  font-size: .7rem;
+  font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.vim-card-body { flex: 1; display: flex; flex-direction: column; }
+.vim-card-body strong { font-size: .85rem; }
+.vim-card-hint { font-size: .73rem; color: #888; margin-top: 1px; }
+
 /* ── Layout ─────────────────────────────────────────────────── */
 .adm-pl-toolbar { flex-wrap: wrap; gap: 10px; }
 .adm-pl-layout  { display: flex; align-items: flex-start; }
