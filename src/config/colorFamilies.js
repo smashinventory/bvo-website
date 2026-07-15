@@ -37,6 +37,8 @@ const FAMILIES = [
       'Cream', 'Ivory', 'Off-White', 'Champagne', 'Wheat', 'Tan', 'Linen',
       'Sand', 'Almond', 'Antique White', 'Biscuit', 'Cotton', 'Parchment',
       'Vanilla', 'Bisque',
+      'Mountain Mist', 'Mist',
+      'Vintage Vanilla',
     ],
   },
   {
@@ -93,6 +95,11 @@ const FAMILIES = [
       'Light Wood', 'Honey Oak', 'Whitewashed Oak', 'Weathered Oak',
       'Cerused Oak', 'Driftwood', 'Pale Oak', 'White Oak', 'Ash Wood',
       'White Ash', 'Natural White Ash', 'Whitewashed Ash',
+      // JM additions — exact matches override partial-match conflicts below
+      'Honey Alder', 'Alder',
+      'Natural Ash',          // override: "ash" member maps to gray; exact match wins
+      'Silver Apricot',       // override: "silver" member maps to gray; exact match wins
+      'Champagne Tiger',      // override: "champagne" member maps to cream; exact match wins
     ],
   },
   {
@@ -104,6 +111,11 @@ const FAMILIES = [
       'Walnut', 'Chestnut', 'Warm Brown', 'Teak', 'Medium Wood', 'Caramel',
       'Hazelnut', 'Auburn', 'Tobacco', 'Cognac', 'Cinnamon', 'Terracotta',
       'Desert Oak',
+      // JM additions
+      'Acacia', 'Mid Century Acacia',
+      'Saddle Brown', 'Saddle',
+      'Natural Apple Wood', 'Natural Applewood', 'Apple Wood', 'Applewood',
+      'Zebrano', 'Natural Zebrano Wood', 'Zebrawood',
     ],
   },
   {
@@ -115,6 +127,19 @@ const FAMILIES = [
       'Espresso', 'Dark Walnut', 'Dark Mahogany', 'Black Forest', 'Dark Wood',
       'Ebony Wood', 'Antique Mahogany', 'Java', 'Umber', 'Dark Pecan',
       'Burnished Mahogany',
+      // JM additions
+      'Dark Amber', 'Amber Wood',
+      'Burl', 'English Burl', 'Twilight Burl',
+      'Olive Ash Eclipse',    // override: "olive" member maps to green; exact match wins
+    ],
+  },
+  {
+    key: 'cherry',
+    label: 'Cherry',
+    hex: '#8B3A2A',
+    border: '#6a2a1a',
+    members: [
+      'Warm Cherry', 'Cherry', 'Deep Cherry', 'Cherry Glaze', 'Warm Red',
     ],
   },
 ];
