@@ -9,12 +9,13 @@ const bvoPool = mysql.createPool({
   database:          process.env.DB_NAME     || 'bvo_website',
   user:              process.env.DB_USER     || 'bvo_user',
   password:          process.env.DB_PASS     || '',
-  waitForConnections: true,
-  connectionLimit:   10,
-  queueLimit:        0,
-  connectTimeout:    3000,   // fail fast → placeholder fallback fires quickly
-  charset:           'utf8mb4',
-  timezone:          '+00:00',
+  waitForConnections:   true,
+  connectionLimit:      10,
+  queueLimit:           0,
+  connectTimeout:       3000,
+  charset:              'utf8mb4',
+  timezone:             '+00:00',
+  namedPlaceholders:    true,   // enables :param syntax in queries (used by JM importer upsertProduct)
 });
 
 // ── RFLPOS DB (read-only for sync) ───────────────────────────────
