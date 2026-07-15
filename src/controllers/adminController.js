@@ -553,18 +553,31 @@ exports.productSetPrimaryImage = async (req, res, next) => {
 // Attribute keys included in the CSV — matches our filter definitions + JM spreadsheet fields
 const CSV_ATTR_KEYS = [
   // Core / universal
-  'product_type', 'size_in', 'cabinet_finish',
-  'hardware_finish', 'style', 'mount_type', 'sink_count', 'sink_included',
-  'countertop_material', 'countertop_included', 'mirror_included',
-  'door_style', 'drawer_count', 'sink_type', 'faucet_holes',
-  // JM-specific & extended specs
+  'product_type', 'size_in', 'height_in', 'depth_in',
+  'cabinet_finish', 'finish', 'hardware_finish', 'style', 'mount_type',
+  'sink_count', 'sink_included', 'countertop_material', 'countertop_included',
+  'mirror_included', 'door_style', 'drawer_count', 'sink_type', 'faucet_holes',
+  'faucet_spread_in', 'weight_lbs',
+  // JM-specific feature flags
   'soft_close_hinges', 'soft_close_slides', 'backsplash_included',
   'wireless_charging', 'freepower_compatible', 'ada_compliant',
+  'adjustable_shelves', 'assembly_required', 'has_electrical',
+  // JM-specific descriptive specs
   'bowl_shape', 'distressed_finish', 'countertop_finish', 'countertop_thickness',
-  'sink_material', 'sink_installation', 'has_makeup_counter',
+  'primary_material', 'construction_material',
+  'sink_material', 'sink_installation', 'sink_overflow', 'drain_included',
+  'sink_width_in', 'sink_depth_in', 'sink_basin_depth_in',
+  'backsplash_material', 'drawer_organizer',
+  'num_doors', 'num_shelves', 'num_drawers', 'tip_out_drawers',
+  'has_makeup_counter',
 ];
 // Keys stored as numeric values
-const NUMERIC_ATTR_KEYS = new Set(['size_in', 'sink_count', 'drawer_count', 'faucet_holes']);
+const NUMERIC_ATTR_KEYS = new Set([
+  'size_in', 'height_in', 'depth_in', 'weight_lbs',
+  'sink_count', 'drawer_count', 'faucet_holes', 'faucet_spread_in',
+  'num_doors', 'num_shelves', 'num_drawers', 'tip_out_drawers',
+  'sink_width_in', 'sink_depth_in', 'sink_basin_depth_in',
+]);
 // Numeric keys that also need value_text for checkbox filtering (all NUMERIC_ATTR_KEYS except size_in which uses range)
 const NUMERIC_CHECKBOX_KEYS = new Set(['sink_count', 'drawer_count', 'faucet_holes']);
 

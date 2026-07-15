@@ -145,6 +145,7 @@ async function upsertProduct(conn, data) {
       upc, country_origin, warranty, lead_time_days,
       ships_ltl, freight_class, harmonized_code, total_ship_weight_lbs,
       prop65, release_date, status,
+      model, color, color_family,
       is_active, is_new, is_featured, qty_on_hand
     ) VALUES (
       :sku, :vendor_sku, :name, :brand, :price, :compare_price,
@@ -153,6 +154,7 @@ async function upsertProduct(conn, data) {
       :upc, :country_origin, :warranty, :lead_time_days,
       :ships_ltl, :freight_class, :harmonized_code, :total_ship_weight_lbs,
       :prop65, :release_date, :status,
+      :model, :color, :color_family,
       :is_active, :is_new, :is_featured, :qty_on_hand
     )
     ON DUPLICATE KEY UPDATE
@@ -178,6 +180,9 @@ async function upsertProduct(conn, data) {
       prop65             = VALUES(prop65),
       release_date       = VALUES(release_date),
       status             = VALUES(status),
+      model              = VALUES(model),
+      color              = VALUES(color),
+      color_family       = VALUES(color_family),
       is_active          = VALUES(is_active),
       updated_at         = CURRENT_TIMESTAMP
   `, data);
@@ -188,22 +193,15 @@ async function upsertProduct(conn, data) {
 
 async function replaceAttr(conn, productId, attrKey, valueText, valueNum) {
   if (valueText === null && valueNum === null) return;
-
-  // Derive color_family for cabinet_finish (and generic finish) attrs.
-  // Stored on the row so filter queries can use color_family IN (?) instead of
-  // enumerating every possible manufacturer color name.
-  const colorFamily = (attrKey === 'cabinet_finish' || attrKey === 'finish')
-    ? (normalizeColor(valueText) || null)
-    : null;
-
+  // color_family was dropped from product_attribute_values in migration 009;
+  // it now lives as products.color_family (set at upsert time via normalizeColor).
   await conn.query(`
-    INSERT INTO product_attribute_values (product_id, attr_key, value_text, value_num, color_family)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO product_attribute_values (product_id, attr_key, value_text, value_num)
+    VALUES (?, ?, ?, ?)
     ON DUPLICATE KEY UPDATE
-      value_text   = VALUES(value_text),
-      value_num    = VALUES(value_num),
-      color_family = VALUES(color_family)
-  `, [productId, attrKey, valueText, valueNum, colorFamily]);
+      value_text = VALUES(value_text),
+      value_num  = VALUES(value_num)
+  `, [productId, attrKey, valueText, valueNum]);
 }
 
 async function replaceBullets(conn, productId, bullets) {
@@ -331,7 +329,13 @@ async function main() {
   const conn = DRY ? null : await bvoPool.getConnection();
   let imported = 0, skipped = 0, errors = 0;
 
-  for (const row of rows) {
+  for (const rawRow of rows) {
+    // Normalize row keys — trim leading/trailing whitespace so column
+    // name discrepancies between feed versions don't cause silent misses.
+    const row = Object.fromEntries(
+      Object.entries(rawRow).map(([k, v]) => [k.trim(), v])
+    );
+
     const itemNumber = clean(row['Item Number']);
     if (!itemNumber) { skipped++; continue; }
     if (SKU_FILTER && itemNumber !== SKU_FILTER) continue;
@@ -362,6 +366,7 @@ async function main() {
       const vendorSku = itemNumber;  // same for JM; future vendors may differ
 
       // ── Product core data ───────────────────────────────────────
+      const rawColor = clean(row['Vanity Base Color/Finish']);
       const productData = {
         sku,
         vendor_sku:       vendorSku,
@@ -369,10 +374,10 @@ async function main() {
         brand:            clean(row['Mfg Name']) || 'James Martin',
         price:            cleanNum(row['MAP Price']),
         compare_price:    cleanNum(row['MSRP']),
-        description:      clean(row['One Paragraph Product Description ']),
+        description:      clean(row['One Paragraph Product Description']),
         product_type:     productType,
         component_role:   clean(row['Group/Component']),
-        vendor_group_id:  clean(row['Group Number ']),
+        vendor_group_id:  clean(row['Group Number']),
         category_id:      resolveCategoryId(row['Product Category']),
         collection_id:    collectionId,
         upc:              clean(row['UPC Code']),
@@ -386,6 +391,10 @@ async function main() {
         prop65:           yesNo(row['Prop 65 Warning? (Y/N)']),
         release_date:     cleanDate(row['Release Date']),
         status:           rowStatus,
+        // Denormalized color columns (migration 009 — live on products table)
+        model:            clean(row['Collection Name']),
+        color:            rawColor,
+        color_family:     rawColor ? (normalizeColor(rawColor) || null) : null,
         is_active:        rowStatus === 'active' ? 1 : 0,
         is_new:           0,
         is_featured:      0,
