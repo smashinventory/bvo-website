@@ -602,6 +602,41 @@ document.addEventListener('DOMContentLoaded', function () {
   }, { passive: true });
 })();
 
+// ── Ghost cards: fill incomplete last row in product/model grids ────
+(function () {
+  function fillRow(grid) {
+    // Remove stale ghosts so column count is re-evaluated cleanly
+    grid.querySelectorAll('.listing-ghost').forEach(function (g) { g.remove(); });
+
+    // Detect live column count — getComputedStyle resolves fr → px values,
+    // space-split gives exactly one entry per column track.
+    var cols = window.getComputedStyle(grid).gridTemplateColumns.split(' ').length;
+    if (cols <= 1) return;  // single-column layout — no ghosts needed
+
+    var items = grid.querySelectorAll('.product-card, .model-card').length;
+    if (!items) return;
+
+    var needed = (cols - (items % cols)) % cols;
+    for (var i = 0; i < needed; i++) {
+      var ghost = document.createElement('div');
+      ghost.className = 'listing-ghost';
+      ghost.setAttribute('aria-hidden', 'true');
+      grid.appendChild(ghost);
+    }
+  }
+
+  function initGhosts() {
+    document.querySelectorAll('.listing-grid, .models-grid--page').forEach(fillRow);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initGhosts);
+  } else {
+    initGhosts();
+  }
+  window.addEventListener('resize', initGhosts, { passive: true });
+})();
+
 // ── Mobile nav toggle ──────────────────────────────────────────────
 (function () {
   var hamburger  = document.querySelector('.nav-hamburger');
