@@ -115,11 +115,149 @@ ul[role="list"] { list-style: none; }
 .nav-cart-badge  { position: absolute; top: -6px; right: -6px; background: var(--amber); color: #fff; font-size: 9px; font-weight: 700; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
 .nav-hamburger   { display: none; background: none; border: none; cursor: pointer; color: var(--navy); margin-left: auto; }
 
+/* ── Mega menu (19G.3) ──────────────────────────────────────────── */
+.has-mega {
+  position: relative;
+}
+.nav-mega-trigger {
+  display: flex !important;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.nav-mega-trigger svg {
+  flex-shrink: 0;
+  transition: transform .18s;
+}
+.has-mega:hover .nav-mega-trigger svg,
+.has-mega:focus-within .nav-mega-trigger svg {
+  transform: rotate(180deg);
+}
+.mega-menu {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-6px);
+  width: 580px;
+  display: grid;
+  grid-template-columns: 1fr 190px;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(24, 40, 64, .13);
+  overflow: hidden;
+  z-index: 300;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity .18s ease, visibility .18s ease, transform .18s ease;
+}
+.has-mega:hover .mega-menu,
+.has-mega:focus-within .mega-menu {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
+}
+.mega-col--links {
+  padding: 24px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.mega-section { display: flex; flex-direction: column; }
+.mega-heading {
+  font-size: .62rem;
+  font-weight: 700;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--muted, #7A7264);
+  margin-bottom: 9px;
+}
+.mega-link {
+  display: block;
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--navy);
+  text-decoration: none;
+  padding: 5px 0;
+  letter-spacing: .02em;
+  transition: color .12s;
+  border-bottom: 1px solid transparent;
+}
+.mega-link:hover { color: var(--sage); }
+.mega-sizes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 2px;
+}
+.mega-size-chip {
+  font-size: .75rem;
+  font-weight: 700;
+  color: var(--navy);
+  border: 1.5px solid var(--border);
+  border-radius: 5px;
+  padding: 4px 11px;
+  text-decoration: none;
+  transition: border-color .12s, background .12s, color .12s;
+}
+.mega-size-chip:hover {
+  border-color: var(--sage);
+  background: #f0f4f0;
+  color: var(--sage);
+}
+/* Right column — navy promo panel */
+.mega-col--promo { background: var(--navy); }
+.mega-promo-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 28px 20px;
+  text-decoration: none;
+}
+.mega-promo-eyebrow {
+  font-size: .6rem;
+  font-weight: 700;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  color: var(--amber, #B8862A);
+  margin-bottom: 12px;
+}
+.mega-promo-title {
+  font-family: var(--font-serif, serif);
+  font-size: 1.08rem;
+  line-height: 1.25;
+  color: var(--white);
+  margin-bottom: 10px;
+}
+.mega-promo-sub {
+  font-size: .76rem;
+  color: rgba(255, 255, 255, .6);
+  line-height: 1.55;
+  flex: 1;
+}
+.mega-promo-cta {
+  display: inline-block;
+  margin-top: 18px;
+  font-size: .75rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+  color: var(--amber, #B8862A);
+  transition: letter-spacing .15s;
+}
+.mega-promo-card:hover .mega-promo-cta { letter-spacing: .09em; }
+
 /* ── Mobile menu ────────────────────────────────────────────────── */
 .mobile-menu        { display: none; background: var(--white); border-bottom: 1px solid var(--border); padding: 16px 40px; }
 .mobile-menu ul     { list-style: none; display: flex; flex-direction: column; gap: 14px; }
 .mobile-menu li a   { font-size: 14px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--navy); }
 .mobile-menu.is-open { display: block; }
+.mobile-sub a       { font-size: 11px !important; font-weight: 600 !important; letter-spacing: .06em !important; color: var(--muted, #7A7264) !important; padding-left: 14px; }
+/* Hide desktop mega panel on mobile */
+@media (max-width: 900px) {
+  .mega-menu { display: none !important; }
+}
 
 /* ── Buttons ────────────────────────────────────────────────────── */
 .btn {

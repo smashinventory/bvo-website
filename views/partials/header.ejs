@@ -34,7 +34,48 @@
     <!-- Primary links -->
     <ul class="nav-links" role="list">
       <% (nav.links || []).forEach(link => { %>
+      <% if (link.megaMenu) { %>
+      <li class="has-mega">
+        <a href="<%= link.url %>" class="nav-mega-trigger" aria-haspopup="true" aria-expanded="false">
+          <%= link.label %>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+        </a>
+        <div class="mega-menu" role="navigation" aria-label="<%= link.label %> menu">
+          <!-- Left col: functional + size tracks -->
+          <div class="mega-col mega-col--links">
+            <div class="mega-section">
+              <p class="mega-heading">Shop By Type</p>
+              <a class="mega-link" href="/collections/vanities?type=Single+Sink+Vanity">Single Sink Vanity</a>
+              <a class="mega-link" href="/collections/vanities?type=Double+Sink+Vanity">Double Sink Vanity</a>
+              <a class="mega-link" href="/collections/vanities?type=Vanity+With+Storage">Vanity With Storage</a>
+              <a class="mega-link" href="/collections/vanities?type=Base+Cabinet">Base Cabinet</a>
+            </div>
+            <div class="mega-section">
+              <p class="mega-heading">Shop By Size</p>
+              <div class="mega-sizes">
+                <a class="mega-size-chip" href="/collections/vanities?size_in=30">30"</a>
+                <a class="mega-size-chip" href="/collections/vanities?size_in=36">36"</a>
+                <a class="mega-size-chip" href="/collections/vanities?size_in=42">42"</a>
+                <a class="mega-size-chip" href="/collections/vanities?size_in=48">48"</a>
+                <a class="mega-size-chip" href="/collections/vanities?size_in=60">60"</a>
+                <a class="mega-size-chip" href="/collections/vanities?size_in=72">72"</a>
+              </div>
+            </div>
+          </div>
+          <!-- Right col: collections promo panel -->
+          <div class="mega-col mega-col--promo">
+            <a href="/collections/vanity-models" class="mega-promo-card">
+              <p class="mega-promo-eyebrow">Our Collection</p>
+              <p class="mega-promo-title">Every Model,<br>Every Finish</p>
+              <p class="mega-promo-sub">Browse all vanity collections, sizes, and styles at a glance.</p>
+              <span class="mega-promo-cta">Browse All Collections &rarr;</span>
+            </a>
+          </div>
+        </div>
+      </li>
+      <% } else { %>
       <li><a href="<%= link.url %>"<%= link.highlight ? ' class="nav-link-sale"' : '' %>><%= link.label %></a></li>
+      <% } %>
       <% }) %>
     </ul>
 
@@ -102,6 +143,13 @@
     <ul role="list">
       <% (nav.links || []).forEach(link => { %>
       <li><a href="<%= link.url %>"<%= link.highlight ? ' class="nav-link-sale"' : '' %>><%= link.label %></a></li>
+      <% if (link.megaMenu) { %>
+      <li class="mobile-sub"><a href="/collections/vanities?type=Single+Sink+Vanity">Single Sink</a></li>
+      <li class="mobile-sub"><a href="/collections/vanities?type=Double+Sink+Vanity">Double Sink</a></li>
+      <li class="mobile-sub"><a href="/collections/vanities?type=Vanity+With+Storage">With Storage</a></li>
+      <li class="mobile-sub"><a href="/collections/vanities?type=Base+Cabinet">Base Cabinet</a></li>
+      <li class="mobile-sub"><a href="/collections/vanity-models">Browse All Collections</a></li>
+      <% } %>
       <% }) %>
       <li><a href="/account">My Account</a></li>
       <li><a href="/cart">Cart (<%= cart.count %>)</a></li>

@@ -43,7 +43,7 @@
     "brand_line2": "Outlet",
     "brand_line3": ".com",
     "links": [
-      { "label": "Vanities",    "url": "/collections/vanities" },
+      { "label": "Vanities",    "url": "/collections/vanities", "megaMenu": true },
       { "label": "Mirrors",     "url": "/collections/mirrors" },
       { "label": "Faucets",     "url": "/collections/faucets" },
       { "label": "Accessories", "url": "/collections/accessories" },

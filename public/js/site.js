@@ -507,3 +507,28 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 })();
+
+// ── Mega menu: Escape key + aria-expanded sync (19G.3) ────────────
+(function () {
+  var hasMega = document.querySelector('.has-mega');
+  if (!hasMega) return;
+  var trigger = hasMega.querySelector('.nav-mega-trigger');
+
+  // Sync aria-expanded on the trigger as menu becomes visible/hidden
+  function onMegaToggle(visible) {
+    if (trigger) trigger.setAttribute('aria-expanded', String(visible));
+  }
+
+  // Use MutationObserver on the mega-menu's computed visibility isn't reliable
+  // across browsers, so track hover via pointerenter/pointerleave instead.
+  hasMega.addEventListener('pointerenter', function () { onMegaToggle(true); });
+  hasMega.addEventListener('pointerleave', function () { onMegaToggle(false); });
+
+  // Escape key collapses menu and returns focus to trigger
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && hasMega.matches(':hover, :focus-within')) {
+      if (trigger) { trigger.focus(); }
+      onMegaToggle(false);
+    }
+  });
+})();
