@@ -608,10 +608,12 @@ async function importFromWorkbook(wb, opts = {}) {
         await replaceBullets(conn, productId, bullets);
 
         // ── Images ───────────────────────────────────────────────────
+        // SheetJS deduplicates repeated "Images" column headers using
+        // underscore suffixes: Images, Images_1, Images_2 … Images_29.
         const images = [];
         if (row['Images']) images.push({ url: clean(row['Images']), sort_order: 0 });
         for (let i = 1; i <= 29; i++) {
-          const url = clean(row[`Images.${i}`]);
+          const url = clean(row[`Images_${i}`]);
           if (url) images.push({ url, sort_order: i });
         }
         await replaceImages(conn, productId, images);
@@ -659,7 +661,7 @@ async function importFromWorkbook(wb, opts = {}) {
           { doc_type: 'top_spec_sheet',          url: clean(row['Top SPEC Sheet']) },
           { doc_type: 'component_spec_sheet',    url: clean(row['Component SPEC Sheet']) },
           { doc_type: 'assembly_instructions',   url: clean(row['Assembly Instructions']) },
-          { doc_type: 'assembly_instructions_2', url: clean(row['Assembly Instructions.1']) },
+          { doc_type: 'assembly_instructions_2', url: clean(row['Assembly Instructions_1']) },
         ]);
 
         // ── Component cross-references ────────────────────────────────
