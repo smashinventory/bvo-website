@@ -3,10 +3,10 @@
 -- Safe to re-run: uses IF NOT EXISTS.
 
 CREATE TABLE IF NOT EXISTS favorites (
-  id          BIGINT       AUTO_INCREMENT PRIMARY KEY,
-  customer_id INT          NOT NULL,
-  product_id  INT          NOT NULL,
-  created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  id          BIGINT UNSIGNED  AUTO_INCREMENT PRIMARY KEY,
+  customer_id INT UNSIGNED     NOT NULL,
+  product_id  INT UNSIGNED     NOT NULL,
+  created_at  DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
   UNIQUE KEY uq_customer_product (customer_id, product_id),
   KEY        idx_customer_id     (customer_id),
