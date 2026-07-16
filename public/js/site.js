@@ -157,22 +157,10 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 })();
 
-// ── Product page: gallery switcher + qty stepper ─────────────────
-// Guard: only runs when product detail elements are present.
+// ── Product page: gallery lightbox + carousel dots + qty stepper ──
 (function () {
-  var mainImg = document.getElementById('main-img');
-  if (!mainImg) return;
 
-  // Thumb click → swap main image
-  document.querySelectorAll('.detail-thumb').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      mainImg.src = btn.dataset.src;
-      document.querySelectorAll('.detail-thumb').forEach(function (t) { t.classList.remove('active'); });
-      btn.classList.add('active');
-    });
-  });
-
-  // Qty stepper (changeQty called by onclick in HTML)
+  // ── Qty stepper (changeQty called by onclick in HTML) ────────────
   var qtyVal = document.getElementById('qty-val');
   var atcQty = document.getElementById('atc-qty');
   var _qty   = 1;
@@ -181,6 +169,95 @@ document.addEventListener('DOMContentLoaded', function () {
     if (qtyVal) qtyVal.textContent = _qty;
     if (atcQty) atcQty.value = _qty;
   };
+
+  // ── Lightbox ──────────────────────────────────────────────────────
+  var _lb      = document.getElementById('pdp-lightbox');
+  if (!_lb) return;
+
+  var _lbImg   = document.getElementById('lb-img');
+  var _lbCtr   = document.getElementById('lb-counter');
+  var _lbThmbs = document.querySelectorAll('.lb-thumb');
+  var _total   = _lbThmbs.length;
+  var _cur     = 0;
+
+  var pdpLightbox = {
+    open: function (idx) {
+      _lb.removeAttribute('hidden');
+      document.body.style.overflow = 'hidden';
+      this.goTo(idx || 0);
+    },
+    close: function () {
+      _lb.setAttribute('hidden', '');
+      document.body.style.overflow = '';
+    },
+    prev: function () { this.goTo((_cur - 1 + _total) % _total); },
+    next: function () { this.goTo((_cur + 1) % _total); },
+    goTo: function (idx) {
+      _cur = idx;
+      var btn = _lbThmbs[idx];
+      if (!btn) return;
+      var img = btn.querySelector('img');
+      _lbImg.src = img ? img.src : '';
+      _lbImg.alt = img ? img.alt : '';
+      if (_lbCtr) _lbCtr.textContent = (idx + 1) + ' / ' + _total;
+      _lbThmbs.forEach(function (t) { t.classList.remove('active'); });
+      btn.classList.add('active');
+      // scroll thumbnail into view
+      btn.scrollIntoView({ inline: 'nearest', behavior: 'smooth', block: 'nearest' });
+    }
+  };
+  window.pdpLightbox = pdpLightbox;
+
+  // Close on overlay click (but not on controls)
+  _lb.addEventListener('click', function (e) {
+    if (e.target === _lb) pdpLightbox.close();
+  });
+
+  // Keyboard nav
+  document.addEventListener('keydown', function (e) {
+    if (_lb.hasAttribute('hidden')) return;
+    if (e.key === 'ArrowLeft')  pdpLightbox.prev();
+    if (e.key === 'ArrowRight') pdpLightbox.next();
+    if (e.key === 'Escape')     pdpLightbox.close();
+  });
+
+  // Touch swipe on lb-stage
+  (function () {
+    var stage = _lb.querySelector('.lb-stage');
+    if (!stage) return;
+    var startX = 0;
+    stage.addEventListener('touchstart', function (e) { startX = e.changedTouches[0].clientX; }, { passive: true });
+    stage.addEventListener('touchend',   function (e) {
+      var dx = e.changedTouches[0].clientX - startX;
+      if (Math.abs(dx) < 40) return;
+      if (dx < 0) pdpLightbox.next(); else pdpLightbox.prev();
+    });
+  })();
+
+  // ── Carousel dot sync (tablet / mobile) ──────────────────────────
+  (function () {
+    var grid = document.getElementById('gallery-grid');
+    var dots = document.querySelectorAll('.gallery-dot');
+    if (!grid || !dots.length) return;
+
+    function updateDots () {
+      var items = grid.querySelectorAll('.gallery-item');
+      if (!items.length) return;
+      var W   = grid.offsetWidth;
+      var idx = Math.round(grid.scrollLeft / W);
+      dots.forEach(function (d, i) { d.classList.toggle('active', i === idx); });
+    }
+
+    grid.addEventListener('scroll', updateDots, { passive: true });
+    // Dot click → scroll to that slide
+    dots.forEach(function (d, i) {
+      d.addEventListener('click', function () {
+        grid.scrollTo({ left: i * grid.offsetWidth, behavior: 'smooth' });
+      });
+    });
+    updateDots();
+  })();
+
 })();
 
 // ── Predictive search overlay ─────────────────────────────────────
