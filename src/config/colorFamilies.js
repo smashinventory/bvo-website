@@ -90,6 +90,7 @@ const FAMILIES = [
     label: 'Light Wood',
     hex: '#c9b89a',
     border: '#a89070',
+    woodGrain: true,
     members: [
       'Gray Oak', 'Natural Oak', 'Oak', 'Blonde', 'Maple', 'Birch',
       'Light Wood', 'Honey Oak', 'Whitewashed Oak', 'Weathered Oak',
@@ -107,6 +108,7 @@ const FAMILIES = [
     label: 'Med Wood',
     hex: '#8b6840',
     border: '#6b4820',
+    woodGrain: true,
     members: [
       'Walnut', 'Chestnut', 'Warm Brown', 'Teak', 'Medium Wood', 'Caramel',
       'Hazelnut', 'Auburn', 'Tobacco', 'Cognac', 'Cinnamon', 'Terracotta',
@@ -123,6 +125,7 @@ const FAMILIES = [
     label: 'Dark Wood',
     hex: '#3e2a14',
     border: '#2a1a08',
+    woodGrain: true,
     members: [
       'Espresso', 'Dark Walnut', 'Dark Mahogany', 'Black Forest', 'Dark Wood',
       'Ebony Wood', 'Antique Mahogany', 'Java', 'Umber', 'Dark Pecan',

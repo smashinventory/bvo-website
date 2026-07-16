@@ -168,7 +168,7 @@
                  title="<%= fam.label %>"
                  role="button" tabindex="0"
                  aria-pressed="<%= fam.isActive ? 'true' : 'false' %>">
-              <span class="color-sw-dot"
+              <span class="color-sw-dot<%= fam.woodGrain ? ' swatch--wood-grain' : '' %>"
                     style="background:<%= fam.hex %>;border-color:<%= fam.border %>"></span>
               <span class="color-sw-name"><%= fam.label %></span>
             </div>
@@ -422,9 +422,10 @@
               <% _pSwatches.forEach(function(f, i) { %>
               <%
                 var _isLight = f.hex && ['#f5f5f3','#f0f0ef','#f5f5f5','#fafafa','#ffffff','#e8d9b8'].indexOf(f.hex.toLowerCase()) !== -1;
-                var _sb = _isLight ? '#ccc' : (f.border || f.hex);
+                var _sb      = _isLight ? '#ccc' : (f.border || f.hex);
+                var _isWood  = ['wood_l','wood_m','wood_d'].indexOf(f.color_family) !== -1;
               %>
-              <button class="model-card-swatch<%= i === 0 ? ' is-active' : '' %>"
+              <button class="model-card-swatch<%= i === 0 ? ' is-active' : '' %><%= _isWood ? ' swatch--wood-grain' : '' %>"
                       data-finish="<%= f.color %>"
                       style="background:<%= f.hex %>;border-color:<%= _sb %>"
                       aria-label="<%= f.color %>"

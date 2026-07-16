@@ -188,8 +188,9 @@
             <%
               var _isLight      = ['#F0F0EF','#F5F5F5','#FAFAFA','#FFFFFF','#C4A882'].indexOf(f.hex) !== -1;
               var _swatchBorder = _isLight ? '#ccc' : (f.border || f.hex);
+              var _isWood       = ['wood_l','wood_m','wood_d'].indexOf(f.color_family) !== -1;
             %>
-            <button class="model-card-swatch<%= i === 0 ? ' is-active' : '' %>"
+            <button class="model-card-swatch<%= i === 0 ? ' is-active' : '' %><%= _isWood ? ' swatch--wood-grain' : '' %>"
                     data-target-img="model-img-<%= _mId %>"
                     data-finish="<%= f.color %>"
                     style="background:<%= f.hex %>;border-color:<%= _swatchBorder %>"
