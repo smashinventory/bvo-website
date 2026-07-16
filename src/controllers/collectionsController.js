@@ -35,14 +35,21 @@ exports.show = async (req, res, next) => {
       const page = Math.max(1, parseInt(req.query.page || '1', 10));
 
       // ── Parse filter params ──────────────────────────────────────
-      const activeSizes    = [].concat(req.query.size   || []).filter(Boolean).map(Number);
-      const activeBrands   = [].concat(req.query.brand  || []).filter(Boolean);
-      const activeFinishes = [].concat(req.query.finish || []).filter(Boolean);  // color values
-      const vmMinPrice     = req.query.min_price ? parseFloat(req.query.min_price) : undefined;
-      const vmMaxPrice     = req.query.max_price ? parseFloat(req.query.max_price) : undefined;
+      const activeSizes         = [].concat(req.query.size         || []).filter(Boolean).map(Number);
+      const activeBrands        = [].concat(req.query.brand        || []).filter(Boolean);
+      const activeColorFamilies = [].concat(req.query.color_family || []).filter(Boolean);
+      const activeColorExact    = [].concat(req.query.color_exact  || []).filter(Boolean);
+      const vmMinPrice          = req.query.min_price ? parseFloat(req.query.min_price) : undefined;
+      const vmMaxPrice          = req.query.max_price ? parseFloat(req.query.max_price) : undefined;
+
+      // Families in sub-chip (exact) mode vs whole-family mode
+      const exactFamilyKeys  = new Set();
+      activeColorExact.forEach(v => { const fam = normalize(v); if (fam) exactFamilyKeys.add(fam); });
+      const familyLevelKeys  = activeColorFamilies.filter(f => !exactFamilyKeys.has(f));
+      const hasColorFilter   = activeColorFamilies.length > 0 || activeColorExact.length > 0;
 
       const hasActiveFilters = !!(
-        activeSizes.length || activeBrands.length || activeFinishes.length ||
+        activeSizes.length || activeBrands.length || hasColorFilter ||
         vmMinPrice != null || vmMaxPrice != null
       );
 
@@ -58,16 +65,18 @@ exports.show = async (req, res, next) => {
           ON pav.product_id = p.id AND pav.attr_key = 'size_in'
         WHERE p.is_active = 1 AND p.model IS NOT NULL
       `);
-      const allSizes    = [...new Set(optRows.map(r => r.size_in).filter(Boolean))].sort((a,b)=>a-b);
-      const allBrands   = [...new Set(optRows.map(r => r.brand).filter(Boolean))].sort();
-      const allFinishes = [...new Set(optRows.map(r => r.color).filter(Boolean))].sort();
-      /* Build color-name → hex map for sidebar filter swatches */
-      const finishMap = {};
-      optRows.forEach(r => {
-        if (r.color && !finishMap[r.color]) {
-          finishMap[r.color] = FAMILY_HEX[r.color_family] || '#CCCCCC';
-        }
-      });
+      const allSizes     = [...new Set(optRows.map(r => r.size_in).filter(Boolean))].sort((a,b)=>a-b);
+      const allBrands    = [...new Set(optRows.map(r => r.brand).filter(Boolean))].sort();
+      // availFinishes: exact color names present in vanity-model products (for sub-chip options)
+      const availFinishes = [...new Set(optRows.map(r => r.color).filter(Boolean))].sort();
+
+      // Build colorFamiliesConfig — same shape as collection route, powers family swatch sidebar
+      const colorFamiliesConfig = FAMILIES.map(fam => ({
+        ...fam,
+        isActive: activeColorFamilies.includes(fam.key) || exactFamilyKeys.has(fam.key),
+        isOpen:   activeColorFamilies.includes(fam.key) || exactFamilyKeys.has(fam.key),
+        activeExact: activeColorExact.filter(e => normalize(e) === fam.key),
+      }));
 
       // ── Query model groups from DB ───────────────────────────────
       let vmWhere  = 'p.is_active = 1 AND p.model IS NOT NULL';
@@ -77,9 +86,19 @@ exports.show = async (req, res, next) => {
         vmWhere += ` AND p.brand IN (${activeBrands.map(()=>'?').join(',')})`;
         vmParams.push(...activeBrands);
       }
-      if (activeFinishes.length) {
-        vmWhere += ` AND p.color IN (${activeFinishes.map(()=>'?').join(',')})`;
-        vmParams.push(...activeFinishes);
+      if (hasColorFilter) {
+        // family-level filter: match color_family column
+        // exact filter: match color column (sub-chip mode within a family)
+        const colorParts = [];
+        if (familyLevelKeys.length) {
+          colorParts.push(`p.color_family IN (${familyLevelKeys.map(()=>'?').join(',')})`);
+          vmParams.push(...familyLevelKeys);
+        }
+        if (activeColorExact.length) {
+          colorParts.push(`p.color IN (${activeColorExact.map(()=>'?').join(',')})`);
+          vmParams.push(...activeColorExact);
+        }
+        if (colorParts.length) vmWhere += ` AND (${colorParts.join(' OR ')})`;
       }
       if (vmMinPrice != null) { vmWhere += ' AND p.price >= ?'; vmParams.push(vmMinPrice); }
       if (vmMaxPrice != null) { vmWhere += ' AND p.price <= ?'; vmParams.push(vmMaxPrice); }
@@ -163,11 +182,14 @@ exports.show = async (req, res, next) => {
         models: pagedModels,
         page, pages, total,
         perPage: MODELS_PER_PAGE,
-        activeSizes, activeBrands, activeFinishes,
+        activeSizes, activeBrands,
+        colorFamiliesConfig,
+        colorFamilyActive: activeColorFamilies,
+        colorExactActive:  activeColorExact,
+        availFinishes,
         vmMinPrice, vmMaxPrice,
         hasActiveFilters,
-        allSizes, allBrands, allFinishes,
-        finishMap,
+        allSizes, allBrands,
         vmPriceMin, vmPriceMax,
         familyHex: FAMILY_HEX,
       });

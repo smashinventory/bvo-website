@@ -21,6 +21,9 @@
   <!-- ── Filter sidebar ─────────────────────────────────────────── -->
   <aside class="filter-panel" aria-label="Filter collections">
     <form method="GET" id="filter-form">
+      <%/* Preserve color family + exact params when size/brand/price form submits */%>
+      <% colorFamilyActive.forEach(function(f) { %><input type="hidden" name="color_family" value="<%= f %>"><% }) %>
+      <% colorExactActive.forEach(function(e) { %><input type="hidden" name="color_exact" value="<%= e %>"><% }) %>
 
       <div class="filter-header">
         <h3>Filters</h3>
@@ -67,31 +70,69 @@
         </div>
       </div>
 
-      <!-- ── Finish / Cabinet Color ─────────────────────────────── -->
-      <% var finishExpanded = activeFinishes.length > 0; %>
-      <div class="filter-group">
-        <button type="button" class="filter-group-toggle" aria-expanded="<%= finishExpanded ? 'true' : 'false' %>">
+      <!-- ── Cabinet Color (family swatches + sub-chips) ─────────── -->
+      <%
+        var hasAnyColorActive = colorFamilyActive.length > 0 || colorExactActive.length > 0;
+        var colorBadgeCount   = colorFamilyActive.length + (colorExactActive.length > 0 ? 1 : 0);
+        var availFinishesLower = availFinishes.map(function(f) { return f.toLowerCase(); });
+        var visibleFamilies = colorFamiliesConfig.filter(function(fam) {
+          if (!availFinishes.length) return true;
+          return fam.members.some(function(m) { return availFinishesLower.includes(m.toLowerCase()); });
+        });
+      %>
+      <% if (visibleFamilies.length > 0) { %>
+      <div class="filter-group" id="color-filter-group">
+        <button type="button" class="filter-group-toggle"
+          aria-expanded="<%= hasAnyColorActive ? 'true' : 'false' %>">
           Cabinet Color
-          <% if (activeFinishes.length) { %><span class="filter-badge"><%= activeFinishes.length %></span><% } %>
+          <% if (colorBadgeCount > 0) { %><span class="filter-badge"><%= colorBadgeCount %></span><% } %>
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
-        <div class="filter-group-body<%= finishExpanded ? '' : ' is-collapsed' %>">
-          <% allFinishes.forEach(function(fname) { %>
-          <%
-            var fhex = finishMap[fname] || '#CCCCCC';
-            var isLight = ['#F0F0EF','#F5F5F5','#FAFAFA','#FFFFFF','#C4A882'].indexOf(fhex) !== -1;
+        <div class="filter-group-body<%= hasAnyColorActive ? '' : ' is-collapsed' %>">
+
+          <!-- Family swatches -->
+          <div class="color-family-row" id="color-family-row">
+            <% visibleFamilies.forEach(function(fam) { %>
+            <div class="color-family-sw<%= fam.isActive ? ' is-active' : '' %>"
+                 data-color-key="<%= fam.key %>"
+                 title="<%= fam.label %>"
+                 role="button" tabindex="0"
+                 aria-pressed="<%= fam.isActive ? 'true' : 'false' %>">
+              <span class="color-sw-dot<%= fam.woodGrain ? ' swatch--wood-grain' : '' %>"
+                    style="background:<%= fam.hex %>;border-color:<%= fam.border %>"></span>
+              <span class="color-sw-name"><%= fam.label %></span>
+            </div>
+            <% }); %>
+          </div>
+
+          <!-- Sub-chip rows — one per family, shown when family is active -->
+          <% visibleFamilies.forEach(function(fam) {
+               var subOptions = availFinishes.length
+                 ? fam.members.filter(function(m) { return availFinishes.includes(m); })
+                 : fam.members;
+               if (!subOptions.length) return;
           %>
-          <label class="filter-option filter-option-color">
-            <input type="checkbox" name="finish" value="<%= fname %>"
-              <%= activeFinishes.includes(fname) ? 'checked' : '' %>>
-            <span class="color-swatch"
-              style="background:<%= fhex %>;border:1.5px solid <%= isLight ? '#ccc' : fhex %>"
-              title="<%= fname %>"></span>
-            <span><%= fname %></span>
-          </label>
+          <div class="color-sub-row<%= fam.isOpen ? ' is-open' : '' %>"
+               id="color-sub-<%= fam.key %>">
+            <div class="color-sub-hint">↓ Narrow by shade (optional):</div>
+            <div class="color-sub-chips">
+              <% subOptions.forEach(function(member) {
+                   var chipActive = colorExactActive.includes(member);
+              %>
+              <button type="button"
+                      class="color-sub-chip<%= chipActive ? ' is-active' : '' %>"
+                      data-color-exact="<%= member %>"
+                      data-color-family="<%= fam.key %>">
+                <%= member %>
+              </button>
+              <% }); %>
+            </div>
+          </div>
           <% }); %>
+
         </div>
       </div>
+      <% } %>
 
       <!-- ── Price range ────────────────────────────────────────── -->
       <div class="filter-group">
@@ -217,9 +258,10 @@
     <%
       /* Build base query string preserving active filters */
       var _pBase = [];
-      activeSizes.forEach(function(s)    { _pBase.push('size=' + s); });
-      activeBrands.forEach(function(b)   { _pBase.push('brand=' + encodeURIComponent(b)); });
-      activeFinishes.forEach(function(f) { _pBase.push('finish=' + encodeURIComponent(f)); });
+      activeSizes.forEach(function(s)         { _pBase.push('size=' + s); });
+      activeBrands.forEach(function(b)        { _pBase.push('brand=' + encodeURIComponent(b)); });
+      colorFamilyActive.forEach(function(f)   { _pBase.push('color_family=' + encodeURIComponent(f)); });
+      colorExactActive.forEach(function(e)    { _pBase.push('color_exact=' + encodeURIComponent(e)); });
       if (vmMinPrice != null) _pBase.push('min_price=' + vmMinPrice);
       if (vmMaxPrice != null) _pBase.push('max_price=' + vmMaxPrice);
       var _pQS = _pBase.length ? '&' + _pBase.join('&') : '';
