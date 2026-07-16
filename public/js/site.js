@@ -497,16 +497,21 @@ document.addEventListener('DOMContentLoaded', function () {
     var btn = e.target.closest('.model-card-swatch');
     if (!btn) return;
 
+    // Capture active state BEFORE modifying classes
+    var wasActive = btn.classList.contains('is-active');
+
+    // Swap card image only when a URL is available (guard against undefined)
     var imgId = btn.dataset.targetImg;
     var img   = imgId ? document.getElementById(imgId) : null;
-    if (img) img.src = btn.dataset.image;
+    if (img && btn.dataset.image) img.src = btn.dataset.image;
 
+    // Toggle: deselect if already active, otherwise activate
     var group = btn.closest('.model-card-swatches');
     if (group) {
       group.querySelectorAll('.model-card-swatch').forEach(function (s) {
         s.classList.remove('is-active');
       });
-      btn.classList.add('is-active');
+      if (!wasActive) btn.classList.add('is-active');
     }
   });
 

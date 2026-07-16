@@ -107,21 +107,31 @@ exports.show = async (req, res, next) => {
         ORDER BY p.brand, p.model
       `, vmParams);
 
-      // Fetch per-model color swatches: [{model, color, color_family}]
+      // Fetch per-model color swatches with one representative image per (model, color)
       const [swatchRows] = await bvoPool.query(`
-        SELECT DISTINCT model, color, color_family
-        FROM products
-        WHERE is_active = 1 AND model IS NOT NULL AND color IS NOT NULL
-        ORDER BY model, color
+        SELECT
+          p.model,
+          p.color,
+          p.color_family,
+          COALESCE(
+            MIN(CASE WHEN p.primary_image_url IS NOT NULL THEN p.primary_image_url END),
+            MIN(pi.url)
+          ) AS image_url
+        FROM products p
+        LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
+        WHERE p.is_active = 1 AND p.model IS NOT NULL AND p.color IS NOT NULL
+        GROUP BY p.model, p.color, p.color_family
+        ORDER BY p.model, p.color
       `);
-      const swatchMap = {};  // { 'London': [{color, color_family, hex, border}] }
+      const swatchMap = {};  // { 'London': [{color, color_family, hex, border, image_url}] }
       for (const r of swatchRows) {
         if (!swatchMap[r.model]) swatchMap[r.model] = [];
         swatchMap[r.model].push({
           color:        r.color,
           color_family: r.color_family,
-          hex:          FAMILY_HEX[r.color_family]        || '#ccc',
+          hex:          FAMILY_HEX[r.color_family]             || '#ccc',
           border:       FAMILY_HEX[r.color_family + '_border'] || '#aaa',
+          image_url:    r.image_url || null,
         });
       }
 
@@ -325,24 +335,35 @@ exports.show = async (req, res, next) => {
     ]);
 
     // ── Build model → color swatches map from DB ─────────────────────
-    // For each model on this page, fetch all available color variants.
+    // For each model on this page, fetch all available color variants with
+    // one representative product image per (model, color) for card image swap.
     const pageModels = [...new Set(result.products.map(p => p.model).filter(Boolean))];
-    let modelColorMap = {};  // { 'London': [{color, color_family, hex, border}] }
+    let modelColorMap = {};  // { 'London': [{color, color_family, hex, border, image_url}] }
     if (pageModels.length) {
       const [mcRows] = await bvoPool.query(`
-        SELECT DISTINCT model, color, color_family
-        FROM products
-        WHERE model IN (${pageModels.map(() => '?').join(',')})
-          AND color IS NOT NULL AND is_active = 1
-        ORDER BY model, color
+        SELECT
+          p.model,
+          p.color,
+          p.color_family,
+          COALESCE(
+            MIN(CASE WHEN p.primary_image_url IS NOT NULL THEN p.primary_image_url END),
+            MIN(pi.url)
+          ) AS image_url
+        FROM products p
+        LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
+        WHERE p.model IN (${pageModels.map(() => '?').join(',')})
+          AND p.color IS NOT NULL AND p.is_active = 1
+        GROUP BY p.model, p.color, p.color_family
+        ORDER BY p.model, p.color
       `, pageModels);
       for (const r of mcRows) {
         if (!modelColorMap[r.model]) modelColorMap[r.model] = [];
         modelColorMap[r.model].push({
           color:        r.color,
           color_family: r.color_family,
-          hex:          FAMILY_HEX[r.color_family]               || '#ccc',
+          hex:          FAMILY_HEX[r.color_family]                    || '#ccc',
           border:       FAMILY_HEX[(r.color_family || '') + '_border'] || '#aaa',
+          image_url:    r.image_url || null,
         });
       }
     }

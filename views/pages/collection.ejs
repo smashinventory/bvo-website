@@ -436,7 +436,9 @@
                 var _isWood  = ['wood_l','wood_m','wood_d'].indexOf(f.color_family) !== -1;
               %>
               <button class="model-card-swatch<%= i === 0 ? ' is-active' : '' %><%= _isWood ? ' swatch--wood-grain' : '' %>"
+                      data-target-img="<%= _pImgId %>"
                       data-finish="<%= f.color %>"
+                      <% if (f.image_url) { %>data-image="<%= f.image_url %>"<% } %>
                       style="background:<%= f.hex %>;border-color:<%= _sb %>"
                       aria-label="<%= f.color %>"
                       title="<%= f.color %>"></button>
