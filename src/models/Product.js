@@ -353,7 +353,23 @@ const Product = {
         ORDER BY COALESCE(ad.sort_order, 99), pav.attr_key
       `, [product.id]);
 
-      product.images     = images;
+      // Use product_images table; fall back to flat URL columns if table is empty
+      if (images.length > 0) {
+        product.images = images;
+      } else {
+        const flatUrls = [];
+        if (product.primary_image_url) flatUrls.push(product.primary_image_url);
+        for (let n = 2; n <= 30; n++) {
+          const u = product[`image_${n}_url`];
+          if (u) flatUrls.push(u);
+        }
+        product.images = flatUrls.map((url, idx) => ({
+          url,
+          alt_text:   (product.name || '').replace(/<[^>]*>/g, '').trim(),
+          sort_order: idx,
+          is_primary: idx === 0 ? 1 : 0,
+        }));
+      }
       product.attributes = attrs;
       // Strip any HTML tags RFLPOS may have injected into plain-text fields
       product.name  = product.name  ? product.name.replace(/<[^>]*>/g, '').replace(/&amp;/g,'&').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim() : product.name;

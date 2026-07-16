@@ -600,9 +600,10 @@
             <span class="adm-form-hint">Used as fallback if no uploaded image is set as primary</span>
           </div>
 
-          <!-- Additional image URLs (image_2 – image_7) -->
+          <!-- Additional image URLs (image_2 – image_30) -->
+          <!-- Show 2–5 by default; "Add More" reveals 6–30 -->
           <p class="adm-card-subtitle" style="margin-top:12px">Additional Image URLs</p>
-          <% for (var _imgN = 2; _imgN <= 7; _imgN++) { %>
+          <% for (var _imgN = 2; _imgN <= 5; _imgN++) { %>
           <div class="adm-form-group" style="margin-bottom:8px">
             <label for="image_<%= _imgN %>_url">Image <%= _imgN %> URL</label>
             <input type="url" id="image_<%= _imgN %>_url" name="image_<%= _imgN %>_url"
@@ -610,6 +611,26 @@
               placeholder="https://…/image-<%= _imgN %>.jpg">
           </div>
           <% } %>
+
+          <div id="img-extra-fields" style="display:none">
+          <% for (var _imgN = 6; _imgN <= 30; _imgN++) { %>
+          <div class="adm-form-group" style="margin-bottom:8px">
+            <label for="image_<%= _imgN %>_url">Image <%= _imgN %> URL</label>
+            <input type="url" id="image_<%= _imgN %>_url" name="image_<%= _imgN %>_url"
+              value="<%= product?.['image_' + _imgN + '_url'] || '' %>"
+              placeholder="https://…/image-<%= _imgN %>.jpg">
+          </div>
+          <% } %>
+          </div>
+
+          <button type="button" id="img-add-more-btn" class="btn btn-outline"
+            style="margin-top:4px;margin-bottom:12px;font-size:0.85rem"
+            onclick="(function(btn){
+              var extra = document.getElementById('img-extra-fields');
+              var showing = extra.style.display !== 'none';
+              extra.style.display = showing ? 'none' : 'block';
+              btn.textContent = showing ? '+ Add More Images' : '− Show Fewer';
+            })(this)">+ Add More Images</button>
 
           <% if (isNew) { %>
           <p class="adm-form-hint">Save the product first, then upload images below.</p>

@@ -59,6 +59,9 @@ const _docUpload = multer({
 /* ── helpers ────────────────────────────────────────────────────── */
 const LAYOUT = { layout: 'layouts/admin' };
 
+/* ── Image URL columns image_2_url … image_30_url (29 total) ─── */
+const IMG_URL_COLS = Array.from({ length: 29 }, (_, i) => `image_${i + 2}_url`);
+
 function safeQuery(sql, params = []) {
   return bvoPool.query(sql, params).then(([rows]) => rows).catch(() => []);
 }
@@ -371,7 +374,7 @@ exports.productCreate = async (req, res, next) => {
           country_origin, prop65, release_date, status,
           is_active, is_featured, is_new,
           sort_order, primary_image_url,
-          image_2_url, image_3_url, image_4_url, image_5_url, image_6_url, image_7_url,
+          ${IMG_URL_COLS.join(', ')},
           meta_title, meta_desc,
           google_product_category, google_condition, color, material, pattern,
           age_group, gender, shipping_label,
@@ -379,7 +382,7 @@ exports.productCreate = async (req, res, next) => {
           excluded_destinations, ads_redirect, identifier_exists,
           model, color_family,
           source_flag)
-       VALUES (?,?,?,?,?, ?,?,?,?,?,?, ?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?, ?,?,?,?,?,?, ?,?, ?,?,?,?,?, ?,?,?, ?,?,?,?,?, ?,?,?,?,?,'manual')`,
+       VALUES (?,?,?,?,?, ?,?,?,?,?,?, ?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?, ${IMG_URL_COLS.map(() => '?').join(', ')}, ?,?, ?,?,?,?,?, ?,?,?, ?,?,?,?,?, ?,?,?,?,?,'manual')`,
       [sku, d.slug, d.name, d.brand, d.category_id,
        d.product_type, d.vendor_sku, d.upc, d.mpn, d.component_role, d.vendor_group_id,
        d.short_desc, d.long_desc, d.warranty,
@@ -389,7 +392,7 @@ exports.productCreate = async (req, res, next) => {
        d.country_origin, d.prop65, d.release_date, d.status,
        d.is_active, d.is_featured, d.is_new,
        d.sort_order, d.primary_image_url,
-       d.image_2_url, d.image_3_url, d.image_4_url, d.image_5_url, d.image_6_url, d.image_7_url,
+       ...IMG_URL_COLS.map(c => d[c]),
        d.meta_title, d.meta_desc,
        d.google_product_category, d.google_condition, d.color, d.material, d.pattern,
        d.age_group, d.gender, d.shipping_label,
@@ -420,7 +423,7 @@ exports.productUpdate = async (req, res, next) => {
          country_origin=?, prop65=?, release_date=?, status=?,
          is_active=?, is_featured=?, is_new=?,
          sort_order=?, primary_image_url=?,
-         image_2_url=?, image_3_url=?, image_4_url=?, image_5_url=?, image_6_url=?, image_7_url=?,
+         ${IMG_URL_COLS.map(c => `${c}=?`).join(', ')},
          meta_title=?, meta_desc=?,
          google_product_category=?, google_condition=?, color=?, material=?, pattern=?,
          age_group=?, gender=?, shipping_label=?,
@@ -438,7 +441,7 @@ exports.productUpdate = async (req, res, next) => {
        d.country_origin, d.prop65, d.release_date, d.status,
        d.is_active, d.is_featured, d.is_new,
        d.sort_order, d.primary_image_url,
-       d.image_2_url, d.image_3_url, d.image_4_url, d.image_5_url, d.image_6_url, d.image_7_url,
+       ...IMG_URL_COLS.map(c => d[c]),
        d.meta_title, d.meta_desc,
        d.google_product_category, d.google_condition, d.color, d.material, d.pattern,
        d.age_group, d.gender, d.shipping_label,
@@ -840,12 +843,7 @@ exports.productImport = async (req, res, next) => {
         const is_new               = gBool('is_new');
         const sort_order           = gInt('sort_order') || 0;
         const primary_image_url    = g('primary_image_url');
-        const image_2_url          = g('image_2_url');
-        const image_3_url          = g('image_3_url');
-        const image_4_url          = g('image_4_url');
-        const image_5_url          = g('image_5_url');
-        const image_6_url          = g('image_6_url');
-        const image_7_url          = g('image_7_url');
+        const imgUrls = Object.fromEntries(IMG_URL_COLS.map(c => [c, g(c)]));
         const qty_on_hand          = gInt('qty_on_hand') || 0;
         const allow_back           = gBool('allow_backorder');
         const reorder_point        = gInt('reorder_point') || 0;
@@ -903,8 +901,7 @@ exports.productImport = async (req, res, next) => {
                country_origin=?, prop65=?, release_date=?, status=?,
                is_active=?, is_featured=?, is_new=?,
                sort_order=?, primary_image_url=?,
-               image_2_url=?, image_3_url=?, image_4_url=?,
-               image_5_url=?, image_6_url=?, image_7_url=?,
+               ${IMG_URL_COLS.map(c => `${c}=?`).join(', ')},
                meta_title=?, meta_desc=?,
                google_product_category=?, google_condition=?, color=?, material=?, pattern=?,
                age_group=?, gender=?, shipping_label=?,
@@ -922,8 +919,7 @@ exports.productImport = async (req, res, next) => {
              country_origin, prop65, release_date, status,
              is_active, is_featured, is_new,
              sort_order, primary_image_url,
-             image_2_url, image_3_url, image_4_url,
-             image_5_url, image_6_url, image_7_url,
+             ...IMG_URL_COLS.map(c => imgUrls[c]),
              meta_title, meta_desc,
              google_product_category, google_condition, color, material, pattern,
              age_group, gender, shipping_label,
@@ -952,8 +948,7 @@ exports.productImport = async (req, res, next) => {
                 country_origin, prop65, release_date, status,
                 is_active, is_featured, is_new,
                 sort_order, primary_image_url,
-                image_2_url, image_3_url, image_4_url,
-                image_5_url, image_6_url, image_7_url,
+                ${IMG_URL_COLS.join(', ')},
                 meta_title, meta_desc,
                 google_product_category, google_condition, color, material, pattern,
                 age_group, gender, shipping_label,
@@ -961,7 +956,7 @@ exports.productImport = async (req, res, next) => {
                 excluded_destinations, ads_redirect, identifier_exists,
                 model, color_family,
                 source_flag)
-             VALUES (?,?,?,?,?, ?,?,?,?,?,?, ?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?, ?,?,?, ?,?,?, ?,?, ?,?,?,?,?, ?,?,?, ?,?,?,?,?, ?,?,?,?,?,'manual')`,
+             VALUES (?,?,?,?,?, ?,?,?,?,?,?, ?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?, ${IMG_URL_COLS.map(() => '?').join(', ')}, ?,?, ?,?,?,?,?, ?,?,?, ?,?,?,?,?, ?,?,?,?,?,'manual')`,
             [sku, finalSlug, name, brand, category_id,
              product_type, vendor_sku, upc, mpn, component_role, vendor_group_id,
              short_desc, long_desc, warranty,
@@ -971,8 +966,7 @@ exports.productImport = async (req, res, next) => {
              country_origin, prop65, release_date, status,
              is_active, is_featured, is_new,
              sort_order, primary_image_url,
-             image_2_url, image_3_url, image_4_url,
-             image_5_url, image_6_url, image_7_url,
+             ...IMG_URL_COLS.map(c => imgUrls[c]),
              meta_title, meta_desc,
              google_product_category, google_condition, color, material, pattern,
              age_group, gender, shipping_label,
@@ -1155,14 +1149,9 @@ function _extractProductFields(body) {
     is_featured:       body.is_featured  ? 1 : 0,
     is_new:            body.is_new       ? 1 : 0,
     sort_order:        int(body.sort_order) ?? 0,
-    // ── Images
+    // ── Images (primary + image_2_url … image_30_url)
     primary_image_url: (body.primary_image_url || '').trim() || null,
-    image_2_url:       (body.image_2_url || '').trim() || null,
-    image_3_url:       (body.image_3_url || '').trim() || null,
-    image_4_url:       (body.image_4_url || '').trim() || null,
-    image_5_url:       (body.image_5_url || '').trim() || null,
-    image_6_url:       (body.image_6_url || '').trim() || null,
-    image_7_url:       (body.image_7_url || '').trim() || null,
+    ...Object.fromEntries(IMG_URL_COLS.map(c => [c, (body[c] || '').trim() || null])),
     // ── Inventory
     qty_on_hand:       int(body.qty_on_hand)    ?? 0,
     allow_backorder:   body.allow_backorder ? 1 : 0,
