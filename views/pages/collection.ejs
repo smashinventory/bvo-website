@@ -387,9 +387,9 @@
             border:       familyHex[product.color_family + '_border']   || '#aaa',
           }];
         }
-        var _pSwatches    = _mcSwatches.slice(0, 4);
-        var _pSwatchExtra = _mcSwatches.length > 4 ? _mcSwatches.length - 4 : 0;
-        var _pSizes       = null;  /* size options shown via product name / details */
+        var _pSwatches    = _mcSwatches;  /* CSS overflow + JS +N badge handle truncation */
+        var _pSizes       = (product.model && typeof modelSizeMap !== 'undefined' && modelSizeMap[product.model])
+                              ? modelSizeMap[product.model] : null;
       %>
       <article class="product-card">
         <a href="/products/<%= product.slug %>" class="product-img-link" aria-label="<%= product.name %>">
@@ -441,9 +441,6 @@
                       aria-label="<%= f.color %>"
                       title="<%= f.color %>"></button>
               <% }); %>
-              <% if (_pSwatchExtra > 0) { %>
-              <span class="model-card-swatch-more" aria-hidden="true">+<%= _pSwatchExtra %></span>
-              <% } %>
             <% } else { %>
             <span class="model-card-sizes-text">See details</span>
             <% } %>

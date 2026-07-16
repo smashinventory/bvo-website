@@ -560,6 +560,48 @@ document.addEventListener('DOMContentLoaded', function () {
   window.addEventListener('load', sizeCards);
 })();
 
+// ── Swatch overflow: inject +N badge when swatches wrap to a 2nd row ──
+(function () {
+  function addSwatchBadges() {
+    document.querySelectorAll('.model-card-swatches').forEach(function (wrap) {
+      // Skip if badge already injected
+      if (wrap.querySelector('.model-card-swatch-more')) return;
+      // No overflow — nothing to do
+      if (wrap.scrollHeight <= wrap.clientHeight) return;
+
+      var swatches = wrap.querySelectorAll('.model-card-swatch');
+      var wrapRect = wrap.getBoundingClientRect();
+      var clipY    = wrapRect.top + wrap.clientHeight; // bottom of visible area
+
+      var hidden = 0;
+      swatches.forEach(function (s) {
+        // A swatch is clipped if its top edge is at or beyond the clip boundary
+        if (s.getBoundingClientRect().top >= clipY - 1) hidden++;
+      });
+
+      if (hidden > 0) {
+        var badge = document.createElement('span');
+        badge.className = 'model-card-swatch-more';
+        badge.setAttribute('aria-hidden', 'true');
+        badge.textContent = '+' + hidden;
+        wrap.appendChild(badge);
+      }
+    });
+  }
+
+  // Run after layout is painted so getBoundingClientRect values are accurate
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', addSwatchBadges);
+  } else {
+    addSwatchBadges();
+  }
+  // Re-run on resize in case card widths change (clear stale badges first)
+  window.addEventListener('resize', function () {
+    document.querySelectorAll('.model-card-swatch-more').forEach(function (b) { b.remove(); });
+    addSwatchBadges();
+  }, { passive: true });
+})();
+
 // ── Mobile nav toggle ──────────────────────────────────────────────
 (function () {
   var hamburger  = document.querySelector('.nav-hamburger');

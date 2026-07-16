@@ -49,11 +49,13 @@ exports.show = async (req, res, next) => {
       // ── Build available filter options from DB ───────────────────
       const [optRows] = await bvoPool.query(`
         SELECT DISTINCT
-          FLOOR(p.width_in) AS size_in,
+          pav.value_num AS size_in,
           p.brand,
           p.color,
           p.color_family
         FROM products p
+        LEFT JOIN product_attribute_values pav
+          ON pav.product_id = p.id AND pav.attr_key = 'size_in'
         WHERE p.is_active = 1 AND p.model IS NOT NULL
       `);
       const allSizes    = [...new Set(optRows.map(r => r.size_in).filter(Boolean))].sort((a,b)=>a-b);
@@ -90,13 +92,16 @@ exports.show = async (req, res, next) => {
           MIN(p.price)          AS price_from,
           MAX(p.price)          AS price_to,
           MIN(p.compare_price)  AS compare_price_from,
-          GROUP_CONCAT(DISTINCT FLOOR(p.width_in) ORDER BY p.width_in) AS sizes_csv,
+          GROUP_CONCAT(DISTINCT CAST(pav.value_num AS UNSIGNED)
+            ORDER BY pav.value_num SEPARATOR ',') AS sizes_csv,
           COALESCE(
             MIN(CASE WHEN p.primary_image_url IS NOT NULL THEN p.primary_image_url END),
             MIN(pi.url)
           ) AS image_url
         FROM products p
         LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
+        LEFT JOIN product_attribute_values pav
+          ON pav.product_id = p.id AND pav.attr_key = 'size_in'
         WHERE ${vmWhere}
         GROUP BY p.model, p.brand
         ORDER BY p.brand, p.model
@@ -342,6 +347,25 @@ exports.show = async (req, res, next) => {
       }
     }
 
+    // ── Build model → size list map from EAV ────────────────────────────
+    // Shows the full range of sizes the model comes in on each product card.
+    let modelSizeMap = {};  // { 'London': [18, 24, 36, 48] }
+    if (pageModels.length) {
+      const [msRows] = await bvoPool.query(`
+        SELECT DISTINCT p.model, CAST(pav.value_num AS UNSIGNED) AS size_in
+        FROM products p
+        JOIN product_attribute_values pav
+          ON pav.product_id = p.id AND pav.attr_key = 'size_in'
+        WHERE p.model IN (${pageModels.map(() => '?').join(',')})
+          AND pav.value_num IS NOT NULL AND p.is_active = 1
+        ORDER BY p.model, pav.value_num
+      `, pageModels);
+      for (const r of msRows) {
+        if (!modelSizeMap[r.model]) modelSizeMap[r.model] = [];
+        modelSizeMap[r.model].push(r.size_in);
+      }
+    }
+
     // Load saved product IDs for logged-in customers (for heart icons)
     const savedProductIds = req.session.customerId
       ? await Customer.getFavoriteIds(req.session.customerId)
@@ -358,6 +382,7 @@ exports.show = async (req, res, next) => {
       brands, productTypes,
       model,
       modelColorMap,
+      modelSizeMap,
       familyHex: FAMILY_HEX,
       attrFilters,
       rangeFilters,

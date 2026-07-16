@@ -143,8 +143,7 @@
       <% models.forEach(function(m) { %>
       <%
         var _discPct         = m.compare_price_from ? Math.round((1 - m.price_from / m.compare_price_from) * 100) : 0;
-        var _visibleSwatches = m.finishes.slice(0, 4);
-        var _extraSwatches   = m.finishes.length > 4 ? m.finishes.length - 4 : 0;
+        var _visibleSwatches = m.finishes;  /* CSS overflow + JS +N badge handle truncation */
         /* Safe DOM id from model name — spaces/special chars → hyphens */
         var _mId             = m.model ? m.model.toLowerCase().replace(/[^a-z0-9]+/g, '-') : 'model';
         var _mHref           = '/collections/vanities?model=' + encodeURIComponent(m.model || '');
@@ -197,9 +196,6 @@
                     aria-label="<%= f.color %>"
                     title="<%= f.color %>"></button>
             <% }); %>
-            <% if (_extraSwatches > 0) { %>
-            <span class="model-card-swatch-more" aria-hidden="true">+<%= _extraSwatches %></span>
-            <% } %>
           </div>
 
           <div class="model-card-sizes-row">

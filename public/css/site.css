@@ -2324,6 +2324,8 @@ ul[role="list"] { list-style: none; }
   align-items: center;
   gap: .35rem;
   flex-wrap: wrap;
+  max-height: 22px;   /* clamp to one swatch row; JS injects +N badge for overflow */
+  overflow: hidden;
   margin-top: .15rem;
 }
 .model-card-swatch {
@@ -2372,6 +2374,9 @@ ul[role="list"] { list-style: none; }
   font-size: .78rem;
   color: #374151;
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* CTA */
