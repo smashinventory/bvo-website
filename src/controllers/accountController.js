@@ -54,6 +54,7 @@ exports.registerPage = (req, res) => {
     pageTitle: 'Create Account | BathroomVanitiesOutlet.com',
     metaDesc:  '',
     error: null,
+    query: req.query,
   });
 };
 
@@ -120,6 +121,28 @@ exports.orders = async (req, res, next) => {
       metaDesc:  '',
       orders,
     });
+  } catch (err) { next(err); }
+};
+
+/* ── GET /account/favorites ─────────────────────────────────────── */
+exports.favoritesPage = async (req, res, next) => {
+  try {
+    const products = await Customer.getFavoriteProducts(req.session.customerId);
+    res.render('pages/account/favorites', {
+      pageTitle: 'My Saved Items | BathroomVanitiesOutlet.com',
+      metaDesc:  '',
+      products,
+    });
+  } catch (err) { next(err); }
+};
+
+/* ── POST /account/favorites/toggle ─────────────────────────────── */
+exports.toggleFavorite = async (req, res, next) => {
+  try {
+    const productId = parseInt(req.body.productId, 10);
+    if (!productId) return res.status(400).json({ error: 'Invalid productId' });
+    const result = await Customer.toggleFavorite(req.session.customerId, productId);
+    res.json(result);
   } catch (err) { next(err); }
 };
 

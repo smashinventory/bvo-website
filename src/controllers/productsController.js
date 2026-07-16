@@ -1,7 +1,8 @@
 'use strict';
 
-const Product  = require('../models/Product');
-const Category = require('../models/Category');
+const Product   = require('../models/Product');
+const Category  = require('../models/Category');
+const Customer  = require('../models/Customer');
 const { bvoPool } = require('../config/database');
 
 /* ── /products/:slug ────────────────────────────────────────────── */
@@ -44,6 +45,11 @@ exports.show = async (req, res, next) => {
     const siteUrl    = process.env.SITE_URL || 'https://bathroomvanitiesoutlet.com';
     const canonicalUrl = `${siteUrl}/products/${product.slug}`;
 
+    // Check if logged-in customer has this product saved
+    const isFavorited = req.session.customerId
+      ? (await Customer.getFavoriteIds(req.session.customerId)).has(product.id)
+      : false;
+
     res.render('pages/product', {
       pageTitle:    `${product.meta_title || product.name} | BathroomVanitiesOutlet.com`,
       metaDesc:     product.meta_desc || product.short_desc || '',
@@ -54,6 +60,7 @@ exports.show = async (req, res, next) => {
       category,
       related,
       productDocs: docRows,
+      isFavorited,
     });
   } catch (err) { next(err); }
 };

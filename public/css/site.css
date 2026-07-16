@@ -2334,3 +2334,120 @@ ul[role="list"] { list-style: none; }
   .iwt-reverse { flex-direction: column; }
   .iwt-image-col { flex: none !important; width: 100% !important; max-width: 100% !important; }
 }
+
+/* ================================================================
+   FAVORITES / HEART BUTTON  (19G.5)
+   ================================================================ */
+
+/* ── Card heart button (collection grid + vanity-models) ────────── */
+.heart-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255,255,255,.85);
+  backdrop-filter: blur(4px);
+  border: 1.5px solid var(--border);
+  cursor: pointer;
+  transition: transform .15s ease, background .15s ease, border-color .15s ease;
+  padding: 0;
+}
+.heart-btn svg {
+  width: 16px;
+  height: 16px;
+  stroke: var(--muted);
+  fill: none;
+  transition: stroke .15s ease, fill .15s ease;
+}
+.heart-btn:hover {
+  transform: scale(1.12);
+  background: var(--white);
+  border-color: var(--amber);
+}
+.heart-btn:hover svg { stroke: var(--amber); }
+.heart-btn.is-saved {
+  background: var(--white);
+  border-color: #e8474c;
+}
+.heart-btn.is-saved svg {
+  stroke: #e8474c;
+  fill: #e8474c;
+}
+
+/* ── PDP "Save to Wishlist" button variant ──────────────────────── */
+.heart-btn--pdp {
+  position: static;
+  width: 100%;
+  height: auto;
+  border-radius: 6px;
+  background: transparent;
+  backdrop-filter: none;
+  border: 1.5px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: .7rem 1rem;
+  font-size: .85rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--navy);
+  font-family: var(--font-sans);
+  transition: border-color .15s ease, color .15s ease, background .15s ease;
+}
+.heart-btn--pdp:hover {
+  transform: none;
+  border-color: var(--amber);
+  color: var(--amber);
+  background: transparent;
+}
+.heart-btn--pdp svg { width: 16px; height: 16px; }
+.heart-btn--pdp.is-saved {
+  border-color: #e8474c;
+  color: #e8474c;
+  background: transparent;
+}
+.heart-btn--pdp.is-saved svg {
+  stroke: #e8474c;
+  fill: #e8474c;
+}
+
+/* ── Nav favorites icon ─────────────────────────────────────────── */
+.nav-favorites-btn svg {
+  stroke: var(--navy);
+  fill: none;
+  transition: stroke .15s ease, fill .15s ease;
+}
+.nav-favorites-btn:hover svg { stroke: var(--amber); }
+
+/* ── Save-to-favorites banner (register page) ───────────────────── */
+.save-banner {
+  background: var(--color-whisper-hero);
+  border: 1.5px solid var(--border-card);
+  border-radius: 8px;
+  padding: 14px 18px;
+  font-size: .875rem;
+  color: var(--color-navy);
+  margin-bottom: 20px;
+  text-align: center;
+  line-height: 1.5;
+}
+.save-banner strong { color: var(--color-amber); }
+
+/* ── Favorites page grid (reuses listing-grid layout) ──────────── */
+.favorites-page        { max-width: 1200px; margin: 0 auto; padding: 48px 64px; }
+.favorites-page h1     { font-family: var(--font-serif); font-size: 2rem; color: var(--navy); margin-bottom: 8px; }
+.favorites-intro       { color: var(--muted); font-size: .9rem; margin-bottom: 32px; }
+.favorites-empty       { text-align: center; padding: 80px 40px; color: var(--muted); }
+.favorites-empty a     { color: var(--amber); font-weight: 700; }
+
+@media (max-width: 768px) {
+  .favorites-page { padding: 32px 24px; }
+}

@@ -6,6 +6,12 @@
     <h1 class="auth-title">Create Account</h1>
     <p class="auth-sub">Join BathroomVanitiesOutlet.com</p>
 
+    <% if (locals.query && locals.query.message === 'save') { %>
+    <div class="save-banner" role="note">
+      <strong>Create a free account</strong> to save your favorites and access them anytime.
+    </div>
+    <% } %>
+
     <% if (error) { %>
     <div class="auth-error" role="alert"><%= error %></div>
     <% } %>

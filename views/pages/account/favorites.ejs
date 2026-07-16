@@ -1,0 +1,76 @@
+<div class="account-page">
+  <div class="account-sidebar">
+    <nav class="account-nav" aria-label="Account navigation">
+      <a href="/account" class="account-nav-item">Dashboard</a>
+      <a href="/account/orders" class="account-nav-item">Orders</a>
+      <a href="/account/favorites" class="account-nav-item active">Saved Items</a>
+      <a href="/account/addresses" class="account-nav-item">Addresses</a>
+      <form action="/account/logout" method="POST" style="margin:0">
+        <button type="submit" class="account-nav-item account-nav-logout">Sign Out</button>
+      </form>
+    </nav>
+  </div>
+
+  <div class="account-main">
+    <h1 class="account-title">Saved Items</h1>
+
+    <% if (!products || products.length === 0) { %>
+    <div class="favorites-empty">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 16px;display:block;stroke:var(--muted)" aria-hidden="true">
+        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+      </svg>
+      <p style="font-size:1rem;margin-bottom:8px">No saved items yet.</p>
+      <p style="font-size:.875rem;margin-bottom:24px">Tap the heart on any product to save it here.</p>
+      <a href="/collections/vanities" class="btn btn-sage">Browse Vanities</a>
+    </div>
+    <% } else { %>
+    <div class="listing-grid" style="margin-top:0">
+      <% products.forEach(function(product) { %>
+      <article class="product-card">
+        <a href="/products/<%= product.slug %>" class="product-img-link" aria-label="<%= product.name %>">
+          <div class="product-img">
+            <% if (product.primary_image) { %>
+              <img src="<%= product.primary_image %>" alt="<%= product.name %>" loading="lazy">
+            <% } else { %>
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" aria-hidden="true">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+            <% } %>
+            <% if (product.badge) { %>
+            <span class="product-badge badge-<%= product.badge %>"><%= product.badge.toUpperCase() %></span>
+            <% } %>
+            <!-- Heart button — already saved on this page, always .is-saved -->
+            <button class="heart-btn is-saved"
+                    data-product-id="<%= product.id %>"
+                    data-product-slug="<%= product.slug %>"
+                    aria-label="Remove from saved items"
+                    type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+              </svg>
+            </button>
+          </div>
+        </a>
+        <div class="product-body">
+          <% if (product.brand) { %><p class="product-brand"><%= product.brand %></p><% } %>
+          <h3 class="product-title">
+            <a href="/products/<%= product.slug %>"><%= product.name %></a>
+          </h3>
+          <div class="product-price-row">
+            <% if (product.compare_price && product.compare_price > product.price) { %>
+            <span class="product-price">$<%= parseFloat(product.price).toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
+            <span class="product-compare">$<%= parseFloat(product.compare_price).toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
+            <% } else { %>
+            <span class="product-price">$<%= parseFloat(product.price).toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
+            <% } %>
+          </div>
+          <a href="/products/<%= product.slug %>" class="btn btn-sage">View Details</a>
+        </div>
+      </article>
+      <% }) %>
+    </div>
+    <% } %>
+  </div>
+</div>

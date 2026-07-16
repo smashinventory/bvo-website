@@ -2,6 +2,7 @@
 
 const Category                    = require('../models/Category');
 const Product                     = require('../models/Product');
+const Customer                    = require('../models/Customer');
 const { FAMILIES, normalize, getFamily } = require('../config/colorFamilies');
 const { bvoPool }                        = require('../config/database');
 
@@ -341,6 +342,11 @@ exports.show = async (req, res, next) => {
       }
     }
 
+    // Load saved product IDs for logged-in customers (for heart icons)
+    const savedProductIds = req.session.customerId
+      ? await Customer.getFavoriteIds(req.session.customerId)
+      : new Set();
+
     res.render('pages/collection', {
       pageTitle:    `${category.meta_title || category.name} | BathroomVanitiesOutlet.com`,
       metaDesc:     category.meta_desc || category.description || '',
@@ -365,6 +371,8 @@ exports.show = async (req, res, next) => {
       colorFamiliesConfig,
       colorFamilyActive: colorFamilyParam,
       colorExactActive:  colorExactParam,
+      // Favorites
+      savedProductIds,
     });
   } catch (err) { next(err); }
 };

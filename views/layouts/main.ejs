@@ -133,6 +133,9 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
 
   <%- include('../partials/footer') %>
 
+  <!-- Auth state for client-side heart toggle -->
+  <script>window.__bvoIsLoggedIn = <%= (typeof isLoggedIn !== 'undefined' && isLoggedIn) ? 'true' : 'false' %>;</script>
+
   <!-- Site JS -->
   <script src="/js/site.js"></script>
 

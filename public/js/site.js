@@ -532,3 +532,50 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 })();
+
+// ── Favorites / Heart toggle (19G.5) ──────────────────────────────
+(function () {
+  function handleHeartClick(e) {
+    var btn = e.target.closest('.heart-btn');
+    if (!btn) return;
+
+    // If not logged in, send to register with return context
+    if (!window.__bvoIsLoggedIn) {
+      var slug = btn.dataset.productSlug || '';
+      window.location.href = '/account/register?message=save'
+        + (slug ? '&next=' + encodeURIComponent('/products/' + slug) : '');
+      return;
+    }
+
+    var productId = parseInt(btn.dataset.productId, 10);
+    if (!productId) return;
+
+    // Optimistic UI update
+    var wasSaved = btn.classList.contains('is-saved');
+    btn.classList.toggle('is-saved', !wasSaved);
+    var label = btn.querySelector('.heart-btn-label');
+    if (label) label.textContent = wasSaved ? 'Save to Wishlist' : 'Saved';
+    btn.setAttribute('aria-label', wasSaved ? 'Save to favorites' : 'Remove from saved items');
+
+    fetch('/account/favorites/toggle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ productId: productId })
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      // Reconcile with server response
+      btn.classList.toggle('is-saved', data.saved);
+      if (label) label.textContent = data.saved ? 'Saved' : 'Save to Wishlist';
+      btn.setAttribute('aria-label', data.saved ? 'Remove from saved items' : 'Save to favorites');
+    })
+    .catch(function () {
+      // Revert optimistic update on network error
+      btn.classList.toggle('is-saved', wasSaved);
+      if (label) label.textContent = wasSaved ? 'Saved' : 'Save to Wishlist';
+      btn.setAttribute('aria-label', wasSaved ? 'Remove from saved items' : 'Save to favorites');
+    });
+  }
+
+  document.addEventListener('click', handleHeartClick);
+})();
