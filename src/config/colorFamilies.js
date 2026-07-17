@@ -182,6 +182,17 @@ const FAMILIES = [
       'Warm Cherry', 'Cherry', 'Deep Cherry', 'Cherry Glaze', 'Warm Red',
     ],
   },
+  {
+    key: 'rose',
+    type: 'cabinet',
+    label: 'Rose',
+    hex: '#C4848A',
+    border: '#A06068',
+    members: [
+      'Rose', 'Dusty Rose', 'Blush', 'Mauve', 'Rose Pink', 'Soft Rose',
+      'Blush Pink', 'Antique Rose', 'Muted Rose',
+    ],
+  },
 
   // ── Metallic / hardware finish families ───────────────────────────────
   // Used for: mirrors, faucets, accessories, lighting, storage (primary color)
