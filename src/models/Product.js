@@ -217,6 +217,7 @@ const Product = {
         SELECT
           p.id, p.slug, p.name, p.brand, p.price, p.compare_price,
           p.is_new, p.is_featured, p.short_desc, p.product_type,
+          p.model, p.color, p.color_family,
           COALESCE(p.primary_image_url, pi.url) AS primary_image,
           i.qty_on_hand,
           CASE
