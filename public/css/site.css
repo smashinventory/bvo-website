@@ -419,6 +419,7 @@ ul[role="list"] { list-style: none; }
 @media (max-width: 480px) {
   .category-grid { grid-template-columns: 1fr; }
   .product-grid  { grid-template-columns: 1fr; }
+  .listing-grid  { grid-template-columns: 1fr; }
   .value-bar     { grid-template-columns: 1fr; }
   .trust-band    { grid-template-columns: 1fr; }
   .footer-grid   { grid-template-columns: 1fr; }

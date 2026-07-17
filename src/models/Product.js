@@ -2,7 +2,7 @@
 
 const { bvoPool } = require('../config/database');
 
-const PER_PAGE = 12;
+const PER_PAGE = 24;
 
 /* ── Finish → hex map (mirrors finish_colors table in migration 002) ── */
 const FINISH_HEX = {
