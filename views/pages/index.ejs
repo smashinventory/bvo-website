@@ -254,6 +254,7 @@ const news = S.newsletter         || {};
             <button class="model-card-swatch<%= i === 0 ? ' is-active' : '' %>"
                     data-target-img="model-img-<%= _mId %>"
                     data-finish="<%= f.color %>"
+                    <% if (f.image_url) { %>data-image="<%= f.image_url %>"<% } %>
                     style="background:<%= f.hex %>;border-color:<%= _swatchBorder %>"
                     aria-label="<%= f.color %>"
                     title="<%= f.color %>"></button>

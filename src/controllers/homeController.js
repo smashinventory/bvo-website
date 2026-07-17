@@ -57,14 +57,23 @@ async function getFeaturedModels() {
 
     if (!modelRows.length) return [];
 
-    /* Fetch per-model color swatches */
+    /* Fetch per-model color swatches with one representative image per (model, color) */
     const modelNames = modelRows.map(r => r.model);
     const [swatchRows] = await bvoPool.query(`
-      SELECT DISTINCT model, color, color_family
-      FROM products
-      WHERE is_active = 1 AND model IN (${modelNames.map(() => '?').join(',')})
-        AND color IS NOT NULL
-      ORDER BY model, color
+      SELECT
+        p.model,
+        p.color,
+        p.color_family,
+        COALESCE(
+          MIN(CASE WHEN p.primary_image_url IS NOT NULL THEN p.primary_image_url END),
+          MIN(pi.url)
+        ) AS image_url
+      FROM products p
+      LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
+      WHERE p.is_active = 1 AND p.model IN (${modelNames.map(() => '?').join(',')})
+        AND p.color IS NOT NULL
+      GROUP BY p.model, p.color, p.color_family
+      ORDER BY p.model, p.color
     `, modelNames);
 
     const swatchMap = {};
@@ -75,6 +84,7 @@ async function getFeaturedModels() {
         color_family: r.color_family,
         hex:          FAMILY_HEX[r.color_family]               || '#ccc',
         border:       FAMILY_HEX[(r.color_family || '') + '_border'] || '#aaa',
+        image_url:    r.image_url || null,
       });
     }
 
