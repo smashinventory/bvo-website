@@ -470,7 +470,7 @@
           <div class="model-card-sizes-row">
             <span class="model-card-sizes-label">Size Options:</span>
             <% if (_pSizes && _pSizes.length) { %>
-            <span class="model-card-sizes-text"><%= _pSizes.map(function(s){ return s + '"'; }).join(' | ') %></span>
+            <span class="model-card-sizes-text"><%= _pSizes.join(' | ') %></span>
             <% } else { %>
             <span class="model-card-sizes-text">See details</span>
             <% } %>
