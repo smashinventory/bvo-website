@@ -365,6 +365,24 @@ exports.show = async (req, res, next) => {
     const availFinishes         = finishRows.map(r => r.color);
     const availHardwareFinishes = hwFinishRows.map(r => r.value_text);
 
+    // ── Sidebar size options from products.width_in ───────────────
+    // CSV import populates width_in; JM feed populates EAV size_in.
+    // width_in is the reliable source for all CSV-imported products.
+    // Always overwrite so the sidebar reflects what's actually stocked.
+    {
+      const [widthRows] = await bvoPool.query(
+        `SELECT DISTINCT CAST(width_in AS UNSIGNED) AS size_in
+         FROM products
+         WHERE category_id = ? AND is_active = 1
+           AND width_in IS NOT NULL AND width_in > 0
+         ORDER BY size_in`,
+        [category.id]
+      );
+      if (widthRows.length) {
+        availableAttrValues['size_in'] = widthRows.map(r => String(r.size_in));
+      }
+    }
+
     // ── Parse dynamic attribute filters ──────────────────────────
     // ALL color_swatch attrs are handled by colorFilters / hwColorFilters above —
     // skip them here so they don't appear as checkbox/text filters.
@@ -468,20 +486,19 @@ exports.show = async (req, res, next) => {
     }
 
     // ── Model → size list map ─────────────────────────────────────
+    // Uses products.width_in (same source as sidebar + homeController).
     let modelSizeMap = {};
     if (pageModels.length) {
       const [msRows] = await bvoPool.query(`
-        SELECT DISTINCT p.model, CAST(pav.value_num AS UNSIGNED) AS size_in
+        SELECT DISTINCT p.model, CAST(p.width_in AS UNSIGNED) AS size_in
         FROM products p
-        JOIN product_attribute_values pav
-          ON pav.product_id = p.id AND pav.attr_key = 'size_in'
         WHERE p.model IN (${pageModels.map(() => '?').join(',')})
-          AND pav.value_num IS NOT NULL AND p.is_active = 1
-        ORDER BY p.model, pav.value_num
+          AND p.is_active = 1 AND p.width_in IS NOT NULL AND p.width_in > 0
+        ORDER BY p.model, p.width_in
       `, pageModels);
       for (const r of msRows) {
         if (!modelSizeMap[r.model]) modelSizeMap[r.model] = [];
-        modelSizeMap[r.model].push(r.size_in);
+        if (!modelSizeMap[r.model].includes(r.size_in)) modelSizeMap[r.model].push(r.size_in);
       }
     }
 
