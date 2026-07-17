@@ -70,8 +70,9 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
 
   <!-- Brand CSS tokens -->
   <link rel="stylesheet" href="/css/brand.css">
-  <!-- Site CSS -->
+  <!-- Site CSS (split to stay under CDN 80KB file-size limit) -->
   <link rel="stylesheet" href="/css/site.css">
+  <link rel="stylesheet" href="/css/site2.css">
 
   <!-- Design token overrides from theme settings -->
   <style>
