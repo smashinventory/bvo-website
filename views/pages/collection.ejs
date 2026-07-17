@@ -299,28 +299,25 @@
         </button>
         <div class="filter-group-body<%= isExpanded ? '' : ' is-collapsed' %>">
           <% if (def.attr_key === 'size_in') { %>
-          <%   /* Size as checkboxes — only show sizes that have at least one product.
-                * '84+' is a catch-all bucket for any product 84" or larger. */
-               var _availSizeNums = (availableAttrValues['size_in'] || []).map(parseFloat);
-               var _hasBig = _availSizeNums.some(function(n){ return n >= 84; });
+          <%/* Size chip filter — styled labels over hidden checkboxes (same form
+              * submission as other filters, no JS needed). availableSizes contains
+              * only buckets with ≥1 product in the current filtered collection.
+              * Canonical source: products.width_in via SIZE_BUCKETS (Rule 10). */
+            var _activeSizes = attrFilters['size_in'] || [];
+            var _chips = (typeof availableSizes !== 'undefined') ? availableSizes : [];
           %>
-          <% [18,24,30,36,42,48,60,72].forEach(function(sz) {
-               if (!_availSizeNums.includes(sz)) return; /* skip if no products at this size */
-               var szStr = String(sz);
-          %>
-          <label class="filter-option">
-            <input type="checkbox" name="<%= def.attr_key %>" value="<%= szStr %>"
-              <%= (attrFilters[def.attr_key] || []).includes(szStr) ? 'checked' : '' %>>
-            <span><%= sz %>"</span>
-          </label>
-          <% }) %>
-          <% if (_hasBig) { %>
-          <label class="filter-option">
-            <input type="checkbox" name="<%= def.attr_key %>" value="84+"
-              <%= (attrFilters[def.attr_key] || []).includes('84+') ? 'checked' : '' %>>
-            <span>84"+</span>
-          </label>
-          <% } %>
+          <div class="size-chips">
+            <% _chips.forEach(function(sz) {
+                 var isActive = _activeSizes.indexOf(String(sz)) !== -1;
+            %>
+            <label class="size-chip<%= isActive ? ' is-active' : '' %>">
+              <input type="checkbox" name="<%= def.attr_key %>" value="<%= sz %>"
+                <%= isActive ? 'checked' : '' %>
+                style="position:absolute;opacity:0;pointer-events:none;width:0;height:0;">
+              <%= sz %>
+            </label>
+            <% }) %>
+          </div>
           <% } else { %>
           <div class="filter-price">
             <input type="number" name="<%= def.attr_key %>_min"

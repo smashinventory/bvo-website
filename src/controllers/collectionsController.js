@@ -12,6 +12,27 @@ FAMILIES.forEach(f => { FAMILY_HEX[f.key] = f.hex; FAMILY_HEX[f.key + '_border']
 
 const MODELS_PER_PAGE = 12;
 
+/* ── Standard vanity width buckets ──────────────────────────────── *
+ * Canonical size buckets for the sidebar chip filter (Rule 10).     *
+ * label  = URL param value sent as ?size_in=<label>                 *
+ * min/max = width_in range that maps to this bucket (±2" tolerance) *
+ * Mirrors the logic in Product.getAvailableWidths + findByCategory. *
+ * Add/remove buckets here only — collectionsController + Product.js *
+ * both reference this constant as the single source of truth.       */
+const SIZE_BUCKETS = [
+  { label: '20-', min: 0,   max: 22         }, // catches 16, 18, 20
+  { label: '25',  min: 23,  max: 27         },
+  { label: '30',  min: 28,  max: 32         },
+  { label: '36',  min: 34,  max: 38         },
+  { label: '42',  min: 40,  max: 44         },
+  { label: '48',  min: 46,  max: 50         },
+  { label: '54',  min: 52,  max: 56         },
+  { label: '60',  min: 58,  max: 62         },
+  { label: '66',  min: 64,  max: 68         },
+  { label: '72',  min: 70,  max: 74         },
+  { label: '84+', min: 82,  max: Infinity   }, // catches 84, 96, 120+
+];
+
 /* ── Windowed pagination ─────────────────────────────────────────── *
  * Returns page numbers with null for ellipsis gaps.
  * e.g. page=16, pages=177 → [1, null, 14, 15, 16, 17, 18, null, 177]
@@ -66,16 +87,16 @@ exports.show = async (req, res, next) => {
         vmMinPrice != null || vmMaxPrice != null
       );
 
+      // Canonical source: products.width_in (Rule 10 — no EAV JOIN for size)
       const [optRows] = await bvoPool.query(`
         SELECT DISTINCT
-          pav.value_num AS size_in,
+          p.width_in AS size_in,
           p.brand,
           p.color,
           p.color_family
         FROM products p
-        LEFT JOIN product_attribute_values pav
-          ON pav.product_id = p.id AND pav.attr_key = 'size_in'
         WHERE p.is_active = 1 AND p.model IS NOT NULL
+          AND p.width_in IS NOT NULL AND p.width_in > 0
       `);
       const allSizes      = [...new Set(optRows.map(r => r.size_in).filter(Boolean))].sort((a,b)=>a-b);
       const allBrands     = [...new Set(optRows.map(r => r.brand).filter(Boolean))].sort();
@@ -118,16 +139,15 @@ exports.show = async (req, res, next) => {
           MIN(p.price)          AS price_from,
           MAX(p.price)          AS price_to,
           MIN(p.compare_price)  AS compare_price_from,
-          GROUP_CONCAT(DISTINCT CAST(pav.value_num AS UNSIGNED)
-            ORDER BY pav.value_num SEPARATOR ',') AS sizes_csv,
+          -- Canonical source: products.width_in (Rule 10)
+          GROUP_CONCAT(DISTINCT CAST(p.width_in AS UNSIGNED)
+            ORDER BY p.width_in SEPARATOR ',') AS sizes_csv,
           COALESCE(
             MIN(CASE WHEN p.primary_image_url IS NOT NULL THEN p.primary_image_url END),
             MIN(pi.url)
           ) AS image_url
         FROM products p
         LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
-        LEFT JOIN product_attribute_values pav
-          ON pav.product_id = p.id AND pav.attr_key = 'size_in'
         WHERE ${vmWhere}
         GROUP BY p.model, p.brand
         ORDER BY p.brand, p.model
@@ -166,8 +186,9 @@ exports.show = async (req, res, next) => {
         finishes: swatchMap[r.model] || [],
       }));
 
+      // ±2" tolerance matches SIZE_BUCKETS ranges and Product.findByCategory logic
       if (activeSizes.length) {
-        models = models.filter(m => activeSizes.some(sz => m.sizes.some(ms => Math.abs(ms - sz) <= 1)));
+        models = models.filter(m => activeSizes.some(sz => m.sizes.some(ms => Math.abs(ms - sz) <= 2)));
       }
 
       const allPrices  = modelRows.map(r => r.price_from).filter(Boolean);
@@ -422,8 +443,11 @@ exports.show = async (req, res, next) => {
     ].filter(Boolean).length;
     const noindex = activeFilterGroupCount >= 2;
 
-    // ── Fetch products + price range ──────────────────────────────
-    const [result, priceRange] = await Promise.all([
+    // ── Fetch products, price range, and available size buckets ──
+    // getAvailableWidths runs the same filters as the main query but WITHOUT
+    // the size_in condition — so the sidebar only shows sizes that have products
+    // in the current filtered view (e.g. black vanities → only their sizes).
+    const [result, priceRange, availableWidths] = await Promise.all([
       Product.findByCategory(category.id, {
         page, sort, brands, productTypes,
         attrFilters: mergedAttrFilters,
@@ -433,7 +457,15 @@ exports.show = async (req, res, next) => {
         model,
       }),
       Product.getPriceRange(category.id),
+      isVanityCategory
+        ? Product.getAvailableWidths(category.id, { brands, productTypes, colorFilters, hwColorFilters, minPrice, maxPrice, model })
+        : Promise.resolve([]),
     ]);
+
+    // Map raw width_in values → bucket labels; only populated buckets are passed to template
+    const availableSizes = SIZE_BUCKETS
+      .filter(b => availableWidths.some(w => w >= b.min && w <= b.max))
+      .map(b => b.label);
 
     // ── Model → color swatches map ────────────────────────────────
     const pageModels = [...new Set(result.products.map(p => p.model).filter(Boolean))];
@@ -503,6 +535,7 @@ exports.show = async (req, res, next) => {
       model,
       modelColorMap,
       modelSizeMap,
+      availableSizes,   // size chip filter — populated buckets only (Rule 10)
       familyHex: FAMILY_HEX,
       attrFilters,
       rangeFilters,

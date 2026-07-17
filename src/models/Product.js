@@ -90,39 +90,26 @@ const Product = {
           continue;
         }
 
-        // size_in: ±1" fuzzy match to catch adjacent sizes (e.g. 59"/60"/61" all match "60").
-        // Text fallback via MySQL CAST handles variant formats: '60"', '60 Inch', '60"', '60 in'
-        // MySQL CAST(expr AS UNSIGNED) stops at the first non-numeric char, so all variants → integer.
+        // size_in: filter on products.width_in — canonical source (Rule 8/10).
+        // No EAV JOIN needed. Bucket boundaries mirror SIZE_BUCKETS in collectionsController.
+        // '20-'  → width_in ≤ 22  (catches 16, 18, 20 with ±2" tolerance from above)
+        // '84+'  → width_in ≥ 82  (catches 84, 96, 120+ with ±2" tolerance from below)
+        // others → ±2" fuzzy window (e.g. '36' → 34–38", catches non-standard JM sizes)
         if (key === 'size_in') {
+          const has20Minus = vals.includes('20-');
           const has84Plus  = vals.includes('84+');
-          const exactSizes = vals.filter(v => v !== '84+').map(Number).filter(n => !isNaN(n));
+          const midSizes   = vals.filter(v => v !== '20-' && v !== '84+').map(Number).filter(n => !isNaN(n));
           const orParts    = [];
-          const sizeParams = [];
 
-          if (exactSizes.length) {
-            // Numeric storage: ±1" tolerance per selected size
-            const numRanges = exactSizes.map(() => 'pav.value_num BETWEEN ? AND ?').join(' OR ');
-            orParts.push(`(pav.value_num IS NOT NULL AND (${numRanges}))`);
-            exactSizes.forEach(sz => sizeParams.push(sz - 1, sz + 1));
+          if (has20Minus) orParts.push('p.width_in <= 22');
+          midSizes.forEach(sz => {
+            orParts.push('p.width_in BETWEEN ? AND ?');
+            params.push(sz - 2, sz + 2);
+          });
+          if (has84Plus) orParts.push('p.width_in >= 82');
 
-            // Text fallback: strips "  /" Inch etc. — covers manufacturers who store value_text only
-            const txtRanges = exactSizes.map(() => 'CAST(pav.value_text AS UNSIGNED) BETWEEN ? AND ?').join(' OR ');
-            orParts.push(`(pav.value_num IS NULL AND (${txtRanges}))`);
-            exactSizes.forEach(sz => sizeParams.push(sz - 1, sz + 1));
-          }
-          if (has84Plus) {
-            orParts.push('pav.value_num >= 84');
-            orParts.push('(pav.value_num IS NULL AND CAST(pav.value_text AS UNSIGNED) >= 84)');
-          }
           if (!orParts.length) continue;
-
-          where += `
-          AND EXISTS (
-            SELECT 1 FROM product_attribute_values pav
-            WHERE pav.product_id = p.id AND pav.attr_key = ?
-              AND (${orParts.join(' OR ')})
-          )`;
-          params.push(key, ...sizeParams);
+          where += ` AND (${orParts.join(' OR ')})`;
           continue;
         }
 
@@ -455,6 +442,84 @@ const Product = {
         LIMIT ?
       `, [limit]);
       return rows;
+    } catch {
+      return [];
+    }
+  },
+
+  /**
+   * Distinct width_in values for a category with all filters applied EXCEPT size.
+   * Called by collectionsController to determine which SIZE_BUCKETS have products
+   * in the current collection view — so the sidebar only shows populated size chips.
+   * Mirrors findByCategory WHERE logic for brand/type/color/hw/price/model but
+   * intentionally omits the size_in condition.
+   */
+  async getAvailableWidths(categoryId, {
+    brands = [], productTypes = [],
+    colorFilters = {}, hwColorFilters = {},
+    minPrice, maxPrice, model = null,
+  } = {}) {
+    try {
+      const params = [categoryId];
+      let where = 'p.category_id = ? AND p.is_active = 1 AND p.width_in IS NOT NULL AND p.width_in > 0';
+
+      if (brands.length) {
+        where += ` AND p.brand IN (${brands.map(() => '?').join(',')})`;
+        params.push(...brands);
+      }
+      if (productTypes.length) {
+        where += ` AND p.product_type IN (${productTypes.map(() => '?').join(',')})`;
+        params.push(...productTypes);
+      }
+      if (minPrice != null) { where += ' AND p.price >= ?'; params.push(minPrice); }
+      if (maxPrice != null) { where += ' AND p.price <= ?'; params.push(maxPrice); }
+      if (model) { where += ' AND LOWER(p.model) = LOWER(?)'; params.push(model.replace(/-/g, ' ')); }
+
+      // Primary color (direct columns — no EAV JOIN)
+      const cfFamilies = (colorFilters.families || []).filter(Boolean);
+      const cfExact    = (colorFilters.exact    || []).filter(Boolean);
+      if (cfFamilies.length || cfExact.length) {
+        const orParts = [];
+        if (cfFamilies.length) { orParts.push(`p.color_family IN (${cfFamilies.map(() => '?').join(',')})`); params.push(...cfFamilies); }
+        if (cfExact.length)    { orParts.push(`p.color IN (${cfExact.map(() => '?').join(',')})`); params.push(...cfExact); }
+        where += ` AND (${orParts.join(' OR ')})`;
+      }
+
+      // Hardware finish (EAV — vanities secondary colour layer)
+      const hwfFamilies = (hwColorFilters.families || []).filter(Boolean);
+      const hwfExact    = (hwColorFilters.exact    || []).filter(Boolean);
+      if (hwfFamilies.length || hwfExact.length) {
+        const hwOrParts = [];
+        const hwfParams = [];
+        if (hwfFamilies.length) {
+          const memberStrings = FAMILIES
+            .filter(f => f.type === 'metal' && hwfFamilies.includes(f.key))
+            .flatMap(f => f.members);
+          if (memberStrings.length) {
+            hwOrParts.push(`pav_hw.value_text IN (${memberStrings.map(() => '?').join(',')})`);
+            hwfParams.push(...memberStrings);
+          }
+        }
+        if (hwfExact.length) {
+          hwOrParts.push(`pav_hw.value_text IN (${hwfExact.map(() => '?').join(',')})`);
+          hwfParams.push(...hwfExact);
+        }
+        if (hwOrParts.length) {
+          where += `
+          AND EXISTS (
+            SELECT 1 FROM product_attribute_values pav_hw
+            WHERE pav_hw.product_id = p.id AND pav_hw.attr_key = 'hardware_finish'
+              AND (${hwOrParts.join(' OR ')})
+          )`;
+          params.push(...hwfParams);
+        }
+      }
+
+      const [rows] = await bvoPool.query(
+        `SELECT DISTINCT p.width_in FROM products p WHERE ${where} ORDER BY p.width_in`,
+        params
+      );
+      return rows.map(r => parseFloat(r.width_in)).filter(Boolean);
     } catch {
       return [];
     }
