@@ -1,27 +1,9 @@
 'use strict';
 
 const { bvoPool } = require('../config/database');
+const { FAMILIES } = require('../config/colorFamilies');
 
 const PER_PAGE = 24;
-
-/* ── Finish → hex map (mirrors finish_colors table in migration 002) ── */
-const FINISH_HEX = {
-  'White':             '#FFFFFF',
-  'Gray Oak':          '#9E9488',
-  'Espresso':          '#3B1F0E',
-  'Navy Blue':         '#182840',
-  'Sage Green':        '#5A7A5A',
-  'Walnut':            '#7B4F2E',
-  'Matte Black':       '#1C1C1C',
-  'Chrome':            '#C0C0C0',
-  'Brushed Nickel':    '#8C8680',
-  'Oil-Rubbed Bronze': '#4A3728',
-  'Polished Gold':     '#CFB53B',
-  'Brushed Gold':      '#B5924C',
-  'Polished Brass':    '#B5A642',
-  'Antique Bronze':    '#614E3C',
-  'Matte White':       '#F0EEE9',
-};
 
 const Product = {
 
@@ -46,7 +28,7 @@ const Product = {
   async findByCategory(categoryId, {
     page = 1, sort = 'featured',
     brands = [], productTypes = [], attrFilters = {},
-    colorFilters = {},
+    colorFilters = {}, hwColorFilters = {},
     minPrice, maxPrice,
     model = null,   // collection slug e.g. 'brookfield'; matched against product name
   } = {}) {
@@ -176,6 +158,43 @@ const Product = {
 
         where += ` AND (${orParts.join(' OR ')})`;
         params.push(...cfParams);
+      }
+
+      // ── Hardware finish filter (vanities secondary colour layer) ─────────
+      // EAV attr_key='hardware_finish', value_text.
+      // Family-level: expand family keys → member strings for IN (...).
+      // Exact-level:  direct vendor name match (sub-chip selection).
+      const hwfFamilies = (hwColorFilters.families || []).filter(Boolean);
+      const hwfExact    = (hwColorFilters.exact    || []).filter(Boolean);
+
+      if (hwfFamilies.length || hwfExact.length) {
+        const hwOrParts = [];
+        const hwfParams = [];
+
+        if (hwfFamilies.length) {
+          const memberStrings = FAMILIES
+            .filter(f => f.type === 'metal' && hwfFamilies.includes(f.key))
+            .flatMap(f => f.members);
+          if (memberStrings.length) {
+            hwOrParts.push(`pav_hw.value_text IN (${memberStrings.map(() => '?').join(',')})`);
+            hwfParams.push(...memberStrings);
+          }
+        }
+        if (hwfExact.length) {
+          hwOrParts.push(`pav_hw.value_text IN (${hwfExact.map(() => '?').join(',')})`);
+          hwfParams.push(...hwfExact);
+        }
+
+        if (hwOrParts.length) {
+          where += `
+          AND EXISTS (
+            SELECT 1 FROM product_attribute_values pav_hw
+            WHERE pav_hw.product_id = p.id
+              AND pav_hw.attr_key = 'hardware_finish'
+              AND (${hwOrParts.join(' OR ')})
+          )`;
+          params.push(...hwfParams);
+        }
       }
 
       const orderMap = {
@@ -454,8 +473,5 @@ const Product = {
   },
 
 };
-
-/** Finish → hex colour lookup (for swatch rendering in templates) */
-Product.FINISH_HEX = FINISH_HEX;
 
 module.exports = Product;

@@ -1732,6 +1732,103 @@ exports.syncApproveAll = async (req, res) => {
   }
 };
 
+/* ════════════════════════════════════════════════════════════════
+   COLOR FAMILY REPORT  (Task #35)
+   GET  /admin/products/color-report  — list all products with null color_family
+   POST /admin/products/color-report  — bulk-assign a family + persist to color_mappings
+   ════════════════════════════════════════════════════════════════ */
+
+/* GET /admin/products/color-report */
+exports.colorFamilyReport = async (req, res, next) => {
+  try {
+    const { FAMILIES } = require('../config/colorFamilies');
+
+    const [
+      unmappedColorRows,
+      nullColorRow,
+      categories,
+      mappingRows,
+    ] = await Promise.all([
+      // Products that have a color string but no family assigned — grouped by vendor color + category
+      safeQuery(`
+        SELECT p.color, c.name AS category_name, c.id AS category_id,
+               COUNT(*) AS product_count
+        FROM products p
+        LEFT JOIN categories c ON c.id = p.category_id
+        WHERE p.color_family IS NULL
+          AND p.color IS NOT NULL
+          AND p.color <> ''
+        GROUP BY p.color, p.category_id
+        ORDER BY product_count DESC, p.color ASC
+      `),
+      // Products with no color string at all (cannot be auto-fixed — needs product edit)
+      safeQueryOne(`
+        SELECT COUNT(*) AS n FROM products
+        WHERE color_family IS NULL AND (color IS NULL OR color = '')
+      `),
+      // Category list for display
+      safeQuery('SELECT id, name FROM categories ORDER BY name'),
+      // Existing color_mappings entries (to show what's already mapped)
+      safeQuery('SELECT vendor_color, context, family_key, notes FROM color_mappings ORDER BY vendor_color'),
+    ]);
+
+    const flash = req.session.flash || null;
+    delete req.session.flash;
+
+    res.render('pages/admin/color-report', {
+      ...LAYOUT,
+      pageTitle:       'Color Family Report | BVO Admin',
+      activePage:      'color-report',
+      flash,
+      unmappedColors:  unmappedColorRows,
+      nullColorCount:  nullColorRow?.n ?? 0,
+      categories,
+      families:        FAMILIES,
+      existingMappings: mappingRows,
+    });
+  } catch (err) { next(err); }
+};
+
+/* POST /admin/products/color-report
+   Body: vendor_color, context ('cabinet'|'metal'), family_key
+   Action: UPDATE products.color_family WHERE color = vendor_color
+           UPSERT color_mappings row
+*/
+exports.colorFamilyApply = async (req, res, next) => {
+  try {
+    const vendorColor = (req.body.vendor_color || '').trim();
+    const context     = (req.body.context     || 'cabinet').trim();
+    const familyKey   = (req.body.family_key  || '').trim();
+    const notes       = (req.body.notes       || '').trim() || null;
+
+    if (!vendorColor || !familyKey) {
+      req.session.flash = { type: 'error', msg: 'Vendor color and family key are required.' };
+      return res.redirect('/admin/products/color-report');
+    }
+
+    // 1 — Bulk-update all products with this vendor color string
+    const [updateResult] = await bvoPool.query(
+      `UPDATE products SET color_family = ? WHERE color = ? AND color_family IS NULL`,
+      [familyKey, vendorColor]
+    );
+
+    // 2 — Persist to color_mappings so future imports resolve this automatically
+    await bvoPool.query(
+      `INSERT INTO color_mappings (vendor_color, context, family_key, notes)
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE family_key = VALUES(family_key), notes = VALUES(notes)`,
+      [vendorColor, context, familyKey, notes]
+    );
+
+    const affected = updateResult.affectedRows ?? 0;
+    req.session.flash = {
+      type: 'success',
+      msg:  `"${vendorColor}" mapped to <strong>${familyKey}</strong> — ${affected} product(s) updated. Mapping saved to color_mappings.`,
+    };
+    res.redirect('/admin/products/color-report');
+  } catch (err) { next(err); }
+};
+
 /* POST /admin/sync/settings */
 exports.syncSaveSettings = (req, res) => {
   try {

@@ -1,33 +1,32 @@
 'use strict';
 
-const Category                    = require('../models/Category');
-const Product                     = require('../models/Product');
-const Customer                    = require('../models/Customer');
-const { FAMILIES, normalize, getFamily } = require('../config/colorFamilies');
-const { bvoPool }                        = require('../config/database');
+const Category                                          = require('../models/Category');
+const Product                                           = require('../models/Product');
+const Customer                                          = require('../models/Customer');
+const { FAMILIES, normalize, getFamily, CABINET_KEYS, METAL_KEYS } = require('../config/colorFamilies');
+const { bvoPool }                                       = require('../config/database');
 
-/* ── Build a color family hex lookup: family_key → hex ─────────── */
+/* ── Color family hex lookup: family_key → hex / border ──────────── */
 const FAMILY_HEX = {};
 FAMILIES.forEach(f => { FAMILY_HEX[f.key] = f.hex; FAMILY_HEX[f.key + '_border'] = f.border; });
 
 const MODELS_PER_PAGE = 12;
 
-/* ── Build windowed pagination array ────────────────────────────── *
- * Returns an array of page numbers with null for ellipsis gaps.
+/* ── Windowed pagination ─────────────────────────────────────────── *
+ * Returns page numbers with null for ellipsis gaps.
  * e.g. page=16, pages=177 → [1, null, 14, 15, 16, 17, 18, null, 177]
- * Always shows first, last, current ±2. Shows all if pages ≤ 9.
  */
 function buildPageWindow(page, pages) {
   if (pages <= 9) return Array.from({ length: pages }, (_, i) => i + 1);
   const out = [1];
-  if (page > 4)          out.push(null);                                          // leading ellipsis
+  if (page > 4)          out.push(null);
   for (let i = Math.max(2, page - 2); i <= Math.min(pages - 1, page + 2); i++) out.push(i);
-  if (page < pages - 3)  out.push(null);                                          // trailing ellipsis
+  if (page < pages - 3)  out.push(null);
   out.push(pages);
   return out;
 }
 
-/* ── /collections — all categories ─────────────────────────────── */
+/* ── /collections ────────────────────────────────────────────────── */
 exports.index = async (req, res, next) => {
   try {
     const categories = await Category.findAll();
@@ -39,17 +38,16 @@ exports.index = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-/* ── /collections/:slug — products in category ──────────────────── */
+/* ── /collections/:slug ──────────────────────────────────────────── */
 exports.show = async (req, res, next) => {
   try {
     const { slug } = req.params;
 
-    // ── Virtual "vanity-models" collection ───────────────────────────
-    // DB-driven browse page — groups products by products.model column.
+    // ── Virtual "vanity-models" collection ────────────────────────
+    // Groups products by model — cabinet color context only.
     if (slug === 'vanity-models') {
       const page = Math.max(1, parseInt(req.query.page || '1', 10));
 
-      // ── Parse filter params ──────────────────────────────────────
       const activeSizes         = [].concat(req.query.size         || []).filter(Boolean).map(Number);
       const activeBrands        = [].concat(req.query.brand        || []).filter(Boolean);
       const activeColorFamilies = [].concat(req.query.color_family || []).filter(Boolean);
@@ -57,18 +55,17 @@ exports.show = async (req, res, next) => {
       const vmMinPrice          = req.query.min_price ? parseFloat(req.query.min_price) : undefined;
       const vmMaxPrice          = req.query.max_price ? parseFloat(req.query.max_price) : undefined;
 
-      // Families in sub-chip (exact) mode vs whole-family mode
-      const exactFamilyKeys  = new Set();
-      activeColorExact.forEach(v => { const fam = normalize(v); if (fam) exactFamilyKeys.add(fam); });
-      const familyLevelKeys  = activeColorFamilies.filter(f => !exactFamilyKeys.has(f));
-      const hasColorFilter   = activeColorFamilies.length > 0 || activeColorExact.length > 0;
+      // Cabinet context — vanity-models only has cabinet color families
+      const exactFamilyKeys = new Set();
+      activeColorExact.forEach(v => { const fam = normalize(v, 'cabinet'); if (fam) exactFamilyKeys.add(fam); });
+      const familyLevelKeys = activeColorFamilies.filter(f => !exactFamilyKeys.has(f));
+      const hasColorFilter  = activeColorFamilies.length > 0 || activeColorExact.length > 0;
 
       const hasActiveFilters = !!(
         activeSizes.length || activeBrands.length || hasColorFilter ||
         vmMinPrice != null || vmMaxPrice != null
       );
 
-      // ── Build available filter options from DB ───────────────────
       const [optRows] = await bvoPool.query(`
         SELECT DISTINCT
           pav.value_num AS size_in,
@@ -80,20 +77,18 @@ exports.show = async (req, res, next) => {
           ON pav.product_id = p.id AND pav.attr_key = 'size_in'
         WHERE p.is_active = 1 AND p.model IS NOT NULL
       `);
-      const allSizes     = [...new Set(optRows.map(r => r.size_in).filter(Boolean))].sort((a,b)=>a-b);
-      const allBrands    = [...new Set(optRows.map(r => r.brand).filter(Boolean))].sort();
-      // availFinishes: exact color names present in vanity-model products (for sub-chip options)
+      const allSizes      = [...new Set(optRows.map(r => r.size_in).filter(Boolean))].sort((a,b)=>a-b);
+      const allBrands     = [...new Set(optRows.map(r => r.brand).filter(Boolean))].sort();
       const availFinishes = [...new Set(optRows.map(r => r.color).filter(Boolean))].sort();
 
-      // Build colorFamiliesConfig — same shape as collection route, powers family swatch sidebar
-      const colorFamiliesConfig = FAMILIES.map(fam => ({
+      // Cabinet families only — metallic families not relevant on vanity-models
+      const colorFamiliesConfig = FAMILIES.filter(f => f.type === 'cabinet').map(fam => ({
         ...fam,
-        isActive: activeColorFamilies.includes(fam.key) || exactFamilyKeys.has(fam.key),
-        isOpen:   activeColorFamilies.includes(fam.key) || exactFamilyKeys.has(fam.key),
-        activeExact: activeColorExact.filter(e => normalize(e) === fam.key),
+        isActive:    activeColorFamilies.includes(fam.key) || exactFamilyKeys.has(fam.key),
+        isOpen:      activeColorFamilies.includes(fam.key) || exactFamilyKeys.has(fam.key),
+        activeExact: activeColorExact.filter(e => normalize(e, 'cabinet') === fam.key),
       }));
 
-      // ── Query model groups from DB ───────────────────────────────
       let vmWhere  = 'p.is_active = 1 AND p.model IS NOT NULL';
       const vmParams = [];
 
@@ -102,8 +97,6 @@ exports.show = async (req, res, next) => {
         vmParams.push(...activeBrands);
       }
       if (hasColorFilter) {
-        // family-level filter: match color_family column
-        // exact filter: match color column (sub-chip mode within a family)
         const colorParts = [];
         if (familyLevelKeys.length) {
           colorParts.push(`p.color_family IN (${familyLevelKeys.map(()=>'?').join(',')})`);
@@ -118,7 +111,6 @@ exports.show = async (req, res, next) => {
       if (vmMinPrice != null) { vmWhere += ' AND p.price >= ?'; vmParams.push(vmMinPrice); }
       if (vmMaxPrice != null) { vmWhere += ' AND p.price <= ?'; vmParams.push(vmMaxPrice); }
 
-      // Fetch all matching models (we filter sizes in JS since GROUP_CONCAT is easier)
       const [modelRows] = await bvoPool.query(`
         SELECT
           p.model,
@@ -141,7 +133,6 @@ exports.show = async (req, res, next) => {
         ORDER BY p.brand, p.model
       `, vmParams);
 
-      // Fetch per-model color swatches with one representative image per (model, color)
       const [swatchRows] = await bvoPool.query(`
         SELECT
           p.model,
@@ -157,7 +148,7 @@ exports.show = async (req, res, next) => {
         GROUP BY p.model, p.color, p.color_family
         ORDER BY p.model, p.color
       `);
-      const swatchMap = {};  // { 'London': [{color, color_family, hex, border, image_url}] }
+      const swatchMap = {};
       for (const r of swatchRows) {
         if (!swatchMap[r.model]) swatchMap[r.model] = [];
         swatchMap[r.model].push({
@@ -169,10 +160,9 @@ exports.show = async (req, res, next) => {
         });
       }
 
-      // Parse sizes and apply size filter
       let models = modelRows.map(r => ({
         ...r,
-        sizes: r.sizes_csv ? r.sizes_csv.split(',').map(Number).filter(Boolean) : [],
+        sizes:   r.sizes_csv ? r.sizes_csv.split(',').map(Number).filter(Boolean) : [],
         finishes: swatchMap[r.model] || [],
       }));
 
@@ -180,15 +170,13 @@ exports.show = async (req, res, next) => {
         models = models.filter(m => activeSizes.some(sz => m.sizes.some(ms => Math.abs(ms - sz) <= 1)));
       }
 
-      // Price range for slider
-      const allPrices = modelRows.map(r => r.price_from).filter(Boolean);
+      const allPrices  = modelRows.map(r => r.price_from).filter(Boolean);
       const vmPriceMin = allPrices.length ? Math.min(...allPrices) : 0;
       const vmPriceMax = allPrices.length ? Math.max(...allPrices) : 9999;
 
-      // Paginate
-      const total  = models.length;
-      const pages  = Math.ceil(total / MODELS_PER_PAGE) || 1;
-      const offset = (page - 1) * MODELS_PER_PAGE;
+      const total       = models.length;
+      const pages       = Math.ceil(total / MODELS_PER_PAGE) || 1;
+      const offset      = (page - 1) * MODELS_PER_PAGE;
       const pagedModels = models.slice(offset, offset + MODELS_PER_PAGE);
 
       return res.render('pages/vanity-models', {
@@ -211,7 +199,7 @@ exports.show = async (req, res, next) => {
       });
     }
 
-    // ── Virtual "sale" collection ─────────────────────────────────────
+    // ── Virtual "sale" collection ──────────────────────────────────
     if (slug === 'sale') {
       const [saleRows] = await bvoPool.query(`
         SELECT p.id, p.slug, p.name, p.brand, p.price, p.compare_price,
@@ -229,91 +217,165 @@ exports.show = async (req, res, next) => {
         pageTitle:    'Sale | BathroomVanitiesOutlet.com',
         metaDesc:     'Shop discounted bathroom vanities, mirrors, faucets and accessories.',
         category:     { id: null, slug: 'sale', name: 'Sale', description: 'Discounted products — limited time offers', meta_title: 'Sale', meta_desc: '' },
+        isVanityCategory: false,
         products,
         total: products.length, page: 1, pages: 1, perPage: 48,
+        pageWindow: buildPageWindow(1, 1),
         sort: 'featured',
         brands: [], productTypes: [],
         attrFilters: {}, activeAttrFilters: {},
+        rangeFilters: {},
         minPrice: undefined, maxPrice: undefined,
         priceRange: { min: 0, max: 9999 },
         availableBrands: [],
         attributeDefs: [],
-        finishHex: Product.FINISH_HEX,
+        availableAttrValues: {},
         hasActiveFilters: false,
-        colorFamiliesConfig: FAMILIES,
+        // Primary color filter — not applicable on sale page
+        colorFamiliesConfig: [],
         colorFamilyActive: [],
         colorExactActive: [],
-        rangeFilters: {},
+        availFinishes: [],
+        // Hardware finish filter — not applicable on sale page
+        hwColorFamiliesConfig: [],
+        hwColorFamilyActive: [],
+        hwColorExactActive: [],
+        availHardwareFinishes: [],
       });
     }
 
+    // ── Regular category collection ────────────────────────────────
+
+    // Fetch category first — needed to determine color context before param parsing
     const category = await Category.findBySlug(slug);
     if (!category) return res.status(404).render('pages/404', { pageTitle: '404 | BathroomVanitiesOutlet.com' });
 
-    // ── Parse standard query params ──────────────────────────────────
-    const page     = Math.max(1, parseInt(req.query.page  || '1', 10));
-    const sort     = req.query.sort || 'featured';
-    const brands   = [].concat(req.query.brand        || []).filter(Boolean);
-    const productTypes = [].concat(req.query.type     || []).filter(Boolean);
-    const model    = req.query.model || null;   // e.g. 'brookfield', 'linear'
-    const minPrice = req.query.min_price ? parseFloat(req.query.min_price) : undefined;
-    const maxPrice = req.query.max_price ? parseFloat(req.query.max_price) : undefined;
+    const isVanityCategory = category.id === 1;
 
-    // ── Color family filter params ───────────────────────────────────
-    // color_family[] — selected family keys (e.g. ['blue', 'black'])
-    // color_exact[]  — selected exact manufacturer values (e.g. ['Navy Blue', 'Midnight'])
-    //                  exact values implicitly belong to one family (resolved via normalize())
+    // ── Parse standard query params ──────────────────────────────
+    const page         = Math.max(1, parseInt(req.query.page  || '1', 10));
+    const sort         = req.query.sort || 'featured';
+    const brands       = [].concat(req.query.brand        || []).filter(Boolean);
+    const productTypes = [].concat(req.query.type         || []).filter(Boolean);
+    const model        = req.query.model || null;
+    const minPrice     = req.query.min_price ? parseFloat(req.query.min_price) : undefined;
+    const maxPrice     = req.query.max_price ? parseFloat(req.query.max_price) : undefined;
+
+    // ── Primary color filter params ───────────────────────────────
+    // Vanities: cabinet color (White, Navy, Walnut…)
+    // All other categories: metallic finish (Chrome, Nickel, Bronze…)
     const colorFamilyParam = [].concat(req.query.color_family || []).filter(Boolean);
     const colorExactParam  = [].concat(req.query.color_exact  || []).filter(Boolean);
 
-    // Determine which families are in "exact sub-chip mode" vs "whole-family mode".
-    // A family is in exact mode when it has at least one color_exact value.
+    // ── Hardware finish filter params (vanities only) ─────────────
+    // Secondary color layer — cabinet pulls, handles, hardware
+    const hwColorFamilyParam = [].concat(req.query.hw_color_family || []).filter(Boolean);
+    const hwColorExactParam  = [].concat(req.query.hw_color_exact  || []).filter(Boolean);
+
+    // ── Context-aware normalization ───────────────────────────────
+    // Vanities primary = cabinet context; all other categories = metal context
+    const primaryColorContext = isVanityCategory ? 'cabinet' : 'metal';
+
+    // Primary color — exact sub-chip mode detection
     const exactFamilyKeys = new Set();
     colorExactParam.forEach(v => {
-      const fam = normalize(v);
+      const fam = normalize(v, primaryColorContext);
       if (fam) exactFamilyKeys.add(fam);
     });
-
-    // Families selected at the whole-family level (no sub-chip override for them)
     const familyLevelKeys = colorFamilyParam.filter(f => !exactFamilyKeys.has(f));
+    const hasColorFilter  = colorFamilyParam.length > 0 || colorExactParam.length > 0;
 
-    // Enriched families config for the view — precompute active/open state per family
-    const colorFamiliesConfig = FAMILIES.map(fam => ({
+    // Hardware finish — always metal context
+    const hwExactFamilyKeys = new Set();
+    hwColorExactParam.forEach(v => {
+      const fam = normalize(v, 'metal');
+      if (fam) hwExactFamilyKeys.add(fam);
+    });
+    const hwFamilyLevelKeys = hwColorFamilyParam.filter(f => !hwExactFamilyKeys.has(f));
+    const hasHwColorFilter  = hwColorFamilyParam.length > 0 || hwColorExactParam.length > 0;
+
+    // ── Color family configs for view ─────────────────────────────
+    // Primary: ALL families for vanities (cabinet paint + metallic-finish vanities
+    // such as Radiant Gold, Matte Black, Brushed Nickel which are stored in
+    // products.color and map to metal family keys).
+    // Metal-only for all other categories (mirrors, faucets, etc.).
+    // The template's visibleFamilies check gates display: a family only renders
+    // if fam.members.some(m => availFinishesLower.includes(m)) — so metal families
+    // with no vanity products stay hidden automatically. See Task #34-C.
+    const primaryFamilyPool = isVanityCategory
+      ? FAMILIES                              // cabinet + metallic-finish vanities
+      : FAMILIES.filter(f => f.type === 'metal');
+
+    const colorFamiliesConfig = primaryFamilyPool.map(fam => ({
       ...fam,
-      isActive: colorFamilyParam.includes(fam.key) || exactFamilyKeys.has(fam.key),
-      isOpen:   colorFamilyParam.includes(fam.key) || exactFamilyKeys.has(fam.key),
-      activeExact: colorExactParam.filter(e => normalize(e) === fam.key),
+      isActive:    colorFamilyParam.includes(fam.key) || exactFamilyKeys.has(fam.key),
+      isOpen:      colorFamilyParam.includes(fam.key) || exactFamilyKeys.has(fam.key),
+      activeExact: colorExactParam.filter(e => normalize(e, primaryColorContext) === fam.key),
     }));
 
-    // colorFilters passed to the model
-    const colorFilters = {
-      families: familyLevelKeys,   // whole-family: match color_family column
-      exact:    colorExactParam,   // exact: match value_text
-    };
-    const hasColorFilter = colorFamilyParam.length > 0 || colorExactParam.length > 0;
+    // Hardware finish config — metallic families, vanities only
+    const hwColorFamiliesConfig = isVanityCategory
+      ? FAMILIES.filter(f => f.type === 'metal').map(fam => ({
+          ...fam,
+          isActive:    hwColorFamilyParam.includes(fam.key) || hwExactFamilyKeys.has(fam.key),
+          isOpen:      hwColorFamilyParam.includes(fam.key) || hwExactFamilyKeys.has(fam.key),
+          activeExact: hwColorExactParam.filter(e => normalize(e, 'metal') === fam.key),
+        }))
+      : [];
 
-    // ── Load attribute definitions + available filter values ─────────
-    const [attributeDefs, availableBrands, availableAttrValues] = await Promise.all([
+    // colorFilters → primary (products.color_family column)
+    const colorFilters = {
+      families: familyLevelKeys,
+      exact:    colorExactParam,
+    };
+
+    // hwColorFilters → EAV-based hardware_finish filtering (vanities only)
+    const hwColorFilters = {
+      families: hwFamilyLevelKeys,
+      exact:    hwColorExactParam,
+    };
+
+    // ── Load attribute defs + filter option values ────────────────
+    const [
+      attributeDefs,
+      availableBrands,
+      availableAttrValues,
+      [finishRows],
+      [hwFinishRows],
+    ] = await Promise.all([
       Category.getAttributeDefinitions(category.id),
       Category.getBrandsForCategory(category.id),
       Product.getAllAttributeValues(category.id),
+      // Primary finish options — from products.color column
+      bvoPool.query(
+        'SELECT DISTINCT color FROM products WHERE category_id = ? AND is_active = 1 AND color IS NOT NULL ORDER BY color',
+        [category.id]
+      ),
+      // Hardware finish options — from EAV (vanities only; empty for other categories)
+      bvoPool.query(
+        `SELECT DISTINCT pav.value_text
+         FROM product_attribute_values pav
+         JOIN products p ON p.id = pav.product_id
+         WHERE p.category_id = ? AND pav.attr_key = 'hardware_finish'
+           AND pav.value_text IS NOT NULL
+         ORDER BY pav.value_text`,
+        [category.id]
+      ),
     ]);
+    const availFinishes         = finishRows.map(r => r.color);
+    const availHardwareFinishes = hwFinishRows.map(r => r.value_text);
 
-    /*
-     * Parse dynamic attribute filters from query string.
-     * Skip cabinet_finish — handled by colorFilters above.
-     * Range attrs: ?{attr_key}_min / ?{attr_key}_max
-     * Size (range attr rendered as checkboxes): '84+' is a catch-all for >= 84"
-     */
-    const attrFilters  = {};   // { attr_key: string[] | ['84+', ...] }
-    const rangeFilters = {};   // { attr_key: { min, max } }
+    // ── Parse dynamic attribute filters ──────────────────────────
+    // ALL color_swatch attrs are handled by colorFilters / hwColorFilters above —
+    // skip them here so they don't appear as checkbox/text filters.
+    const attrFilters  = {};
+    const rangeFilters = {};
 
     for (const def of attributeDefs) {
-      if (def.attr_key === 'brand')           continue; // handled above
-      if (def.attr_key === 'cabinet_finish')  continue; // handled by colorFilters
+      if (def.attr_key === 'brand')           continue; // handled separately
+      if (def.filter_type === 'color_swatch') continue; // handled by color filter system
 
       if (def.filter_type === 'range') {
-        // Special case: size_in rendered as checkboxes including '84+' catch-all
         if (def.attr_key === 'size_in') {
           const sizeVals = [].concat(req.query['size_in'] || []).filter(Boolean);
           if (sizeVals.length) attrFilters['size_in'] = sizeVals;
@@ -333,7 +395,6 @@ exports.show = async (req, res, next) => {
       }
     }
 
-    // Merge range filters into the format Product.findByCategory expects
     const mergedAttrFilters = { ...attrFilters };
     for (const [key, { min, max }] of Object.entries(rangeFilters)) {
       mergedAttrFilters[key] = [min, max];
@@ -343,11 +404,11 @@ exports.show = async (req, res, next) => {
       brands.length || productTypes.length ||
       Object.keys(attrFilters).length || Object.keys(rangeFilters).length ||
       minPrice != null || maxPrice != null ||
-      hasColorFilter || model
+      hasColorFilter || hasHwColorFilter || model
     );
 
-    // ── SEO ──────────────────────────────────────────────────────────
-    const siteUrl     = process.env.SITE_URL || 'https://bathroomvanitiesoutlet.com';
+    // ── SEO ───────────────────────────────────────────────────────
+    const siteUrl      = process.env.SITE_URL || 'https://bathroomvanitiesoutlet.com';
     const canonicalUrl = `${siteUrl}/collections/${slug}`;
 
     const activeFilterGroupCount = [
@@ -357,26 +418,26 @@ exports.show = async (req, res, next) => {
       Object.keys(rangeFilters).length > 0,
       minPrice != null || maxPrice != null,
       hasColorFilter,
+      hasHwColorFilter,
     ].filter(Boolean).length;
     const noindex = activeFilterGroupCount >= 2;
 
-    // ── Fetch products + price range ──────────────────────────────────
+    // ── Fetch products + price range ──────────────────────────────
     const [result, priceRange] = await Promise.all([
       Product.findByCategory(category.id, {
         page, sort, brands, productTypes,
         attrFilters: mergedAttrFilters,
         colorFilters,
+        hwColorFilters,
         minPrice, maxPrice,
         model,
       }),
       Product.getPriceRange(category.id),
     ]);
 
-    // ── Build model → color swatches map from DB ─────────────────────
-    // For each model on this page, fetch all available color variants with
-    // one representative product image per (model, color) for card image swap.
+    // ── Model → color swatches map ────────────────────────────────
     const pageModels = [...new Set(result.products.map(p => p.model).filter(Boolean))];
-    let modelColorMap = {};  // { 'London': [{color, color_family, hex, border, image_url}] }
+    let modelColorMap = {};
     if (pageModels.length) {
       const [mcRows] = await bvoPool.query(`
         SELECT
@@ -406,9 +467,8 @@ exports.show = async (req, res, next) => {
       }
     }
 
-    // ── Build model → size list map from EAV ────────────────────────────
-    // Shows the full range of sizes the model comes in on each product card.
-    let modelSizeMap = {};  // { 'London': [18, 24, 36, 48] }
+    // ── Model → size list map ─────────────────────────────────────
+    let modelSizeMap = {};
     if (pageModels.length) {
       const [msRows] = await bvoPool.query(`
         SELECT DISTINCT p.model, CAST(pav.value_num AS UNSIGNED) AS size_in
@@ -425,7 +485,7 @@ exports.show = async (req, res, next) => {
       }
     }
 
-    // Load saved product IDs for logged-in customers (for heart icons)
+    // Favorites
     const savedProductIds = req.session.customerId
       ? await Customer.getFavoriteIds(req.session.customerId)
       : new Set();
@@ -436,6 +496,7 @@ exports.show = async (req, res, next) => {
       canonicalUrl,
       noindex,
       category,
+      isVanityCategory,
       ...result,
       pageWindow: buildPageWindow(page, result.pages || 1),
       sort,
@@ -452,10 +513,16 @@ exports.show = async (req, res, next) => {
       attributeDefs,
       availableAttrValues,
       hasActiveFilters,
-      // Color filter state
+      // Primary color filter (Cabinet Color for vanities; Finish for all others)
       colorFamiliesConfig,
       colorFamilyActive: colorFamilyParam,
       colorExactActive:  colorExactParam,
+      availFinishes,
+      // Hardware finish filter (vanities only — secondary color layer)
+      hwColorFamiliesConfig,
+      hwColorFamilyActive: hwColorFamilyParam,
+      hwColorExactActive:  hwColorExactParam,
+      availHardwareFinishes,
       // Favorites
       savedProductIds,
     });

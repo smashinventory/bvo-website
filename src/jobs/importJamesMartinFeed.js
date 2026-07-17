@@ -110,6 +110,33 @@ const cleanDate = v => {
 
 const clean = v => (v === undefined || v === null) ? null : String(v).trim() || null;
 
+/**
+ * DB fallback for vendor colors that don't match any colorFamilies.js member.
+ * Checks the color_mappings table (created in Task #34-D) before returning null.
+ *
+ * Called after: normalize(rawColor, 'cabinet') || normalize(rawColor, 'all')
+ * both return null — meaning this is a genuinely unmapped color that needs
+ * a persistent manual mapping entry.
+ *
+ * @param  {object} conn         Active DB connection (from importFromWorkbook)
+ * @param  {string} vendorColor  Raw vendor color string
+ * @param  {string} context      'cabinet' | 'metal' (default 'cabinet')
+ * @returns {Promise<string|null>} family_key from color_mappings, or null
+ */
+async function lookupColorMapping(conn, vendorColor, context = 'cabinet') {
+  try {
+    const [rows] = await conn.query(
+      'SELECT family_key FROM color_mappings WHERE vendor_color = ? AND context = ? LIMIT 1',
+      [vendorColor, context]
+    );
+    return rows.length ? rows[0].family_key : null;
+  } catch (err) {
+    // Table may not exist yet — degrade gracefully, do not abort import
+    if (err.code === 'ER_NO_SUCH_TABLE') return null;
+    throw err;
+  }
+}
+
 // ── Shipping box column parser ────────────────────────────────────────
 const COMPONENT_TYPES = [
   'Vanity Cabinet', 'Vanity Top', 'Sink', 'Mirror', 'Vanity Base',
@@ -536,7 +563,16 @@ async function importFromWorkbook(wb, opts = {}) {
           status:                rowStatus,
           model:                 clean(row['Collection Name']),
           color:                 rawColor,
-          color_family:          rawColor ? (normalizeColor(rawColor) || null) : null,
+          // Two-pass normalize: cabinet context first (handles paint colors), then
+          // 'all' context (catches metallic-finish vanities like Radiant Gold, Matte Black,
+          // Brushed Nickel). Falls back to color_mappings DB table for manually mapped
+          // vendor colors not yet in colorFamilies.js members. See Task #34-B.
+          color_family:          rawColor
+                                   ? ( normalizeColor(rawColor, 'cabinet')
+                                     || normalizeColor(rawColor, 'all')
+                                     || await lookupColorMapping(conn, rawColor, 'cabinet')
+                                     || null )
+                                   : null,
           is_active:             (rowStatus !== 'active' || finalPrice === 0) ? 0 : 1,
           is_new:                0,
           is_featured:           0,

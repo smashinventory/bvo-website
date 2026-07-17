@@ -23,9 +23,11 @@
   <aside class="filter-panel" aria-label="Filter products">
     <form method="GET" id="filter-form">
       <input type="hidden" name="sort" value="<%= sort %>">
-      <%/* Preserve color family + exact params when any other filter fires form.submit() */%>
+      <%/* Preserve all color params when any other filter fires form.submit() */%>
       <% colorFamilyActive.forEach(function(f) { %><input type="hidden" name="color_family" value="<%= f %>"><% }) %>
       <% colorExactActive.forEach(function(e) { %><input type="hidden" name="color_exact" value="<%= e %>"><% }) %>
+      <% hwColorFamilyActive.forEach(function(f) { %><input type="hidden" name="hw_color_family" value="<%= f %>"><% }) %>
+      <% hwColorExactActive.forEach(function(e) { %><input type="hidden" name="hw_color_exact" value="<%= e %>"><% }) %>
 
       <div class="filter-header">
         <h3>Filters</h3>
@@ -135,18 +137,20 @@
         </div>
       </div>
 
-      <% } else if (def.filter_type === 'color_swatch' && def.attr_key === 'cabinet_finish') { %>
+      <% } else if (def.filter_type === 'color_swatch' && (def.attr_key === 'cabinet_finish' || def.attr_key === 'finish')) { %>
       <%
         /*
-         * Cabinet Color — family swatch + multi-select sub-chip UI.
+         * Primary Color — family swatch + multi-select sub-chip UI.
+         *   cabinet_finish → cabinet color families (vanities)
+         *   finish         → metallic finish families (mirrors, faucets, lighting, accessories)
+         *
          * colorFamiliesConfig, colorFamilyActive, colorExactActive come from
          * collectionsController and carry precomputed isActive/isOpen/activeExact
-         * per family.
+         * per family, scoped to the correct family type for this category.
          *
-         * Only render families that have at least one matching finish in the
-         * current product set (derived from availableAttrValues pre-fetched by the controller).
+         * availFinishes is sourced from products.color (controller-passed).
+         * Do NOT override it here from availableAttrValues.
          */
-        var availFinishes = availableAttrValues['cabinet_finish'] || [];
         var hasAnyColorActive = colorFamilyActive.length > 0 || colorExactActive.length > 0;
         var colorBadgeCount = colorFamilyActive.length + (colorExactActive.length > 0 ? 1 : 0);
 
@@ -213,33 +217,78 @@
       </div>
       <% } %>
 
-      <% } else if (def.filter_type === 'color_swatch') { %>
+      <% } else if (def.filter_type === 'color_swatch' && def.attr_key === 'hardware_finish') { %>
       <%
-        /* Generic finish swatch (hardware_finish, finish for mirrors/faucets/lighting).
-           Only show finishes that exist in actual products. */
-        var swatchOptions = availableAttrValues[def.attr_key] || [];
-        if (!swatchOptions.length) return;
+        /*
+         * Hardware Finish — secondary color layer for vanities.
+         * Shown on vanities only; hwColorFamiliesConfig is [] for other categories.
+         * Uses separate URL params: hw_color_family / hw_color_exact.
+         * availHardwareFinishes comes from the controller (EAV hardware_finish values).
+         */
+        var hasAnyHwColorActive = hwColorFamilyActive.length > 0 || hwColorExactActive.length > 0;
+        var hwColorBadgeCount = hwColorFamilyActive.length + (hwColorExactActive.length > 0 ? 1 : 0);
+        var availHwLower = availHardwareFinishes.map(function(f) { return f.toLowerCase(); });
+        var visibleHwFamilies = hwColorFamiliesConfig.filter(function(fam) {
+          if (!availHardwareFinishes.length) return false;
+          return fam.members.some(function(m) { return availHwLower.includes(m.toLowerCase()); });
+        });
       %>
-      <div class="filter-group">
-        <button type="button" class="filter-group-toggle" aria-expanded="<%= isExpanded %>">
+      <% if (visibleHwFamilies.length > 0) { %>
+      <div class="filter-group" id="hw-color-filter-group">
+        <button type="button" class="filter-group-toggle"
+          aria-expanded="<%= (hasAnyHwColorActive || isExpanded) ? 'true' : 'false' %>">
           <%= def.display_name %>
-          <% if (activeVals.length) { %><span class="filter-badge"><%= activeVals.length %></span><% } %>
+          <% if (hwColorBadgeCount > 0) { %><span class="filter-badge"><%= hwColorBadgeCount %></span><% } %>
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
-        <div class="filter-group-body<%= isExpanded ? '' : ' is-collapsed' %>">
-          <% swatchOptions.forEach(function(opt) {
-               var hex = finishHex[opt] || '#CCCCCC';
+        <div class="filter-group-body<%= (hasAnyHwColorActive || isExpanded) ? '' : ' is-collapsed' %>">
+
+          <!-- HW Family swatches -->
+          <div class="color-family-row" id="hw-color-family-row">
+            <% visibleHwFamilies.forEach(function(fam) { %>
+            <div class="color-family-sw<%= fam.isActive ? ' is-active' : '' %>"
+                 data-hw-color-key="<%= fam.key %>"
+                 title="<%= fam.label %>"
+                 role="button" tabindex="0"
+                 aria-pressed="<%= fam.isActive ? 'true' : 'false' %>">
+              <span class="color-sw-dot"
+                    style="background:<%= fam.hex %>;border-color:<%= fam.border %>"></span>
+              <span class="color-sw-name"><%= fam.label %></span>
+            </div>
+            <% }) %>
+          </div>
+
+          <!-- HW Sub-chip rows — one per family, shown when family is active -->
+          <% visibleHwFamilies.forEach(function(fam) {
+               var subOptions = availHardwareFinishes.length
+                 ? fam.members.filter(function(m) { return availHardwareFinishes.includes(m); })
+                 : fam.members;
+               if (!subOptions.length) return;
           %>
-          <label class="filter-option filter-option-color">
-            <input type="checkbox" name="<%= def.attr_key %>" value="<%= opt %>"
-              <%= activeVals.includes(opt) ? 'checked' : '' %>>
-            <span class="color-swatch" style="background:<%= hex %>;border:1px solid rgba(0,0,0,.15)"
-              title="<%= opt %>"></span>
-            <span><%= opt %></span>
-          </label>
+          <div class="color-sub-row<%= fam.isOpen ? ' is-open' : '' %>"
+               id="hw-color-sub-<%= fam.key %>">
+            <div class="color-sub-hint">↓ Narrow by finish (optional):</div>
+            <div class="color-sub-chips">
+              <% subOptions.forEach(function(member) {
+                   var chipActive = hwColorExactActive.includes(member);
+              %>
+              <button type="button"
+                      class="color-sub-chip<%= chipActive ? ' is-active' : '' %>"
+                      data-hw-color-exact="<%= member %>"
+                      data-hw-color-family="<%= fam.key %>">
+                <%= member %>
+              </button>
+              <% }) %>
+            </div>
+          </div>
           <% }) %>
+
         </div>
       </div>
+      <% } %>
+
+      <% } else if (def.filter_type === 'color_swatch') { %>
+      <% /* Unrecognized color_swatch key — skip to avoid rendering stale finishHex logic */ return; %>
 
       <% } else if (def.filter_type === 'range') { %>
       <div class="filter-group">
@@ -365,9 +414,11 @@
            }) %>
         <% if (minPrice != null) { %><input type="hidden" name="min_price" value="<%= minPrice %>"><% } %>
         <% if (maxPrice != null) { %><input type="hidden" name="max_price" value="<%= maxPrice %>"><% } %>
-        <!-- Preserve color family + exact filters through sort changes -->
+        <!-- Preserve all color filters through sort changes -->
         <% colorFamilyActive.forEach(function(f) { %><input type="hidden" name="color_family" value="<%= f %>"><% }) %>
         <% colorExactActive.forEach(function(e) { %><input type="hidden" name="color_exact" value="<%= e %>"><% }) %>
+        <% hwColorFamilyActive.forEach(function(f) { %><input type="hidden" name="hw_color_family" value="<%= f %>"><% }) %>
+        <% hwColorExactActive.forEach(function(e) { %><input type="hidden" name="hw_color_exact" value="<%= e %>"><% }) %>
         <select name="sort" class="sort-select" onchange="this.closest('form').submit()" aria-label="Sort products">
           <option value="featured"   <%= sort==='featured'   ? 'selected':'' %>>Featured</option>
           <option value="newest"     <%= sort==='newest'     ? 'selected':'' %>>Newest</option>
@@ -502,14 +553,18 @@
         if (maxPrice != null) filterQs += '&max_price=' + maxPrice;
         colorFamilyActive.forEach(function(f) { filterQs += '&color_family=' + encodeURIComponent(f); });
         colorExactActive.forEach(function(e) { filterQs += '&color_exact=' + encodeURIComponent(e); });
+        hwColorFamilyActive.forEach(function(f) { filterQs += '&hw_color_family=' + encodeURIComponent(f); });
+        hwColorExactActive.forEach(function(e) { filterQs += '&hw_color_exact=' + encodeURIComponent(e); });
       %>
       <% (pageWindow || []).forEach(function(p) { %>
       <% if (p === null) { %>
       <span class="page-ellipsis" aria-hidden="true">&hellip;</span>
+      <% } else if (p === page) { %>
+      <span class="page-btn page-current" aria-current="page"><%= p %></span>
       <% } else { %>
       <a href="?page=<%= p %>&sort=<%= sort %><%= filterQs %>"
-         class="page-btn <%= p === page ? 'active' : '' %>"
-         aria-current="<%= p === page ? 'page' : 'false' %>">
+         class="page-btn"
+         aria-label="Page <%= p %>">
         <%= p %>
       </a>
       <% } %>

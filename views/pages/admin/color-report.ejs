@@ -1,0 +1,180 @@
+<%
+/**
+ * Color Family Report — Task #35
+ * Lists products with color_family IS NULL so they can be bulk-mapped.
+ *
+ * Locals:
+ *   unmappedColors   — [{color, category_name, category_id, product_count}]
+ *   nullColorCount   — int (products with no color string at all)
+ *   families         — FAMILIES array from colorFamilies.js
+ *   existingMappings — [{vendor_color, context, family_key, notes}]
+ *   flash            — {type, msg} | null
+ */
+var cabinetFamilies = families.filter(function(f) { return f.type === 'cabinet'; });
+var metalFamilies   = families.filter(function(f) { return f.type === 'metal';   });
+var totalUnmapped   = unmappedColors.reduce(function(s, r) { return s + r.product_count; }, 0);
+%>
+
+<% if (locals.flash) { %>
+<div class="adm-flash adm-flash--<%= flash.type %>" style="margin-bottom:16px"><%- flash.msg %></div>
+<% } %>
+
+<!-- ══ Summary cards ══════════════════════════════════════════════════ -->
+<div class="adm-stats-grid" style="margin-bottom:24px">
+  <div class="adm-stat-card">
+    <div class="adm-stat-icon" style="background:#e8f0fe">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#3b5bdb" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="4.93" y1="4.93" x2="9.17" y2="9.17"/><line x1="14.83" y1="14.83" x2="19.07" y2="19.07"/><line x1="14.83" y1="9.17" x2="19.07" y2="4.93"/><line x1="4.93" y1="19.07" x2="9.17" y2="14.83"/></svg>
+    </div>
+    <div>
+      <p class="adm-stat-label">Unmapped Vendor Colors</p>
+      <p class="adm-stat-value"><%= unmappedColors.length %></p>
+      <p class="adm-stat-sub"><%= totalUnmapped.toLocaleString() %> products affected</p>
+    </div>
+  </div>
+  <div class="adm-stat-card">
+    <div class="adm-stat-icon" style="background:#fff3cd">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#b8860b" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </div>
+    <div>
+      <p class="adm-stat-label">No Color String (manual fix)</p>
+      <p class="adm-stat-value"><%= nullColorCount.toLocaleString() %></p>
+      <p class="adm-stat-sub">requires product-level edit</p>
+    </div>
+  </div>
+  <div class="adm-stat-card">
+    <div class="adm-stat-icon" style="background:#d4edda">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#2a7a3b" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <div>
+      <p class="adm-stat-label">Saved Mappings</p>
+      <p class="adm-stat-value"><%= existingMappings.length %></p>
+      <p class="adm-stat-sub">in color_mappings table</p>
+    </div>
+  </div>
+</div>
+
+<% if (unmappedColors.length === 0) { %>
+<div class="adm-empty" style="margin-top:32px">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48"><polyline points="20 6 9 17 4 12"/></svg>
+  <p>All products have a color family assigned.</p>
+  <% if (nullColorCount > 0) { %>
+  <p style="font-size:13px;color:#888"><%= nullColorCount %> product(s) have no color string — edit those individually via the Products page.</p>
+  <% } %>
+</div>
+
+<% } else { %>
+
+<!-- ══ Unmapped vendor colors table ══════════════════════════════════ -->
+<div class="adm-section-header">
+  <h2 class="adm-section-title">Unmapped Vendor Colors</h2>
+  <p style="font-size:13px;color:#666;margin:0">
+    Select the correct BVO color family for each vendor color, then click Apply.
+    This updates all matching products and saves the mapping permanently.
+  </p>
+</div>
+
+<div class="adm-table-wrap" style="margin-top:12px">
+  <table class="adm-table">
+    <thead>
+      <tr>
+        <th>Vendor Color</th>
+        <th>Category</th>
+        <th style="text-align:center">Products</th>
+        <th>Context</th>
+        <th>Assign Family</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% unmappedColors.forEach(function(row) { %>
+      <tr>
+        <td>
+          <strong><%= row.color %></strong>
+        </td>
+        <td style="color:#666;font-size:13px"><%= row.category_name || '—' %></td>
+        <td style="text-align:center">
+          <span class="adm-badge"><%= row.product_count %></span>
+        </td>
+        <td>
+          <% /* Default context: cabinet for vanities (cat 1), metal for everything else */ %>
+          <% var defaultCtx = (row.category_id === 1) ? 'cabinet' : 'metal'; %>
+          <select name="_ctx_<%= row.color %>" class="adm-select adm-select--sm cr-ctx-select"
+                  data-color="<%= row.color %>"
+                  id="ctx_<%= row.color.replace(/[^a-zA-Z0-9]/g,'_') %>">
+            <option value="cabinet" <%= defaultCtx === 'cabinet' ? 'selected' : '' %>>Cabinet</option>
+            <option value="metal"   <%= defaultCtx === 'metal'   ? 'selected' : '' %>>Metal</option>
+          </select>
+        </td>
+        <td>
+          <form method="POST" action="/admin/products/color-report" class="cr-apply-form">
+            <input type="hidden" name="vendor_color" value="<%= row.color %>">
+            <input type="hidden" name="context"      value="<%= defaultCtx %>" class="cr-ctx-hidden"
+                   id="ctx_hidden_<%= row.color.replace(/[^a-zA-Z0-9]/g,'_') %>">
+            <select name="family_key" class="adm-select adm-select--sm" required>
+              <option value="">— select family —</option>
+              <optgroup label="Cabinet Finishes">
+                <% cabinetFamilies.forEach(function(f) { %>
+                <option value="<%= f.key %>"><%= f.label %></option>
+                <% }); %>
+              </optgroup>
+              <optgroup label="Metallic Finishes">
+                <% metalFamilies.forEach(function(f) { %>
+                <option value="<%= f.key %>"><%= f.label %></option>
+                <% }); %>
+              </optgroup>
+            </select>
+        </td>
+        <td>
+            <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+          </form>
+        </td>
+      </tr>
+      <% }); %>
+    </tbody>
+  </table>
+</div>
+
+<% } /* end if unmappedColors.length */ %>
+
+<!-- ══ Existing mappings reference table ═════════════════════════════ -->
+<% if (existingMappings.length > 0) { %>
+<div class="adm-section-header" style="margin-top:40px">
+  <h2 class="adm-section-title">Saved Color Mappings</h2>
+  <p style="font-size:13px;color:#666;margin:0">
+    These are stored in the <code>color_mappings</code> table and are checked automatically during imports when <code>normalize()</code> returns null.
+  </p>
+</div>
+<div class="adm-table-wrap" style="margin-top:12px">
+  <table class="adm-table">
+    <thead>
+      <tr>
+        <th>Vendor Color</th>
+        <th>Context</th>
+        <th>Family Key</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% existingMappings.forEach(function(m) { %>
+      <tr>
+        <td><%= m.vendor_color %></td>
+        <td><span class="adm-badge adm-badge--<%= m.context === 'cabinet' ? 'navy' : 'gray' %>"><%= m.context %></span></td>
+        <td><code><%= m.family_key %></code></td>
+        <td style="color:#888;font-size:13px"><%= m.notes || '—' %></td>
+      </tr>
+      <% }); %>
+    </tbody>
+  </table>
+</div>
+<% } %>
+
+<script>
+// Keep the hidden context input in sync with the context select for each row
+document.querySelectorAll('.cr-ctx-select').forEach(function(sel) {
+  sel.addEventListener('change', function() {
+    var id = 'ctx_hidden_' + this.dataset.color.replace(/[^a-zA-Z0-9]/g, '_');
+    var hidden = document.getElementById(id);
+    if (hidden) hidden.value = this.value;
+  });
+});
+</script>
