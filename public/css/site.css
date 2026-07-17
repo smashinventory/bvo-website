@@ -579,7 +579,6 @@ ul[role="list"] { list-style: none; }
 .sort-select          { padding: 7px 14px; border: 1px solid var(--border); border-radius: 4px; font-size: .8rem; color: var(--navy); background: var(--white); }
 .listing-grid         { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
 .listing-empty        { text-align: center; padding: 64px; color: var(--muted); }
-.listing-ghost        { visibility: hidden; pointer-events: none; user-select: none; }
 
 .pagination           { display: flex; gap: 8px; margin-top: 40px; justify-content: center; }
 .page-btn             { padding: 8px 14px; border: 1px solid var(--border); border-radius: 4px; font-size: .8rem; color: var(--navy); background: var(--white); }

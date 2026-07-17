@@ -401,7 +401,8 @@
             border:       familyHex[product.color_family + '_border']   || '#aaa',
           }];
         }
-        var _pSwatches    = _mcSwatches;  /* CSS overflow + JS +N badge handle truncation */
+        var _pSwatches    = _mcSwatches.slice(0, 4);
+        var _pSwatchExtra = _mcSwatches.length > 4 ? _mcSwatches.length - 4 : 0;
         var _pSizes       = (product.model && typeof modelSizeMap !== 'undefined' && modelSizeMap[product.model])
                               ? modelSizeMap[product.model] : null;
       %>
@@ -457,6 +458,9 @@
                       aria-label="<%= f.color %>"
                       title="<%= f.color %>"></button>
               <% }); %>
+              <% if (_pSwatchExtra > 0) { %>
+              <span class="model-card-swatch-more" aria-hidden="true">+<%= _pSwatchExtra %></span>
+              <% } %>
             <% } else { %>
             <span class="model-card-sizes-text">See details</span>
             <% } %>
@@ -466,7 +470,7 @@
           <div class="model-card-sizes-row">
             <span class="model-card-sizes-label">Size Options:</span>
             <% if (_pSizes && _pSizes.length) { %>
-            <span class="model-card-sizes-text"><%= _pSizes.join('" | ') %>"</span>
+            <span class="model-card-sizes-text"><%= _pSizes.map(function(s){ return s + '"'; }).join(' | ') %></span>
             <% } else { %>
             <span class="model-card-sizes-text">See details</span>
             <% } %>

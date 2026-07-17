@@ -15,6 +15,9 @@
   Vanity Models
 </div>
 
+<!-- Mobile filter drawer overlay -->
+<div class="filter-overlay" id="filterOverlay" aria-hidden="true"></div>
+
 <!-- ── Two-column layout: sidebar + main ──────────────────────────── -->
 <div class="listing-layout">
 
@@ -30,12 +33,17 @@
         <% if (hasActiveFilters) { %>
         <a href="/collections/vanity-models" class="filter-clear-top">Clear all</a>
         <% } %>
+        <button type="button" class="filter-close-btn" id="filterCloseBtn" aria-label="Close filters">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
       </div>
 
       <!-- ── Size ──────────────────────────────────────────────── -->
       <% var sizeExpanded = activeSizes.length > 0; %>
       <div class="filter-group">
-        <button type="button" class="filter-group-toggle" aria-expanded="<%= sizeExpanded ? 'true' : 'true' %>">
+        <button type="button" class="filter-group-toggle" aria-expanded="<%= sizeExpanded ? 'true' : 'false' %>">
           Size
           <% if (activeSizes.length) { %><span class="filter-badge"><%= activeSizes.length %></span><% } %>
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
@@ -163,6 +171,12 @@
 
     <!-- Results bar -->
     <div class="listing-toolbar">
+      <button type="button" class="mobile-filter-btn" id="mobileFilterBtn" aria-label="Open filters">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+          <line x1="3" y1="6" x2="21" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="10" y1="18" x2="14" y2="18"/>
+        </svg>
+        Filters<% if (hasActiveFilters) { %> <span class="mobile-filter-dot">●</span><% } %>
+      </button>
       <p class="listing-count">
         <% if (hasActiveFilters) { %>
         <strong><%= total %></strong> collection<%= total !== 1 ? 's' : '' %> found
@@ -184,7 +198,8 @@
       <% models.forEach(function(m) { %>
       <%
         var _discPct         = m.compare_price_from ? Math.round((1 - m.price_from / m.compare_price_from) * 100) : 0;
-        var _visibleSwatches = m.finishes;  /* CSS overflow + JS +N badge handle truncation */
+        var _visibleSwatches = m.finishes.slice(0, 4);
+        var _extraSwatches   = m.finishes.length > 4 ? m.finishes.length - 4 : 0;
         /* Safe DOM id from model name — spaces/special chars → hyphens */
         var _mId             = m.model ? m.model.toLowerCase().replace(/[^a-z0-9]+/g, '-') : 'model';
         var _mHref           = '/collections/vanities?model=' + encodeURIComponent(m.model || '');
@@ -238,11 +253,16 @@
                     aria-label="<%= f.color %>"
                     title="<%= f.color %>"></button>
             <% }); %>
+            <% if (_extraSwatches > 0) { %>
+            <span class="model-card-swatch-more" aria-hidden="true">+<%= _extraSwatches %></span>
+            <% } %>
           </div>
 
           <div class="model-card-sizes-row">
             <span class="model-card-sizes-label">Size Options:</span>
-            <span class="model-card-sizes-text"><%= m.sizes.join(' | ') %></span>
+            <span class="model-card-sizes-text">
+              <%= m.sizes.length ? m.sizes.map(function(s){ return s + '"'; }).join(' | ') : 'See details' %>
+            </span>
           </div>
 
           <a href="<%= _mHref %>" class="btn btn-outline model-card-cta">
