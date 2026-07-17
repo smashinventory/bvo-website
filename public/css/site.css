@@ -439,6 +439,8 @@ ul[role="list"] { list-style: none; }
 .breadcrumb a:hover   { color: var(--amber); }
 
 .listing-layout       { display: grid; grid-template-columns: 240px 1fr; gap: 32px; padding: 40px 64px; }
+.listing-layout > *   { min-width: 0; }  /* prevent grid tracks from expanding beyond fr allocation */
+.listing-grid   > *   { min-width: 0; }  /* prevent product cards from expanding their grid column */
 
 .filter-panel           { background: var(--white); border-radius: 8px; border: 1px solid var(--border); padding: 20px; height: fit-content; position: sticky; top: 120px; }
 .filter-header          { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }

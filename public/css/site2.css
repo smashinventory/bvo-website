@@ -550,6 +550,7 @@
   transition: box-shadow .2s, transform .2s;
   display: flex;
   flex-direction: column;
+  min-width: 0;  /* prevent card from expanding its grid column beyond 1fr */
 }
 .model-card:hover {
   box-shadow: 0 6px 20px rgba(0,0,0,.10);
@@ -682,6 +683,8 @@
   align-items: center;
   gap: .5rem;
   margin-top: .2rem;
+  overflow: hidden;  /* required for text-overflow: ellipsis to work on child */
+  min-width: 0;
 }
 .model-card-sizes-text {
   font-size: .78rem;
