@@ -582,10 +582,12 @@ ul[role="list"] { list-style: none; }
 .listing-grid         { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
 .listing-empty        { text-align: center; padding: 64px; color: var(--muted); }
 
-.pagination           { display: flex; gap: 8px; margin-top: 40px; justify-content: center; }
-.page-btn             { padding: 8px 14px; border: 1px solid var(--border); border-radius: 4px; font-size: .8rem; color: var(--navy); background: var(--white); }
-.page-btn.active      { background: var(--sage); color: #fff; border-color: var(--sage); font-weight: 700; }
-.page-btn:hover:not(.active) { border-color: var(--sage); color: var(--sage); }
+.pagination           { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 40px; justify-content: center; }
+.page-btn             { padding: 8px 14px; border: 1px solid var(--border); border-radius: 4px; font-size: .8rem; color: var(--navy); background: var(--white); text-decoration: none; }
+.page-btn.active,
+.page-btn.page-current { background: var(--sage); color: #fff; border-color: var(--sage); font-weight: 700; }
+.page-btn:hover:not(.active):not(.page-current) { border-color: var(--sage); color: var(--sage); }
+.page-ellipsis        { padding: 8px 4px; font-size: .8rem; color: var(--muted); }
 
 /* ================================================================
    PRODUCT DETAIL PAGE

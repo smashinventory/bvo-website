@@ -12,6 +12,21 @@ FAMILIES.forEach(f => { FAMILY_HEX[f.key] = f.hex; FAMILY_HEX[f.key + '_border']
 
 const MODELS_PER_PAGE = 12;
 
+/* ── Build windowed pagination array ────────────────────────────── *
+ * Returns an array of page numbers with null for ellipsis gaps.
+ * e.g. page=16, pages=177 → [1, null, 14, 15, 16, 17, 18, null, 177]
+ * Always shows first, last, current ±2. Shows all if pages ≤ 9.
+ */
+function buildPageWindow(page, pages) {
+  if (pages <= 9) return Array.from({ length: pages }, (_, i) => i + 1);
+  const out = [1];
+  if (page > 4)          out.push(null);                                          // leading ellipsis
+  for (let i = Math.max(2, page - 2); i <= Math.min(pages - 1, page + 2); i++) out.push(i);
+  if (page < pages - 3)  out.push(null);                                          // trailing ellipsis
+  out.push(pages);
+  return out;
+}
+
 /* ── /collections — all categories ─────────────────────────────── */
 exports.index = async (req, res, next) => {
   try {
@@ -181,6 +196,7 @@ exports.show = async (req, res, next) => {
         metaDesc:  'Browse all bathroom vanity collections — explore every model, finish, and size we carry.',
         models: pagedModels,
         page, pages, total,
+        pageWindow: buildPageWindow(page, pages),
         perPage: MODELS_PER_PAGE,
         activeSizes, activeBrands,
         colorFamiliesConfig,
@@ -421,6 +437,7 @@ exports.show = async (req, res, next) => {
       noindex,
       category,
       ...result,
+      pageWindow: buildPageWindow(page, result.pages || 1),
       sort,
       brands, productTypes,
       model,

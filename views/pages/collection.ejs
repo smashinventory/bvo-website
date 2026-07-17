@@ -503,13 +503,17 @@
         colorFamilyActive.forEach(function(f) { filterQs += '&color_family=' + encodeURIComponent(f); });
         colorExactActive.forEach(function(e) { filterQs += '&color_exact=' + encodeURIComponent(e); });
       %>
-      <% for (var p = 1; p <= pages; p++) { %>
+      <% (pageWindow || []).forEach(function(p) { %>
+      <% if (p === null) { %>
+      <span class="page-ellipsis" aria-hidden="true">&hellip;</span>
+      <% } else { %>
       <a href="?page=<%= p %>&sort=<%= sort %><%= filterQs %>"
          class="page-btn <%= p === page ? 'active' : '' %>"
          aria-current="<%= p === page ? 'page' : 'false' %>">
         <%= p %>
       </a>
       <% } %>
+      <% }) %>
     </nav>
     <% } %>
     <% } %>
