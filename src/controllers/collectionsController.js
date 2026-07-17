@@ -4,6 +4,7 @@ const Category                                          = require('../models/Cat
 const Product                                           = require('../models/Product');
 const Customer                                          = require('../models/Customer');
 const { FAMILIES, normalize, getFamily, CABINET_KEYS, METAL_KEYS } = require('../config/colorFamilies');
+const { SIZE_BUCKETS }                                  = require('../config/sizeBuckets');
 const { bvoPool }                                       = require('../config/database');
 
 /* ── Color family hex lookup: family_key → hex / border ──────────── */
@@ -11,27 +12,7 @@ const FAMILY_HEX = {};
 FAMILIES.forEach(f => { FAMILY_HEX[f.key] = f.hex; FAMILY_HEX[f.key + '_border'] = f.border; });
 
 const MODELS_PER_PAGE = 12;
-
-/* ── Standard vanity width buckets ──────────────────────────────── *
- * Canonical size buckets for the sidebar chip filter (Rule 10).     *
- * label  = URL param value sent as ?size_in=<label>                 *
- * min/max = width_in range that maps to this bucket (±2" tolerance) *
- * Mirrors the logic in Product.getAvailableWidths + findByCategory. *
- * Add/remove buckets here only — collectionsController + Product.js *
- * both reference this constant as the single source of truth.       */
-const SIZE_BUCKETS = [
-  { label: '20-', min: 0,   max: 22         }, // catches 16, 18, 20
-  { label: '25',  min: 23,  max: 27         },
-  { label: '30',  min: 28,  max: 32         },
-  { label: '36',  min: 34,  max: 38         },
-  { label: '42',  min: 40,  max: 44         },
-  { label: '48',  min: 46,  max: 50         },
-  { label: '54',  min: 52,  max: 56         },
-  { label: '60',  min: 58,  max: 62         },
-  { label: '66',  min: 64,  max: 68         },
-  { label: '72',  min: 70,  max: 74         },
-  { label: '84+', min: 82,  max: Infinity   }, // catches 84, 96, 120+
-];
+// SIZE_BUCKETS imported from src/config/sizeBuckets.js — shared with megaMenuData middleware
 
 /* ── Windowed pagination ─────────────────────────────────────────── *
  * Returns page numbers with null for ellipsis gaps.

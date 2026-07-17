@@ -112,6 +112,11 @@ app.use((req, res, next) => {
   next();
 });
 
+// ── Dynamic mega menu data (sizes + cabinet colors) ──────────────
+// Populates res.locals.megaMenuSizes + res.locals.megaMenuColorFamilies
+// on every request from a 10-min cached DB query. See middleware/megaMenuData.js.
+app.use(require('./middleware/megaMenuData'));
+
 // ── Routes ───────────────────────────────────────────────────────
 app.use('/',            require('./routes/index'));
 app.use('/products',    require('./routes/products'));
