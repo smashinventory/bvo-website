@@ -663,6 +663,112 @@ document.addEventListener('DOMContentLoaded', function () {
   document.addEventListener('click', handleHeartClick);
 })();
 
+// ── Hardware finish color filter (vanities — secondary colour layer) ──
+// Mirrors the primary colour filter block above, using separate URL params:
+//   hw_color_family  — metallic family key (e.g. 'nickel', 'gold')
+//   hw_color_exact   — exact vendor finish string (e.g. 'Brushed Nickel')
+// HTML hooks: data-hw-color-key (family swatch), data-hw-color-exact +
+//             data-hw-color-family (sub-chips), id="hw-color-sub-{key}"
+(function () {
+  var hwFamilyRow = document.getElementById('hw-color-family-row');
+  if (!hwFamilyRow) return;
+
+  // ── URL param helpers ──────────────────────────────────────────
+  function getHwState() {
+    var sp = new URLSearchParams(window.location.search);
+    return {
+      families: sp.getAll('hw_color_family'),
+      exact:    sp.getAll('hw_color_exact'),
+    };
+  }
+
+  function navigateHw(families, exact) {
+    if (window._bvoSaveScroll) window._bvoSaveScroll();
+    var sp = new URLSearchParams(window.location.search);
+    sp.delete('hw_color_family');
+    sp.delete('hw_color_exact');
+    sp.delete('page');
+    families.forEach(function (f) { sp.append('hw_color_family', f); });
+    exact.forEach(function (e)    { sp.append('hw_color_exact',   e); });
+    window.location.search = sp.toString();
+  }
+
+  // ── Family swatch click ────────────────────────────────────────
+  hwFamilyRow.querySelectorAll('[data-hw-color-key]').forEach(function (sw) {
+    sw.addEventListener('click', function () {
+      var key    = sw.dataset.hwColorKey;
+      var state  = getHwState();
+      var subRow = document.getElementById('hw-color-sub-' + key);
+
+      // Collect all exact values that belong to this hw family
+      var familyMembers = [];
+      if (subRow) {
+        subRow.querySelectorAll('[data-hw-color-exact]').forEach(function (chip) {
+          familyMembers.push(chip.dataset.hwColorExact);
+        });
+      }
+
+      var isActive = state.families.includes(key) ||
+        state.exact.some(function (e) { return familyMembers.includes(e); });
+
+      if (isActive) {
+        // Deselect: remove this family + all its exact values
+        navigateHw(
+          state.families.filter(function (f) { return f !== key; }),
+          state.exact.filter(function (e)    { return !familyMembers.includes(e); })
+        );
+      } else {
+        // Select at family level; clear any stale exact values for this family first
+        var newFamilies = state.families.concat([key]);
+        var newExact    = state.exact.filter(function (e) { return !familyMembers.includes(e); });
+        navigateHw(newFamilies, newExact);
+      }
+    });
+
+    // Keyboard accessibility
+    sw.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); sw.click(); }
+    });
+  });
+
+  // ── Sub-chip click (multi-select within hw family) ─────────────
+  document.querySelectorAll('[data-hw-color-exact]').forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      var value     = chip.dataset.hwColorExact;
+      var familyKey = chip.dataset.hwColorFamily;
+      var state     = getHwState();
+
+      // All exact values for this family (for deselect-all-remaining check)
+      var subRow = document.getElementById('hw-color-sub-' + familyKey);
+      var familyMembers = [];
+      if (subRow) {
+        subRow.querySelectorAll('[data-hw-color-exact]').forEach(function (c) {
+          familyMembers.push(c.dataset.hwColorExact);
+        });
+      }
+
+      var newFamilies = state.families.slice();
+      var newExact    = state.exact.slice();
+
+      if (newExact.includes(value)) {
+        // Deselect this chip
+        newExact = newExact.filter(function (e) { return e !== value; });
+        // If no remaining exact values for this family, also remove the family key
+        var remaining = newExact.filter(function (e) { return familyMembers.includes(e); });
+        if (!remaining.length) {
+          newFamilies = newFamilies.filter(function (f) { return f !== familyKey; });
+        }
+      } else {
+        // Select: ensure family key is present, then add exact value
+        if (!newFamilies.includes(familyKey)) newFamilies.push(familyKey);
+        newExact.push(value);
+      }
+
+      navigateHw(newFamilies, newExact);
+    });
+  });
+})();
+
 // ── Mobile filter drawer ──────────────────────────────────────────────
 (function () {
   var panel    = document.querySelector('.filter-panel');
