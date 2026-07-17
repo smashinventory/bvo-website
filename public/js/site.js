@@ -521,13 +521,14 @@ document.addEventListener('DOMContentLoaded', function () {
   var btnR  = document.getElementById('fmArrowRight');
   if (!track || !btnL || !btnR) return;
 
-  var VISIBLE = 4;   // cards shown at once
-  var GAP     = 20;  // px — matches 1.25rem gap in CSS
+  var GAP = 20;  // px — matches 1.25rem gap in CSS
 
-  // Set card widths so exactly VISIBLE cards fill the track
+  // Set card widths — responsive: 4 desktop, 2 tablet, 1.2 phone (peek effect)
   function sizeCards() {
     var trackW = track.offsetWidth;
     if (!trackW) return;
+    var vw      = window.innerWidth;
+    var VISIBLE = vw < 520 ? 1.2 : vw < 768 ? 2 : 4;
     var cardW = Math.floor((trackW - (VISIBLE - 1) * GAP) / VISIBLE);
     track.querySelectorAll('.model-card').forEach(function (card) {
       card.style.width    = cardW + 'px';
@@ -737,4 +738,31 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   document.addEventListener('click', handleHeartClick);
+})();
+
+// ── Mobile filter drawer ──────────────────────────────────────────────
+(function () {
+  var panel    = document.querySelector('.filter-panel');
+  var openBtn  = document.getElementById('mobileFilterBtn');
+  var closeBtn = document.getElementById('filterCloseBtn');
+  var overlay  = document.getElementById('filterOverlay');
+  if (!panel || !openBtn) return;
+
+  function openDrawer() {
+    panel.classList.add('is-open');
+    if (overlay) overlay.classList.add('is-open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeDrawer() {
+    panel.classList.remove('is-open');
+    if (overlay) overlay.classList.remove('is-open');
+    document.body.style.overflow = '';
+  }
+
+  openBtn.addEventListener('click', openDrawer);
+  if (closeBtn) closeBtn.addEventListener('click', closeDrawer);
+  if (overlay)  overlay.addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeDrawer();
+  });
 })();

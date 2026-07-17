@@ -13,6 +13,9 @@
   <%= category.name %>
 </div>
 
+<!-- Mobile filter drawer overlay -->
+<div class="filter-overlay" id="filterOverlay" aria-hidden="true"></div>
+
 <!-- Layout: sidebar + main -->
 <div class="listing-layout">
 
@@ -29,6 +32,11 @@
         <% if (hasActiveFilters) { %>
         <a href="/collections/<%= category.slug %>" class="filter-clear-top">Clear all</a>
         <% } %>
+        <button type="button" class="filter-close-btn" id="filterCloseBtn" aria-label="Close filters">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
       </div>
 
       <%/*
@@ -329,6 +337,12 @@
 
     <!-- Toolbar -->
     <div class="listing-toolbar">
+      <button type="button" class="mobile-filter-btn" id="mobileFilterBtn" aria-label="Open filters">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+          <line x1="3" y1="6" x2="21" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="10" y1="18" x2="14" y2="18"/>
+        </svg>
+        Filters<% if (hasActiveFilters) { %> <span class="mobile-filter-dot">●</span><% } %>
+      </button>
       <p class="listing-count">
         <%= total %> product<%= total !== 1 ? 's' : '' %>
         <% if (brands.length) { %> · <strong><%= brands.join(', ') %></strong><% } %>

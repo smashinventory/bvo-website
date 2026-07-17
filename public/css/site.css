@@ -2624,3 +2624,83 @@ ul[role="list"] { list-style: none; }
 @media (max-width: 768px) {
   .favorites-page { padding: 32px 24px; }
 }
+
+/* ================================================================
+   MOBILE FILTER DRAWER
+   Hidden on desktop; slides in from the left on ≤720px.
+   ================================================================ */
+
+/* Desktop: hide mobile-only controls */
+.mobile-filter-btn,
+.filter-close-btn,
+.filter-overlay     { display: none; }
+
+@media (max-width: 720px) {
+  /* Promote filter sidebar to a fixed slide-in drawer */
+  .filter-panel {
+    position: fixed !important;
+    top: 0; left: 0;
+    width: 82%;
+    max-width: 300px;
+    height: 100%;
+    transform: translateX(-110%);
+    transition: transform .28s ease;
+    z-index: 600;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 0;
+    box-shadow: 4px 0 24px rgba(24,40,64,.18);
+    padding: 20px;
+  }
+  .filter-panel.is-open { transform: translateX(0); }
+
+  /* Dim overlay backdrop */
+  .filter-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(24,40,64,.45);
+    z-index: 599;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .28s ease;
+  }
+  .filter-overlay.is-open { opacity: 1; pointer-events: auto; }
+
+  /* Filters toggle button — sits in .listing-toolbar */
+  .mobile-filter-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--white);
+    border: 1.5px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 13px;
+    font-size: .75rem;
+    font-weight: 700;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: var(--navy);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .mobile-filter-dot { color: var(--sage); font-size: .6rem; }
+
+  /* Close (×) button inside filter-header */
+  .filter-close-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--muted);
+    padding: 4px;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+  .filter-close-btn:hover { color: var(--navy); }
+
+  /* Adjust listing-toolbar to accommodate the Filters button */
+  .listing-toolbar { flex-wrap: wrap; gap: 8px 0; }
+}
