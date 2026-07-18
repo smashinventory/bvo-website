@@ -187,7 +187,7 @@ async function upsertProduct(conn, data) {
       upc, country_origin, warranty, lead_time_days,
       ships_ltl, freight_class, harmonized_code, total_ship_weight_lbs,
       prop65, release_date, status,
-      model, color, color_family,
+      model, color, color_family, width_in,
       is_active, is_new, is_featured
     ) VALUES (
       :sku, :slug, :vendor_sku, :name, :brand, :price, :compare_price,
@@ -196,7 +196,7 @@ async function upsertProduct(conn, data) {
       :upc, :country_origin, :warranty, :lead_time_days,
       :ships_ltl, :freight_class, :harmonized_code, :total_ship_weight_lbs,
       :prop65, :release_date, :status,
-      :model, :color, :color_family,
+      :model, :color, :color_family, :width_in,
       :is_active, :is_new, :is_featured
     )
     ON DUPLICATE KEY UPDATE
@@ -225,6 +225,7 @@ async function upsertProduct(conn, data) {
       model                 = VALUES(model),
       color                 = VALUES(color),
       color_family          = VALUES(color_family),
+      width_in              = VALUES(width_in),
       is_active             = VALUES(is_active),
       updated_at            = CURRENT_TIMESTAMP
   `, data);
@@ -400,7 +401,9 @@ const ATTR_MAP = {
   'Primary Construction Material': ['primary_material',           'text'],
   'Construction Material':       ['construction_material',        'text'],
   'Product Height':              ['height_in',                    'num'],
-  'Product Width':               ['size_in',                      'num'],
+  // 'Product Width' removed from ATTR_MAP — Rule 10 fix (Audit Fix #1, July 2026).
+  // Width is now written directly to products.width_in (see productData below).
+  // EAV 'size_in' is no longer used as a width data path.
   'Product Depth':               ['depth_in',                     'num'],
   'Product Weight':              ['weight_lbs',                   'num'],
   'Assembly Required? (Y/N)':   ['assembly_required',            'bool'],
@@ -563,6 +566,9 @@ async function importFromWorkbook(wb, opts = {}) {
           status:                rowStatus,
           model:                 clean(row['Collection Name']),
           color:                 rawColor,
+          // Audit Fix #1 (July 2026): width written directly to products.width_in
+          // (canonical source — Rule 10). Removed from ATTR_MAP / EAV 'size_in'.
+          width_in:             cleanNum(row['Product Width']),
           // Two-pass normalize: cabinet context first (handles paint colors), then
           // 'all' context (catches metallic-finish vanities like Radiant Gold, Matte Black,
           // Brushed Nickel). Falls back to color_mappings DB table for manually mapped
