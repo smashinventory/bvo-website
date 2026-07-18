@@ -607,7 +607,7 @@
 .model-card-price {
   font-size: 1rem;
   font-weight: 700;
-  color: var(--color-navy, #182840);
+  color: var(--color-gold, #B8963A); /* Antique Gold — approved July 2026 */
 }
 .model-card-was {
   font-size: .82rem;

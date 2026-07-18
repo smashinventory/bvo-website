@@ -221,6 +221,12 @@
         </div>
 
         <div class="model-card-body">
+          <h3 class="model-card-name">
+            <a href="<%= _mHref %>">The <%= m.model %> Collection</a>
+          </h3>
+          <p class="model-card-brand">Brand: <%= m.brand %></p>
+
+          <!-- Price — below brand, above finishes (matches product card layout, gold color, approved July 2026) -->
           <div class="model-card-price-row">
             <% if (m.price_to && m.price_to > m.price_from) { %>
             <span class="model-card-price">$<%= m.price_from.toLocaleString('en-US') %> – $<%= m.price_to.toLocaleString('en-US') %></span>
@@ -231,11 +237,6 @@
             <% } %>
             <% } %>
           </div>
-
-          <h3 class="model-card-name">
-            <a href="<%= _mHref %>">The <%= m.model %> Collection</a>
-          </h3>
-          <p class="model-card-brand">Brand: <%= m.brand %></p>
 
           <div class="model-card-swatches" role="group" aria-label="Available finishes">
             <span class="model-card-swatches-label">Finishes:</span>
