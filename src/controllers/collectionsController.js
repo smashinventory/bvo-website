@@ -249,8 +249,26 @@ exports.show = async (req, res, next) => {
     // ── Regular category collection ────────────────────────────────
 
     // Fetch category first — needed to determine color context before param parsing
-    const category = await Category.findBySlug(slug);
-    if (!category) return res.status(404).render('pages/404', { pageTitle: '404 | BathroomVanitiesOutlet.com' });
+    let category = await Category.findBySlug(slug);
+    if (!category) {
+      // Allow the vanity-models-v2 test slug to work without a DB row.
+      // Once the SQL migration has been run on Hostinger, the DB row will take
+      // over and this stub can be removed.
+      if (slug === 'vanity-models-v2') {
+        category = {
+          id:           null,
+          slug:         'vanity-models-v2',
+          name:         'Vanity Models',
+          description:  'Browse every bathroom vanity collection we carry — explore all models, finishes, and size options.',
+          image_url:    null,
+          meta_title:   'Vanity Collections',
+          meta_desc:    'Browse every bathroom vanity collection we carry.',
+          display_mode: 'model-group',
+        };
+      } else {
+        return res.status(404).render('pages/404', { pageTitle: '404 | BathroomVanitiesOutlet.com' });
+      }
+    }
 
     // ── Model-group display mode ──────────────────────────────────
     // Categories with display_mode = 'model-group' group products by model.
