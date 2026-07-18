@@ -1,7 +1,7 @@
 'use strict';
 
 const { bvoPool }              = require('../config/database');
-const { FAMILIES }             = require('../config/colorFamilies');
+const { FAMILIES, normalize }   = require('../config/colorFamilies');
 const themeSettings            = require('../services/themeSettings');
 
 /* Build family key → hex map */
@@ -79,11 +79,12 @@ async function getFeaturedModels() {
     const swatchMap = {};
     for (const r of swatchRows) {
       if (!swatchMap[r.model]) swatchMap[r.model] = [];
+      const swatchFamilyKey = r.color_family || normalize(r.color, 'all') || '';
       swatchMap[r.model].push({
         color:        r.color,
         color_family: r.color_family,
-        hex:          FAMILY_HEX[r.color_family]               || '#ccc',
-        border:       FAMILY_HEX[(r.color_family || '') + '_border'] || '#aaa',
+        hex:          FAMILY_HEX[swatchFamilyKey]              || '#ccc',
+        border:       FAMILY_HEX[swatchFamilyKey + '_border']  || '#aaa',
         image_url:    r.image_url || null,
       });
     }

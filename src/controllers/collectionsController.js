@@ -283,11 +283,12 @@ exports.show = async (req, res, next) => {
         `, mgModelNames);
         for (const r of mgSwatchRows) {
           if (!mgSwatchMap[r.model]) mgSwatchMap[r.model] = [];
+          const swatchFamilyKey = r.color_family || normalize(r.color, 'all') || '';
           mgSwatchMap[r.model].push({
             color:        r.color,
             color_family: r.color_family,
-            hex:          FAMILY_HEX[r.color_family]                      || '#ccc',
-            border:       FAMILY_HEX[(r.color_family || '') + '_border']  || '#aaa',
+            hex:          FAMILY_HEX[swatchFamilyKey]              || '#ccc',
+            border:       FAMILY_HEX[swatchFamilyKey + '_border']  || '#aaa',
             image_url:    r.image_url || null,
           });
         }
@@ -600,11 +601,12 @@ exports.show = async (req, res, next) => {
       `, pageModels);
       for (const r of mcRows) {
         if (!modelColorMap[r.model]) modelColorMap[r.model] = [];
+        const swatchFamilyKey = r.color_family || normalize(r.color, 'all') || '';
         modelColorMap[r.model].push({
           color:        r.color,
           color_family: r.color_family,
-          hex:          FAMILY_HEX[r.color_family]                    || '#ccc',
-          border:       FAMILY_HEX[(r.color_family || '') + '_border'] || '#aaa',
+          hex:          FAMILY_HEX[swatchFamilyKey]              || '#ccc',
+          border:       FAMILY_HEX[swatchFamilyKey + '_border']  || '#aaa',
           image_url:    r.image_url || null,
         });
       }
