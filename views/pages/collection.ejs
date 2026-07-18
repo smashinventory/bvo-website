@@ -397,9 +397,13 @@
       <%
         var _mgHasColorActive = colorFamilyActive.length > 0 || colorExactActive.length > 0;
         var _mgColorBadge     = colorFamilyActive.length + (colorExactActive.length > 0 ? 1 : 0);
-        var _mgFinishesLower  = availFinishes.map(function(f) { return f.toLowerCase(); });
-        var _mgVisibleFam     = colorFamiliesConfig.filter(function(fam) {
-          if (!availFinishes.length) return true;
+        var _mgFinishesLower      = availFinishes.map(function(f) { return f.toLowerCase(); });
+        var _mgAvailFamilyKeys    = (typeof availColorFamilies !== 'undefined') ? availColorFamilies : [];
+        var _mgVisibleFam         = colorFamiliesConfig.filter(function(fam) {
+          if (!availFinishes.length && !_mgAvailFamilyKeys.length) return true;
+          // Primary check: color_family key match (reliable — set by import pipeline)
+          if (_mgAvailFamilyKeys.includes(fam.key)) return true;
+          // Fallback: member-string match against products.color values
           return fam.members.some(function(m) { return _mgFinishesLower.includes(m.toLowerCase()); });
         });
       %>

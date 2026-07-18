@@ -314,8 +314,11 @@ exports.show = async (req, res, next) => {
       const mgAvailSizes    = SIZE_BUCKETS
         .filter(b => mgRawWidths.some(w => w >= b.min && w <= b.max))
         .map(b => b.label);
-      const mgAllBrands     = [...new Set(mgOptRows.map(r => r.brand).filter(Boolean))].sort();
-      const mgAvailFinishes = [...new Set(mgOptRows.map(r => r.color).filter(Boolean))].sort();
+      const mgAllBrands          = [...new Set(mgOptRows.map(r => r.brand).filter(Boolean))].sort();
+      const mgAvailFinishes      = [...new Set(mgOptRows.map(r => r.color).filter(Boolean))].sort();
+      // color_family keys directly — used as primary visibility signal so families
+      // whose products have non-standard color strings still appear in the sidebar.
+      const mgAvailColorFamilies = [...new Set(mgOptRows.map(r => r.color_family).filter(Boolean))];
 
       // Color families config — ALL families (cabinet + metallic-finish vanities).
       // Same pool as the regular vanity collection route. The template's
@@ -463,6 +466,7 @@ exports.show = async (req, res, next) => {
         colorFamilyActive:   mgColorFamilyParam,
         colorExactActive:    mgColorExactParam,
         availFinishes:       mgAvailFinishes,
+        availColorFamilies:  mgAvailColorFamilies,
         // Price filter
         minPrice:    mgMinPrice,
         maxPrice:    mgMaxPrice,
