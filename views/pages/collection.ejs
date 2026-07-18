@@ -309,12 +309,15 @@
           <div class="size-chips">
             <% _chips.forEach(function(sz) {
                  var isActive = _activeSizes.indexOf(String(sz)) !== -1;
+                 var chipLabel = sz === '20-' ? '20 & under'
+                               : sz === '84+' ? '84 & over'
+                               : sz + ' Inches';
             %>
             <label class="size-chip<%= isActive ? ' is-active' : '' %>">
               <input type="checkbox" name="<%= def.attr_key %>" value="<%= sz %>"
                 <%= isActive ? 'checked' : '' %>
                 style="position:absolute;opacity:0;pointer-events:none;width:0;height:0;">
-              <%= sz %>
+              <span class="size-chip-label"><%= chipLabel %></span>
             </label>
             <% }) %>
           </div>
