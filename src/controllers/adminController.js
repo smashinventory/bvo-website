@@ -556,7 +556,8 @@ exports.productSetPrimaryImage = async (req, res, next) => {
 // Attribute keys included in the CSV — matches our filter definitions + JM spreadsheet fields
 const CSV_ATTR_KEYS = [
   // Core / universal
-  'product_type', 'size_in', 'height_in', 'depth_in',
+  // 'size_in' removed — Audit Fix #2 (July 2026). Width is products.width_in (Rule 10); no EAV key.
+  'product_type', 'height_in', 'depth_in',
   'cabinet_finish', 'finish', 'hardware_finish', 'style', 'mount_type',
   'sink_count', 'sink_included', 'countertop_material', 'countertop_included',
   'mirror_included', 'door_style', 'drawer_count', 'sink_type', 'faucet_holes',
