@@ -491,6 +491,19 @@
             <a href="/products/<%= product.slug %>"><%= product.name %></a>
           </h3>
 
+          <!-- Price — Option B: Gold sale, Navy/Amber-strikethrough was-price (approved July 2026) -->
+          <% if (product.price) { %>
+          <%   var _onSale = product.compare_price && parseFloat(product.compare_price) > parseFloat(product.price); %>
+          <div class="card-price">
+            <% if (_onSale) { %>
+              <span class="card-price__sale">$<%= parseFloat(product.price).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}) %></span>
+              <span class="card-price__was">$<%= parseFloat(product.compare_price).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}) %></span>
+            <% } else { %>
+              <span class="card-price__regular">$<%= parseFloat(product.price).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}) %></span>
+            <% } %>
+          </div>
+          <% } %>
+
           <!-- Finishes -->
           <div class="model-card-swatches" role="group" aria-label="Available finishes">
             <span class="model-card-swatches-label">Finishes:</span>

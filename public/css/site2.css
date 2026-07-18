@@ -1036,3 +1036,17 @@
 .size-chip.is-active::after { content: '\2713'; position: absolute; right: 9px; top: 50%;
                                transform: translateY(-50%); font-size: .75rem; font-weight: 600;
                                color: var(--sage); }
+
+/* ── Product card price — Option B (approved July 2026) ──────────
+   Sale:    Antique Gold  #B8963A  (var --color-gold)
+   Was:     Navy text     #182840  (var --color-navy)
+            Amber strike  #C4885A  (var --color-amber)
+   Regular: Antique Gold  #B8963A  (same as sale — no compare price)
+─────────────────────────────────────────────────────────────────── */
+.card-price          { display: flex; align-items: baseline; gap: 8px; margin: 0 0 10px; }
+.card-price__sale    { font-size: 1rem; font-weight: 700; color: var(--color-gold); }
+.card-price__regular { font-size: 1rem; font-weight: 700; color: var(--color-gold); }
+.card-price__was     { font-size: .8rem; font-weight: 500; color: var(--color-navy);
+                       text-decoration: line-through;
+                       text-decoration-color: var(--color-amber);
+                       text-decoration-thickness: 2px; }
