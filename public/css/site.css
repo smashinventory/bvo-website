@@ -473,23 +473,7 @@ ul[role="list"] { list-style: none; }
 .color-swatch           { display: inline-block; width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0; }
 .filter-price           { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
 
-/* Size chip filter — stacked row buttons (hidden checkbox inside; same form submission as checkboxes).
- * Universal size display style (approved July 2026):
- *   Numeric sizes → "36 Inches"  |  20- bucket → "20 & under"  |  84+ bucket → "84 & over"
- *   Single line, left-aligned, checkmark on far right when active.
- *   Left border accent (3px) + tint background signals active state clearly. */
-.size-chips             { display: flex; flex-direction: column; gap: 3px; padding-bottom: 4px; }
-.size-chip              { position: relative; display: flex; align-items: center;
-                          width: 100%; padding: 6px 28px 6px 10px; box-sizing: border-box;
-                          border: 1.5px solid var(--border); border-left-width: 3px; border-radius: 6px;
-                          cursor: pointer; transition: border-color .15s, background .15s; user-select: none; }
-.size-chip-label        { font-size: .78rem; font-weight: 500; color: var(--navy); }
-.size-chip:hover        { border-color: var(--sage); background: #f5f8f5; }
-.size-chip.is-active    { border-color: var(--sage); background: #edf4ed; }
-.size-chip.is-active .size-chip-label { color: var(--sage); }
-.size-chip.is-active::after { content: '✓'; position: absolute; right: 9px; top: 50%;
-                               transform: translateY(-50%); font-size: .75rem; font-weight: 600;
-                               color: var(--sage); }
+/* Size chip filter styles moved to site2.css (site.css near 80KB CDN limit) */
 .filter-price input     { width: 76px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: .78rem; color: var(--navy); }
 .btn-filter-apply       { width: 100%; font-size: .72rem; padding: .45rem 1rem; margin-top: 4px; }
 .filter-clear           { display: block; font-size: .75rem; color: var(--muted); text-decoration: underline; margin-top: 8px; }
