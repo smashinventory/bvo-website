@@ -626,7 +626,8 @@
               <% m.sizes.forEach(function(sz, i) {
                    var _szImg = m.sizeImages && m.sizeImages[sz] ? m.sizeImages[sz] : null;
               %>
-              <button class="model-card-size-btn<%= i === 0 ? ' is-active' : '' %>"
+              <button type="button"
+                      class="model-card-size-btn<%= i === 0 ? ' is-active' : '' %>"
                       data-target-img="model-img-<%= _mId %>"
                       <% if (_szImg) { %>data-image="<%= _szImg %>"<% } %>
                       aria-label="<%= sz %>&quot; wide"

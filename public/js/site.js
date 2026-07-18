@@ -518,9 +518,14 @@ document.addEventListener('DOMContentLoaded', function () {
   // ── Size chip image swap (model cards) ───────────────────────────
   // Clicking a size chip previews an image for that width.
   // Independent from the swatch swap — each updates the same card img.
+  // stopPropagation prevents the click from bubbling into the sidebar's
+  // delegated change/click listeners.
   document.addEventListener('click', function (e) {
     var btn = e.target.closest('.model-card-size-btn');
     if (!btn) return;
+
+    e.stopPropagation();   // don't let this reach sidebar listeners
+    e.preventDefault();    // prevent any accidental form submission
 
     var wasActive = btn.classList.contains('is-active');
 

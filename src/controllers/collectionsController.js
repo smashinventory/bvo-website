@@ -313,7 +313,10 @@ exports.show = async (req, res, next) => {
         `, mgModelNames);
         for (const r of mgSizeImgRows) {
           if (!mgSizeImageMap[r.model]) mgSizeImageMap[r.model] = {};
-          mgSizeImageMap[r.model][r.size_in] = r.image_url;
+          // Normalize key to integer — MySQL2 returns DECIMAL as string "24.00",
+          // but m.sizes are parsed via map(Number) → 24. Keys must match.
+          const sizeKey = Math.round(Number(r.size_in));
+          if (sizeKey > 0 && r.image_url) mgSizeImageMap[r.model][sizeKey] = r.image_url;
         }
       }
 
