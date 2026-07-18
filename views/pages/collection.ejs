@@ -563,7 +563,11 @@
         var _extraSwatches   = m.finishes.length > 4 ? m.finishes.length - 4 : 0;
         var _mId             = m.model ? m.model.toLowerCase().replace(/[^a-z0-9]+/g, '-') : 'model';
         var _mHref           = '/collections/vanities?model=' + encodeURIComponent(m.model || '');
-        var _mImg            = m.image_url || '/images/placeholder-vanity.jpg';
+        // Initial image = first swatch's image so the visual matches the is-active swatch state.
+        // Fallback to model-level image if first swatch has none.
+        var _mImg = (_visibleSwatches.length > 0 && _visibleSwatches[0].image_url)
+          ? _visibleSwatches[0].image_url
+          : (m.image_url || '/images/placeholder-vanity.jpg');
       %>
       <article class="model-card" data-model="<%= m.model %>" data-sizes="<%= m.sizes.join(',') %>">
 
@@ -610,6 +614,7 @@
                     data-target-img="model-img-<%= _mId %>"
                     data-finish="<%= f.color %>"
                     <% if (f.image_url) { %>data-image="<%= f.image_url %>"<% } %>
+                    <% if (f.sizeImages && Object.keys(f.sizeImages).length) { %>data-size-images="<%= JSON.stringify(f.sizeImages) %>"<% } %>
                     style="background:<%= f.hex %>;border-color:<%= _swatchBorder %>"
                     aria-label="<%= f.color %>"
                     title="<%= f.color %>"></button>
@@ -629,6 +634,7 @@
               <button type="button"
                       class="model-card-size-btn<%= i === 0 ? ' is-active' : '' %>"
                       data-target-img="model-img-<%= _mId %>"
+                      data-size="<%= sz %>"
                       <% if (_szImg) { %>data-image="<%= _szImg %>"<% } %>
                       aria-label="<%= sz %>&quot; wide"
                       title="<%= sz %>&quot; wide">

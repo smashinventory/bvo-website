@@ -262,13 +262,18 @@ exports.show = async (req, res, next) => {
         ORDER BY p.brand, p.model
       `, mgAllParams);
 
-      // Swatch data — sourced from all active products for these models
-      // (not from the filtered set, so swatches show all available finish options)
-      const mgModelNames = mgModelRows.map(r => r.model).filter(Boolean);
-      const mgSwatchMap  = {};
+      // Color × size image map — one image per model+color+size combination.
+      // Drives synchronized image preview: swatch click respects active size,
+      // size chip click respects active color. One query replaces the old
+      // separate swatch-image and size-image queries.
+      const mgModelNames    = mgModelRows.map(r => r.model).filter(Boolean);
+      const mgColorSizeMap  = {}; // [model][color][size] = image_url
+      const mgSizeImageMap  = {}; // [model][size] = image_url (first-color fallback for chips)
+      const mgSwatchMap     = {}; // [model] = [{color, hex, border, image_url, sizeImages}]
+
       if (mgModelNames.length) {
-        const [mgSwatchRows] = await bvoPool.query(`
-          SELECT p.model, p.color, p.color_family,
+        const [mgCsRows] = await bvoPool.query(`
+          SELECT p.model, p.color, p.color_family, p.width_in AS size_in,
             COALESCE(
               MIN(CASE WHEN p.primary_image_url IS NOT NULL THEN p.primary_image_url END),
               MIN(pi.url)
@@ -278,45 +283,49 @@ exports.show = async (req, res, next) => {
           WHERE p.is_active = 1
             AND p.model IN (${mgModelNames.map(() => '?').join(',')})
             AND p.color IS NOT NULL
-          GROUP BY p.model, p.color, p.color_family
-          ORDER BY p.model, p.color
+          GROUP BY p.model, p.color, p.color_family, p.width_in
+          ORDER BY p.model, p.color, p.width_in
         `, mgModelNames);
-        for (const r of mgSwatchRows) {
+
+        // Build color×size map and derive the two downstream maps from it
+        for (const r of mgCsRows) {
+          const sizeKey = r.size_in != null ? Math.round(Number(r.size_in)) : null;
+
+          // color × size map
+          if (!mgColorSizeMap[r.model]) mgColorSizeMap[r.model] = {};
+          if (!mgColorSizeMap[r.model][r.color]) mgColorSizeMap[r.model][r.color] = {};
+          if (sizeKey > 0 && r.image_url) {
+            mgColorSizeMap[r.model][r.color][sizeKey] = r.image_url;
+          }
+
+          // size fallback map (first-seen color wins for each size)
+          if (sizeKey > 0 && r.image_url) {
+            if (!mgSizeImageMap[r.model]) mgSizeImageMap[r.model] = {};
+            if (!mgSizeImageMap[r.model][sizeKey]) {
+              mgSizeImageMap[r.model][sizeKey] = r.image_url;
+            }
+          }
+        }
+
+        // Build swatch list (one entry per model+color, preserving order)
+        // Include per-color size image map so the template can embed it as JSON.
+        const seenSwatchKey = new Set();
+        for (const r of mgCsRows) {
+          const key = `${r.model}||${r.color}`;
+          if (seenSwatchKey.has(key)) continue;
+          seenSwatchKey.add(key);
           if (!mgSwatchMap[r.model]) mgSwatchMap[r.model] = [];
           const swatchFamilyKey = r.color_family || normalize(r.color, 'all') || '';
+          // Find the color-level image (first row for this color has no size_in guard)
+          const colorImgRow = mgCsRows.find(x => x.model === r.model && x.color === r.color && x.image_url);
           mgSwatchMap[r.model].push({
             color:        r.color,
             color_family: r.color_family,
             hex:          FAMILY_HEX[swatchFamilyKey]              || '#ccc',
             border:       FAMILY_HEX[swatchFamilyKey + '_border']  || '#aaa',
-            image_url:    r.image_url || null,
+            image_url:    colorImgRow ? colorImgRow.image_url : null,
+            sizeImages:   mgColorSizeMap[r.model][r.color] || {},
           });
-        }
-      }
-
-      // Size → image map — one representative image per model+size for card chip preview
-      const mgSizeImageMap = {};
-      if (mgModelNames.length) {
-        const [mgSizeImgRows] = await bvoPool.query(`
-          SELECT p.model, p.width_in AS size_in,
-            COALESCE(
-              MIN(CASE WHEN p.primary_image_url IS NOT NULL THEN p.primary_image_url END),
-              MIN(pi.url)
-            ) AS image_url
-          FROM products p
-          LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
-          WHERE p.is_active = 1
-            AND p.model IN (${mgModelNames.map(() => '?').join(',')})
-            AND p.width_in IS NOT NULL AND p.width_in > 0
-          GROUP BY p.model, p.width_in
-          ORDER BY p.model, p.width_in
-        `, mgModelNames);
-        for (const r of mgSizeImgRows) {
-          if (!mgSizeImageMap[r.model]) mgSizeImageMap[r.model] = {};
-          // Normalize key to integer — MySQL2 returns DECIMAL as string "24.00",
-          // but m.sizes are parsed via map(Number) → 24. Keys must match.
-          const sizeKey = Math.round(Number(r.size_in));
-          if (sizeKey > 0 && r.image_url) mgSizeImageMap[r.model][sizeKey] = r.image_url;
         }
       }
 

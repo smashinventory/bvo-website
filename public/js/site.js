@@ -490,20 +490,37 @@ document.addEventListener('DOMContentLoaded', function () {
 // ── Model card: finish swatch swap + carousel arrows ─────────────────
 (function () {
 
-  // ── Finish swatch swap (works on any page containing model cards) ──
-  // Single document-level listener covers both the homepage carousel
-  // and the full vanity-models grid page.
+  // ── Shared helper: parse data-size-images JSON safely ───────────
+  function parseSizeImages(raw) {
+    if (!raw) return {};
+    try { return JSON.parse(raw); } catch (ex) { return {}; }
+  }
+
+  // ── Finish swatch swap ───────────────────────────────────────────
+  // When a color swatch is clicked, prefer the intersection image
+  // (this color × currently active size). Falls back to color image.
   document.addEventListener('click', function (e) {
     var btn = e.target.closest('.model-card-swatch');
     if (!btn) return;
 
-    // Capture active state BEFORE modifying classes
     var wasActive = btn.classList.contains('is-active');
 
-    // Swap card image only when a URL is available (guard against undefined)
     var imgId = btn.dataset.targetImg;
     var img   = imgId ? document.getElementById(imgId) : null;
-    if (img && btn.dataset.image) img.src = btn.dataset.image;
+    if (img) {
+      var newSrc = null;
+      // Look for active size chip on this card — use its size key to find intersection
+      var card = btn.closest('.model-card');
+      if (card && btn.dataset.sizeImages) {
+        var activeSz = card.querySelector('.model-card-size-btn.is-active');
+        if (activeSz && activeSz.dataset.size) {
+          var si = parseSizeImages(btn.dataset.sizeImages);
+          newSrc = si[activeSz.dataset.size] || si[Number(activeSz.dataset.size)] || null;
+        }
+      }
+      if (!newSrc && btn.dataset.image) newSrc = btn.dataset.image;
+      if (newSrc) img.src = newSrc;
+    }
 
     // Toggle: deselect if already active, otherwise activate
     var group = btn.closest('.model-card-swatches');
@@ -515,26 +532,38 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 
-  // ── Size chip image swap (model cards) ───────────────────────────
-  // Clicking a size chip previews an image for that width.
-  // Independent from the swatch swap — each updates the same card img.
-  // stopPropagation prevents the click from bubbling into the sidebar's
-  // delegated change/click listeners.
+  // ── Size chip image swap ─────────────────────────────────────────
+  // When a size chip is clicked, prefer the intersection image
+  // (currently active color × this size). Falls back to size image.
   document.addEventListener('click', function (e) {
     var btn = e.target.closest('.model-card-size-btn');
     if (!btn) return;
 
-    e.stopPropagation();   // don't let this reach sidebar listeners
-    e.preventDefault();    // prevent any accidental form submission
+    e.stopPropagation();
+    e.preventDefault();
 
     var wasActive = btn.classList.contains('is-active');
+    var sz        = btn.dataset.size;
 
-    // Swap card image if this size has a representative URL
     var imgId = btn.dataset.targetImg;
     var img   = imgId ? document.getElementById(imgId) : null;
-    if (img && btn.dataset.image) img.src = btn.dataset.image;
+    if (img) {
+      var newSrc = null;
+      // Look for active swatch on this card — use its size-images map for intersection
+      var card = btn.closest('.model-card');
+      if (card && sz) {
+        var activeSw = card.querySelector('.model-card-swatch.is-active');
+        if (activeSw && activeSw.dataset.sizeImages) {
+          var si = parseSizeImages(activeSw.dataset.sizeImages);
+          newSrc = si[sz] || si[Number(sz)] || null;
+        }
+      }
+      // Fallback: size-level image (any color)
+      if (!newSrc && btn.dataset.image) newSrc = btn.dataset.image;
+      if (newSrc) img.src = newSrc;
+    }
 
-    // Toggle active — deselect if already active, otherwise select
+    // Toggle active
     var row = btn.closest('.model-card-size-chips');
     if (row) {
       row.querySelectorAll('.model-card-size-btn').forEach(function (s) {
