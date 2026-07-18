@@ -1846,3 +1846,120 @@ exports.syncSaveSettings = (req, res) => {
     res.json({ ok: false, error: err.message });
   }
 };
+
+/* ════════════════════════════════════════════════════════════════
+   CATEGORIES MANAGER
+   ════════════════════════════════════════════════════════════════ */
+
+/** GET /admin/categories */
+exports.categoryList = async (req, res, next) => {
+  try {
+    const [rows] = await bvoPool.query(
+      `SELECT id, slug, name, description, image_url, sort_order, is_active, display_mode
+       FROM categories
+       WHERE parent_id IS NULL
+       ORDER BY sort_order, name`
+    );
+    res.render('pages/admin/categories', {
+      ...LAYOUT,
+      pageTitle:  'Categories | BVO Admin',
+      activePage: 'categories',
+      flash:      req.session.flash || null,
+      categories: rows,
+    });
+    delete req.session.flash;
+  } catch (err) { next(err); }
+};
+
+/** POST /admin/categories — create */
+exports.categoryCreate = async (req, res, next) => {
+  try {
+    const name        = (req.body.name        || '').trim();
+    const slug        = (req.body.slug        || '').trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    const description = (req.body.description || '').trim();
+    const sort_order  = parseInt(req.body.sort_order) || 0;
+    const is_active   = req.body.is_active ? 1 : 0;
+    const display_mode = (req.body.display_mode || 'product').trim();
+
+    if (!name || !slug) {
+      req.session.flash = { type: 'error', msg: 'Name and slug are required.' };
+      return res.redirect('/admin/categories');
+    }
+    await bvoPool.query(
+      `INSERT INTO categories (slug, name, description, sort_order, is_active, display_mode, parent_id)
+       VALUES (?, ?, ?, ?, ?, ?, NULL)`,
+      [slug, name, description, sort_order, is_active, display_mode]
+    );
+    req.session.flash = { type: 'success', msg: `Category "${name}" created.` };
+    res.redirect('/admin/categories');
+  } catch (err) {
+    req.session.flash = { type: 'error', msg: 'Create failed: ' + err.message };
+    res.redirect('/admin/categories');
+  }
+};
+
+/** POST /admin/categories/:id/delete */
+exports.categoryDelete = async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id);
+    const [[row]] = await bvoPool.query('SELECT name FROM categories WHERE id = ?', [id]);
+    if (!row) {
+      req.session.flash = { type: 'error', msg: 'Category not found.' };
+      return res.redirect('/admin/categories');
+    }
+    await bvoPool.query('DELETE FROM categories WHERE id = ?', [id]);
+    req.session.flash = { type: 'success', msg: `Category "${row.name}" deleted.` };
+    res.redirect('/admin/categories');
+  } catch (err) {
+    req.session.flash = { type: 'error', msg: 'Delete failed: ' + err.message };
+    res.redirect('/admin/categories');
+  }
+};
+
+/** POST /admin/categories/:id/image — upload/replace category image */
+exports.categoryImageMiddleware = _upload.single('image_file');
+
+exports.categorySetImage = async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (!req.file) {
+      req.session.flash = { type: 'error', msg: 'No image file received.' };
+      return res.redirect('/admin/categories');
+    }
+    const url = `/images/uploads/${req.file.filename}`;
+    await bvoPool.query('UPDATE categories SET image_url = ? WHERE id = ?', [url, id]);
+    req.session.flash = { type: 'success', msg: 'Image updated.' };
+    res.redirect('/admin/categories');
+  } catch (err) {
+    req.session.flash = { type: 'error', msg: 'Image upload failed: ' + err.message };
+    res.redirect('/admin/categories');
+  }
+};
+
+/** POST /admin/categories/:id — update (name, slug, description, sort_order, is_active, display_mode) */
+exports.categoryUpdate = async (req, res, next) => {
+  try {
+    const id          = parseInt(req.params.id);
+    const name        = (req.body.name        || '').trim();
+    const slug        = (req.body.slug        || '').trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    const description = (req.body.description || '').trim();
+    const sort_order  = parseInt(req.body.sort_order) || 0;
+    const is_active   = req.body.is_active ? 1 : 0;
+    const display_mode = (req.body.display_mode || 'product').trim();
+
+    if (!name || !slug) {
+      req.session.flash = { type: 'error', msg: 'Name and slug are required.' };
+      return res.redirect('/admin/categories');
+    }
+    await bvoPool.query(
+      `UPDATE categories SET name=?, slug=?, description=?, sort_order=?, is_active=?, display_mode=?
+       WHERE id = ?`,
+      [name, slug, description, sort_order, is_active, display_mode, id]
+    );
+    req.session.flash = { type: 'success', msg: `Category "${name}" updated.` };
+    res.redirect('/admin/categories');
+  } catch (err) {
+    req.session.flash = { type: 'error', msg: 'Update failed: ' + err.message };
+    res.redirect('/admin/categories');
+  }
+};

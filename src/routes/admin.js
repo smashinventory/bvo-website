@@ -39,6 +39,13 @@ router.post('/products/:id/images/:imgId/primary',                ctrl.productSe
 router.post('/products/:id/docs',   ctrl.productAddDocumentMiddleware, ctrl.productAddDocument);
 router.post('/products/:id/docs/:docId/delete',                   ctrl.productDeleteDocument);
 
+/* ── Categories ─────────────────────────────────────────────── */
+router.get ('/categories',                                          ctrl.categoryList);
+router.post('/categories',                                          ctrl.categoryCreate);
+router.post('/categories/:id',                                      ctrl.categoryUpdate);
+router.post('/categories/:id/delete',                               ctrl.categoryDelete);
+router.post('/categories/:id/image', ctrl.categoryImageMiddleware,  ctrl.categorySetImage);
+
 /* ── Orders ─────────────────────────────────────────────────── */
 router.get ('/orders',            ctrl.orderList);
 router.post('/orders/:id/status', ctrl.orderUpdateStatus);

@@ -656,6 +656,49 @@ document.addEventListener('DOMContentLoaded', function () {
   window.addEventListener('load', sizeCards);
 })();
 
+// ── Homepage: category carousel ───────────────────────────────────
+(function () {
+  var track = document.getElementById('catCarouselTrack');
+  var btnL  = document.getElementById('catArrowLeft');
+  var btnR  = document.getElementById('catArrowRight');
+  if (!track || !btnL || !btnR) return;
+
+  var GAP = 20;
+
+  function sizeCards() {
+    var trackW = track.offsetWidth;
+    if (!trackW) return;
+    var vw      = window.innerWidth;
+    var VISIBLE = vw < 520 ? 1.5 : vw < 768 ? 2 : 4;
+    var cardW   = Math.floor((trackW - (VISIBLE - 1) * GAP) / VISIBLE);
+    track.querySelectorAll('.cat-card').forEach(function (card) {
+      card.style.width    = cardW + 'px';
+      card.style.minWidth = cardW + 'px';
+    });
+    syncArrows();
+  }
+
+  function syncArrows() {
+    var atStart = track.scrollLeft <= 2;
+    var atEnd   = track.scrollLeft + track.clientWidth >= track.scrollWidth - 2;
+    if (atStart) { btnL.setAttribute('hidden', ''); } else { btnL.removeAttribute('hidden'); }
+    if (atEnd)   { btnR.setAttribute('hidden', ''); } else { btnR.removeAttribute('hidden'); }
+  }
+
+  function scrollAmt() {
+    var card = track.querySelector('.cat-card');
+    return card ? card.offsetWidth + GAP : 260;
+  }
+
+  btnL.addEventListener('click', function () { track.scrollBy({ left: -scrollAmt(), behavior: 'smooth' }); });
+  btnR.addEventListener('click', function () { track.scrollBy({ left:  scrollAmt(), behavior: 'smooth' }); });
+  track.addEventListener('scroll', syncArrows, { passive: true });
+
+  sizeCards();
+  window.addEventListener('resize', sizeCards);
+  window.addEventListener('load',   sizeCards);
+})();
+
 // ── Mobile nav toggle ──────────────────────────────────────────────
 (function () {
   var hamburger  = document.querySelector('.nav-hamburger');

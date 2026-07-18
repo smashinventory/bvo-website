@@ -97,12 +97,11 @@ const news = S.newsletter         || {};
 </section>
 <% } %>
 
-<!-- ── CATEGORY GRID ─────────────────────────────────────────────── -->
-<% if (cs.enabled !== false) { %>
+<!-- ── CATEGORY CAROUSEL ──────────────────────────────────────────── -->
+<% if (cs.enabled !== false && categories && categories.length) { %>
 <%
   var _csTag   = cs.title_level || 'h2';
   var _csAlign = cs.text_align  || 'center';
-  var _csCols  = cs.columns     || '4';
 %>
 <section class="section" data-section="categories_section" data-section-label="Category Grid" aria-labelledby="cat-heading">
   <div class="section-header" style="text-align:<%= _csAlign %>">
@@ -110,23 +109,34 @@ const news = S.newsletter         || {};
     <<%- _csTag %> class="section-title" id="cat-heading"><%= cs.title || 'Everything Your Bathroom Needs' %></<%- _csTag %>>
     <% if (cs.subtitle) { %><p class="section-sub"><%= cs.subtitle %></p><% } %>
   </div>
-  <div class="category-grid category-grid-cols-<%= _csCols %>">
-    <% categories.forEach(cat => { %>
-    <a href="/collections/<%= cat.slug %>" class="cat-card">
-      <div class="cat-img">
-        <% if (cat.image_url) { %>
-          <img src="<%= cat.image_url %>" alt="" loading="lazy">
-        <% } else { %>
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-        <% } %>
-      </div>
-      <div class="cat-body">
-        <h3><%= cat.name %></h3>
-        <p><%- cat.description %></p>
-        <span class="cat-link">Shop Now →</span>
-      </div>
-    </a>
-    <% }) %>
+
+  <div class="cat-carousel-outer">
+    <button class="fm-arrow fm-arrow--left" id="catArrowLeft" aria-label="Scroll left" hidden>
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+
+    <div class="cat-carousel-track" id="catCarouselTrack">
+      <% categories.forEach(function(cat) { %>
+      <a href="/collections/<%= cat.slug %>" class="cat-card">
+        <div class="cat-img">
+          <% if (cat.image_url) { %>
+            <img src="<%= cat.image_url %>" alt="<%= cat.name %>" loading="lazy">
+          <% } else { %>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          <% } %>
+        </div>
+        <div class="cat-body">
+          <h3><%= cat.name %></h3>
+          <p><%- cat.description %></p>
+          <span class="cat-link">Shop Now →</span>
+        </div>
+      </a>
+      <% }); %>
+    </div>
+
+    <button class="fm-arrow fm-arrow--right" id="catArrowRight" aria-label="Scroll right">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
   </div>
 </section>
 <% } %>

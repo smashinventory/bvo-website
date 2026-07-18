@@ -790,6 +790,35 @@
   .fm-arrow { width: 32px; height: 32px; }
 }
 
+/* ── Category carousel ──────────────────────────────────────────── */
+.cat-carousel-outer {
+  display: flex;
+  align-items: stretch;
+  gap: .75rem;
+  max-width: 1260px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.cat-carousel-track {
+  flex: 1;
+  display: flex;
+  gap: 1.25rem;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  scroll-snap-type: x mandatory;
+  padding: .25rem .1rem 1rem;
+}
+.cat-carousel-track::-webkit-scrollbar { display: none; }
+
+.cat-carousel-track .cat-card {
+  flex-shrink: 0;
+  scroll-snap-align: start;
+  /* width set dynamically by JS */
+}
+
 /* ─────────────────────────────────────────────
    Theme-editor dynamic helper classes
    Generated automatically — do not edit above

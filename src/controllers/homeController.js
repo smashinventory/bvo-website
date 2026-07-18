@@ -106,7 +106,6 @@ async function getFeaturedCategories() {
       FROM categories
       WHERE is_active = 1 AND parent_id IS NULL
       ORDER BY sort_order
-      LIMIT 4
     `);
     return rows;
   } catch {
