@@ -252,6 +252,221 @@ exports.show = async (req, res, next) => {
     const category = await Category.findBySlug(slug);
     if (!category) return res.status(404).render('pages/404', { pageTitle: '404 | BathroomVanitiesOutlet.com' });
 
+    // ── Model-group display mode ──────────────────────────────────
+    // Categories with display_mode = 'model-group' group products by model.
+    // Uses SIZE_BUCKETS (Rule 10) and the same color-family infrastructure as
+    // every other collection page.  Old if (slug==='vanity-models') block above
+    // is left intact; this new path is tested at /collections/vanity-models-v2.
+    if (category.display_mode === 'model-group') {
+      const mgPage = Math.max(1, parseInt(req.query.page || '1', 10));
+
+      // Active filter values — sizes are bucket labels (strings), not raw numbers
+      const mgActiveSizes      = [].concat(req.query.size_in      || []).filter(Boolean);
+      const mgActiveBrands     = [].concat(req.query.brand         || []).filter(Boolean);
+      const mgColorFamilyParam = [].concat(req.query.color_family  || []).filter(Boolean);
+      const mgColorExactParam  = [].concat(req.query.color_exact   || []).filter(Boolean);
+      const mgMinPrice         = req.query.min_price ? parseFloat(req.query.min_price) : undefined;
+      const mgMaxPrice         = req.query.max_price ? parseFloat(req.query.max_price) : undefined;
+
+      // Cabinet color context — vanity models are always cabinet context
+      const mgExactFamilyKeys = new Set();
+      mgColorExactParam.forEach(v => {
+        const fam = normalize(v, 'cabinet');
+        if (fam) mgExactFamilyKeys.add(fam);
+      });
+      const mgFamilyLevelKeys = mgColorFamilyParam.filter(f => !mgExactFamilyKeys.has(f));
+      const mgHasColorFilter  = mgColorFamilyParam.length > 0 || mgColorExactParam.length > 0;
+
+      const mgHasActiveFilters = !!(
+        mgActiveSizes.length || mgActiveBrands.length ||
+        mgHasColorFilter || mgMinPrice != null || mgMaxPrice != null
+      );
+
+      // Filter option universe — all active products that have a model assigned
+      const [mgOptRows] = await bvoPool.query(`
+        SELECT DISTINCT p.width_in AS size_in, p.brand, p.color, p.color_family
+        FROM products p
+        WHERE p.is_active = 1 AND p.model IS NOT NULL
+          AND p.width_in IS NOT NULL AND p.width_in > 0
+      `);
+      const mgRawWidths     = [...new Set(mgOptRows.map(r => r.size_in).filter(Boolean))];
+      const mgAvailSizes    = SIZE_BUCKETS
+        .filter(b => mgRawWidths.some(w => w >= b.min && w <= b.max))
+        .map(b => b.label);
+      const mgAllBrands     = [...new Set(mgOptRows.map(r => r.brand).filter(Boolean))].sort();
+      const mgAvailFinishes = [...new Set(mgOptRows.map(r => r.color).filter(Boolean))].sort();
+
+      // Cabinet color families config (cabinet-type families only)
+      const mgColorFamiliesConfig = FAMILIES.filter(f => f.type === 'cabinet').map(fam => ({
+        ...fam,
+        isActive:    mgColorFamilyParam.includes(fam.key) || mgExactFamilyKeys.has(fam.key),
+        isOpen:      mgColorFamilyParam.includes(fam.key) || mgExactFamilyKeys.has(fam.key),
+        activeExact: mgColorExactParam.filter(e => normalize(e, 'cabinet') === fam.key),
+      }));
+
+      // Build model query WHERE clause
+      let mgWhere    = 'p.is_active = 1 AND p.model IS NOT NULL';
+      const mgParams = [];
+
+      if (mgActiveBrands.length) {
+        mgWhere += ` AND p.brand IN (${mgActiveBrands.map(() => '?').join(',')})`;
+        mgParams.push(...mgActiveBrands);
+      }
+      if (mgHasColorFilter) {
+        const colorParts = [];
+        if (mgFamilyLevelKeys.length) {
+          colorParts.push(`p.color_family IN (${mgFamilyLevelKeys.map(() => '?').join(',')})`);
+          mgParams.push(...mgFamilyLevelKeys);
+        }
+        if (mgColorExactParam.length) {
+          colorParts.push(`p.color IN (${mgColorExactParam.map(() => '?').join(',')})`);
+          mgParams.push(...mgColorExactParam);
+        }
+        if (colorParts.length) mgWhere += ` AND (${colorParts.join(' OR ')})`;
+      }
+      if (mgMinPrice != null) { mgWhere += ' AND p.price >= ?'; mgParams.push(mgMinPrice); }
+      if (mgMaxPrice != null) { mgWhere += ' AND p.price <= ?'; mgParams.push(mgMaxPrice); }
+
+      // Fetch models (one row per model/brand group)
+      const [mgModelRows] = await bvoPool.query(`
+        SELECT
+          p.model,
+          p.brand,
+          MIN(p.price)                                     AS price_from,
+          MAX(p.price)                                     AS price_to,
+          MIN(p.compare_price)                             AS compare_price_from,
+          GROUP_CONCAT(DISTINCT CAST(p.width_in AS UNSIGNED)
+            ORDER BY p.width_in SEPARATOR ',')             AS sizes_csv,
+          COALESCE(
+            MIN(CASE WHEN p.primary_image_url IS NOT NULL THEN p.primary_image_url END),
+            MIN(pi.url)
+          )                                                AS image_url
+        FROM products p
+        LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
+        WHERE ${mgWhere}
+        GROUP BY p.model, p.brand
+        ORDER BY p.brand, p.model
+      `, mgParams);
+
+      // Swatch data — sourced from all active products for these models
+      // (not from the filtered set, so swatches show all available finish options)
+      const mgModelNames = mgModelRows.map(r => r.model).filter(Boolean);
+      const mgSwatchMap  = {};
+      if (mgModelNames.length) {
+        const [mgSwatchRows] = await bvoPool.query(`
+          SELECT p.model, p.color, p.color_family,
+            COALESCE(
+              MIN(CASE WHEN p.primary_image_url IS NOT NULL THEN p.primary_image_url END),
+              MIN(pi.url)
+            ) AS image_url
+          FROM products p
+          LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
+          WHERE p.is_active = 1
+            AND p.model IN (${mgModelNames.map(() => '?').join(',')})
+            AND p.color IS NOT NULL
+          GROUP BY p.model, p.color, p.color_family
+          ORDER BY p.model, p.color
+        `, mgModelNames);
+        for (const r of mgSwatchRows) {
+          if (!mgSwatchMap[r.model]) mgSwatchMap[r.model] = [];
+          mgSwatchMap[r.model].push({
+            color:        r.color,
+            color_family: r.color_family,
+            hex:          FAMILY_HEX[r.color_family]                      || '#ccc',
+            border:       FAMILY_HEX[(r.color_family || '') + '_border']  || '#aaa',
+            image_url:    r.image_url || null,
+          });
+        }
+      }
+
+      // Hydrate model rows with parsed sizes + finishes arrays
+      let mgModels = mgModelRows.map(r => ({
+        ...r,
+        sizes:    r.sizes_csv ? r.sizes_csv.split(',').map(Number).filter(Boolean) : [],
+        finishes: mgSwatchMap[r.model] || [],
+      }));
+
+      // Size bucket filter — post-query because sizes live per-product not per-model
+      // Rule 10: compare against SIZE_BUCKETS ranges, not raw widths (±2" approximation)
+      if (mgActiveSizes.length) {
+        const activeBuckets = SIZE_BUCKETS.filter(b => mgActiveSizes.includes(b.label));
+        mgModels = mgModels.filter(m =>
+          activeBuckets.some(bucket =>
+            m.sizes.some(ms => ms >= bucket.min && ms <= bucket.max)
+          )
+        );
+      }
+
+      const mgAllPrices = mgModelRows.map(r => r.price_from).filter(Boolean);
+      const mgPriceMin  = mgAllPrices.length ? Math.min(...mgAllPrices) : 0;
+      const mgPriceMax  = mgAllPrices.length ? Math.max(...mgAllPrices) : 9999;
+
+      const mgTotal  = mgModels.length;
+      const mgPages  = Math.ceil(mgTotal / MODELS_PER_PAGE) || 1;
+      const mgOffset = (mgPage - 1) * MODELS_PER_PAGE;
+      const mgPaged  = mgModels.slice(mgOffset, mgOffset + MODELS_PER_PAGE);
+
+      const mgSiteUrl      = process.env.SITE_URL || 'https://bathroomvanitiesoutlet.com';
+      const mgCanonicalUrl = `${mgSiteUrl}/collections/${slug}`;
+      const mgFilterCount  = (mgActiveSizes.length > 0 ? 1 : 0)
+                           + (mgActiveBrands.length > 0 ? 1 : 0)
+                           + (mgHasColorFilter ? 1 : 0)
+                           + (mgMinPrice != null || mgMaxPrice != null ? 1 : 0);
+      const mgNoindex = mgFilterCount >= 2;
+
+      return res.render('pages/collection', {
+        pageTitle:    `${category.meta_title || category.name} | BathroomVanitiesOutlet.com`,
+        metaDesc:     category.meta_desc || category.description || '',
+        canonicalUrl: mgCanonicalUrl,
+        noindex:      mgNoindex,
+        category,
+        displayMode:  'model-group',
+        // Model data
+        models:      mgPaged,
+        total:       mgTotal,
+        page:        mgPage,
+        pages:       mgPages,
+        perPage:     MODELS_PER_PAGE,
+        pageWindow:  buildPageWindow(mgPage, mgPages),
+        hasActiveFilters: mgHasActiveFilters,
+        // Filter sidebar — model-group specific variable names exposed to template
+        availableSizes:      mgAvailSizes,
+        activeSizes:         mgActiveSizes,
+        allBrands:           mgAllBrands,
+        activeBrands:        mgActiveBrands,
+        colorFamiliesConfig: mgColorFamiliesConfig,
+        colorFamilyActive:   mgColorFamilyParam,
+        colorExactActive:    mgColorExactParam,
+        availFinishes:       mgAvailFinishes,
+        // Price filter
+        minPrice:    mgMinPrice,
+        maxPrice:    mgMaxPrice,
+        priceRange:  { min: mgPriceMin, max: mgPriceMax },
+        // Stubs — satisfy template vars used by regular-collection blocks
+        // (those blocks are guarded by displayMode !== 'model-group', but
+        //  EJS will error if variables are undefined, so we stub them out)
+        isVanityCategory:      true,
+        products:              [],
+        sort:                  'featured',
+        brands:                mgActiveBrands,
+        productTypes:          [],
+        model:                 null,
+        modelColorMap:         {},
+        modelSizeMap:          {},
+        attrFilters:           {},
+        rangeFilters:          {},
+        availableBrands:       mgAllBrands,
+        attributeDefs:         [],
+        availableAttrValues:   {},
+        familyHex:             FAMILY_HEX,
+        hwColorFamiliesConfig: [],
+        hwColorFamilyActive:   [],
+        hwColorExactActive:    [],
+        availHardwareFinishes: [],
+        savedProductIds:       new Set(),
+      });
+    }
+
     const isVanityCategory = category.id === 1;
 
     // ── Parse standard query params ──────────────────────────────

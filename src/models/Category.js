@@ -21,7 +21,8 @@ const Category = {
   async findBySlug(slug) {
     try {
       const [rows] = await bvoPool.query(
-        `SELECT id, slug, name, description, image_url, meta_title, meta_desc
+        `SELECT id, slug, name, description, image_url, meta_title, meta_desc,
+                COALESCE(display_mode, 'product') AS display_mode
          FROM   categories
          WHERE  slug = ? AND is_active = 1
          LIMIT  1`,

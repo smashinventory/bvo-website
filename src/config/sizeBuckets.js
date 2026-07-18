@@ -4,7 +4,8 @@
  * Canonical vanity width buckets — shared source of truth (Rule 10).
  *
  * Used by:
- *   - src/controllers/collectionsController.js  (sidebar chip filter + getAvailableWidths)
+ *   - src/controllers/collectionsController.js  (sidebar chip filter + getAvailableWidths +
+ *                                                model-group display_mode handler)
  *   - src/middleware/megaMenuData.js            (dynamic mega menu size chips)
  *   - src/models/Product.js findByCategory()   (size_in WHERE clause mirrors these ranges)
  *

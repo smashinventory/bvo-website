@@ -356,6 +356,106 @@
 
       <% }) /* end attributeDefs.forEach */ %>
 
+      <%/*
+       * ── Model-group extra filter groups ──────────────────────────
+       * For model-group categories (displayMode === 'model-group'),
+       * attributeDefs is [] so the forEach above renders nothing.
+       * We add Size chips and Cabinet Color explicitly here.
+       * Brand and Price Range already render above/below via shared template vars.
+       */%>
+      <% if (typeof displayMode !== 'undefined' && displayMode === 'model-group') { %>
+
+      <%/* ── Size chips (model-group) ──────────────────────────── */%>
+      <% if (typeof availableSizes !== 'undefined' && availableSizes.length > 0) { %>
+      <%   var _mgSizeActive = typeof activeSizes !== 'undefined' && activeSizes.length > 0; %>
+      <div class="filter-group">
+        <button type="button" class="filter-group-toggle"
+          aria-expanded="<%= _mgSizeActive ? 'true' : 'false' %>">
+          Size
+          <% if (_mgSizeActive) { %><span class="filter-badge"><%= activeSizes.length %></span><% } %>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="filter-group-body<%= _mgSizeActive ? '' : ' is-collapsed' %>">
+          <div class="size-chips">
+            <% availableSizes.forEach(function(sz) {
+                 var isActive = (typeof activeSizes !== 'undefined') && activeSizes.indexOf(String(sz)) !== -1;
+                 var chipLabel = sz === '20-' ? '20 & under' : sz === '84+' ? '84 & over' : sz + ' Inches';
+            %>
+            <label class="size-chip<%= isActive ? ' is-active' : '' %>">
+              <input type="checkbox" name="size_in" value="<%= sz %>"
+                <%= isActive ? 'checked' : '' %>
+                style="position:absolute;opacity:0;pointer-events:none;width:0;height:0;">
+              <span class="size-chip-label"><%= chipLabel %></span>
+            </label>
+            <% }) %>
+          </div>
+        </div>
+      </div>
+      <% } %>
+
+      <%/* ── Cabinet Color (model-group) ──────────────────────── */%>
+      <%
+        var _mgHasColorActive = colorFamilyActive.length > 0 || colorExactActive.length > 0;
+        var _mgColorBadge     = colorFamilyActive.length + (colorExactActive.length > 0 ? 1 : 0);
+        var _mgFinishesLower  = availFinishes.map(function(f) { return f.toLowerCase(); });
+        var _mgVisibleFam     = colorFamiliesConfig.filter(function(fam) {
+          if (!availFinishes.length) return true;
+          return fam.members.some(function(m) { return _mgFinishesLower.includes(m.toLowerCase()); });
+        });
+      %>
+      <% if (_mgVisibleFam.length > 0) { %>
+      <div class="filter-group" id="mg-color-filter-group">
+        <button type="button" class="filter-group-toggle"
+          aria-expanded="<%= _mgHasColorActive ? 'true' : 'false' %>">
+          Cabinet Color
+          <% if (_mgColorBadge > 0) { %><span class="filter-badge"><%= _mgColorBadge %></span><% } %>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="filter-group-body<%= _mgHasColorActive ? '' : ' is-collapsed' %>">
+          <!-- Family swatches -->
+          <div class="color-family-row" id="mg-color-family-row">
+            <% _mgVisibleFam.forEach(function(fam) { %>
+            <div class="color-family-sw<%= fam.isActive ? ' is-active' : '' %>"
+                 data-color-key="<%= fam.key %>"
+                 title="<%= fam.label %>"
+                 role="button" tabindex="0"
+                 aria-pressed="<%= fam.isActive ? 'true' : 'false' %>">
+              <span class="color-sw-dot<%= fam.woodGrain ? ' swatch--wood-grain' : '' %>"
+                    style="background:<%= fam.hex %>;border-color:<%= fam.border %>"></span>
+              <span class="color-sw-name"><%= fam.label %></span>
+            </div>
+            <% }) %>
+          </div>
+          <!-- Sub-chip rows — shown when family is active -->
+          <% _mgVisibleFam.forEach(function(fam) {
+               var subOptions = availFinishes.length
+                 ? fam.members.filter(function(m) { return availFinishes.includes(m); })
+                 : fam.members;
+               if (!subOptions.length) return;
+          %>
+          <div class="color-sub-row<%= fam.isOpen ? ' is-open' : '' %>"
+               id="mg-color-sub-<%= fam.key %>">
+            <div class="color-sub-hint">↓ Narrow by shade (optional):</div>
+            <div class="color-sub-chips">
+              <% subOptions.forEach(function(member) {
+                   var chipActive = colorExactActive.includes(member);
+              %>
+              <button type="button"
+                      class="color-sub-chip<%= chipActive ? ' is-active' : '' %>"
+                      data-color-exact="<%= member %>"
+                      data-color-family="<%= fam.key %>">
+                <%= member %>
+              </button>
+              <% }) %>
+            </div>
+          </div>
+          <% }) %>
+        </div>
+      </div>
+      <% } %>
+
+      <% } /* end model-group filter groups */ %>
+
       <!-- ── Price Range (always last) ─────────────────────────── -->
       <div class="filter-group">
         <button type="button" class="filter-group-toggle"
@@ -393,12 +493,18 @@
         Filters<% if (hasActiveFilters) { %> <span class="mobile-filter-dot">●</span><% } %>
       </button>
       <p class="listing-count">
-        <%= total %> product<%= total !== 1 ? 's' : '' %>
-        <% if (brands.length) { %> · <strong><%= brands.join(', ') %></strong><% } %>
+        <% if (typeof displayMode !== 'undefined' && displayMode === 'model-group') { %>
+          <%= total %> model collection<%= total !== 1 ? 's' : '' %>
+          <% if ((activeBrands || []).length) { %> · <strong><%= (activeBrands || []).join(', ') %></strong><% } %>
+        <% } else { %>
+          <%= total %> product<%= total !== 1 ? 's' : '' %>
+          <% if (brands.length) { %> · <strong><%= brands.join(', ') %></strong><% } %>
+        <% } %>
         <% if (hasActiveFilters) { %>
         <a href="/collections/<%= category.slug %>" class="toolbar-clear-link">Clear filters</a>
         <% } %>
       </p>
+      <% if (!(typeof displayMode !== 'undefined' && displayMode === 'model-group')) { %>
       <form method="GET" id="sort-form">
         <!-- Preserve all active filters when sorting -->
         <% brands.forEach(function(b) { %><input type="hidden" name="brand" value="<%= b %>"><% }) %>
@@ -427,9 +533,129 @@
           <option value="name_asc"   <%= sort==='name_asc'   ? 'selected':'' %>>Name A–Z</option>
         </select>
       </form>
+      <% } /* end: hide sort form for model-group */ %>
     </div>
 
-    <!-- Product grid -->
+    <%/*
+     * ── Model-group card grid ─────────────────────────────────────────
+     * When displayMode === 'model-group', render model cards (one per
+     * brand+model group) matching vanity-models.ejs card markup.
+     * Image swap on swatch click is handled by existing site.js.
+     * Otherwise, fall through to the regular product card grid.
+     */%>
+    <% if (typeof displayMode !== 'undefined' && displayMode === 'model-group') { %>
+
+    <% if (!models || models.length === 0) { %>
+    <div class="listing-empty">
+      <p>No models found matching your filters.</p>
+      <a href="/collections/<%= category.slug %>" class="btn btn-sage" style="margin-top:16px">Clear Filters</a>
+    </div>
+    <% } else { %>
+    <div class="listing-grid models-grid models-grid--page">
+      <% models.forEach(function(m) { %>
+      <%
+        var _discPct         = m.compare_price_from ? Math.round((1 - m.price_from / m.compare_price_from) * 100) : 0;
+        var _visibleSwatches = m.finishes.slice(0, 4);
+        var _extraSwatches   = m.finishes.length > 4 ? m.finishes.length - 4 : 0;
+        var _mId             = m.model ? m.model.toLowerCase().replace(/[^a-z0-9]+/g, '-') : 'model';
+        var _mHref           = '/collections/vanities?model=' + encodeURIComponent(m.model || '');
+        var _mImg            = m.image_url || '/images/placeholder-vanity.jpg';
+      %>
+      <article class="model-card" data-model="<%= m.model %>" data-sizes="<%= m.sizes.join(',') %>">
+
+        <div class="model-card-img-wrap">
+          <% if (_discPct > 0) { %>
+          <span class="model-card-badge"><%= _discPct %>% OFF</span>
+          <% } %>
+          <a href="<%= _mHref %>" class="model-card-img-link" tabindex="-1" aria-hidden="true">
+            <img src="<%= _mImg %>"
+                 alt="<%= m.model %> vanity"
+                 class="model-card-img"
+                 id="model-img-<%= _mId %>"
+                 loading="lazy">
+          </a>
+        </div>
+
+        <div class="model-card-body">
+          <h3 class="model-card-name">
+            <a href="<%= _mHref %>">The <%= m.model %> Collection</a>
+          </h3>
+          <p class="model-card-brand">Brand: <%= m.brand %></p>
+
+          <!-- Price — gold color, below brand, above finishes (brand colors rule) -->
+          <div class="model-card-price-row">
+            <% if (m.price_to && m.price_to > m.price_from) { %>
+            <span class="model-card-price">$<%= m.price_from.toLocaleString('en-US') %> – $<%= m.price_to.toLocaleString('en-US') %></span>
+            <% } else { %>
+            <span class="model-card-price">From $<%= m.price_from.toLocaleString('en-US') %></span>
+            <% if (m.compare_price_from) { %>
+            <span class="model-card-was">$<%= m.compare_price_from.toLocaleString('en-US') %></span>
+            <% } %>
+            <% } %>
+          </div>
+
+          <div class="model-card-swatches" role="group" aria-label="Available finishes">
+            <span class="model-card-swatches-label">Finishes:</span>
+            <% _visibleSwatches.forEach(function(f, i) { %>
+            <%
+              var _isLight      = ['#F0F0EF','#F5F5F5','#FAFAFA','#FFFFFF','#C4A882'].indexOf(f.hex) !== -1;
+              var _swatchBorder = _isLight ? '#ccc' : (f.border || f.hex);
+              var _isWood       = ['wood_l','wood_m','wood_d'].indexOf(f.color_family) !== -1;
+            %>
+            <button class="model-card-swatch<%= i === 0 ? ' is-active' : '' %><%= _isWood ? ' swatch--wood-grain' : '' %>"
+                    data-target-img="model-img-<%= _mId %>"
+                    data-finish="<%= f.color %>"
+                    <% if (f.image_url) { %>data-image="<%= f.image_url %>"<% } %>
+                    style="background:<%= f.hex %>;border-color:<%= _swatchBorder %>"
+                    aria-label="<%= f.color %>"
+                    title="<%= f.color %>"></button>
+            <% }); %>
+            <% if (_extraSwatches > 0) { %>
+            <span class="model-card-swatch-more" aria-hidden="true">+<%= _extraSwatches %></span>
+            <% } %>
+          </div>
+
+          <div class="model-card-sizes-row">
+            <span class="model-card-sizes-label">Size Options:</span>
+            <span class="model-card-sizes-text">
+              <%= m.sizes.length ? m.sizes.join(' | ') : 'See details' %>
+            </span>
+          </div>
+
+          <a href="<%= _mHref %>" class="btn btn-outline model-card-cta">Shop Model</a>
+        </div>
+      </article>
+      <% }); %>
+    </div><!-- /.listing-grid.models-grid -->
+
+    <!-- Model-group pagination -->
+    <% if (pages > 1) { %>
+    <nav class="pagination" aria-label="Page navigation">
+      <%
+        var _mgQs = '';
+        (activeSizes  || []).forEach(function(s) { _mgQs += '&size_in='      + encodeURIComponent(s); });
+        (activeBrands || []).forEach(function(b) { _mgQs += '&brand='        + encodeURIComponent(b); });
+        colorFamilyActive.forEach(function(f)    { _mgQs += '&color_family=' + encodeURIComponent(f); });
+        colorExactActive.forEach(function(e)     { _mgQs += '&color_exact='  + encodeURIComponent(e); });
+        if (minPrice != null) _mgQs += '&min_price=' + minPrice;
+        if (maxPrice != null) _mgQs += '&max_price=' + maxPrice;
+      %>
+      <% (pageWindow || []).forEach(function(p) { %>
+      <% if (p === null) { %>
+      <span class="page-ellipsis" aria-hidden="true">&hellip;</span>
+      <% } else if (p === page) { %>
+      <span class="page-btn page-current" aria-current="page"><%= p %></span>
+      <% } else { %>
+      <a href="?page=<%= p %><%= _mgQs %>" class="page-btn" aria-label="Page <%= p %>"><%= p %></a>
+      <% } %>
+      <% }) %>
+    </nav>
+    <% } %>
+
+    <% } /* end: models.length > 0 */ %>
+
+    <% } else { /* ── Regular product card grid ──────────────────── */ %>
+
     <% if (products.length === 0) { %>
     <div class="listing-empty">
       <p>No products found matching your filters.</p>
@@ -584,7 +810,9 @@
       <% }) %>
     </nav>
     <% } %>
-    <% } %>
+    <% } /* end: products.length > 0 */ %>
+
+    <% } /* end: displayMode !== 'model-group' regular product grid */ %>
 
   </div><!-- /listing-main -->
 </div><!-- /listing-layout -->
