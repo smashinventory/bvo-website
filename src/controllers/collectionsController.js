@@ -286,10 +286,11 @@ exports.show = async (req, res, next) => {
       const mgMinPrice         = req.query.min_price ? parseFloat(req.query.min_price) : undefined;
       const mgMaxPrice         = req.query.max_price ? parseFloat(req.query.max_price) : undefined;
 
-      // Cabinet color context — vanity models are always cabinet context
+      // Color context — vanities use cabinet context for exact-color normalization
+      // (same as isVanityCategory = true in the regular collection route)
       const mgExactFamilyKeys = new Set();
       mgColorExactParam.forEach(v => {
-        const fam = normalize(v, 'cabinet');
+        const fam = normalize(v, 'cabinet') || normalize(v, 'metal');
         if (fam) mgExactFamilyKeys.add(fam);
       });
       const mgFamilyLevelKeys = mgColorFamilyParam.filter(f => !mgExactFamilyKeys.has(f));
@@ -314,12 +315,16 @@ exports.show = async (req, res, next) => {
       const mgAllBrands     = [...new Set(mgOptRows.map(r => r.brand).filter(Boolean))].sort();
       const mgAvailFinishes = [...new Set(mgOptRows.map(r => r.color).filter(Boolean))].sort();
 
-      // Cabinet color families config (cabinet-type families only)
-      const mgColorFamiliesConfig = FAMILIES.filter(f => f.type === 'cabinet').map(fam => ({
+      // Color families config — ALL families (cabinet + metallic-finish vanities).
+      // Same pool as the regular vanity collection route. The template's
+      // visibleFamilies check hides any family with no matching products.
+      const mgColorFamiliesConfig = FAMILIES.map(fam => ({
         ...fam,
         isActive:    mgColorFamilyParam.includes(fam.key) || mgExactFamilyKeys.has(fam.key),
         isOpen:      mgColorFamilyParam.includes(fam.key) || mgExactFamilyKeys.has(fam.key),
-        activeExact: mgColorExactParam.filter(e => normalize(e, 'cabinet') === fam.key),
+        activeExact: mgColorExactParam.filter(e =>
+          (normalize(e, 'cabinet') || normalize(e, 'metal')) === fam.key
+        ),
       }));
 
       // Build model query WHERE clause
