@@ -496,33 +496,65 @@ document.addEventListener('DOMContentLoaded', function () {
     try { return JSON.parse(raw); } catch (ex) { return {}; }
   }
 
+  // ── Shared helper: set exactly one active size chip on a card ────
+  // Returns the size key that was activated (or null).
+  function activateSizeChip(card, targetSz) {
+    if (!card) return null;
+    var chips = card.querySelectorAll('.model-card-size-btn');
+    var activated = null;
+    chips.forEach(function (c) {
+      if (Number(c.dataset.size) === targetSz) {
+        c.classList.add('is-active');
+        activated = targetSz;
+      } else {
+        c.classList.remove('is-active');
+      }
+    });
+    return activated;
+  }
+
   // ── Finish swatch swap ───────────────────────────────────────────
-  // When a color swatch is clicked, prefer the intersection image
-  // (this color × currently active size). Falls back to color image.
+  // Priority: intersection (this color × active size).
+  // If that image is missing, find the nearest size this color DOES
+  // have an image for, show it, and update the active size chip so
+  // all three signals stay in sync: swatch, size chip, card image.
   document.addEventListener('click', function (e) {
     var btn = e.target.closest('.model-card-swatch');
     if (!btn) return;
 
     var wasActive = btn.classList.contains('is-active');
+    var card      = btn.closest('.model-card');
+    var si        = parseSizeImages(btn.dataset.sizeImages);
+    var siKeys    = Object.keys(si).map(Number).filter(function (n) { return n > 0; })
+                          .sort(function (a, b) { return a - b; });
 
     var imgId = btn.dataset.targetImg;
     var img   = imgId ? document.getElementById(imgId) : null;
     if (img) {
-      var newSrc = null;
-      // Look for active size chip on this card — use its size key to find intersection
-      var card = btn.closest('.model-card');
-      if (card && btn.dataset.sizeImages) {
-        var activeSz = card.querySelector('.model-card-size-btn.is-active');
-        if (activeSz && activeSz.dataset.size) {
-          var si = parseSizeImages(btn.dataset.sizeImages);
-          newSrc = si[activeSz.dataset.size] || si[Number(activeSz.dataset.size)] || null;
+      var newSrc  = null;
+      var activeSzBtn = card ? card.querySelector('.model-card-size-btn.is-active') : null;
+      var activeSz    = activeSzBtn ? Number(activeSzBtn.dataset.size) : NaN;
+
+      if (siKeys.length > 0) {
+        // Try exact intersection first
+        if (!isNaN(activeSz) && si[activeSz]) {
+          newSrc = si[activeSz];
+        } else {
+          // Find nearest available size in this color, update the chip to match
+          var nearest = siKeys.reduce(function (prev, curr) {
+            return (Math.abs(curr - activeSz) < Math.abs(prev - activeSz)) ? curr : prev;
+          }, siKeys[0]);
+          newSrc = si[nearest];
+          activateSizeChip(card, nearest);   // keep chip in sync with the image shown
         }
       }
+
+      // Final fallback: color-level default image
       if (!newSrc && btn.dataset.image) newSrc = btn.dataset.image;
       if (newSrc) img.src = newSrc;
     }
 
-    // Toggle: deselect if already active, otherwise activate
+    // Toggle swatch is-active (always keep one active; toggle off only if already on)
     var group = btn.closest('.model-card-swatches');
     if (group) {
       group.querySelectorAll('.model-card-swatch').forEach(function (s) {
@@ -533,8 +565,10 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   // ── Size chip image swap ─────────────────────────────────────────
-  // When a size chip is clicked, prefer the intersection image
-  // (currently active color × this size). Falls back to size image.
+  // Priority: intersection (active color × this size).
+  // Falls back to size-level fallback image.
+  // Size chips never toggle off — clicking the active chip re-selects
+  // it so there is always a valid size context for the next swatch click.
   document.addEventListener('click', function (e) {
     var btn = e.target.closest('.model-card-size-btn');
     if (!btn) return;
@@ -542,15 +576,13 @@ document.addEventListener('DOMContentLoaded', function () {
     e.stopPropagation();
     e.preventDefault();
 
-    var wasActive = btn.classList.contains('is-active');
-    var sz        = btn.dataset.size;
+    var sz   = btn.dataset.size;
+    var card = btn.closest('.model-card');
 
     var imgId = btn.dataset.targetImg;
     var img   = imgId ? document.getElementById(imgId) : null;
     if (img) {
       var newSrc = null;
-      // Look for active swatch on this card — use its size-images map for intersection
-      var card = btn.closest('.model-card');
       if (card && sz) {
         var activeSw = card.querySelector('.model-card-swatch.is-active');
         if (activeSw && activeSw.dataset.sizeImages) {
@@ -558,18 +590,18 @@ document.addEventListener('DOMContentLoaded', function () {
           newSrc = si[sz] || si[Number(sz)] || null;
         }
       }
-      // Fallback: size-level image (any color)
+      // Fallback: size-level image (any color for this width)
       if (!newSrc && btn.dataset.image) newSrc = btn.dataset.image;
       if (newSrc) img.src = newSrc;
     }
 
-    // Toggle active
+    // Always make exactly one size chip active (no toggle-off)
     var row = btn.closest('.model-card-size-chips');
     if (row) {
       row.querySelectorAll('.model-card-size-btn').forEach(function (s) {
         s.classList.remove('is-active');
       });
-      if (!wasActive) btn.classList.add('is-active');
+      btn.classList.add('is-active');
     }
   });
 
