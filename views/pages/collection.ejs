@@ -408,7 +408,7 @@
         });
       %>
       <% if (_mgVisibleFam.length > 0) { %>
-      <div class="filter-group" id="mg-color-filter-group">
+      <div class="filter-group" id="color-filter-group">
         <button type="button" class="filter-group-toggle"
           aria-expanded="<%= _mgHasColorActive ? 'true' : 'false' %>">
           Cabinet Color
@@ -417,7 +417,7 @@
         </button>
         <div class="filter-group-body<%= _mgHasColorActive ? '' : ' is-collapsed' %>">
           <!-- Family swatches -->
-          <div class="color-family-row" id="mg-color-family-row">
+          <div class="color-family-row" id="color-family-row">
             <% _mgVisibleFam.forEach(function(fam) { %>
             <div class="color-family-sw<%= fam.isActive ? ' is-active' : '' %>"
                  data-color-key="<%= fam.key %>"
@@ -438,7 +438,7 @@
                if (!subOptions.length) return;
           %>
           <div class="color-sub-row<%= fam.isOpen ? ' is-open' : '' %>"
-               id="mg-color-sub-<%= fam.key %>">
+               id="color-sub-<%= fam.key %>">
             <div class="color-sub-hint">↓ Narrow by shade (optional):</div>
             <div class="color-sub-chips">
               <% subOptions.forEach(function(member) {
