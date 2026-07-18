@@ -182,20 +182,43 @@ exports.show = async (req, res, next) => {
       }
 
       // Color → HAVING (keeps full model data, filters model groups not individual rows)
+      //
+      // Dual-match strategy: check BOTH p.color_family AND p.color against member
+      // strings.  Products imported before color_family normalization was in place
+      // may have color_family = NULL but a correct p.color value (e.g. 'Radiant Gold',
+      // 'Matte Black').  Checking only color_family would silently miss them — the
+      // swatch appears (via the template's p.color fallback) but filtering returns 0.
       if (mgHasColorFilter) {
         const colorHavingParts = [];
+
         if (mgFamilyLevelKeys.length) {
+          // 1a. color_family key match (products with correctly normalized color_family)
           colorHavingParts.push(
             `SUM(CASE WHEN p.color_family IN (${mgFamilyLevelKeys.map(() => '?').join(',')}) THEN 1 ELSE 0 END) > 0`
           );
           mgHavingParams.push(...mgFamilyLevelKeys);
+
+          // 1b. p.color member-string match (products where color_family is NULL but
+          //     p.color is a known member of one of the selected families)
+          const familyMembers = mgFamilyLevelKeys.flatMap(fk => {
+            const fam = FAMILIES.find(f => f.key === fk);
+            return fam ? fam.members : [];
+          });
+          if (familyMembers.length) {
+            colorHavingParts.push(
+              `SUM(CASE WHEN p.color IN (${familyMembers.map(() => '?').join(',')}) THEN 1 ELSE 0 END) > 0`
+            );
+            mgHavingParams.push(...familyMembers);
+          }
         }
+
         if (mgColorExactParam.length) {
           colorHavingParts.push(
             `SUM(CASE WHEN p.color IN (${mgColorExactParam.map(() => '?').join(',')}) THEN 1 ELSE 0 END) > 0`
           );
           mgHavingParams.push(...mgColorExactParam);
         }
+
         if (colorHavingParts.length) {
           mgHavingParts.push(`(${colorHavingParts.join(' OR ')})`);
         }
