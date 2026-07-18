@@ -69,10 +69,11 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   <link href="<%- _gfUrl %>" rel="stylesheet">
 
   <!-- Brand CSS tokens -->
-  <link rel="stylesheet" href="/css/brand.css">
+  <link rel="stylesheet" href="/css/brand.css?v=2">
   <!-- Site CSS (split to stay under CDN 80KB file-size limit) -->
-  <link rel="stylesheet" href="/css/site.css">
-  <link rel="stylesheet" href="/css/site2.css">
+  <!-- Bump ?v= any time CSS changes to bust Hostinger CDN cache (Rule 11) -->
+  <link rel="stylesheet" href="/css/site.css?v=2">
+  <link rel="stylesheet" href="/css/site2.css?v=2">
 
   <!-- Design token overrides from theme settings -->
   <style>
