@@ -294,11 +294,35 @@ exports.show = async (req, res, next) => {
         }
       }
 
-      // Hydrate model rows with parsed sizes + finishes arrays
+      // Size → image map — one representative image per model+size for card chip preview
+      const mgSizeImageMap = {};
+      if (mgModelNames.length) {
+        const [mgSizeImgRows] = await bvoPool.query(`
+          SELECT p.model, p.width_in AS size_in,
+            COALESCE(
+              MIN(CASE WHEN p.primary_image_url IS NOT NULL THEN p.primary_image_url END),
+              MIN(pi.url)
+            ) AS image_url
+          FROM products p
+          LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
+          WHERE p.is_active = 1
+            AND p.model IN (${mgModelNames.map(() => '?').join(',')})
+            AND p.width_in IS NOT NULL AND p.width_in > 0
+          GROUP BY p.model, p.width_in
+          ORDER BY p.model, p.width_in
+        `, mgModelNames);
+        for (const r of mgSizeImgRows) {
+          if (!mgSizeImageMap[r.model]) mgSizeImageMap[r.model] = {};
+          mgSizeImageMap[r.model][r.size_in] = r.image_url;
+        }
+      }
+
+      // Hydrate model rows with parsed sizes + sizeImages + finishes arrays
       let mgModels = mgModelRows.map(r => ({
         ...r,
-        sizes:    r.sizes_csv ? r.sizes_csv.split(',').map(Number).filter(Boolean) : [],
-        finishes: mgSwatchMap[r.model] || [],
+        sizes:      r.sizes_csv ? r.sizes_csv.split(',').map(Number).filter(Boolean) : [],
+        sizeImages: mgSizeImageMap[r.model] || {},
+        finishes:   mgSwatchMap[r.model] || [],
       }));
 
       // Size bucket filter — post-query because sizes live per-product not per-model

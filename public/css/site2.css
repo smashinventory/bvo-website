@@ -1043,6 +1043,36 @@
             Amber strike  #C4885A  (var --color-amber)
    Regular: Antique Gold  #B8963A  (same as sale — no compare price)
 ─────────────────────────────────────────────────────────────────── */
+/* ── Model card size chip buttons ───────────────────────────────── */
+.model-card-size-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .2rem .25rem;
+  margin-top: .2rem;
+}
+.model-card-size-btn {
+  padding: .15rem .4rem;
+  font-size: .68rem;
+  font-weight: 600;
+  border: 1px solid var(--color-border, #d0cdc8);
+  border-radius: 3px;
+  background: #fff;
+  color: var(--color-text, #333);
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.model-card-size-btn:hover {
+  border-color: var(--color-gold);
+  color: var(--color-gold);
+}
+.model-card-size-btn.is-active {
+  background: var(--color-gold);
+  border-color: var(--color-gold);
+  color: #fff;
+}
+
 .card-price          { display: flex; align-items: baseline; gap: 8px; margin: 0 0 10px; }
 .card-price__sale    { font-size: 1rem; font-weight: 700; color: var(--color-gold); }
 .card-price__regular { font-size: 1rem; font-weight: 700; color: var(--color-gold); }

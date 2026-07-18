@@ -620,10 +620,24 @@
           </div>
 
           <div class="model-card-sizes-row">
-            <span class="model-card-sizes-label">Size Options:</span>
-            <span class="model-card-sizes-text">
-              <%= m.sizes.length ? m.sizes.join(' | ') : 'See details' %>
-            </span>
+            <span class="model-card-sizes-label">Sizes:</span>
+            <% if (m.sizes && m.sizes.length) { %>
+            <div class="model-card-size-chips">
+              <% m.sizes.forEach(function(sz, i) {
+                   var _szImg = m.sizeImages && m.sizeImages[sz] ? m.sizeImages[sz] : null;
+              %>
+              <button class="model-card-size-btn<%= i === 0 ? ' is-active' : '' %>"
+                      data-target-img="model-img-<%= _mId %>"
+                      <% if (_szImg) { %>data-image="<%= _szImg %>"<% } %>
+                      aria-label="<%= sz %>&quot; wide"
+                      title="<%= sz %>&quot; wide">
+                <%= sz %>"
+              </button>
+              <% }); %>
+            </div>
+            <% } else { %>
+            <span class="model-card-sizes-text">See details</span>
+            <% } %>
           </div>
 
           <a href="<%= _mHref %>" class="btn btn-outline model-card-cta">Shop Model</a>

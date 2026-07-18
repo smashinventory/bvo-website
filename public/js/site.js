@@ -515,6 +515,30 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 
+  // ── Size chip image swap (model cards) ───────────────────────────
+  // Clicking a size chip previews an image for that width.
+  // Independent from the swatch swap — each updates the same card img.
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.model-card-size-btn');
+    if (!btn) return;
+
+    var wasActive = btn.classList.contains('is-active');
+
+    // Swap card image if this size has a representative URL
+    var imgId = btn.dataset.targetImg;
+    var img   = imgId ? document.getElementById(imgId) : null;
+    if (img && btn.dataset.image) img.src = btn.dataset.image;
+
+    // Toggle active — deselect if already active, otherwise select
+    var row = btn.closest('.model-card-size-chips');
+    if (row) {
+      row.querySelectorAll('.model-card-size-btn').forEach(function (s) {
+        s.classList.remove('is-active');
+      });
+      if (!wasActive) btn.classList.add('is-active');
+    }
+  });
+
   // ── Homepage carousel arrow buttons ──────────────────────────────
   var track = document.getElementById('fmCarouselTrack');
   var btnL  = document.getElementById('fmArrowLeft');
