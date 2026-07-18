@@ -301,14 +301,16 @@ exports.show = async (req, res, next) => {
         mgHasColorFilter || mgMinPrice != null || mgMaxPrice != null
       );
 
-      // Filter option universe — all active products that have a model assigned
+      // Filter option universe — all active products that have a model assigned.
+      // No width_in constraint here so all colors (including gray products that
+      // may lack a width) appear in the color filter options.
       const [mgOptRows] = await bvoPool.query(`
         SELECT DISTINCT p.width_in AS size_in, p.brand, p.color, p.color_family
         FROM products p
         WHERE p.is_active = 1 AND p.model IS NOT NULL
-          AND p.width_in IS NOT NULL AND p.width_in > 0
       `);
-      const mgRawWidths     = [...new Set(mgOptRows.map(r => r.size_in).filter(Boolean))];
+      // Size buckets only count products that have a valid width_in
+      const mgRawWidths     = [...new Set(mgOptRows.map(r => r.size_in).filter(v => v != null && v > 0))];
       const mgAvailSizes    = SIZE_BUCKETS
         .filter(b => mgRawWidths.some(w => w >= b.min && w <= b.max))
         .map(b => b.label);
