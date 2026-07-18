@@ -19,6 +19,7 @@ const Category = {
 
   /** Single category by slug */
   async findBySlug(slug) {
+    // Primary query: includes display_mode (requires migration to have run)
     try {
       const [rows] = await bvoPool.query(
         `SELECT id, slug, name, description, image_url, meta_title, meta_desc,
@@ -30,7 +31,22 @@ const Category = {
       );
       return rows[0] || null;
     } catch {
-      return null;
+      // Fallback: display_mode column not yet added — query without it and
+      // default to 'product' so existing collection pages keep working.
+      try {
+        const [rows] = await bvoPool.query(
+          `SELECT id, slug, name, description, image_url, meta_title, meta_desc
+           FROM   categories
+           WHERE  slug = ? AND is_active = 1
+           LIMIT  1`,
+          [slug]
+        );
+        const row = rows[0] || null;
+        if (row) row.display_mode = 'product';
+        return row;
+      } catch {
+        return null;
+      }
     }
   },
 
