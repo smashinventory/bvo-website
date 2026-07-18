@@ -332,28 +332,62 @@ exports.show = async (req, res, next) => {
         ),
       }));
 
-      // Build model query WHERE clause
-      let mgWhere    = 'p.is_active = 1 AND p.model IS NOT NULL';
-      const mgParams = [];
+      // Build model query — two-layer filter strategy:
+      //
+      //   WHERE:  row-level filters that narrow which PRODUCTS enter the GROUP BY.
+      //           Only brand goes here; color does NOT — see HAVING note below.
+      //
+      //   HAVING: model-level filters that discard entire model groups after
+      //           aggregation.  Color filtering belongs here so that:
+      //             (a) one card per model/brand is produced (correct grouping), and
+      //             (b) sizes_csv / price_from / price_to reflect the FULL model
+      //                 range, not just the filtered color's variants.
+      //
+      let mgWhere        = 'p.is_active = 1 AND p.model IS NOT NULL';
+      const mgWhereParams = [];
+      const mgHavingParts  = [];
+      const mgHavingParams = [];
 
       if (mgActiveBrands.length) {
         mgWhere += ` AND p.brand IN (${mgActiveBrands.map(() => '?').join(',')})`;
-        mgParams.push(...mgActiveBrands);
+        mgWhereParams.push(...mgActiveBrands);
       }
+
+      // Color → HAVING (keeps full model data, filters model groups not individual rows)
       if (mgHasColorFilter) {
-        const colorParts = [];
+        const colorHavingParts = [];
         if (mgFamilyLevelKeys.length) {
-          colorParts.push(`p.color_family IN (${mgFamilyLevelKeys.map(() => '?').join(',')})`);
-          mgParams.push(...mgFamilyLevelKeys);
+          colorHavingParts.push(
+            `SUM(CASE WHEN p.color_family IN (${mgFamilyLevelKeys.map(() => '?').join(',')}) THEN 1 ELSE 0 END) > 0`
+          );
+          mgHavingParams.push(...mgFamilyLevelKeys);
         }
         if (mgColorExactParam.length) {
-          colorParts.push(`p.color IN (${mgColorExactParam.map(() => '?').join(',')})`);
-          mgParams.push(...mgColorExactParam);
+          colorHavingParts.push(
+            `SUM(CASE WHEN p.color IN (${mgColorExactParam.map(() => '?').join(',')}) THEN 1 ELSE 0 END) > 0`
+          );
+          mgHavingParams.push(...mgColorExactParam);
         }
-        if (colorParts.length) mgWhere += ` AND (${colorParts.join(' OR ')})`;
+        if (colorHavingParts.length) {
+          mgHavingParts.push(`(${colorHavingParts.join(' OR ')})`);
+        }
       }
-      if (mgMinPrice != null) { mgWhere += ' AND p.price >= ?'; mgParams.push(mgMinPrice); }
-      if (mgMaxPrice != null) { mgWhere += ' AND p.price <= ?'; mgParams.push(mgMaxPrice); }
+
+      // Price → HAVING (compare starting price against user's range)
+      // MIN(price) is the model's entry price; filter models whose entry price is in range.
+      if (mgMinPrice != null) {
+        mgHavingParts.push('MIN(p.price) >= ?');
+        mgHavingParams.push(mgMinPrice);
+      }
+      if (mgMaxPrice != null) {
+        mgHavingParts.push('MIN(p.price) <= ?');
+        mgHavingParams.push(mgMaxPrice);
+      }
+
+      const mgHavingClause = mgHavingParts.length
+        ? `HAVING ${mgHavingParts.join(' AND ')}`
+        : '';
+      const mgAllParams = [...mgWhereParams, ...mgHavingParams];
 
       // Fetch models (one row per model/brand group)
       const [mgModelRows] = await bvoPool.query(`
@@ -373,8 +407,9 @@ exports.show = async (req, res, next) => {
         LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
         WHERE ${mgWhere}
         GROUP BY p.model, p.brand
+        ${mgHavingClause}
         ORDER BY p.brand, p.model
-      `, mgParams);
+      `, mgAllParams);
 
       // Swatch data — sourced from all active products for these models
       // (not from the filtered set, so swatches show all available finish options)
