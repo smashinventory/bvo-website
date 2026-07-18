@@ -141,7 +141,7 @@ function buildDocument(row) {
     hardware_finish:   attrs.hardware_finish  || undefined,
     finish:            attrs.finish           || undefined,
     style:             attrs.style            || undefined,
-    size_in:           attrs.size_in ? parseFloat(attrs.size_in) : undefined,
+    size_in:           row.width_in  ? parseFloat(row.width_in)  : undefined, // Audit Fix #3: direct column, not EAV
     primary_image_url: row.primary_image_url || row.primary_image || '',
     badge:             onSale ? 'sale' : (row.is_new ? 'new' : (row.is_featured ? 'best' : '')),
     sort_weight:       weight,
@@ -164,6 +164,7 @@ async function fetchProducts(deltaHours = null) {
       p.product_type,
       p.price, p.compare_price,
       p.is_new, p.is_featured,
+      p.width_in,
       COALESCE(p.primary_image_url, pi.url) AS primary_image_url,
       COALESCE(inv.qty_on_hand, 0)          AS qty_on_hand,
       inv.allow_backorder
@@ -184,7 +185,8 @@ async function fetchProducts(deltaHours = null) {
       FROM product_attribute_values pav
       JOIN attribute_definitions ad ON ad.id = pav.attr_def_id
       WHERE pav.product_id IN (${ids.map(() => '?').join(',')})
-        AND ad.attr_key IN ('cabinet_finish','hardware_finish','finish','style','size_in')
+        AND ad.attr_key IN ('cabinet_finish','hardware_finish','finish','style')
+        -- 'size_in' removed — Audit Fix #3 (July 2026). Width read from p.width_in below (Rule 10).
     `, ids);
 
     // Build attr map: { product_id: { key: val } }
