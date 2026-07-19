@@ -61,7 +61,7 @@
               <%/* Dynamic: only sizes with ≥1 active vanity product — from megaMenuData middleware */%>
               <div class="mega-sizes">
                 <% (megaMenuSizes || []).forEach(function(sz) { %>
-                <a class="mega-size-chip" href="/collections/vanities?size_in=<%= encodeURIComponent(sz) %>"><%= sz %>"</a>
+                <a class="mega-size-chip" href="/collections/bathroom-vanities?size_in=<%= encodeURIComponent(sz) %>"><%= sz %>"</a>
                 <% }) %>
               </div>
             </div>
@@ -73,7 +73,7 @@
               <%/* Dynamic: cabinet color families with ≥1 active vanity — labels from colorFamilies.js.
                 * Rose, Sage, etc. appear automatically once matching products are imported. */%>
               <% (megaMenuColorFamilies || []).forEach(function(fam) { %>
-              <a class="mega-link" href="/collections/vanities?color_family=<%= fam.key %>"><%= fam.label %> Vanities</a>
+              <a class="mega-link" href="/collections/bathroom-vanities?color_family=<%= fam.key %>"><%= fam.label %> Vanities</a>
               <% }) %>
             </div>
           </div>
@@ -173,7 +173,7 @@
       <li class="mobile-sub"><a href="<%= ((nav.vanities_mega || {}).promo || {}).url || '/collections/vanity-models' %>">Browse All Collections</a></li>
       <%/* Dynamic color families — same source as desktop mega menu */%>
       <% (megaMenuColorFamilies || []).forEach(function(fam) { %>
-      <li class="mobile-sub"><a href="/collections/vanities?color_family=<%= fam.key %>"><%= fam.label %> Vanities</a></li>
+      <li class="mobile-sub"><a href="/collections/bathroom-vanities?color_family=<%= fam.key %>"><%= fam.label %> Vanities</a></li>
       <% }) %>
       <% } %>
       <% }) %>

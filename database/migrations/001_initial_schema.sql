@@ -244,7 +244,7 @@ CREATE TABLE IF NOT EXISTS supplier_import_log (
 
 -- ── Seed: top-level categories ───────────────────────────────────
 INSERT IGNORE INTO categories (slug, name, description, sort_order) VALUES
-  ('vanities',     'Bathroom Vanities', 'Single, double, and freestanding bathroom vanities', 1),
+  ('bathroom-vanities', 'Bathroom Vanities', 'Single, double, and freestanding bathroom vanities', 1),
   ('mirrors',      'Mirrors',           'Framed, frameless, and lighted bathroom mirrors',   2),
   ('faucets',      'Faucets',           'Bathroom sink, shower, and tub faucets',            3),
   ('accessories',  'Accessories',       'Towel bars, toilet paper holders, and more',        4),

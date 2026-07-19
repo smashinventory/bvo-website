@@ -7,7 +7,7 @@
 **Commit:** `7f292fb` — *"Bug 3: fix listing-grid mobile breakpoint + increase PER_PAGE to 24"*
 
 ### Problem
-- On phones (≤480px), product cards in collection pages (e.g. `/collections/vanities`) were showing 1 per row at full width, stretching the card layout.
+- On phones (≤480px), product cards in collection pages (e.g. `/collections/bathroom-vanities`) were showing 1 per row at full width, stretching the card layout.
 - Pagination was 354 pages for 4,237 JM products — far too many.
 
 ### Changes

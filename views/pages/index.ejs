@@ -41,7 +41,7 @@ const news = S.newsletter         || {};
     <p class="hero-sub" style="<%= _heroSSize %>"><%= hero.subtext || 'Top brands, delivered free to your door.' %></p>
     <p class="hero-sub2"><%= hero.sub2_text || 'James Martin · Kohler · Moen · Delta and more' %></p>
     <div class="hero-ctas" style="<%= _heroAlign==='center'?'justify-content:center':_heroAlign==='right'?'justify-content:flex-end':'' %>">
-      <a href="<%= hero.cta1_url || '/collections/vanities' %>" class="btn btn-navy"><%= hero.cta1_text || 'Shop Vanities' %></a>
+      <a href="<%= hero.cta1_url || '/collections/bathroom-vanities' %>" class="btn btn-navy"><%= hero.cta1_text || 'Shop Vanities' %></a>
       <a href="<%= hero.cta2_url || '/collections/sale' %>"     class="btn btn-sage"><%= hero.cta2_text || 'View Sale' %></a>
     </div>
   </div>
@@ -189,7 +189,7 @@ const news = S.newsletter         || {};
     <% }) %>
   </div>
   <div class="section-cta">
-    <a href="<%= fs_.cta_url || '/collections/vanities' %>" class="btn btn-outline"><%= fs_.cta_text || 'View All Products' %></a>
+    <a href="<%= fs_.cta_url || '/collections/bathroom-vanities' %>" class="btn btn-outline"><%= fs_.cta_text || 'View All Products' %></a>
   </div>
 </section>
 <% } %>
@@ -219,7 +219,7 @@ const news = S.newsletter         || {};
         var _visibleSwatches = m.finishes.slice(0, 4);
         var _extraSwatches   = m.finishes.length > 4 ? m.finishes.length - 4 : 0;
         var _mId             = m.model ? m.model.toLowerCase().replace(/[^a-z0-9]+/g, '-') : 'model';
-        var _mHref           = '/collections/vanities?model=' + encodeURIComponent(m.model || '');
+        var _mHref           = '/collections/bathroom-vanities?model=' + encodeURIComponent(m.model || '');
         var _mImg            = m.image_url || '/images/placeholder-vanity.jpg';
       %>
       <article class="model-card" data-model="<%= m.model %>" data-sizes="<%= m.sizes.join(',') %>">
@@ -406,7 +406,7 @@ const news = S.newsletter         || {};
     <div class="parallax-rule"></div>
     <% if (par.subtitle) { %><p class="parallax-sub"><%= par.subtitle %></p><% } %>
     <div class="hero-ctas">
-      <a href="<%= par.cta1_url || '/collections/vanities' %>" class="btn btn-amber"><%= par.cta1_text || 'Shop All Vanities' %></a>
+      <a href="<%= par.cta1_url || '/collections/bathroom-vanities' %>" class="btn btn-amber"><%= par.cta1_text || 'Shop All Vanities' %></a>
       <a href="<%= par.cta2_url || '/pages/inspiration' %>"    class="btn btn-outline" style="color:#fff;border-color:rgba(255,255,255,.6)"><%= par.cta2_text || 'View Lookbook' %></a>
     </div>
   </div>

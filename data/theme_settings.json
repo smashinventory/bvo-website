@@ -32,7 +32,7 @@
     "enabled": true,
     "message": "Free Shipping on Every Order — No Minimum Required",
     "link_text": "Shop Now",
-    "link_url": "/collections/vanities"
+    "link_url": "/collections/bathroom-vanities"
   },
   "nav": {
     "brand_line1": "BathroomVanities",
@@ -41,7 +41,7 @@
     "links": [
       {
         "label": "Vanities",
-        "url": "/collections/vanities",
+        "url": "/collections/bathroom-vanities",
         "megaMenu": true
       },
       {
@@ -71,19 +71,19 @@
       "links": [
         {
           "label": "Single Sink Vanity",
-          "url": "/collections/vanities?type=Single+Sink+Vanity"
+          "url": "/collections/bathroom-vanities?type=Single+Sink+Vanity"
         },
         {
           "label": "Double Sink Vanity",
-          "url": "/collections/vanities?type=Double+Sink+Vanity"
+          "url": "/collections/bathroom-vanities?type=Double+Sink+Vanity"
         },
         {
           "label": "Vanity With Storage",
-          "url": "/collections/vanities?type=Vanity+With+Storage"
+          "url": "/collections/bathroom-vanities?type=Vanity+With+Storage"
         },
         {
           "label": "Base Cabinet",
-          "url": "/collections/vanities?type=Base+Cabinet"
+          "url": "/collections/bathroom-vanities?type=Base+Cabinet"
         }
       ],
       "promo": {
@@ -113,7 +113,7 @@
     "subtext": "Top brands, delivered free to your door.",
     "sub2_text": "James Martin · Kohler · Moen · Delta and more",
     "cta1_text": "Shop Vanities",
-    "cta1_url": "/collections/vanities",
+    "cta1_url": "/collections/bathroom-vanities",
     "cta2_text": "View Sale",
     "cta2_url": "/collections/sale",
     "badge_text": "Free Shipping",
@@ -127,12 +127,12 @@
       {
         "name": "James Martin",
         "image_url": "/images/brands/james-martin.svg",
-        "url": "/collections/vanities?brand=james-martin"
+        "url": "/collections/bathroom-vanities?brand=james-martin"
       },
       {
         "name": "Kohler",
         "image_url": "/images/brands/kohler.svg",
-        "url": "/collections/vanities?brand=kohler"
+        "url": "/collections/bathroom-vanities?brand=kohler"
       },
       {
         "name": "Moen",
@@ -147,12 +147,12 @@
       {
         "name": "American Standard",
         "image_url": "/images/brands/american-standard.svg",
-        "url": "/collections/vanities?brand=american-standard"
+        "url": "/collections/bathroom-vanities?brand=american-standard"
       },
       {
         "name": "TOTO",
         "image_url": "/images/brands/toto.svg",
-        "url": "/collections/vanities?brand=toto"
+        "url": "/collections/bathroom-vanities?brand=toto"
       },
       {
         "name": "Hansgrohe",
@@ -162,7 +162,7 @@
       {
         "name": "Signature Hardware",
         "image_url": "/images/brands/signature-hardware.svg",
-        "url": "/collections/vanities?brand=signature-hardware"
+        "url": "/collections/bathroom-vanities?brand=signature-hardware"
       }
     ]
   },
@@ -178,7 +178,7 @@
     "title": "Featured Products",
     "subtitle": "Handpicked vanities and accessories our customers love",
     "cta_text": "View All Products",
-    "cta_url": "/collections/vanities",
+    "cta_url": "/collections/bathroom-vanities",
     "limit": 4
   },
   "image_with_text": {
@@ -218,7 +218,7 @@
     "title_line2": "Starts Here",
     "subtitle": "From contemporary minimalism to classic elegance — we carry the brands and styles to bring your vision to life.",
     "cta1_text": "Shop All Vanities",
-    "cta1_url": "/collections/vanities",
+    "cta1_url": "/collections/bathroom-vanities",
     "cta2_text": "View Lookbook",
     "cta2_url": "/pages/inspiration",
     "image_url": "/images/parallax-bg.jpg",
@@ -267,7 +267,7 @@
     "progress_message": "Add <strong>${{remaining}}</strong> more for free shipping",
     "empty_message": "Your cart is empty",
     "empty_cta_text": "Start Shopping",
-    "empty_cta_url": "/collections/vanities"
+    "empty_cta_url": "/collections/bathroom-vanities"
   },
   "footer": {
     "brand_desc": "Premium vanities, mirrors, faucets & accessories — at prices that make sense. Free shipping on every order.",
@@ -276,7 +276,7 @@
     "col_shop_links": [
       {
         "label": "Bathroom Vanities",
-        "url": "/collections/vanities"
+        "url": "/collections/bathroom-vanities"
       },
       {
         "label": "Mirrors",
