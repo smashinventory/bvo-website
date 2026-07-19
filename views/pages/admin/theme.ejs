@@ -456,6 +456,57 @@ function teArrayLinks(prefix,listId,tplId,items){
                 <button type="button" class="te4-remove-row">×</button>
               </div>
             </template>
+
+            <!-- ── MEGA MENU — VANITIES ───────────────────────── -->
+            <%
+              var _vmAdmin  = (nav.vanities_mega || {});
+              var _vmlAdmin = _vmAdmin.links || [];
+              var _vmpAdmin = _vmAdmin.promo  || {};
+            %>
+            <div style="margin-top:1.75rem">
+              <div class="te4-section-label">Mega Menu — Shop By Type Links</div>
+              <p style="font-size:.78rem;color:var(--te4-muted,#888);margin:.25rem 0 .75rem">
+                "Shop By Finish" and "Shop By Size" columns populate automatically from your product catalog — no editing needed.
+              </p>
+              <%- teField('text','nav.vanities_mega.section_heading','Section heading',_vmAdmin.section_heading||'Shop By Type',true) %>
+              <div class="te4-array-header" style="margin-top:.75rem">
+                <span style="font-size:.8rem;font-weight:600">Type Links</span>
+                <button type="button" class="te4-add-btn" data-target="megaVanitiesList" data-tpl="megaVanitiesTpl">+ Add Link</button>
+              </div>
+              <div class="te4-array-list" id="megaVanitiesList">
+                <% _vmlAdmin.forEach(function(sl,j){ %>
+                <div class="te4-array-row">
+                  <span class="te4-array-drag">⠿</span>
+                  <div class="te4-array-fields te4-row2">
+                    <%- teField('text','nav.vanities_mega.links['+j+'].label','Label', sl.label, true) %>
+                    <%- teField('text','nav.vanities_mega.links['+j+'].url',  'URL / slug (relative path or ?filter=value)', sl.url, true) %>
+                  </div>
+                  <button type="button" class="te4-remove-row">×</button>
+                </div>
+                <% }) %>
+              </div>
+              <template id="megaVanitiesTpl">
+                <div class="te4-array-row">
+                  <span class="te4-array-drag">⠿</span>
+                  <div class="te4-array-fields te4-row2">
+                    <%- teField('text','nav.vanities_mega.links[__i__].label','Label', '', true) %>
+                    <%- teField('text','nav.vanities_mega.links[__i__].url',  'URL / slug', '', true) %>
+                  </div>
+                  <button type="button" class="te4-remove-row">×</button>
+                </div>
+              </template>
+            </div>
+
+            <div style="margin-top:1.75rem">
+              <div class="te4-section-label">Mega Menu — Promo Card (right column)</div>
+              <div class="te4-row2" style="margin-top:.5rem">
+                <%- teField('text','nav.vanities_mega.promo.eyebrow','Eyebrow text', _vmpAdmin.eyebrow||'', true) %>
+                <%- teField('text','nav.vanities_mega.promo.cta',    'Button text',  _vmpAdmin.cta||'',    true) %>
+              </div>
+              <%- teField('text','nav.vanities_mega.promo.url',   'Card URL (slug or path)', _vmpAdmin.url||'',   true) %>
+              <%- teField('text','nav.vanities_mega.promo.title', 'Title (HTML ok — use &lt;br&gt; for line break)', _vmpAdmin.title||'', true) %>
+              <%- teField('textarea','nav.vanities_mega.promo.sub','Sub-text', _vmpAdmin.sub||'', true) %>
+            </div>
           </div>
 
           <!-- ── SCROLLING TICKER ───────────────────────────── -->

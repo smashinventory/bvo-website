@@ -41,15 +41,21 @@
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
         </a>
         <div class="mega-menu" role="navigation" aria-label="<%= link.label %> menu">
-          <!-- Left col: functional + size tracks -->
+          <%
+            var _vm  = nav.vanities_mega || {};
+            var _vml = _vm.links || [];
+            var _vmp = _vm.promo || {};
+          %>
+          <!-- Left col: editable type links (admin) + dynamic size chips (DB) -->
           <div class="mega-col mega-col--links">
+            <% if (_vml.length) { %>
             <div class="mega-section">
-              <p class="mega-heading">Shop By Type</p>
-              <a class="mega-link" href="/collections/vanities?type=Single+Sink+Vanity">Single Sink Vanity</a>
-              <a class="mega-link" href="/collections/vanities?type=Double+Sink+Vanity">Double Sink Vanity</a>
-              <a class="mega-link" href="/collections/vanities?type=Vanity+With+Storage">Vanity With Storage</a>
-              <a class="mega-link" href="/collections/vanities?type=Base+Cabinet">Base Cabinet</a>
+              <p class="mega-heading"><%= _vm.section_heading || 'Shop By Type' %></p>
+              <% _vml.forEach(function(sl) { %>
+              <a class="mega-link" href="<%= sl.url %>"><%= sl.label %></a>
+              <% }) %>
             </div>
+            <% } %>
             <div class="mega-section">
               <p class="mega-heading">Shop By Size</p>
               <%/* Dynamic: only sizes with ≥1 active vanity product — from megaMenuData middleware */%>
@@ -60,24 +66,24 @@
               </div>
             </div>
           </div>
-          <!-- Middle col: finish/color track -->
+          <!-- Middle col: finish/color track — fully dynamic from DB */%>
           <div class="mega-col mega-col--finish">
             <div class="mega-section">
               <p class="mega-heading">Shop By Finish</p>
               <%/* Dynamic: cabinet color families with ≥1 active vanity — labels from colorFamilies.js.
-                * Rose appears automatically once rose-finish products are imported. */%>
+                * Rose, Sage, etc. appear automatically once matching products are imported. */%>
               <% (megaMenuColorFamilies || []).forEach(function(fam) { %>
               <a class="mega-link" href="/collections/vanities?color_family=<%= fam.key %>"><%= fam.label %> Vanities</a>
               <% }) %>
             </div>
           </div>
-          <!-- Right col: collections promo panel -->
+          <!-- Right col: promo card — editable in admin theme editor -->
           <div class="mega-col mega-col--promo">
-            <a href="/collections/vanity-models" class="mega-promo-card">
-              <p class="mega-promo-eyebrow">Our Collection</p>
-              <p class="mega-promo-title">Every Model,<br>Every Finish</p>
-              <p class="mega-promo-sub">Browse all vanity collections, sizes, and styles at a glance.</p>
-              <span class="mega-promo-cta">Browse All Collections &rarr;</span>
+            <a href="<%= _vmp.url || '/collections/vanity-models' %>" class="mega-promo-card">
+              <p class="mega-promo-eyebrow"><%= _vmp.eyebrow || 'Our Collection' %></p>
+              <p class="mega-promo-title"><%- _vmp.title || 'Every Model,<br>Every Finish' %></p>
+              <p class="mega-promo-sub"><%= _vmp.sub || '' %></p>
+              <span class="mega-promo-cta"><%- _vmp.cta || 'Browse All Collections' %> &rarr;</span>
             </a>
           </div>
         </div>
@@ -159,11 +165,12 @@
       <% (nav.links || []).forEach(link => { %>
       <li><a href="<%= link.url %>"<%= link.highlight ? ' class="nav-link-sale"' : '' %>><%= link.label %></a></li>
       <% if (link.megaMenu) { %>
-      <li class="mobile-sub"><a href="/collections/vanities?type=Single+Sink+Vanity">Single Sink</a></li>
-      <li class="mobile-sub"><a href="/collections/vanities?type=Double+Sink+Vanity">Double Sink</a></li>
-      <li class="mobile-sub"><a href="/collections/vanities?type=Vanity+With+Storage">With Storage</a></li>
-      <li class="mobile-sub"><a href="/collections/vanities?type=Base+Cabinet">Base Cabinet</a></li>
-      <li class="mobile-sub"><a href="/collections/vanity-models">Browse All Collections</a></li>
+      <%/* Type links — editable in admin mega menu editor */%>
+      <% ((nav.vanities_mega || {}).links || []).forEach(function(sl) { %>
+      <li class="mobile-sub"><a href="<%= sl.url %>"><%= sl.label %></a></li>
+      <% }) %>
+      <%/* Promo card target — editable in admin */%>
+      <li class="mobile-sub"><a href="<%= ((nav.vanities_mega || {}).promo || {}).url || '/collections/vanity-models' %>">Browse All Collections</a></li>
       <%/* Dynamic color families — same source as desktop mega menu */%>
       <% (megaMenuColorFamilies || []).forEach(function(fam) { %>
       <li class="mobile-sub"><a href="/collections/vanities?color_family=<%= fam.key %>"><%= fam.label %> Vanities</a></li>

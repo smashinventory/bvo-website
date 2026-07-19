@@ -48,12 +48,30 @@ const DEFAULTS = {
     brand_line2: 'Outlet',
     brand_line3: '.com',
     links: [
-      { label: 'Vanities',    url: '/collections/vanities' },
+      { label: 'Vanities',    url: '/collections/vanities', megaMenu: true },
       { label: 'Mirrors',     url: '/collections/mirrors' },
       { label: 'Faucets',     url: '/collections/faucets' },
       { label: 'Accessories', url: '/collections/accessories' },
       { label: 'Sale',        url: '/collections/sale', highlight: true },
     ],
+    /** Mega-menu content for the Vanities top-level link.
+     *  Kept separate from nav.links so array reindex never corrupts nested keys. */
+    vanities_mega: {
+      section_heading: 'Shop By Type',
+      links: [
+        { label: 'Single Sink Vanity',    url: '/collections/vanities?type=Single+Sink+Vanity' },
+        { label: 'Double Sink Vanity',    url: '/collections/vanities?type=Double+Sink+Vanity' },
+        { label: 'Vanity With Storage',   url: '/collections/vanities?type=Vanity+With+Storage' },
+        { label: 'Base Cabinet',          url: '/collections/vanities?type=Base+Cabinet' },
+      ],
+      promo: {
+        url:    '/collections/vanity-models',
+        eyebrow: 'Our Collection',
+        title:  'Every Model,<br>Every Finish',
+        sub:    'Browse all vanity collections, sizes, and styles at a glance.',
+        cta:    'Browse All Collections',
+      },
+    },
   },
   scrolling_ticker: {
     enabled: true,
