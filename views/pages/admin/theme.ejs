@@ -605,9 +605,10 @@ function teArrayLinks(prefix,listId,tplId,items){
             <div class="te4-section-label">Image</div>
             <%- teImage('image_with_text.image_url','image_with_text.image_alt',iwtsec.image_url,iwtsec.image_alt,'Section image') %>
             <div class="te4-section-label">Layout</div>
+            <div class="te4-field"><label>Layout mode</label><select name="image_with_text.image_position" class="te4-select"><option value="left" <%=(iwtsec.image_position||'left')==='left'?'selected':''%>>Image left, text right</option><option value="right" <%=iwtsec.image_position==='right'?'selected':''%>>Image right, text left</option><option value="center" <%=iwtsec.image_position==='center'?'selected':''%>>Center — text over image</option></select></div>
             <div class="te4-row2">
-              <div class="te4-field"><label>Image side</label><select name="image_with_text.image_position" class="te4-select"><option value="left" <%=(iwtsec.image_position||'left')==='left'?'selected':''%>>Image left</option><option value="right" <%=iwtsec.image_position==='right'?'selected':''%>>Image right</option></select></div>
-              <div class="te4-field"><label>Image width</label><select name="image_with_text.image_width" class="te4-select"><option value="40%" <%=(iwtsec.image_width||'50%')==='40%'?'selected':''%>>40%</option><option value="50%" <%=(iwtsec.image_width||'50%')==='50%'?'selected':''%>>50% (equal)</option><option value="60%" <%=iwtsec.image_width==='60%'?'selected':''%>>60%</option></select></div>
+              <div class="te4-field"><label>Image width <small style="opacity:.6">(side-by-side only)</small></label><select name="image_with_text.image_width" class="te4-select"><option value="40%" <%=(iwtsec.image_width||'50%')==='40%'?'selected':''%>>40% image / 60% text</option><option value="50%" <%=(iwtsec.image_width||'50%')==='50%'?'selected':''%>>50% / 50% (equal)</option><option value="60%" <%=iwtsec.image_width==='60%'?'selected':''%>>60% image / 40% text</option></select></div>
+              <%- teAlignment('image_with_text.text_align', iwtsec.text_align || 'left') %>
             </div>
             <div class="te4-section-label">Text content</div>
             <%- teField('text','image_with_text.eyebrow','Eyebrow',iwtsec.eyebrow) %>

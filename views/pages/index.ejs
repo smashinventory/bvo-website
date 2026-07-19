@@ -302,21 +302,26 @@ const news = S.newsletter         || {};
 <!-- ── IMAGE WITH TEXT ───────────────────────────────────────────── -->
 <% if (iwt.enabled !== false) { %>
 <%
-  var _iwtTag    = iwt.heading_level   || 'h2';
-  var _iwtHSize  = iwt.heading_size    ? 'font-size:'+iwt.heading_size+'px;' : '';
-  var _iwtBSize  = iwt.body_size       ? 'font-size:'+iwt.body_size+'px;'    : '';
-  var _iwtImgW   = iwt.image_width     || '50%';
-  var _iwtIsRight= iwt.image_position  === 'right';
+  var _iwtTag       = iwt.heading_level  || 'h2';
+  var _iwtHSize     = iwt.heading_size   ? 'font-size:'+iwt.heading_size+'px;' : '';
+  var _iwtBSize     = iwt.body_size      ? 'font-size:'+iwt.body_size+'px;'    : '';
+  var _iwtImgW      = iwt.image_width    || '50%';
+  var _iwtIsOverlay = iwt.image_position === 'center';
+  var _iwtIsRight   = iwt.image_position === 'right';
+  var _iwtTextAlign = iwt.text_align     || 'left';
+  var _iwtGridCls   = 'iwt-grid'
+                    + (_iwtIsRight && !_iwtIsOverlay ? ' iwt-reverse' : '')
+                    + (_iwtIsOverlay                 ? ' iwt-overlay-mode' : '');
 %>
 <section class="section iwt-section" data-section="image_with_text" data-section-label="Image with Text" aria-labelledby="iwt-heading">
   <div class="container">
-    <div class="iwt-grid<%= _iwtIsRight ? ' iwt-reverse' : '' %>">
-      <div class="iwt-image-col" style="flex:0 0 <%= _iwtImgW %>; max-width:<%= _iwtImgW %>">
+    <div class="<%= _iwtGridCls %>">
+      <div class="iwt-image-col"<%= !_iwtIsOverlay ? ' style="flex:0 0 '+_iwtImgW+'; max-width:'+_iwtImgW+'"' : '' %>>
         <% if (iwt.image_url) { %>
         <img src="<%= iwt.image_url %>" alt="<%= iwt.image_alt || '' %>" loading="lazy" class="iwt-img">
         <% } %>
       </div>
-      <div class="iwt-text-col">
+      <div class="iwt-text-col" style="text-align:<%= _iwtIsOverlay ? 'center' : _iwtTextAlign %>">
         <% if (iwt.eyebrow) { %><p class="section-eyebrow"><%= iwt.eyebrow %></p><% } %>
         <<%- _iwtTag %> class="iwt-heading" id="iwt-heading" style="<%= _iwtHSize %>"><%= iwt.heading || 'The Bathroom Renovation Experts' %></<%- _iwtTag %>>
         <% if (iwt.body) { %><p class="iwt-body" style="<%= _iwtBSize %>"><%= iwt.body %></p><% } %>

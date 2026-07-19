@@ -286,7 +286,7 @@ ul[role="list"] { list-style: none; }
 .hero-eyebrow       { font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--sage); margin-bottom: 16px; }
 .hero-h1            { font-family: var(--font-serif); font-size: 2.6rem; line-height: 1.12; color: var(--navy); margin-bottom: 4px; }
 .hero-h2            { font-family: var(--font-serif); font-size: 2.6rem; line-height: 1.12; color: var(--amber); margin-bottom: 20px; }
-.hero-rule          { width: 100px; height: 3px; background: var(--sage); margin-bottom: 20px; }
+.hero-rule          { display: inline-block; width: 100px; height: 3px; background: var(--sage); margin-bottom: 20px; }
 .hero-sub           { font-size: 1rem; color: var(--sage); margin-bottom: 8px; }
 .hero-sub2          { font-size: .875rem; color: var(--muted); margin-bottom: 36px; }
 .hero-ctas          { display: flex; gap: 16px; flex-wrap: wrap; }
