@@ -41,7 +41,9 @@ router.post('/products/:id/docs/:docId/delete',                   ctrl.productDe
 
 /* ── Categories ─────────────────────────────────────────────── */
 router.get ('/categories',                                          ctrl.categoryList);
+router.get ('/categories/new',                                      ctrl.categoryNew);
 router.post('/categories',                                          ctrl.categoryCreate);
+router.get ('/categories/:id/edit',                                 ctrl.categoryEditPage);
 router.post('/categories/:id',                                      ctrl.categoryUpdate);
 router.post('/categories/:id/delete',                               ctrl.categoryDelete);
 router.post('/categories/:id/image', ctrl.categoryImageMiddleware,  ctrl.categorySetImage);

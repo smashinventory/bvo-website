@@ -1,225 +1,164 @@
 <%
 /**
- * Admin — Categories Manager
- * Locals: categories [{id, slug, name, description, image_url, sort_order, is_active, display_mode}]
+ * Admin — Categories list
+ * Locals: categories [{id, slug, name, description, image_url, sort_order, is_active, display_mode, product_count}]
  *         flash {type, msg} | null
  */
 %>
 
 <% if (locals.flash) { %>
-<div class="adm-flash adm-flash--<%= flash.type %>" style="margin-bottom:16px"><%- flash.msg %></div>
+<div class="adm-flash adm-flash--<%= flash.type %>"><%- flash.msg %></div>
 <% } %>
 
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+<!-- Header bar -->
+<div class="cat-list-header">
   <div>
-    <h2 style="margin:0;font-size:1.25rem">Categories</h2>
-    <p style="margin:4px 0 0;font-size:.8rem;color:#666"><%= categories.length %> root categor<%= categories.length === 1 ? 'y' : 'ies' %></p>
+    <h2 class="cat-list-title">Categories</h2>
+    <p class="cat-list-sub"><%= categories.length %> categor<%= categories.length === 1 ? 'y' : 'ies' %></p>
   </div>
-  <button class="adm-btn adm-btn--primary" onclick="document.getElementById('newCatPanel').style.display='block';this.style.display='none'">
-    + Add Category
-  </button>
+  <a href="/admin/categories/new" class="adm-btn adm-btn--primary">+ Add Category</a>
 </div>
 
-<!-- ── Add Category panel ─────────────────────────────────────── -->
-<div id="newCatPanel" style="display:none;background:#f8f7f4;border:1px solid #ddd;border-radius:8px;padding:20px;margin-bottom:24px">
-  <h3 style="margin:0 0 16px;font-size:1rem">New Category</h3>
-  <form method="POST" action="/admin/categories">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-      <div>
-        <label class="adm-label">Name *</label>
-        <input class="adm-input" type="text" name="name" required placeholder="e.g. Vanities"
-               oninput="this.form.slug.value=this.value.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')">
-      </div>
-      <div>
-        <label class="adm-label">Slug *</label>
-        <input class="adm-input" type="text" name="slug" required placeholder="e.g. vanities">
-      </div>
-      <div style="grid-column:1/-1">
-        <label class="adm-label">Description</label>
-        <input class="adm-input" type="text" name="description" placeholder="Short description shown on homepage">
-      </div>
-      <div>
-        <label class="adm-label">Display Mode</label>
-        <select class="adm-input" name="display_mode">
-          <option value="product">product (default grid)</option>
-          <option value="model-group">model-group (vanity carousel)</option>
-        </select>
-      </div>
-      <div>
-        <label class="adm-label">Sort Order</label>
-        <input class="adm-input" type="number" name="sort_order" value="0" min="0">
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;padding-top:20px">
-        <input type="checkbox" name="is_active" id="newIsActive" value="1" checked>
-        <label for="newIsActive" style="font-size:.875rem">Active (visible on site)</label>
-      </div>
-    </div>
-    <div style="margin-top:16px;display:flex;gap:8px">
-      <button class="adm-btn adm-btn--primary" type="submit">Create</button>
-      <button class="adm-btn" type="button"
-              onclick="document.getElementById('newCatPanel').style.display='none';document.querySelector('[onclick*=newCatPanel]').style.display=''">
-        Cancel
-      </button>
-    </div>
-  </form>
-</div>
-
-<!-- ── Category table ─────────────────────────────────────────── -->
+<!-- List -->
 <% if (categories.length === 0) { %>
 <div class="adm-empty">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-  <p>No categories yet. Add one above.</p>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
+    <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+    <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+  </svg>
+  <p>No categories yet.</p>
+  <a href="/admin/categories/new" class="adm-btn adm-btn--primary" style="margin-top:12px">Add your first category</a>
 </div>
 <% } else { %>
-<div class="adm-table-wrap">
-  <table class="adm-table">
-    <thead>
-      <tr>
-        <th style="width:64px">Image</th>
-        <th>Name / Slug</th>
-        <th>Description</th>
-        <th style="width:100px">Mode</th>
-        <th style="width:60px;text-align:center">Order</th>
-        <th style="width:70px;text-align:center">Active</th>
-        <th style="width:160px">Image Upload</th>
-        <th style="width:80px"></th>
-      </tr>
-    </thead>
-    <tbody>
-      <% categories.forEach(function(cat) { %>
-      <tr id="cat-row-<%= cat.id %>">
-        <!-- Thumbnail -->
-        <td>
-          <% if (cat.image_url) { %>
-          <img src="<%= cat.image_url %>" alt=""
-               style="width:52px;height:40px;object-fit:cover;border-radius:4px;border:1px solid #ddd">
-          <% } else { %>
-          <div style="width:52px;height:40px;background:#f0ede8;border-radius:4px;border:1px solid #ddd;display:flex;align-items:center;justify-content:center">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#bbb" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-          </div>
-          <% } %>
-        </td>
+<div class="cat-list-wrap">
+  <% categories.forEach(function(cat) { %>
+  <div class="cat-list-row">
 
-        <!-- Name / Slug — inline edit -->
-        <td>
-          <form method="POST" action="/admin/categories/<%= cat.id %>">
-            <input type="hidden" name="_method" value="PUT">
-            <strong style="display:block;font-size:.875rem">
-              <input class="adm-input" name="name" value="<%= cat.name %>"
-                     style="font-weight:600;width:140px;padding:3px 6px;font-size:.8rem">
-            </strong>
-            <span style="font-size:.75rem;color:#888">
-              /collections/<input class="adm-input" name="slug" value="<%= cat.slug %>"
-                                  style="width:110px;padding:2px 5px;font-size:.75rem;color:#555">
-            </span>
-            <input type="hidden" name="description" value="<%= cat.description || '' %>">
-            <input type="hidden" name="sort_order"  value="<%= cat.sort_order  || 0   %>">
-            <input type="hidden" name="display_mode" value="<%= cat.display_mode || 'product' %>">
-            <input type="hidden" name="is_active"   value="<%= cat.is_active ? 1 : 0 %>">
-            <button class="adm-btn" type="submit" style="margin-top:4px;font-size:.7rem;padding:2px 8px">Save</button>
-          </form>
-        </td>
+    <!-- Thumbnail -->
+    <div class="cat-list-thumb">
+      <% if (cat.image_url) { %>
+        <img src="<%= cat.image_url %>" alt="<%= cat.name %>">
+      <% } else { %>
+        <div class="cat-list-thumb-empty">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#ccc" stroke-width="1.5">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>
+        </div>
+      <% } %>
+    </div>
 
-        <!-- Description -->
-        <td style="font-size:.8rem;color:#555;max-width:180px">
-          <form method="POST" action="/admin/categories/<%= cat.id %>">
-            <input type="hidden" name="name"         value="<%= cat.name %>">
-            <input type="hidden" name="slug"         value="<%= cat.slug %>">
-            <input type="hidden" name="sort_order"   value="<%= cat.sort_order  || 0 %>">
-            <input type="hidden" name="display_mode" value="<%= cat.display_mode || 'product' %>">
-            <input type="hidden" name="is_active"    value="<%= cat.is_active ? 1 : 0 %>">
-            <input class="adm-input" name="description" value="<%= cat.description || '' %>"
-                   style="width:100%;font-size:.78rem;padding:3px 6px">
-            <button class="adm-btn" type="submit" style="margin-top:4px;font-size:.7rem;padding:2px 8px">Save</button>
-          </form>
-        </td>
+    <!-- Info -->
+    <div class="cat-list-info">
+      <a href="/admin/categories/<%= cat.id %>/edit" class="cat-list-name"><%= cat.name %></a>
+      <span class="cat-list-slug">/collections/<%= cat.slug %></span>
+    </div>
 
-        <!-- Display Mode -->
-        <td style="font-size:.78rem">
-          <form method="POST" action="/admin/categories/<%= cat.id %>">
-            <input type="hidden" name="name"        value="<%= cat.name %>">
-            <input type="hidden" name="slug"        value="<%= cat.slug %>">
-            <input type="hidden" name="description" value="<%= cat.description || '' %>">
-            <input type="hidden" name="sort_order"  value="<%= cat.sort_order  || 0  %>">
-            <input type="hidden" name="is_active"   value="<%= cat.is_active ? 1 : 0 %>">
-            <select class="adm-input" name="display_mode" style="font-size:.75rem;padding:3px 4px">
-              <option value="product"     <%= (cat.display_mode||'product')==='product'     ? 'selected' : '' %>>product</option>
-              <option value="model-group" <%= (cat.display_mode||'')==='model-group' ? 'selected' : '' %>>model-group</option>
-            </select>
-            <button class="adm-btn" type="submit" style="margin-top:4px;font-size:.7rem;padding:2px 8px">Save</button>
-          </form>
-        </td>
+    <!-- Mode badge -->
+    <div class="cat-list-mode">
+      <span class="cat-badge cat-badge--<%= cat.display_mode === 'model-group' ? 'mg' : 'prod' %>">
+        <%= cat.display_mode === 'model-group' ? 'Model Group' : 'Product' %>
+      </span>
+    </div>
 
-        <!-- Sort order -->
-        <td style="text-align:center">
-          <form method="POST" action="/admin/categories/<%= cat.id %>">
-            <input type="hidden" name="name"        value="<%= cat.name %>">
-            <input type="hidden" name="slug"        value="<%= cat.slug %>">
-            <input type="hidden" name="description" value="<%= cat.description || '' %>">
-            <input type="hidden" name="display_mode" value="<%= cat.display_mode || 'product' %>">
-            <input type="hidden" name="is_active"   value="<%= cat.is_active ? 1 : 0 %>">
-            <input class="adm-input" type="number" name="sort_order" value="<%= cat.sort_order || 0 %>"
-                   style="width:48px;text-align:center;padding:3px 4px;font-size:.8rem" min="0">
-            <button class="adm-btn" type="submit" style="display:block;margin:4px auto 0;font-size:.7rem;padding:2px 8px">Save</button>
-          </form>
-        </td>
+    <!-- Product count -->
+    <div class="cat-list-count">
+      <span><%= cat.product_count %> product<%= cat.product_count !== 1 ? 's' : '' %></span>
+    </div>
 
-        <!-- Active toggle -->
-        <td style="text-align:center">
-          <form method="POST" action="/admin/categories/<%= cat.id %>">
-            <input type="hidden" name="name"        value="<%= cat.name %>">
-            <input type="hidden" name="slug"        value="<%= cat.slug %>">
-            <input type="hidden" name="description" value="<%= cat.description || '' %>">
-            <input type="hidden" name="sort_order"  value="<%= cat.sort_order  || 0  %>">
-            <input type="hidden" name="display_mode" value="<%= cat.display_mode || 'product' %>">
-            <input type="hidden" name="is_active" value="0">
-            <input type="checkbox" name="is_active" value="1" <%= cat.is_active ? 'checked' : '' %>
-                   onchange="this.form.submit()" title="Toggle active">
-          </form>
-        </td>
+    <!-- Active status -->
+    <div class="cat-list-status">
+      <span class="cat-status cat-status--<%= cat.is_active ? 'active' : 'inactive' %>">
+        <%= cat.is_active ? 'Active' : 'Draft' %>
+      </span>
+    </div>
 
-        <!-- Image upload -->
-        <td>
-          <form method="POST" action="/admin/categories/<%= cat.id %>/image" enctype="multipart/form-data"
-                style="display:flex;align-items:center;gap:6px">
-            <input type="file" name="image_file" accept="image/*" required
-                   style="font-size:.72rem;max-width:100px">
-            <button class="adm-btn" type="submit" style="font-size:.7rem;padding:3px 8px;white-space:nowrap">Upload</button>
-          </form>
-        </td>
+    <!-- Actions -->
+    <div class="cat-list-actions">
+      <a href="/admin/categories/<%= cat.id %>/edit" class="adm-btn">Edit</a>
+      <a href="/collections/<%= cat.slug %>" target="_blank" class="adm-btn" title="View on site">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      </a>
+      <form method="POST" action="/admin/categories/<%= cat.id %>/delete" style="display:inline"
+            onsubmit="return confirm('Delete «<%= cat.name %>»? This cannot be undone.')">
+        <button class="adm-btn adm-btn--danger" type="submit">Delete</button>
+      </form>
+    </div>
 
-        <!-- Delete -->
-        <td>
-          <form method="POST" action="/admin/categories/<%= cat.id %>/delete"
-                onsubmit="return confirm('Delete «<%= cat.name %>»? This cannot be undone.')">
-            <button class="adm-btn adm-btn--danger" type="submit" style="font-size:.75rem;padding:4px 10px">Delete</button>
-          </form>
-        </td>
-      </tr>
-      <% }); %>
-    </tbody>
-  </table>
+  </div>
+  <% }); %>
 </div>
 <% } %>
 
 <style>
-.adm-flash { padding:10px 16px;border-radius:8px;margin-bottom:16px;font-size:.875rem }
+/* ── Flash ── */
+.adm-flash { padding:10px 16px;border-radius:8px;margin-bottom:20px;font-size:.875rem }
 .adm-flash--success { background:#f0faf2;border:1px solid #7A9E7E;color:#2d6a38 }
 .adm-flash--error   { background:#fff5f5;border:1px solid #c00;color:#900 }
-.adm-label { display:block;font-size:.75rem;font-weight:600;color:#555;margin-bottom:4px }
-.adm-input { border:1px solid #d0cdc8;border-radius:4px;padding:6px 10px;font-size:.875rem;width:100%;box-sizing:border-box }
-.adm-input:focus { outline:none;border-color:#B8963A }
-.adm-btn { display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:6px;border:1px solid #d0cdc8;background:#fff;font-size:.8125rem;font-weight:600;cursor:pointer;color:#333;white-space:nowrap }
-.adm-btn:hover { border-color:#B8963A;color:#B8963A }
-.adm-btn--primary { background:#B8963A;border-color:#B8963A;color:#fff }
+
+/* ── Header ── */
+.cat-list-header { display:flex;align-items:center;justify-content:space-between;margin-bottom:24px }
+.cat-list-title  { margin:0;font-size:1.25rem;font-weight:700;color:#182840 }
+.cat-list-sub    { margin:4px 0 0;font-size:.8rem;color:#888 }
+
+/* ── List ── */
+.cat-list-wrap { border:1px solid #e5e0d8;border-radius:10px;overflow:hidden }
+.cat-list-row  {
+  display:grid;
+  grid-template-columns: 56px 1fr 120px 100px 80px auto;
+  align-items:center;
+  gap:16px;
+  padding:14px 20px;
+  border-bottom:1px solid #f0ede8;
+  background:#fff;
+  transition:background .12s;
+}
+.cat-list-row:last-child { border-bottom:none }
+.cat-list-row:hover      { background:#faf9f6 }
+
+/* Thumbnail */
+.cat-list-thumb     { width:56px;height:48px;border-radius:6px;overflow:hidden;border:1px solid #e5e0d8;flex-shrink:0 }
+.cat-list-thumb img { width:100%;height:100%;object-fit:cover;display:block }
+.cat-list-thumb-empty { width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#f8f6f2 }
+
+/* Info */
+.cat-list-info  { min-width:0 }
+.cat-list-name  { font-weight:700;font-size:.9rem;color:#182840;text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis }
+.cat-list-name:hover { color:#B8963A }
+.cat-list-slug  { font-size:.72rem;color:#aaa;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis }
+
+/* Mode badge */
+.cat-badge         { font-size:.68rem;font-weight:700;padding:2px 8px;border-radius:12px;letter-spacing:.04em;white-space:nowrap }
+.cat-badge--prod   { background:#e8f4ff;color:#1a6eb5 }
+.cat-badge--mg     { background:#f3edff;color:#6b3fa0 }
+
+/* Count */
+.cat-list-count { font-size:.8rem;color:#888;white-space:nowrap }
+
+/* Status */
+.cat-status          { font-size:.72rem;font-weight:700;padding:3px 10px;border-radius:12px;white-space:nowrap }
+.cat-status--active  { background:#e6f9ee;color:#1e7a3c }
+.cat-status--inactive{ background:#f5f5f5;color:#999;border:1px solid #e0e0e0 }
+
+/* Actions */
+.cat-list-actions { display:flex;align-items:center;gap:6px }
+
+/* Shared buttons */
+.adm-btn { display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:6px;border:1px solid #d0cdc8;background:#fff;font-size:.8rem;font-weight:600;cursor:pointer;color:#333;text-decoration:none;white-space:nowrap }
+.adm-btn:hover      { border-color:#B8963A;color:#B8963A }
+.adm-btn--primary   { background:#B8963A;border-color:#B8963A;color:#fff }
 .adm-btn--primary:hover { background:#a07c28;border-color:#a07c28;color:#fff }
-.adm-btn--danger { border-color:#c00;color:#c00 }
-.adm-btn--danger:hover { background:#fff5f5 }
-.adm-table-wrap { overflow-x:auto }
-.adm-table { width:100%;border-collapse:collapse;font-size:.875rem }
-.adm-table th { background:#f5f3ef;padding:10px 12px;text-align:left;font-size:.75rem;font-weight:700;color:#555;border-bottom:2px solid #e5e0d8 }
-.adm-table td { padding:10px 12px;border-bottom:1px solid #f0ede8;vertical-align:middle }
-.adm-table tr:hover td { background:#faf9f6 }
-.adm-empty { text-align:center;padding:48px 24px;color:#aaa }
-.adm-empty svg { margin-bottom:12px;opacity:.4 }
+.adm-btn--danger    { border-color:#dc3545;color:#dc3545 }
+.adm-btn--danger:hover  { background:#fff5f5 }
+
+/* Empty state */
+.adm-empty { text-align:center;padding:60px 24px;color:#aaa }
+.adm-empty svg { margin-bottom:16px;opacity:.35 }
+.adm-empty p   { font-size:.95rem;margin:0 }
+
+@media (max-width:768px) {
+  .cat-list-row { grid-template-columns:48px 1fr auto;gap:10px }
+  .cat-list-mode,.cat-list-count,.cat-list-status { display:none }
+}
 </style>

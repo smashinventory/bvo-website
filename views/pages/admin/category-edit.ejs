@@ -1,0 +1,326 @@
+<%
+/**
+ * Admin — Category edit / new
+ * Locals: category {id, slug, name, description, image_url, sort_order, is_active, display_mode, meta_title, meta_desc} | null
+ *         isNew Boolean
+ *         flash {type, msg} | null
+ */
+const isNew    = locals.isNew !== false;
+const cat      = locals.category || {};
+const formAction = isNew ? '/admin/categories' : `/admin/categories/${cat.id}`;
+%>
+
+<!-- Breadcrumb -->
+<div class="ce-breadcrumb">
+  <a href="/admin/categories">Categories</a>
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#aaa" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+  <span><%= isNew ? 'New Category' : cat.name %></span>
+</div>
+
+<% if (locals.flash) { %>
+<div class="adm-flash adm-flash--<%= flash.type %>"><%-  flash.msg %></div>
+<% } %>
+
+<form method="POST" action="<%= formAction %>" id="catEditForm" novalidate>
+
+  <!-- Top bar -->
+  <div class="ce-topbar">
+    <h2 class="ce-title"><%= isNew ? 'New Category' : 'Edit Category' %></h2>
+    <div class="ce-topbar-actions">
+      <a href="/admin/categories" class="adm-btn">Discard</a>
+      <button type="submit" class="adm-btn adm-btn--primary">Save</button>
+    </div>
+  </div>
+
+  <div class="ce-layout">
+
+    <!-- ── LEFT COLUMN: image ──────────────────────────────── -->
+    <div class="ce-sidebar">
+
+      <!-- Image card -->
+      <div class="ce-card">
+        <h3 class="ce-card-title">Category Image</h3>
+
+        <% if (!isNew) { %>
+        <div class="ce-img-preview" id="ceImgPreview">
+          <% if (cat.image_url) { %>
+            <img src="<%= cat.image_url %>" alt="<%= cat.name %>" id="ceCurrentImg">
+            <button type="button" class="ce-img-remove" id="ceRemoveImg" title="Remove image">×</button>
+          <% } else { %>
+            <div class="ce-img-placeholder" id="ceImgPlaceholder">
+              <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="#ccc" stroke-width="1.5">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+              <span>No image</span>
+            </div>
+          <% } %>
+        </div>
+
+        <!-- Upload form (separate POST) -->
+        <form method="POST" action="/admin/categories/<%= cat.id %>/image"
+              enctype="multipart/form-data" id="ceImgUploadForm">
+          <label class="ce-upload-label" for="ceImgInput">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Upload image
+          </label>
+          <input type="file" id="ceImgInput" name="image" accept="image/*" class="ce-file-input" onchange="document.getElementById('ceImgUploadForm').submit()">
+        </form>
+
+        <p class="ce-img-hint">PNG, JPG, WebP. Recommended: 800×600 px or wider.</p>
+        <% } else { %>
+        <p class="ce-img-hint">Save the category first, then upload an image.</p>
+        <% } %>
+      </div>
+
+      <!-- Status card -->
+      <div class="ce-card">
+        <h3 class="ce-card-title">Status</h3>
+        <label class="ce-toggle-row">
+          <span>Active</span>
+          <div class="ce-toggle-wrap">
+            <input type="checkbox" name="is_active" id="isActiveChk" value="1" class="ce-toggle-input"
+                   <%= (cat.is_active || isNew) ? 'checked' : '' %>>
+            <span class="ce-toggle-slider"></span>
+          </div>
+        </label>
+        <p class="ce-field-hint">Inactive categories are hidden from the storefront.</p>
+      </div>
+
+      <!-- Sort order -->
+      <div class="ce-card">
+        <h3 class="ce-card-title">Sort Order</h3>
+        <input type="number" name="sort_order" class="ce-input" value="<%= cat.sort_order || 0 %>" min="0" step="1">
+        <p class="ce-field-hint">Lower numbers appear first.</p>
+      </div>
+
+    </div><!-- /.ce-sidebar -->
+
+    <!-- ── RIGHT COLUMN: main fields ──────────────────────── -->
+    <div class="ce-main">
+
+      <!-- Core fields -->
+      <div class="ce-card">
+        <h3 class="ce-card-title">Details</h3>
+
+        <div class="ce-field">
+          <label class="ce-label" for="catName">Name <span class="ce-required">*</span></label>
+          <input type="text" id="catName" name="name" class="ce-input" required
+                 value="<%= cat.name || '' %>" placeholder="e.g. Bathroom Vanities"
+                 oninput="autoSlug(this.value)">
+        </div>
+
+        <div class="ce-field">
+          <label class="ce-label" for="catSlug">
+            Slug <span class="ce-required">*</span>
+            <span class="ce-label-hint">— URL-safe identifier</span>
+          </label>
+          <div class="ce-input-prefix-wrap">
+            <span class="ce-input-prefix">/collections/</span>
+            <input type="text" id="catSlug" name="slug" class="ce-input ce-input--prefixed" required
+                   value="<%= cat.slug || '' %>" placeholder="bathroom-vanities">
+          </div>
+        </div>
+
+        <div class="ce-field">
+          <label class="ce-label" for="catDesc">Description</label>
+          <textarea id="catDesc" name="description" class="ce-textarea" rows="4"
+                    placeholder="Short description shown on the category page…"><%= cat.description || '' %></textarea>
+        </div>
+
+        <div class="ce-field">
+          <label class="ce-label" for="catDisplayMode">Display Mode</label>
+          <select id="catDisplayMode" name="display_mode" class="ce-select">
+            <option value="product"      <%= (cat.display_mode || 'product') === 'product'      ? 'selected' : '' %>>Product (standard grid)</option>
+            <option value="model-group"  <%= (cat.display_mode) === 'model-group'  ? 'selected' : '' %>>Model Group (vanity models)</option>
+          </select>
+          <p class="ce-field-hint">Model Group renders the grouped color/size selector used for vanity models.</p>
+        </div>
+      </div>
+
+      <!-- SEO / Meta -->
+      <div class="ce-card">
+        <h3 class="ce-card-title">SEO &amp; Meta</h3>
+
+        <div class="ce-field">
+          <label class="ce-label" for="catMetaTitle">Meta Title</label>
+          <input type="text" id="catMetaTitle" name="meta_title" class="ce-input"
+                 value="<%= cat.meta_title || '' %>" placeholder="Leave blank to use category name"
+                 maxlength="160" oninput="updateMetaCount(this,'metaTitleCount')">
+          <div class="ce-meta-row">
+            <p class="ce-field-hint">Appears in browser tab and search results.</p>
+            <span class="ce-char-count" id="metaTitleCount"><%= (cat.meta_title || '').length %>/160</span>
+          </div>
+        </div>
+
+        <div class="ce-field">
+          <label class="ce-label" for="catMetaDesc">Meta Description</label>
+          <textarea id="catMetaDesc" name="meta_desc" class="ce-textarea" rows="3"
+                    placeholder="Short description for search engines…" maxlength="320"
+                    oninput="updateMetaCount(this,'metaDescCount')"><%= cat.meta_desc || '' %></textarea>
+          <div class="ce-meta-row">
+            <p class="ce-field-hint">Recommended: 120–160 characters.</p>
+            <span class="ce-char-count" id="metaDescCount"><%= (cat.meta_desc || '').length %>/320</span>
+          </div>
+        </div>
+
+        <% if (!isNew && cat.slug) { %>
+        <div class="ce-seo-preview">
+          <p class="ce-seo-title" id="seoPreviewTitle"><%= cat.meta_title || cat.name || 'Page Title' %></p>
+          <p class="ce-seo-url">bathroomvanitiesoutlet.com/collections/<%= cat.slug %></p>
+          <p class="ce-seo-desc" id="seoPreviewDesc"><%= cat.meta_desc || cat.description || 'Page description will appear here.' %></p>
+        </div>
+        <% } %>
+      </div>
+
+      <!-- Danger zone (edit only) -->
+      <% if (!isNew) { %>
+      <div class="ce-card ce-card--danger">
+        <h3 class="ce-card-title ce-card-title--danger">Danger Zone</h3>
+        <div class="ce-danger-row">
+          <div>
+            <p class="ce-danger-label">Delete this category</p>
+            <p class="ce-danger-hint">This action cannot be undone. Products will not be deleted but will lose their category assignment.</p>
+          </div>
+          <form method="POST" action="/admin/categories/<%= cat.id %>/delete"
+                onsubmit="return confirm('Delete «<%= cat.name %>»? This cannot be undone.')">
+            <button type="submit" class="adm-btn adm-btn--danger">Delete</button>
+          </form>
+        </div>
+      </div>
+      <% } %>
+
+    </div><!-- /.ce-main -->
+
+  </div><!-- /.ce-layout -->
+
+</form><!-- /#catEditForm -->
+
+<style>
+/* ── Flash ── */
+.adm-flash { padding:10px 16px;border-radius:8px;margin-bottom:16px;font-size:.875rem }
+.adm-flash--success { background:#f0faf2;border:1px solid #7A9E7E;color:#2d6a38 }
+.adm-flash--error   { background:#fff5f5;border:1px solid #c00;color:#900 }
+
+/* ── Breadcrumb ── */
+.ce-breadcrumb { display:flex;align-items:center;gap:6px;font-size:.8rem;color:#aaa;margin-bottom:16px }
+.ce-breadcrumb a { color:#B8963A;text-decoration:none }
+.ce-breadcrumb a:hover { text-decoration:underline }
+
+/* ── Top bar ── */
+.ce-topbar { display:flex;align-items:center;justify-content:space-between;margin-bottom:24px }
+.ce-title   { margin:0;font-size:1.2rem;font-weight:700;color:#182840 }
+.ce-topbar-actions { display:flex;gap:8px }
+
+/* ── Layout ── */
+.ce-layout { display:grid;grid-template-columns:260px 1fr;gap:20px;align-items:start }
+@media (max-width:768px) { .ce-layout { grid-template-columns:1fr } }
+
+/* ── Cards ── */
+.ce-card { background:#fff;border:1px solid #e5e0d8;border-radius:10px;padding:20px;margin-bottom:16px }
+.ce-card-title { margin:0 0 16px;font-size:.875rem;font-weight:700;color:#182840;text-transform:uppercase;letter-spacing:.06em }
+.ce-card--danger { border-color:#f8d7da }
+.ce-card-title--danger { color:#dc3545 }
+
+/* ── Image ── */
+.ce-img-preview { position:relative;width:100%;aspect-ratio:4/3;border:1px solid #e5e0d8;border-radius:8px;overflow:hidden;margin-bottom:12px;background:#f8f6f2 }
+.ce-img-preview img { width:100%;height:100%;object-fit:cover;display:block }
+.ce-img-placeholder { width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#ccc;font-size:.8rem }
+.ce-img-remove { position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:none;cursor:pointer;font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center }
+.ce-upload-label { display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:6px;border:1px solid #d0cdc8;font-size:.8rem;font-weight:600;cursor:pointer;color:#333;background:#fff;margin-bottom:6px }
+.ce-upload-label:hover { border-color:#B8963A;color:#B8963A }
+.ce-file-input { position:absolute;opacity:0;pointer-events:none;width:0;height:0 }
+.ce-img-hint { font-size:.72rem;color:#aaa;margin:4px 0 0 }
+
+/* ── Toggle ── */
+.ce-toggle-row { display:flex;align-items:center;justify-content:space-between;cursor:pointer;font-size:.875rem;color:#444;margin-bottom:6px }
+.ce-toggle-wrap { position:relative;width:40px;height:22px;flex-shrink:0 }
+.ce-toggle-input { opacity:0;width:0;height:0;position:absolute }
+.ce-toggle-slider { position:absolute;inset:0;border-radius:22px;background:#ccc;transition:.2s;cursor:pointer }
+.ce-toggle-slider::before { content:'';position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.2s }
+.ce-toggle-input:checked + .ce-toggle-slider { background:#B8963A }
+.ce-toggle-input:checked + .ce-toggle-slider::before { transform:translateX(18px) }
+
+/* ── Fields ── */
+.ce-field { margin-bottom:16px }
+.ce-field:last-child { margin-bottom:0 }
+.ce-label { display:block;font-size:.8rem;font-weight:700;color:#444;margin-bottom:5px }
+.ce-label-hint { font-weight:400;color:#aaa }
+.ce-required { color:#dc3545 }
+.ce-input { width:100%;padding:8px 11px;border:1px solid #d0cdc8;border-radius:6px;font-size:.875rem;color:#333;background:#fff;box-sizing:border-box;transition:border-color .15s }
+.ce-input:focus { outline:none;border-color:#B8963A;box-shadow:0 0 0 2px rgba(184,150,58,.15) }
+.ce-textarea { width:100%;padding:8px 11px;border:1px solid #d0cdc8;border-radius:6px;font-size:.875rem;color:#333;background:#fff;box-sizing:border-box;resize:vertical;font-family:inherit;transition:border-color .15s }
+.ce-textarea:focus { outline:none;border-color:#B8963A;box-shadow:0 0 0 2px rgba(184,150,58,.15) }
+.ce-select { width:100%;padding:8px 11px;border:1px solid #d0cdc8;border-radius:6px;font-size:.875rem;color:#333;background:#fff;box-sizing:border-box }
+.ce-select:focus { outline:none;border-color:#B8963A }
+.ce-field-hint { font-size:.72rem;color:#aaa;margin:5px 0 0 }
+.ce-input-prefix-wrap { display:flex;align-items:center }
+.ce-input-prefix { padding:8px 10px;border:1px solid #d0cdc8;border-right:none;border-radius:6px 0 0 6px;background:#f8f6f2;font-size:.8rem;color:#999;white-space:nowrap }
+.ce-input--prefixed { border-radius:0 6px 6px 0;flex:1 }
+
+/* ── Meta / SEO ── */
+.ce-meta-row { display:flex;justify-content:space-between;align-items:flex-start }
+.ce-char-count { font-size:.72rem;color:#aaa;margin-top:5px;white-space:nowrap }
+.ce-seo-preview { margin-top:16px;padding:14px;background:#f8f6f2;border-radius:8px;border:1px solid #e5e0d8 }
+.ce-seo-title { margin:0 0 2px;font-size:.95rem;font-weight:600;color:#1a0dab;overflow:hidden;text-overflow:ellipsis;white-space:nowrap }
+.ce-seo-url   { margin:0 0 4px;font-size:.75rem;color:#006621 }
+.ce-seo-desc  { margin:0;font-size:.8rem;color:#545454;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden }
+
+/* ── Danger zone ── */
+.ce-danger-row { display:flex;align-items:flex-start;justify-content:space-between;gap:16px }
+.ce-danger-label { font-size:.875rem;font-weight:700;color:#dc3545;margin:0 0 4px }
+.ce-danger-hint  { font-size:.75rem;color:#888;margin:0 }
+
+/* ── Shared buttons ── */
+.adm-btn { display:inline-flex;align-items:center;gap:5px;padding:7px 16px;border-radius:6px;border:1px solid #d0cdc8;background:#fff;font-size:.8rem;font-weight:600;cursor:pointer;color:#333;text-decoration:none;white-space:nowrap }
+.adm-btn:hover      { border-color:#B8963A;color:#B8963A }
+.adm-btn--primary   { background:#B8963A;border-color:#B8963A;color:#fff }
+.adm-btn--primary:hover { background:#a07c28;border-color:#a07c28;color:#fff }
+.adm-btn--danger    { border-color:#dc3545;color:#dc3545 }
+.adm-btn--danger:hover  { background:#fff5f5 }
+</style>
+
+<script>
+/* ── Slug auto-derive from name ── */
+function autoSlug(name) {
+  var slugInput = document.getElementById('catSlug');
+  if (!slugInput) return;
+  // Only auto-derive if user hasn't manually set the slug
+  if (slugInput.dataset.manual === '1') return;
+  slugInput.value = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+document.getElementById('catSlug')?.addEventListener('input', function () {
+  this.dataset.manual = '1';
+});
+
+/* ── Character counters ── */
+function updateMetaCount(el, countId) {
+  var span = document.getElementById(countId);
+  if (span) span.textContent = el.value.length + '/' + el.maxLength;
+}
+
+/* ── SEO preview live update ── */
+(function () {
+  var titleInput   = document.getElementById('catMetaTitle');
+  var descTextarea = document.getElementById('catMetaDesc');
+  var previewTitle = document.getElementById('seoPreviewTitle');
+  var previewDesc  = document.getElementById('seoPreviewDesc');
+  var nameInput    = document.getElementById('catName');
+
+  function updatePreview() {
+    if (previewTitle) {
+      previewTitle.textContent = (titleInput && titleInput.value.trim())
+        ? titleInput.value.trim()
+        : (nameInput && nameInput.value.trim()) || 'Page Title';
+    }
+    if (previewDesc && descTextarea) {
+      previewDesc.textContent = descTextarea.value.trim() || 'Page description will appear here.';
+    }
+  }
+
+  if (titleInput)   titleInput.addEventListener('input', updatePreview);
+  if (descTextarea) descTextarea.addEventListener('input', updatePreview);
+  if (nameInput)    nameInput.addEventListener('input', updatePreview);
+})();
+</script>
