@@ -31,18 +31,22 @@ const Category = {
       );
       return rows[0] || null;
     } catch {
-      // Fallback: display_mode column not yet added — query without it and
-      // default to 'product' so existing collection pages keep working.
+      // Fallback: one or more new columns (display_mode, meta_title, meta_desc)
+      // not yet added on this server — query only original safe columns.
       try {
         const [rows] = await bvoPool.query(
-          `SELECT id, slug, name, description, image_url, meta_title, meta_desc
+          `SELECT id, slug, name, description, image_url
            FROM   categories
            WHERE  slug = ? AND is_active = 1
            LIMIT  1`,
           [slug]
         );
         const row = rows[0] || null;
-        if (row) row.display_mode = 'product';
+        if (row) {
+          row.display_mode = 'product';
+          row.meta_title   = null;
+          row.meta_desc    = null;
+        }
         return row;
       } catch {
         return null;
