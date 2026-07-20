@@ -1934,22 +1934,23 @@ exports.categoryDelete = async (req, res, next) => {
 };
 
 /** POST /admin/categories/:id/image — upload/replace category image */
-exports.categoryImageMiddleware = _upload.single('image_file');
+// Form field is named "image" (not "image_file") — must match here.
+exports.categoryImageMiddleware = _upload.single('image');
 
 exports.categorySetImage = async (req, res, next) => {
+  const id = parseInt(req.params.id);
   try {
-    const id = parseInt(req.params.id);
     if (!req.file) {
       req.session.flash = { type: 'error', msg: 'No image file received.' };
-      return res.redirect('/admin/categories');
+      return res.redirect(`/admin/categories/${id}/edit`);
     }
     const url = `/images/uploads/${req.file.filename}`;
     await bvoPool.query('UPDATE categories SET image_url = ? WHERE id = ?', [url, id]);
     req.session.flash = { type: 'success', msg: 'Image updated.' };
-    res.redirect('/admin/categories');
+    res.redirect(`/admin/categories/${id}/edit`);
   } catch (err) {
     req.session.flash = { type: 'error', msg: 'Image upload failed: ' + err.message };
-    res.redirect('/admin/categories');
+    res.redirect(`/admin/categories/${id}/edit`);
   }
 };
 
@@ -1965,17 +1966,28 @@ exports.categoryUpdate = async (req, res, next) => {
     const display_mode = (req.body.display_mode  || 'product').trim();
     const meta_title   = (req.body.meta_title    || '').trim() || null;
     const meta_desc    = (req.body.meta_desc     || '').trim() || null;
+    // image_url may be set by the URL paste input or left blank to keep existing.
+    // Empty string = keep existing (don't overwrite with null from a blank field).
+    const image_url_raw = (req.body.image_url || '').trim();
 
     if (!name || !slug) {
       req.session.flash = { type: 'error', msg: 'Name and slug are required.' };
       return res.redirect(`/admin/categories/${id}/edit`);
     }
+
+    // Only update image_url when the field is non-empty (avoids wiping an
+    // uploaded image if the user saves the form without touching the URL field).
+    const imageClause = image_url_raw ? ', image_url=?' : '';
+    const params = [name, slug, description, sort_order, is_active, display_mode, meta_title, meta_desc];
+    if (image_url_raw) params.push(image_url_raw);
+    params.push(id);
+
     await bvoPool.query(
       `UPDATE categories
           SET name=?, slug=?, description=?, sort_order=?, is_active=?,
-              display_mode=?, meta_title=?, meta_desc=?
+              display_mode=?, meta_title=?, meta_desc=?${imageClause}
         WHERE id = ?`,
-      [name, slug, description, sort_order, is_active, display_mode, meta_title, meta_desc, id]
+      params
     );
     req.session.flash = { type: 'success', msg: 'Category saved.' };
     res.redirect(`/admin/categories/${id}/edit`);

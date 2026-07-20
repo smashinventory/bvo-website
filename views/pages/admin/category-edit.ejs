@@ -58,7 +58,7 @@ const formAction = isNew ? '/admin/categories' : `/admin/categories/${cat.id}`;
           <% } %>
         </div>
 
-        <!-- Upload form (separate POST) -->
+        <!-- Upload form (separate POST, auto-submits on file select) -->
         <form method="POST" action="/admin/categories/<%= cat.id %>/image"
               enctype="multipart/form-data" id="ceImgUploadForm">
           <label class="ce-upload-label" for="ceImgInput">
@@ -67,6 +67,15 @@ const formAction = isNew ? '/admin/categories' : `/admin/categories/${cat.id}`;
           </label>
           <input type="file" id="ceImgInput" name="image" accept="image/*" class="ce-file-input" onchange="document.getElementById('ceImgUploadForm').submit()">
         </form>
+
+        <!-- URL paste field — saved with the main category form -->
+        <div class="ce-url-field">
+          <label class="ce-url-label" for="ceImgUrl">Or paste image URL</label>
+          <input type="url" id="ceImgUrl" name="image_url" class="ce-input ce-input--url"
+                 value="<%= cat.image_url || '' %>"
+                 placeholder="https://example.com/image.jpg"
+                 oninput="previewCatImg(this.value)">
+        </div>
 
         <p class="ce-img-hint">PNG, JPG, WebP. Recommended: 800×600 px or wider.</p>
         <% } else { %>
@@ -232,6 +241,9 @@ const formAction = isNew ? '/admin/categories' : `/admin/categories/${cat.id}`;
 .ce-upload-label:hover { border-color:#B8963A;color:#B8963A }
 .ce-file-input { position:absolute;opacity:0;pointer-events:none;width:0;height:0 }
 .ce-img-hint { font-size:.72rem;color:#aaa;margin:4px 0 0 }
+.ce-url-field { margin-top:10px }
+.ce-url-label { display:block;font-size:.72rem;font-weight:700;color:#999;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em }
+.ce-input--url { font-size:.78rem;color:#555 }
 
 /* ── Toggle ── */
 .ce-toggle-row { display:flex;align-items:center;justify-content:space-between;cursor:pointer;font-size:.875rem;color:#444;margin-bottom:6px }
@@ -282,6 +294,25 @@ const formAction = isNew ? '/admin/categories' : `/admin/categories/${cat.id}`;
 </style>
 
 <script>
+/* ── Image URL preview ── */
+function previewCatImg(url) {
+  var preview = document.getElementById('ceImgPreview');
+  if (!preview) return;
+  var existing = preview.querySelector('img');
+  var placeholder = preview.querySelector('.ce-img-placeholder');
+  if (url) {
+    if (existing) { existing.src = url; }
+    else {
+      var img = document.createElement('img');
+      img.src = url; img.alt = '';
+      if (placeholder) placeholder.replaceWith(img);
+      else preview.insertBefore(img, preview.firstChild);
+    }
+  } else {
+    if (existing) existing.src = '';
+  }
+}
+
 /* ── Slug auto-derive from name ── */
 function autoSlug(name) {
   var slugInput = document.getElementById('catSlug');
