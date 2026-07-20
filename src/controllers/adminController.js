@@ -1994,6 +1994,19 @@ exports.categorySetImageAjax = async (req, res) => {
   }
 };
 
+/** POST /admin/categories/:id/image/remove — clear category image (returns JSON) */
+exports.categoryRemoveImage = async (req, res) => {
+  const id = parseInt(req.params.id);
+  try {
+    await bvoPool.query('UPDATE categories SET image_url = NULL WHERE id = ?', [id]);
+    console.log('[Category Image] removed for category', id);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[Category Image] remove error:', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+};
+
 /** POST /admin/categories/:id/image — legacy form POST (kept for safety, redirects) */
 exports.categoryImageMiddleware = (req, res, next) => {
   _upload.single('image')(req, res, (err) => {

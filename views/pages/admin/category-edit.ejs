@@ -58,15 +58,13 @@ const formAction = isNew ? '/admin/categories' : `/admin/categories/${cat.id}`;
           <% } %>
         </div>
 
-        <!-- Upload form (separate POST, auto-submits on file select) -->
-        <form method="POST" action="/admin/categories/<%= cat.id %>/image"
-              enctype="multipart/form-data" id="ceImgUploadForm">
-          <label class="ce-upload-label" for="ceImgInput">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            Upload image
-          </label>
-          <input type="file" id="ceImgInput" name="image" accept="image/*" class="ce-file-input" onchange="document.getElementById('ceImgUploadForm').submit()">
-        </form>
+        <!-- Upload via AJAX — avoids nested-form bug (this card is inside catEditForm) -->
+        <label class="ce-upload-label" for="ceImgInput" id="ceUploadLabel">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span id="ceUploadLabelText">Upload image</span>
+        </label>
+        <!-- type="button" prevents this input from submitting the outer catEditForm -->
+        <input type="file" id="ceImgInput" name="_cat_image_file" accept="image/*" class="ce-file-input">
 
         <!-- URL paste field — saved with the main category form -->
         <div class="ce-url-field">
@@ -308,6 +306,85 @@ const formAction = isNew ? '/admin/categories' : `/admin/categories/${cat.id}`;
 </style>
 
 <script>
+/* ── Category image upload (AJAX) ────────────────────────────────
+   The upload input lives inside catEditForm, so we can't use a nested
+   <form enctype="multipart/form-data"> — browsers silently drop inner
+   forms. Instead we POST with fetch, same pattern as the theme editor. */
+(function () {
+  var input   = document.getElementById('ceImgInput');
+  var label   = document.getElementById('ceUploadLabel');
+  var lblText = document.getElementById('ceUploadLabelText');
+  if (!input) return;
+
+  <% if (!isNew) { %>
+  input.addEventListener('change', function () {
+    var file = input.files[0];
+    if (!file) return;
+
+    // Visual feedback
+    if (lblText) lblText.textContent = 'Uploading…';
+    if (label)   { label.style.opacity = '.6'; label.style.pointerEvents = 'none'; }
+
+    var fd = new FormData();
+    fd.append('image', file);
+
+    fetch('/admin/categories/<%= cat.id %>/image/ajax', { method: 'POST', body: fd })
+      .then(function (r) {
+        if (!r.ok) throw new Error('Server error ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        if (!data.ok) throw new Error(data.error || 'Upload failed');
+        // Populate URL field and live-preview
+        var urlField = document.getElementById('ceImgUrl');
+        if (urlField) { urlField.value = data.url; previewCatImg(data.url); }
+        if (lblText) lblText.textContent = 'Upload image';
+      })
+      .catch(function (e) {
+        alert('Image upload failed: ' + e.message + '\n\nYou can paste an image URL in the field below instead.');
+        if (lblText) lblText.textContent = 'Upload image';
+      })
+      .finally(function () {
+        if (label) { label.style.opacity = ''; label.style.pointerEvents = ''; }
+        input.value = '';
+      });
+  });
+  <% } %>
+})();
+
+/* ── Remove image button ── */
+(function () {
+  var removeBtn = document.getElementById('ceRemoveImg');
+  if (!removeBtn) return;
+  removeBtn.addEventListener('click', function () {
+    if (!confirm('Remove the category image?')) return;
+    removeBtn.disabled = true;
+    fetch('/admin/categories/<%= cat.id %>/image/remove', { method: 'POST' })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data.ok) throw new Error(data.error || 'Remove failed');
+        // Clear URL field
+        var urlField = document.getElementById('ceImgUrl');
+        if (urlField) urlField.value = '';
+        // Swap image for placeholder
+        var preview = document.getElementById('ceImgPreview');
+        var img = preview && preview.querySelector('img');
+        if (img) {
+          var ph = document.createElement('div');
+          ph.className = 'ce-img-placeholder';
+          ph.id = 'ceImgPlaceholder';
+          ph.innerHTML = '<svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="#ccc" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><span>No image</span>';
+          img.replaceWith(ph);
+        }
+        removeBtn.style.display = 'none';
+      })
+      .catch(function (e) {
+        alert('Could not remove image: ' + e.message);
+        removeBtn.disabled = false;
+      });
+  });
+})();
+
 /* ── Image URL preview ── */
 function previewCatImg(url) {
   var preview = document.getElementById('ceImgPreview');

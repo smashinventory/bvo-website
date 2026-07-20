@@ -46,7 +46,8 @@ router.post('/categories',                                          ctrl.categor
 router.get ('/categories/:id/edit',                                 ctrl.categoryEditPage);
 router.post('/categories/:id',                                      ctrl.categoryUpdate);
 router.post('/categories/:id/delete',                               ctrl.categoryDelete);
-router.post('/categories/:id/image/ajax', ctrl.categoryImageAjaxMiddleware, ctrl.categorySetImageAjax);
+router.post('/categories/:id/image/ajax',   ctrl.categoryImageAjaxMiddleware, ctrl.categorySetImageAjax);
+router.post('/categories/:id/image/remove', ctrl.categoryRemoveImage);
 router.post('/categories/:id/image',      ctrl.categoryImageMiddleware,      ctrl.categorySetImage);
 
 /* ── Orders ─────────────────────────────────────────────────── */
