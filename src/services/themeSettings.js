@@ -61,7 +61,7 @@ const DEFAULTS = {
       links: [
         { label: 'Single Sink Vanity', url: '/collections/bathroom-vanities?sink_count=1' },
         { label: 'Double Sink Vanity', url: '/collections/bathroom-vanities?sink_count=2' },
-        { label: 'Cabinet Only',       url: '/collections/bathroom-vanities?type=Cabinet' },
+        { label: 'Cabinet Only',       url: '/collections/bathroom-vanities?type=Cabinet+Only' },
       ],
       promo: {
         url:    '/collections/vanity-models',

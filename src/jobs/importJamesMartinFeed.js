@@ -358,6 +358,7 @@ async function replaceAccessories(conn, sku, accessories) {
 //   migration 001 → 1=bathroom-vanities, 2=mirrors, 3=faucets,
 //                   4=accessories, 5=lighting, 6=storage
 //   migration 010 → 7=vanity-tops
+//   migration 014 → 8=samples
 //
 // PRIMARY: PRODUCT_CATEGORY_MAP — keyed on JM "Product Category" column
 //   (Etail tab). Checked first; covers every known JM category value.
@@ -382,11 +383,13 @@ const PRODUCT_CATEGORY_MAP = {
   'bench':             4,  // vanity seat
   'knobs & legs':      4,  // hardware / leg kit
   'metal base':        4,  // optional wall-hung base component
-  'metal sample':      4,  // metallic finish swatch
-  'stone sample':      4,  // stone finish swatch
-  'wood sample':       4,  // paint/stain finish swatch
   'pull':              4,  // handle/pull accessory
   'shelf':             4,  // optional bottom shelf (e.g. Columbia wall-hung)
+
+  // ── Samples (8) ───────────────────────────────────────────────────
+  'metal sample':      8,  // metallic finish swatch
+  'stone sample':      8,  // stone/countertop material swatch
+  'wood sample':       8,  // paint or stain finish swatch
 
   // ── Storage (6) ───────────────────────────────────────────────────
   'drawer unit':       6,  // modular bridge joining two vanity cabinets (model-specific)
@@ -549,16 +552,57 @@ async function importFromWorkbook(wb, opts = {}) {
         }
 
         // ── Product type + category routing ─────────────────────────
+        // Raw JM columns — used for routing and mount_type derivation only.
+        // NEVER stored verbatim in the DB (Rule 8 — one internal taxonomy).
         const vanityType    = clean(row['Vanity Type']);
         const productTypRaw = clean(row['Product Type']);
         const productCatRaw = clean(row['Product Category']); // PRIMARY routing signal (etail tab)
-        // Fix JM-3: store human-readable value (not slugified) so the
-        // sidebar filter shows "Freestanding", "Floating Console", etc.
-        const productType   = vanityType || productTypRaw || null;
-        // Product Category is checked first; Product Type is fallback.
-        // cabinet→1 (not Storage), backsplash→7 (not Accessories), etc.
-        const categoryId    = resolveCategoryId(productCatRaw, productTypRaw);
-        const isSample      = /sample/i.test(productTypRaw || '');
+        const catLower      = String(productCatRaw || '').toLowerCase().trim();
+
+        // Category ID — Product Category is primary, Product Type is fallback.
+        const categoryId = resolveCategoryId(productCatRaw, productTypRaw);
+        const isSample   = /sample/i.test(productTypRaw || '');
+
+        // BVO canonical product_type (Rule 8) — derived from JM columns, not copied.
+        // Bathroom vanities: derived from Product Category + sink_count.
+        // All other categories: BVO name matching the product's category (universal
+        //   English terms, not JM-specific vocabulary — e.g. both JM 'top' and
+        //   'countertop unit' normalise to BVO 'Vanity Top').
+        // Console / console base / floating console → null; grouped by model card later.
+        const CATEGORY_TYPE_MAP = {
+          'mirror':          'Mirror',
+          'bench':           'Bench',
+          'pull':            'Pull',
+          'shelf':           'Shelf',
+          'knobs & legs':    'Knobs & Legs',
+          'metal base':      'Metal Base',
+          'metal sample':    'Sample',
+          'stone sample':    'Sample',
+          'wood sample':     'Sample',
+          'hutch':           'Hutch',
+          'linen cabinet':   'Linen Cabinet',
+          'side cabinet':    'Side Cabinet',
+          'storage cabinet': 'Storage Cabinet',
+          'drawer unit':     'Drawer Unit',
+          'backsplash':      'Backsplash',
+          'countertop unit': 'Vanity Top',
+          'top':             'Vanity Top',
+        };
+
+        let productType = null;
+        if (categoryId === 1) {
+          const sinkCount = cleanNum(row['Number of Sinks Included (0, 1, or 2)']);
+          if (catLower === 'vanity') {
+            if (sinkCount === 1)      productType = 'Single Sink';
+            else if (sinkCount === 2) productType = 'Double Sink';
+            // sink_count=0 under Product Category=Vanity should not occur per taxonomy rules
+          } else if (catLower === 'cabinet') {
+            productType = 'Cabinet Only';
+          }
+          // console / console base / floating console → null; grouped by model card later
+        } else {
+          productType = CATEGORY_TYPE_MAP[catLower] || null;
+        }
 
         const sku       = itemNumber;
         const vendorSku = itemNumber;
