@@ -1963,12 +1963,41 @@ exports.categoryDelete = async (req, res, next) => {
   }
 };
 
-/** POST /admin/categories/:id/image — upload/replace category image */
-// Form field is named "image" — multer must use the same name.
-exports.categoryImageMiddleware = (req, res, next) => {
+/** POST /admin/categories/:id/image/ajax — AJAX upload (returns JSON) */
+// The image card lives inside the main category <form>, so a nested
+// <form enctype="multipart/form-data"> would be invalid HTML and ignored
+// by browsers. We use fetch() from the page JS instead.
+exports.categoryImageAjaxMiddleware = (req, res, next) => {
   _upload.single('image')(req, res, (err) => {
     if (err) {
       console.error('[Category Upload] multer error:', err.message);
+      return res.status(400).json({ ok: false, error: err.message });
+    }
+    next();
+  });
+};
+
+exports.categorySetImageAjax = async (req, res) => {
+  const id = parseInt(req.params.id);
+  try {
+    if (!req.file) {
+      console.error('[Category Upload] no file received for category', id);
+      return res.status(400).json({ ok: false, error: 'No file received. Only PNG, JPG, WebP under 10 MB.' });
+    }
+    const url = `/images/uploads/${req.file.filename}`;
+    console.log('[Category Upload] saved:', req.file.path, '→', url);
+    await bvoPool.query('UPDATE categories SET image_url = ? WHERE id = ?', [url, id]);
+    res.json({ ok: true, url });
+  } catch (err) {
+    console.error('[Category Upload] DB error:', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+};
+
+/** POST /admin/categories/:id/image — legacy form POST (kept for safety, redirects) */
+exports.categoryImageMiddleware = (req, res, next) => {
+  _upload.single('image')(req, res, (err) => {
+    if (err) {
       req.session.flash = { type: 'error', msg: 'Upload failed: ' + err.message };
       return res.redirect(`/admin/categories/${req.params.id}/edit`);
     }
@@ -1980,17 +2009,14 @@ exports.categorySetImage = async (req, res, next) => {
   const id = parseInt(req.params.id);
   try {
     if (!req.file) {
-      console.error('[Category Upload] no file received for category', id);
-      req.session.flash = { type: 'error', msg: 'No image file received. Only PNG, JPG, and WebP under 10 MB are accepted.' };
+      req.session.flash = { type: 'error', msg: 'No image file received.' };
       return res.redirect(`/admin/categories/${id}/edit`);
     }
     const url = `/images/uploads/${req.file.filename}`;
-    console.log('[Category Upload] saved:', req.file.path, '→', url);
     await bvoPool.query('UPDATE categories SET image_url = ? WHERE id = ?', [url, id]);
     req.session.flash = { type: 'success', msg: 'Image updated.' };
     res.redirect(`/admin/categories/${id}/edit`);
   } catch (err) {
-    console.error('[Category Upload] DB error:', err.message);
     req.session.flash = { type: 'error', msg: 'Image upload failed: ' + err.message };
     res.redirect(`/admin/categories/${id}/edit`);
   }
