@@ -154,12 +154,19 @@
         var hasAnyColorActive = colorFamilyActive.length > 0 || colorExactActive.length > 0;
         var colorBadgeCount = colorFamilyActive.length + (colorExactActive.length > 0 ? 1 : 0);
 
-        // Filter families to those with at least one product in this category.
-        // Case-insensitive so 'gray oak' matches 'Gray Oak' regardless of DB casing.
-        var availFinishesLower = availFinishes.map(function(f) { return f.toLowerCase(); });
+        // Determine which family swatches to show in the sidebar.
+        // Three-layer check — first match wins:
+        //   1. Family is currently active (always show so user can deselect it)
+        //   2. color_family key exists in products for this category (primary — handles
+        //      admin-remapped colors like "Silver Oak → gray" that aren't in gray.members)
+        //   3. Member-string fallback (legacy: vendor color string matches fam.members)
+        var availFinishesLower   = availFinishes.map(function(f) { return f.toLowerCase(); });
+        var availColorFamilyKeys = (typeof availColorFamilies !== 'undefined') ? availColorFamilies : [];
         var visibleFamilies = colorFamiliesConfig.filter(function(fam) {
-          if (!availFinishes.length) return true; // no products yet — show all families
-          return fam.members.some(function(m) { return availFinishesLower.includes(m.toLowerCase()); });
+          if (!availFinishes.length && !availColorFamilyKeys.length) return true;
+          if (fam.isActive) return true;                                           // 1. active — always visible
+          if (availColorFamilyKeys.includes(fam.key)) return true;                // 2. color_family column match
+          return fam.members.some(function(m) { return availFinishesLower.includes(m.toLowerCase()); }); // 3. member fallback
         });
       %>
       <% if (visibleFamilies.length > 0) { %>
