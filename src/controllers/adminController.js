@@ -1325,30 +1325,24 @@ exports.productBulkEdit = async (req, res, next) => {
 /* POST /admin/products/bulk-edit */
 exports.productBulkEditSave = async (req, res, next) => {
   try {
-    // Body contains arrays: product_id[], price[], compare_price[], status[],
-    // is_active[], is_featured[], is_new[], category_id[], qty_on_hand[]
-    const productIds    = [].concat(req.body.product_id   || []);
-    const prices        = [].concat(req.body.price        || []);
-    const comparePrices = [].concat(req.body.compare_price|| []);
-    const statuses      = [].concat(req.body.status       || []);
-    const isActives     = [].concat(req.body.is_active    || []);
-    const isFeaturedArr = [].concat(req.body.is_featured  || []);
-    const isNewArr      = [].concat(req.body.is_new       || []);
-    const categoryIds   = [].concat(req.body.category_id  || []);
-    const qtys          = [].concat(req.body.qty_on_hand  || []);
+    // Body is shaped as rows[idx][field] — each row is its own object.
+    // This avoids the double-send bug from the hidden-input + checkbox trick:
+    // checked checkboxes now only send '1'; the submit handler injects '0'
+    // for unchecked ones, so we always get exactly one value per field per row.
+    const rows = req.body.rows || {};
 
     let saved = 0;
-    for (let i = 0; i < productIds.length; i++) {
-      const pid = parseInt(productIds[i]);
+    for (const row of Object.values(rows)) {
+      const pid = parseInt(row.product_id);
       if (!pid) continue;
-      const price       = parseFloat(prices[i])        || 0;
-      const comp        = prices[i] !== undefined ? (parseFloat(comparePrices[i]) || null) : null;
-      const status      = statuses[i] || 'active';
-      const is_active   = isActives[i]   === '1' ? 1 : 0;
-      const is_featured = isFeaturedArr[i] === '1' ? 1 : 0;
-      const is_new      = isNewArr[i]     === '1' ? 1 : 0;
-      const category_id = parseInt(categoryIds[i]) || null;
-      const qty         = parseInt(qtys[i])        || 0;
+      const price       = parseFloat(row.price)         || 0;
+      const comp        = row.compare_price !== '' ? (parseFloat(row.compare_price) || null) : null;
+      const status      = row.status        || 'active';
+      const is_active   = row.is_active   === '1' ? 1 : 0;
+      const is_featured = row.is_featured === '1' ? 1 : 0;
+      const is_new      = row.is_new      === '1' ? 1 : 0;
+      const category_id = parseInt(row.category_id) || null;
+      const qty         = parseInt(row.qty_on_hand)  || 0;
 
       await bvoPool.query(
         `UPDATE products SET price=?, compare_price=?, status=?,

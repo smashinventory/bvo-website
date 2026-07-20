@@ -34,9 +34,12 @@
         </thead>
         <tbody>
           <% products.forEach(function(p, idx) { %>
-          <tr class="be-row">
-            <!-- Hidden product_id -->
-            <input type="hidden" name="product_id" value="<%= p.id %>">
+          <tr class="be-row" data-row-idx="<%= idx %>">
+
+            <!-- product_id — in a hidden td so it stays in the table row (valid HTML) -->
+            <td style="display:none">
+              <input type="hidden" name="rows[<%= idx %>][product_id]" value="<%= p.id %>">
+            </td>
 
             <td class="be-name-cell">
               <a href="/admin/products/<%= p.id %>/edit" target="_blank" class="be-name-link">
@@ -47,21 +50,21 @@
 
             <!-- Price -->
             <td>
-              <input type="number" class="be-input" name="price"
+              <input type="number" class="be-input" name="rows[<%= idx %>][price]"
                 value="<%= parseFloat(p.price||0).toFixed(2) %>"
                 step="0.01" min="0" placeholder="0.00">
             </td>
 
             <!-- Compare price -->
             <td>
-              <input type="number" class="be-input" name="compare_price"
+              <input type="number" class="be-input" name="rows[<%= idx %>][compare_price]"
                 value="<%= p.compare_price ? parseFloat(p.compare_price).toFixed(2) : '' %>"
                 step="0.01" min="0" placeholder="—">
             </td>
 
             <!-- Category -->
             <td>
-              <select class="be-select" name="category_id">
+              <select class="be-select" name="rows[<%= idx %>][category_id]">
                 <option value="">— None —</option>
                 <% categories.forEach(function(c) { %>
                 <option value="<%= c.id %>"
@@ -74,7 +77,7 @@
 
             <!-- Status -->
             <td>
-              <select class="be-select" name="status">
+              <select class="be-select" name="rows[<%= idx %>][status]">
                 <option value="active"        <%= p.status==='active'         ? 'selected':'' %>>Active</option>
                 <option value="discontinued"  <%= p.status==='discontinued'   ? 'selected':'' %>>Discontinued</option>
                 <option value="coming_soon"   <%= p.status==='coming_soon'    ? 'selected':'' %>>Coming Soon</option>
@@ -82,30 +85,27 @@
               </select>
             </td>
 
-            <!-- is_active -->
+            <!-- is_active — NO hidden "0" input; JS submit handler adds it when unchecked -->
             <td style="text-align:center">
-              <input type="hidden"   name="is_active" value="0">
-              <input type="checkbox" name="is_active" value="1"
+              <input type="checkbox" name="rows[<%= idx %>][is_active]" value="1"
                 class="be-checkbox" <%= p.is_active ? 'checked' : '' %>>
             </td>
 
             <!-- is_featured -->
             <td style="text-align:center">
-              <input type="hidden"   name="is_featured" value="0">
-              <input type="checkbox" name="is_featured" value="1"
+              <input type="checkbox" name="rows[<%= idx %>][is_featured]" value="1"
                 class="be-checkbox" <%= p.is_featured ? 'checked' : '' %>>
             </td>
 
             <!-- is_new -->
             <td style="text-align:center">
-              <input type="hidden"   name="is_new" value="0">
-              <input type="checkbox" name="is_new" value="1"
+              <input type="checkbox" name="rows[<%= idx %>][is_new]" value="1"
                 class="be-checkbox" <%= p.is_new ? 'checked' : '' %>>
             </td>
 
             <!-- qty_on_hand -->
             <td>
-              <input type="number" class="be-input be-input--qty" name="qty_on_hand"
+              <input type="number" class="be-input be-input--qty" name="rows[<%= idx %>][qty_on_hand]"
                 value="<%= p.qty_on_hand || 0 %>" step="1" min="0">
             </td>
           </tr>
@@ -123,11 +123,28 @@
 
 <script>
 (function () {
-  /* Fix checkbox arrays — HTML checkboxes with the same name send ONLY
-     the checked value; unchecked boxes are absent. Since we interleave
-     product_id, price, ..., is_active, is_featured, is_new, qty inputs,
-     the server relies on positional index. We use the hidden-input trick
-     (hidden value=0 before each checkbox) so position is preserved. */
+  /* ── Before submit: inject rows[i][field]=0 for unchecked checkboxes ──────
+     HTML checkboxes only send their value when checked.  Unchecked boxes
+     are absent from the POST body.  We inject a hidden input with value "0"
+     for each unchecked checkbox so the server always sees 0 or 1 per field.
+     We do this here (not via a persistent hidden input) to avoid the classic
+     double-send bug: a persistent hidden "0" + checked checkbox "1" sends TWO
+     values per checked product, corrupting positional array indexing.        */
+  document.getElementById('bulkEditForm').addEventListener('submit', function () {
+    document.querySelectorAll('.be-row').forEach(function (row) {
+      var idx = row.dataset.rowIdx;
+      ['is_active', 'is_featured', 'is_new'].forEach(function (field) {
+        var cb = row.querySelector('input[name="rows[' + idx + '][' + field + ']"]');
+        if (cb && !cb.checked) {
+          var h = document.createElement('input');
+          h.type  = 'hidden';
+          h.name  = 'rows[' + idx + '][' + field + ']';
+          h.value = '0';
+          row.appendChild(h);
+        }
+      });
+    });
+  });
 
   /* Keyboard nav: Tab on last input of a row jumps to first of next row */
   var table = document.getElementById('beTable');

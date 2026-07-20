@@ -1264,17 +1264,29 @@ function reindex(list) {
 /* ════════════════════════════════════════════════════════════════
    IMAGE UPLOAD
    ════════════════════════════════════════════════════════════════ */
+/* Find an input by name, bypassing CSS-selector bracket-escaping issues.
+   `document.querySelector('[name="a[0].b"]')` fails because `[0]` is
+   parsed as a CSS attribute sub-selector.  Array.find is always safe. */
+function _findByName(name) {
+  return Array.prototype.find.call(document.querySelectorAll('input,select,textarea'), function(el){ return el.name === name; });
+}
+
 function wireUploadBtns(root) {
   (root || document).querySelectorAll('.te4-upload-input').forEach(function (input) {
     if (input._wired) return; input._wired = true;
     input.addEventListener('change', function () {
       var file = input.files[0]; if (!file) return;
+      var label = input.closest('label');
+      if (label) { label.style.opacity = '.5'; label.style.pointerEvents = 'none'; }
       var fd = new FormData(); fd.append('image', file);
       fetch('/admin/upload', { method: 'POST', body: fd })
-        .then(function (r) { return r.json(); })
+        .then(function (r) {
+          if (!r.ok) throw new Error('Server returned ' + r.status);
+          return r.json();
+        })
         .then(function (data) {
-          if (!data.ok) return;
-          var urlInput = document.querySelector('input[name="' + input.dataset.targetName + '"]');
+          if (!data.ok) throw new Error(data.error || 'Upload rejected');
+          var urlInput = _findByName(input.dataset.targetName);
           if (urlInput) {
             urlInput.value = data.url;
             // Support both new .te4-image-block and legacy .te4-image-field/.te4-img-row
@@ -1291,7 +1303,15 @@ function wireUploadBtns(root) {
             }
           }
           pushHistory(); markDirty(); schedulePreview();
-        }).catch(function (e) { console.error('Upload failed', e); });
+        })
+        .catch(function (e) {
+          console.error('Upload failed', e);
+          alert('Image upload failed: ' + e.message + '\n\nYou can paste an image URL directly into the URL field instead.');
+        })
+        .finally(function () {
+          if (label) { label.style.opacity = ''; label.style.pointerEvents = ''; }
+          input.value = '';
+        });
     });
   });
 }
