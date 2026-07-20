@@ -354,10 +354,54 @@ async function replaceAccessories(conn, sku, accessories) {
 }
 
 // ── Category routing ──────────────────────────────────────────────────
-// Routes on Product Type column (2026 feed). Category IDs:
-//   migration 001 → 1=Vanities, 2=Mirrors, 3=Faucets,
-//                   4=Accessories, 5=Lighting, 6=Storage
-//   migration 010 → 7=Vanity Tops
+// BVO category IDs:
+//   migration 001 → 1=bathroom-vanities, 2=mirrors, 3=faucets,
+//                   4=accessories, 5=lighting, 6=storage
+//   migration 010 → 7=vanity-tops
+//
+// PRIMARY: PRODUCT_CATEGORY_MAP — keyed on JM "Product Category" column
+//   (Etail tab). Checked first; covers every known JM category value.
+//
+// FALLBACK: PRODUCT_TYPE_MAP — keyed on JM "Product Type" column.
+//   Only reached when Product Category is absent or unmapped (e.g. future
+//   JM categories not yet added here). Default: 1 (bathroom-vanities).
+
+// Primary routing — JM "Product Category" column exact values (lowercased)
+const PRODUCT_CATEGORY_MAP = {
+  // ── Bathroom Vanities (1) ──────────────────────────────────────────
+  'vanity':            1,  // cabinet + top combo (complete set with sink)
+  'cabinet':           1,  // vanity cabinet only, no top — NOT storage
+  'console':           1,  // pedestal vanity component
+  'console base':      1,  // pedestal vanity component
+  'floating console':  1,  // pedestal sink component
+
+  // ── Mirrors (2) ───────────────────────────────────────────────────
+  'mirror':            2,
+
+  // ── Accessories (4) ───────────────────────────────────────────────
+  'bench':             4,  // vanity seat
+  'knobs & legs':      4,  // hardware / leg kit
+  'metal base':        4,  // optional wall-hung base component
+  'metal sample':      4,  // metallic finish swatch
+  'stone sample':      4,  // stone finish swatch
+  'wood sample':       4,  // paint/stain finish swatch
+  'pull':              4,  // handle/pull accessory
+  'shelf':             4,  // optional bottom shelf (e.g. Columbia wall-hung)
+
+  // ── Storage (6) ───────────────────────────────────────────────────
+  'drawer unit':       6,  // modular bridge joining two vanity cabinets (model-specific)
+  'hutch':             6,  // component of vanity-with-storage set
+  'linen cabinet':     6,  // component of vanity-with-storage set
+  'side cabinet':      6,  // component of vanity-with-storage set
+  'storage cabinet':   6,  // optional pedestal sink component
+
+  // ── Vanity Tops (7) ───────────────────────────────────────────────
+  'backsplash':        7,  // matching stone backsplash — optional upgrade for stone tops
+  'countertop unit':   7,  // composite top for wall-hung vanities
+  'top':               7,  // composite countertop (wall-hung)
+};
+
+// Fallback routing — JM "Product Type" column (used when Product Category absent/unmapped)
 const PRODUCT_TYPE_MAP = {
   'vanity':            1,
   'floating console':  1,
@@ -366,27 +410,36 @@ const PRODUCT_TYPE_MAP = {
   'mirror':            2,
   'top':               7,
   'countertop unit':   7,
-  'cabinet':           6,
+  'backsplash':        7,  // aligned with PRODUCT_CATEGORY_MAP
+  'cabinet':           6,  // fallback only — Product Category routes cabinet→1
   'side cabinet':      6,
   'storage cabinet':   6,
   'linen cabinet':     6,
   'hutch':             6,
   'shelf':             6,
-  'backsplash':        4,
-  'drawer unit':       4,
+  'drawer unit':       6,  // aligned with PRODUCT_CATEGORY_MAP
   'metal base':        4,
   'knobs and legs':    4,
   'pull':              4,
   'bench':             4,
 };
 
-function resolveCategoryId(productTypeStr) {
+/**
+ * Resolve BVO category ID from JM feed columns.
+ * @param {string|null} productCategoryStr  JM "Product Category" column value
+ * @param {string|null} productTypeStr      JM "Product Type" column value (fallback)
+ */
+function resolveCategoryId(productCategoryStr, productTypeStr) {
+  // Primary: Product Category column
+  const cat = String(productCategoryStr || '').toLowerCase().trim();
+  if (cat && PRODUCT_CATEGORY_MAP[cat] !== undefined) return PRODUCT_CATEGORY_MAP[cat];
+  // Fallback: Product Type column (exact match, then substring)
   const s = String(productTypeStr || '').toLowerCase().trim();
   if (PRODUCT_TYPE_MAP[s] !== undefined) return PRODUCT_TYPE_MAP[s];
   for (const [key, id] of Object.entries(PRODUCT_TYPE_MAP)) {
     if (s.includes(key)) return id;
   }
-  return 1;
+  return 1; // default: bathroom-vanities
 }
 
 // ── EAV attribute map ─────────────────────────────────────────────────
@@ -498,11 +551,13 @@ async function importFromWorkbook(wb, opts = {}) {
         // ── Product type + category routing ─────────────────────────
         const vanityType    = clean(row['Vanity Type']);
         const productTypRaw = clean(row['Product Type']);
+        const productCatRaw = clean(row['Product Category']); // PRIMARY routing signal (etail tab)
         // Fix JM-3: store human-readable value (not slugified) so the
         // sidebar filter shows "Freestanding", "Floating Console", etc.
-        // resolveCategoryId() still uses productTypRaw (unchanged).
         const productType   = vanityType || productTypRaw || null;
-        const categoryId    = resolveCategoryId(productTypRaw);
+        // Product Category is checked first; Product Type is fallback.
+        // cabinet→1 (not Storage), backsplash→7 (not Accessories), etc.
+        const categoryId    = resolveCategoryId(productCatRaw, productTypRaw);
         const isSample      = /sample/i.test(productTypRaw || '');
 
         const sku       = itemNumber;

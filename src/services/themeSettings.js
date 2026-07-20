@@ -59,10 +59,9 @@ const DEFAULTS = {
     vanities_mega: {
       section_heading: 'Shop By Type',
       links: [
-        { label: 'Single Sink Vanity',    url: '/collections/bathroom-vanities?type=Single+Sink+Vanity' },
-        { label: 'Double Sink Vanity',    url: '/collections/bathroom-vanities?type=Double+Sink+Vanity' },
-        { label: 'Vanity With Storage',   url: '/collections/bathroom-vanities?type=Vanity+With+Storage' },
-        { label: 'Base Cabinet',          url: '/collections/bathroom-vanities?type=Base+Cabinet' },
+        { label: 'Single Sink Vanity', url: '/collections/bathroom-vanities?sink_count=1' },
+        { label: 'Double Sink Vanity', url: '/collections/bathroom-vanities?sink_count=2' },
+        { label: 'Cabinet Only',       url: '/collections/bathroom-vanities?type=Cabinet' },
       ],
       promo: {
         url:    '/collections/vanity-models',
