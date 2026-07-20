@@ -24,8 +24,10 @@ router.post('/products/import-jm', ctrl.productImportJMMiddleware,  ctrl.product
 router.post('/products/bulk',                                     ctrl.productBulkAction);
 router.get ('/products/bulk-edit',                                ctrl.productBulkEdit);
 router.post('/products/bulk-edit',                                ctrl.productBulkEditSave);
-router.get ('/products/color-report',                             ctrl.colorFamilyReport);
-router.post('/products/color-report',                             ctrl.colorFamilyApply);
+router.get ('/products/color-report',              ctrl.colorFamilyReport);
+router.post('/products/color-report',              ctrl.colorFamilyApply);
+router.post('/products/color-mapping/update',      ctrl.colorMappingUpdate);
+router.post('/products/color-mapping/delete',      ctrl.colorMappingDelete);
 router.get ('/products/new',                                      ctrl.productNew);
 router.post('/products',                                          ctrl.productCreate);
 router.get ('/products/:id/edit',                                 ctrl.productEdit);

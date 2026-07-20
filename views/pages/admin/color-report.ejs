@@ -136,37 +136,85 @@ var totalUnmapped   = unmappedColors.reduce(function(s, r) { return s + r.produc
 
 <% } /* end if unmappedColors.length */ %>
 
-<!-- ══ Existing mappings reference table ═════════════════════════════ -->
+<!-- ══ Saved Color Mappings — editable ═══════════════════════════════ -->
 <% if (existingMappings.length > 0) { %>
 <div class="adm-section-header" style="margin-top:40px">
-  <h2 class="adm-section-title">Saved Color Mappings</h2>
+  <h2 class="adm-section-title">Saved Color Mappings <span style="font-size:.8rem;font-weight:400;color:#999">(<%= existingMappings.length %>)</span></h2>
   <p style="font-size:13px;color:#666;margin:0">
-    These are stored in the <code>color_mappings</code> table and are checked automatically during imports when <code>normalize()</code> returns null.
+    Edit the BVO family for any vendor color and click Save — updates the mapping <em>and</em> re-applies to all matching products.
+    Removing a mapping leaves existing products unchanged.
   </p>
 </div>
 <div class="adm-table-wrap" style="margin-top:12px">
-  <table class="adm-table">
+  <table class="adm-table cr-edit-table">
     <thead>
       <tr>
-        <th>Vendor Color</th>
-        <th>Context</th>
-        <th>Family Key</th>
+        <th style="min-width:180px">Vendor Color</th>
+        <th style="width:110px">Context</th>
+        <th style="min-width:180px">BVO Family</th>
         <th>Notes</th>
+        <th style="width:130px"></th>
       </tr>
     </thead>
     <tbody>
-      <% existingMappings.forEach(function(m) { %>
-      <tr>
-        <td><%= m.vendor_color %></td>
-        <td><span class="adm-badge adm-badge--<%= m.context === 'cabinet' ? 'navy' : 'gray' %>"><%= m.context %></span></td>
-        <td><code><%= m.family_key %></code></td>
-        <td style="color:#888;font-size:13px"><%= m.notes || '—' %></td>
+      <% existingMappings.forEach(function(m) {
+           var cabinetFamilies = families.filter(function(f){ return f.type==='cabinet'; });
+           var metalFamilies   = families.filter(function(f){ return f.type==='metal'; });
+      %>
+      <tr class="cr-edit-row">
+        <td>
+          <strong style="font-size:.875rem"><%= m.vendor_color %></strong>
+        </td>
+        <td>
+          <form method="POST" action="/admin/products/color-mapping/update" class="cr-edit-form">
+          <input type="hidden" name="vendor_color" value="<%= m.vendor_color %>">
+          <select name="context" class="adm-select adm-select--sm">
+            <option value="cabinet" <%= m.context === 'cabinet' ? 'selected' : '' %>>Cabinet</option>
+            <option value="metal"   <%= m.context === 'metal'   ? 'selected' : '' %>>Metal</option>
+          </select>
+        </td>
+        <td>
+          <select name="family_key" class="adm-select adm-select--sm" required>
+            <optgroup label="Cabinet Finishes">
+              <% cabinetFamilies.forEach(function(f) { %>
+              <option value="<%= f.key %>" <%= m.family_key === f.key ? 'selected' : '' %>><%= f.label %></option>
+              <% }); %>
+            </optgroup>
+            <optgroup label="Metallic Finishes">
+              <% metalFamilies.forEach(function(f) { %>
+              <option value="<%= f.key %>" <%= m.family_key === f.key ? 'selected' : '' %>><%= f.label %></option>
+              <% }); %>
+            </optgroup>
+          </select>
+        </td>
+        <td>
+          <input type="text" name="notes" class="adm-input adm-input--sm"
+                 value="<%= m.notes || '' %>" placeholder="optional note">
+        </td>
+        <td style="white-space:nowrap">
+          <button type="submit" class="btn btn-primary btn-sm">Save</button>
+          </form>
+          <form method="POST" action="/admin/products/color-mapping/delete" style="display:inline"
+                onsubmit="return confirm('Remove mapping for «<%= m.vendor_color %>»?\n\nExisting product color_family values will NOT be changed.')">
+            <input type="hidden" name="vendor_color" value="<%= m.vendor_color %>">
+            <button type="submit" class="btn btn-sm cr-btn-remove">Remove</button>
+          </form>
+        </td>
       </tr>
       <% }); %>
     </tbody>
   </table>
 </div>
 <% } %>
+
+<style>
+.cr-edit-table td { vertical-align: middle; padding: 7px 10px; }
+.cr-edit-form { display: contents; }
+.adm-input { border:1px solid #d0cdc8;border-radius:6px;padding:5px 8px;font-size:.8rem;color:#333;background:#fff;width:100%;box-sizing:border-box }
+.adm-input--sm { font-size:.78rem;padding:4px 7px }
+.cr-btn-remove { border:1px solid #d0cdc8;background:#fff;color:#888;font-size:.75rem;padding:4px 10px;border-radius:5px;cursor:pointer;margin-left:4px }
+.cr-btn-remove:hover { border-color:#dc3545;color:#dc3545;background:#fff5f5 }
+</style>
 
 <script>
 // Keep the hidden context input in sync with the context select for each row

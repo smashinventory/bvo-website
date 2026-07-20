@@ -1873,6 +1873,60 @@ exports.colorFamilyApply = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+/* POST /admin/products/color-mapping/update
+   Body: vendor_color, context, family_key, notes
+   Updates the mapping row AND re-applies family to ALL products with that color.
+*/
+exports.colorMappingUpdate = async (req, res, next) => {
+  try {
+    const vendorColor = (req.body.vendor_color || '').trim();
+    const context     = (req.body.context     || 'cabinet').trim();
+    const familyKey   = (req.body.family_key  || '').trim();
+    const notes       = (req.body.notes       || '').trim() || null;
+
+    if (!vendorColor || !familyKey) {
+      req.session.flash = { type: 'error', msg: 'Vendor color and family key are required.' };
+      return res.redirect('/admin/products/color-report');
+    }
+
+    await bvoPool.query(
+      `INSERT INTO color_mappings (vendor_color, context, family_key, notes)
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE context = VALUES(context), family_key = VALUES(family_key), notes = VALUES(notes)`,
+      [vendorColor, context, familyKey, notes]
+    );
+
+    const [updateResult] = await bvoPool.query(
+      `UPDATE products SET color_family = ? WHERE color = ?`,
+      [familyKey, vendorColor]
+    );
+
+    const affected = updateResult.affectedRows ?? 0;
+    req.session.flash = {
+      type: 'success',
+      msg:  `"${vendorColor}" remapped to <strong>${familyKey}</strong> — ${affected} product(s) updated.`,
+    };
+    res.redirect('/admin/products/color-report');
+  } catch (err) { next(err); }
+};
+
+/* POST /admin/products/color-mapping/delete
+   Body: vendor_color
+   Removes the mapping entry (leaves products.color_family as-is).
+*/
+exports.colorMappingDelete = async (req, res, next) => {
+  try {
+    const vendorColor = (req.body.vendor_color || '').trim();
+    if (!vendorColor) {
+      req.session.flash = { type: 'error', msg: 'Vendor color is required.' };
+      return res.redirect('/admin/products/color-report');
+    }
+    await bvoPool.query(`DELETE FROM color_mappings WHERE vendor_color = ?`, [vendorColor]);
+    req.session.flash = { type: 'success', msg: `Mapping for "${vendorColor}" removed from color_mappings.` };
+    res.redirect('/admin/products/color-report');
+  } catch (err) { next(err); }
+};
+
 /* POST /admin/sync/settings */
 exports.syncSaveSettings = (req, res) => {
   try {
