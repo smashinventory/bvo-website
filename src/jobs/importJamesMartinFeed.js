@@ -111,30 +111,32 @@ const cleanDate = v => {
 const clean = v => (v === undefined || v === null) ? null : String(v).trim() || null;
 
 /**
- * DB fallback for vendor colors that don't match any colorFamilies.js member.
- * Checks the color_mappings table (created in Task #34-D) before returning null.
+ * Load all color_mappings rows into a vendor_color → family_key Map.
+ * Called ONCE at import start. Admin-saved mappings take priority over
+ * colorFamilies.js static members — if an admin remapped a color via
+ * the Color Report editor, this ensures the import honours that choice.
  *
- * Called after: normalize(rawColor, 'cabinet') || normalize(rawColor, 'all')
- * both return null — meaning this is a genuinely unmapped color that needs
- * a persistent manual mapping entry.
+ * Replaces the old per-product lookupColorMapping() query (N+1 → O(1)).
  *
- * @param  {object} conn         Active DB connection (from importFromWorkbook)
- * @param  {string} vendorColor  Raw vendor color string
- * @param  {string} context      'cabinet' | 'metal' (default 'cabinet')
- * @returns {Promise<string|null>} family_key from color_mappings, or null
+ * @param  {object} conn  Active DB connection
+ * @returns {Promise<Map<string,string>>}  lowercased vendor_color → family_key
  */
-async function lookupColorMapping(conn, vendorColor, context = 'cabinet') {
+async function loadColorMappings(conn) {
+  const map = new Map();
   try {
-    const [rows] = await conn.query(
-      'SELECT family_key FROM color_mappings WHERE vendor_color = ? AND context = ? LIMIT 1',
-      [vendorColor, context]
-    );
-    return rows.length ? rows[0].family_key : null;
+    const [rows] = await conn.query('SELECT vendor_color, family_key FROM color_mappings');
+    for (const row of rows) {
+      map.set(row.vendor_color.toLowerCase(), row.family_key);
+    }
+    console.log(`[JM Import] Loaded ${map.size} color mapping(s) from DB (admin-set, highest priority)`);
   } catch (err) {
-    // Table may not exist yet — degrade gracefully, do not abort import
-    if (err.code === 'ER_NO_SUCH_TABLE') return null;
-    throw err;
+    if (err.code === 'ER_NO_SUCH_TABLE') {
+      console.warn('[JM Import] color_mappings table not found — skipping DB color overrides');
+    } else {
+      throw err;
+    }
   }
+  return map;
 }
 
 // ── Shipping box column parser ────────────────────────────────────────
@@ -527,6 +529,10 @@ async function importFromWorkbook(wb, opts = {}) {
   let errors      = 0;
   const errorList = [];
 
+  // Load admin-set color mappings once — checked FIRST during per-product resolution
+  // so Color Report edits always override colorFamilies.js static members.
+  const colorMappings = dry ? new Map() : await loadColorMappings(conn);
+
   try {
     for (const rawRow of rows) {
       const row = Object.fromEntries(
@@ -668,14 +674,16 @@ async function importFromWorkbook(wb, opts = {}) {
           // Audit Fix #1 (July 2026): width written directly to products.width_in
           // (canonical source — Rule 10). Removed from ATTR_MAP / EAV 'size_in'.
           width_in:             cleanNum(row['Product Width']),
-          // Two-pass normalize: cabinet context first (handles paint colors), then
-          // 'all' context (catches metallic-finish vanities like Radiant Gold, Matte Black,
-          // Brushed Nickel). Falls back to color_mappings DB table for manually mapped
-          // vendor colors not yet in colorFamilies.js members. See Task #34-B.
+          // Color family resolution — three-step priority order:
+          //   1. color_mappings DB table (admin-set via Color Report — always wins)
+          //   2. normalize cabinet context (paint/stain finishes in colorFamilies.js)
+          //   3. normalize all contexts (catches metallic-finish vanities)
+          // Admin edits in the Color Report update color_mappings, so they take
+          // effect on the very next import without touching colorFamilies.js.
           color_family:          rawColor
-                                   ? ( normalizeColor(rawColor, 'cabinet')
+                                   ? ( colorMappings.get(rawColor.toLowerCase())
+                                     || normalizeColor(rawColor, 'cabinet')
                                      || normalizeColor(rawColor, 'all')
-                                     || await lookupColorMapping(conn, rawColor, 'cabinet')
                                      || null )
                                    : null,
           is_active:             (rowStatus !== 'active' || finalPrice === 0) ? 0 : 1,

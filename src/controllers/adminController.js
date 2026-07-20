@@ -1790,10 +1790,10 @@ exports.colorFamilyReport = async (req, res, next) => {
     const [
       unmappedColorRows,
       nullColorRow,
-      categories,
+      allColorRows,
       mappingRows,
     ] = await Promise.all([
-      // Products that have a color string but no family assigned — grouped by vendor color + category
+      // Products that have a color string but no family assigned
       safeQuery(`
         SELECT p.color, c.name AS category_name, c.id AS category_id,
                COUNT(*) AS product_count
@@ -1805,14 +1805,26 @@ exports.colorFamilyReport = async (req, res, next) => {
         GROUP BY p.color, p.category_id
         ORDER BY product_count DESC, p.color ASC
       `),
-      // Products with no color string at all (cannot be auto-fixed — needs product edit)
+      // Products with no color string at all
       safeQueryOne(`
         SELECT COUNT(*) AS n FROM products
         WHERE color_family IS NULL AND (color IS NULL OR color = '')
       `),
-      // Category list for display
-      safeQuery('SELECT id, name FROM categories ORDER BY name'),
-      // Existing color_mappings entries (to show what's already mapped)
+      // ALL distinct vendor color strings with their current BVO family + saved mapping context
+      safeQuery(`
+        SELECT
+          p.color                  AS vendor_color,
+          p.color_family           AS family_key,
+          COUNT(*)                 AS product_count,
+          cm.context               AS context,
+          cm.notes                 AS notes
+        FROM products p
+        LEFT JOIN color_mappings cm ON cm.vendor_color = p.color
+        WHERE p.color IS NOT NULL AND p.color <> ''
+        GROUP BY p.color, p.color_family, cm.context, cm.notes
+        ORDER BY p.color_family ASC, p.color ASC
+      `),
+      // color_mappings rows (for context/notes lookup above, also used for saved count)
       safeQuery('SELECT vendor_color, context, family_key, notes FROM color_mappings ORDER BY vendor_color'),
     ]);
 
@@ -1821,13 +1833,13 @@ exports.colorFamilyReport = async (req, res, next) => {
 
     res.render('pages/admin/color-report', {
       ...LAYOUT,
-      pageTitle:       'Color Family Report | BVO Admin',
-      activePage:      'color-report',
+      pageTitle:        'Color Family Report | BVO Admin',
+      activePage:       'color-report',
       flash,
-      unmappedColors:  unmappedColorRows,
-      nullColorCount:  nullColorRow?.n ?? 0,
-      categories,
-      families:        FAMILIES,
+      unmappedColors:   unmappedColorRows,
+      nullColorCount:   nullColorRow?.n ?? 0,
+      allColorRows,
+      families:         FAMILIES,
       existingMappings: mappingRows,
     });
   } catch (err) { next(err); }
