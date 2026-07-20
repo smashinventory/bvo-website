@@ -117,18 +117,29 @@ const formAction = isNew ? '/admin/categories' : `/admin/categories/${cat.id}`;
           <label class="ce-label" for="catName">Name <span class="ce-required">*</span></label>
           <input type="text" id="catName" name="name" class="ce-input" required
                  value="<%= cat.name || '' %>" placeholder="e.g. Bathroom Vanities"
-                 oninput="autoSlug(this.value)">
+                 <%= isNew ? 'oninput="autoSlug(this.value)"' : '' %>>
         </div>
 
         <div class="ce-field">
           <label class="ce-label" for="catSlug">
             Slug <span class="ce-required">*</span>
-            <span class="ce-label-hint">— URL-safe identifier</span>
+            <% if (!isNew) { %>
+            <span class="ce-slug-lock">
+              <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              locked — changing breaks URLs &amp; menu links
+            </span>
+            <% } else { %>
+            <span class="ce-label-hint">— URL-safe identifier, auto-derived from name</span>
+            <% } %>
           </label>
           <div class="ce-input-prefix-wrap">
             <span class="ce-input-prefix">/collections/</span>
-            <input type="text" id="catSlug" name="slug" class="ce-input ce-input--prefixed" required
-                   value="<%= cat.slug || '' %>" placeholder="vanities">
+            <input type="text" id="catSlug" name="slug"
+                   class="ce-input ce-input--prefixed<%= !isNew ? ' ce-input--locked' : '' %>"
+                   required
+                   value="<%= cat.slug || '' %>"
+                   placeholder="<%= isNew ? 'vanities' : '' %>"
+                   <%= !isNew ? 'readonly' : '' %>>
           </div>
         </div>
 
@@ -270,6 +281,9 @@ const formAction = isNew ? '/admin/categories' : `/admin/categories/${cat.id}`;
 .ce-input-prefix-wrap { display:flex;align-items:center }
 .ce-input-prefix { padding:8px 10px;border:1px solid #d0cdc8;border-right:none;border-radius:6px 0 0 6px;background:#f8f6f2;font-size:.8rem;color:#999;white-space:nowrap }
 .ce-input--prefixed { border-radius:0 6px 6px 0;flex:1 }
+.ce-input--locked { background:#f8f6f2;color:#777;cursor:default }
+.ce-input--locked:focus { border-color:#d0cdc8;box-shadow:none }
+.ce-slug-lock { font-weight:400;font-size:.7rem;color:#b07a00;background:#fff8e1;border:1px solid #ffe082;border-radius:4px;padding:1px 6px;margin-left:6px;display:inline-flex;align-items:center;gap:3px }
 
 /* ── Meta / SEO ── */
 .ce-meta-row { display:flex;justify-content:space-between;align-items:flex-start }
