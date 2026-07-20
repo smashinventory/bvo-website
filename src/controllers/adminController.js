@@ -1566,15 +1566,45 @@ exports.themeSaveOrder = (req, res) => {
 };
 
 /* ════════════════════════════════════════════════════════════════
-   IMAGE UPLOAD
+   IMAGE UPLOAD  (theme editor AJAX — POST /admin/upload)
    ════════════════════════════════════════════════════════════════ */
 
-exports.uploadMiddleware = _upload.single('image');
+// Wrap multer so errors return JSON instead of going to the HTML
+// error handler (which breaks fetch().json() in the browser).
+exports.uploadMiddleware = (req, res, next) => {
+  _upload.single('image')(req, res, (err) => {
+    if (err) {
+      console.error('[Upload] multer error:', err.message);
+      return res.status(400).json({ ok: false, error: err.message });
+    }
+    next();
+  });
+};
 
 exports.uploadImage = (req, res) => {
-  if (!req.file) return res.status(400).json({ ok: false, error: 'No file received' });
+  if (!req.file) {
+    console.error('[Upload] no file in req — possible field-name mismatch or empty body');
+    return res.status(400).json({ ok: false, error: 'No file received. Check field name or file size.' });
+  }
   const url = `/images/uploads/${req.file.filename}`;
+  console.log('[Upload] saved:', req.file.path, '→', url);
   res.json({ ok: true, url });
+};
+
+/* GET /admin/upload/probe — diagnostic: verify upload dir is writable and served */
+exports.uploadProbe = (req, res) => {
+  const uploadDir = path.join(__dirname, '../../public/images/uploads');
+  const testFile  = path.join(uploadDir, '_probe.txt');
+  const results   = { uploadDir, writable: false, staticUrl: '/images/uploads/_probe.txt', error: null };
+  try {
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+    fs.writeFileSync(testFile, 'probe ok');
+    results.writable = true;
+    fs.unlinkSync(testFile);
+  } catch (e) {
+    results.error = e.message;
+  }
+  res.json(results);
 };
 
 /* ════════════════════════════════════════════════════════════════
@@ -1934,21 +1964,33 @@ exports.categoryDelete = async (req, res, next) => {
 };
 
 /** POST /admin/categories/:id/image — upload/replace category image */
-// Form field is named "image" (not "image_file") — must match here.
-exports.categoryImageMiddleware = _upload.single('image');
+// Form field is named "image" — multer must use the same name.
+exports.categoryImageMiddleware = (req, res, next) => {
+  _upload.single('image')(req, res, (err) => {
+    if (err) {
+      console.error('[Category Upload] multer error:', err.message);
+      req.session.flash = { type: 'error', msg: 'Upload failed: ' + err.message };
+      return res.redirect(`/admin/categories/${req.params.id}/edit`);
+    }
+    next();
+  });
+};
 
 exports.categorySetImage = async (req, res, next) => {
   const id = parseInt(req.params.id);
   try {
     if (!req.file) {
-      req.session.flash = { type: 'error', msg: 'No image file received.' };
+      console.error('[Category Upload] no file received for category', id);
+      req.session.flash = { type: 'error', msg: 'No image file received. Only PNG, JPG, and WebP under 10 MB are accepted.' };
       return res.redirect(`/admin/categories/${id}/edit`);
     }
     const url = `/images/uploads/${req.file.filename}`;
+    console.log('[Category Upload] saved:', req.file.path, '→', url);
     await bvoPool.query('UPDATE categories SET image_url = ? WHERE id = ?', [url, id]);
     req.session.flash = { type: 'success', msg: 'Image updated.' };
     res.redirect(`/admin/categories/${id}/edit`);
   } catch (err) {
+    console.error('[Category Upload] DB error:', err.message);
     req.session.flash = { type: 'error', msg: 'Image upload failed: ' + err.message };
     res.redirect(`/admin/categories/${id}/edit`);
   }
