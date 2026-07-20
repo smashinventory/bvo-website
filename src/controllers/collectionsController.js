@@ -511,11 +511,12 @@ exports.show = async (req, res, next) => {
       availableAttrValues,
       [finishRows],
       [hwFinishRows],
+      [cfKeyRows],
     ] = await Promise.all([
       Category.getAttributeDefinitions(category.id),
       Category.getBrandsForCategory(category.id),
       Product.getAllAttributeValues(category.id),
-      // Primary finish options — from products.color column
+      // Primary finish options — from products.color column (vendor color strings)
       bvoPool.query(
         'SELECT DISTINCT color FROM products WHERE category_id = ? AND is_active = 1 AND color IS NOT NULL ORDER BY color',
         [category.id]
@@ -530,9 +531,19 @@ exports.show = async (req, res, next) => {
          ORDER BY pav.value_text`,
         [category.id]
       ),
+      // Distinct color_family keys present in this category — primary swatch visibility signal.
+      // Using color_family directly (not fam.members) means admin-remapped colors like
+      // "Silver Oak → gray" cause the Gray swatch to appear even though "Silver Oak"
+      // is not in gray's static members array.
+      bvoPool.query(
+        'SELECT DISTINCT color_family FROM products WHERE category_id = ? AND is_active = 1 AND color_family IS NOT NULL',
+        [category.id]
+      ),
     ]);
     const availFinishes         = finishRows.map(r => r.color);
     const availHardwareFinishes = hwFinishRows.map(r => r.value_text);
+    // Array of BVO family keys that actually have products in this category
+    const availColorFamilies    = cfKeyRows.map(r => r.color_family);
 
     // ── Parse dynamic attribute filters ──────────────────────────
     // ALL color_swatch attrs are handled by colorFilters / hwColorFilters above —
@@ -696,9 +707,10 @@ exports.show = async (req, res, next) => {
       hasActiveFilters,
       // Primary color filter (Cabinet Color for vanities; Finish for all others)
       colorFamiliesConfig,
-      colorFamilyActive: colorFamilyParam,
-      colorExactActive:  colorExactParam,
+      colorFamilyActive:   colorFamilyParam,
+      colorExactActive:    colorExactParam,
       availFinishes,
+      availColorFamilies,  // distinct color_family keys — primary swatch visibility signal
       // Hardware finish filter (vanities only — secondary color layer)
       hwColorFamiliesConfig,
       hwColorFamilyActive: hwColorFamilyParam,
