@@ -1073,19 +1073,38 @@ exports.productImportJM = async (req, res, next) => {
     req.session.flash = { type: 'error', msg: 'No XLSX file uploaded.' };
     return res.redirect('/admin/products');
   }
+
+  // Parse workbook synchronously (fast — just reads buffer into memory).
+  let wb;
   try {
-    const wb     = _xlsxLib.read(req.file.buffer, { cellDates: false });
-    const result = await _jmImporter.importFromWorkbook(wb);
-    const type   = result.errors === 0 ? 'success' : 'warning';
-    const errs   = result.errorList.slice(0, 3).join('; ');
-    req.session.flash = {
-      type,
-      msg: `JM Import — ${result.imported} imported, ${result.skipped} skipped, ${result.errors} errors.${errs ? ' ' + errs : ''}`,
-    };
+    wb = _xlsxLib.read(req.file.buffer, { cellDates: false });
   } catch (err) {
-    req.session.flash = { type: 'error', msg: `JM Import failed: ${err.message}` };
+    req.session.flash = { type: 'error', msg: `Could not parse XLSX: ${err.message}` };
+    return res.redirect('/admin/products');
   }
-  return res.redirect('/admin/products');
+
+  // Respond immediately so Hostinger's nginx gateway doesn't time out (504).
+  // The import runs in the background via setImmediate; check server logs or
+  // reload /admin/products in 3–5 minutes to see updated product counts.
+  req.session.flash = {
+    type: 'info',
+    msg: 'JM Import started in background — reload this page in 3–5 minutes to see results. Check server logs for progress.',
+  };
+  res.redirect('/admin/products');
+
+  // Fire-and-forget: runs after the response is flushed.
+  setImmediate(async () => {
+    try {
+      console.log('[JM Import] Starting background import…');
+      const result = await _jmImporter.importFromWorkbook(wb);
+      const type   = result.errors === 0 ? 'success' : 'warning';
+      const errs   = result.errorList.slice(0, 10).join('\n  ');
+      console.log(`[JM Import] ✓ Complete — ${result.imported} imported, ${result.skipped} skipped, ${result.errors} errors`);
+      if (errs) console.error(`[JM Import] Errors:\n  ${errs}`);
+    } catch (err) {
+      console.error(`[JM Import] ✗ Fatal error: ${err.message}`, err);
+    }
+  });
 };
 
 function _extractProductFields(body) {
