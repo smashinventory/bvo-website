@@ -641,7 +641,6 @@
   flex-wrap: nowrap;   /* template slices to 4; +N span handles the rest */
   margin-top: .15rem;
   margin-bottom: .5rem;
-  margin-left: -.5rem;
   overflow: hidden;
 }
 .model-card-swatch {
@@ -658,6 +657,7 @@
   position: relative;
   overflow: hidden;
 }
+.model-card-swatches .model-card-swatch:first-of-type { margin-left: -.5rem; }
 .model-card-swatch:hover { transform: scale(1.2); }
 .model-card-swatch.is-active {
   outline-color: var(--color-navy, #182840);
@@ -686,7 +686,6 @@
   gap: .35rem;
   margin-top: .1rem;
   margin-bottom: .5rem;
-  margin-left: -.5rem;
   min-width: 0;
 }
 .model-card-sizes-text {
@@ -1095,7 +1094,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: .15rem .2rem;
-  margin-left: -.25rem;
+  margin-left: -.75rem;
 }
 .model-card-size-btn {
   padding: .13rem .34rem;
