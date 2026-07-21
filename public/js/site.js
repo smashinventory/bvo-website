@@ -528,12 +528,13 @@ document.addEventListener('DOMContentLoaded', function () {
     var siKeys    = Object.keys(si).map(Number).filter(function (n) { return n > 0; })
                           .sort(function (a, b) { return a - b; });
 
+    var activeSzBtn = card ? card.querySelector('.model-card-size-btn.is-active') : null;
+    var activeSz    = activeSzBtn ? Number(activeSzBtn.dataset.size) : NaN;
+
     var imgId = btn.dataset.targetImg;
     var img   = imgId ? document.getElementById(imgId) : null;
     if (img) {
       var newSrc  = null;
-      var activeSzBtn = card ? card.querySelector('.model-card-size-btn.is-active') : null;
-      var activeSz    = activeSzBtn ? Number(activeSzBtn.dataset.size) : NaN;
 
       if (siKeys.length > 0) {
         // Try exact intersection first
@@ -552,6 +553,19 @@ document.addEventListener('DOMContentLoaded', function () {
       // Final fallback: color-level default image
       if (!newSrc && btn.dataset.image) newSrc = btn.dataset.image;
       if (newSrc) img.src = newSrc;
+    }
+
+    // Update price display
+    var priceId = btn.dataset.targetPrice;
+    var priceEl = priceId ? document.getElementById(priceId) : null;
+    if (priceEl) {
+      var sp       = parseSizeImages(btn.dataset.sizePrices);
+      var priceVal = (!isNaN(activeSz) && sp[activeSz] != null) ? sp[activeSz] : null;
+      if (priceVal != null) {
+        priceEl.textContent = '$' + Number(priceVal).toLocaleString('en-US');
+      } else {
+        priceEl.textContent = priceEl.dataset['default'] || '';
+      }
     }
 
     // Toggle swatch is-active (always keep one active; toggle off only if already on)
@@ -593,6 +607,31 @@ document.addEventListener('DOMContentLoaded', function () {
       // Fallback: size-level image (any color for this width)
       if (!newSrc && btn.dataset.image) newSrc = btn.dataset.image;
       if (newSrc) img.src = newSrc;
+    }
+
+    // Update price display
+    var priceId2 = btn.dataset.targetPrice;
+    var priceEl2 = priceId2 ? document.getElementById(priceId2) : null;
+    if (priceEl2) {
+      // Priority 1: exact color × size price from active swatch
+      var activeSwatch = card ? card.querySelector('.model-card-swatch.is-active') : null;
+      var exactPrice   = null;
+      if (activeSwatch && activeSwatch.dataset.sizePrices && sz) {
+        var spMap = parseSizeImages(activeSwatch.dataset.sizePrices);
+        exactPrice = spMap[sz] != null ? spMap[sz] : (spMap[Number(sz)] != null ? spMap[Number(sz)] : null);
+      }
+      if (exactPrice != null) {
+        priceEl2.textContent = '$' + Number(exactPrice).toLocaleString('en-US');
+      } else {
+        // Priority 2: size-level min price (priceFrom)
+        var pf = btn.dataset.priceFrom;
+        if (pf && pf !== '') {
+          priceEl2.textContent = 'From $' + Number(pf).toLocaleString('en-US');
+        } else {
+          // Priority 3: full range default
+          priceEl2.textContent = priceEl2.dataset['default'] || '';
+        }
+      }
     }
 
     // Always make exactly one size chip active (no toggle-off)
