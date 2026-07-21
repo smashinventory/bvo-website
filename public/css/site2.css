@@ -641,6 +641,7 @@
   flex-wrap: nowrap;   /* template slices to 4; +N span handles the rest */
   margin-top: .15rem;
   margin-bottom: .5rem;
+  margin-left: -.5rem;
   overflow: hidden;
 }
 .model-card-swatch {
@@ -685,6 +686,7 @@
   gap: .35rem;
   margin-top: .1rem;
   margin-bottom: .5rem;
+  margin-left: -.5rem;
   min-width: 0;
 }
 .model-card-sizes-text {
