@@ -47,10 +47,10 @@ function proxyGet(params) {
 
 // ── Category name → BVO slug fuzzy map ──────────────────────────
 const CAT_MAP = {
-  'vanity':             'vanities',
-  'vanities':           'vanities',
-  'bathroom vanity':    'vanities',
-  'bathroom vanities':  'vanities',
+  'vanity':             'bathroom-vanities',
+  'vanities':           'bathroom-vanities',
+  'bathroom vanity':    'bathroom-vanities',
+  'bathroom vanities':  'bathroom-vanities',
   'mirror':             'mirrors',
   'mirrors':            'mirrors',
   'bathroom mirror':    'mirrors',

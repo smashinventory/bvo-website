@@ -104,6 +104,12 @@ exports.show = async (req, res, next) => {
     // every other collection page.  Old if (slug==='vanity-models') block above
     // is left intact; this new path is tested at /collections/vanity-models-v2.
     if (category.display_mode === 'model-group') {
+      // Products for model-group pages live in bathroom-vanities, not in the
+      // display category (vanity-models). Look up the source category by slug
+      // so we're not relying on a hardcoded ID. (Rule 12 — canonical slugs)
+      const mgSourceCat    = await Category.findBySlug('bathroom-vanities');
+      const mgProductCatId = mgSourceCat ? mgSourceCat.id : 1;
+
       const mgPage = Math.max(1, parseInt(req.query.page || '1', 10));
 
       // Active filter values — sizes are bucket labels (strings), not raw numbers
@@ -136,7 +142,7 @@ exports.show = async (req, res, next) => {
         SELECT DISTINCT p.width_in AS size_in, p.brand, p.color, p.color_family
         FROM products p
         WHERE p.is_active = 1 AND p.model IS NOT NULL AND p.category_id = ?
-      `, [category.id]);
+      `, [mgProductCatId]);
       // Size buckets only count products that have a valid width_in
       const mgRawWidths     = [...new Set(mgOptRows.map(r => r.size_in).filter(v => v != null && v > 0))];
       const mgAvailSizes    = SIZE_BUCKETS
@@ -172,7 +178,7 @@ exports.show = async (req, res, next) => {
       //                 range, not just the filtered color's variants.
       //
       let mgWhere        = 'p.is_active = 1 AND p.model IS NOT NULL AND p.category_id = ?';
-      const mgWhereParams = [category.id];
+      const mgWhereParams = [mgProductCatId];
       const mgHavingParts  = [];
       const mgHavingParams = [];
 
