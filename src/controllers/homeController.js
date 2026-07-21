@@ -89,10 +89,46 @@ async function getFeaturedModels() {
       });
     }
 
+    /* Fetch color × size → image map so carousel chips can swap images */
+    const [csRows] = await bvoPool.query(`
+      SELECT p.model, p.color, CAST(p.width_in AS UNSIGNED) AS size_in,
+        COALESCE(
+          MIN(CASE WHEN p.primary_image_url IS NOT NULL THEN p.primary_image_url END),
+          MIN(pi.url)
+        ) AS image_url
+      FROM products p
+      LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
+      WHERE p.is_active = 1 AND p.model IN (${modelNames.map(() => '?').join(',')})
+        AND p.color IS NOT NULL AND p.width_in IS NOT NULL AND p.width_in > 0
+      GROUP BY p.model, p.color, p.width_in
+      ORDER BY p.model, p.color, p.width_in
+    `, modelNames);
+
+    const colorSizeMap = {}; // [model][color][size] = imageURL
+    const sizeImageMap = {}; // [model][size] = imageURL (first-color fallback for chip data-image)
+    for (const r of csRows) {
+      const sizeKey = Math.round(Number(r.size_in));
+      if (!sizeKey || !r.image_url) continue;
+      if (!colorSizeMap[r.model])           colorSizeMap[r.model] = {};
+      if (!colorSizeMap[r.model][r.color])  colorSizeMap[r.model][r.color] = {};
+      colorSizeMap[r.model][r.color][sizeKey] = r.image_url;
+      if (!sizeImageMap[r.model])           sizeImageMap[r.model] = {};
+      if (!sizeImageMap[r.model][sizeKey])  sizeImageMap[r.model][sizeKey] = r.image_url;
+    }
+
+    // Attach sizeImages dict to every swatch so the template can emit data-size-images
+    for (const model of Object.keys(swatchMap)) {
+      swatchMap[model] = swatchMap[model].map(sw => ({
+        ...sw,
+        sizeImages: (colorSizeMap[model] && colorSizeMap[model][sw.color]) || {},
+      }));
+    }
+
     return modelRows.map(r => ({
       ...r,
-      sizes:   r.sizes_csv ? r.sizes_csv.split(',').map(Number).filter(Boolean) : [],
-      finishes: swatchMap[r.model] || [],
+      sizes:        r.sizes_csv ? r.sizes_csv.split(',').map(Number).filter(Boolean) : [],
+      finishes:     swatchMap[r.model] || [],
+      sizeImageMap: sizeImageMap[r.model] || {},
     }));
   } catch {
     return [];
