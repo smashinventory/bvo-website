@@ -175,13 +175,14 @@ async function getFeaturedModels() {
       });
     }
 
-    /* Fetch color × size → image map so carousel chips can swap images */
+    /* Fetch color × size → image + price map so carousel chips can swap images and show prices */
     const [csRows] = await bvoPool.query(`
       SELECT p.model, p.color, CAST(p.width_in AS UNSIGNED) AS size_in,
         COALESCE(
           MIN(CASE WHEN p.primary_image_url IS NOT NULL THEN p.primary_image_url END),
           MIN(pi.url)
-        ) AS image_url
+        ) AS image_url,
+        MIN(p.price) AS price
       FROM products p
       LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
       WHERE p.is_active = 1 AND p.model IN (${modelNames.map(() => '?').join(',')})
@@ -190,29 +191,57 @@ async function getFeaturedModels() {
       ORDER BY p.model, p.color, p.width_in
     `, modelNames);
 
-    // Build bucketed colorSizeMap and sizeImageMap (same pattern as collectionsController)
-    const colorSizeMap = {}; // [model][color][bKey] = imageURL
-    const sizeImageMap = {}; // [model][bKey] = imageURL
-    const modelBuckets = {}; // [model] = [{label, key}] — deduplicated
+    // Build bucketed colorSizeMap, sizeImageMap, colorSizePriceMap, sizePriceMap
+    const colorSizeMap      = {}; // [model][color][bKey] = imageURL
+    const sizeImageMap      = {}; // [model][bKey] = imageURL
+    const colorSizePriceMap = {}; // [model][color][bKey] = min price
+    const sizePriceMap      = {}; // [model][bKey] = min price across colors
+    const modelBuckets      = {}; // [model] = [{label, key, priceFrom}] — deduplicated
     for (const r of csRows) {
       const rawSize = Math.round(Number(r.size_in));
-      if (!rawSize || !r.image_url) continue;
+      if (!rawSize) continue;
       const bkt = toBucket(rawSize);
       if (!bkt) continue;
-      if (!colorSizeMap[r.model])           colorSizeMap[r.model] = {};
-      if (!colorSizeMap[r.model][r.color])  colorSizeMap[r.model][r.color] = {};
+
+      if (!colorSizeMap[r.model])          colorSizeMap[r.model] = {};
+      if (!colorSizeMap[r.model][r.color]) colorSizeMap[r.model][r.color] = {};
       if (!colorSizeMap[r.model][r.color][bkt.key]) colorSizeMap[r.model][r.color][bkt.key] = r.image_url;
-      if (!sizeImageMap[r.model])            sizeImageMap[r.model] = {};
-      if (!sizeImageMap[r.model][bkt.key])   sizeImageMap[r.model][bkt.key] = r.image_url;
-      if (!modelBuckets[r.model])            modelBuckets[r.model] = [];
-      if (!modelBuckets[r.model].some(s => s.key === bkt.key)) modelBuckets[r.model].push(bkt);
+
+      if (!sizeImageMap[r.model])           sizeImageMap[r.model] = {};
+      if (!sizeImageMap[r.model][bkt.key])  sizeImageMap[r.model][bkt.key] = r.image_url;
+
+      // Price maps
+      if (r.price != null) {
+        if (!colorSizePriceMap[r.model])               colorSizePriceMap[r.model] = {};
+        if (!colorSizePriceMap[r.model][r.color])      colorSizePriceMap[r.model][r.color] = {};
+        const curCP = colorSizePriceMap[r.model][r.color][bkt.key];
+        if (curCP == null || r.price < curCP) colorSizePriceMap[r.model][r.color][bkt.key] = r.price;
+
+        if (!sizePriceMap[r.model]) sizePriceMap[r.model] = {};
+        const curSP = sizePriceMap[r.model][bkt.key];
+        if (curSP == null || r.price < curSP) sizePriceMap[r.model][bkt.key] = r.price;
+      }
+
+      if (!modelBuckets[r.model]) modelBuckets[r.model] = [];
+      if (!modelBuckets[r.model].some(s => s.key === bkt.key)) {
+        modelBuckets[r.model].push({ label: bkt.label, key: bkt.key });
+      }
     }
 
-    // Attach sizeImages dict to every swatch so the template can emit data-size-images
+    // Attach sizeImages + sizePrices to every swatch
     for (const model of Object.keys(swatchMap)) {
       swatchMap[model] = swatchMap[model].map(sw => ({
         ...sw,
-        sizeImages: (colorSizeMap[model] && colorSizeMap[model][sw.color]) || {},
+        sizeImages: (colorSizeMap[model]      && colorSizeMap[model][sw.color])      || {},
+        sizePrices: (colorSizePriceMap[model] && colorSizePriceMap[model][sw.color]) || {},
+      }));
+    }
+
+    // Attach priceFrom to each size bucket
+    for (const model of Object.keys(modelBuckets)) {
+      modelBuckets[model] = modelBuckets[model].map(bkt => ({
+        ...bkt,
+        priceFrom: (sizePriceMap[model] && sizePriceMap[model][bkt.key]) ?? null,
       }));
     }
 

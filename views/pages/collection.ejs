@@ -597,15 +597,16 @@
           </h3>
           <p class="model-card-brand">Brand: <%= m.brand %></p>
 
-          <!-- Price — gold color, below brand, above finishes (brand colors rule) -->
+          <!-- Price — updates dynamically on size/color click via site.js -->
+          <%
+            var _mPriceDefault = (m.price_to && m.price_to > m.price_from)
+              ? ('$' + m.price_from.toLocaleString('en-US') + ' – $' + m.price_to.toLocaleString('en-US'))
+              : ('From $' + m.price_from.toLocaleString('en-US'));
+          %>
           <div class="model-card-price-row">
-            <% if (m.price_to && m.price_to > m.price_from) { %>
-            <span class="model-card-price">$<%= m.price_from.toLocaleString('en-US') %> – $<%= m.price_to.toLocaleString('en-US') %></span>
-            <% } else { %>
-            <span class="model-card-price">From $<%= m.price_from.toLocaleString('en-US') %></span>
-            <% if (m.compare_price_from) { %>
+            <span class="model-card-price" id="model-price-<%= _mId %>" data-default="<%= _mPriceDefault %>"><%= _mPriceDefault %></span>
+            <% if (m.compare_price_from && !(m.price_to && m.price_to > m.price_from)) { %>
             <span class="model-card-was">$<%= m.compare_price_from.toLocaleString('en-US') %></span>
-            <% } %>
             <% } %>
           </div>
 
@@ -619,9 +620,11 @@
             %>
             <button class="model-card-swatch<%= i === 0 ? ' is-active' : '' %><%= _isWood ? ' swatch--wood-grain' : '' %>"
                     data-target-img="model-img-<%= _mId %>"
+                    data-target-price="model-price-<%= _mId %>"
                     data-finish="<%= f.color %>"
                     <% if (f.image_url) { %>data-image="<%= f.image_url %>"<% } %>
                     <% if (f.sizeImages && Object.keys(f.sizeImages).length) { %>data-size-images="<%= JSON.stringify(f.sizeImages) %>"<% } %>
+                    <% if (f.sizePrices && Object.keys(f.sizePrices).length) { %>data-size-prices="<%= JSON.stringify(f.sizePrices) %>"<% } %>
                     style="background:<%= f.hex %>;border-color:<%= _swatchBorder %>"
                     aria-label="<%= f.color %>"
                     title="<%= f.color %>"></button>
@@ -641,7 +644,9 @@
               <button type="button"
                       class="model-card-size-btn<%= i === 0 ? ' is-active' : '' %>"
                       data-target-img="model-img-<%= _mId %>"
+                      data-target-price="model-price-<%= _mId %>"
                       data-size="<%= sz.key %>"
+                      data-price-from="<%= sz.priceFrom != null ? sz.priceFrom : '' %>"
                       <% if (_szImg) { %>data-image="<%= _szImg %>"<% } %>
                       aria-label="<%= sz.label %>&quot; wide"
                       title="<%= sz.label %>&quot; wide">

@@ -1,5 +1,42 @@
 # BVO Change Log Brief
-*Last updated: 2026-07-16*
+*Last updated: 2026-07-21*
+
+---
+
+## Scope — Universal Swatch & Chip Layout (Rule 13)
+**Date:** 2026-07-21
+
+### Summary
+Established a universal, locked-in layout standard for size chips and color swatches across ALL card types on the site. This resolved a series of card-by-card discrepancies that accumulated across sessions.
+
+### Changes Made
+
+**`public/css/site2.css`** (at v13 after all changes):
+- Labels: `.model-card-swatches-label` / `.model-card-sizes-label` — `font-size: .68rem`, `font-weight: 600`, `min-width: 5rem`, `color: #9CA3AF`, `text-transform: uppercase`
+- Swatches row: `.model-card-swatches` — `gap: .35rem`, `margin-bottom: .5rem`
+- Swatch shift: `.model-card-swatches .model-card-swatch:first-of-type` — `margin-left: -.5rem`
+- Sizes row: `.model-card-sizes-row` — `gap: .35rem`, `margin-bottom: .5rem`
+- Chip container shift: `.model-card-size-chips` — `margin-left: -.55rem`
+- Chip button: `.model-card-size-btn` — `padding: .13rem`, `font-size: .68rem`, `font-weight: 600`, `border-radius: 3px`
+
+**`views/pages/collection.ejs`:**
+- Removed `"` from all size chip button visible text (model-group cards + product cards)
+- Restored `FINISHES:` / `SIZES:` labels on all card types
+- Removed 5-chip cap (+N overflow) — all sizes now shown
+- Model-group chip template updated to use `sz.key` / `sz.label` (bucketed objects from SIZE_BUCKETS)
+
+**`views/pages/index.ejs`:**
+- Removed `"` from all size chip button visible text (carousel + featured product cards)
+- Restored `FINISHES:` / `SIZES:` labels
+- Removed 5-chip cap (+N overflow)
+
+**`src/controllers/collectionsController.js`:**
+- Applied SIZE_BUCKETS bucketing to model-group `m.sizes` (was raw numbers; now `{label, key}` objects)
+- Fixed model-group filter options query: added `AND p.category_id = ?` scope
+- Fixed model-group main WHERE: added `AND p.category_id = ?` scope
+
+### Permanent Rule
+See **Rule 13** in `BVO_AUDIT_BRIEF.md` for the canonical values and violation checklist.
 
 ---
 
