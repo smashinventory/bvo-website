@@ -795,19 +795,20 @@
             <% if (_pSizes && _pSizes.length) { %>
             <div class="model-card-size-chips">
               <% _pSizes.forEach(function(sz, i) {
+                   /* sz = {label:'30', key:30} — bucketed via SIZE_BUCKETS */
                    var _pSzImg = (typeof modelSizeImageMap !== 'undefined' &&
                                   modelSizeImageMap[product.model] &&
-                                  modelSizeImageMap[product.model][sz])
-                                 ? modelSizeImageMap[product.model][sz] : null;
+                                  modelSizeImageMap[product.model][sz.key])
+                                 ? modelSizeImageMap[product.model][sz.key] : null;
               %>
               <button type="button"
                       class="model-card-size-btn<%= i === 0 ? ' is-active' : '' %>"
                       data-target-img="<%= _pImgId %>"
-                      data-size="<%= sz %>"
+                      data-size="<%= sz.key %>"
                       <% if (_pSzImg) { %>data-image="<%= _pSzImg %>"<% } %>
-                      aria-label="<%= sz %>&quot; wide"
-                      title="<%= sz %>&quot; wide">
-                <%= sz %>"
+                      aria-label="<%= sz.label %>&quot; wide"
+                      title="<%= sz.label %>&quot; wide">
+                <%= sz.label %>"
               </button>
               <% }); %>
             </div>

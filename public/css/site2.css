@@ -674,16 +674,15 @@
   letter-spacing: .05em;
   text-transform: uppercase;
   flex-shrink: 0;
-  min-width: 6rem;  /* lock both labels to same width so swatches/sizes line up */
+  min-width: 4rem;  /* reduced from 6rem — tighter alignment, less wasted whitespace */
 }
 
 /* Sizes */
 .model-card-sizes-row {
   display: flex;
-  align-items: center;
-  gap: .5rem;
-  margin-top: .2rem;
-  overflow: hidden;  /* required for text-overflow: ellipsis to work on child */
+  align-items: flex-start;
+  gap: .35rem;
+  margin-top: .1rem;
   min-width: 0;
 }
 .model-card-sizes-text {
@@ -1091,8 +1090,7 @@
 .model-card-size-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: .2rem .25rem;
-  margin-top: .2rem;
+  gap: .15rem .2rem;
 }
 .model-card-size-btn {
   padding: .15rem .4rem;

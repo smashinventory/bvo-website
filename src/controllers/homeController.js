@@ -2,7 +2,16 @@
 
 const { bvoPool }              = require('../config/database');
 const { FAMILIES, normalize }   = require('../config/colorFamilies');
+const { SIZE_BUCKETS }          = require('../config/sizeBuckets');
 const themeSettings            = require('../services/themeSettings');
+
+/* Convert a raw integer width → {label, key} bucket object, or null */
+function toBucket(rawSize) {
+  const b = SIZE_BUCKETS.find(b => rawSize >= b.min && rawSize <= b.max);
+  if (!b) return null;
+  const key = parseInt(b.label, 10) || 0;
+  return key ? { label: b.label, key } : null;
+}
 
 /* Build family key → hex map */
 const FAMILY_HEX = {};
@@ -12,7 +21,7 @@ async function getFeaturedProducts() {
   try {
     const [rows] = await bvoPool.query(`
       SELECT
-        p.id, p.slug, p.name, p.brand, p.price, p.compare_price, p.is_new,
+        p.id, p.slug, p.name, p.brand, p.price, p.compare_price, p.is_new, p.model,
         COALESCE(p.primary_image_url, pi.url) AS primary_image,
         CASE
           WHEN p.compare_price IS NOT NULL AND p.compare_price > p.price THEN 'sale'
@@ -26,8 +35,84 @@ async function getFeaturedProducts() {
       ORDER BY p.sort_order, p.created_at DESC
       LIMIT 12
     `);
-    return rows;
-  } catch {
+    if (!rows.length) return [];
+
+    /* Fetch color swatches + color×size image map for each product's model */
+    const modelNames = [...new Set(rows.map(r => r.model).filter(Boolean))];
+    if (!modelNames.length) return rows.map(r => ({ ...r, finishes: [], sizes: [], sizeImageMap: {} }));
+
+    const ph = modelNames.map(() => '?').join(',');
+
+    const [[swatchRows], [csRows]] = await Promise.all([
+      bvoPool.query(`
+        SELECT p.model, p.color, p.color_family,
+          COALESCE(MIN(CASE WHEN p.primary_image_url IS NOT NULL THEN p.primary_image_url END), MIN(pi.url)) AS image_url
+        FROM products p
+        LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
+        WHERE p.is_active = 1 AND p.model IN (${ph}) AND p.color IS NOT NULL
+        GROUP BY p.model, p.color, p.color_family
+        ORDER BY p.model, p.color
+      `, modelNames),
+      bvoPool.query(`
+        SELECT p.model, p.color, CAST(p.width_in AS UNSIGNED) AS size_in,
+          COALESCE(MIN(CASE WHEN p.primary_image_url IS NOT NULL THEN p.primary_image_url END), MIN(pi.url)) AS image_url
+        FROM products p
+        LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
+        WHERE p.is_active = 1 AND p.model IN (${ph}) AND p.color IS NOT NULL
+          AND p.width_in IS NOT NULL AND p.width_in > 0
+        GROUP BY p.model, p.color, p.width_in
+        ORDER BY p.model, p.color, p.width_in
+      `, modelNames),
+    ]);
+
+    /* Build swatchMap[model] = [{color, hex, border, image_url, sizeImages}] */
+    const FAMILY_HEX_LOCAL = {};
+    FAMILIES.forEach(f => { FAMILY_HEX_LOCAL[f.key] = f.hex; FAMILY_HEX_LOCAL[f.key + '_border'] = f.border; });
+
+    const colorSizeMap = {}; // [model][color][bKey] = imageURL
+    const sizeImageMap = {}; // [model][bKey] = imageURL
+    for (const r of csRows) {
+      const rawSize = Math.round(Number(r.size_in));
+      if (!rawSize || !r.image_url) continue;
+      const bkt = toBucket(rawSize);
+      if (!bkt) continue;
+      if (!colorSizeMap[r.model])           colorSizeMap[r.model] = {};
+      if (!colorSizeMap[r.model][r.color])  colorSizeMap[r.model][r.color] = {};
+      if (!colorSizeMap[r.model][r.color][bkt.key]) colorSizeMap[r.model][r.color][bkt.key] = r.image_url;
+      if (!sizeImageMap[r.model])            sizeImageMap[r.model] = {};
+      if (!sizeImageMap[r.model][bkt.key])   sizeImageMap[r.model][bkt.key] = r.image_url;
+    }
+
+    const swatchMap = {};
+    for (const r of swatchRows) {
+      if (!swatchMap[r.model]) swatchMap[r.model] = [];
+      const fk = r.color_family || normalize(r.color, 'all') || '';
+      swatchMap[r.model].push({
+        color: r.color, color_family: r.color_family,
+        hex: FAMILY_HEX_LOCAL[fk] || '#ccc', border: FAMILY_HEX_LOCAL[fk + '_border'] || '#aaa',
+        image_url: r.image_url || null,
+        sizeImages: (colorSizeMap[r.model] && colorSizeMap[r.model][r.color]) || {},
+      });
+    }
+
+    /* Build bucketed size list per model */
+    const modelSizes = {}; // [model] = [{label, key}]
+    for (const r of csRows) {
+      const rawSize = Math.round(Number(r.size_in));
+      const bkt = toBucket(rawSize);
+      if (!bkt) continue;
+      if (!modelSizes[r.model]) modelSizes[r.model] = [];
+      if (!modelSizes[r.model].some(s => s.key === bkt.key)) modelSizes[r.model].push(bkt);
+    }
+
+    return rows.map(r => ({
+      ...r,
+      finishes:     swatchMap[r.model]  || [],
+      sizes:        modelSizes[r.model] || [],
+      sizeImageMap: sizeImageMap[r.model] || {},
+    }));
+  } catch (e) {
+    console.error('getFeaturedProducts error:', e);
     return [];
   }
 }
@@ -104,16 +189,22 @@ async function getFeaturedModels() {
       ORDER BY p.model, p.color, p.width_in
     `, modelNames);
 
-    const colorSizeMap = {}; // [model][color][size] = imageURL
-    const sizeImageMap = {}; // [model][size] = imageURL (first-color fallback for chip data-image)
+    // Build bucketed colorSizeMap and sizeImageMap (same pattern as collectionsController)
+    const colorSizeMap = {}; // [model][color][bKey] = imageURL
+    const sizeImageMap = {}; // [model][bKey] = imageURL
+    const modelBuckets = {}; // [model] = [{label, key}] — deduplicated
     for (const r of csRows) {
-      const sizeKey = Math.round(Number(r.size_in));
-      if (!sizeKey || !r.image_url) continue;
+      const rawSize = Math.round(Number(r.size_in));
+      if (!rawSize || !r.image_url) continue;
+      const bkt = toBucket(rawSize);
+      if (!bkt) continue;
       if (!colorSizeMap[r.model])           colorSizeMap[r.model] = {};
       if (!colorSizeMap[r.model][r.color])  colorSizeMap[r.model][r.color] = {};
-      colorSizeMap[r.model][r.color][sizeKey] = r.image_url;
-      if (!sizeImageMap[r.model])           sizeImageMap[r.model] = {};
-      if (!sizeImageMap[r.model][sizeKey])  sizeImageMap[r.model][sizeKey] = r.image_url;
+      if (!colorSizeMap[r.model][r.color][bkt.key]) colorSizeMap[r.model][r.color][bkt.key] = r.image_url;
+      if (!sizeImageMap[r.model])            sizeImageMap[r.model] = {};
+      if (!sizeImageMap[r.model][bkt.key])   sizeImageMap[r.model][bkt.key] = r.image_url;
+      if (!modelBuckets[r.model])            modelBuckets[r.model] = [];
+      if (!modelBuckets[r.model].some(s => s.key === bkt.key)) modelBuckets[r.model].push(bkt);
     }
 
     // Attach sizeImages dict to every swatch so the template can emit data-size-images
@@ -126,8 +217,8 @@ async function getFeaturedModels() {
 
     return modelRows.map(r => ({
       ...r,
-      sizes:        r.sizes_csv ? r.sizes_csv.split(',').map(Number).filter(Boolean) : [],
-      finishes:     swatchMap[r.model] || [],
+      sizes:        modelBuckets[r.model] || [],
+      finishes:     swatchMap[r.model]    || [],
       sizeImageMap: sizeImageMap[r.model] || {},
     }));
   } catch {

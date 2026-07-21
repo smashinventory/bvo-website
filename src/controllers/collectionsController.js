@@ -659,8 +659,9 @@ exports.show = async (req, res, next) => {
       }
     }
 
-    // ── Model → size list map ─────────────────────────────────────
-    // Uses products.width_in (same source as sidebar + homeController).
+    // ── Model → size list map (bucketed via SIZE_BUCKETS Rule 10) ───
+    // Each entry is {label, key} — label is the display string ('30', '20-', '84+'),
+    // key is the numeric value used as data-size and as the sizeImages dict key.
     let modelSizeMap = {};
     if (pageModels.length) {
       const [msRows] = await bvoPool.query(`
@@ -671,15 +672,19 @@ exports.show = async (req, res, next) => {
         ORDER BY p.model, p.width_in
       `, pageModels);
       for (const r of msRows) {
+        const bucket = SIZE_BUCKETS.find(b => r.size_in >= b.min && r.size_in <= b.max);
+        if (!bucket) continue;
+        const bKey = parseInt(bucket.label, 10) || 0;
+        if (!bKey) continue;
         if (!modelSizeMap[r.model]) modelSizeMap[r.model] = [];
-        if (!modelSizeMap[r.model].includes(r.size_in)) modelSizeMap[r.model].push(r.size_in);
+        if (!modelSizeMap[r.model].some(s => s.key === bKey))
+          modelSizeMap[r.model].push({ label: bucket.label, key: bKey });
       }
     }
 
     // ── Model → color × size image map (product-card size chips) ────
-    // Builds two maps from the same query:
-    //   modelColorSizeMap[model][color][size] = imageURL  → attached to each swatch as sizeImages
-    //   modelSizeImageMap[model][size]         = imageURL  → fallback data-image on each size chip
+    // Keys use the same numeric bucket key as modelSizeMap entries.
+    // First image encountered for a bucket wins (ORDER BY width_in ensures smallest first).
     let modelColorSizeMap = {};
     let modelSizeImageMap = {};
     if (pageModels.length) {
@@ -698,15 +703,20 @@ exports.show = async (req, res, next) => {
         ORDER BY p.model, p.color, p.width_in
       `, pageModels);
       for (const r of mcSizeRows) {
-        const sizeKey = Math.round(Number(r.size_in));
-        if (!sizeKey || !r.image_url) continue;
+        const rawSize = Math.round(Number(r.size_in));
+        if (!rawSize || !r.image_url) continue;
+        const bucket = SIZE_BUCKETS.find(b => rawSize >= b.min && rawSize <= b.max);
+        if (!bucket) continue;
+        const bKey = parseInt(bucket.label, 10) || 0;
+        if (!bKey) continue;
         if (!modelColorSizeMap[r.model])           modelColorSizeMap[r.model] = {};
         if (!modelColorSizeMap[r.model][r.color])  modelColorSizeMap[r.model][r.color] = {};
-        modelColorSizeMap[r.model][r.color][sizeKey] = r.image_url;
-        if (!modelSizeImageMap[r.model])           modelSizeImageMap[r.model] = {};
-        if (!modelSizeImageMap[r.model][sizeKey])  modelSizeImageMap[r.model][sizeKey] = r.image_url;
+        if (!modelColorSizeMap[r.model][r.color][bKey])  // first image per bucket wins
+          modelColorSizeMap[r.model][r.color][bKey] = r.image_url;
+        if (!modelSizeImageMap[r.model])            modelSizeImageMap[r.model] = {};
+        if (!modelSizeImageMap[r.model][bKey])      modelSizeImageMap[r.model][bKey] = r.image_url;
       }
-      // Attach per-size image dict to every swatch so the template can emit data-size-images
+      // Attach per-bucket image dict to every swatch → emitted as data-size-images
       for (const mdl of Object.keys(modelColorMap)) {
         modelColorMap[mdl] = modelColorMap[mdl].map(sw => ({
           ...sw,

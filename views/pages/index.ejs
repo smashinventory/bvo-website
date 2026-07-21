@@ -158,6 +158,10 @@ const news = S.newsletter         || {};
     <%
       var _hpImgId = 'feat-img-' + product.id;
     %>
+    <%
+      var _fpSwatches     = (product.finishes || []).slice(0, 4);
+      var _fpSwatchExtra  = (product.finishes || []).length > 4 ? product.finishes.length - 4 : 0;
+    %>
     <article class="product-card">
       <a href="/products/<%= product.slug %>" class="product-img-link" aria-label="<%= product.name %>">
         <div class="product-img">
@@ -175,14 +179,56 @@ const news = S.newsletter         || {};
       <div class="product-body">
         <% if (product.brand) { %><p class="product-brand"><%= product.brand %></p><% } %>
         <h3 class="product-title"><a href="/products/<%= product.slug %>"><%= product.name %></a></h3>
+
+        <% if (_fpSwatches.length) { %>
+        <div class="model-card-swatches" role="group" aria-label="Available finishes">
+          <span class="model-card-swatches-label">Finishes:</span>
+          <% _fpSwatches.forEach(function(f, i) { %>
+          <%
+            var _fpLight  = f.hex && ['#f5f5f3','#f0f0ef','#f5f5f5','#fafafa','#ffffff','#e8d9b8'].indexOf(f.hex.toLowerCase()) !== -1;
+            var _fpBorder = _fpLight ? '#ccc' : (f.border || f.hex);
+            var _fpWood   = ['wood_l','wood_m','wood_d'].indexOf(f.color_family) !== -1;
+          %>
+          <button class="model-card-swatch<%= i === 0 ? ' is-active' : '' %><%= _fpWood ? ' swatch--wood-grain' : '' %>"
+                  data-target-img="<%= _hpImgId %>"
+                  data-finish="<%= f.color %>"
+                  <% if (f.image_url) { %>data-image="<%= f.image_url %>"<% } %>
+                  <% if (f.sizeImages && Object.keys(f.sizeImages).length) { %>data-size-images="<%= JSON.stringify(f.sizeImages) %>"<% } %>
+                  style="background:<%= f.hex %>;border-color:<%= _fpBorder %>"
+                  aria-label="<%= f.color %>" title="<%= f.color %>"></button>
+          <% }); %>
+          <% if (_fpSwatchExtra > 0) { %>
+          <span class="model-card-swatch-more" aria-hidden="true">+<%= _fpSwatchExtra %></span>
+          <% } %>
+        </div>
+        <% } %>
+
+        <% if (product.sizes && product.sizes.length) { %>
+        <div class="model-card-sizes-row">
+          <span class="model-card-sizes-label">Sizes:</span>
+          <div class="model-card-size-chips">
+            <% product.sizes.forEach(function(sz, i) { %>
+            <% var _fpSzImg = product.sizeImageMap && product.sizeImageMap[sz.key] ? product.sizeImageMap[sz.key] : null; %>
+            <button type="button"
+                    class="model-card-size-btn<%= i === 0 ? ' is-active' : '' %>"
+                    data-target-img="<%= _hpImgId %>"
+                    data-size="<%= sz.key %>"
+                    <% if (_fpSzImg) { %>data-image="<%= _fpSzImg %>"<% } %>
+                    aria-label="<%= sz.label %>&quot; wide"
+                    title="<%= sz.label %>&quot; wide">
+              <%= sz.label %>"
+            </button>
+            <% }); %>
+          </div>
+        </div>
+        <% } %>
+
         <div class="product-price-row">
           <span class="product-price">$<%= product.price.toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
           <% if (product.compare_price && product.compare_price > product.price) { %>
           <span class="product-was">$<%= product.compare_price.toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
           <% } %>
         </div>
-
-
         <a href="/products/<%= product.slug %>" class="btn btn-sage">View Details</a>
       </div>
     </article>
@@ -222,7 +268,7 @@ const news = S.newsletter         || {};
         var _mHref           = '/collections/bathroom-vanities?model=' + encodeURIComponent(m.model || '');
         var _mImg            = m.image_url || '/images/placeholder-vanity.jpg';
       %>
-      <article class="model-card" data-model="<%= m.model %>" data-sizes="<%= m.sizes.join(',') %>">
+      <article class="model-card" data-model="<%= m.model %>" data-sizes="<%= m.sizes.map(function(s){return s.key}).join(',') %>">
 
         <div class="model-card-img-wrap">
           <% if (_discPct > 0) { %>
@@ -280,15 +326,15 @@ const news = S.newsletter         || {};
             <% if (m.sizes && m.sizes.length) { %>
             <div class="model-card-size-chips">
               <% m.sizes.forEach(function(sz, i) { %>
-              <% var _szImg = m.sizeImageMap && m.sizeImageMap[sz] ? m.sizeImageMap[sz] : null; %>
+              <% var _szImg = m.sizeImageMap && m.sizeImageMap[sz.key] ? m.sizeImageMap[sz.key] : null; %>
               <button type="button"
                       class="model-card-size-btn<%= i === 0 ? ' is-active' : '' %>"
                       data-target-img="model-img-<%= _mId %>"
-                      data-size="<%= sz %>"
+                      data-size="<%= sz.key %>"
                       <% if (_szImg) { %>data-image="<%= _szImg %>"<% } %>
-                      aria-label="<%= sz %>&quot; wide"
-                      title="<%= sz %>&quot; wide">
-                <%= sz %>"
+                      aria-label="<%= sz.label %>&quot; wide"
+                      title="<%= sz.label %>&quot; wide">
+                <%= sz.label %>"
               </button>
               <% }); %>
             </div>
