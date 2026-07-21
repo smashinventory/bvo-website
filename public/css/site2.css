@@ -685,6 +685,7 @@
   gap: .35rem;
   margin-top: .1rem;
   margin-bottom: .5rem;
+  margin-left: -2rem;
   min-width: 0;
 }
 .model-card-sizes-text {
