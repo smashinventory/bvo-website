@@ -765,6 +765,7 @@
           <!-- Finishes -->
           <% if (_pSwatches.length) { %>
           <div class="model-card-swatches" role="group" aria-label="Available finishes">
+            <span class="model-card-swatches-label">Finishes:</span>
             <% _pSwatches.forEach(function(f, i) { %>
             <%
               var _isLight = f.hex && ['#f5f5f3','#f0f0ef','#f5f5f5','#fafafa','#ffffff','#e8d9b8'].indexOf(f.hex.toLowerCase()) !== -1;
@@ -787,30 +788,26 @@
           <% } %>
 
           <% if (_pSizes && _pSizes.length) { %>
-          <%
-            var _szVisible = _pSizes.slice(0, 5);
-            var _szExtra   = _pSizes.length > 5 ? _pSizes.length - 5 : 0;
-          %>
-          <div class="model-card-size-chips">
-            <% _szVisible.forEach(function(sz, i) {
-                 var _pSzImg = (typeof modelSizeImageMap !== 'undefined' &&
-                                modelSizeImageMap[product.model] &&
-                                modelSizeImageMap[product.model][sz.key])
-                               ? modelSizeImageMap[product.model][sz.key] : null;
-            %>
-            <button type="button"
-                    class="model-card-size-btn<%= i === 0 ? ' is-active' : '' %>"
-                    data-target-img="<%= _pImgId %>"
-                    data-size="<%= sz.key %>"
-                    <% if (_pSzImg) { %>data-image="<%= _pSzImg %>"<% } %>
-                    aria-label="<%= sz.label %>&quot; wide"
-                    title="<%= sz.label %>&quot; wide">
-              <%= sz.label %>
-            </button>
-            <% }); %>
-            <% if (_szExtra > 0) { %>
-            <span class="model-card-swatch-more" aria-hidden="true">+<%= _szExtra %></span>
-            <% } %>
+          <div class="model-card-sizes-row">
+            <span class="model-card-sizes-label">Sizes:</span>
+            <div class="model-card-size-chips">
+              <% _pSizes.forEach(function(sz, i) {
+                   var _pSzImg = (typeof modelSizeImageMap !== 'undefined' &&
+                                  modelSizeImageMap[product.model] &&
+                                  modelSizeImageMap[product.model][sz.key])
+                                 ? modelSizeImageMap[product.model][sz.key] : null;
+              %>
+              <button type="button"
+                      class="model-card-size-btn<%= i === 0 ? ' is-active' : '' %>"
+                      data-target-img="<%= _pImgId %>"
+                      data-size="<%= sz.key %>"
+                      <% if (_pSzImg) { %>data-image="<%= _pSzImg %>"<% } %>
+                      aria-label="<%= sz.label %>&quot; wide"
+                      title="<%= sz.label %>&quot; wide">
+                <%= sz.label %>
+              </button>
+              <% }); %>
+            </div>
           </div>
           <% } %>
 

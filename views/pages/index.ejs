@@ -182,6 +182,7 @@ const news = S.newsletter         || {};
 
         <% if (_fpSwatches.length) { %>
         <div class="model-card-swatches" role="group" aria-label="Available finishes">
+          <span class="model-card-swatches-label">Finishes:</span>
           <% _fpSwatches.forEach(function(f, i) { %>
           <%
             var _fpLight  = f.hex && ['#f5f5f3','#f0f0ef','#f5f5f5','#fafafa','#ffffff','#e8d9b8'].indexOf(f.hex.toLowerCase()) !== -1;
@@ -203,26 +204,22 @@ const news = S.newsletter         || {};
         <% } %>
 
         <% if (product.sizes && product.sizes.length) { %>
-        <%
-          var _fpSzVisible = product.sizes.slice(0, 5);
-          var _fpSzExtra   = product.sizes.length > 5 ? product.sizes.length - 5 : 0;
-        %>
-        <div class="model-card-size-chips">
-          <% _fpSzVisible.forEach(function(sz, i) { %>
-          <% var _fpSzImg = product.sizeImageMap && product.sizeImageMap[sz.key] ? product.sizeImageMap[sz.key] : null; %>
-          <button type="button"
-                  class="model-card-size-btn<%= i === 0 ? ' is-active' : '' %>"
-                  data-target-img="<%= _hpImgId %>"
-                  data-size="<%= sz.key %>"
-                  <% if (_fpSzImg) { %>data-image="<%= _fpSzImg %>"<% } %>
-                  aria-label="<%= sz.label %>&quot; wide"
-                  title="<%= sz.label %>&quot; wide">
-            <%= sz.label %>
-          </button>
-          <% }); %>
-          <% if (_fpSzExtra > 0) { %>
-          <span class="model-card-swatch-more" aria-hidden="true">+<%= _fpSzExtra %></span>
-          <% } %>
+        <div class="model-card-sizes-row">
+          <span class="model-card-sizes-label">Sizes:</span>
+          <div class="model-card-size-chips">
+            <% product.sizes.forEach(function(sz, i) { %>
+            <% var _fpSzImg = product.sizeImageMap && product.sizeImageMap[sz.key] ? product.sizeImageMap[sz.key] : null; %>
+            <button type="button"
+                    class="model-card-size-btn<%= i === 0 ? ' is-active' : '' %>"
+                    data-target-img="<%= _hpImgId %>"
+                    data-size="<%= sz.key %>"
+                    <% if (_fpSzImg) { %>data-image="<%= _fpSzImg %>"<% } %>
+                    aria-label="<%= sz.label %>&quot; wide"
+                    title="<%= sz.label %>&quot; wide">
+              <%= sz.label %>
+            </button>
+            <% }); %>
+          </div>
         </div>
         <% } %>
 
