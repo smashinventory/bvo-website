@@ -636,16 +636,16 @@
             <% if (m.sizes && m.sizes.length) { %>
             <div class="model-card-size-chips">
               <% m.sizes.forEach(function(sz, i) {
-                   var _szImg = m.sizeImages && m.sizeImages[sz] ? m.sizeImages[sz] : null;
+                   var _szImg = m.sizeImages && m.sizeImages[sz.key] ? m.sizeImages[sz.key] : null;
               %>
               <button type="button"
                       class="model-card-size-btn<%= i === 0 ? ' is-active' : '' %>"
                       data-target-img="model-img-<%= _mId %>"
-                      data-size="<%= sz %>"
+                      data-size="<%= sz.key %>"
                       <% if (_szImg) { %>data-image="<%= _szImg %>"<% } %>
-                      aria-label="<%= sz %>&quot; wide"
-                      title="<%= sz %>&quot; wide">
-                <%= sz %>
+                      aria-label="<%= sz.label %>&quot; wide"
+                      title="<%= sz.label %>&quot; wide">
+                <%= sz.label %>
               </button>
               <% }); %>
             </div>

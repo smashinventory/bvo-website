@@ -332,7 +332,18 @@ exports.show = async (req, res, next) => {
       // Hydrate model rows with parsed sizes + sizeImages + finishes arrays
       let mgModels = mgModelRows.map(r => ({
         ...r,
-        sizes:      r.sizes_csv ? r.sizes_csv.split(',').map(Number).filter(Boolean) : [],
+        sizes:      r.sizes_csv
+          ? [...new Map(
+              r.sizes_csv.split(',').map(Number).filter(Boolean)
+                .map(rawSize => {
+                  const bucket = SIZE_BUCKETS.find(b => rawSize >= b.min && rawSize <= b.max);
+                  if (!bucket) return null;
+                  const key = parseInt(bucket.label, 10) || 0;
+                  return key ? [key, { label: bucket.label, key }] : null;
+                })
+                .filter(Boolean)
+            ).values()]
+          : [],
         sizeImages: mgSizeImageMap[r.model] || {},
         finishes:   mgSwatchMap[r.model] || [],
       }));
