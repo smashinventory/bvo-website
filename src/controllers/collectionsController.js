@@ -135,8 +135,8 @@ exports.show = async (req, res, next) => {
       const [mgOptRows] = await bvoPool.query(`
         SELECT DISTINCT p.width_in AS size_in, p.brand, p.color, p.color_family
         FROM products p
-        WHERE p.is_active = 1 AND p.model IS NOT NULL
-      `);
+        WHERE p.is_active = 1 AND p.model IS NOT NULL AND p.category_id = ?
+      `, [category.id]);
       // Size buckets only count products that have a valid width_in
       const mgRawWidths     = [...new Set(mgOptRows.map(r => r.size_in).filter(v => v != null && v > 0))];
       const mgAvailSizes    = SIZE_BUCKETS
@@ -171,8 +171,8 @@ exports.show = async (req, res, next) => {
       //             (b) sizes_csv / price_from / price_to reflect the FULL model
       //                 range, not just the filtered color's variants.
       //
-      let mgWhere        = 'p.is_active = 1 AND p.model IS NOT NULL';
-      const mgWhereParams = [];
+      let mgWhere        = 'p.is_active = 1 AND p.model IS NOT NULL AND p.category_id = ?';
+      const mgWhereParams = [category.id];
       const mgHavingParts  = [];
       const mgHavingParams = [];
 
