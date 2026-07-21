@@ -1094,7 +1094,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: .15rem .2rem;
-  margin-left: -.75rem;
+  margin-left: -.55rem;
 }
 .model-card-size-btn {
   padding: .13rem;
