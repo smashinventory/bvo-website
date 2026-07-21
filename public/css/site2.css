@@ -640,6 +640,7 @@
   gap: .35rem;
   flex-wrap: nowrap;   /* template slices to 4; +N span handles the rest */
   margin-top: .15rem;
+  margin-bottom: .5rem;
   overflow: hidden;
 }
 .model-card-swatch {
@@ -674,7 +675,7 @@
   letter-spacing: .05em;
   text-transform: uppercase;
   flex-shrink: 0;
-  min-width: 4rem;  /* reduced from 6rem — tighter alignment, less wasted whitespace */
+  min-width: 5rem;
 }
 
 /* Sizes */
