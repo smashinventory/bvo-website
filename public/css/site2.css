@@ -558,18 +558,21 @@
 }
 .model-card.is-hidden { display: none; }
 
-/* Image area */
+/* Image area — mirrors product card: contain (full image, no crop), white dead space */
 .model-card-img-wrap {
   position: relative;
   aspect-ratio: 1 / 1;
   overflow: hidden;
-  background: #F9FAFB;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.model-card-img-link { display: block; width: 100%; height: 100%; }
+.model-card-img-link { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
 .model-card-img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   transition: transform .3s ease;
 }
 .model-card:hover .model-card-img { transform: scale(1.04); }
