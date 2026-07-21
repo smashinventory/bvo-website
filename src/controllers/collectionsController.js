@@ -676,6 +676,45 @@ exports.show = async (req, res, next) => {
       }
     }
 
+    // ── Model → color × size image map (product-card size chips) ────
+    // Builds two maps from the same query:
+    //   modelColorSizeMap[model][color][size] = imageURL  → attached to each swatch as sizeImages
+    //   modelSizeImageMap[model][size]         = imageURL  → fallback data-image on each size chip
+    let modelColorSizeMap = {};
+    let modelSizeImageMap = {};
+    if (pageModels.length) {
+      const [mcSizeRows] = await bvoPool.query(`
+        SELECT p.model, p.color, CAST(p.width_in AS UNSIGNED) AS size_in,
+          COALESCE(
+            MIN(CASE WHEN p.primary_image_url IS NOT NULL THEN p.primary_image_url END),
+            MIN(pi.url)
+          ) AS image_url
+        FROM products p
+        LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
+        WHERE p.model IN (${pageModels.map(() => '?').join(',')})
+          AND p.color IS NOT NULL AND p.is_active = 1
+          AND p.width_in IS NOT NULL AND p.width_in > 0
+        GROUP BY p.model, p.color, p.width_in
+        ORDER BY p.model, p.color, p.width_in
+      `, pageModels);
+      for (const r of mcSizeRows) {
+        const sizeKey = Math.round(Number(r.size_in));
+        if (!sizeKey || !r.image_url) continue;
+        if (!modelColorSizeMap[r.model])           modelColorSizeMap[r.model] = {};
+        if (!modelColorSizeMap[r.model][r.color])  modelColorSizeMap[r.model][r.color] = {};
+        modelColorSizeMap[r.model][r.color][sizeKey] = r.image_url;
+        if (!modelSizeImageMap[r.model])           modelSizeImageMap[r.model] = {};
+        if (!modelSizeImageMap[r.model][sizeKey])  modelSizeImageMap[r.model][sizeKey] = r.image_url;
+      }
+      // Attach per-size image dict to every swatch so the template can emit data-size-images
+      for (const mdl of Object.keys(modelColorMap)) {
+        modelColorMap[mdl] = modelColorMap[mdl].map(sw => ({
+          ...sw,
+          sizeImages: (modelColorSizeMap[mdl] && modelColorSizeMap[mdl][sw.color]) || {},
+        }));
+      }
+    }
+
     // Favorites
     const savedProductIds = req.session.customerId
       ? await Customer.getFavoriteIds(req.session.customerId)
@@ -695,6 +734,7 @@ exports.show = async (req, res, next) => {
       model,
       modelColorMap,
       modelSizeMap,
+      modelSizeImageMap,
       availableSizes,   // size chip filter — populated buckets only (Rule 10)
       familyHex: FAMILY_HEX,
       attrFilters,

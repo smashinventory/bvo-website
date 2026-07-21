@@ -776,6 +776,7 @@
                       data-target-img="<%= _pImgId %>"
                       data-finish="<%= f.color %>"
                       <% if (f.image_url) { %>data-image="<%= f.image_url %>"<% } %>
+                      <% if (f.sizeImages && Object.keys(f.sizeImages).length) { %>data-size-images="<%= JSON.stringify(f.sizeImages) %>"<% } %>
                       style="background:<%= f.hex %>;border-color:<%= _sb %>"
                       aria-label="<%= f.color %>"
                       title="<%= f.color %>"></button>
@@ -788,11 +789,28 @@
             <% } %>
           </div>
 
-          <!-- Size Options -->
+          <!-- Size Options — clickable chips (same handler as model-card-size-btn) -->
           <div class="model-card-sizes-row">
-            <span class="model-card-sizes-label">Size Options:</span>
+            <span class="model-card-sizes-label">Sizes:</span>
             <% if (_pSizes && _pSizes.length) { %>
-            <span class="model-card-sizes-text"><%= _pSizes.join(' | ') %></span>
+            <div class="model-card-size-chips">
+              <% _pSizes.forEach(function(sz, i) {
+                   var _pSzImg = (typeof modelSizeImageMap !== 'undefined' &&
+                                  modelSizeImageMap[product.model] &&
+                                  modelSizeImageMap[product.model][sz])
+                                 ? modelSizeImageMap[product.model][sz] : null;
+              %>
+              <button type="button"
+                      class="model-card-size-btn<%= i === 0 ? ' is-active' : '' %>"
+                      data-target-img="<%= _pImgId %>"
+                      data-size="<%= sz %>"
+                      <% if (_pSzImg) { %>data-image="<%= _pSzImg %>"<% } %>
+                      aria-label="<%= sz %>&quot; wide"
+                      title="<%= sz %>&quot; wide">
+                <%= sz %>"
+              </button>
+              <% }); %>
+            </div>
             <% } else { %>
             <span class="model-card-sizes-text">See details</span>
             <% } %>

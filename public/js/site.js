@@ -577,7 +577,7 @@ document.addEventListener('DOMContentLoaded', function () {
     e.preventDefault();
 
     var sz   = btn.dataset.size;
-    var card = btn.closest('.model-card');
+    var card = btn.closest('.model-card, .product-card');
 
     var imgId = btn.dataset.targetImg;
     var img   = imgId ? document.getElementById(imgId) : null;
