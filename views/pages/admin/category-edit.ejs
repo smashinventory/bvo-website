@@ -192,28 +192,35 @@ const formAction = isNew ? '/admin/categories' : `/admin/categories/${cat.id}`;
         <% } %>
       </div>
 
-      <!-- Danger zone (edit only) -->
-      <% if (!isNew) { %>
-      <div class="ce-card ce-card--danger">
-        <h3 class="ce-card-title ce-card-title--danger">Danger Zone</h3>
-        <div class="ce-danger-row">
-          <div>
-            <p class="ce-danger-label">Delete this category</p>
-            <p class="ce-danger-hint">This action cannot be undone. Products will not be deleted but will lose their category assignment.</p>
-          </div>
-          <form method="POST" action="/admin/categories/<%= cat.id %>/delete"
-                onsubmit="return confirm('Delete «<%= cat.name %>»? This cannot be undone.')">
-            <button type="submit" class="adm-btn adm-btn--danger">Delete</button>
-          </form>
-        </div>
-      </div>
-      <% } %>
-
     </div><!-- /.ce-main -->
 
   </div><!-- /.ce-layout -->
 
 </form><!-- /#catEditForm -->
+
+<!-- Danger zone — outside catEditForm to avoid nested-form bug.
+     A nested <form> inside catEditForm is ignored by browsers; clicking Delete
+     would submit the save form instead. This standalone form works correctly. -->
+<% if (!isNew) { %>
+<div class="ce-layout" style="margin-top:0">
+  <div></div><!-- empty sidebar column for grid alignment -->
+  <div class="ce-main">
+    <div class="ce-card ce-card--danger">
+      <h3 class="ce-card-title ce-card-title--danger">Danger Zone</h3>
+      <div class="ce-danger-row">
+        <div>
+          <p class="ce-danger-label">Delete this category</p>
+          <p class="ce-danger-hint">This action cannot be undone. Products will not be deleted but will lose their category assignment.</p>
+        </div>
+        <form method="POST" action="/admin/categories/<%= cat.id %>/delete"
+              onsubmit="return confirm('Delete «<%= cat.name %>»? This cannot be undone.')">
+          <button type="submit" class="adm-btn adm-btn--danger">Delete</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+<% } %>
 
 <style>
 /* ── Flash ── */
