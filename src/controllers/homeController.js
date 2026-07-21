@@ -134,6 +134,7 @@ async function getFeaturedModels() {
         ) AS image_url
       FROM products p
       LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
+      JOIN categories c ON c.id = p.category_id AND c.slug = 'bathroom-vanities'
       WHERE p.is_active = 1 AND p.model IS NOT NULL
       GROUP BY p.model, p.brand
       ORDER BY COUNT(*) DESC

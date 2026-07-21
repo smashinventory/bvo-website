@@ -101,8 +101,8 @@ exports.show = async (req, res, next) => {
     // ── Model-group display mode ──────────────────────────────────
     // Categories with display_mode = 'model-group' group products by model.
     // Uses SIZE_BUCKETS (Rule 10) and the same color-family infrastructure as
-    // every other collection page.  Old if (slug==='vanity-models') block above
-    // is left intact; this new path is tested at /collections/vanity-models-v2.
+    // every other collection page. Products are sourced from bathroom-vanities
+    // (not from the display category itself — see mgProductCatId below).
     if (category.display_mode === 'model-group') {
       // Products for model-group pages live in bathroom-vanities, not in the
       // display category (vanity-models). Look up the source category by slug

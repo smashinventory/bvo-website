@@ -136,7 +136,7 @@ const formAction = isNew ? '/admin/categories' : `/admin/categories/${cat.id}`;
                    class="ce-input ce-input--prefixed<%= !isNew ? ' ce-input--locked' : '' %>"
                    required
                    value="<%= cat.slug || '' %>"
-                   placeholder="<%= isNew ? 'vanities' : '' %>"
+                   placeholder="<%= isNew ? 'e.g. bathroom-vanities' : '' %>"
                    <%= !isNew ? 'readonly' : '' %>>
           </div>
         </div>
