@@ -360,7 +360,7 @@ async function replaceAccessories(conn, sku, accessories) {
 //   migration 001 → 1=bathroom-vanities, 2=mirrors, 3=faucets,
 //                   4=accessories, 5=lighting, 6=storage
 //   migration 010 → 7=vanity-tops
-//   migration 014 → 8=samples
+//   migration 014 → 10=samples (auto_increment skipped 8; 8 was a deleted category)
 //
 // PRIMARY: PRODUCT_CATEGORY_MAP — keyed on JM "Product Category" column
 //   (Etail tab). Checked first; covers every known JM category value.
@@ -388,10 +388,10 @@ const PRODUCT_CATEGORY_MAP = {
   'pull':              4,  // handle/pull accessory
   'shelf':             4,  // optional bottom shelf (e.g. Columbia wall-hung)
 
-  // ── Samples (8) ───────────────────────────────────────────────────
-  'metal sample':      8,  // metallic finish swatch
-  'stone sample':      8,  // stone/countertop material swatch
-  'wood sample':       8,  // paint or stain finish swatch
+  // ── Samples (10) ──────────────────────────────────────────────────
+  'metal sample':      10,  // metallic finish swatch
+  'stone sample':      10,  // stone/countertop material swatch
+  'wood sample':       10,  // paint or stain finish swatch
 
   // ── Storage (6) ───────────────────────────────────────────────────
   'drawer unit':       6,  // modular bridge joining two vanity cabinets (model-specific)
