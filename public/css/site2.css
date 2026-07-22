@@ -1122,10 +1122,61 @@
   color: #fff;
 }
 
-.card-price          { display: flex; align-items: baseline; gap: 8px; margin: 0 0 10px; }
+.card-price          { display: flex; align-items: baseline; gap: 8px; }
 .card-price__sale    { font-size: 1rem; font-weight: 700; color: var(--color-gold); }
 .card-price__regular { font-size: 1rem; font-weight: 700; color: var(--color-gold); }
 .card-price__was     { font-size: .8rem; font-weight: 500; color: var(--color-navy);
                        text-decoration: line-through;
                        text-decoration-color: var(--color-amber);
                        text-decoration-thickness: 2px; }
+
+/* ── QTY badge + no-stock card treatment (Rule 11) ──────────────── */
+.card-price-qty-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+/* homepage product-price-row already has flex; just ensure space-between */
+.product-price-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin: 0 0 10px;
+}
+
+.card-qty {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-sage, #5A7A5A);
+  white-space: nowrap;
+}
+
+.card-qty--zero {
+  color: #c0392b;
+}
+
+/* Slight overlay on zero-stock cards — fades image, adds subtle dark wash */
+.product-card--no-stock {
+  position: relative;
+}
+.product-card--no-stock .product-img img {
+  filter: grayscale(20%);
+  opacity: 0.82;
+  transition: filter 0.2s, opacity 0.2s;
+}
+.product-card--no-stock::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.055);
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+}

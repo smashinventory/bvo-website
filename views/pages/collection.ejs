@@ -719,8 +719,10 @@
         var _pSwatchExtra = _mcSwatches.length > 4 ? _mcSwatches.length - 4 : 0;
         var _pSizes       = (product.model && typeof modelSizeMap !== 'undefined' && modelSizeMap[product.model])
                               ? modelSizeMap[product.model] : null;
+        var _pQtyRaw      = parseInt(product.qty_on_hand || 0, 10);
+        var _pQtyDisplay  = Math.min(_pQtyRaw, 4);
       %>
-      <article class="product-card">
+      <article class="product-card<%= _pQtyRaw === 0 ? ' product-card--no-stock' : '' %>">
         <a href="/products/<%= product.slug %>" class="product-img-link" aria-label="<%= product.name %>">
           <div class="product-img">
             <% if (product.primary_image) { %>
@@ -754,16 +756,19 @@
             <a href="/products/<%= product.slug %>"><%= product.name %></a>
           </h3>
 
-          <!-- Price — Option B: Gold sale, Navy/Amber-strikethrough was-price (approved July 2026) -->
+          <!-- Price + QTY row — Option B: Gold sale, Navy/Amber-strikethrough was-price (approved July 2026) -->
           <% if (product.price) { %>
           <%   var _onSale = product.compare_price && parseFloat(product.compare_price) > parseFloat(product.price); %>
-          <div class="card-price">
-            <% if (_onSale) { %>
-              <span class="card-price__sale">$<%= parseFloat(product.price).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}) %></span>
-              <span class="card-price__was">$<%= parseFloat(product.compare_price).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}) %></span>
-            <% } else { %>
-              <span class="card-price__regular">$<%= parseFloat(product.price).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}) %></span>
-            <% } %>
+          <div class="card-price-qty-row">
+            <div class="card-price">
+              <% if (_onSale) { %>
+                <span class="card-price__sale">$<%= parseFloat(product.price).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}) %></span>
+                <span class="card-price__was">$<%= parseFloat(product.compare_price).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}) %></span>
+              <% } else { %>
+                <span class="card-price__regular">$<%= parseFloat(product.price).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}) %></span>
+              <% } %>
+            </div>
+            <span class="card-qty<%= _pQtyRaw === 0 ? ' card-qty--zero' : '' %>">QTY: <%= _pQtyDisplay %></span>
           </div>
           <% } %>
 

@@ -23,6 +23,7 @@ async function getFeaturedProducts() {
       SELECT
         p.id, p.slug, p.name, p.brand, p.price, p.compare_price, p.is_new, p.model,
         COALESCE(p.primary_image_url, pi.url) AS primary_image,
+        COALESCE(inv.qty_on_hand, 0) AS qty_on_hand,
         CASE
           WHEN p.compare_price IS NOT NULL AND p.compare_price > p.price THEN 'sale'
           WHEN p.is_new = 1 THEN 'new'
@@ -30,7 +31,8 @@ async function getFeaturedProducts() {
           ELSE NULL
         END AS badge
       FROM products p
-      LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
+      LEFT JOIN product_images pi  ON pi.product_id  = p.id AND pi.is_primary = 1
+      LEFT JOIN inventory      inv ON inv.product_id = p.id
       WHERE p.is_active = 1 AND p.is_featured = 1
       ORDER BY p.sort_order, p.created_at DESC
       LIMIT 12
