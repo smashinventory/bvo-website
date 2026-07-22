@@ -92,9 +92,10 @@
       %>
 
       <% attributeDefs.forEach(function(def) {
-          if (def.attr_key === 'brand')      return; // handled above
-          if (def.attr_key === 'sink_count') return; // handled by custom Configuration filter below
-          if (def.attr_key === 'style')      return; // handled by custom Vanity Style filter below
+          if (def.attr_key === 'brand')         return; // handled above
+          if (def.attr_key === 'sink_count')    return; // handled by custom Configuration filter below
+          if (def.attr_key === 'style')         return; // handled by custom Vanity Style filter below
+          if (def.attr_key === 'drawer_count')  return; // suppressed — replaced by Configuration filter
 
           var activeVals = attrFilters[def.attr_key] || [];
           var rangeActive = rangeFilters[def.attr_key] || {};
@@ -420,15 +421,18 @@
        */%>
       <% if (isVanityCategory) { %>
       <%
-        var _styleVals    = attrFilters['style'] || [];
-        var _styleOpts    = availableAttrValues['style'] || [];
+        var _styleVals     = attrFilters['style'] || [];
+        var _styleOpts     = availableAttrValues['style'] || [];
         var _bvoStyleOrder = [
           'Traditional', 'Transitional', 'Modern', 'Farmhouse', 'Mid-Century Modern',
           'Industrial', 'Coastal', 'Scandinavian', 'European / Old World'
         ];
-        var _visibleStyles = _bvoStyleOrder.filter(function(s) { return _styleOpts.includes(s); });
+        /* Show only styles that have products in DB; fall back to full canonical
+           list when EAV data hasn't been populated yet (e.g. before first import). */
+        var _visibleStyles = _styleOpts.length > 0
+          ? _bvoStyleOrder.filter(function(s) { return _styleOpts.includes(s); })
+          : _bvoStyleOrder;
       %>
-      <% if (_visibleStyles.length > 0) { %>
       <div class="filter-group">
         <button type="button" class="filter-group-toggle"
           aria-expanded="<%= _styleVals.length > 0 ? 'true' : 'false' %>">
@@ -446,7 +450,6 @@
           <% }) %>
         </div>
       </div>
-      <% } /* end if _visibleStyles */ %>
       <% } /* end Vanity Style */ %>
 
       <%/*
