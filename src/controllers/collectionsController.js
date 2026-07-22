@@ -288,11 +288,12 @@ exports.show = async (req, res, next) => {
           FROM products p
           LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
           WHERE p.is_active = 1
+            AND p.category_id = ?
             AND p.model IN (${mgModelNames.map(() => '?').join(',')})
             AND p.color IS NOT NULL
           GROUP BY p.model, p.color, p.color_family, p.width_in
           ORDER BY p.model, p.color, p.width_in
-        `, mgModelNames);
+        `, [mgProductCatId, ...mgModelNames]);
 
         const mgColorSizePriceMap = {}; // [model][color][bucketKey] = min price
         const mgSizePriceMap      = {}; // [model][bucketKey] = min price across all colors
