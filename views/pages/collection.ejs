@@ -92,7 +92,9 @@
       %>
 
       <% attributeDefs.forEach(function(def) {
-          if (def.attr_key === 'brand') return; // handled above
+          if (def.attr_key === 'brand')      return; // handled above
+          if (def.attr_key === 'sink_count') return; // handled by custom Configuration filter below
+          if (def.attr_key === 'style')      return; // handled by custom Vanity Style filter below
 
           var activeVals = attrFilters[def.attr_key] || [];
           var rangeActive = rangeFilters[def.attr_key] || {};
@@ -362,6 +364,90 @@
       <% } %>
 
       <% }) /* end attributeDefs.forEach */ %>
+
+      <%/*
+       * ── Custom vanity filter groups ───────────────────────────────
+       * Rendered only for the bathroom-vanities category (isVanityCategory = true).
+       * These replace the auto-generated sink_count and style EAV filters (skipped
+       * above) with custom groups that combine multiple param types and use
+       * human-friendly labels.
+       */%>
+
+      <%/* ── Configuration ──────────────────────────────────────────
+       * Single Vanity  → sink_count=1  (EAV → attrFilters)
+       * Double Vanity  → sink_count=2  (EAV → attrFilters)
+       * Cabinet Only   → type=Cabinet+Only (productTypes, same as mega menu)
+       */%>
+      <% if (isVanityCategory) { %>
+      <%
+        var _cfSinkVals  = attrFilters['sink_count'] || [];
+        var _cfTypeVals  = (typeof productTypes !== 'undefined') ? productTypes : [];
+        var _cfCabOnly   = _cfTypeVals.includes('Cabinet Only');
+        var _cfBadge     = _cfSinkVals.length + (_cfCabOnly ? 1 : 0);
+        var _cfActive    = _cfBadge > 0;
+      %>
+      <div class="filter-group">
+        <button type="button" class="filter-group-toggle"
+          aria-expanded="<%= _cfActive ? 'true' : 'false' %>">
+          Configuration
+          <% if (_cfActive) { %><span class="filter-badge"><%= _cfBadge %></span><% } %>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="filter-group-body<%= _cfActive ? '' : ' is-collapsed' %>">
+          <label class="filter-option">
+            <input type="checkbox" name="sink_count" value="1"
+              <%= _cfSinkVals.includes('1') ? 'checked' : '' %>>
+            <span>Single Vanity</span>
+          </label>
+          <label class="filter-option">
+            <input type="checkbox" name="sink_count" value="2"
+              <%= _cfSinkVals.includes('2') ? 'checked' : '' %>>
+            <span>Double Vanity</span>
+          </label>
+          <label class="filter-option">
+            <input type="checkbox" name="type" value="Cabinet Only"
+              <%= _cfCabOnly ? 'checked' : '' %>>
+            <span>Cabinet Only</span>
+          </label>
+        </div>
+      </div>
+      <% } /* end Configuration */ %>
+
+      <%/* ── Vanity Style ────────────────────────────────────────────
+       * BVO canonical style buckets in canonical order.
+       * Values come from EAV (attr_key='style') pre-fetched in controller.
+       * Only renders styles that actually have products in this category.
+       */%>
+      <% if (isVanityCategory) { %>
+      <%
+        var _styleVals    = attrFilters['style'] || [];
+        var _styleOpts    = availableAttrValues['style'] || [];
+        var _bvoStyleOrder = [
+          'Traditional', 'Transitional', 'Modern', 'Farmhouse', 'Mid-Century Modern',
+          'Industrial', 'Coastal', 'Scandinavian', 'European / Old World'
+        ];
+        var _visibleStyles = _bvoStyleOrder.filter(function(s) { return _styleOpts.includes(s); });
+      %>
+      <% if (_visibleStyles.length > 0) { %>
+      <div class="filter-group">
+        <button type="button" class="filter-group-toggle"
+          aria-expanded="<%= _styleVals.length > 0 ? 'true' : 'false' %>">
+          Vanity Style
+          <% if (_styleVals.length) { %><span class="filter-badge"><%= _styleVals.length %></span><% } %>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="filter-group-body<%= _styleVals.length > 0 ? '' : ' is-collapsed' %>">
+          <% _visibleStyles.forEach(function(styleName) { %>
+          <label class="filter-option">
+            <input type="checkbox" name="style" value="<%= styleName %>"
+              <%= _styleVals.includes(styleName) ? 'checked' : '' %>>
+            <span><%= styleName %></span>
+          </label>
+          <% }) %>
+        </div>
+      </div>
+      <% } /* end if _visibleStyles */ %>
+      <% } /* end Vanity Style */ %>
 
       <%/*
        * ── Model-group extra filter groups ──────────────────────────
