@@ -40,7 +40,7 @@ const TEMPLATE_META = {
   newsletter:         { label:'Newsletter',          desc:'Email capture / sign-up section' },
 };
 
-const savedOrder = (t.homepage_section_order && t.homepage_section_order.length)
+const savedOrder = (Array.isArray(t.homepage_section_order) && t.homepage_section_order.length)
   ? t.homepage_section_order
   : ALL_TEMPLATE_KEYS;
 

@@ -97,7 +97,7 @@
 
       <div class="admin-content">
         <% if (typeof flash !== 'undefined' && flash) { %>
-        <div class="admin-flash admin-flash-<%= flash.type %>"><%= flash.msg %></div>
+        <div class="admin-flash admin-flash-<%= flash.type %>"><%= flash.message %></div>
         <% } %>
 
         <%- body %>
