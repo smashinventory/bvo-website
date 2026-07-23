@@ -305,10 +305,10 @@ ul[role="list"] { list-style: none; }
 .section-cta    { text-align: center; margin-top: 40px; }
 
 /* ── Value bar ──────────────────────────────────────────────────── */
-.value-bar       { background: var(--hero-bg); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 28px 64px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; text-align: center; }
-.value-item svg  { width: 28px; height: 28px; stroke: var(--sage); fill: none; stroke-width: 1.6; margin: 0 auto 10px; }
-.value-item h4   { font-size: .8rem; font-weight: 700; letter-spacing: .05em; color: var(--navy); margin-bottom: 4px; }
-.value-item p    { font-size: .75rem; color: var(--muted); }
+.value-bar       { background: var(--navy, #182840); border-top: 1px solid rgba(255,255,255,.12); border-bottom: 1px solid rgba(255,255,255,.12); padding: 28px 64px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; text-align: center; }
+.value-item svg  { width: 28px; height: 28px; stroke: var(--amber, #C4885A); fill: none; stroke-width: 1.6; margin: 0 auto 10px; }
+.value-item h4, .value-item .vb-title { font-size: .8rem; font-weight: 700; letter-spacing: .05em; color: #fff; margin-bottom: 4px; }
+.value-item p    { font-size: .75rem; color: rgba(255,255,255,.72); }
 
 /* ── Category grid ──────────────────────────────────────────────── */
 .category-grid   { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }

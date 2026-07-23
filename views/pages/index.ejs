@@ -84,22 +84,23 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
     <div class="hero-rule" aria-hidden="true"></div>
     <p class="hero-sub" style="<%= _heroSSize %>"><%= hero.subtext || 'Top brands, delivered free to your door.' %></p>
     <p class="hero-sub2" style="<%= _heroS2Size %>"><%= hero.sub2_text || 'James Martin · Kohler · Moen · Delta and more' %></p>
-    <div class="hero-ctas" style="<%= _ctaAlign %>">
-      <a href="<%= hero.cta1_url || '/collections/bathroom-vanities' %>" class="btn btn-navy"><%= hero.cta1_text || 'Shop Vanities' %></a>
-      <a href="<%= hero.cta2_url || '/collections/sale' %>"     class="btn btn-sage"><%= hero.cta2_text || 'View Sale' %></a>
-    </div>
   </div>
-  <div class="hero-image" aria-hidden="true">
-    <div class="hero-overlay"></div>
+  <div class="hero-image">
+    <div class="hero-overlay" aria-hidden="true"></div>
     <% if (hero.image_url) { %>
       <img src="<%= hero.image_url %>" alt="<%= hero.image_alt || 'Hero image' %>" style="width:100%;height:100%;object-fit:cover;display:block;">
     <% } else { %>
-    <div class="hero-img-placeholder">
+    <div class="hero-img-placeholder" aria-hidden="true">
       <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
       <span>Hero image</span>
     </div>
     <% } %>
-    <% if (hero.badge_text) { %><span class="hero-badge" style="<%= _heroBSize %>"><%= hero.badge_text %></span><% } %>
+    <% if (hero.badge_text) { %><span class="hero-badge" aria-hidden="true" style="<%= _heroBSize %>"><%= hero.badge_text %></span><% } %>
+    <!-- CTAs overlaid at bottom-left of hero image -->
+    <div class="hero-ctas">
+      <a href="<%= hero.cta1_url || '/collections/bathroom-vanities' %>" class="btn btn-navy"><%= hero.cta1_text || 'Shop Vanities' %></a>
+      <a href="<%= hero.cta2_url || '/collections/sale' %>"     class="btn btn-sage"><%= hero.cta2_text || 'View Sale' %></a>
+    </div>
   </div>
 </section>
 
@@ -107,19 +108,19 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
 <div class="value-bar" aria-label="Why shop with us">
   <div class="value-item">
     <svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-    <h4>Free Shipping</h4><p>On every order, every time — no minimums</p>
+    <p class="vb-title">Free Shipping</p><p>On every order, every time — no minimums</p>
   </div>
   <div class="value-item">
     <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-    <h4>Secure Checkout</h4><p>256-bit SSL encryption on every transaction</p>
+    <p class="vb-title">Secure Checkout</p><p>256-bit SSL encryption on every transaction</p>
   </div>
   <div class="value-item">
     <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-    <h4>Easy Returns</h4><p>30-day hassle-free returns on all items</p>
+    <p class="vb-title">Easy Returns</p><p>30-day hassle-free returns on all items</p>
   </div>
   <div class="value-item">
     <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.18h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.77a16 16 0 0 0 6 6l.86-.86a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-    <h4>Expert Support</h4><p>Live chat &amp; phone help from bath specialists</p>
+    <p class="vb-title">Expert Support</p><p>Live chat &amp; phone help from bath specialists</p>
   </div>
 </div>
 <% } /* end hero */ %>

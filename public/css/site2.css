@@ -432,11 +432,13 @@
    VALUE BAR (homepage)
    ════════════════════════════════════════════════════════════════ */
 .value-bar {
-  background: var(--color-whisper, #F8F6F2);
-  border-top: 1px solid rgba(24,40,64,.07);
-  border-bottom: 1px solid rgba(24,40,64,.07);
+  background: var(--color-navy, #182840);
+  border-top: 1px solid rgba(255,255,255,.12);
+  border-bottom: 1px solid rgba(255,255,255,.12);
   padding: 1.25rem 0;
 }
+/* vb-title replaces h4 in value bar for correct heading order */
+.value-item .vb-title { font-size: .8rem; font-weight: 700; letter-spacing: .05em; color: #fff; margin-bottom: 4px; }
 .value-bar .container {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -456,6 +458,28 @@
 }
 @media (max-width: 480px) {
   .value-bar .container { grid-template-columns: 1fr; }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   HERO CTA OVERLAY (buttons positioned bottom-left of hero image)
+   ════════════════════════════════════════════════════════════════ */
+.hero-image .hero-ctas {
+  position: absolute;
+  bottom: 2rem;
+  left: 2rem;
+  z-index: 2;
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+@media (max-width: 860px) {
+  /* On mobile the image is full-bleed; ::after gradient covers it.
+     Give CTAs a higher z-index so they render above the gradient. */
+  .hero-image::after { z-index: 1; }
+  .hero-image .hero-ctas { left: 1.75rem; bottom: 2rem; z-index: 2; }
+  /* hero-content no longer has CTAs — reduce bottom padding so
+     it doesn't push up too high above the CTA overlay area */
+  .hero-content { padding-bottom: 7rem !important; }
 }
 
 /* ════════════════════════════════════════════════════════════════
