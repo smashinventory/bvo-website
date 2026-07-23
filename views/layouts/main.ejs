@@ -63,17 +63,20 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   <meta property="og:site_name"   content="<%= _siteName %>">
   <meta name="twitter:card"       content="summary_large_image">
 
-  <!-- Google Fonts (dynamic from theme settings) -->
+  <!-- Google Fonts: preconnect + async load (display=swap in URL prevents invisible text) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="<%- _gfUrl %>" rel="stylesheet">
+  <link rel="preload" href="<%- _gfUrl %>" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link href="<%- _gfUrl %>" rel="stylesheet"></noscript>
 
-  <!-- Brand CSS tokens -->
+  <!-- Brand CSS tokens (blocking — foundational reset & base element styles) -->
   <link rel="stylesheet" href="/css/brand.css?v=2">
-  <!-- Site CSS (split to stay under CDN 80KB file-size limit) -->
+  <!-- Main site CSS (blocking — layout, nav, hero, above-fold critical) -->
   <!-- Bump ?v= any time CSS changes to bust Hostinger CDN cache (Rule 11) -->
   <link rel="stylesheet" href="/css/site.css?v=5">
-  <link rel="stylesheet" href="/css/site2.css?v=16">
+  <!-- Extended styles (async — supplementary, all below-fold) -->
+  <link rel="preload" href="/css/site2.css?v=16" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="/css/site2.css?v=16"></noscript>
 
   <!-- Design token overrides from theme settings -->
   <style>

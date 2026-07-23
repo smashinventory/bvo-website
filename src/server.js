@@ -76,7 +76,8 @@ app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 
 // ── Static assets ────────────────────────────────────────────────
 app.use(express.static(path.join(__dirname, '..', 'public'), {
-  maxAge: process.env.NODE_ENV === 'production' ? '7d' : 0,
+  maxAge: '365d',   // safe: all static assets are ?v= versioned
+  immutable: true,  // tells CDN/browser the file never changes at this URL
 }));
 
 // ── EJS + layouts ────────────────────────────────────────────────
