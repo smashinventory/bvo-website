@@ -7,3 +7,6 @@ public/images/products/
 .DS_Store
 coverage/
 dist/
+
+# Runtime-editable settings — saved by the admin UI; must NOT be overwritten by git pull
+data/theme_settings.json
