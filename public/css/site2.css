@@ -792,11 +792,23 @@
 }
 .fm-carousel-track::-webkit-scrollbar { display: none; }
 
-/* Cards inside track get their widths set by JS (4-up) */
+/* Cards: CSS pre-sizing matches JS sizeCards() formula to prevent CLS.
+   JS still runs and sets inline pixel widths, but they match these values
+   within ~1px (sub-pixel diff = no measurable layout shift). */
 .fm-carousel-track .model-card {
   flex-shrink: 0;
   scroll-snap-align: start;
-  /* width is set dynamically by JS */
+  flex: 0 0 calc((100% - 3 * 1.25rem) / 4); /* Desktop: 4 visible, 3 gaps */
+}
+@media (max-width: 767px) {
+  .fm-carousel-track .model-card {
+    flex: 0 0 calc((100% - 1.25rem) / 2); /* Tablet: 2 visible, 1 gap */
+  }
+}
+@media (max-width: 519px) {
+  .fm-carousel-track .model-card {
+    flex: 0 0 83.333%; /* Mobile: 1.2 visible (peek effect) */
+  }
 }
 
 @media (max-width: 700px) {
@@ -829,7 +841,17 @@
 .cat-carousel-track .cat-card {
   flex-shrink: 0;
   scroll-snap-align: start;
-  /* width set dynamically by JS */
+  flex: 0 0 calc((100% - 3 * 1.25rem) / 4); /* Desktop: 4 visible */
+}
+@media (max-width: 767px) {
+  .cat-carousel-track .cat-card {
+    flex: 0 0 calc((100% - 1.25rem) / 2); /* Tablet: 2 visible */
+  }
+}
+@media (max-width: 519px) {
+  .cat-carousel-track .cat-card {
+    flex: 0 0 66.667%; /* Mobile: 1.5 visible */
+  }
 }
 
 /* ─────────────────────────────────────────────
