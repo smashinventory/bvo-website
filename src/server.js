@@ -77,6 +77,13 @@ app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 // ── Static assets ────────────────────────────────────────────────
 app.use(express.static(path.join(__dirname, '..', 'public'), {
   maxAge: '7d',
+  setHeaders(res, filePath) {
+    // Versioned assets (have ?v= query in URL matched via path extension)
+    // Use long-lived cache; version bump in ?v= busts it
+    if (/\.(css|js|woff2?|png|jpe?g|gif|ico|svg|webp)$/.test(filePath)) {
+      res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
+    }
+  },
 }));
 
 // ── EJS + layouts ────────────────────────────────────────────────

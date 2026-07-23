@@ -16,7 +16,7 @@ const _gfQuery = _fontFamilies.map(f => {
   const enc = encodeURIComponent(f);
   return `family=${enc}:ital,wght@0,300;0,400;0,600;0,700;1,400`;
 }).join('&');
-const _gfUrl = `https://fonts.googleapis.com/css2?${_gfQuery}&display=swap`;
+const _gfUrl = `https://fonts.googleapis.com/css2?${_gfQuery}&display=optional`;
 
 // CSS color overrides (only output if diverging from brand defaults)
 const _navyC   = _colors.navy    || '#182840';
@@ -69,27 +69,45 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   <link rel="preload" href="<%- _gfUrl %>" as="style" onload="this.onload=null;this.rel='stylesheet'">
   <noscript><link href="<%- _gfUrl %>" rel="stylesheet"></noscript>
 
-  <!-- Brand CSS tokens (blocking — foundational reset & base element styles) -->
-  <link rel="stylesheet" href="/css/brand.css?v=2">
-  <!-- Main site CSS (blocking — layout, nav, hero, above-fold critical) -->
+  <!-- Brand CSS tokens (blocking — 3 KiB, provides CSS vars needed by site.css) -->
   <!-- Bump ?v= any time CSS changes to bust Hostinger CDN cache (Rule 11) -->
-  <link rel="stylesheet" href="/css/site.css?v=5">
-  <!-- Extended styles (async — supplementary, all below-fold) -->
+  <link rel="stylesheet" href="/css/brand.css?v=2">
+  <!-- Main site CSS (async — critical above-fold styles are inlined in <style> above) -->
+  <link rel="preload" href="/css/site.css?v=5"   as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="/css/site.css?v=5"></noscript>
+  <!-- Extended styles (async) -->
   <link rel="preload" href="/css/site2.css?v=19" as="style" onload="this.onload=null;this.rel='stylesheet'">
   <noscript><link rel="stylesheet" href="/css/site2.css?v=19"></noscript>
 
-  <!-- Design token overrides from theme settings -->
+  <!-- Design tokens + critical above-fold CSS (prevents FOUC while site.css loads async) -->
   <style>
     :root {
+      /* Brand palette — editable in Admin > Theme */
       --color-navy:    <%= _navyC %>;
       --color-amber:   <%= _amberC %>;
       --color-sage:    <%= _sageC %>;
       --color-whisper: <%= _whisperC %>;
       --color-white:   <%= _whiteC %>;
-      --navy:    <%= _navyC %>;
-      --amber:   <%= _amberC %>;
-      --sage:    <%= _sageC %>;
-      --whisper: <%= _whisperC %>;
+      /* Short aliases used throughout site.css (normally defined at EOF of site.css) */
+      --navy:      <%= _navyC %>;
+      --amber:     <%= _amberC %>;
+      --sage:      <%= _sageC %>;
+      --whisper:   <%= _whisperC %>;
+      --white:     <%= _whiteC %>;
+      --muted:     #7A7264;
+      --border:    #E8E4DC;
+      --hero-bg:   #FAF7F2;
+      --sage-deep: #486854;
+      --sage-light:#DCF0E2;
+      --navy-deep: #101828;
+      /* Also pre-define derived tokens brand.css uses (prevents FOUC dependency) */
+      --color-sage-deep:    #486854;
+      --color-navy-deep:    #101828;
+      --color-whisper-hero: #FAF7F2;
+      --text-muted:         #7A7264;
+      --border-card:        #E8E4DC;
+      --bg-promo:           <%= _navyC %>;
+      /* Typography + layout */
       --font-serif: '<%= _hFont %>', Georgia, serif;
       --font-sans:  '<%= _bFont %>', system-ui, sans-serif;
       --base-size:  <%= _baseSize %>px;
@@ -97,7 +115,56 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
       --radius-btn:  <%= _btnR %>;
       --radius-card: <%= _cardR %>;
     }
-    html { font-size: <%= _baseSize %>px; }
+    html{font-size:<%= _baseSize %>px;overflow-x:clip}
+    /* ── Critical CSS — matches site.css above-fold rules ──────────── */
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:var(--font-sans,system-ui,sans-serif);background:var(--whisper,#FCFBF8);color:var(--navy,#182840);-webkit-font-smoothing:antialiased;overflow-x:hidden;line-height:1.6}
+    a{color:var(--amber,#B8862A);text-decoration:none}
+    img{max-width:100%;display:block}
+    ul[role="list"]{list-style:none}
+    h1,h2,h3,h4,h5,h6{font-family:var(--font-serif,Georgia,serif);color:var(--navy,#182840);line-height:1.2}
+    .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+    /* Promo strip — inline style from header.ejs sets final color */
+    .promo-strip{text-align:center;padding:9px 20px;font-size:12px;letter-spacing:.06em;background:var(--bg-promo,#182840);color:#fff}
+    .promo-strip a{color:inherit;font-weight:700}
+    /* Site header / nav */
+    .site-header{position:sticky;top:0;z-index:200;background:#fff;border-bottom:2px solid var(--sage,#6B8C74);box-shadow:0 1px 6px rgba(0,0,0,.06)}
+    .site-nav{background:#fff;height:106px;display:flex;align-items:center;padding:0 40px;gap:28px}
+    .nav-logo{width:90px;height:90px;object-fit:contain;flex-shrink:0}
+    .nav-logo-link{flex-shrink:0}
+    .nav-brand{font-family:var(--font-serif,Georgia,serif);font-size:1.3rem;color:var(--navy,#182840);margin-right:auto}
+    .nav-brand span{color:var(--amber,#B8862A)}
+    .nav-hamburger{display:none;background:none;border:none;cursor:pointer;color:var(--navy,#182840);margin-left:auto}
+    /* Hero — stable layout prevents CLS while site.css loads */
+    .hero{background:var(--hero-bg,#FAF7F2);display:grid;height:calc(100vh - 72px);min-height:520px;max-height:900px}
+    .hero-content{padding:64px 48px 64px 64px;display:flex;flex-direction:column;justify-content:center}
+    .hero-eyebrow{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--sage,#6B8C74);margin-bottom:16px}
+    .hero-h1{font-family:var(--font-serif,Georgia,serif);font-size:2.6rem;line-height:1.12;color:var(--navy,#182840);margin-bottom:4px}
+    .hero-h2{font-family:var(--font-serif,Georgia,serif);font-size:2.6rem;line-height:1.12;color:var(--amber,#B8862A);margin-bottom:20px}
+    .hero-rule{display:inline-block;width:100px;height:3px;background:var(--sage,#6B8C74);margin-bottom:20px}
+    .hero-sub{font-size:1rem;color:var(--sage,#6B8C74);margin-bottom:8px}
+    .hero-sub2{font-size:.875rem;color:var(--muted,#7A7264);margin-bottom:36px}
+    .hero-ctas{display:flex;gap:16px;flex-wrap:wrap}
+    .hero-image{background:var(--whisper,#FCFBF8);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+    /* Buttons */
+    .btn{display:inline-flex;align-items:center;justify-content:center;padding:.7rem 1.6rem;border-radius:5px;font-weight:700;font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;border:2px solid transparent}
+    .btn-navy{background:var(--navy,#182840);color:#fff}
+    .btn-sage{background:var(--sage,#6B8C74);color:#fff}
+    /* Mobile ≤860px: hamburger + full-bleed hero overlay */
+    @media(max-width:860px){
+      .site-nav{padding:0 20px;gap:12px}
+      .nav-links,.nav-brand{display:none}
+      .nav-hamburger{display:flex}
+      .hero{grid-template-columns:1fr!important;grid-template-rows:1fr;position:relative;height:100vh;min-height:480px;max-height:none}
+      .hero-image{display:flex;position:absolute;inset:0;z-index:0}
+      .hero-image::after{content:'';position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.72) 0%,rgba(0,0,0,.35) 50%,rgba(0,0,0,.10) 100%)}
+      .hero-content{position:relative;z-index:1;padding:40px 28px 56px;justify-content:flex-end;grid-row:1;grid-column:1}
+      .hero-h1{color:#fff;font-size:2rem}
+      .hero-h2{color:var(--amber,#B8862A);font-size:2rem}
+      .hero-eyebrow{color:rgba(255,255,255,.8)}
+      .hero-sub{color:rgba(255,255,255,.85)}
+      .hero-sub2{color:rgba(255,255,255,.6)}
+    }
   </style>
 
   <!-- Page-level styles injected by individual views -->
