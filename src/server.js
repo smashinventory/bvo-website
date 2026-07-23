@@ -170,9 +170,17 @@ app.use((err, req, res, next) => {
 });
 
 // ── Start ────────────────────────────────────────────────────────
-app.listen(PORT, () => {
-  console.log(`\n  BVO website running → http://localhost:${PORT}`);
-  console.log(`  Environment: ${process.env.NODE_ENV || 'development'}\n`);
-});
+// initFromDb() runs before we accept connections:
+//   • If theme_settings.json exists  → syncs it to DB (so DB stays current).
+//   • If theme_settings.json missing → restores it from DB (handles fresh Hostinger deploys).
+// The .catch() is non-fatal; server always starts regardless.
+themeSettings.initFromDb()
+  .catch(e => console.error('[theme] initFromDb error:', e.message))
+  .finally(() => {
+    app.listen(PORT, () => {
+      console.log(`\n  BVO website running → http://localhost:${PORT}`);
+      console.log(`  Environment: ${process.env.NODE_ENV || 'development'}\n`);
+    });
+  });
 
 module.exports = app; // for testing

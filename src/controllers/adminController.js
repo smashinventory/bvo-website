@@ -1556,6 +1556,9 @@ function _persistSettings(settings) {
   const dir = path.dirname(p);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(p, JSON.stringify(settings, null, 2), 'utf8');
+  // Also persist to DB so settings survive a fresh Hostinger deploy (file wipe).
+  // persistToDb is fire-and-forget; errors are swallowed non-fatally inside the service.
+  themeSettings.persistToDb(settings);
 }
 
 function _extractIndexedArray(body, prefix, fields) {

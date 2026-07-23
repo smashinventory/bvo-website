@@ -9,6 +9,7 @@
 
 const fs   = require('fs');
 const path = require('path');
+const { bvoPool } = require('../config/database');
 
 const SETTINGS_PATH = path.join(__dirname, '../../data/theme_settings.json');
 
@@ -222,6 +223,75 @@ const DEFAULTS = {
 /* ── In-memory cache ─────────────────────────────────────────── */
 let _cache = null;
 
+/* ── DB helpers ──────────────────────────────────────────────── */
+
+/**
+ * Fire-and-forget: write complete settings JSON to app_settings table.
+ * Called from _persistSettings in adminController after arrays are merged in.
+ * Non-fatal — if the table doesn't exist yet, logs nothing (expected before migration).
+ */
+function persistToDb(settings) {
+  bvoPool.query(
+    'INSERT INTO app_settings (`key`, value) VALUES (?, ?) ' +
+    'ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = NOW()',
+    ['theme_settings', JSON.stringify(settings)]
+  ).catch(e => {
+    if (!e.message.includes("doesn't exist")) {
+      console.error('[theme] DB save failed:', e.message);
+    }
+  });
+}
+
+/**
+ * Called once at server startup (before app.listen).
+ * — If the settings file EXISTS: sync it to DB so DB is always current.
+ * — If the settings file is MISSING (fresh Hostinger deploy): restore from DB.
+ * Either way, gracefully no-ops if app_settings table doesn't exist yet.
+ */
+async function initFromDb() {
+  if (fs.existsSync(SETTINGS_PATH)) {
+    // File exists — push a copy to DB so the next deploy can restore from it
+    try {
+      const raw = fs.readFileSync(SETTINGS_PATH, 'utf8');
+      await bvoPool.query(
+        'INSERT INTO app_settings (`key`, value) VALUES (?, ?) ' +
+        'ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = NOW()',
+        ['theme_settings', raw]
+      );
+      console.log('[theme] Settings synced to DB on startup');
+    } catch (e) {
+      if (!e.message.includes("doesn't exist")) {
+        console.error('[theme] Startup DB sync failed:', e.message);
+      }
+    }
+    return;
+  }
+
+  // File missing — attempt to restore from DB (handles fresh Hostinger deploys)
+  console.log('[theme] Settings file missing — attempting DB restore...');
+  try {
+    const [rows] = await bvoPool.query(
+      'SELECT value FROM app_settings WHERE `key` = ?',
+      ['theme_settings']
+    );
+    if (rows.length && rows[0].value) {
+      const settings = deepMerge(DEFAULTS, JSON.parse(rows[0].value));
+      const dir = path.dirname(SETTINGS_PATH);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf8');
+      _cache = settings;
+      console.log('[theme] Settings restored from DB to disk ✓');
+    } else {
+      console.log('[theme] No saved settings in DB — starting from defaults');
+    }
+  } catch (e) {
+    if (!e.message.includes("doesn't exist")) {
+      console.error('[theme] DB restore failed:', e.message);
+    }
+    console.log('[theme] DB restore unavailable — starting from defaults');
+  }
+}
+
 function load() {
   if (_cache) return _cache;
   try {
@@ -295,4 +365,4 @@ function deepMerge(target, source) {
   return out;
 }
 
-module.exports = { get, save, reload };
+module.exports = { get, save, reload, persistToDb, initFromDb };
