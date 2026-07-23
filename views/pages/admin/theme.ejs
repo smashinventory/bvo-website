@@ -440,6 +440,7 @@ function teArrayLinks(prefix,listId,tplId,items){
                   <%- teField('text','nav.links['+i+'].label','Label',lnk.label,true) %>
                   <%- teField('url', 'nav.links['+i+'].url',  'URL',  lnk.url,  true) %>
                   <%- teToggle('nav.links['+i+'].highlight','Highlight',lnk.highlight,true) %>
+                  <%- teToggle('nav.links['+i+'].megaMenu','Mega menu',lnk.megaMenu,true) %>
                 </div>
                 <button type="button" class="te4-remove-row">×</button>
               </div>
@@ -452,6 +453,7 @@ function teArrayLinks(prefix,listId,tplId,items){
                   <%- teField('text','nav.links[__i__].label','Label','',true) %>
                   <%- teField('url', 'nav.links[__i__].url',  'URL',  '',true) %>
                   <%- teToggle('nav.links[__i__].highlight','Highlight',false,true) %>
+                  <%- teToggle('nav.links[__i__].megaMenu','Mega menu',false,true) %>
                 </div>
                 <button type="button" class="te4-remove-row">×</button>
               </div>

@@ -1511,7 +1511,7 @@ exports.themeSave = (req, res) => {
 
 /* ── Shared helpers for theme save ──────────────────────────── */
 function _buildSettingsFromBody(body) {
-  const navLinks      = _extractIndexedArray(body, 'nav.links',               ['label','url','highlight']);
+  const navLinks      = _extractIndexedArray(body, 'nav.links',               ['label','url','highlight','megaMenu']);
   const shopLinks     = _extractIndexedArray(body, 'footer.col_shop_links',   ['label','url']);
   const helpLinks     = _extractIndexedArray(body, 'footer.col_help_links',   ['label','url']);
   const companyLinks  = _extractIndexedArray(body, 'footer.col_company_links',['label','url']);
