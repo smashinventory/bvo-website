@@ -34,9 +34,10 @@ router.get ('/products/:id/edit',                                 ctrl.productEd
 router.post('/products/:id',                                      ctrl.productUpdate);
 router.post('/products/:id/delete',                               ctrl.productDelete);
 /* Image management */
-router.post('/products/:id/images', ctrl.productAddImageMiddleware, ctrl.productAddImage);
-router.post('/products/:id/images/:imgId/delete',                 ctrl.productDeleteImage);
-router.post('/products/:id/images/:imgId/primary',                ctrl.productSetPrimaryImage);
+router.post('/products/:id/images',                ctrl.productAddImageMiddleware, ctrl.productAddImage);
+router.post('/products/:id/images/reorder',        ctrl.productReorderImages);
+router.post('/products/:id/images/:imgId/delete',  ctrl.productDeleteImage);
+router.post('/products/:id/images/:imgId/primary', ctrl.productSetPrimaryImage);
 /* Document management */
 router.post('/products/:id/docs',   ctrl.productAddDocumentMiddleware, ctrl.productAddDocument);
 router.post('/products/:id/docs/:docId/delete',                   ctrl.productDeleteDocument);
