@@ -86,6 +86,15 @@ app.use(express.static(path.join(__dirname, '..', 'public'), {
   },
 }));
 
+// ── Prevent proxy from caching HTML responses ─────────────────────
+// Static assets above have their own long-lived Cache-Control headers.
+// Dynamic HTML must never be served from a proxy/CDN cache (Hostinger
+// nginx/LiteSpeed may cache responses that lack explicit cache directives).
+app.use((req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
+
 // ── EJS + layouts ────────────────────────────────────────────────
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, '..', 'views'));
