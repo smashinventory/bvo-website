@@ -507,48 +507,100 @@ exports.productBulkAction = async (req, res, next) => {
 };
 
 /* ── Product image management ────────────────────────────────────── */
+/* All handlers return JSON — called via fetch() from the product edit page.
+   Nested <form> elements inside productForm are invalid HTML (browsers ignore
+   them), so all image actions use AJAX instead. */
 
-exports.productAddImageMiddleware = _upload.single('image_file');
+exports.productAddImageMiddleware = (req, res, next) => {
+  _upload.single('image_file')(req, res, (err) => {
+    if (err) {
+      console.error('[Product Upload] multer error:', err.message);
+      return res.status(400).json({ ok: false, error: err.message });
+    }
+    next();
+  });
+};
 
-exports.productAddImage = async (req, res, next) => {
+exports.productAddImage = async (req, res) => {
   try {
     const id = req.params.id;
-    if (!req.file) {
-      req.session.flash = { type: 'error', msg: 'No image file received.' };
-      return res.redirect(`/admin/products/${id}/edit`);
-    }
+    if (!req.file) return res.status(400).json({ ok: false, error: 'No image file received.' });
     const url = `/images/uploads/${req.file.filename}`;
-    // Check if any primary image exists
     const [[{ cnt }]] = await bvoPool.query(
       'SELECT COUNT(*) AS cnt FROM product_images WHERE product_id = ? AND is_primary = 1', [id]
     );
     const isPrimary = cnt === 0 ? 1 : 0;
-    await bvoPool.query(
-      'INSERT INTO product_images (product_id, url, alt_text, sort_order, is_primary) VALUES (?, ?, ?, 0, ?)',
-      [id, url, req.body.alt_text || '', isPrimary]
-    );
-    req.session.flash = { type: 'success', msg: 'Image uploaded.' };
-    res.redirect(`/admin/products/${id}/edit`);
-  } catch (err) { next(err); }
+    // Get current max sort_order so new image goes to end (falls back if column absent)
+    let sortOrder = 0;
+    try {
+      const [[{ maxSort }]] = await bvoPool.query(
+        'SELECT COALESCE(MAX(sort_order), -1) + 1 AS maxSort FROM product_images WHERE product_id = ?', [id]
+      );
+      sortOrder = maxSort || 0;
+    } catch (_) { /* sort_order column may not exist yet — ignore */ }
+    let result;
+    try {
+      [result] = await bvoPool.query(
+        'INSERT INTO product_images (product_id, url, alt_text, sort_order, is_primary) VALUES (?, ?, ?, ?, ?)',
+        [id, url, req.body.alt_text || '', sortOrder, isPrimary]
+      );
+    } catch (e) {
+      // Fallback: insert without sort_order if column doesn't exist
+      if (e.code === 'ER_BAD_FIELD_ERROR') {
+        [result] = await bvoPool.query(
+          'INSERT INTO product_images (product_id, url, alt_text, is_primary) VALUES (?, ?, ?, ?)',
+          [id, url, req.body.alt_text || '', isPrimary]
+        );
+      } else { throw e; }
+    }
+    res.json({ ok: true, url, imgId: result.insertId, isPrimary });
+  } catch (err) {
+    console.error('[productAddImage] error:', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
 };
 
-exports.productDeleteImage = async (req, res, next) => {
+exports.productDeleteImage = async (req, res) => {
   try {
     const { id, imgId } = req.params;
     await bvoPool.query('DELETE FROM product_images WHERE id = ? AND product_id = ?', [imgId, id]);
-    req.session.flash = { type: 'success', msg: 'Image removed.' };
-    res.redirect(`/admin/products/${id}/edit`);
-  } catch (err) { next(err); }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[productDeleteImage] error:', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
 };
 
-exports.productSetPrimaryImage = async (req, res, next) => {
+exports.productSetPrimaryImage = async (req, res) => {
   try {
     const { id, imgId } = req.params;
     await bvoPool.query('UPDATE product_images SET is_primary = 0 WHERE product_id = ?', [id]);
     await bvoPool.query('UPDATE product_images SET is_primary = 1 WHERE id = ? AND product_id = ?', [imgId, id]);
-    req.session.flash = { type: 'success', msg: 'Primary image updated.' };
-    res.redirect(`/admin/products/${id}/edit`);
-  } catch (err) { next(err); }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[productSetPrimaryImage] error:', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+};
+
+exports.productReorderImages = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const order = req.body.order;
+    if (!Array.isArray(order)) return res.status(400).json({ ok: false, error: 'order must be an array' });
+    await Promise.all(
+      order.map((imgId, idx) =>
+        bvoPool.query(
+          'UPDATE product_images SET sort_order = ? WHERE id = ? AND product_id = ?',
+          [idx, imgId, id]
+        )
+      )
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[productReorderImages] error:', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
 };
 
 /* ── CSV Export / Import ─────────────────────────────────────────── */
