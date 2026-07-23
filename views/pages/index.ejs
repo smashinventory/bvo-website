@@ -214,7 +214,7 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
       <a href="/products/<%= product.slug %>" class="product-img-link" aria-label="<%= product.name %>">
         <div class="product-img">
           <% if (product.primary_image) { %>
-            <img src="<%= _salsifyImg(product.primary_image, 400, 450) %>" alt="<%= product.name %>" loading="lazy"
+            <img src="<%= product.primary_image %>" alt="<%= product.name %>" loading="lazy"
                  id="<%= _hpImgId %>">
           <% } else { %>
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
@@ -240,7 +240,7 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
           <button class="model-card-swatch<%= i === 0 ? ' is-active' : '' %><%= _fpWood ? ' swatch--wood-grain' : '' %>"
                   data-target-img="<%= _hpImgId %>"
                   data-finish="<%= f.color %>"
-                  <% if (f.image_url) { %>data-image="<%= _salsifyImg(f.image_url, 400, 450) %>"<% } %>
+                  <% if (f.image_url) { %>data-image="<%= f.image_url %>"<% } %>
                   <% if (f.sizeImages && Object.keys(f.sizeImages).length) { %>data-size-images="<%= JSON.stringify(f.sizeImages) %>"<% } %>
                   style="background:<%= f.hex %>;border-color:<%= _fpBorder %>"
                   aria-label="<%= f.color %>" title="<%= f.color %>"></button>
