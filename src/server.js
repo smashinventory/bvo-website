@@ -67,7 +67,12 @@ app.use(session({
 
 // ── Body parsers ─────────────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// extended:false uses Node's built-in querystring, which keeps bracket-notation
+// keys as literal strings (e.g. "nav.links[0].label"). extended:true uses qs,
+// which silently collapses them into nested objects/arrays, breaking our
+// dot-path parsing and corrupting theme settings arrays (nav.vanities_mega.links
+// becomes a URL string, crashing _vmlAdmin.forEach on every theme editor load).
+app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 
 // ── Static assets ────────────────────────────────────────────────
 app.use(express.static(path.join(__dirname, '..', 'public'), {

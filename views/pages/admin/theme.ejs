@@ -460,7 +460,7 @@ function teArrayLinks(prefix,listId,tplId,items){
             <!-- ── MEGA MENU — VANITIES ───────────────────────── -->
             <%
               var _vmAdmin  = (nav.vanities_mega || {});
-              var _vmlAdmin = _vmAdmin.links || [];
+              var _vmlAdmin = Array.isArray(_vmAdmin.links) ? _vmAdmin.links : [];
               var _vmpAdmin = _vmAdmin.promo  || {};
             %>
             <div style="margin-top:1.75rem">
