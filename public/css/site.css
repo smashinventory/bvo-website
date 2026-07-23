@@ -1406,7 +1406,9 @@ ul[role="list"] { list-style: none; }
   align-items: center;
   gap: 0;
   width: max-content;
+  will-change: transform;
   animation: logoScroll 30s linear infinite;
+  animation-fill-mode: none;
 }
 .brand-logos-track:hover { animation-play-state: paused; }
 

@@ -125,7 +125,7 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
       <% ;[...bl.logos, ...bl.logos].forEach(function(logo) { %>
       <a href="<%= logo.url || '#' %>" class="brand-logo-item" aria-label="<%= logo.name %>">
         <% if (logo.image_url) { %>
-        <img src="<%= logo.image_url %>" alt="<%= logo.name %>" loading="lazy">
+        <img src="<%= logo.image_url %>" alt="<%= logo.name %>" loading="eager" decoding="async">
         <% } %>
         <span class="brand-logo-text"><%= logo.name %></span>
       </a>
