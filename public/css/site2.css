@@ -461,28 +461,6 @@
 }
 
 /* ════════════════════════════════════════════════════════════════
-   HERO CTA OVERLAY (buttons positioned bottom-left of hero image)
-   ════════════════════════════════════════════════════════════════ */
-.hero-image .hero-ctas {
-  position: absolute;
-  bottom: 2rem;
-  left: 2rem;
-  z-index: 2;
-  display: flex;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-@media (max-width: 860px) {
-  /* On mobile the image is full-bleed; ::after gradient covers it.
-     Give CTAs a higher z-index so they render above the gradient. */
-  .hero-image::after { z-index: 1; }
-  .hero-image .hero-ctas { left: 1.75rem; bottom: 2rem; z-index: 2; }
-  /* hero-content no longer has CTAs — reduce bottom padding so
-     it doesn't push up too high above the CTA overlay area */
-  .hero-content { padding-bottom: 7rem !important; }
-}
-
-/* ════════════════════════════════════════════════════════════════
    SECTION HELPERS (shared across homepage sections)
    ════════════════════════════════════════════════════════════════ */
 .section-eyebrow {
