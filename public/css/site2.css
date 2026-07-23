@@ -829,11 +829,63 @@
    Generated automatically — do not edit above
 ───────────────────────────────────────────── */
 
-/* Hero height variants */
+/* Hero height variants (legacy — kept for compat) */
 .hero-height-full   { min-height: 100vh; }
 .hero-height-large  { min-height: 70vh; }
 .hero-height-medium { min-height: 50vh; }
 .hero-height-small  { min-height: 35vh; }
+
+/* ── Hero layout modes ───────────────────────────────────────── */
+
+/* Split layout (default): text|image side-by-side on desktop.
+   grid-template-columns is driven by inline style from theme settings.
+   Overlay div is unused in split mode (overlay on the image column only). */
+.hero--split .hero-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-color: var(--ov-clr, #0f1f35);
+  opacity: var(--ov-op, 0);   /* default 0 in split — only shown when opacity > 0 */
+}
+
+/* Background layout: image fills the full container, text overlays it.
+   On desktop this replicates the mobile-first "full bleed" look. */
+.hero--bg {
+  position: relative;
+  grid-template-columns: 1fr !important;  /* override inline split calc */
+  grid-template-rows: 1fr;
+}
+.hero--bg .hero-content {
+  grid-row: 1;
+  grid-column: 1;
+  position: relative;
+  z-index: 2;
+  justify-content: center;
+  padding: 60px 10%;
+}
+.hero--bg .hero-image {
+  grid-row: 1;
+  grid-column: 1;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+.hero--bg .hero-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-color: var(--ov-clr, #0f1f35);
+  opacity: var(--ov-op, 0.55);
+}
+/* Text colours for bg layout (image behind → need contrast) */
+.hero--bg .hero-eyebrow { color: rgba(255,255,255,.8); }
+.hero--bg .hero-h1      { color: #fff; }
+.hero--bg .hero-h2      { color: var(--amber, #B8862A); }
+.hero--bg .hero-rule    { background: var(--sage, #5A7A5A); }
+.hero--bg .hero-sub     { color: rgba(255,255,255,.85); }
+.hero--bg .hero-sub2    { color: rgba(255,255,255,.65); }
 
 /* Category grid column counts */
 .category-grid-cols-2 { grid-template-columns: repeat(2, 1fr) !important; }

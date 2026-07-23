@@ -95,6 +95,17 @@ const DEFAULTS = {
     badge_text: 'Free Shipping',
     image_url: '',
     image_alt: 'Premium bathroom vanity',
+    // Layout & sizing
+    layout: 'split',       // 'split' (text|image side-by-side) | 'bg' (image behind text)
+    text_col_pct: 45,      // split layout: text column width %; image gets the remainder
+    height_vh: 0,          // 0 = CSS default (calc 100vh - navbar); 40-100 = custom vh
+    min_height_px: 520,    // 0 = no override
+    max_height_px: 900,    // 0 = no cap
+    // Per-element font sizes (0 = CSS default)
+    eyebrow_size: 11,
+    h2_size: 0,
+    sub2_size: 14,
+    badge_size: 10,
   },
   brand_logos: {
     enabled: true,

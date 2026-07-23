@@ -541,32 +541,91 @@ function teArrayLinks(prefix,listId,tplId,items){
           <!-- ── HERO ───────────────────────────────────────── -->
           <div class="te4-panel" id="panel-hero">
             <% const h=t.hero||{}; %>
+
             <div class="te4-section-label">Background Image</div>
             <%- teImage('hero.image_url','hero.image_alt',h.image_url,h.image_alt,'Hero Image') %>
+
             <div class="te4-section-label">Layout</div>
-            <div class="te4-row2">
-              <%- teAlignment('hero.text_align',h.text_align) %>
-              <div class="te4-field"><label>Section Height</label><select name="hero.height" class="te4-select"><option value="full" <%=(h.height||'full')==='full'?'selected':''%>>Full screen</option><option value="large" <%=h.height==='large'?'selected':''%>>Large (80vh)</option><option value="medium" <%=h.height==='medium'?'selected':''%>>Medium (60vh)</option></select></div>
+            <div class="te4-field">
+              <label>Layout mode</label>
+              <select name="hero.layout" class="te4-select" id="heroLayoutSelect">
+                <option value="split" <%=(h.layout||'split')==='split'?'selected':''%>>Split — text beside image</option>
+                <option value="bg"    <%=h.layout==='bg'?'selected':''%>>Background — image behind text</option>
+              </select>
             </div>
+            <div id="heroSplitRatioRow" style="<%=h.layout==='bg'?'display:none':'='%>">
+              <div class="te4-field">
+                <label>Text / Image split</label>
+                <div class="te4-slider-wrap">
+                  <input type="range" class="te4-slider" name="hero.text_col_pct" min="25" max="75" step="1" value="<%=h.text_col_pct||45%>">
+                  <input type="number" class="te4-slider-num" min="25" max="75" step="1" value="<%=h.text_col_pct||45%>">
+                  <span class="te4-slider-unit">% text</span>
+                </div>
+                <div class="te4-hint">Remaining % is the image column</div>
+              </div>
+            </div>
+            <%- teAlignment('hero.text_align',h.text_align) %>
+
+            <div class="te4-section-label">Height</div>
+            <div class="te4-field">
+              <label>Height</label>
+              <div class="te4-slider-wrap">
+                <input type="range" class="te4-slider" name="hero.height_vh" min="0" max="100" step="1" value="<%=h.height_vh||0%>">
+                <input type="number" class="te4-slider-num" min="0" max="100" step="1" value="<%=h.height_vh||0%>">
+                <span class="te4-slider-unit">vh</span>
+              </div>
+              <div class="te4-hint">0 = fills screen by default (recommended)</div>
+            </div>
+            <div class="te4-row2">
+              <div class="te4-field compact">
+                <label>Min height <span class="te4-slider-unit">px</span></label>
+                <input type="number" name="hero.min_height_px" value="<%=h.min_height_px!==undefined?h.min_height_px:520%>" min="0" step="10" placeholder="520">
+              </div>
+              <div class="te4-field compact">
+                <label>Max height <span class="te4-slider-unit">px</span></label>
+                <input type="number" name="hero.max_height_px" value="<%=h.max_height_px!==undefined?h.max_height_px:900%>" min="0" step="10" placeholder="0 = no cap">
+                <div class="te4-hint">0 = no cap</div>
+              </div>
+            </div>
+
             <div class="te4-section-label">Overlay</div>
+            <div class="te4-hint" style="margin-bottom:6px">In Background mode the overlay tints the image so text is readable. In Split mode it tints the image column.</div>
             <div class="te4-row2">
               <%- teColor('hero.overlay_color','Overlay color',h.overlay_color||'#0f1f35') %>
-              <div class="te4-field"><label>Overlay opacity</label><div class="te4-slider-wrap"><input type="range" class="te4-slider" name="hero.overlay_opacity" min="0" max="90" step="5" value="<%=h.overlay_opacity||55%>"><input type="number" class="te4-slider-num" min="0" max="90" step="5" value="<%=h.overlay_opacity||55%>"><span class="te4-slider-unit">%</span></div></div>
+              <div class="te4-field"><label>Overlay opacity</label><div class="te4-slider-wrap"><input type="range" class="te4-slider" name="hero.overlay_opacity" min="0" max="90" step="5" value="<%=h.overlay_opacity!==undefined?h.overlay_opacity:55%>"><input type="number" class="te4-slider-num" min="0" max="90" step="5" value="<%=h.overlay_opacity!==undefined?h.overlay_opacity:55%>"><span class="te4-slider-unit">%</span></div></div>
             </div>
-            <div class="te4-section-label">Headline</div>
-            <%- teField('text','hero.eyebrow','Eyebrow text',h.eyebrow) %>
+
+            <div class="te4-section-label">Eyebrow</div>
+            <div class="te4-row2">
+              <%- teField('text','hero.eyebrow','Eyebrow text',h.eyebrow) %>
+              <%- teTextSize('hero.eyebrow_size',h.eyebrow_size||11,'Size',8,24) %>
+            </div>
+
+            <div class="te4-section-label">Heading Line 1</div>
             <div class="te4-row2">
               <%- teHeadingLevel('hero.heading_level',h.heading_level||'h1') %>
-              <%- teTextSize('hero.heading_size',h.heading_size,'Heading size',28,80) %>
+              <%- teTextSize('hero.heading_size',h.heading_size||42,'Size',20,90) %>
             </div>
-            <%- teField('text','hero.heading_line1','Heading line 1',h.heading_line1) %>
-            <%- teField('text','hero.heading_line2','Heading line 2 (amber accent)',h.heading_line2) %>
+            <%- teField('text','hero.heading_line1','Text',h.heading_line1) %>
+
+            <div class="te4-section-label">Heading Line 2 <span style="color:var(--color-amber,#B8862A);font-weight:400">(amber accent)</span></div>
+            <%- teTextSize('hero.h2_size',h.h2_size||42,'Size',20,90) %>
+            <%- teField('text','hero.heading_line2','Text',h.heading_line2) %>
+
+            <div class="te4-section-label">Subtext</div>
+            <%- teTextSize('hero.subtext_size',h.subtext_size||16,'Size',10,32) %>
+            <%- teField('textarea','hero.subtext','Text',h.subtext) %>
+
+            <div class="te4-section-label">Brand list line</div>
+            <%- teTextSize('hero.sub2_size',h.sub2_size||14,'Size',8,24) %>
+            <%- teField('text','hero.sub2_text','Text',h.sub2_text) %>
+
+            <div class="te4-section-label">Badge</div>
             <div class="te4-row2">
-              <%- teTextSize('hero.subtext_size',h.subtext_size,'Subtext size',14,28) %>
+              <%- teField('text','hero.badge_text','Badge text',h.badge_text) %>
+              <%- teTextSize('hero.badge_size',h.badge_size||10,'Size',6,18) %>
             </div>
-            <%- teField('textarea','hero.subtext','Subtext',h.subtext) %>
-            <%- teField('text','hero.sub2_text','Brand list line',h.sub2_text) %>
-            <%- teField('text','hero.badge_text','Badge text',h.badge_text) %>
+
             <div class="te4-section-label">Buttons</div>
             <div class="te4-row2"><%- teField('text','hero.cta1_text','Button 1 label',h.cta1_text) %><%- teField('url','hero.cta1_url','Button 1 URL',h.cta1_url) %></div>
             <div class="te4-row2"><%- teField('text','hero.cta2_text','Button 2 label',h.cta2_text) %><%- teField('url','hero.cta2_url','Button 2 URL',h.cta2_url) %></div>
@@ -1364,6 +1423,18 @@ document.querySelectorAll('.te4-align-group').forEach(function (group) {
     });
   });
 });
+
+/* ════════════════════════════════════════════════════════════════
+   HERO: Layout mode → toggle split-ratio visibility
+   ════════════════════════════════════════════════════════════════ */
+(function () {
+  var layoutSel  = document.getElementById('heroLayoutSelect');
+  var ratioRow   = document.getElementById('heroSplitRatioRow');
+  if (!layoutSel || !ratioRow) return;
+  function sync() { ratioRow.style.display = layoutSel.value === 'bg' ? 'none' : ''; }
+  layoutSel.addEventListener('change', function () { sync(); markDirty(); schedulePreview(); });
+  sync();
+})();
 
 /* ════════════════════════════════════════════════════════════════
    COLOR SWATCH ↔ HEX SYNC

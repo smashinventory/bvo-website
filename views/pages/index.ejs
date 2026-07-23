@@ -27,25 +27,43 @@ const news = S.newsletter         || {};
 
 <!-- ── HERO ──────────────────────────────────────────────────────── -->
 <%
-  var _heroTag   = hero.heading_level || 'h1';
-  var _heroAlign = hero.text_align    || 'left';
-  var _heroHSize = hero.heading_size  ? 'font-size:'+hero.heading_size+'px;' : '';
-  var _heroSSize = hero.subtext_size  ? 'font-size:'+hero.subtext_size+'px;' : '';
+  var _heroTag    = hero.heading_level || 'h1';
+  var _heroAlign  = hero.text_align    || 'left';
+  var _heroHSize  = hero.heading_size  ? 'font-size:'+hero.heading_size+'px;' : '';
+  var _heroSSize  = hero.subtext_size  ? 'font-size:'+hero.subtext_size+'px;' : '';
+  var _heroH2Size = (+hero.h2_size > 0) ? 'font-size:'+hero.h2_size+'px;' : '';
+  var _heroESize  = (+hero.eyebrow_size > 0 && hero.eyebrow_size != 11) ? 'font-size:'+hero.eyebrow_size+'px;' : '';
+  var _heroS2Size = (+hero.sub2_size > 0 && hero.sub2_size != 14) ? 'font-size:'+hero.sub2_size+'px;' : '';
+  var _heroBSize  = (+hero.badge_size > 0 && hero.badge_size != 10) ? 'font-size:'+hero.badge_size+'px;' : '';
+  var _heroLayout = hero.layout || 'split';
+  var _textPct    = parseInt(hero.text_col_pct) || 45;
+  var _imgPct     = 100 - _textPct;
+  var _ovColor    = hero.overlay_color || '#0f1f35';
+  var _ovOp       = (hero.overlay_opacity !== undefined && hero.overlay_opacity !== '') ? (+hero.overlay_opacity / 100).toFixed(2) : '0.55';
+  /* Build section inline style — CSS custom props + layout/height overrides */
+  var _heroStyle  = '--ov-clr:'+_ovColor+';--ov-op:'+_ovOp+';';
+  if (_heroLayout === 'split') _heroStyle += 'grid-template-columns:'+_textPct+'% '+_imgPct+'%;';
+  if (+hero.height_vh > 0)           _heroStyle += 'height:'+hero.height_vh+'vh;';
+  if (+hero.min_height_px > 0)       _heroStyle += 'min-height:'+hero.min_height_px+'px;';
+  if (+hero.max_height_px === 0)     _heroStyle += 'max-height:none;';
+  else if (+hero.max_height_px > 0)  _heroStyle += 'max-height:'+hero.max_height_px+'px;';
+  var _ctaAlign = _heroAlign==='center'?'justify-content:center':_heroAlign==='right'?'justify-content:flex-end':'';
 %>
-<section class="hero" data-section="hero" data-section-label="Hero Banner" aria-label="Hero">
+<section class="hero hero--<%= _heroLayout %>" data-section="hero" data-section-label="Hero Banner" aria-label="Hero" style="<%= _heroStyle %>">
   <div class="hero-content" style="text-align:<%= _heroAlign %>">
-    <p class="hero-eyebrow"><%= hero.eyebrow || 'Curated for Your Bathroom Renovation' %></p>
+    <p class="hero-eyebrow" style="<%= _heroESize %>"><%= hero.eyebrow || 'Curated for Your Bathroom Renovation' %></p>
     <<%- _heroTag %> class="hero-h1" style="<%= _heroHSize %>"><%= hero.heading_line1 || 'Premium Vanities.' %></<%- _heroTag %>>
-    <p class="hero-h2"><%= hero.heading_line2 || 'Outlet Prices.' %></p>
+    <p class="hero-h2" style="<%= _heroH2Size %>"><%= hero.heading_line2 || 'Outlet Prices.' %></p>
     <div class="hero-rule" aria-hidden="true"></div>
     <p class="hero-sub" style="<%= _heroSSize %>"><%= hero.subtext || 'Top brands, delivered free to your door.' %></p>
-    <p class="hero-sub2"><%= hero.sub2_text || 'James Martin · Kohler · Moen · Delta and more' %></p>
-    <div class="hero-ctas" style="<%= _heroAlign==='center'?'justify-content:center':_heroAlign==='right'?'justify-content:flex-end':'' %>">
+    <p class="hero-sub2" style="<%= _heroS2Size %>"><%= hero.sub2_text || 'James Martin · Kohler · Moen · Delta and more' %></p>
+    <div class="hero-ctas" style="<%= _ctaAlign %>">
       <a href="<%= hero.cta1_url || '/collections/bathroom-vanities' %>" class="btn btn-navy"><%= hero.cta1_text || 'Shop Vanities' %></a>
       <a href="<%= hero.cta2_url || '/collections/sale' %>"     class="btn btn-sage"><%= hero.cta2_text || 'View Sale' %></a>
     </div>
   </div>
   <div class="hero-image" aria-hidden="true">
+    <div class="hero-overlay"></div>
     <% if (hero.image_url) { %>
       <img src="<%= hero.image_url %>" alt="<%= hero.image_alt || 'Hero image' %>" style="width:100%;height:100%;object-fit:cover;display:block;">
     <% } else { %>
@@ -54,7 +72,7 @@ const news = S.newsletter         || {};
       <span>Hero image</span>
     </div>
     <% } %>
-    <% if (hero.badge_text) { %><span class="hero-badge"><%= hero.badge_text %></span><% } %>
+    <% if (hero.badge_text) { %><span class="hero-badge" style="<%= _heroBSize %>"><%= hero.badge_text %></span><% } %>
   </div>
 </section>
 
