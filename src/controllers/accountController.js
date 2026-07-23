@@ -38,9 +38,12 @@ exports.login = async (req, res, next) => {
       });
     }
 
+    // Regenerate session ID to prevent session fixation attacks
+    await new Promise((resolve, reject) =>
+      req.session.regenerate(err => err ? reject(err) : resolve())
+    );
     req.session.customerId = customer.id;
     req.session.customer   = { id: customer.id, firstName: customer.first_name, email: customer.email };
-    delete req.session.returnTo;
     await Customer.updateLastLogin(customer.id);
 
     res.redirect(return_to && return_to.startsWith('/') ? return_to : '/account');

@@ -61,6 +61,7 @@ app.use(session({
   cookie: {
     secure:   process.env.NODE_ENV === 'production',
     httpOnly: true,
+    sameSite: 'lax',  // blocks cross-site POST CSRF; 'strict' would break OAuth flows
     maxAge:   7 * 24 * 60 * 60 * 1000, // 7 days
   },
 }));

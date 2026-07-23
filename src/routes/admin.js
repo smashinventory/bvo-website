@@ -1,13 +1,23 @@
 'use strict';
 
 const express       = require('express');
+const rateLimit     = require('express-rate-limit');
 const router        = express.Router();
 const ctrl          = require('../controllers/adminController');
 const { requireAdmin } = require('../middleware/adminAuth');
 
+/* ── Strict rate limit on admin login — 10 attempts / 15 min ── */
+const adminLoginLimiter = rateLimit({
+  windowMs:        15 * 60 * 1000,
+  max:             10,
+  standardHeaders: true,
+  legacyHeaders:   false,
+  message:         'Too many login attempts — please try again in 15 minutes.',
+});
+
 /* ── Auth (no middleware guard) ─────────────────────────────── */
 router.get ('/login',  ctrl.loginPage);
-router.post('/login',  ctrl.login);
+router.post('/login',  adminLoginLimiter, ctrl.login);
 router.post('/logout', ctrl.logout);
 
 /* ── Apply requireAdmin to everything below ─────────────────── */

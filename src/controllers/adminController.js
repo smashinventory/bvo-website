@@ -1,5 +1,6 @@
 'use strict';
 
+const crypto         = require('crypto');
 const { bvoPool }   = require('../config/database');
 const Product        = require('../models/Product');
 const Category       = require('../models/Category');
@@ -92,10 +93,29 @@ exports.login = (req, res) => {
   const validUser = process.env.ADMIN_USER     || 'admin';
   const validPass = process.env.ADMIN_PASSWORD || 'changeme';
 
-  if (username === validUser && password === validPass) {
-    req.session.isAdmin = true;
-    return res.redirect('/admin');
+  // Timing-safe comparison — prevents timing-based user/password enumeration.
+  // Buffers must be equal length for timingSafeEqual; pad-compare so length
+  // difference doesn't short-circuit early (still returns false on mismatch).
+  const uBuf = Buffer.from(username  || '');
+  const pBuf = Buffer.from(password  || '');
+  const vuBuf = Buffer.from(validUser);
+  const vpBuf = Buffer.from(validPass);
+  const userMatch = uBuf.length === vuBuf.length && crypto.timingSafeEqual(uBuf, vuBuf);
+  const passMatch = pBuf.length === vpBuf.length && crypto.timingSafeEqual(pBuf, vpBuf);
+
+  if (userMatch && passMatch) {
+    // Regenerate session ID to prevent session fixation
+    req.session.regenerate((err) => {
+      if (err) {
+        console.error('[admin/login] session.regenerate error:', err);
+        return res.redirect('/admin/login');
+      }
+      req.session.isAdmin = true;
+      res.redirect('/admin');
+    });
+    return;
   }
+
   res.render('pages/admin/login', {
     ...LAYOUT,
     pageTitle: 'Admin Login',
@@ -107,9 +127,9 @@ exports.login = (req, res) => {
 
 /* POST /admin/logout */
 exports.logout = (req, res) => {
-  req.session.isAdmin = false;
-  delete req.session.isAdmin;
-  res.redirect('/admin/login');
+  // Destroy the entire session (not just the isAdmin flag) so the session ID
+  // can't be reused after logout.
+  req.session.destroy(() => res.redirect('/admin/login'));
 };
 
 /* ════════════════════════════════════════════════════════════════

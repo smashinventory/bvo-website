@@ -14,6 +14,11 @@ const par  = S.parallax           || {};
 const test = S.testimonials       || {};
 const news = S.newsletter         || {};
 
+/* Security: whitelist heading tag values so theme settings can't inject arbitrary HTML
+   via raw <%- _*Tag %> interpolation used to open/close heading elements. */
+const _ALLOWED_TAGS = new Set(['h1','h2','h3','h4','h5','h6']);
+function _safeTag(val, def) { return _ALLOWED_TAGS.has(val) ? val : (def || 'h2'); }
+
 /* Salsify (Cloudinary) on-the-fly resize — inserts transform params into CDN URL.
    Reduces 2–4 MB hero/featured images to ~30–60 KB at the displayed size.
    If images ever 403, remove the transform call and they fall back to originals. */
@@ -54,7 +59,7 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
 <!-- ── HERO ──────────────────────────────────────────────────────── -->
 <% if (sectionKey === 'hero') { %>
 <%
-  var _heroTag    = hero.heading_level || 'h1';
+  var _heroTag    = _safeTag(hero.heading_level, 'h1');
   var _heroAlign  = hero.text_align    || 'left';
   var _heroHSize  = hero.heading_size  ? 'font-size:'+hero.heading_size+'px;' : '';
   var _heroSSize  = hero.subtext_size  ? 'font-size:'+hero.subtext_size+'px;' : '';
@@ -146,7 +151,7 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
 <!-- ── CATEGORY CAROUSEL ──────────────────────────────────────────── -->
 <% if (sectionKey === 'categories_section' && cs.enabled !== false && categories && categories.length) { %>
 <%
-  var _csTag   = cs.title_level || 'h2';
+  var _csTag   = _safeTag(cs.title_level, 'h2');
   var _csAlign = cs.text_align  || 'center';
 %>
 <section class="section" data-section="categories_section" data-section-label="Category Grid" aria-labelledby="cat-heading">
@@ -190,7 +195,7 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
 <!-- ── FEATURED PRODUCTS ─────────────────────────────────────────── -->
 <% if (sectionKey === 'featured_section' && fs_.enabled !== false) { %>
 <%
-  var _fsTag   = fs_.title_level || 'h2';
+  var _fsTag   = _safeTag(fs_.title_level, 'h2');
   var _fsAlign = fs_.text_align  || 'center';
 %>
 <section class="section section-alt" data-section="featured_section" data-section-label="Featured Products" aria-labelledby="feat-heading">
@@ -416,7 +421,7 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
 <!-- ── IMAGE WITH TEXT ───────────────────────────────────────────── -->
 <% if (sectionKey === 'image_with_text' && iwt.enabled !== false) { %>
 <%
-  var _iwtTag       = iwt.heading_level  || 'h2';
+  var _iwtTag       = _safeTag(iwt.heading_level, 'h2');
   var _iwtHSize     = iwt.heading_size   ? 'font-size:'+iwt.heading_size+'px;' : '';
   var _iwtBSize     = iwt.body_size      ? 'font-size:'+iwt.body_size+'px;'    : '';
   var _iwtImgW      = iwt.image_width    || '50%';
@@ -451,7 +456,7 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
 <!-- ── IMAGE WITH TEXT 2 (duplicate slot) ───────────────────────── -->
 <% if (sectionKey === 'image_with_text_2' && iwt2.enabled !== false && (iwt2.heading || iwt2.body)) { %>
 <%
-  var _iwt2Tag       = iwt2.heading_level  || 'h2';
+  var _iwt2Tag       = _safeTag(iwt2.heading_level, 'h2');
   var _iwt2HSize     = iwt2.heading_size   ? 'font-size:'+iwt2.heading_size+'px;' : '';
   var _iwt2BSize     = iwt2.body_size      ? 'font-size:'+iwt2.body_size+'px;'    : '';
   var _iwt2ImgW      = iwt2.image_width    || '50%';
@@ -486,7 +491,7 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
 <!-- ── BEFORE / AFTER SLIDER ─────────────────────────────────────── -->
 <% if (sectionKey === 'before_after' && ba.enabled !== false) { %>
 <%
-  var _baTag     = ba.heading_level || 'h2';
+  var _baTag     = _safeTag(ba.heading_level, 'h2');
   var _baAlign   = ba.text_align    || 'center';
   var _baInitPos = ba.initial_pos   || 50;
 %>
@@ -531,7 +536,7 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
 <!-- ── BEFORE / AFTER 2 (duplicate slot) ────────────────────────── -->
 <% if (sectionKey === 'before_after_2' && ba2.enabled !== false && (ba2.before_image || ba2.after_image)) { %>
 <%
-  var _ba2Tag     = ba2.heading_level || 'h2';
+  var _ba2Tag     = _safeTag(ba2.heading_level, 'h2');
   var _ba2Align   = ba2.text_align    || 'center';
   var _ba2InitPos = ba2.initial_pos   || 50;
 %>
@@ -599,7 +604,7 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
 <!-- ── PARALLAX BAND ─────────────────────────────────────────────── -->
 <% if (sectionKey === 'parallax' && par.enabled !== false) { %>
 <%
-  var _parTag   = par.heading_level || 'h2';
+  var _parTag   = _safeTag(par.heading_level, 'h2');
   var _parAlign = par.text_align    || 'center';
   var _parOC    = par.overlay_color   || '#0f1f35';
   var _parOO    = (par.overlay_opacity !== undefined ? par.overlay_opacity : 65) / 100;
@@ -624,7 +629,7 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
 <!-- ── TESTIMONIALS ───────────────────────────────────────────────── -->
 <% if (sectionKey === 'testimonials' && test.enabled !== false && test.items && test.items.length) { %>
 <%
-  var _testTag   = test.heading_level || 'h2';
+  var _testTag   = _safeTag(test.heading_level, 'h2');
   var _testAlign = test.text_align    || 'center';
 %>
 <section class="section testimonials-section" data-section="testimonials" data-section-label="Testimonials" aria-labelledby="test-heading">
@@ -662,7 +667,7 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
 <section class="newsletter-section" data-section="newsletter" data-section-label="Newsletter" aria-labelledby="news-heading">
   <div class="newsletter-inner">
 <%
-  var _newsTag   = news.heading_level || 'h2';
+  var _newsTag   = _safeTag(news.heading_level, 'h2');
   var _newsAlign = news.text_align    || 'center';
 %>
     <div class="newsletter-copy" style="text-align:<%= _newsAlign %>">
