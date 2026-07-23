@@ -86,20 +86,20 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
     <p class="hero-sub2" style="<%= _heroS2Size %>"><%= hero.sub2_text || 'James Martin · Kohler · Moen · Delta and more' %></p>
     <div class="hero-ctas" style="<%= _ctaAlign %>">
       <a href="<%= hero.cta1_url || '/collections/bathroom-vanities' %>" class="btn btn-navy"><%= hero.cta1_text || 'Shop Vanities' %></a>
-      <a href="<%= hero.cta2_url || '/collections/sale' %>"     class="btn btn-sage"><%= hero.cta2_text || 'View Sale' %></a>
     </div>
   </div>
-  <div class="hero-image" aria-hidden="true">
-    <div class="hero-overlay"></div>
+  <div class="hero-image">
+    <div class="hero-overlay" aria-hidden="true"></div>
     <% if (hero.image_url) { %>
       <img src="<%= hero.image_url %>" alt="<%= hero.image_alt || 'Hero image' %>" style="width:100%;height:100%;object-fit:cover;display:block;">
     <% } else { %>
-    <div class="hero-img-placeholder">
+    <div class="hero-img-placeholder" aria-hidden="true">
       <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
       <span>Hero image</span>
     </div>
     <% } %>
-    <% if (hero.badge_text) { %><span class="hero-badge" style="<%= _heroBSize %>"><%= hero.badge_text %></span><% } %>
+    <% if (hero.badge_text) { %><span class="hero-badge" aria-hidden="true" style="<%= _heroBSize %>"><%= hero.badge_text %></span><% } %>
+    <a href="<%= hero.cta2_url || '/collections/sale' %>" class="btn btn-sage hero-sale-btn"><%= hero.cta2_text || 'View Sale' %></a>
   </div>
 </section>
 
@@ -130,7 +130,7 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
   <% if (bl.eyebrow) { %><p class="brand-logos-eyebrow"><%= bl.eyebrow %></p><% } %>
   <div class="brand-logos-marquee">
     <div class="brand-logos-track" aria-hidden="false">
-      <% ;[...bl.logos, ...bl.logos].forEach(function(logo) { %>
+      <% ;[...bl.logos, ...bl.logos, ...bl.logos].forEach(function(logo) { %>
       <a href="<%= logo.url || '#' %>" class="brand-logo-item" aria-label="<%= logo.name %>">
         <% if (logo.image_url) { %>
         <img src="<%= logo.image_url %>" alt="<%= logo.name %>" loading="eager" decoding="async">

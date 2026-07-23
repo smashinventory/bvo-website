@@ -887,6 +887,14 @@
   background-color: var(--ov-clr, #0f1f35);
   opacity: var(--ov-op, 0.55);
 }
+
+/* Sale CTA pinned to bottom-left of hero image */
+.hero-sale-btn {
+  position: absolute;
+  bottom: 1.75rem;
+  left: 1.75rem;
+  z-index: 3;
+}
 /* Text colours for bg layout (image behind → need contrast) */
 .hero--bg .hero-eyebrow { color: rgba(255,255,255,.8); }
 .hero--bg .hero-h1      { color: #fff; }
