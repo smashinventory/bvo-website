@@ -66,22 +66,37 @@ exports.register = async (req, res, next) => {
   try {
     const { email, first_name, last_name, password, password2, accepts_marketing } = req.body;
 
-    if (password !== password2) {
+    // Guard missing / non-string fields before any .length or .toLowerCase() call
+    const emailStr    = (email    || '').trim();
+    const passwordStr = (password || '');
+    const password2Str= (password2|| '');
+
+    if (!emailStr || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailStr)) {
+      return res.render('pages/account/register', {
+        pageTitle: 'Create Account | BathroomVanitiesOutlet.com',
+        metaDesc:  '',
+        error: 'Please enter a valid email address.',
+        query: req.query,
+      });
+    }
+    if (passwordStr !== password2Str) {
       return res.render('pages/account/register', {
         pageTitle: 'Create Account | BathroomVanitiesOutlet.com',
         metaDesc:  '',
         error: 'Passwords do not match.',
+        query: req.query,
       });
     }
-    if (password.length < 8) {
+    if (passwordStr.length < 8) {
       return res.render('pages/account/register', {
         pageTitle: 'Create Account | BathroomVanitiesOutlet.com',
         metaDesc:  '',
         error: 'Password must be at least 8 characters.',
+        query: req.query,
       });
     }
 
-    const existing = await Customer.findByEmail(email);
+    const existing = await Customer.findByEmail(emailStr);
     if (existing) {
       return res.render('pages/account/register', {
         pageTitle: 'Create Account | BathroomVanitiesOutlet.com',
@@ -91,12 +106,12 @@ exports.register = async (req, res, next) => {
     }
 
     const id = await Customer.create({
-      email, firstName: first_name, lastName: last_name,
-      password, acceptsMarketing: !!accepts_marketing,
+      email: emailStr, firstName: (first_name || '').trim(), lastName: (last_name || '').trim(),
+      password: passwordStr, acceptsMarketing: !!accepts_marketing,
     });
 
     req.session.customerId = id;
-    req.session.customer   = { id, firstName: first_name, email };
+    req.session.customer   = { id, firstName: (first_name || '').trim(), email: emailStr };
     res.redirect('/account');
   } catch (err) { next(err); }
 };
@@ -152,4 +167,32 @@ exports.toggleFavorite = async (req, res, next) => {
 /* ── POST /account/logout ───────────────────────────────────────── */
 exports.logout = (req, res) => {
   req.session.destroy(() => res.redirect('/'));
+};
+
+/* ── POST /account/newsletter ───────────────────────────────────── */
+// Accepts { email } JSON from the homepage newsletter form.
+// Always returns { ok: true } — never reveals whether an account exists.
+exports.newsletter = async (req, res) => {
+  const { bvoPool } = require('../config/database');
+  try {
+    const email = (req.body.email || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ ok: false, error: 'Invalid email.' });
+    }
+
+    // Mark existing customer as accepting marketing
+    await bvoPool.query(
+      'UPDATE customers SET accepts_marketing=1 WHERE email=?', [email]
+    ).catch(() => {});
+
+    // Best-effort insert into newsletter_signups (table may not exist yet)
+    await bvoPool.query(
+      `INSERT IGNORE INTO newsletter_signups (email, source, created_at)
+       VALUES (?, 'homepage', NOW())`, [email]
+    ).catch(() => {});
+
+    res.json({ ok: true });
+  } catch {
+    res.json({ ok: true }); // never leak internal errors
+  }
 };

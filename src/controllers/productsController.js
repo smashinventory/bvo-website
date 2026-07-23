@@ -36,8 +36,8 @@ exports.show = async (req, res, next) => {
       ).then(([rows]) => rows).catch(() => []),
     ]);
 
-    // Savings
-    if (!product.savings && product.compare_price) {
+    // Savings — only compute when compare_price is genuinely higher than price
+    if (!product.savings && product.compare_price && product.compare_price > product.price) {
       product.savings    = (product.compare_price - product.price).toFixed(2);
       product.savingsPct = Math.round((1 - product.price / product.compare_price) * 100);
     }

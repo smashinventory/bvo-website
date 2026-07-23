@@ -13,6 +13,7 @@ router.post('/logout',            controller.logout);
 router.get('/orders',             requireAuth, controller.orders);
 router.get('/favorites',          requireAuth, controller.favoritesPage);
 router.post('/favorites/toggle',  requireAuth, controller.toggleFavorite);
+router.post('/newsletter',        controller.newsletter);
 router.get('/',                   requireAuth, controller.dashboard);
 
 module.exports = router;
