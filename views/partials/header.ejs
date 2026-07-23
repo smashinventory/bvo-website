@@ -77,6 +77,21 @@
               <% }) %>
             </div>
           </div>
+          <!-- Style col: canonical BVO style buckets — static list -->
+          <div class="mega-col mega-col--style">
+            <div class="mega-section">
+              <p class="mega-heading">Shop By Style</p>
+              <a class="mega-link" href="/collections/bathroom-vanities?style=Traditional">Traditional</a>
+              <a class="mega-link" href="/collections/bathroom-vanities?style=Transitional">Transitional</a>
+              <a class="mega-link" href="/collections/bathroom-vanities?style=Modern">Modern</a>
+              <a class="mega-link" href="/collections/bathroom-vanities?style=Farmhouse">Farmhouse</a>
+              <a class="mega-link" href="/collections/bathroom-vanities?style=Mid-Century+Modern">Mid-Century Modern</a>
+              <a class="mega-link" href="/collections/bathroom-vanities?style=Industrial">Industrial</a>
+              <a class="mega-link" href="/collections/bathroom-vanities?style=Coastal">Coastal</a>
+              <a class="mega-link" href="/collections/bathroom-vanities?style=Scandinavian">Scandinavian</a>
+              <a class="mega-link" href="/collections/bathroom-vanities?style=European+%2F+Old+World">European / Old World</a>
+            </div>
+          </div>
           <!-- Right col: promo card — editable in admin theme editor -->
           <div class="mega-col mega-col--promo">
             <a href="<%= _vmp.url || '/collections/vanity-models' %>" class="mega-promo-card">
@@ -175,6 +190,16 @@
       <% (megaMenuColorFamilies || []).forEach(function(fam) { %>
       <li class="mobile-sub"><a href="/collections/bathroom-vanities?color_family=<%= fam.key %>"><%= fam.label %> Vanities</a></li>
       <% }) %>
+      <%/* Style links — mirrors desktop mega menu Style column */%>
+      <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Traditional">Traditional</a></li>
+      <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Transitional">Transitional</a></li>
+      <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Modern">Modern</a></li>
+      <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Farmhouse">Farmhouse</a></li>
+      <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Mid-Century+Modern">Mid-Century Modern</a></li>
+      <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Industrial">Industrial</a></li>
+      <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Coastal">Coastal</a></li>
+      <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Scandinavian">Scandinavian</a></li>
+      <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=European+%2F+Old+World">European / Old World</a></li>
       <% } %>
       <% }) %>
       <li><a href="/account">My Account</a></li>

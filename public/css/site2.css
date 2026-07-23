@@ -1068,6 +1068,15 @@
   .listing-toolbar { flex-wrap: wrap; gap: 8px 0; }
 }
 
+/* ── Mega menu: Style column ──────────────────────────────────────────────── */
+.mega-col--style {
+  padding: 24px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  border-left: 1px solid var(--border);
+}
+
 /* ── Sidebar size chip filter (moved from site.css — 80KB CDN limit) ──────
  * Universal size display style (approved July 2026):
  *   Numeric sizes → "36 Inches"  |  20- bucket → "20 & under"  |  84+ bucket → "84 & over"

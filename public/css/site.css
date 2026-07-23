@@ -139,9 +139,9 @@ ul[role="list"] { list-style: none; }
   padding-top: 12px;
   left: 50%;
   transform: translateX(-50%) translateY(-6px);
-  width: 780px;
+  width: 980px;
   display: grid;
-  grid-template-columns: 1fr 1fr 190px;
+  grid-template-columns: 1fr 1fr 1fr 190px;
   background: var(--white);
   border: 1px solid var(--border);
   border-radius: 10px;
