@@ -309,28 +309,22 @@
         </button>
         <div class="filter-group-body<%= isExpanded ? '' : ' is-collapsed' %>">
           <% if (def.attr_key === 'size_in') { %>
-          <%/* Size chip filter — styled labels over hidden checkboxes (same form
-              * submission as other filters, no JS needed). availableSizes contains
-              * only buckets with ≥1 product in the current filtered collection.
-              * Canonical source: products.width_in via SIZE_BUCKETS (Rule 10). */
+          <%
             var _activeSizes = attrFilters['size_in'] || [];
             var _chips = (typeof availableSizes !== 'undefined') ? availableSizes : [];
           %>
-          <div class="size-chips">
-            <% _chips.forEach(function(sz) {
-                 var isActive = _activeSizes.indexOf(String(sz)) !== -1;
-                 var chipLabel = sz === '20-' ? '20 & under'
-                               : sz === '84+' ? '84 & over'
-                               : sz + ' Inches';
-            %>
-            <label class="size-chip<%= isActive ? ' is-active' : '' %>">
-              <input type="checkbox" name="<%= def.attr_key %>" value="<%= sz %>"
-                <%= isActive ? 'checked' : '' %>
-                style="position:absolute;opacity:0;pointer-events:none;width:0;height:0;">
-              <span class="size-chip-label"><%= chipLabel %></span>
-            </label>
-            <% }) %>
-          </div>
+          <% _chips.forEach(function(sz) {
+               var _szActive = _activeSizes.indexOf(String(sz)) !== -1;
+               var _szLabel  = sz === '20-' ? '20" & Under'
+                             : sz === '84+' ? '84" & Over'
+                             : sz + '"';
+          %>
+          <label class="filter-option">
+            <input type="checkbox" name="<%= def.attr_key %>" value="<%= sz %>"
+              <%= _szActive ? 'checked' : '' %>>
+            <span><%= _szLabel %></span>
+          </label>
+          <% }) %>
           <% } else { %>
           <div class="filter-price">
             <input type="number" name="<%= def.attr_key %>_min"
