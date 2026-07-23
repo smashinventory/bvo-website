@@ -638,44 +638,51 @@
           <%
             var _imgs = (typeof productImages !== 'undefined') ? productImages : [];
           %>
-          <% if (_imgs.length) { %>
-          <div class="adm-img-grid">
+
+          <%/* Gallery grid — drag to reorder, AJAX set-primary and delete.
+               All actions use fetch() because nested <form> elements inside
+               productForm are invalid HTML and silently ignored by browsers. */%>
+          <div class="adm-img-grid" id="imgGrid">
             <% _imgs.forEach(function(img) { %>
-            <div class="adm-img-thumb <%= img.is_primary ? 'adm-img-thumb--primary' : '' %>">
+            <div class="adm-img-thumb <%= img.is_primary ? 'adm-img-thumb--primary' : '' %>"
+                 draggable="true"
+                 data-img-id="<%= img.id %>">
               <img src="<%= img.url %>" alt="<%= img.alt_text || '' %>">
               <% if (img.is_primary) { %><span class="adm-img-primary-badge">Primary</span><% } %>
               <div class="adm-img-actions">
                 <% if (!img.is_primary) { %>
-                <form method="POST" action="/admin/products/<%= product.id %>/images/<%= img.id %>/primary" style="display:inline">
-                  <button type="submit" class="adm-img-btn" title="Set as primary">★</button>
-                </form>
+                <button type="button" class="adm-img-btn" title="Set as primary"
+                  onclick="imgSetPrimary(<%= img.id %>)">★</button>
                 <% } %>
-                <form method="POST" action="/admin/products/<%= product.id %>/images/<%= img.id %>/delete" style="display:inline"
-                  onsubmit="return confirm('Delete this image?')">
-                  <button type="submit" class="adm-img-btn adm-img-btn--del" title="Delete">✕</button>
-                </form>
+                <button type="button" class="adm-img-btn adm-img-btn--del" title="Delete"
+                  onclick="imgDelete(<%= img.id %>)">✕</button>
               </div>
             </div>
             <% }) %>
           </div>
-          <% } else { %>
-          <p class="adm-form-hint" style="margin-bottom:10px">No gallery images yet.</p>
+          <% if (!_imgs.length) { %>
+          <p class="adm-form-hint" style="margin-bottom:10px" id="imgEmptyMsg">No gallery images yet.</p>
+          <% } %>
+          <% if (_imgs.length > 1) { %>
+          <button type="button" class="btn btn-outline" id="imgSaveOrderBtn"
+            style="width:100%;margin-bottom:10px;display:none"
+            onclick="imgSaveOrder()">Save Image Order</button>
           <% } %>
 
-          <form method="POST" action="/admin/products/<%= product.id %>/images"
-            enctype="multipart/form-data" class="adm-img-upload-form">
-            <label class="adm-img-drop" id="imgDropZone">
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="17 8 12 3 7 8"/>
-                <line x1="12" y1="3" x2="12" y2="15"/>
-              </svg>
-              <span id="imgDropLabel">Click or drag to upload</span>
-              <input type="file" name="image_file" id="imgFileInput" accept="image/*" style="display:none">
-            </label>
-            <button type="submit" class="btn btn-sage" style="width:100%;margin-top:8px"
-              id="imgUploadBtn" disabled>Upload Image</button>
-          </form>
+          <%/* Upload drop zone — uses fetch(), NOT a nested form */%>
+          <div class="adm-img-drop" id="imgDropZone">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            <span id="imgDropLabel">Click or drag to upload</span>
+            <input type="file" name="image_file" id="imgFileInput" accept="image/*" style="display:none">
+          </div>
+          <button type="button" class="btn btn-sage" style="width:100%;margin-top:8px"
+            id="imgUploadBtn" disabled onclick="imgUpload()">Upload Image</button>
+          <div id="imgUploadStatus" style="font-size:.8rem;margin-top:6px;display:none"></div>
+
           <% } %>
         </div>
 
@@ -876,7 +883,7 @@
     });
   }
 
-  // Image upload drop zone
+  // ── Image upload drop zone (AJAX — no nested form) ───────────────
   const fileInput = document.getElementById('imgFileInput');
   const dropZone  = document.getElementById('imgDropZone');
   const dropLabel = document.getElementById('imgDropLabel');
@@ -894,6 +901,127 @@
     });
   }
 })();
+
+// ── Product image AJAX actions ────────────────────────────────────
+<% if (!isNew && product) { %>
+const _prodId = <%= product.id %>;
+
+function _imgStatus(msg, isError) {
+  const el = document.getElementById('imgUploadStatus');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color  = isError ? '#c00' : '#2d6a38';
+  el.style.display = msg ? 'block' : 'none';
+}
+
+// Upload via fetch (replaces nested multipart form)
+function imgUpload() {
+  const fileInput = document.getElementById('imgFileInput');
+  const btn       = document.getElementById('imgUploadBtn');
+  if (!fileInput || !fileInput.files[0]) return;
+  const fd = new FormData();
+  fd.append('image_file', fileInput.files[0]);
+  btn.disabled = true;
+  btn.textContent = 'Uploading…';
+  _imgStatus('');
+  fetch(`/admin/products/${_prodId}/images`, { method: 'POST', body: fd })
+    .then(r => r.json())
+    .then(d => {
+      if (!d.ok) throw new Error(d.error || 'Upload failed');
+      _imgStatus('Uploaded — reloading…');
+      setTimeout(() => location.reload(), 600);
+    })
+    .catch(e => {
+      _imgStatus('Upload failed: ' + e.message, true);
+      btn.disabled = false;
+      btn.textContent = 'Upload Image';
+    });
+}
+
+// Set primary via fetch
+function imgSetPrimary(imgId) {
+  fetch(`/admin/products/${_prodId}/images/${imgId}/primary`, { method: 'POST' })
+    .then(r => r.json())
+    .then(d => { if (!d.ok) throw new Error(d.error); location.reload(); })
+    .catch(e => alert('Could not set primary: ' + e.message));
+}
+
+// Delete via fetch
+function imgDelete(imgId) {
+  if (!confirm('Delete this image?')) return;
+  fetch(`/admin/products/${_prodId}/images/${imgId}/delete`, { method: 'POST' })
+    .then(r => r.json())
+    .then(d => { if (!d.ok) throw new Error(d.error); location.reload(); })
+    .catch(e => alert('Could not delete image: ' + e.message));
+}
+
+// ── Drag-to-reorder ───────────────────────────────────────────────
+(function () {
+  const grid = document.getElementById('imgGrid');
+  const saveBtn = document.getElementById('imgSaveOrderBtn');
+  if (!grid) return;
+
+  let dragSrc = null;
+
+  grid.querySelectorAll('.adm-img-thumb').forEach(thumb => {
+    thumb.addEventListener('dragstart', function (e) {
+      dragSrc = this;
+      e.dataTransfer.effectAllowed = 'move';
+      this.classList.add('img-dragging');
+    });
+    thumb.addEventListener('dragend', function () {
+      this.classList.remove('img-dragging');
+      grid.querySelectorAll('.adm-img-thumb').forEach(t => t.classList.remove('img-drag-over'));
+    });
+    thumb.addEventListener('dragover', function (e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      if (this !== dragSrc) {
+        grid.querySelectorAll('.adm-img-thumb').forEach(t => t.classList.remove('img-drag-over'));
+        this.classList.add('img-drag-over');
+      }
+    });
+    thumb.addEventListener('drop', function (e) {
+      e.preventDefault();
+      if (dragSrc && dragSrc !== this) {
+        // Reorder in DOM
+        const thumbs  = [...grid.querySelectorAll('.adm-img-thumb')];
+        const srcIdx  = thumbs.indexOf(dragSrc);
+        const destIdx = thumbs.indexOf(this);
+        if (srcIdx < destIdx) this.after(dragSrc);
+        else this.before(dragSrc);
+        // Show save button
+        if (saveBtn) saveBtn.style.display = 'block';
+      }
+      this.classList.remove('img-drag-over');
+    });
+  });
+})();
+
+// POST new sort order to server
+function imgSaveOrder() {
+  const grid    = document.getElementById('imgGrid');
+  const saveBtn = document.getElementById('imgSaveOrderBtn');
+  if (!grid) return;
+  const order = [...grid.querySelectorAll('.adm-img-thumb')].map(t => t.dataset.imgId);
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
+  fetch(`/admin/products/${_prodId}/images/reorder`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ order }),
+  })
+    .then(r => r.json())
+    .then(d => {
+      if (!d.ok) throw new Error(d.error);
+      if (saveBtn) { saveBtn.textContent = 'Order Saved ✓'; saveBtn.style.color = '#2d6a38'; }
+      setTimeout(() => location.reload(), 800);
+    })
+    .catch(e => {
+      alert('Could not save order: ' + e.message);
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Image Order'; }
+    });
+}
+<% } %>
 </script>
 
 <style>
