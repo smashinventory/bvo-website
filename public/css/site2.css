@@ -888,6 +888,13 @@
   opacity: var(--ov-op, 0.55);
 }
 
+/* Image-with-text container centering */
+.iwt-section .container {
+  max-width: var(--container-max, 1280px);
+  margin: 0 auto;
+  padding: 0 var(--container-pad, clamp(1rem, 4vw, 3rem));
+}
+
 /* Sale CTA pinned to bottom-left of hero image */
 .hero-sale-btn {
   position: absolute;
