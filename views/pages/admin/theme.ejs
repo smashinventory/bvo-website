@@ -1419,8 +1419,15 @@ function schedulePreview() {
 }
 
 function sendPreview() {
-  var fd = new FormData(form);
-  fetch('/admin/theme/preview', { method: 'POST', body: fd })
+  // Must send as application/x-www-form-urlencoded so Express can parse req.body.
+  // new FormData(form) sends multipart which Express urlencoded middleware ignores,
+  // causing req.body={} and wiping all array fields (nav links, footer, etc.).
+  var params = new URLSearchParams(new FormData(form)).toString();
+  fetch('/admin/theme/preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params
+  })
     .then(function (r) { return r.json(); })
     .then(function (d) {
       if (d.ok && frame) {
