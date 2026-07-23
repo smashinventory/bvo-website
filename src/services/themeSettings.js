@@ -43,8 +43,8 @@ const DEFAULTS = {
     message: 'Free Shipping on Every Order — No Minimum Required',
     link_text: 'Shop Now',
     link_url: '/collections/bathroom-vanities',
-    bg_color: '',    // '' = CSS default (sage green)
-    text_color: '',  // '' = CSS default (white)
+    bg_color: '#182840',    // navy — high contrast for accessibility
+    text_color: '#ffffff',  // white on navy
   },
   nav: {
     brand_line1: 'BathroomVanities',

@@ -432,13 +432,13 @@
    VALUE BAR (homepage)
    ════════════════════════════════════════════════════════════════ */
 .value-bar {
-  background: var(--color-navy, #182840);
-  border-top: 1px solid rgba(255,255,255,.12);
-  border-bottom: 1px solid rgba(255,255,255,.12);
+  background: var(--color-whisper, #F8F6F2);
+  border-top: 1px solid rgba(24,40,64,.07);
+  border-bottom: 1px solid rgba(24,40,64,.07);
   padding: 1.25rem 0;
 }
-/* vb-title replaces h4 in value bar for correct heading order */
-.value-item .vb-title { font-size: .8rem; font-weight: 700; letter-spacing: .05em; color: #fff; margin-bottom: 4px; }
+/* vb-title replaces h4 in value bar for correct heading order (same visual) */
+.value-item .vb-title { font-size: .8rem; font-weight: 700; letter-spacing: .05em; color: var(--color-navy, #182840); margin-bottom: 4px; }
 .value-bar .container {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
