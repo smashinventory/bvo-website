@@ -1,59 +1,56 @@
 'use strict';
 /* BathroomVanitiesOutlet.com — Site JS */
 
-// ── Before/After Slider ────────────────────────────────────────────
+// ── Before/After Slider (supports multiple sliders on same page) ───
 document.addEventListener('DOMContentLoaded', function () {
-  var wrap   = document.querySelector('.ba-slider-wrap');
-  var before = document.getElementById('baBefore');
-  var handle = document.getElementById('baHandle');
-  if (!wrap || !before || !handle) return;
+  document.querySelectorAll('.ba-slider-wrap').forEach(function (wrap) {
+    var slider = wrap.querySelector('.ba-slider');
+    var before = wrap.querySelector('.ba-before');
+    var handle = wrap.querySelector('.ba-handle');
+    if (!slider || !before || !handle) return;
 
-  // Keep CSS var in sync so before-image always matches full slider width
-  function syncWidth() {
-    wrap.style.setProperty('--slider-w', wrap.offsetWidth + 'px');
-  }
-  syncWidth();
-  window.addEventListener('resize', syncWidth);
+    function syncWidth() {
+      wrap.style.setProperty('--slider-w', wrap.offsetWidth + 'px');
+    }
+    syncWidth();
+    window.addEventListener('resize', syncWidth);
 
-  function setPos(pct) {
-    pct = Math.min(100, Math.max(0, pct));
-    before.style.width = pct + '%';
-    handle.style.left  = pct + '%';
-    handle.setAttribute('aria-valuenow', Math.round(pct));
-  }
-  var _baSlider   = document.getElementById('baSlider');
-  var _baInitial  = _baSlider ? parseFloat(_baSlider.dataset.initial) : NaN;
-  setPos(isNaN(_baInitial) ? 50 : _baInitial);
+    function setPos(pct) {
+      pct = Math.min(100, Math.max(0, pct));
+      before.style.width = pct + '%';
+      handle.style.left  = pct + '%';
+      handle.setAttribute('aria-valuenow', Math.round(pct));
+    }
+    var _initial = parseFloat(slider.dataset.initial);
+    setPos(isNaN(_initial) ? 50 : _initial);
 
-  function getPct(clientX) {
-    var r = wrap.getBoundingClientRect();
-    return ((clientX - r.left) / r.width) * 100;
-  }
+    function getPct(clientX) {
+      var r = wrap.getBoundingClientRect();
+      return ((clientX - r.left) / r.width) * 100;
+    }
 
-  // Click anywhere to jump, then drag
-  wrap.addEventListener('mousedown', function (e) {
-    e.preventDefault();
-    setPos(getPct(e.clientX));
-    function onMove(e) { setPos(getPct(e.clientX)); }
-    function onUp()   { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); }
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup',   onUp);
-  });
+    wrap.addEventListener('mousedown', function (e) {
+      e.preventDefault();
+      setPos(getPct(e.clientX));
+      function onMove(e) { setPos(getPct(e.clientX)); }
+      function onUp()   { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); }
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup',   onUp);
+    });
 
-  // Touch
-  wrap.addEventListener('touchstart', function (e) {
-    setPos(getPct(e.touches[0].clientX));
-    function onMove(e) { e.preventDefault(); setPos(getPct(e.touches[0].clientX)); }
-    function onEnd()   { wrap.removeEventListener('touchmove', onMove); wrap.removeEventListener('touchend', onEnd); }
-    wrap.addEventListener('touchmove', onMove, { passive: false });
-    wrap.addEventListener('touchend',  onEnd);
-  }, { passive: true });
+    wrap.addEventListener('touchstart', function (e) {
+      setPos(getPct(e.touches[0].clientX));
+      function onMove(e) { e.preventDefault(); setPos(getPct(e.touches[0].clientX)); }
+      function onEnd()   { wrap.removeEventListener('touchmove', onMove); wrap.removeEventListener('touchend', onEnd); }
+      wrap.addEventListener('touchmove', onMove, { passive: false });
+      wrap.addEventListener('touchend',  onEnd);
+    }, { passive: true });
 
-  // Keyboard on handle
-  handle.addEventListener('keydown', function (e) {
-    var cur = parseFloat(handle.getAttribute('aria-valuenow') || 50);
-    if (e.key === 'ArrowLeft')  { setPos(cur - 2); e.preventDefault(); }
-    if (e.key === 'ArrowRight') { setPos(cur + 2); e.preventDefault(); }
+    handle.addEventListener('keydown', function (e) {
+      var cur = parseFloat(handle.getAttribute('aria-valuenow') || 50);
+      if (e.key === 'ArrowLeft')  { setPos(cur - 2); e.preventDefault(); }
+      if (e.key === 'ArrowRight') { setPos(cur + 2); e.preventDefault(); }
+    });
   });
 });
 

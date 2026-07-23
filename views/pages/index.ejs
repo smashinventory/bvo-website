@@ -6,26 +6,45 @@ const bl   = S.brand_logos        || {};
 const cs   = S.categories_section || {};
 const fs_  = S.featured_section   || {};
 const iwt  = S.image_with_text    || {};
+const iwt2 = S.image_with_text_2  || {};
 const ba   = S.before_after       || {};
+const ba2  = S.before_after_2     || {};
 const tb   = S.trust_band         || {};
 const par  = S.parallax           || {};
 const test = S.testimonials       || {};
 const news = S.newsletter         || {};
+
+const _DEFAULT_ORDER = ['scrolling_ticker','hero','brand_logos','categories_section',
+  'featured_section','image_with_text','before_after','trust_band','parallax','testimonials','newsletter'];
+const _VALID_KEYS = new Set([..._DEFAULT_ORDER, 'image_with_text_2','before_after_2']);
+const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_section_order.length)
+  ? S.homepage_section_order
+  : _DEFAULT_ORDER;
 %>
 
+<% _sectionOrder.forEach(function(sectionKey) { %>
+<% if (!_VALID_KEYS.has(sectionKey)) { return; } %>
+
 <!-- ── SCROLLING TICKER ──────────────────────────────────────────── -->
-<% if (tick.enabled !== false && tick.items && tick.items.length) { %>
-<div class="scrolling-ticker" data-section="scrolling_ticker" data-section-label="Announcement Bar" aria-label="Announcements">
+<% if (sectionKey === 'scrolling_ticker' && tick.enabled !== false && tick.items && tick.items.length) { %>
+<%
+  var _tickStyle = '';
+  if (tick.bg_color)       _tickStyle += 'background:' + tick.bg_color + ';';
+  if (tick.text_color)     _tickStyle += 'color:' + tick.text_color + ';';
+  if (+tick.font_size > 0) _tickStyle += 'font-size:' + tick.font_size + 'px;';
+%>
+<div class="scrolling-ticker" data-section="scrolling_ticker" data-section-label="Announcement Bar" aria-label="Announcements"<%= _tickStyle ? ' style="' + _tickStyle + '"' : '' %>>
   <div class="ticker-track" style="animation-duration:<%= tick.speed_seconds || 40 %>s">
-    <% const _tickItems = tick.items; %>
-    <% ;[..._tickItems, ..._tickItems].forEach(item => { %>
+    <% var _tickItems = tick.items; %>
+    <% ;[..._tickItems, ..._tickItems].forEach(function(item) { %>
     <span class="ticker-item"><%= item %></span>
     <% }) %>
   </div>
 </div>
-<% } %>
+<% } /* end scrolling_ticker */ %>
 
 <!-- ── HERO ──────────────────────────────────────────────────────── -->
+<% if (sectionKey === 'hero') { %>
 <%
   var _heroTag    = hero.heading_level || 'h1';
   var _heroAlign  = hero.text_align    || 'left';
@@ -76,7 +95,7 @@ const news = S.newsletter         || {};
   </div>
 </section>
 
-<!-- ── VALUE PROPS ──────────────────────────────────────────────── -->
+<!-- ── VALUE PROPS (always follows hero) ────────────────────────── -->
 <div class="value-bar" aria-label="Why shop with us">
   <div class="value-item">
     <svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
@@ -95,14 +114,15 @@ const news = S.newsletter         || {};
     <h4>Expert Support</h4><p>Live chat &amp; phone help from bath specialists</p>
   </div>
 </div>
+<% } /* end hero */ %>
 
 <!-- ── BRAND LOGOS ───────────────────────────────────────────────── -->
-<% if (bl.enabled !== false && bl.logos && bl.logos.length) { %>
+<% if (sectionKey === 'brand_logos' && bl.enabled !== false && bl.logos && bl.logos.length) { %>
 <section class="brand-logos-section" data-section="brand_logos" data-section-label="Brand Logos" aria-label="Brands we carry">
   <% if (bl.eyebrow) { %><p class="brand-logos-eyebrow"><%= bl.eyebrow %></p><% } %>
   <div class="brand-logos-marquee">
     <div class="brand-logos-track" aria-hidden="false">
-      <% ;[...bl.logos, ...bl.logos].forEach(logo => { %>
+      <% ;[...bl.logos, ...bl.logos].forEach(function(logo) { %>
       <a href="<%= logo.url || '#' %>" class="brand-logo-item" aria-label="<%= logo.name %>">
         <% if (logo.image_url) { %>
         <img src="<%= logo.image_url %>" alt="<%= logo.name %>" loading="lazy">
@@ -113,10 +133,10 @@ const news = S.newsletter         || {};
     </div>
   </div>
 </section>
-<% } %>
+<% } /* end brand_logos */ %>
 
 <!-- ── CATEGORY CAROUSEL ──────────────────────────────────────────── -->
-<% if (cs.enabled !== false && categories && categories.length) { %>
+<% if (sectionKey === 'categories_section' && cs.enabled !== false && categories && categories.length) { %>
 <%
   var _csTag   = cs.title_level || 'h2';
   var _csAlign = cs.text_align  || 'center';
@@ -157,10 +177,10 @@ const news = S.newsletter         || {};
     </button>
   </div>
 </section>
-<% } %>
+<% } /* end categories_section */ %>
 
 <!-- ── FEATURED PRODUCTS ─────────────────────────────────────────── -->
-<% if (fs_.enabled !== false) { %>
+<% if (sectionKey === 'featured_section' && fs_.enabled !== false) { %>
 <%
   var _fsTag   = fs_.title_level || 'h2';
   var _fsAlign = fs_.text_align  || 'center';
@@ -259,9 +279,8 @@ const news = S.newsletter         || {};
     <a href="<%= fs_.cta_url || '/collections/bathroom-vanities' %>" class="btn btn-outline"><%= fs_.cta_text || 'View All Products' %></a>
   </div>
 </section>
-<% } %>
 
-<!-- ── FEATURED MODELS ─────────────────────────────────────────────── -->
+<!-- ── FEATURED MODELS (always follows featured_section) ─────────── -->
 <% if (typeof featuredModels !== 'undefined' && featuredModels && featuredModels.length) { %>
 <% var _carouselModels = featuredModels; %>
 <section class="section section-alt" id="featured-models-section" aria-labelledby="feat-models-heading">
@@ -271,14 +290,11 @@ const news = S.newsletter         || {};
     <p class="section-sub">Explore our most popular vanity collections — click a finish to see it in action.</p>
   </div>
 
-  <!-- Carousel -->
   <div class="fm-carousel-outer">
-    <!-- Left arrow -->
     <button class="fm-arrow fm-arrow--left" id="fmArrowLeft" aria-label="Scroll left" hidden>
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
     </button>
 
-    <!-- Scrollable track -->
     <div class="fm-carousel-track" id="fmCarouselTrack">
       <% _carouselModels.forEach(function(m) { %>
       <%
@@ -377,7 +393,6 @@ const news = S.newsletter         || {};
       <% }); %>
     </div><!-- /#fmCarouselTrack -->
 
-    <!-- Right arrow -->
     <button class="fm-arrow fm-arrow--right" id="fmArrowRight" aria-label="Scroll right">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
     </button>
@@ -387,10 +402,11 @@ const news = S.newsletter         || {};
     <a href="/collections/vanity-models" class="btn btn-navy">See All Our Models</a>
   </div>
 </section>
-<% } %>
+<% } /* end featuredModels */ %>
+<% } /* end featured_section */ %>
 
 <!-- ── IMAGE WITH TEXT ───────────────────────────────────────────── -->
-<% if (iwt.enabled !== false) { %>
+<% if (sectionKey === 'image_with_text' && iwt.enabled !== false) { %>
 <%
   var _iwtTag       = iwt.heading_level  || 'h2';
   var _iwtHSize     = iwt.heading_size   ? 'font-size:'+iwt.heading_size+'px;' : '';
@@ -422,10 +438,45 @@ const news = S.newsletter         || {};
     </div>
   </div>
 </section>
-<% } %>
+<% } /* end image_with_text */ %>
+
+<!-- ── IMAGE WITH TEXT 2 (duplicate slot) ───────────────────────── -->
+<% if (sectionKey === 'image_with_text_2' && iwt2.enabled !== false && (iwt2.heading || iwt2.body)) { %>
+<%
+  var _iwt2Tag       = iwt2.heading_level  || 'h2';
+  var _iwt2HSize     = iwt2.heading_size   ? 'font-size:'+iwt2.heading_size+'px;' : '';
+  var _iwt2BSize     = iwt2.body_size      ? 'font-size:'+iwt2.body_size+'px;'    : '';
+  var _iwt2ImgW      = iwt2.image_width    || '50%';
+  var _iwt2IsOverlay = iwt2.image_position === 'center';
+  var _iwt2IsRight   = iwt2.image_position === 'right';
+  var _iwt2TextAlign = iwt2.text_align     || 'left';
+  var _iwt2GridCls   = 'iwt-grid'
+                     + (_iwt2IsRight && !_iwt2IsOverlay ? ' iwt-reverse' : '')
+                     + (_iwt2IsOverlay                  ? ' iwt-overlay-mode' : '');
+%>
+<section class="section iwt-section" data-section="image_with_text_2" data-section-label="Image with Text (2)" aria-labelledby="iwt-heading-2">
+  <div class="container">
+    <div class="<%= _iwt2GridCls %>">
+      <div class="iwt-image-col"<%= !_iwt2IsOverlay ? ' style="flex:0 0 '+_iwt2ImgW+'; max-width:'+_iwt2ImgW+'"' : '' %>>
+        <% if (iwt2.image_url) { %>
+        <img src="<%= iwt2.image_url %>" alt="<%= iwt2.image_alt || '' %>" loading="lazy" class="iwt-img">
+        <% } %>
+      </div>
+      <div class="iwt-text-col" style="text-align:<%= _iwt2IsOverlay ? 'center' : _iwt2TextAlign %>">
+        <% if (iwt2.eyebrow) { %><p class="section-eyebrow"><%= iwt2.eyebrow %></p><% } %>
+        <<%- _iwt2Tag %> class="iwt-heading" id="iwt-heading-2" style="<%= _iwt2HSize %>"><%= iwt2.heading || '' %></<%- _iwt2Tag %>>
+        <% if (iwt2.body) { %><p class="iwt-body" style="<%= _iwt2BSize %>"><%= iwt2.body %></p><% } %>
+        <% if (iwt2.cta_text) { %>
+        <a href="<%= iwt2.cta_url || '#' %>" class="btn btn-navy"><%= iwt2.cta_text %></a>
+        <% } %>
+      </div>
+    </div>
+  </div>
+</section>
+<% } /* end image_with_text_2 */ %>
 
 <!-- ── BEFORE / AFTER SLIDER ─────────────────────────────────────── -->
-<% if (ba.enabled !== false) { %>
+<% if (sectionKey === 'before_after' && ba.enabled !== false) { %>
 <%
   var _baTag     = ba.heading_level || 'h2';
   var _baAlign   = ba.text_align    || 'center';
@@ -438,7 +489,7 @@ const news = S.newsletter         || {};
     <% if (ba.subtitle) { %><p class="section-sub"><%= ba.subtitle %></p><% } %>
   </div>
   <div class="ba-slider-wrap">
-    <div class="ba-slider" id="baSlider" data-initial="<%= _baInitPos %>">
+    <div class="ba-slider" data-initial="<%= _baInitPos %>">
       <div class="ba-after">
         <% if (ba.after_image) { %>
         <img src="<%= ba.after_image %>" alt="<%= ba.after_label || 'After' %>" draggable="false">
@@ -447,7 +498,7 @@ const news = S.newsletter         || {};
         <% } %>
         <span class="ba-label ba-label-right"><%= ba.after_label || 'After' %></span>
       </div>
-      <div class="ba-before" id="baBefore">
+      <div class="ba-before">
         <% if (ba.before_image) { %>
         <img src="<%= ba.before_image %>" alt="<%= ba.before_label || 'Before' %>" draggable="false">
         <% } else { %>
@@ -455,7 +506,7 @@ const news = S.newsletter         || {};
         <% } %>
         <span class="ba-label ba-label-left"><%= ba.before_label || 'Before' %></span>
       </div>
-      <div class="ba-handle" id="baHandle" role="slider" aria-label="Before/After" aria-valuenow="50" aria-valuemin="0" aria-valuemax="100" tabindex="0">
+      <div class="ba-handle" role="slider" aria-label="Before/After" aria-valuenow="50" aria-valuemin="0" aria-valuemax="100" tabindex="0">
         <div class="ba-handle-line"></div>
         <div class="ba-handle-circle">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -467,28 +518,87 @@ const news = S.newsletter         || {};
     </div>
   </div>
 </section>
-<% } %>
+<% } /* end before_after */ %>
+
+<!-- ── BEFORE / AFTER 2 (duplicate slot) ────────────────────────── -->
+<% if (sectionKey === 'before_after_2' && ba2.enabled !== false && (ba2.before_image || ba2.after_image)) { %>
+<%
+  var _ba2Tag     = ba2.heading_level || 'h2';
+  var _ba2Align   = ba2.text_align    || 'center';
+  var _ba2InitPos = ba2.initial_pos   || 50;
+%>
+<section class="section section-alt ba-section" data-section="before_after_2" data-section-label="Before / After (2)" aria-labelledby="ba-heading-2">
+  <div class="section-header" style="text-align:<%= _ba2Align %>">
+    <% if (ba2.eyebrow) { %><p class="section-eyebrow"><%= ba2.eyebrow %></p><% } %>
+    <<%- _ba2Tag %> class="section-title" id="ba-heading-2"><%= ba2.heading || 'See the Transformation' %></<%- _ba2Tag %>>
+    <% if (ba2.subtitle) { %><p class="section-sub"><%= ba2.subtitle %></p><% } %>
+  </div>
+  <div class="ba-slider-wrap">
+    <div class="ba-slider" data-initial="<%= _ba2InitPos %>">
+      <div class="ba-after">
+        <% if (ba2.after_image) { %>
+        <img src="<%= ba2.after_image %>" alt="<%= ba2.after_label || 'After' %>" draggable="false">
+        <% } else { %>
+        <div class="ba-placeholder"><span><%= ba2.after_label || 'After' %></span></div>
+        <% } %>
+        <span class="ba-label ba-label-right"><%= ba2.after_label || 'After' %></span>
+      </div>
+      <div class="ba-before">
+        <% if (ba2.before_image) { %>
+        <img src="<%= ba2.before_image %>" alt="<%= ba2.before_label || 'Before' %>" draggable="false">
+        <% } else { %>
+        <div class="ba-placeholder ba-placeholder-dark"><span><%= ba2.before_label || 'Before' %></span></div>
+        <% } %>
+        <span class="ba-label ba-label-left"><%= ba2.before_label || 'Before' %></span>
+      </div>
+      <div class="ba-handle" role="slider" aria-label="Before/After" aria-valuenow="50" aria-valuemin="0" aria-valuemax="100" tabindex="0">
+        <div class="ba-handle-line"></div>
+        <div class="ba-handle-circle">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="9 18 3 12 9 6"/>
+            <polyline points="15 6 21 12 15 18"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<% } /* end before_after_2 */ %>
 
 <!-- ── TRUST BAND ────────────────────────────────────────────────── -->
-<% if (tb.enabled !== false) { %>
-<section class="trust-band" data-section="trust_band" data-section-label="Trust Band" aria-label="Trust statistics">
-  <div class="trust-item"><h3><%= tb.stat1_value || '10,000+' %></h3><p><%= tb.stat1_label || 'Happy customers nationwide' %></p></div>
-  <div class="trust-item"><h3><%= tb.stat2_value || '500+' %></h3><p><%= tb.stat2_label || 'Premium products in stock' %></p></div>
-  <div class="trust-item"><h3><%= tb.stat3_value || 'Free' %></h3><p><%= tb.stat3_label || 'Shipping on every single order' %></p></div>
+<% if (sectionKey === 'trust_band' && tb.enabled !== false) { %>
+<%
+  var _tbStyle = '';
+  if (tb.bg_color)   _tbStyle += 'background:' + tb.bg_color + ';';
+  if (tb.text_color) _tbStyle += 'color:' + tb.text_color + ';';
+%>
+<section class="trust-band" data-section="trust_band" data-section-label="Trust Band" aria-label="Trust statistics"<%= _tbStyle ? ' style="' + _tbStyle + '"' : '' %>>
+  <div class="trust-item">
+    <% if (tb.stat1_icon) { %><span class="trust-item-icon"><%= tb.stat1_icon %></span><% } %>
+    <h3><%= tb.stat1_value || '10,000+' %></h3><p><%= tb.stat1_label || 'Happy customers nationwide' %></p>
+  </div>
+  <div class="trust-item">
+    <% if (tb.stat2_icon) { %><span class="trust-item-icon"><%= tb.stat2_icon %></span><% } %>
+    <h3><%= tb.stat2_value || '500+' %></h3><p><%= tb.stat2_label || 'Premium products in stock' %></p>
+  </div>
+  <div class="trust-item">
+    <% if (tb.stat3_icon) { %><span class="trust-item-icon"><%= tb.stat3_icon %></span><% } %>
+    <h3><%= tb.stat3_value || 'Free' %></h3><p><%= tb.stat3_label || 'Shipping on every single order' %></p>
+  </div>
 </section>
-<% } %>
+<% } /* end trust_band */ %>
 
 <!-- ── PARALLAX BAND ─────────────────────────────────────────────── -->
-<% if (par.enabled !== false) { %>
-<section class="parallax-band" data-section="parallax" data-section-label="Parallax Band" aria-label="Design inspiration"
-  <% if (par.image_url) { %>style="background-image:url('<%= par.image_url %>'),linear-gradient(135deg,#101828 0%,#182840 40%,#1e3a5f 70%,#14243a 100%)"<% } %>>
-  <div class="parallax-overlay"></div>
+<% if (sectionKey === 'parallax' && par.enabled !== false) { %>
 <%
   var _parTag   = par.heading_level || 'h2';
   var _parAlign = par.text_align    || 'center';
   var _parOC    = par.overlay_color   || '#0f1f35';
   var _parOO    = (par.overlay_opacity !== undefined ? par.overlay_opacity : 65) / 100;
 %>
+<section class="parallax-band" data-section="parallax" data-section-label="Parallax Band" aria-label="Design inspiration"
+  <% if (par.image_url) { %>style="background-image:url('<%= par.image_url %>'),linear-gradient(135deg,#101828 0%,#182840 40%,#1e3a5f 70%,#14243a 100%)"<% } %>>
+  <div class="parallax-overlay"></div>
   <div class="parallax-overlay" style="background:<%- _parOC %>;opacity:<%- _parOO %>"></div>
   <div class="parallax-inner" style="text-align:<%= _parAlign %>">
     <p class="parallax-eyebrow"><%= par.eyebrow || 'Design Inspiration' %></p>
@@ -501,10 +611,10 @@ const news = S.newsletter         || {};
     </div>
   </div>
 </section>
-<% } %>
+<% } /* end parallax */ %>
 
 <!-- ── TESTIMONIALS ───────────────────────────────────────────────── -->
-<% if (test.enabled !== false && test.items && test.items.length) { %>
+<% if (sectionKey === 'testimonials' && test.enabled !== false && test.items && test.items.length) { %>
 <%
   var _testTag   = test.heading_level || 'h2';
   var _testAlign = test.text_align    || 'center';
@@ -537,10 +647,10 @@ const news = S.newsletter         || {};
     <% }) %>
   </div>
 </section>
-<% } %>
+<% } /* end testimonials */ %>
 
 <!-- ── NEWSLETTER ─────────────────────────────────────────────────── -->
-<% if (news.enabled !== false) { %>
+<% if (sectionKey === 'newsletter' && news.enabled !== false) { %>
 <section class="newsletter-section" data-section="newsletter" data-section-label="Newsletter" aria-labelledby="news-heading">
   <div class="newsletter-inner">
 <%
@@ -562,7 +672,9 @@ const news = S.newsletter         || {};
     </form>
   </div>
 </section>
-<% } %>
+<% } /* end newsletter */ %>
+
+<% }); /* end _sectionOrder.forEach */ %>
 
 <!-- ── THEME EDITOR INTEGRATION — click-to-edit + section scroll ──── -->
 <style>

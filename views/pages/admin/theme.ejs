@@ -25,19 +25,21 @@ const THEME_SECS = [
   { key:'seo',     label:'SEO & Meta' },
   { key:'global',  label:'Global Settings' },
 ];
-const ALL_TEMPLATE_KEYS = ['scrolling_ticker','hero','brand_logos','categories_section','featured_section','image_with_text','before_after','trust_band','parallax','testimonials','newsletter'];
+const ALL_TEMPLATE_KEYS = ['scrolling_ticker','hero','brand_logos','categories_section','featured_section','image_with_text','image_with_text_2','before_after','before_after_2','trust_band','parallax','testimonials','newsletter'];
 const TEMPLATE_META = {
-  scrolling_ticker:   { label:'Announcement Bar',  desc:'Scrolling promo ticker at page top' },
-  hero:               { label:'Hero Banner',        desc:'Full-width hero with CTAs' },
-  brand_logos:        { label:'Brand Logos',        desc:'Scrolling brand marquee' },
-  categories_section: { label:'Category Grid',      desc:'Shop-by-category cards' },
-  featured_section:   { label:'Featured Products',  desc:'Handpicked product grid' },
-  image_with_text:    { label:'Image with Text',    desc:'Split image + copy block' },
-  before_after:       { label:'Before / After',     desc:'Drag-handle comparison slider' },
-  trust_band:         { label:'Trust Band',         desc:'Three key stats / trust signals' },
-  parallax:           { label:'Parallax Band',      desc:'Full-width parallax CTA section' },
-  testimonials:       { label:'Testimonials',        desc:'Customer review cards' },
-  newsletter:         { label:'Newsletter',          desc:'Email capture / sign-up section' },
+  scrolling_ticker:   { label:'Announcement Bar',    desc:'Scrolling promo ticker at page top' },
+  hero:               { label:'Hero Banner',          desc:'Full-width hero with CTAs' },
+  brand_logos:        { label:'Brand Logos',          desc:'Scrolling brand marquee' },
+  categories_section: { label:'Category Grid',        desc:'Shop-by-category cards' },
+  featured_section:   { label:'Featured Products',    desc:'Handpicked product grid' },
+  image_with_text:    { label:'Image with Text',      desc:'Split image + copy block' },
+  image_with_text_2:  { label:'Image with Text (2)',  desc:'Second image + text block (duplicate)' },
+  before_after:       { label:'Before / After',       desc:'Drag-handle comparison slider' },
+  before_after_2:     { label:'Before / After (2)',   desc:'Second comparison slider (duplicate)' },
+  trust_band:         { label:'Trust Band',           desc:'Three key stats / trust signals' },
+  parallax:           { label:'Parallax Band',        desc:'Full-width parallax CTA section' },
+  testimonials:       { label:'Testimonials',          desc:'Customer review cards' },
+  newsletter:         { label:'Newsletter',            desc:'Email capture / sign-up section' },
 };
 
 const savedOrder = (Array.isArray(t.homepage_section_order) && t.homepage_section_order.length)
@@ -66,7 +68,9 @@ function secIcon(key) {
     categories_section:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>',
     featured_section:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="2" width="9" height="9" rx="1"/><rect x="13" y="2" width="9" height="9" rx="1"/><rect x="2" y="13" width="9" height="9" rx="1"/><rect x="13" y="13" width="9" height="9" rx="1"/></svg>',
     image_with_text:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>',
+    image_with_text_2:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/><text x="16" y="7" font-size="6" fill="currentColor" stroke="none">2</text></svg>',
     before_after:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg>',
+    before_after_2:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/><text x="16" y="9" font-size="6" fill="currentColor" stroke="none">2</text></svg>',
     trust_band:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
     parallax:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
     testimonials:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
@@ -417,6 +421,11 @@ function teArrayLinks(prefix,listId,tplId,items){
               <%- teField('text','promo_strip.link_text','Link Label',ps.link_text) %>
               <%- teField('url', 'promo_strip.link_url', 'Link URL',  ps.link_url) %>
             </div>
+            <div class="te4-section-label">Colors <small style="font-weight:400;opacity:.6">(leave blank to use theme defaults)</small></div>
+            <div class="te4-row2">
+              <%- teColor('promo_strip.bg_color','Background',ps.bg_color||'#5A7A5A') %>
+              <%- teColor('promo_strip.text_color','Text',ps.text_color||'#ffffff') %>
+            </div>
           </div>
 
           <!-- ── NAVIGATION ─────────────────────────────────── -->
@@ -515,7 +524,15 @@ function teArrayLinks(prefix,listId,tplId,items){
           <div class="te4-panel" id="panel-scrolling_ticker">
             <% const stk=t.scrolling_ticker||{}; %>
             <%- teToggle('scrolling_ticker.enabled','Show announcement bar',stk.enabled) %>
-            <%- teField('number','scrolling_ticker.speed_seconds','Scroll speed (seconds)',stk.speed_seconds||40) %>
+            <div class="te4-row2">
+              <%- teField('number','scrolling_ticker.speed_seconds','Scroll speed (seconds)',stk.speed_seconds||40) %>
+              <%- teTextSize('scrolling_ticker.font_size',stk.font_size,'Font size (px)',10,24) %>
+            </div>
+            <div class="te4-section-label">Colors <small style="font-weight:400;opacity:.6">(leave blank for navy/white defaults)</small></div>
+            <div class="te4-row2">
+              <%- teColor('scrolling_ticker.bg_color','Background',stk.bg_color||'#182840') %>
+              <%- teColor('scrolling_ticker.text_color','Text',stk.text_color||'#ffffff') %>
+            </div>
             <div class="te4-array-header">
               <span class="te4-section-label">Messages</span>
               <button type="button" class="te4-add-btn" data-target="tickerItemsList" data-tpl="tickerItemTpl">+ Add</button>
@@ -737,6 +754,34 @@ function teArrayLinks(prefix,listId,tplId,items){
             </div>
           </div>
 
+          <!-- ── IMAGE WITH TEXT 2 (duplicate) ────────────── -->
+          <div class="te4-panel" id="panel-image_with_text_2">
+            <% const iwt2sec=t.image_with_text_2||{}; %>
+            <%- teToggle('image_with_text_2.enabled','Show section',iwt2sec.enabled) %>
+            <div class="te4-hint" style="margin-bottom:.75rem">This is a duplicate of the Image with Text section. Fill it in and enable it to add a second block.</div>
+            <div class="te4-section-label">Image</div>
+            <%- teImage('image_with_text_2.image_url','image_with_text_2.image_alt',iwt2sec.image_url,iwt2sec.image_alt,'Section image') %>
+            <div class="te4-section-label">Layout</div>
+            <div class="te4-field"><label>Layout mode</label><select name="image_with_text_2.image_position" class="te4-select"><option value="left" <%=(iwt2sec.image_position||'right')==='left'?'selected':''%>>Image left, text right</option><option value="right" <%=(iwt2sec.image_position||'right')==='right'?'selected':''%>>Image right, text left</option><option value="center" <%=iwt2sec.image_position==='center'?'selected':''%>>Center — text over image</option></select></div>
+            <div class="te4-row2">
+              <div class="te4-field"><label>Image width <small style="opacity:.6">(side-by-side only)</small></label><select name="image_with_text_2.image_width" class="te4-select"><option value="40%" <%=(iwt2sec.image_width||'50%')==='40%'?'selected':''%>>40% image / 60% text</option><option value="50%" <%=(iwt2sec.image_width||'50%')==='50%'?'selected':''%>>50% / 50% (equal)</option><option value="60%" <%=iwt2sec.image_width==='60%'?'selected':''%>>60% image / 40% text</option></select></div>
+              <%- teAlignment('image_with_text_2.text_align', iwt2sec.text_align || 'left') %>
+            </div>
+            <div class="te4-section-label">Text content</div>
+            <%- teField('text','image_with_text_2.eyebrow','Eyebrow',iwt2sec.eyebrow) %>
+            <div class="te4-row2">
+              <%- teHeadingLevel('image_with_text_2.heading_level',iwt2sec.heading_level||'h2') %>
+              <%- teTextSize('image_with_text_2.heading_size',iwt2sec.heading_size,'Heading size',20,56) %>
+            </div>
+            <%- teField('text','image_with_text_2.heading','Heading',iwt2sec.heading) %>
+            <%- teTextSize('image_with_text_2.body_size',iwt2sec.body_size,'Body text size',14,22) %>
+            <%- teField('textarea','image_with_text_2.body','Body copy',iwt2sec.body) %>
+            <div class="te4-row2">
+              <%- teField('text','image_with_text_2.cta_text','CTA label',iwt2sec.cta_text) %>
+              <%- teField('url', 'image_with_text_2.cta_url', 'CTA URL',  iwt2sec.cta_url) %>
+            </div>
+          </div>
+
           <!-- ── BEFORE / AFTER ─────────────────────────────── -->
           <div class="te4-panel" id="panel-before_after">
             <% const basec=t.before_after||{}; %>
@@ -759,16 +804,44 @@ function teArrayLinks(prefix,listId,tplId,items){
             <div class="te4-field"><label>Starting position</label><div class="te4-slider-wrap"><input type="range" class="te4-slider" name="before_after.initial_pos" min="10" max="90" step="5" value="<%=basec.initial_pos||50%>"><input type="number" class="te4-slider-num" min="10" max="90" step="5" value="<%=basec.initial_pos||50%>"><span class="te4-slider-unit">%</span></div></div>
           </div>
 
+          <!-- ── BEFORE / AFTER 2 (duplicate) ──────────────── -->
+          <div class="te4-panel" id="panel-before_after_2">
+            <% const ba2sec=t.before_after_2||{}; %>
+            <%- teToggle('before_after_2.enabled','Show section',ba2sec.enabled) %>
+            <div class="te4-hint" style="margin-bottom:.75rem">Second comparison slider — enable and fill in images to add a second before/after block.</div>
+            <div class="te4-section-label">Section header</div>
+            <%- teField('text','before_after_2.eyebrow','Eyebrow',ba2sec.eyebrow) %>
+            <div class="te4-row2">
+              <%- teHeadingLevel('before_after_2.heading_level',ba2sec.heading_level||'h2') %>
+              <%- teAlignment('before_after_2.text_align',ba2sec.text_align||'center') %>
+            </div>
+            <%- teField('text','before_after_2.heading','Heading',ba2sec.heading) %>
+            <%- teField('text','before_after_2.subtitle','Subtitle',ba2sec.subtitle) %>
+            <div class="te4-section-label">Before image</div>
+            <%- teImage('before_after_2.before_image','before_after_2.before_alt',ba2sec.before_image,ba2sec.before_alt,'Before') %>
+            <%- teField('text','before_after_2.before_label','Label overlay',ba2sec.before_label) %>
+            <div class="te4-section-label">After image</div>
+            <%- teImage('before_after_2.after_image','before_after_2.after_alt',ba2sec.after_image,ba2sec.after_alt,'After') %>
+            <%- teField('text','before_after_2.after_label','Label overlay',ba2sec.after_label) %>
+            <div class="te4-section-label">Slider</div>
+            <div class="te4-field"><label>Starting position</label><div class="te4-slider-wrap"><input type="range" class="te4-slider" name="before_after_2.initial_pos" min="10" max="90" step="5" value="<%=ba2sec.initial_pos||50%>"><input type="number" class="te4-slider-num" min="10" max="90" step="5" value="<%=ba2sec.initial_pos||50%>"><span class="te4-slider-unit">%</span></div></div>
+          </div>
+
           <!-- ── TRUST BAND ─────────────────────────────────── -->
           <div class="te4-panel" id="panel-trust_band">
             <% const tbsec=t.trust_band||{}; %>
             <%- teToggle('trust_band.enabled','Show trust band',tbsec.enabled) %>
+            <div class="te4-section-label">Colors <small style="font-weight:400;opacity:.6">(leave blank for defaults)</small></div>
+            <div class="te4-row2">
+              <%- teColor('trust_band.bg_color','Background',tbsec.bg_color||'#F8F6F2') %>
+              <%- teColor('trust_band.text_color','Text color',tbsec.text_color||'#182840') %>
+            </div>
             <div class="te4-section-label">Stat 1</div>
-            <div class="te4-row2"><%- teField('text','trust_band.stat1_value','Number',tbsec.stat1_value) %><%- teField('text','trust_band.stat1_label','Label',tbsec.stat1_label) %></div>
+            <div class="te4-row3"><%- teField('text','trust_band.stat1_icon','Icon / Emoji',tbsec.stat1_icon,true) %><%- teField('text','trust_band.stat1_value','Number / Value',tbsec.stat1_value,true) %><%- teField('text','trust_band.stat1_label','Label text',tbsec.stat1_label,true) %></div>
             <div class="te4-section-label">Stat 2</div>
-            <div class="te4-row2"><%- teField('text','trust_band.stat2_value','Number',tbsec.stat2_value) %><%- teField('text','trust_band.stat2_label','Label',tbsec.stat2_label) %></div>
+            <div class="te4-row3"><%- teField('text','trust_band.stat2_icon','Icon / Emoji',tbsec.stat2_icon,true) %><%- teField('text','trust_band.stat2_value','Number / Value',tbsec.stat2_value,true) %><%- teField('text','trust_band.stat2_label','Label text',tbsec.stat2_label,true) %></div>
             <div class="te4-section-label">Stat 3</div>
-            <div class="te4-row2"><%- teField('text','trust_band.stat3_value','Number',tbsec.stat3_value) %><%- teField('text','trust_band.stat3_label','Label',tbsec.stat3_label) %></div>
+            <div class="te4-row3"><%- teField('text','trust_band.stat3_icon','Icon / Emoji',tbsec.stat3_icon,true) %><%- teField('text','trust_band.stat3_value','Number / Value',tbsec.stat3_value,true) %><%- teField('text','trust_band.stat3_label','Label text',tbsec.stat3_label,true) %></div>
           </div>
 
           <!-- ── PARALLAX ───────────────────────────────────── -->
@@ -923,16 +996,16 @@ function teArrayLinks(prefix,listId,tplId,items){
 
 </div><!-- /te4-shell -->
 
-<!-- ── "Add section" modal ──────────────────────────────────── -->
+<!-- ── "Add / manage sections" modal ────────────────────────── -->
 <div class="te4-modal-bg" id="te4ModalBg" hidden>
   <div class="te4-modal">
     <div class="te4-modal-head">
-      <h3>Add section</h3>
+      <h3>Sections</h3>
       <button type="button" class="te4-modal-close" id="te4ModalClose">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
-    <p class="te4-modal-hint">Toggle visibility of existing sections using the eye icon in the list, or contact your developer to add new section types.</p>
+    <p class="te4-modal-hint">Show/hide sections or click <strong>Duplicate</strong> to add a second copy of Image with Text or Before/After.</p>
     <div class="te4-modal-grid">
       <% orderedKeys.forEach(function(key){ var meta=TEMPLATE_META[key]||{}; var enabled=isSectionEnabled(key); %>
       <div class="te4-modal-card<%= enabled?' is-active':'' %>" data-key="<%= key %>">
@@ -942,9 +1015,14 @@ function teArrayLinks(prefix,listId,tplId,items){
           <span><%= meta.desc||'' %></span>
           <span class="te4-modal-status"><%= enabled?'Visible':'Hidden' %></span>
         </div>
-        <button type="button" class="te4-modal-toggle-btn" data-key="<%= key %>">
-          <%= enabled?'Hide':'Show' %>
-        </button>
+        <div class="te4-modal-card-actions">
+          <button type="button" class="te4-modal-toggle-btn" data-key="<%= key %>">
+            <%= enabled?'Hide':'Show' %>
+          </button>
+          <% if (key==='image_with_text'||key==='before_after') { %>
+          <button type="button" class="te4-modal-dup-btn" data-from="<%= key %>" data-to="<%= key %>_2">Duplicate</button>
+          <% } %>
+        </div>
       </div>
       <% }) %>
     </div>
@@ -995,8 +1073,8 @@ var toast      = document.getElementById('te4Toast');
    ════════════════════════════════════════════════════════════════ */
 // Template section keys (can be removed/hidden)
 var TEMPLATE_KEYS = ['scrolling_ticker','hero','brand_logos','categories_section',
-  'featured_section','image_with_text','before_after','trust_band','parallax',
-  'testimonials','newsletter'];
+  'featured_section','image_with_text','image_with_text_2','before_after','before_after_2',
+  'trust_band','parallax','testimonials','newsletter'];
 
 function openSection(key, label, backText) {
   // Fix: must set flex, not '' (which falls back to CSS display:none)
@@ -1276,6 +1354,37 @@ document.querySelectorAll('.te4-modal-toggle-btn').forEach(function (btn) {
     var card    = btn.closest('.te4-modal-card');
     var enabled = card.classList.contains('is-active');
     btn.textContent = enabled ? 'Hide' : 'Show';
+  });
+});
+
+// Duplicate section buttons
+document.querySelectorAll('.te4-modal-dup-btn').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var fromKey = btn.dataset.from;
+    var toKey   = btn.dataset.to;
+    btn.disabled = true;
+    btn.textContent = 'Duplicating…';
+    fetch('/admin/theme/duplicate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: fromKey, to: toKey })
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (data.ok) {
+        showToast('Section duplicated — page reloading…', 'success');
+        setTimeout(function () { window.location.reload(); }, 900);
+      } else {
+        showToast('Duplicate failed: ' + (data.error || 'unknown error'), 'error');
+        btn.disabled = false;
+        btn.textContent = 'Duplicate';
+      }
+    })
+    .catch(function () {
+      showToast('Network error during duplicate', 'error');
+      btn.disabled = false;
+      btn.textContent = 'Duplicate';
+    });
   });
 });
 

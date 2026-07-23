@@ -1003,6 +1003,21 @@ details[open] > .te4-accord-head { color: var(--color-navy,#182840); }
   transition: all .12s;
 }
 .te4-modal-toggle-btn:hover { border-color: var(--color-sage,#5A7A5A); color: var(--color-sage,#5A7A5A); }
+.te4-modal-card-actions { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+.te4-modal-dup-btn {
+  padding: 4px 11px;
+  border-radius: 6px;
+  font-size: .73rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--color-amber,#B8862A);
+  background: transparent;
+  color: var(--color-amber,#B8862A);
+  transition: all .12s;
+  white-space: nowrap;
+}
+.te4-modal-dup-btn:hover { background: var(--color-amber,#B8862A); color: #fff; }
+.te4-modal-dup-btn:disabled { opacity: .5; cursor: default; }
 
 /* ── Toast notification ──────────────────────────────────── */
 .te4-toast {

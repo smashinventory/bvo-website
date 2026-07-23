@@ -1620,6 +1620,46 @@ exports.themeSaveOrder = (req, res) => {
   }
 };
 
+/**
+ * POST /admin/theme/duplicate
+ * Copies settings from one section key to its _2 duplicate slot,
+ * enables the _2 slot, and appends it to homepage_section_order.
+ * Only allowed pairs: image_with_text → image_with_text_2, before_after → before_after_2
+ */
+exports.themeDuplicate = (req, res) => {
+  try {
+    const { from, to } = req.body || {};
+    const ALLOWED = {
+      'image_with_text': 'image_with_text_2',
+      'before_after':    'before_after_2',
+    };
+    if (!from || ALLOWED[from] !== to) {
+      return res.status(400).json({ ok: false, error: 'Invalid duplicate pair' });
+    }
+    const settings = themeSettings.get();
+    if (!settings[from]) return res.status(400).json({ ok: false, error: 'Source section not found' });
+
+    // Deep-copy source to destination, then enable it
+    settings[to] = JSON.parse(JSON.stringify(settings[from]));
+    settings[to].enabled = true;
+
+    // Add to section order if not already there (immediately after the source)
+    const order = Array.isArray(settings.homepage_section_order) ? settings.homepage_section_order : [];
+    if (!order.includes(to)) {
+      const srcIdx = order.indexOf(from);
+      if (srcIdx !== -1) order.splice(srcIdx + 1, 0, to);
+      else order.push(to);
+      settings.homepage_section_order = order;
+    }
+
+    _persistSettings(settings);
+    themeSettings.reload();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+};
+
 /* ════════════════════════════════════════════════════════════════
    IMAGE UPLOAD  (theme editor AJAX — POST /admin/upload)
    ════════════════════════════════════════════════════════════════ */

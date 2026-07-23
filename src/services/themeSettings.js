@@ -43,6 +43,8 @@ const DEFAULTS = {
     message: 'Free Shipping on Every Order — No Minimum Required',
     link_text: 'Shop Now',
     link_url: '/collections/bathroom-vanities',
+    bg_color: '',    // '' = CSS default (sage green)
+    text_color: '',  // '' = CSS default (white)
   },
   nav: {
     brand_line1: 'BathroomVanities',
@@ -76,6 +78,9 @@ const DEFAULTS = {
   scrolling_ticker: {
     enabled: true,
     speed_seconds: 40,
+    bg_color: '',    // '' = CSS default (#182840 navy)
+    text_color: '',  // '' = CSS default (white)
+    font_size: 0,    // 0 = CSS default (12px)
     items: [
       '🚚  Free Shipping on Every Order — No Minimum',
       '⭐  Rated 4.9/5 by Our Happy Customers',
@@ -156,9 +161,11 @@ const DEFAULTS = {
   },
   trust_band: {
     enabled: true,
-    stat1_value: '', stat1_label: 'Happy customers nationwide',
-    stat2_value: '', stat2_label: 'Premium products in stock',
-    stat3_value: 'Free', stat3_label: 'Shipping on every single order',
+    bg_color: '',   // '' = CSS default (whisper)
+    text_color: '', // '' = CSS default (navy)
+    stat1_value: '', stat1_label: 'Happy customers nationwide', stat1_icon: '🏠',
+    stat2_value: '', stat2_label: 'Premium products in stock',  stat2_icon: '⭐',
+    stat3_value: 'Free', stat3_label: 'Shipping on every single order', stat3_icon: '🚚',
   },
   parallax: {
     enabled: true,
@@ -191,6 +198,25 @@ const DEFAULTS = {
     button_text: 'Get Early Access',
     success_message: "You're in! Check your inbox for a welcome gift.",
     disclaimer: 'No spam. Unsubscribe anytime.',
+  },
+  image_with_text_2: {
+    enabled: false,
+    image_url: '', image_alt: '',
+    image_position: 'right',
+    eyebrow: '',
+    heading: '',
+    body: '',
+    cta_text: '',
+    cta_url: '',
+  },
+  before_after_2: {
+    enabled: false,
+    eyebrow: '',
+    heading: '',
+    subtitle: '',
+    before_image: '', before_label: 'Before',
+    after_image: '', after_label: 'After',
+    initial_pos: 50,
   },
   homepage_section_order: [
     'scrolling_ticker','hero','brand_logos','categories_section',

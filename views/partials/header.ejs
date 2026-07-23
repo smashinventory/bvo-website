@@ -2,10 +2,15 @@
 
 <!-- ── Promo strip ──────────────────────────────────────────────── -->
 <% if (ps.enabled !== false) { %>
-<div class="promo-strip" role="banner" aria-label="Promotional announcement">
+<%
+  var _psStyle = '';
+  if (ps.bg_color)   _psStyle += 'background:' + ps.bg_color + ';';
+  if (ps.text_color) _psStyle += 'color:' + ps.text_color + ';';
+%>
+<div class="promo-strip" role="banner" aria-label="Promotional announcement"<%= _psStyle ? ' style="' + _psStyle + '"' : '' %>>
   <%= ps.message || 'Free Shipping on Every Order' %>
   <% if (ps.link_url && ps.link_text) { %>
-  &nbsp;·&nbsp; <a href="<%= ps.link_url %>"><strong><%= ps.link_text %> →</strong></a>
+  &nbsp;·&nbsp; <a href="<%= ps.link_url %>"<%= ps.text_color ? ' style="color:inherit"' : '' %>><strong><%= ps.link_text %> →</strong></a>
   <% } %>
 </div>
 <% } %>

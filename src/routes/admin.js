@@ -61,7 +61,8 @@ router.post('/orders/:id/status', ctrl.orderUpdateStatus);
 router.get ('/theme',          ctrl.themeEditor);
 router.post('/theme',          ctrl.themeSave);
 router.post('/theme/preview',  ctrl.themeSavePreview);
-router.post('/theme/reorder',  ctrl.themeSaveOrder);
+router.post('/theme/reorder',    ctrl.themeSaveOrder);
+router.post('/theme/duplicate',  ctrl.themeDuplicate);
 
 /* ── Image Upload (theme editor) ────────────────────────────── */
 router.post('/upload',        ctrl.uploadMiddleware, ctrl.uploadImage);
