@@ -33,7 +33,7 @@
   --bg-hero:          var(--color-whisper-hero);
   --bg-nav:           var(--color-white);
   --bg-card:          var(--color-white);
-  --bg-promo:         var(--color-sage-deep);
+  --bg-promo:         var(--color-navy);        /* navy promo strip — high contrast */
   --bg-footer:        var(--color-navy-deep);
   --bg-header-bar:    var(--color-sage);       /* site section header bars                   */
 
@@ -190,7 +190,7 @@ a:hover { color: var(--color-navy); }
 /* ── Promo strip ──────────────────────────────────────────────── */
 .promo-strip {
   background: var(--bg-promo);
-  color: #DCF0E2;
+  color: #ffffff;
   font-family: var(--font-sans);
   font-size: var(--text-xs);
   font-weight: 400;

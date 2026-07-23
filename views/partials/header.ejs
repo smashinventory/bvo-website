@@ -3,14 +3,16 @@
 <!-- ── Promo strip ──────────────────────────────────────────────── -->
 <% if (ps.enabled !== false) { %>
 <%
-  var _psStyle = '';
-  if (ps.bg_color)   _psStyle += 'background:' + ps.bg_color + ';';
-  if (ps.text_color) _psStyle += 'color:' + ps.text_color + ';';
+  /* Always apply inline bg/text so the CSS default is never relied on.
+     Empty string means "not set" — fall back to brand navy / white. */
+  var _psBg   = ps.bg_color   || '#182840';
+  var _psFg   = ps.text_color || '#ffffff';
+  var _psStyle = 'background:' + _psBg + ';color:' + _psFg + ';';
 %>
-<div class="promo-strip" role="banner" aria-label="Promotional announcement"<%= _psStyle ? ' style="' + _psStyle + '"' : '' %>>
+<div class="promo-strip" role="banner" aria-label="Promotional announcement" style="<%= _psStyle %>">
   <%= ps.message || 'Free Shipping on Every Order' %>
   <% if (ps.link_url && ps.link_text) { %>
-  &nbsp;·&nbsp; <a href="<%= ps.link_url %>"<%= ps.text_color ? ' style="color:inherit"' : '' %>><strong><%= ps.link_text %> →</strong></a>
+  &nbsp;·&nbsp; <a href="<%= ps.link_url %>" style="color:inherit"><strong><%= ps.link_text %> →</strong></a>
   <% } %>
 </div>
 <% } %>
