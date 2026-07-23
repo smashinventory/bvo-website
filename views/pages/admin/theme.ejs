@@ -1425,7 +1425,10 @@ function sendPreview() {
   var params = new URLSearchParams(new FormData(form)).toString();
   fetch('/admin/theme/preview', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-Requested-With': 'XMLHttpRequest'
+    },
     body: params
   })
     .then(function (r) { return r.json(); })
