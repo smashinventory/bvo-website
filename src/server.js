@@ -18,8 +18,12 @@ const PORT = process.env.PORT || 3000;
 app.set('trust proxy', 1);
 
 // ── Ensure upload directory exists ───────────────────────────────
+// UPLOADS_IMG_PATH env var points to a persistent directory outside the git
+// repo on production (Hostinger), so uploaded images survive git deployments.
+// Falls back to public/images/uploads for local dev.
 const fs = require('fs');
-const uploadDir = path.join(__dirname, '..', 'public', 'images', 'uploads');
+const uploadDir = process.env.UPLOADS_IMG_PATH
+  || path.join(__dirname, '..', 'public', 'images', 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 // ── Security / performance middleware ────────────────────────────
@@ -76,6 +80,15 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 
 // ── Static assets ────────────────────────────────────────────────
+// Serve uploaded images from the persistent upload directory first.
+// On production this may be outside public/ (set via UPLOADS_IMG_PATH).
+app.use('/images/uploads', express.static(uploadDir, {
+  maxAge: '7d',
+  setHeaders(res) {
+    res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
+  },
+}));
+
 app.use(express.static(path.join(__dirname, '..', 'public'), {
   maxAge: '7d',
   setHeaders(res, filePath) {

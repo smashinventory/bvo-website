@@ -15,7 +15,8 @@ const multer         = require('multer');
 /* ── Multer — image uploads ──────────────────────────────────── */
 const _storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const dir = path.join(__dirname, '../../public/images/uploads');
+    const dir = process.env.UPLOADS_IMG_PATH
+      || path.join(__dirname, '../../public/images/uploads');
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
@@ -1708,7 +1709,8 @@ exports.uploadImage = (req, res) => {
 
 /* GET /admin/upload/probe — diagnostic: verify upload dir is writable and served */
 exports.uploadProbe = (req, res) => {
-  const uploadDir = path.join(__dirname, '../../public/images/uploads');
+  const uploadDir = process.env.UPLOADS_IMG_PATH
+    || path.join(__dirname, '../../public/images/uploads');
   const testFile  = path.join(uploadDir, '_probe.txt');
   const results   = { uploadDir, writable: false, staticUrl: '/images/uploads/_probe.txt', error: null };
   try {
