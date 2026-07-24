@@ -15,7 +15,7 @@ const test = S.testimonials       || {};
 const news = S.newsletter         || {};
 
 /* Security: whitelist heading tag values so theme settings can't inject arbitrary HTML
-   via raw <%- _*Tag %> interpolation used to open/close heading elements. */
+   via raw EJS output tags (e.g. _heroTag, _csTag) used to emit heading elements. */
 const _ALLOWED_TAGS = new Set(['h1','h2','h3','h4','h5','h6']);
 function _safeTag(val, def) { return _ALLOWED_TAGS.has(val) ? val : (def || 'h2'); }
 
