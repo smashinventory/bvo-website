@@ -80,8 +80,14 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 
 // ── Static assets ────────────────────────────────────────────────
-// Serve uploaded images from the persistent upload directory first.
+// Serve uploaded images and documents from the persistent upload directory.
 // On production this may be outside public/ (set via UPLOADS_IMG_PATH).
+app.use('/docs/uploads', express.static(uploadDir, {
+  maxAge: '7d',
+  setHeaders(res) {
+    res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
+  },
+}));
 app.use('/images/uploads', express.static(uploadDir, {
   maxAge: '7d',
   setHeaders(res) {

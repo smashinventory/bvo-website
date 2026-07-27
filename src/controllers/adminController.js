@@ -38,7 +38,8 @@ const _upload = multer({
 /* ── Multer — document / PDF uploads ────────────────────────── */
 const _docStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const dir = path.join(__dirname, '../../public/docs/uploads');
+    const dir = process.env.UPLOADS_IMG_PATH
+      || path.join(__dirname, '../../public/docs/uploads');
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
