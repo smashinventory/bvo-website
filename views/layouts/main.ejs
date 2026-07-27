@@ -62,6 +62,7 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   <meta property="og:title"       content="<%= _pageTitle %>">
   <meta property="og:description" content="<%= _metaDesc %>">
   <meta property="og:image"       content="<%= _ogImg %>">
+  <meta property="og:image:alt"   content="<%= _seo.og_image_alt || _pageTitle %>">
   <meta property="og:type"        content="<% if (typeof product !== 'undefined' && product) { %>product<% } else { %>website<% } %>">
   <meta property="og:url"         content="<%= typeof canonicalUrl !== 'undefined' ? canonicalUrl : '' %>">
   <meta property="og:site_name"   content="<%= _siteName %>">

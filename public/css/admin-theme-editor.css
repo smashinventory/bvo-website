@@ -1093,3 +1093,34 @@ details[open] > .te4-accord-head { color: var(--color-navy,#182840); }
 
 /* ── Hint / helper text below a field ───────────────────────── */
 .te4-hint { font-size: .65rem; color: #9CA3AF; margin-top: 2px; line-height: 1.4; }
+
+/* ── Video field ─────────────────────────────────────────────── */
+.te4-video-field { display: flex; flex-direction: column; gap: 6px; padding: 0 0 4px; }
+.te4-video-preview { min-height: 22px; display: flex; align-items: center; }
+.te4-video-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .03em;
+}
+.te4-video-tag--yt  { background: #FEE2E2; color: #B91C1C; }
+.te4-video-tag--mp4 { background: #DBEAFE; color: #1D4ED8; }
+.te4-video-url-input {
+  width: 100%;
+  padding: 7px 10px;
+  font-size: .77rem;
+  border: 1.5px solid #E2E4E9;
+  border-radius: 7px;
+  background: #fff;
+  color: #374151;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color .15s;
+}
+.te4-video-url-input:focus { border-color: var(--color-navy,#182840); }
+.te4-video-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.te4-video-upload-input { display: none; }

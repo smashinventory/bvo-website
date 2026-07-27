@@ -25,7 +25,7 @@ const THEME_SECS = [
   { key:'seo',     label:'SEO & Meta' },
   { key:'global',  label:'Global Settings' },
 ];
-const ALL_TEMPLATE_KEYS = ['scrolling_ticker','hero','brand_logos','categories_section','featured_section','image_with_text','image_with_text_2','before_after','before_after_2','trust_band','parallax','testimonials','newsletter'];
+const ALL_TEMPLATE_KEYS = ['scrolling_ticker','hero','brand_logos','categories_section','featured_section','image_with_text','video_text','image_with_text_2','before_after','before_after_2','trust_band','parallax','testimonials','newsletter'];
 const TEMPLATE_META = {
   scrolling_ticker:   { label:'Announcement Bar',    desc:'Scrolling promo ticker at page top' },
   hero:               { label:'Hero Banner',          desc:'Full-width hero with CTAs' },
@@ -33,6 +33,7 @@ const TEMPLATE_META = {
   categories_section: { label:'Category Grid',        desc:'Shop-by-category cards' },
   featured_section:   { label:'Featured Products',    desc:'Handpicked product grid' },
   image_with_text:    { label:'Image with Text',      desc:'Split image + copy block' },
+  video_text:         { label:'Video + Text',         desc:'Split video and text content block' },
   image_with_text_2:  { label:'Image with Text (2)',  desc:'Second image + text block (duplicate)' },
   before_after:       { label:'Before / After',       desc:'Drag-handle comparison slider' },
   before_after_2:     { label:'Before / After (2)',   desc:'Second comparison slider (duplicate)' },
@@ -75,6 +76,7 @@ function secIcon(key) {
     parallax:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
     testimonials:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
     newsletter:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>',
+    video_text:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="2"/><polygon points="10 9 15 12 10 15" fill="currentColor" stroke="none"/></svg>',
     footer:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="3" y1="21" x2="21" y2="21"/><polyline points="9 3 3 9 3 21"/><polyline points="15 3 21 9 21 21"/><line x1="3" y1="9" x2="21" y2="9"/></svg>',
     cart_drawer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>',
     design:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
@@ -131,6 +133,24 @@ function teAlignment(name,value,compact){
 function teTextSize(name,value,label,min,max,compact){
   min=min||12; max=max||48; var v=parseInt(value)||16; var cls=compact?'te4-field compact':'te4-field';
   return '<div class="'+cls+'"><label>'+(label||'Font Size')+'</label><div class="te4-slider-wrap"><input type="range" class="te4-slider" name="'+name+'" min="'+min+'" max="'+max+'" step="1" value="'+v+'"><input type="number" class="te4-slider-num" min="'+min+'" max="'+max+'" step="1" value="'+v+'" aria-label="Font size"><span class="te4-slider-unit">px</span></div></div>';
+}
+
+/* Video URL field with optional local file upload */
+function teVideoField(name, value) {
+  var v = esc(value || '');
+  var isYT = v && /youtu\.be|youtube\.com/.test(v);
+  var thumb = v
+    ? (isYT
+        ? '<span class="te4-video-tag te4-video-tag--yt">▶ YouTube</span>'
+        : '<span class="te4-video-tag te4-video-tag--mp4">▶ MP4</span>')
+    : '';
+  return '<div class="te4-video-field">'
+    + '<div class="te4-video-preview">' + thumb + '</div>'
+    + '<input type="url" name="' + name + '" value="' + v + '" placeholder="https://youtube.com/watch?v=… or https://cdn.example.com/video.mp4" class="te4-video-url-input">'
+    + '<div class="te4-video-actions">'
+    + '<label class="te4-upload-btn"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload video<input type="file" accept="video/*" class="te4-video-upload-input" data-target-name="' + name + '"></label>'
+    + '<button type="button" class="te4-img-remove-btn" data-target-name="' + name + '">Remove</button>'
+    + '</div></div>';
 }
 
 /* Image upload field with preview, alt text, and SEO filename display */
@@ -406,6 +426,7 @@ function teArrayLinks(prefix,listId,tplId,items){
                 <%- teField('text','seo.home_title','Homepage Title',seo.home_title) %>
                 <%- teField('textarea','seo.home_description','Meta Description',seo.home_description) %>
                 <%- teImageField('seo.og_image','OG / Share Image',seo.og_image) %>
+                <%- teField('text','seo.og_image_alt','OG Image Alt Text',seo.og_image_alt) %>
                 <%- teField('text','seo.google_analytics_id','Google Analytics ID',seo.google_analytics_id) %>
               </div>
             </details>
@@ -561,6 +582,10 @@ function teArrayLinks(prefix,listId,tplId,items){
 
             <div class="te4-section-label">Background Image</div>
             <%- teImage('hero.image_url','hero.image_alt',h.image_url,h.image_alt,'Hero Image') %>
+
+            <div class="te4-section-label">Background Video <small style="opacity:.6;font-weight:400">(optional — plays over the image)</small></div>
+            <%- teVideoField('hero.video_url',h.video_url) %>
+            <div class="te4-hint" style="margin-bottom:.75rem">Paste a YouTube URL or a direct .mp4 URL (James Martin CDN, Hostinger, etc.). Leave blank to use the image only. Image remains visible until the video loads — good for SEO.</div>
 
             <div class="te4-section-label">Layout</div>
             <div class="te4-field">
@@ -779,6 +804,34 @@ function teArrayLinks(prefix,listId,tplId,items){
             <div class="te4-row2">
               <%- teField('text','image_with_text_2.cta_text','CTA label',iwt2sec.cta_text) %>
               <%- teField('url', 'image_with_text_2.cta_url', 'CTA URL',  iwt2sec.cta_url) %>
+            </div>
+          </div>
+
+          <!-- ── VIDEO + TEXT ──────────────────────────────── -->
+          <div class="te4-panel" id="panel-video_text">
+            <% const vtsec=t.video_text||{}; %>
+            <%- teToggle('video_text.enabled','Show section',vtsec.enabled) %>
+            <div class="te4-hint" style="margin-bottom:.75rem">Paste a YouTube URL or a direct .mp4 URL. Upload a local video file using the button below.</div>
+
+            <div class="te4-section-label">Video</div>
+            <%- teVideoField('video_text.video_url', vtsec.video_url) %>
+
+            <div class="te4-section-label">Layout</div>
+            <div class="te4-row2">
+              <div class="te4-field"><label>Video side</label><select name="video_text.video_side" class="te4-select"><option value="left" <%=(vtsec.video_side||'left')==='left'?'selected':''%>>Video left, text right</option><option value="right" <%=vtsec.video_side==='right'?'selected':''%>>Video right, text left</option></select></div>
+              <div class="te4-field"><label>Video width</label><select name="video_text.split" class="te4-select"><option value="40" <%=(vtsec.split||'50')==='40'?'selected':''%>>40% video / 60% text</option><option value="50" <%=(vtsec.split||'50')==='50'?'selected':''%>>50% / 50% (equal)</option><option value="60" <%=vtsec.split==='60'?'selected':''%>>60% video / 40% text</option></select></div>
+            </div>
+
+            <div class="te4-section-label">Content</div>
+            <%- teField('text','video_text.eyebrow','Eyebrow label',vtsec.eyebrow) %>
+            <div class="te4-row2">
+              <%- teHeadingLevel('video_text.heading_level', vtsec.heading_level||'h2') %>
+            </div>
+            <%- teField('text','video_text.heading','Heading',vtsec.heading) %>
+            <%- teField('textarea','video_text.body','Body text',vtsec.body) %>
+            <div class="te4-row2">
+              <%- teField('text','video_text.cta_text','Button label',vtsec.cta_text) %>
+              <%- teField('url','video_text.cta_url','Button URL',vtsec.cta_url) %>
             </div>
           </div>
 
@@ -1073,7 +1126,7 @@ var toast      = document.getElementById('te4Toast');
    ════════════════════════════════════════════════════════════════ */
 // Template section keys (can be removed/hidden)
 var TEMPLATE_KEYS = ['scrolling_ticker','hero','brand_logos','categories_section',
-  'featured_section','image_with_text','image_with_text_2','before_after','before_after_2',
+  'featured_section','image_with_text','video_text','image_with_text_2','before_after','before_after_2',
   'trust_band','parallax','testimonials','newsletter'];
 
 function openSection(key, label, backText) {
@@ -1486,6 +1539,83 @@ function wireUploadBtns(root) {
   });
 }
 wireUploadBtns(document);
+
+/* ── Video upload buttons ─────────────────────────────────── */
+function wireVideoUploadBtns(root) {
+  (root || document).querySelectorAll('.te4-video-upload-input').forEach(function (input) {
+    if (input._wired) return; input._wired = true;
+    input.addEventListener('change', function () {
+      var file = input.files[0]; if (!file) return;
+      var label = input.closest('label');
+      if (label) { label.style.opacity = '.5'; label.style.pointerEvents = 'none'; }
+      var fd = new FormData(); fd.append('video', file);
+      fetch('/admin/upload/video', { method: 'POST', body: fd })
+        .then(function (r) {
+          if (!r.ok) throw new Error('Server returned ' + r.status);
+          return r.json();
+        })
+        .then(function (data) {
+          if (data.error) throw new Error(data.error);
+          var urlInput = _findByName(input.dataset.targetName);
+          if (urlInput) {
+            urlInput.value = data.url;
+            // Update the video tag preview
+            var wrap = urlInput.closest('.te4-video-field');
+            if (wrap) {
+              var preview = wrap.querySelector('.te4-video-preview');
+              if (preview) {
+                preview.innerHTML = '<span class="te4-video-tag te4-video-tag--mp4">▶ MP4 — ' + data.url.split('/').pop() + '</span>';
+              }
+            }
+          }
+          pushHistory(); markDirty(); schedulePreview();
+        })
+        .catch(function (e) {
+          console.error('Video upload failed', e);
+          alert('Video upload failed: ' + e.message + '\n\nYou can paste a URL directly into the field instead.');
+        })
+        .finally(function () {
+          if (label) { label.style.opacity = ''; label.style.pointerEvents = ''; }
+          input.value = '';
+        });
+    });
+  });
+}
+wireVideoUploadBtns(document);
+
+/* ── Video remove + URL-change handlers ───────────────────── */
+function wireVideoFieldBtns(root) {
+  // Remove button: clear URL input + preview tag
+  (root || document).querySelectorAll('.te4-video-field .te4-img-remove-btn').forEach(function (btn) {
+    if (btn._wiredV) return; btn._wiredV = true;
+    btn.addEventListener('click', function () {
+      var field = btn.closest('.te4-video-field');
+      if (!field) return;
+      var urlInput = _findByName(btn.dataset.targetName);
+      if (urlInput) urlInput.value = '';
+      var preview = field.querySelector('.te4-video-preview');
+      if (preview) preview.innerHTML = '';
+      pushHistory(); markDirty(); schedulePreview();
+    });
+  });
+  // URL input change: refresh the type tag
+  (root || document).querySelectorAll('.te4-video-url-input').forEach(function (input) {
+    if (input._wiredV) return; input._wiredV = true;
+    input.addEventListener('input', function () {
+      var v = input.value.trim();
+      var field = input.closest('.te4-video-field');
+      var preview = field ? field.querySelector('.te4-video-preview') : null;
+      if (!preview) return;
+      if (!v) { preview.innerHTML = ''; return; }
+      var isYT = /youtu\.be|youtube\.com/.test(v);
+      preview.innerHTML = isYT
+        ? '<span class="te4-video-tag te4-video-tag--yt">▶ YouTube</span>'
+        : '<span class="te4-video-tag te4-video-tag--mp4">▶ MP4</span>';
+      markDirty(); schedulePreview();
+    });
+  });
+}
+wireVideoFieldBtns(document);
 
 /* ── Image remove buttons ─────────────────────────────────── */
 function wireImageRemoveBtns(root) {

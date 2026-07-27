@@ -74,8 +74,9 @@ router.post('/theme/preview',  ctrl.themeSavePreview);
 router.post('/theme/reorder',    ctrl.themeSaveOrder);
 router.post('/theme/duplicate',  ctrl.themeDuplicate);
 
-/* ── Image Upload (theme editor) ────────────────────────────── */
-router.post('/upload',        ctrl.uploadMiddleware, ctrl.uploadImage);
+/* ── Image / Video Upload (theme editor) ────────────────────── */
+router.post('/upload',        ctrl.uploadMiddleware,      ctrl.uploadImage);
+router.post('/upload/video',  ctrl.uploadVideoMiddleware, ctrl.uploadVideo);
 router.get ('/upload/probe',  ctrl.uploadProbe);  // diagnostic: check upload dir
 
 /* ── RFLPOS Sync ─────────────────────────────────────────────── */

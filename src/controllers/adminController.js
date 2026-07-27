@@ -59,6 +59,45 @@ const _docUpload = multer({
   },
 });
 
+/* ── Multer — video uploads ──────────────────────────────────── */
+const _videoStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = process.env.UPLOADS_IMG_PATH
+      || path.join(__dirname, '../../public/images/uploads');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const ext  = path.extname(file.originalname).toLowerCase();
+    const base = path.basename(file.originalname, ext).replace(/[^a-z0-9]/gi, '-').toLowerCase();
+    cb(null, `${base}-${Date.now()}${ext}`);
+  },
+});
+const _videoUpload = multer({
+  storage: _videoStorage,
+  limits:  { fileSize: 500 * 1024 * 1024 }, // 500 MB
+  fileFilter: (req, file, cb) => {
+    if (/^video\//i.test(file.mimetype) || /^image\//i.test(file.mimetype)) cb(null, true);
+    else cb(new Error('Only video or image files are allowed'), false);
+  },
+});
+
+exports.uploadVideoMiddleware = (req, res, next) => {
+  _videoUpload.single('video')(req, res, (err) => {
+    if (err) {
+      console.error('[Video Upload] multer error:', err.message);
+      return res.status(400).json({ error: err.message });
+    }
+    next();
+  });
+};
+
+exports.uploadVideo = (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const url = `/images/uploads/${req.file.filename}`;
+  res.json({ url });
+};
+
 /* ── helpers ────────────────────────────────────────────────────── */
 const LAYOUT = { layout: 'layouts/admin' };
 

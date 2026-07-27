@@ -28,6 +28,7 @@ const DEFAULTS = {
     home_title:          'BathroomVanitiesOutlet.com | Premium Vanities at Outlet Prices',
     home_description:    'Shop premium bathroom vanities, mirrors, faucets and accessories at outlet prices. Free shipping on every order.',
     og_image:            '/images/og-default.jpg',
+    og_image_alt:        'BathroomVanitiesOutlet.com — Premium Bathroom Vanities at Outlet Prices',
     google_analytics_id: '',
   },
   global: {
@@ -100,6 +101,7 @@ const DEFAULTS = {
     badge_text: 'Free Shipping',
     image_url: '',
     image_alt: 'Premium bathroom vanity',
+    video_url: '',   // YouTube URL or direct .mp4 URL — autoplay muted loop background
     // Layout & sizing
     layout: 'split',       // 'split' (text|image side-by-side) | 'bg' (image behind text)
     text_col_pct: 45,      // split layout: text column width %; image gets the remainder
@@ -199,6 +201,18 @@ const DEFAULTS = {
     success_message: "You're in! Check your inbox for a welcome gift.",
     disclaimer: 'No spam. Unsubscribe anytime.',
   },
+  video_text: {
+    enabled: false,
+    video_url: '',          // YouTube URL or direct .mp4 URL
+    video_side: 'left',     // 'left' | 'right'
+    split: '50',            // '40' | '50' | '60' — video column width %
+    eyebrow: '',
+    heading: 'See Our Products in Action',
+    heading_level: 'h2',
+    body: '',
+    cta_text: '',
+    cta_url: '',
+  },
   image_with_text_2: {
     enabled: false,
     image_url: '', image_alt: '',
@@ -220,7 +234,7 @@ const DEFAULTS = {
   },
   homepage_section_order: [
     'scrolling_ticker','hero','brand_logos','categories_section',
-    'featured_section','image_with_text','before_after',
+    'featured_section','image_with_text','video_text','before_after',
     'trust_band','parallax','testimonials','newsletter',
   ],
 

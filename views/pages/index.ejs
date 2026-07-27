@@ -7,12 +7,21 @@ const cs   = S.categories_section || {};
 const fs_  = S.featured_section   || {};
 const iwt  = S.image_with_text    || {};
 const iwt2 = S.image_with_text_2  || {};
+const vt   = S.video_text         || {};
 const ba   = S.before_after       || {};
 const ba2  = S.before_after_2     || {};
 const tb   = S.trust_band         || {};
 const par  = S.parallax           || {};
 const test = S.testimonials       || {};
 const news = S.newsletter         || {};
+
+/* Video helpers — extract YouTube ID, detect source type */
+function _ytId(url) {
+  if (!url) return null;
+  var m = String(url).match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?.*?v=|shorts\/))([a-zA-Z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
+function _isYT(url) { return !!(url && /youtu\.be|youtube\.com/.test(String(url))); }
 
 /* Security: whitelist heading tag values so theme settings can't inject arbitrary HTML
    via raw EJS output tags (e.g. _heroTag, _csTag) used to emit heading elements. */
@@ -28,7 +37,7 @@ function _salsifyImg(url, w, h) {
 }
 
 const _DEFAULT_ORDER = ['scrolling_ticker','hero','brand_logos','categories_section',
-  'featured_section','image_with_text','before_after','trust_band','parallax','testimonials','newsletter'];
+  'featured_section','image_with_text','video_text','before_after','trust_band','parallax','testimonials','newsletter'];
 const _VALID_KEYS = new Set([..._DEFAULT_ORDER, 'image_with_text_2','before_after_2']);
 const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_section_order.length)
   ? S.homepage_section_order
@@ -95,7 +104,26 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
   </div>
   <div class="hero-image">
     <div class="hero-overlay" aria-hidden="true"></div>
-    <% if (hero.image_url) { %>
+    <% if (hero.video_url) { %>
+      <%/* Poster image shown first — indexed by search engines, displays before video loads */%>
+      <% if (hero.image_url) { %>
+      <img class="hero-poster" src="<%= hero.image_url %>" alt="<%= hero.image_alt || 'Hero image' %>" loading="eager">
+      <% } %>
+      <% if (_isYT(hero.video_url)) { var _ytVid = _ytId(hero.video_url); %>
+        <% if (_ytVid) { %>
+        <div class="hero-video-wrap">
+          <iframe class="hero-video-iframe" data-hero-video="yt"
+            src="https://www.youtube-nocookie.com/embed/<%= _ytVid %>?autoplay=1&mute=1&loop=1&controls=0&playlist=<%= _ytVid %>&rel=0&showinfo=0&modestbranding=1&playsinline=1"
+            allow="autoplay; encrypted-media; picture-in-picture" frameborder="0" aria-hidden="true" tabindex="-1" title="Hero background video">
+          </iframe>
+        </div>
+        <% } %>
+      <% } else { %>
+      <video class="hero-video-player" data-hero-video="mp4" autoplay muted loop playsinline preload="metadata">
+        <source src="<%= hero.video_url %>" type="video/mp4">
+      </video>
+      <% } %>
+    <% } else if (hero.image_url) { %>
       <img src="<%= hero.image_url %>" alt="<%= hero.image_alt || 'Hero image' %>" style="width:100%;height:100%;object-fit:cover;display:block;">
     <% } else { %>
     <div class="hero-img-placeholder" aria-hidden="true">
@@ -488,6 +516,49 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
 </section>
 <% } /* end image_with_text_2 */ %>
 
+<!-- ── VIDEO + TEXT ──────────────────────────────────────────────── -->
+<% if (sectionKey === 'video_text' && vt.enabled !== false && vt.video_url) { %>
+<%
+  var _vtTag    = _safeTag(vt.heading_level, 'h2');
+  var _vtSplit  = vt.split || '50';
+  var _vtSide   = vt.video_side === 'right' ? 'vt-video-right' : 'vt-video-left';
+  var _vtIsYT   = _isYT(vt.video_url);
+  var _vtYTId   = _vtIsYT ? _ytId(vt.video_url) : null;
+%>
+<section class="video-text-section" data-section="video_text" data-section-label="Video + Text" aria-label="<%= vt.eyebrow || vt.heading || 'Video section' %>">
+  <div class="vt-inner vt-split-<%= _vtSplit %> <%= _vtSide %>">
+
+    <div class="vt-video-col">
+      <div class="vt-video-embed">
+        <% if (_vtIsYT && _vtYTId) { %>
+        <iframe
+          src="https://www.youtube-nocookie.com/embed/<%= _vtYTId %>?rel=0&modestbranding=1"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen loading="lazy" title="<%= vt.heading || 'Video' %>">
+        </iframe>
+        <% } else { %>
+        <video controls preload="metadata" title="<%= vt.heading || 'Video' %>">
+          <source src="<%= vt.video_url %>" type="video/mp4">
+        </video>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="vt-text-col">
+      <% if (vt.eyebrow) { %><p class="vt-eyebrow"><%= vt.eyebrow %></p><% } %>
+      <% if (vt.heading) { %>
+      <<%- _vtTag %> class="vt-heading"><%= vt.heading %></<%- _vtTag %>>
+      <% } %>
+      <% if (vt.body) { %><p class="vt-body"><%= vt.body %></p><% } %>
+      <% if (vt.cta_text && vt.cta_url) { %>
+      <a href="<%= vt.cta_url %>" class="btn btn-navy"><%= vt.cta_text %></a>
+      <% } %>
+    </div>
+
+  </div>
+</section>
+<% } /* end video_text */ %>
+
 <!-- ── BEFORE / AFTER SLIDER ─────────────────────────────────────── -->
 <% if (sectionKey === 'before_after' && ba.enabled !== false) { %>
 <%
@@ -722,6 +793,32 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
     border-radius: 4px;
   }
 </style>
+<script>
+/* ── Hero video fade-in (poster → video) ── */
+(function () {
+  /* YouTube iframe: fade in after load, fade out poster */
+  var ytIframe = document.querySelector('.hero-video-iframe[data-hero-video="yt"]');
+  if (ytIframe) {
+    ytIframe.addEventListener('load', function () {
+      setTimeout(function () {
+        ytIframe.classList.add('is-ready');
+        var poster = document.querySelector('.hero-poster');
+        if (poster) poster.classList.add('is-hidden');
+      }, 800); /* brief delay so YouTube has rendered its first frame */
+    });
+  }
+  /* Direct <video>: fade in on canplay */
+  var mp4Vid = document.querySelector('.hero-video-player[data-hero-video="mp4"]');
+  if (mp4Vid) {
+    mp4Vid.addEventListener('canplay', function () {
+      mp4Vid.classList.add('is-ready');
+      var poster = document.querySelector('.hero-poster');
+      if (poster) poster.classList.add('is-hidden');
+    }, { once: true });
+  }
+}());
+</script>
+
 <script>
 (function () {
   var isPreview = window.location.search.indexOf('te_preview') !== -1;

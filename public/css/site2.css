@@ -1308,3 +1308,134 @@
   pointer-events: none;
   z-index: 1;
 }
+
+/* ── Hero Video Background (Rule 11) ────────────────────────────── */
+.hero-image { position: relative; overflow: hidden; }
+
+/* Poster image — shown first, fades out once video is ready */
+.hero-poster {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
+  transition: opacity 0.9s ease;
+}
+.hero-poster.is-hidden { opacity: 0; }
+
+/* YouTube iframe wrapper — fills the hero-image column */
+.hero-video-wrap {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+}
+/* Scale iframe to cover any aspect ratio — standard cover trick */
+.hero-video-iframe {
+  position: absolute;
+  top: 50%; left: 50%;
+  /* 16:9 intrinsic: width = 177.78vh, height = 56.25vw */
+  width: 177.78vh;
+  height: 100%;
+  min-width: 100%;
+  min-height: 56.25vw;
+  transform: translate(-50%, -50%);
+  border: none;
+  opacity: 0;
+  transition: opacity 0.9s ease;
+}
+.hero-video-iframe.is-ready { opacity: 1; }
+
+/* Direct <video> element (mp4 / James Martin / Hostinger) */
+.hero-video-player {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 0.9s ease;
+}
+.hero-video-player.is-ready { opacity: 1; }
+
+/* ── Video + Text Section (Rule 11) ─────────────────────────────── */
+.video-text-section {
+  padding: 80px 0;
+  background: var(--color-white, #fff);
+}
+.vt-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  gap: 48px;
+}
+.vt-video-left  { flex-direction: row; }
+.vt-video-right { flex-direction: row-reverse; }
+
+/* Video column width per split setting */
+.vt-split-50 .vt-video-col { flex: 0 0 calc(50% - 24px); }
+.vt-split-60 .vt-video-col { flex: 0 0 calc(60% - 24px); }
+.vt-split-40 .vt-video-col { flex: 0 0 calc(40% - 24px); }
+.vt-text-col { flex: 1; min-width: 0; }
+
+/* 16:9 responsive video embed container */
+.vt-video-embed {
+  position: relative;
+  width: 100%;
+  padding-bottom: 56.25%;
+  border-radius: var(--radius-card, 12px);
+  overflow: hidden;
+  background: #000;
+  box-shadow: 0 8px 32px rgba(0,0,0,.14);
+}
+.vt-video-embed iframe,
+.vt-video-embed video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+/* Text column typography */
+.vt-eyebrow {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-amber, #B8862A);
+  margin: 0 0 10px;
+}
+.vt-heading {
+  font-family: var(--font-serif, Georgia, serif);
+  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  font-weight: var(--h-weight, 600);
+  color: var(--color-navy, #182840);
+  line-height: 1.2;
+  margin: 0 0 16px;
+}
+.vt-body {
+  font-size: 1rem;
+  color: var(--text-muted, #7A7264);
+  line-height: 1.7;
+  margin: 0 0 24px;
+  white-space: pre-line;
+}
+
+/* Mobile: stack vertically */
+@media (max-width: 768px) {
+  .video-text-section { padding: 56px 0; }
+  .vt-inner {
+    flex-direction: column !important;
+    gap: 32px;
+    padding: 0 16px;
+  }
+  .vt-split-50 .vt-video-col,
+  .vt-split-60 .vt-video-col,
+  .vt-split-40 .vt-video-col { flex: 0 0 100%; width: 100%; }
+}
