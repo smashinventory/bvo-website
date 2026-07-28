@@ -969,3 +969,52 @@ document.addEventListener('DOMContentLoaded', function () {
     if (e.key === 'Escape') closeDrawer();
   });
 })();
+
+// ── Video lightbox modal ──────────────────────────────────────────
+(function () {
+  var modal    = document.getElementById('bvoVideoModal');
+  var player   = document.getElementById('bvoVideoPlayer');
+  var closeBtn = modal && modal.querySelector('.bvo-video-modal__close');
+  var backdrop = modal && modal.querySelector('.bvo-video-modal__backdrop');
+  if (!modal || !player) return;
+
+  function ytId(url) {
+    var m = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+    return m ? m[1] : null;
+  }
+
+  function openModal(url) {
+    var id = ytId(url);
+    if (id) {
+      player.innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/' + id
+        + '?autoplay=1&controls=1&rel=0" allow="autoplay; encrypted-media; fullscreen"'
+        + ' allowfullscreen></iframe>';
+    } else {
+      player.innerHTML = '<video src="' + url + '" controls autoplay playsinline></video>';
+    }
+    modal.removeAttribute('hidden');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeModal() {
+    player.innerHTML = '';   /* stops playback */
+    modal.setAttribute('hidden', '');
+    document.body.style.overflow = '';
+  }
+
+  if (closeBtn) closeBtn.addEventListener('click', closeModal);
+  if (backdrop) backdrop.addEventListener('click', closeModal);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeModal();
+  });
+
+  /* Capture-phase listener fires BEFORE the parent <a> sees the click,
+     so stopPropagation prevents link navigation entirely. */
+  document.addEventListener('click', function (e) {
+    var badge = e.target.closest ? e.target.closest('.product-video-badge[data-video-url]') : null;
+    if (!badge) return;
+    e.preventDefault();
+    e.stopPropagation();
+    openModal(badge.dataset.videoUrl);
+  }, true /* capture */);
+})();
