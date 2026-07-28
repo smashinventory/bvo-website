@@ -1,14 +1,17 @@
 <div class="adm-form-page">
-  <div class="adm-form-header">
+  <div class="adm-form-header adm-form-header--sticky">
     <a href="/admin/products" class="adm-back-link">← Products</a>
     <h1 class="adm-form-title"><%= isNew ? 'Add New Product' : 'Edit Product' %></h1>
-    <% if (!isNew && product) { %>
-    <a href="/products/<%= product.slug %>" target="_blank" class="btn btn-outline" style="margin-left:auto">View in Store ↗</a>
-    <% } %>
+    <div style="display:flex;align-items:center;gap:10px;margin-left:auto">
+      <% if (!isNew && product) { %>
+      <a href="/products/<%= product.slug %>" target="_blank" class="btn btn-outline">View in Store ↗</a>
+      <% } %>
+      <button type="submit" form="productForm" class="btn btn-primary"><%= isNew ? 'Create Product' : 'Save Changes' %></button>
+    </div>
   </div>
 
   <% if (locals.flash) { %>
-  <div class="adm-flash adm-flash--<%= flash.type %>"><%= flash.msg %></div>
+  <div class="adm-flash adm-flash--<%= flash.type %> adm-flash--toast" id="admFlashToast"><%= flash.msg %></div>
   <% } %>
 
   <form action="<%= isNew ? '/admin/products' : '/admin/products/' + product.id %>"
@@ -1139,6 +1142,19 @@ function imgSaveOrder() {
   }
 })();
 <% } %>
+
+// ── Auto-dismiss flash toast ──────────────────────────────────────
+(function() {
+  var toast = document.getElementById('admFlashToast');
+  if (!toast) return;
+  // Scroll to top so sticky header is visible, then fade out after 4s
+  window.scrollTo({ top: 0 });
+  setTimeout(function() {
+    toast.style.transition = 'opacity .4s';
+    toast.style.opacity    = '0';
+    setTimeout(function() { toast.remove(); }, 400);
+  }, 4000);
+})();
 </script>
 
 <style>
@@ -1161,9 +1177,12 @@ function imgSaveOrder() {
 .adm-img-drop:hover,.adm-img-drop.is-over { border-color:var(--sage,#7A9E7E); background:#f7faf7; color:#444; }
 .adm-toggle-label { display:flex; align-items:center; gap:7px; font-size:.875rem; cursor:pointer; }
 .adm-toggle-label input[type=checkbox] { width:15px; height:15px; cursor:pointer; }
+.adm-form-header--sticky { position:sticky; top:0; z-index:200; background:#f5f4f1; border-bottom:1px solid #e0ddd6; margin:-24px -24px 24px; padding:14px 24px; box-shadow:0 2px 6px rgba(0,0,0,.08); }
 .adm-flash { padding:10px 16px; border-radius:8px; margin-bottom:16px; font-size:.875rem; }
 .adm-flash--success { background:#f0faf2; border:1px solid #7A9E7E; color:#2d6a38; }
 .adm-flash--error   { background:#fff5f5; border:1px solid #c00; color:#900; }
+.adm-flash--toast { position:fixed; top:70px; left:50%; transform:translateX(-50%); z-index:300; min-width:280px; max-width:90vw; text-align:center; box-shadow:0 4px 16px rgba(0,0,0,.15); animation:fadeInToast .25s ease; }
+@keyframes fadeInToast { from { opacity:0; transform:translateX(-50%) translateY(-8px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
 .adm-source-grid { display:grid; grid-template-columns:auto 1fr; gap:6px 12px; font-size:.8rem; }
 .adm-source-label { color:#888; font-weight:600; white-space:nowrap; }
 
