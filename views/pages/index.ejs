@@ -537,9 +537,9 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
       <div class="vt-video-embed">
         <% if (_vtIsYT && _vtYTId) { %>
         <iframe
-          src="https://www.youtube-nocookie.com/embed/<%= _vtYTId %>?rel=0&modestbranding=1"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowfullscreen loading="lazy" title="<%= vt.heading || 'Video' %>">
+          src="https://www.youtube-nocookie.com/embed/<%= _vtYTId %>?rel=0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowfullscreen frameborder="0" loading="lazy" title="<%= vt.heading || 'Video' %>">
         </iframe>
         <% } else { %>
         <video controls preload="metadata" title="<%= vt.heading || 'Video' %>">
