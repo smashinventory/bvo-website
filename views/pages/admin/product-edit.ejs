@@ -752,34 +752,32 @@
           %>
 
           <% if (_docs.length) { %>
-          <div class="adm-doc-list">
+          <div class="adm-doc-list" id="docList">
             <% _docs.forEach(function(doc) { %>
-            <div class="adm-doc-row">
+            <div class="adm-doc-row" id="docRow-<%= doc.id %>">
               <div class="adm-doc-info">
                 <span class="adm-doc-type"><%= _docTypeLabels[doc.doc_type] || doc.doc_type %></span>
                 <a href="<%= doc.url %>" target="_blank" class="adm-doc-link" title="<%= doc.url %>">
                   <%= doc.label || doc.url.split('/').pop() %>
                 </a>
               </div>
-              <form method="POST" action="/admin/products/<%= product.id %>/docs/<%= doc.id %>/delete"
-                onsubmit="return confirm('Remove this document?')" style="display:inline">
-                <button type="submit" class="adm-doc-del" title="Remove">✕</button>
-              </form>
+              <button type="button" class="adm-doc-del" title="Remove"
+                data-doc-id="<%= doc.id %>" data-product-id="<%= product.id %>">✕</button>
             </div>
             <% }); %>
           </div>
           <% } else { %>
-          <p class="adm-form-hint" style="margin-bottom:12px">No documents yet.</p>
+          <p id="noDocsMsg" class="adm-form-hint" style="margin-bottom:12px">No documents yet.</p>
           <% } %>
+          <% if (!_docs.length) { %><div id="docList" class="adm-doc-list" style="display:none"></div><% } %>
 
-          <!-- Add document form -->
-          <form method="POST" action="/admin/products/<%= product.id %>/docs"
-            enctype="multipart/form-data" class="adm-doc-add-form">
+          <!-- Add document — AJAX, NOT a nested form -->
+          <div class="adm-doc-add-form" id="addDocForm" data-action="/admin/products/<%= product.id %>/docs">
 
             <div class="adm-form-row" style="margin-bottom:8px">
               <div class="adm-form-group" style="margin-bottom:0">
                 <label>Doc Type</label>
-                <select name="doc_type" class="adm-doc-type-sel">
+                <select id="newDocType" class="adm-doc-type-sel">
                   <% Object.entries(_docTypeLabels).forEach(function(kv) { %>
                   <option value="<%= kv[0] %>"><%= kv[1] %></option>
                   <% }); %>
@@ -787,13 +785,13 @@
               </div>
               <div class="adm-form-group" style="margin-bottom:0">
                 <label>Label (optional)</label>
-                <input type="text" name="label" placeholder="Custom label…">
+                <input type="text" id="newDocLabel" placeholder="Custom label…">
               </div>
             </div>
 
             <div class="adm-form-group" style="margin-bottom:8px">
               <label>Paste URL</label>
-              <input type="url" name="doc_url" placeholder="https://…/spec-sheet.pdf">
+              <input type="text" id="newDocUrl" placeholder="https://…/spec-sheet.pdf">
             </div>
 
             <div class="adm-doc-or">— or upload a file —</div>
@@ -805,12 +803,12 @@
                   <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
                 </svg>
                 <span id="docFileLabel">Choose PDF / Word / image</span>
-                <input type="file" name="doc_file" id="docFileInput"
+                <input type="file" id="docFileInput"
                   accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" style="display:none">
               </label>
-              <button type="submit" class="btn btn-sage" style="white-space:nowrap">Add Document</button>
+              <button type="button" id="addDocBtn" class="btn btn-sage" style="white-space:nowrap">Add Document</button>
             </div>
-          </form>
+          </div>
 
           <% } else { %>
           <p class="adm-form-hint">Save the product first, then add documents.</p>
@@ -866,14 +864,18 @@
     <div class="adm-form-actions">
       <button type="submit" class="btn btn-primary"><%= isNew ? 'Create Product' : 'Save Changes' %></button>
       <a href="/admin/products" class="btn btn-outline">Cancel</a>
-      <% if (!isNew && product) { %>
-      <form method="POST" action="/admin/products/<%= product.id %>/delete" style="margin-left:auto"
-        onsubmit="return confirm('Permanently delete this product?')">
-        <button type="submit" class="btn" style="color:#c00;border-color:#c00">Delete Product</button>
-      </form>
-      <% } %>
     </div>
   </form>
+
+  <%# Delete product — standalone form OUTSIDE productForm so it doesn't nest %>
+  <% if (!isNew && product) { %>
+  <div class="adm-form-actions" style="margin-top:0;border-top:none;padding-top:0">
+    <form method="POST" action="/admin/products/<%= product.id %>/delete" style="margin-left:auto"
+      onsubmit="return confirm('Permanently delete this product?')">
+      <button type="submit" class="btn" style="color:#c00;border-color:#c00">Delete Product</button>
+    </form>
+  </div>
+  <% } %>
 </div>
 
 <script>
@@ -1076,6 +1078,95 @@ function imgSaveOrder() {
       if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Image Order'; }
     });
 }
+<% } %>
+
+// ── Document AJAX (add + delete — keeps them out of the main product form) ──
+<% if (!isNew && product) { %>
+(function() {
+  var docTypeLabels = <%- JSON.stringify(Object.fromEntries(
+    ['spec_sheet','installation_guide','warranty','rebate_form',
+     'cad_drawing','measurement_guide','care_guide','other'].map(k => [k, k.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())])
+  )) %>;
+  var addBtn    = document.getElementById('addDocBtn');
+  var typeEl    = document.getElementById('newDocType');
+  var labelEl   = document.getElementById('newDocLabel');
+  var urlEl     = document.getElementById('newDocUrl');
+  var fileEl    = document.getElementById('docFileInput');
+  var fileLbl   = document.getElementById('docFileLabel');
+  var list      = document.getElementById('docList');
+  var noMsg     = document.getElementById('noDocsMsg');
+  var action    = (document.getElementById('addDocForm') || {}).dataset?.action || '/admin/products/<%= product.id %>/docs';
+
+  if (fileEl) fileEl.addEventListener('change', function() {
+    fileLbl.textContent = fileEl.files[0] ? fileEl.files[0].name : 'Choose PDF / Word / image';
+  });
+
+  function _addDocRow(doc) {
+    if (noMsg) noMsg.style.display = 'none';
+    if (list) list.style.display = '';
+    var row = document.createElement('div');
+    row.className = 'adm-doc-row';
+    row.id = 'docRow-' + doc.id;
+    var typeLabel = docTypeLabels[doc.doc_type] || doc.doc_type || '';
+    var linkText  = doc.label || (doc.url || '').split('/').pop() || doc.url || '';
+    row.innerHTML =
+      '<div class="adm-doc-info">'
+      + '<span class="adm-doc-type">' + typeLabel + '</span>'
+      + '<a href="' + doc.url + '" target="_blank" class="adm-doc-link">' + linkText + '</a>'
+      + '</div>'
+      + '<button type="button" class="adm-doc-del" data-doc-id="' + doc.id + '" title="Remove">✕</button>';
+    list.appendChild(row);
+    row.querySelector('.adm-doc-del').addEventListener('click', _deleteDoc);
+  }
+
+  async function _deleteDoc(e) {
+    var btn = e.currentTarget;
+    var docId = btn.dataset.docId;
+    if (!confirm('Remove this document?')) return;
+    btn.disabled = true;
+    try {
+      var r = await fetch('/admin/products/<%= product.id %>/docs/' + docId + '/delete', {
+        method: 'POST', headers: { 'Accept': 'application/json' }
+      });
+      var d = await r.json();
+      if (d.ok) {
+        var row = document.getElementById('docRow-' + docId);
+        if (row) row.remove();
+        if (!list || !list.querySelector('.adm-doc-row')) {
+          if (noMsg) noMsg.style.display = '';
+        }
+      } else { alert(d.msg || 'Error removing document.'); btn.disabled = false; }
+    } catch(e) { alert('Error removing document.'); btn.disabled = false; }
+  }
+
+  // Wire existing delete buttons
+  document.querySelectorAll('#docList .adm-doc-del').forEach(function(b) {
+    b.addEventListener('click', _deleteDoc);
+  });
+
+  if (addBtn) addBtn.addEventListener('click', async function() {
+    var url   = (urlEl  ? urlEl.value.trim()   : '');
+    var file  = (fileEl ? fileEl.files[0]       : null);
+    if (!url && !file) { alert('Paste a URL or choose a file.'); return; }
+    addBtn.disabled = true; addBtn.textContent = 'Adding…';
+    try {
+      var fd = new FormData();
+      fd.append('doc_type', typeEl ? typeEl.value : 'other');
+      fd.append('label',    labelEl ? labelEl.value.trim() : '');
+      if (file) { fd.append('doc_file', file); }
+      else       { fd.append('doc_url',  url); }
+      var r = await fetch(action, { method: 'POST', headers: { 'Accept': 'application/json' }, body: fd });
+      var d = await r.json();
+      if (d.ok) {
+        _addDocRow(d.doc);
+        if (urlEl)   urlEl.value   = '';
+        if (labelEl) labelEl.value = '';
+        if (fileEl)  { fileEl.value = ''; fileLbl.textContent = 'Choose PDF / Word / image'; }
+      } else { alert(d.msg || 'Error adding document.'); }
+    } catch(e) { alert('Error adding document.'); }
+    addBtn.disabled = false; addBtn.textContent = 'Add Document';
+  });
+})();
 <% } %>
 
 // ── Additional video AJAX (no page reload so primary video URL isn't lost) ──

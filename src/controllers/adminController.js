@@ -1369,6 +1369,7 @@ const DOC_TYPE_LABELS = {
 
 exports.productAddDocument = async (req, res, next) => {
   try {
+    const isAjax    = req.headers.accept && req.headers.accept.includes('application/json');
     const productId = req.params.id;
     const { doc_type, label, doc_url } = req.body;
     const validType = DOC_TYPE_LABELS[doc_type] ? doc_type : 'other';
@@ -1381,14 +1382,16 @@ exports.productAddDocument = async (req, res, next) => {
     }
 
     if (!url) {
+      if (isAjax) return res.status(400).json({ ok: false, msg: 'Please provide a URL or upload a file.' });
       req.session.flash = { type: 'error', msg: 'Please provide a URL or upload a file.' };
       return res.redirect(`/admin/products/${productId}/edit`);
     }
 
-    await bvoPool.query(
+    const [result] = await bvoPool.query(
       'INSERT INTO product_documents (product_id, doc_type, url, label, sort_order) VALUES (?,?,?,?,0)',
       [productId, validType, url, docLabel]
     );
+    if (isAjax) return res.json({ ok: true, doc: { id: result.insertId, url, doc_type: validType, label: docLabel } });
     req.session.flash = { type: 'success', msg: 'Document added.' };
     res.redirect(`/admin/products/${productId}/edit`);
   } catch (err) { next(err); }
@@ -1396,8 +1399,10 @@ exports.productAddDocument = async (req, res, next) => {
 
 exports.productDeleteDocument = async (req, res, next) => {
   try {
+    const isAjax = req.headers.accept && req.headers.accept.includes('application/json');
     const { id, docId } = req.params;
     await bvoPool.query('DELETE FROM product_documents WHERE id=? AND product_id=?', [docId, id]);
+    if (isAjax) return res.json({ ok: true });
     req.session.flash = { type: 'success', msg: 'Document removed.' };
     res.redirect(`/admin/products/${id}/edit`);
   } catch (err) { next(err); }
