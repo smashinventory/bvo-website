@@ -29,6 +29,7 @@ if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 // ── Security / performance middleware ────────────────────────────
 app.use(helmet({
   crossOriginEmbedderPolicy: false, // YouTube iframes don't send CORP headers; COEP: require-corp blocks them
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' }, // sends origin to YouTube so it knows the embedding domain
   contentSecurityPolicy: {
     directives: {
       defaultSrc:     ["'self'"],
