@@ -822,8 +822,8 @@
           <% if (!isNew && product) { %>
           <% var _vids = (typeof productVideos !== 'undefined') ? productVideos : []; %>
 
+          <div class="adm-doc-list" id="videoList">
           <% if (_vids.length) { %>
-          <div class="adm-doc-list">
             <% _vids.forEach(function(vid) { %>
             <div class="adm-doc-row">
               <div class="adm-doc-info">
@@ -832,28 +832,25 @@
                   <%= vid.title || vid.url %>
                 </a>
               </div>
-              <form method="POST" action="/admin/products/<%= product.id %>/videos/<%= vid.id %>/delete"
-                onsubmit="return confirm('Remove this video?')" style="display:inline">
-                <button type="submit" class="adm-doc-del" title="Remove">✕</button>
-              </form>
+              <button type="button" class="adm-doc-del" title="Remove"
+                data-vid-id="<%= vid.id %>" data-product-id="<%= product.id %>">✕</button>
             </div>
             <% }); %>
-          </div>
-          <% } else { %>
-          <p class="adm-form-hint" style="margin-bottom:12px">No additional videos yet.</p>
           <% } %>
+          </div>
+          <p id="noVideosMsg" class="adm-form-hint" style="margin-bottom:12px<%= _vids.length ? ';display:none' : '' %>">No additional videos yet.</p>
 
-          <form method="POST" action="/admin/products/<%= product.id %>/videos" class="adm-doc-add-form">
+          <div class="adm-doc-add-form" id="addVideoForm" data-action="/admin/products/<%= product.id %>/videos">
             <div class="adm-form-group" style="margin-bottom:8px">
               <label>Video URL</label>
-              <input type="url" name="add_video_url" placeholder="https://youtube.com/watch?v=… or https://cdn.example.com/video.mp4" required>
+              <input type="url" id="newVideoUrl" placeholder="https://youtube.com/watch?v=… or https://cdn.example.com/video.mp4">
             </div>
             <div class="adm-form-group" style="margin-bottom:8px">
               <label>Title <small style="font-weight:400;opacity:.6">(optional)</small></label>
-              <input type="text" name="title" placeholder="e.g. Full install walkthrough">
+              <input type="text" id="newVideoTitle" placeholder="e.g. Full install walkthrough">
             </div>
-            <button type="submit" class="btn btn-sage" style="white-space:nowrap">Add Video</button>
-          </form>
+            <button type="button" id="addVideoBtn" class="btn btn-sage" style="white-space:nowrap">Add Video</button>
+          </div>
 
           <% } else { %>
           <p class="adm-form-hint">Save the product first, then add additional videos.</p>
@@ -1076,6 +1073,71 @@ function imgSaveOrder() {
       if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Image Order'; }
     });
 }
+<% } %>
+
+// ── Additional video AJAX (no page reload so primary video URL isn't lost) ──
+<% if (!isNew && product) { %>
+(function() {
+  const addBtn   = document.getElementById('addVideoBtn');
+  const urlInput = document.getElementById('newVideoUrl');
+  const titInput = document.getElementById('newVideoTitle');
+  const list     = document.getElementById('videoList');
+  const noMsg    = document.getElementById('noVideosMsg');
+  const prodId   = '<%= product.id %>';
+
+  function _isYT(u) { return /youtu\.be|youtube\.com/.test(u || ''); }
+
+  function _addRow(vid) {
+    if (noMsg) noMsg.style.display = 'none';
+    const row = document.createElement('div');
+    row.className = 'adm-doc-row';
+    row.innerHTML =
+      '<div class="adm-doc-info">'
+      + '<span class="adm-doc-type">' + (_isYT(vid.url) ? 'YouTube' : 'MP4') + '</span>'
+      + '<a href="' + vid.url + '" target="_blank" class="adm-doc-link">' + (vid.title || vid.url) + '</a>'
+      + '</div>'
+      + '<button type="button" class="adm-doc-del" data-vid-id="' + vid.id + '" title="Remove">✕</button>';
+    list.appendChild(row);
+  }
+
+  if (addBtn) {
+    addBtn.addEventListener('click', async function() {
+      const url = (urlInput ? urlInput.value : '').trim();
+      if (!url) { if (urlInput) urlInput.focus(); return; }
+      addBtn.disabled = true; addBtn.textContent = 'Adding…';
+      try {
+        const r = await fetch('/admin/products/' + prodId + '/videos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+          body: 'add_video_url=' + encodeURIComponent(url) + '&title=' + encodeURIComponent(titInput ? titInput.value : ''),
+        });
+        const d = await r.json();
+        if (d.ok) {
+          _addRow(d.video);
+          if (urlInput) urlInput.value = '';
+          if (titInput) titInput.value = '';
+        } else { alert(d.msg || 'Error adding video.'); }
+      } catch(e) { alert('Error adding video. Please try again.'); }
+      finally { addBtn.disabled = false; addBtn.textContent = 'Add Video'; }
+    });
+  }
+
+  // Delete via AJAX
+  if (list) {
+    list.addEventListener('click', async function(e) {
+      const btn = e.target.closest('.adm-doc-del[data-vid-id]');
+      if (!btn) return;
+      if (!confirm('Remove this video?')) return;
+      try {
+        await fetch('/admin/products/' + prodId + '/videos/' + btn.dataset.vidId + '/delete', {
+          method: 'POST', headers: { 'Accept': 'application/json' },
+        });
+        btn.closest('.adm-doc-row').remove();
+        if (!list.querySelector('.adm-doc-row') && noMsg) noMsg.style.display = '';
+      } catch(e) { alert('Error removing video.'); }
+    });
+  }
+})();
 <% } %>
 </script>
 

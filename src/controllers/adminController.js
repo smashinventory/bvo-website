@@ -1407,17 +1407,20 @@ exports.productDeleteDocument = async (req, res, next) => {
 
 exports.productAddVideo = async (req, res, next) => {
   try {
+    const isAjax   = req.headers.accept && req.headers.accept.includes('application/json');
     const productId = req.params.id;
     const url   = (req.body.add_video_url || '').trim();
-    const title = (req.body.title     || '').trim() || null;
+    const title = (req.body.title         || '').trim() || null;
     if (!url) {
+      if (isAjax) return res.status(400).json({ ok: false, msg: 'Please provide a video URL.' });
       req.session.flash = { type: 'error', msg: 'Please provide a video URL.' };
       return res.redirect(`/admin/products/${productId}/edit`);
     }
-    await bvoPool.query(
+    const [result] = await bvoPool.query(
       'INSERT INTO product_videos (product_id, url, title, sort_order) VALUES (?,?,?,0)',
       [productId, url, title]
     );
+    if (isAjax) return res.json({ ok: true, video: { id: result.insertId, url, title } });
     req.session.flash = { type: 'success', msg: 'Video added.' };
     res.redirect(`/admin/products/${productId}/edit`);
   } catch (err) { next(err); }
@@ -1425,8 +1428,10 @@ exports.productAddVideo = async (req, res, next) => {
 
 exports.productDeleteVideo = async (req, res, next) => {
   try {
+    const isAjax = req.headers.accept && req.headers.accept.includes('application/json');
     const { id, vidId } = req.params;
     await bvoPool.query('DELETE FROM product_videos WHERE id=? AND product_id=?', [vidId, id]);
+    if (isAjax) return res.json({ ok: true });
     req.session.flash = { type: 'success', msg: 'Video removed.' };
     res.redirect(`/admin/products/${id}/edit`);
   } catch (err) { next(err); }
