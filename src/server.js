@@ -39,7 +39,7 @@ app.use(helmet({
       imgSrc:         ["'self'", 'data:', 'https:', 'blob:'],
       connectSrc:     ["'self'", 'https://www.google-analytics.com',
                        'https://analytics.google.com', 'https://widget.tidio.co'],
-      frameSrc:       ["'self'"],   // allow same-origin iframe for theme preview
+      frameSrc:       ["'self'", 'https://www.youtube-nocookie.com', 'https://www.youtube.com'],
       objectSrc:      ["'none'"],
     },
   },
