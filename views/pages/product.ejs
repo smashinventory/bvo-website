@@ -314,6 +314,55 @@
 </section>
 <% } %>
 
+<!-- ── Watch This Product ──────────────────────────────────────────── -->
+<%
+  var _allVideos = [];
+  if (product.video_url) _allVideos.push({ url: product.video_url, title: product.name + ' — Product Video' });
+  if (typeof productVideos !== 'undefined') {
+    productVideos.forEach(function(v){ _allVideos.push(v); });
+  }
+  function _isYTUrl(u){ return !!(u && /youtu\.be|youtube\.com/.test(String(u))); }
+  function _ytIdFromUrl(u){
+    if (!u) return null;
+    var m = String(u).match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?.*?v=|shorts\/))([a-zA-Z0-9_-]{11})/);
+    return m ? m[1] : null;
+  }
+%>
+<% if (_allVideos.length) { %>
+<section class="section pdp-videos-section" aria-labelledby="pdp-videos-heading">
+  <div class="pdp-videos-inner">
+    <h2 id="pdp-videos-heading">Watch This Product</h2>
+    <div class="pdp-videos-grid">
+      <% _allVideos.forEach(function(vid, vi) { %>
+      <%
+        var _vIsYT  = _isYTUrl(vid.url);
+        var _vYTId  = _vIsYT ? _ytIdFromUrl(vid.url) : null;
+        var _vTitle = vid.title || (product.name + (vi > 0 ? ' — Video ' + (vi + 1) : ' — Product Video'));
+      %>
+      <div class="pdp-video-item">
+        <div class="pdp-video-embed">
+          <% if (_vIsYT && _vYTId) { %>
+          <iframe
+            src="https://www.youtube-nocookie.com/embed/<%= _vYTId %>?rel=0&modestbranding=1"
+            title="<%= _vTitle %>"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowfullscreen loading="lazy">
+          </iframe>
+          <% } else { %>
+          <video controls preload="metadata" title="<%= _vTitle %>">
+            <source src="<%= vid.url %>" type="video/mp4">
+            Your browser does not support video playback.
+          </video>
+          <% } %>
+        </div>
+        <% if (vid.title) { %><p class="pdp-video-title"><%= vid.title %></p><% } %>
+      </div>
+      <% }); %>
+    </div>
+  </div>
+</section>
+<% } %>
+
 <!-- Related products -->
 <% if (related.length > 0) { %>
 <section class="related-section" aria-labelledby="related-heading">
@@ -394,3 +443,27 @@ if (product.compare_price && product.compare_price > product.price) {
 }
 %>
 <script type="application/ld+json"><%- JSON.stringify(_pdJsonLd) %></script>
+<%
+  var _pdVideos = [];
+  if (product.video_url) _pdVideos.push({ url: product.video_url, title: product.name + ' — Product Video' });
+  if (typeof productVideos !== 'undefined') productVideos.forEach(function(v){ _pdVideos.push(v); });
+  var _pdPrimaryImg = (product.images && product.images[0] && product.images[0].url) || product.primary_image_url || '';
+%>
+<% if (_pdVideos.length) { %>
+<% _pdVideos.forEach(function(vid) {
+  var _vldIsYT = !!(vid.url && /youtu\.be|youtube\.com/.test(vid.url));
+  var _vldYTId = null;
+  if (_vldIsYT) { var _mm = vid.url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?.*?v=|shorts\/))([a-zA-Z0-9_-]{11})/); _vldYTId = _mm ? _mm[1] : null; }
+  var _vldObj = {
+    '@context':     'https://schema.org',
+    '@type':        'VideoObject',
+    name:           vid.title || (product.name + ' — Product Video'),
+    description:    product.short_desc || product.name,
+    thumbnailUrl:   _pdPrimaryImg,
+    uploadDate:     (product.updated_at || product.created_at || new Date()).toISOString ? new Date(product.updated_at || product.created_at || Date.now()).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+  };
+  if (_vldIsYT && _vldYTId) { _vldObj.embedUrl = 'https://www.youtube-nocookie.com/embed/' + _vldYTId; }
+  else { _vldObj.contentUrl = vid.url; }
+%>
+<script type="application/ld+json"><%- JSON.stringify(_vldObj) %></script>
+<% }); } %>

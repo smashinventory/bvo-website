@@ -51,6 +51,9 @@ router.post('/products/:id/images/:imgId/primary', ctrl.productSetPrimaryImage);
 /* Document management */
 router.post('/products/:id/docs',   ctrl.productAddDocumentMiddleware, ctrl.productAddDocument);
 router.post('/products/:id/docs/:docId/delete',                   ctrl.productDeleteDocument);
+/* Video management */
+router.post('/products/:id/videos',              ctrl.productAddVideo);
+router.post('/products/:id/videos/:vidId/delete', ctrl.productDeleteVideo);
 
 /* ── Categories ─────────────────────────────────────────────── */
 router.get ('/categories',                                          ctrl.categoryList);

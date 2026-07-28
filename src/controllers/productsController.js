@@ -25,13 +25,17 @@ exports.show = async (req, res, next) => {
       }
     }
 
-    // Related products + documents (parallel)
-    const [related, docRows] = await Promise.all([
+    // Related products + documents + videos (parallel)
+    const [related, docRows, videoRows] = await Promise.all([
       product.category_id
         ? Product.findRelated(product.category_id, product.id, 4)
         : Promise.resolve([]),
       bvoPool.query(
         'SELECT doc_type, url, label FROM product_documents WHERE product_id = ? ORDER BY sort_order ASC, id ASC',
+        [product.id]
+      ).then(([rows]) => rows).catch(() => []),
+      bvoPool.query(
+        'SELECT url, title FROM product_videos WHERE product_id = ? ORDER BY sort_order ASC, id ASC',
         [product.id]
       ).then(([rows]) => rows).catch(() => []),
     ]);
@@ -59,7 +63,8 @@ exports.show = async (req, res, next) => {
       product,
       category,
       related,
-      productDocs: docRows,
+      productDocs:   docRows,
+      productVideos: videoRows,
       isFavorited,
     });
   } catch (err) { next(err); }

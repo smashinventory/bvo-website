@@ -205,6 +205,7 @@ const Product = {
           p.id, p.slug, p.name, p.brand, p.price, p.compare_price,
           p.is_new, p.is_featured, p.short_desc, p.product_type,
           p.model, p.color, p.color_family,
+          p.video_url,
           COALESCE(p.primary_image_url, pi.url) AS primary_image,
           i.qty_on_hand,
           CASE
@@ -428,6 +429,7 @@ const Product = {
       const [rows] = await bvoPool.query(`
         SELECT
           p.id, p.slug, p.name, p.brand, p.price, p.compare_price, p.is_new,
+          p.video_url,
           COALESCE(p.primary_image_url, pi.url) AS primary_image,
           CASE
             WHEN p.compare_price IS NOT NULL AND p.compare_price > p.price THEN 'sale'

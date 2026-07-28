@@ -379,7 +379,7 @@ exports.productEdit = async (req, res, next) => {
     );
     if (!product) return res.redirect('/admin/products');
 
-    const [categories, productImages, productAttrs, inventoryRow, productDocs] = await Promise.all([
+    const [categories, productImages, productAttrs, inventoryRow, productDocs, productVideos] = await Promise.all([
       Category.findAll(),
       safeQuery(
         'SELECT * FROM product_images WHERE product_id = ? ORDER BY sort_order ASC, is_primary DESC',
@@ -395,6 +395,10 @@ exports.productEdit = async (req, res, next) => {
       ),
       safeQuery(
         'SELECT * FROM product_documents WHERE product_id = ? ORDER BY sort_order ASC, id ASC',
+        [product.id]
+      ),
+      safeQuery(
+        'SELECT * FROM product_videos WHERE product_id = ? ORDER BY sort_order ASC, id ASC',
         [product.id]
       ),
     ]);
@@ -414,6 +418,7 @@ exports.productEdit = async (req, res, next) => {
       productImages,
       productAttrs,
       productDocs,
+      productVideos,
       isNew: false,
     });
     delete req.session.flash;
@@ -483,7 +488,7 @@ exports.productUpdate = async (req, res, next) => {
          total_ship_weight_lbs=?, ships_ltl=?, freight_class=?, harmonized_code=?, lead_time_days=?,
          country_origin=?, prop65=?, release_date=?, status=?,
          is_active=?, is_featured=?, is_new=?,
-         sort_order=?, primary_image_url=?,
+         sort_order=?, primary_image_url=?, video_url=?,
          ${IMG_URL_COLS.map(c => `${c}=?`).join(', ')},
          meta_title=?, meta_desc=?,
          google_product_category=?, google_condition=?, color=?, material=?, pattern=?,
@@ -501,7 +506,7 @@ exports.productUpdate = async (req, res, next) => {
        d.total_ship_weight_lbs, d.ships_ltl, d.freight_class, d.harmonized_code, d.lead_time_days,
        d.country_origin, d.prop65, d.release_date, d.status,
        d.is_active, d.is_featured, d.is_new,
-       d.sort_order, d.primary_image_url,
+       d.sort_order, d.primary_image_url, d.video_url,
        ...IMG_URL_COLS.map(c => d[c]),
        d.meta_title, d.meta_desc,
        d.google_product_category, d.google_condition, d.color, d.material, d.pattern,
@@ -1282,6 +1287,8 @@ function _extractProductFields(body) {
     is_featured:       body.is_featured  ? 1 : 0,
     is_new:            body.is_new       ? 1 : 0,
     sort_order:        int(body.sort_order) ?? 0,
+    // ── Video
+    video_url:         (body.video_url         || '').trim() || null,
     // ── Images (primary + image_2_url … image_30_url)
     primary_image_url: (body.primary_image_url || '').trim() || null,
     ...Object.fromEntries(IMG_URL_COLS.map(c => [c, (body[c] || '').trim() || null])),
@@ -1392,6 +1399,35 @@ exports.productDeleteDocument = async (req, res, next) => {
     const { id, docId } = req.params;
     await bvoPool.query('DELETE FROM product_documents WHERE id=? AND product_id=?', [docId, id]);
     req.session.flash = { type: 'success', msg: 'Document removed.' };
+    res.redirect(`/admin/products/${id}/edit`);
+  } catch (err) { next(err); }
+};
+
+/* ── Product video management ─────────────────────────────────────── */
+
+exports.productAddVideo = async (req, res, next) => {
+  try {
+    const productId = req.params.id;
+    const url   = (req.body.video_url || '').trim();
+    const title = (req.body.title     || '').trim() || null;
+    if (!url) {
+      req.session.flash = { type: 'error', msg: 'Please provide a video URL.' };
+      return res.redirect(`/admin/products/${productId}/edit`);
+    }
+    await bvoPool.query(
+      'INSERT INTO product_videos (product_id, url, title, sort_order) VALUES (?,?,?,0)',
+      [productId, url, title]
+    );
+    req.session.flash = { type: 'success', msg: 'Video added.' };
+    res.redirect(`/admin/products/${productId}/edit`);
+  } catch (err) { next(err); }
+};
+
+exports.productDeleteVideo = async (req, res, next) => {
+  try {
+    const { id, vidId } = req.params;
+    await bvoPool.query('DELETE FROM product_videos WHERE id=? AND product_id=?', [vidId, id]);
+    req.session.flash = { type: 'success', msg: 'Video removed.' };
     res.redirect(`/admin/products/${id}/edit`);
   } catch (err) { next(err); }
 };

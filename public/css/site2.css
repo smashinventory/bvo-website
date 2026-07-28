@@ -1439,3 +1439,67 @@
   .vt-split-60 .vt-video-col,
   .vt-split-40 .vt-video-col { flex: 0 0 100%; width: 100%; }
 }
+
+/* ── Product card video play badge (Rule 11) ───────────────────── */
+.product-video-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.52);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* ── Product page video section (Rule 11) ──────────────────────── */
+.pdp-videos-section { background: var(--whisper, #F8F6F2); padding: 56px 0; }
+.pdp-videos-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+.pdp-videos-inner h2 {
+  font-family: var(--font-heading, 'Lora', serif);
+  font-size: 1.5rem;
+  color: var(--navy, #182840);
+  margin-bottom: 28px;
+  text-align: center;
+}
+.pdp-videos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 28px;
+}
+.pdp-video-item { display: flex; flex-direction: column; gap: 10px; }
+.pdp-video-embed {
+  position: relative;
+  width: 100%;
+  padding-top: 56.25%;
+  background: #000;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.pdp-video-embed iframe,
+.pdp-video-embed video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+.pdp-video-title {
+  font-size: .88rem;
+  color: #444;
+  font-weight: 500;
+  text-align: center;
+}
+@media (max-width: 640px) {
+  .pdp-videos-section { padding: 40px 0; }
+  .pdp-videos-grid { grid-template-columns: 1fr; }
+}
