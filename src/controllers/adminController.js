@@ -1408,7 +1408,7 @@ exports.productDeleteDocument = async (req, res, next) => {
 exports.productAddVideo = async (req, res, next) => {
   try {
     const productId = req.params.id;
-    const url   = (req.body.video_url || '').trim();
+    const url   = (req.body.add_video_url || '').trim();
     const title = (req.body.title     || '').trim() || null;
     if (!url) {
       req.session.flash = { type: 'error', msg: 'Please provide a video URL.' };
