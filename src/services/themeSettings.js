@@ -140,6 +140,15 @@ const DEFAULTS = {
     cta_url: '/collections/bathroom-vanities',
     limit: 4,
   },
+  featured_models: {
+    enabled: true,
+    eyebrow: 'Shop by Collection',
+    title: 'Featured Models',
+    subtitle: 'Explore our most popular vanity collections — click a finish to see it in action.',
+    cta_text: 'See All Our Models',
+    cta_url: '/collections/vanity-models',
+    limit: 8,
+  },
   image_with_text: {
     enabled: true,
     image_url: '',

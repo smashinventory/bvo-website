@@ -120,9 +120,10 @@ async function getFeaturedProducts() {
   }
 }
 
-async function getFeaturedModels() {
+async function getFeaturedModels(limit = 8) {
   try {
-    /* Top 8 models by product count — with swatch data */
+    const safeLimit = Math.max(1, Math.min(20, parseInt(limit) || 8));
+    /* Top N models by product count — with swatch data */
     const [modelRows] = await bvoPool.query(`
       SELECT
         p.model,
@@ -142,8 +143,8 @@ async function getFeaturedModels() {
       WHERE p.is_active = 1 AND p.model IS NOT NULL
       GROUP BY p.model, p.brand
       ORDER BY COUNT(*) DESC
-      LIMIT 8
-    `);
+      LIMIT ?
+    `, [safeLimit]);
 
     if (!modelRows.length) return [];
 
@@ -276,13 +277,15 @@ async function getFeaturedCategories() {
 
 exports.index = async (req, res, next) => {
   try {
+    const ts = themeSettings.get();
+    const fmSettings = ts.featured_models || {};
+    const fmLimit    = fmSettings.limit || 8;
+
     const [products, categories, featuredModels] = await Promise.all([
       getFeaturedProducts(),
       getFeaturedCategories(),
-      getFeaturedModels(),
+      fmSettings.enabled !== false ? getFeaturedModels(fmLimit) : Promise.resolve([]),
     ]);
-
-    const ts = themeSettings.get();
 
     res.render('pages/index', {
       pageTitle: ts.seo?.home_title || 'BathroomVanitiesOutlet.com — Premium Vanities at Outlet Prices',

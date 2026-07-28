@@ -25,13 +25,14 @@ const THEME_SECS = [
   { key:'seo',     label:'SEO & Meta' },
   { key:'global',  label:'Global Settings' },
 ];
-const ALL_TEMPLATE_KEYS = ['scrolling_ticker','hero','brand_logos','categories_section','featured_section','image_with_text','video_text','image_with_text_2','before_after','before_after_2','trust_band','parallax','testimonials','newsletter'];
+const ALL_TEMPLATE_KEYS = ['scrolling_ticker','hero','brand_logos','categories_section','featured_section','featured_models','image_with_text','video_text','image_with_text_2','before_after','before_after_2','trust_band','parallax','testimonials','newsletter'];
 const TEMPLATE_META = {
   scrolling_ticker:   { label:'Announcement Bar',    desc:'Scrolling promo ticker at page top' },
   hero:               { label:'Hero Banner',          desc:'Full-width hero with CTAs' },
   brand_logos:        { label:'Brand Logos',          desc:'Scrolling brand marquee' },
   categories_section: { label:'Category Grid',        desc:'Shop-by-category cards' },
   featured_section:   { label:'Featured Products',    desc:'Handpicked product grid' },
+  featured_models:    { label:'Featured Models',      desc:'Model collection carousel with swatches' },
   image_with_text:    { label:'Image with Text',      desc:'Split image + copy block' },
   video_text:         { label:'Video + Text',         desc:'Split video and text content block' },
   image_with_text_2:  { label:'Image with Text (2)',  desc:'Second image + text block (duplicate)' },
@@ -68,6 +69,7 @@ function secIcon(key) {
     brand_logos: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
     categories_section:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>',
     featured_section:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="2" width="9" height="9" rx="1"/><rect x="13" y="2" width="9" height="9" rx="1"/><rect x="2" y="13" width="9" height="9" rx="1"/><rect x="13" y="13" width="9" height="9" rx="1"/></svg>',
+    featured_models:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8" cy="12" r="2"/><line x1="13" y1="9" x2="19" y2="9"/><line x1="13" y1="12" x2="19" y2="12"/><line x1="13" y1="15" x2="17" y2="15"/></svg>',
     image_with_text:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>',
     image_with_text_2:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/><text x="16" y="7" font-size="6" fill="currentColor" stroke="none">2</text></svg>',
     before_after:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg>',
@@ -749,6 +751,34 @@ function teArrayLinks(prefix,listId,tplId,items){
             <div class="te4-row2">
               <%- teField('text','featured_section.cta_text','CTA label',fsec.cta_text) %>
               <%- teField('url', 'featured_section.cta_url', 'CTA URL',  fsec.cta_url) %>
+            </div>
+          </div>
+
+          <!-- ── FEATURED MODELS ───────────────────────────────── -->
+          <div class="te4-panel" id="panel-featured_models">
+            <% const fmsec=t.featured_models||{}; %>
+            <p class="te4-panel-desc">Model collection carousel — shows the top vanity lines with finish swatches and size chips. Models are pulled automatically from your product catalog by popularity.</p>
+            <%- teToggle('featured_models.enabled','Show section',fmsec.enabled!==false) %>
+            <div class="te4-section-label">Section header</div>
+            <%- teField('text','featured_models.eyebrow','Eyebrow',fmsec.eyebrow||'Shop by Collection') %>
+            <div class="te4-row2">
+              <%- teHeadingLevel('featured_models.title_level',fmsec.title_level||'h2') %>
+              <%- teAlignment('featured_models.text_align',fmsec.text_align||'center') %>
+            </div>
+            <%- teField('text','featured_models.title','Title',fmsec.title||'Featured Models') %>
+            <%- teField('text','featured_models.subtitle','Subtitle',fmsec.subtitle) %>
+            <div class="te4-section-label">Display</div>
+            <div class="te4-field">
+              <label>Models to show</label>
+              <div class="te4-slider-wrap">
+                <input type="range" class="te4-slider" name="featured_models.limit" min="2" max="16" step="1" value="<%=fmsec.limit||8%>">
+                <input type="number" class="te4-slider-num" min="2" max="16" step="1" value="<%=fmsec.limit||8%>">
+              </div>
+            </div>
+            <div class="te4-section-label">Call to action</div>
+            <div class="te4-row2">
+              <%- teField('text','featured_models.cta_text','CTA label',fmsec.cta_text||'See All Our Models') %>
+              <%- teField('url', 'featured_models.cta_url', 'CTA URL',  fmsec.cta_url||'/collections/vanity-models') %>
             </div>
           </div>
 

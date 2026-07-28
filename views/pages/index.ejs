@@ -5,6 +5,7 @@ const tick = S.scrolling_ticker   || {};
 const bl   = S.brand_logos        || {};
 const cs   = S.categories_section || {};
 const fs_  = S.featured_section   || {};
+const fm_  = S.featured_models    || {};
 const iwt  = S.image_with_text    || {};
 const iwt2 = S.image_with_text_2  || {};
 const vt   = S.video_text         || {};
@@ -37,7 +38,7 @@ function _salsifyImg(url, w, h) {
 }
 
 const _DEFAULT_ORDER = ['scrolling_ticker','hero','brand_logos','categories_section',
-  'featured_section','image_with_text','video_text','before_after','trust_band','parallax','testimonials','newsletter'];
+  'featured_section','featured_models','image_with_text','video_text','before_after','trust_band','parallax','testimonials','newsletter'];
 const _VALID_KEYS = new Set([..._DEFAULT_ORDER, 'image_with_text_2','before_after_2']);
 const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_section_order.length)
   ? S.homepage_section_order
@@ -326,15 +327,16 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
     <a href="<%= fs_.cta_url || '/collections/bathroom-vanities' %>" class="btn btn-outline"><%= fs_.cta_text || 'View All Products' %></a>
   </div>
 </section>
+<% } /* end featured_section */ %>
 
-<!-- ── FEATURED MODELS (always follows featured_section) ─────────── -->
-<% if (typeof featuredModels !== 'undefined' && featuredModels && featuredModels.length) { %>
+<!-- ── FEATURED MODELS ───────────────────────────────────────────── -->
+<% if (sectionKey === 'featured_models' && fm_.enabled !== false && typeof featuredModels !== 'undefined' && featuredModels && featuredModels.length) { %>
 <% var _carouselModels = featuredModels; %>
-<section class="section section-alt" id="featured-models-section" aria-labelledby="feat-models-heading">
-  <div class="section-header">
-    <p class="section-eyebrow">Shop by Collection</p>
-    <h2 class="section-title" id="feat-models-heading">Featured Models</h2>
-    <p class="section-sub">Explore our most popular vanity collections — click a finish to see it in action.</p>
+<section class="section section-alt" id="featured-models-section" data-section="featured_models" data-section-label="Featured Models" aria-labelledby="feat-models-heading">
+  <div class="section-header" style="text-align:<%= fm_.text_align || 'center' %>">
+    <p class="section-eyebrow"><%= fm_.eyebrow || 'Shop by Collection' %></p>
+    <h2 class="section-title" id="feat-models-heading"><%= fm_.title || 'Featured Models' %></h2>
+    <p class="section-sub"><%= fm_.subtitle || 'Explore our most popular vanity collections — click a finish to see it in action.' %></p>
   </div>
 
   <div class="fm-carousel-outer">
@@ -451,11 +453,10 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
   </div><!-- /.fm-carousel-outer -->
 
   <div class="section-cta">
-    <a href="/collections/vanity-models" class="btn btn-navy">See All Our Models</a>
+    <a href="<%= fm_.cta_url || '/collections/vanity-models' %>" class="btn btn-navy"><%= fm_.cta_text || 'See All Our Models' %></a>
   </div>
 </section>
-<% } /* end featuredModels */ %>
-<% } /* end featured_section */ %>
+<% } /* end featured_models */ %>
 
 <!-- ── IMAGE WITH TEXT ───────────────────────────────────────────── -->
 <% if (sectionKey === 'image_with_text' && iwt.enabled !== false) { %>
