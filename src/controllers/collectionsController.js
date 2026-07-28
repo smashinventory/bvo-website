@@ -259,7 +259,9 @@ exports.show = async (req, res, next) => {
           COALESCE(
             MIN(CASE WHEN p.primary_image_url IS NOT NULL THEN p.primary_image_url END),
             MIN(pi.url)
-          )                                                AS image_url
+          )                                                AS image_url,
+          MIN(CASE WHEN p.video_url IS NOT NULL THEN p.video_url END)
+                                                           AS video_url
         FROM products p
         LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
         WHERE ${mgWhere}
