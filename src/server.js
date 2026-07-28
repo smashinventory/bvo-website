@@ -99,12 +99,11 @@ app.use('/images/uploads', express.static(uploadDir, {
 
 app.use(express.static(path.join(__dirname, '..', 'public'), {
   maxAge: '7d',
-  setHeaders(res, filePath) {
-    // Versioned assets (have ?v= query in URL matched via path extension)
-    // Use long-lived cache; version bump in ?v= busts it
-    if (/\.(css|js|woff2?|png|jpe?g|gif|ico|svg|webp)$/.test(filePath)) {
-      res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
-    }
+  setHeaders(res) {
+    // All public assets are versioned via ?v= query string — safe to cache long-term.
+    // Unconditional (no extension check) so the header is always sent, even if a
+    // proxy/LiteSpeed strips the maxAge-derived header from the send module.
+    res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
   },
 }));
 

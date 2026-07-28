@@ -650,17 +650,20 @@ document.addEventListener('DOMContentLoaded', function () {
   var GAP = 20;  // px — matches 1.25rem gap in CSS
 
   // Set card widths — responsive: 4 desktop, 2 tablet, 1.2 phone (peek effect)
+  // Reads layout first, then batches all writes in rAF to avoid forced reflow.
   function sizeCards() {
-    var trackW = track.offsetWidth;
+    var trackW = track.offsetWidth; /* read */
     if (!trackW) return;
-    var vw      = window.innerWidth;
+    var vw      = window.innerWidth; /* read */
     var VISIBLE = vw < 520 ? 1.2 : vw < 768 ? 2 : 4;
-    var cardW = Math.floor((trackW - (VISIBLE - 1) * GAP) / VISIBLE);
-    track.querySelectorAll('.model-card').forEach(function (card) {
-      card.style.width    = cardW + 'px';
-      card.style.minWidth = cardW + 'px';
+    var cardW   = Math.floor((trackW - (VISIBLE - 1) * GAP) / VISIBLE);
+    requestAnimationFrame(function () { /* batch all writes */
+      track.querySelectorAll('.model-card').forEach(function (card) {
+        card.style.width    = cardW + 'px';
+        card.style.minWidth = cardW + 'px';
+      });
+      syncArrows();
     });
-    syncArrows();
   }
 
   // Show/hide arrows based on scroll position
@@ -702,16 +705,18 @@ document.addEventListener('DOMContentLoaded', function () {
   var GAP = 20;
 
   function sizeCards() {
-    var trackW = track.offsetWidth;
+    var trackW = track.offsetWidth; /* read */
     if (!trackW) return;
-    var vw      = window.innerWidth;
+    var vw      = window.innerWidth; /* read */
     var VISIBLE = vw < 520 ? 1.5 : vw < 768 ? 2 : 4;
     var cardW   = Math.floor((trackW - (VISIBLE - 1) * GAP) / VISIBLE);
-    track.querySelectorAll('.cat-card').forEach(function (card) {
-      card.style.width    = cardW + 'px';
-      card.style.minWidth = cardW + 'px';
+    requestAnimationFrame(function () { /* batch all writes */
+      track.querySelectorAll('.cat-card').forEach(function (card) {
+        card.style.width    = cardW + 'px';
+        card.style.minWidth = cardW + 'px';
+      });
+      syncArrows();
     });
-    syncArrows();
   }
 
   function syncArrows() {

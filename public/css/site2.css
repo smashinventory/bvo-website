@@ -1494,6 +1494,13 @@
   z-index: 2;
 }
 
+/* Override: .product-img svg sets opacity:.3 for placeholder — restore badge icon */
+.product-video-badge svg {
+  opacity: 1 !important;
+  color: #fff !important;
+  display: block;
+}
+
 /* ── Product page video section (Rule 11) ──────────────────────── */
 .pdp-videos-section { background: var(--whisper, #F8F6F2); padding: 56px 0; }
 .pdp-videos-inner {

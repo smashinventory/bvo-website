@@ -80,7 +80,7 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   <!-- Main site CSS (blocking) -->
   <link rel="stylesheet" href="/css/site.css?v=5">
   <!-- Extended styles (blocking — carousel/card styles must be present before JS sizeCards() runs) -->
-  <link rel="stylesheet" href="/css/site2.css?v=21">
+  <link rel="stylesheet" href="/css/site2.css?v=22">
 
   <!-- Design tokens: CSS var aliases resolved before external CSS (prevents cascade gaps) -->
   <style>
@@ -164,7 +164,7 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   <script>window.__bvoIsLoggedIn = <%= (typeof isLoggedIn !== 'undefined' && isLoggedIn) ? 'true' : 'false' %>;</script>
 
   <!-- Site JS -->
-  <script src="/js/site.js?v=2"></script>
+  <script src="/js/site.js?v=3"></script>
 
   <!-- Page-level scripts -->
   <%- script %>

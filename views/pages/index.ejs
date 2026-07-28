@@ -112,8 +112,9 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
       <% if (_isYT(hero.video_url)) { var _ytVid = _ytId(hero.video_url); %>
         <% if (_ytVid) { %>
         <div class="hero-video-wrap">
+          <%/* data-src instead of src — JS injects after window.load so YouTube never blocks FCP */%>
           <iframe class="hero-video-iframe" data-hero-video="yt"
-            src="https://www.youtube-nocookie.com/embed/<%= _ytVid %>?autoplay=1&mute=1&loop=1&controls=0&playlist=<%= _ytVid %>&rel=0&showinfo=0&modestbranding=1&playsinline=1"
+            data-src="https://www.youtube-nocookie.com/embed/<%= _ytVid %>?autoplay=1&mute=1&loop=1&controls=0&playlist=<%= _ytVid %>&rel=0&showinfo=0&modestbranding=1&playsinline=1"
             allow="autoplay; encrypted-media; picture-in-picture" frameborder="0" aria-hidden="true" tabindex="-1" title="Hero background video">
           </iframe>
         </div>
@@ -804,27 +805,36 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
   }
 </style>
 <script>
-/* ── Hero video fade-in (poster → video) ── */
+/* ── Hero video — defer until after page paint to protect FCP ── */
 (function () {
-  /* YouTube iframe: fade in after load, fade out poster */
-  var ytIframe = document.querySelector('.hero-video-iframe[data-hero-video="yt"]');
-  if (ytIframe) {
-    ytIframe.addEventListener('load', function () {
-      setTimeout(function () {
-        ytIframe.classList.add('is-ready');
+  function initHeroVideo() {
+    /* YouTube iframe: inject src from data-src so it never blocks initial render */
+    var ytIframe = document.querySelector('.hero-video-iframe[data-hero-video="yt"]');
+    if (ytIframe && ytIframe.dataset.src) {
+      ytIframe.addEventListener('load', function () {
+        setTimeout(function () {
+          ytIframe.classList.add('is-ready');
+          var poster = document.querySelector('.hero-poster');
+          if (poster) poster.classList.add('is-hidden');
+        }, 800); /* brief delay so YouTube has rendered its first frame */
+      });
+      ytIframe.src = ytIframe.dataset.src; /* triggers load */
+    }
+    /* Direct <video>: fade in on canplay */
+    var mp4Vid = document.querySelector('.hero-video-player[data-hero-video="mp4"]');
+    if (mp4Vid) {
+      mp4Vid.addEventListener('canplay', function () {
+        mp4Vid.classList.add('is-ready');
         var poster = document.querySelector('.hero-poster');
         if (poster) poster.classList.add('is-hidden');
-      }, 800); /* brief delay so YouTube has rendered its first frame */
-    });
+      }, { once: true });
+    }
   }
-  /* Direct <video>: fade in on canplay */
-  var mp4Vid = document.querySelector('.hero-video-player[data-hero-video="mp4"]');
-  if (mp4Vid) {
-    mp4Vid.addEventListener('canplay', function () {
-      mp4Vid.classList.add('is-ready');
-      var poster = document.querySelector('.hero-poster');
-      if (poster) poster.classList.add('is-hidden');
-    }, { once: true });
+  /* Wait until after the browser has painted the page */
+  if (document.readyState === 'complete') {
+    initHeroVideo();
+  } else {
+    window.addEventListener('load', initHeroVideo);
   }
 }());
 </script>
