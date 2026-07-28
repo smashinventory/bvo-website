@@ -22,6 +22,7 @@ async function getFeaturedProducts() {
     const [rows] = await bvoPool.query(`
       SELECT
         p.id, p.slug, p.name, p.brand, p.price, p.compare_price, p.is_new, p.model,
+        p.video_url,
         COALESCE(p.primary_image_url, pi.url) AS primary_image,
         COALESCE(inv.qty_on_hand, 0) AS qty_on_hand,
         CASE
@@ -133,7 +134,8 @@ async function getFeaturedModels() {
         COALESCE(
           MIN(CASE WHEN p.primary_image_url IS NOT NULL THEN p.primary_image_url END),
           MIN(pi.url)
-        ) AS image_url
+        ) AS image_url,
+        MIN(CASE WHEN p.video_url IS NOT NULL THEN p.video_url END) AS video_url
       FROM products p
       LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
       JOIN categories c ON c.id = p.category_id AND c.slug = 'bathroom-vanities'

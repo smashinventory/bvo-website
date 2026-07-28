@@ -364,6 +364,11 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
                  id="model-img-<%= _mId %>"
                  loading="lazy">
           </a>
+          <% if (m.video_url) { %>
+          <span class="product-video-badge" aria-label="Video available">
+            <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          </span>
+          <% } %>
         </div>
 
         <div class="model-card-body">
