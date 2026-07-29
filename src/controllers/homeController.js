@@ -123,28 +123,83 @@ async function getFeaturedProducts() {
 async function getFeaturedModels(limit = 8) {
   try {
     const safeLimit = Math.max(1, Math.min(20, parseInt(limit) || 8));
-    /* Top N models by product count — with swatch data */
-    const [modelRows] = await bvoPool.query(`
-      SELECT
-        p.model,
-        p.brand,
-        MIN(p.price)          AS price_from,
-        MAX(p.price)          AS price_to,
-        MIN(p.compare_price)  AS compare_price_from,
-        GROUP_CONCAT(DISTINCT FLOOR(p.width_in) ORDER BY p.width_in) AS sizes_csv,
-        COALESCE(
-          MIN(CASE WHEN p.primary_image_url IS NOT NULL THEN p.primary_image_url END),
-          MIN(pi.url)
-        ) AS image_url,
-        MIN(CASE WHEN p.video_url IS NOT NULL THEN p.video_url END) AS video_url
-      FROM products p
-      LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
-      JOIN categories c ON c.id = p.category_id AND c.slug = 'bathroom-vanities'
-      WHERE p.is_active = 1 AND p.model IS NOT NULL
-      GROUP BY p.model, p.brand
-      ORDER BY COUNT(*) DESC
-      LIMIT ?
-    `, [safeLimit]);
+
+    /* ── Check for curated model_groups featured records first ── */
+    let curatedModels = [];
+    try {
+      const [mgRows] = await bvoPool.query(`
+        SELECT model_name, is_featured, sort_order,
+               custom_image, image_alt, video_url AS mg_video_url, description
+        FROM model_groups
+        WHERE is_featured = 1
+        ORDER BY sort_order, model_name
+        LIMIT ?
+      `, [safeLimit]);
+      curatedModels = mgRows;
+    } catch (mgErr) {
+      // model_groups table may not exist yet — fall through to auto-ranking
+      console.warn('[getFeaturedModels] model_groups query failed (table may not exist yet):', mgErr.message);
+    }
+
+    /* ── Determine model names to fetch (curated list, or auto-top-N) ── */
+    let useCurated = curatedModels.length > 0;
+    let modelRows;
+
+    if (useCurated) {
+      const curatedNames = curatedModels.map(r => r.model_name);
+      const ph = curatedNames.map(() => '?').join(',');
+      [modelRows] = await bvoPool.query(`
+        SELECT
+          p.model,
+          p.brand,
+          MIN(p.price)          AS price_from,
+          MAX(p.price)          AS price_to,
+          MIN(p.compare_price)  AS compare_price_from,
+          GROUP_CONCAT(DISTINCT FLOOR(p.width_in) ORDER BY p.width_in) AS sizes_csv,
+          COALESCE(
+            MIN(CASE WHEN p.primary_image_url IS NOT NULL THEN p.primary_image_url END),
+            MIN(pi.url)
+          ) AS image_url,
+          MIN(CASE WHEN p.video_url IS NOT NULL THEN p.video_url END) AS video_url
+        FROM products p
+        LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
+        JOIN categories c ON c.id = p.category_id AND c.slug = 'bathroom-vanities'
+        WHERE p.is_active = 1 AND p.model IN (${ph})
+        GROUP BY p.model, p.brand
+      `, curatedNames);
+
+      // Restore curated sort order (SQL IN() doesn't guarantee order)
+      const orderMap = {};
+      curatedModels.forEach((r, i) => { orderMap[r.model_name] = i; });
+      modelRows.sort((a, b) => (orderMap[a.model] ?? 999) - (orderMap[b.model] ?? 999));
+    } else {
+      /* Auto-top-N by product count — original behaviour */
+      [modelRows] = await bvoPool.query(`
+        SELECT
+          p.model,
+          p.brand,
+          MIN(p.price)          AS price_from,
+          MAX(p.price)          AS price_to,
+          MIN(p.compare_price)  AS compare_price_from,
+          GROUP_CONCAT(DISTINCT FLOOR(p.width_in) ORDER BY p.width_in) AS sizes_csv,
+          COALESCE(
+            MIN(CASE WHEN p.primary_image_url IS NOT NULL THEN p.primary_image_url END),
+            MIN(pi.url)
+          ) AS image_url,
+          MIN(CASE WHEN p.video_url IS NOT NULL THEN p.video_url END) AS video_url
+        FROM products p
+        LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
+        JOIN categories c ON c.id = p.category_id AND c.slug = 'bathroom-vanities'
+        WHERE p.is_active = 1 AND p.model IS NOT NULL
+        GROUP BY p.model, p.brand
+        ORDER BY COUNT(*) DESC
+        LIMIT ?
+      `, [safeLimit]);
+    }
+
+    /* Build curated overlay map: model_name → {custom_image, mg_video_url, description} */
+    const mgOverlay = {};
+    curatedModels.forEach(r => { mgOverlay[r.model_name] = r; });
 
     if (!modelRows.length) return [];
 
@@ -250,12 +305,20 @@ async function getFeaturedModels(limit = 8) {
       }));
     }
 
-    return modelRows.map(r => ({
-      ...r,
-      sizes:        modelBuckets[r.model] || [],
-      finishes:     swatchMap[r.model]    || [],
-      sizeImageMap: sizeImageMap[r.model] || {},
-    }));
+    return modelRows.map(r => {
+      const ov = mgOverlay[r.model] || {};
+      return {
+        ...r,
+        // Curated overrides: custom_image wins over auto product image
+        image_url:    ov.custom_image  || r.image_url,
+        video_url:    ov.mg_video_url  || r.video_url,
+        mg_desc:      ov.description   || null,   // tagline from model_groups
+        is_curated:   !!ov.model_name,
+        sizes:        modelBuckets[r.model] || [],
+        finishes:     swatchMap[r.model]    || [],
+        sizeImageMap: sizeImageMap[r.model] || {},
+      };
+    });
   } catch {
     return [];
   }

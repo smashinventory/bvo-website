@@ -2384,3 +2384,301 @@ exports.categoryEditPage = async (req, res, next) => {
     delete req.session.flash;
   } catch (err) { next(err); }
 };
+
+/* ════════════════════════════════════════════════════════════════
+   MODEL GROUPS  — /admin/models
+   Curated metadata overlay on top of auto-derived product models.
+   The model_groups table is BVO-only (never touched by RFLPOS sync).
+   ════════════════════════════════════════════════════════════════ */
+
+let _mgTableReady = false;
+async function _ensureModelGroupsTable() {
+  if (_mgTableReady) return;
+
+  // Create base table if it doesn't exist at all
+  await bvoPool.query(`
+    CREATE TABLE IF NOT EXISTS model_groups (
+      id               INT AUTO_INCREMENT PRIMARY KEY,
+      model_name       VARCHAR(255) NOT NULL UNIQUE,
+      is_featured      TINYINT(1)  NOT NULL DEFAULT 0,
+      sort_order       INT         NOT NULL DEFAULT 0,
+      custom_image     VARCHAR(500)         DEFAULT NULL,
+      image_alt        VARCHAR(255)         DEFAULT NULL,
+      video_url        VARCHAR(500)         DEFAULT NULL,
+      description      TEXT                 DEFAULT NULL,
+      meta_title       VARCHAR(255)         DEFAULT NULL,
+      meta_description TEXT                 DEFAULT NULL,
+      og_image         VARCHAR(500)         DEFAULT NULL,
+      created_at       TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at       TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  // Patch any columns missing from an older schema (safe to re-run)
+  const [cols] = await bvoPool.query(`
+    SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'model_groups'
+  `);
+  const existing = new Set(cols.map(c => c.COLUMN_NAME));
+
+  const migrations = [
+    { name: 'is_featured',      sql: 'ADD COLUMN is_featured TINYINT(1) NOT NULL DEFAULT 0 AFTER model_name' },
+    { name: 'sort_order',       sql: 'ADD COLUMN sort_order INT NOT NULL DEFAULT 0 AFTER is_featured' },
+    { name: 'custom_image',     sql: 'ADD COLUMN custom_image VARCHAR(500) DEFAULT NULL AFTER sort_order' },
+    { name: 'image_alt',        sql: 'ADD COLUMN image_alt VARCHAR(255) DEFAULT NULL AFTER custom_image' },
+    { name: 'video_url',        sql: 'ADD COLUMN video_url VARCHAR(500) DEFAULT NULL AFTER image_alt' },
+    { name: 'description',      sql: 'ADD COLUMN description TEXT DEFAULT NULL AFTER video_url' },
+    { name: 'meta_title',       sql: 'ADD COLUMN meta_title VARCHAR(255) DEFAULT NULL AFTER description' },
+    { name: 'meta_description', sql: 'ADD COLUMN meta_description TEXT DEFAULT NULL AFTER meta_title' },
+    { name: 'og_image',         sql: 'ADD COLUMN og_image VARCHAR(500) DEFAULT NULL AFTER meta_description' },
+    { name: 'created_at',       sql: 'ADD COLUMN created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP' },
+    { name: 'updated_at',       sql: 'ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP' },
+  ];
+  for (const m of migrations) {
+    if (!existing.has(m.name)) {
+      await bvoPool.query(`ALTER TABLE model_groups ${m.sql}`);
+      console.log(`[model_groups] Added column: ${m.name}`);
+    }
+  }
+
+  _mgTableReady = true;
+}
+
+/** GET /admin/models */
+exports.modelList = async (req, res, next) => {
+  try {
+    await _ensureModelGroupsTable();
+
+    // All distinct models from products DB (with stats)
+    const [productModels] = await bvoPool.query(`
+      SELECT
+        p.model                           AS model_name,
+        COUNT(*)                          AS product_count,
+        MIN(p.price)                      AS price_from,
+        COALESCE(
+          MIN(CASE WHEN p.primary_image_url IS NOT NULL THEN p.primary_image_url END),
+          MIN(pi.url)
+        )                                 AS auto_image
+      FROM products p
+      LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
+      JOIN categories c ON c.id = p.category_id AND c.slug = 'bathroom-vanities'
+      WHERE p.is_active = 1 AND p.model IS NOT NULL AND p.model != ''
+      GROUP BY p.model
+      ORDER BY COUNT(*) DESC
+    `);
+
+    // All model_groups records
+    const [mgRows] = await bvoPool.query(
+      `SELECT id, model_name, is_featured, sort_order, custom_image, image_alt, video_url,
+              description, meta_title, meta_description, og_image
+       FROM model_groups ORDER BY sort_order, model_name`
+    );
+    const mgMap = {};
+    for (const r of mgRows) mgMap[r.model_name] = r;
+
+    // Merge: each product model gets its model_groups overlay (if any)
+    const models = productModels.map(pm => ({
+      ...pm,
+      mg: mgMap[pm.model_name] || null,
+    }));
+
+    // Also surface any model_groups rows whose model no longer exists in products
+    const orphans = mgRows.filter(r => !productModels.find(pm => pm.model_name === r.model_name));
+
+    res.render('pages/admin/models', {
+      ...LAYOUT,
+      pageTitle:  'Model Groups | BVO Admin',
+      activePage: 'models',
+      flash:      req.session.flash || null,
+      models,
+      orphans,
+    });
+    delete req.session.flash;
+  } catch (err) { next(err); }
+};
+
+/** GET /admin/models/new */
+exports.modelNew = async (req, res, next) => {
+  try {
+    await _ensureModelGroupsTable();
+    // Dropdown of all model names not yet in model_groups
+    const [allModels] = await bvoPool.query(`
+      SELECT DISTINCT p.model AS model_name
+      FROM products p
+      JOIN categories c ON c.id = p.category_id AND c.slug = 'bathroom-vanities'
+      WHERE p.is_active = 1 AND p.model IS NOT NULL AND p.model != ''
+      ORDER BY p.model
+    `);
+    const [existing] = await bvoPool.query(`SELECT model_name FROM model_groups`);
+    const existingSet = new Set(existing.map(r => r.model_name));
+    const available = allModels.filter(r => !existingSet.has(r.model_name));
+
+    res.render('pages/admin/model-edit', {
+      ...LAYOUT,
+      pageTitle:  'New Model Group | BVO Admin',
+      activePage: 'models',
+      flash:      req.session.flash || null,
+      mg:         null,
+      isNew:      true,
+      available,
+      query:      req.query,   // pass ?model= pre-fill
+    });
+    delete req.session.flash;
+  } catch (err) { next(err); }
+};
+
+/** GET /admin/models/:id/edit */
+exports.modelEditPage = async (req, res, next) => {
+  try {
+    await _ensureModelGroupsTable();
+    const id = parseInt(req.params.id);
+    const [[mg]] = await bvoPool.query(
+      `SELECT * FROM model_groups WHERE id = ?`, [id]
+    );
+    if (!mg) {
+      req.session.flash = { type: 'error', msg: 'Model group not found.' };
+      return res.redirect('/admin/models');
+    }
+    res.render('pages/admin/model-edit', {
+      ...LAYOUT,
+      pageTitle:  `Edit: ${mg.model_name} | BVO Admin`,
+      activePage: 'models',
+      flash:      req.session.flash || null,
+      mg,
+      isNew:      false,
+      available:  [],
+    });
+    delete req.session.flash;
+  } catch (err) { next(err); }
+};
+
+/** POST /admin/models — create */
+exports.modelCreate = async (req, res, next) => {
+  try {
+    await _ensureModelGroupsTable();
+    const model_name       = (req.body.model_name       || '').trim();
+    const is_featured      = req.body.is_featured      ? 1 : 0;
+    const sort_order       = parseInt(req.body.sort_order)      || 0;
+    const custom_image     = (req.body.custom_image     || '').trim() || null;
+    const image_alt        = (req.body.image_alt        || '').trim() || null;
+    const video_url        = (req.body.video_url        || '').trim() || null;
+    const description      = (req.body.description      || '').trim() || null;
+    const meta_title       = (req.body.meta_title       || '').trim() || null;
+    const meta_description = (req.body.meta_description || '').trim() || null;
+    const og_image         = (req.body.og_image         || '').trim() || null;
+
+    if (!model_name) {
+      req.session.flash = { type: 'error', msg: 'Model name is required.' };
+      return res.redirect('/admin/models/new');
+    }
+    const [result] = await bvoPool.query(
+      `INSERT INTO model_groups
+         (model_name, is_featured, sort_order, custom_image, image_alt, video_url,
+          description, meta_title, meta_description, og_image)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [model_name, is_featured, sort_order, custom_image, image_alt, video_url,
+       description, meta_title, meta_description, og_image]
+    );
+    req.session.flash = { type: 'success', msg: `Model "${model_name}" created.` };
+    res.redirect(`/admin/models/${result.insertId}/edit`);
+  } catch (err) {
+    req.session.flash = { type: 'error', msg: 'Create failed: ' + err.message };
+    res.redirect('/admin/models/new');
+  }
+};
+
+/** POST /admin/models/:id — update */
+exports.modelUpdate = async (req, res, next) => {
+  const id = parseInt(req.params.id);
+  try {
+    await _ensureModelGroupsTable();
+    const is_featured      = req.body.is_featured      ? 1 : 0;
+    const sort_order       = parseInt(req.body.sort_order)      || 0;
+    const custom_image     = (req.body.custom_image     || '').trim() || null;
+    const image_alt        = (req.body.image_alt        || '').trim() || null;
+    const video_url        = (req.body.video_url        || '').trim() || null;
+    const description      = (req.body.description      || '').trim() || null;
+    const meta_title       = (req.body.meta_title       || '').trim() || null;
+    const meta_description = (req.body.meta_description || '').trim() || null;
+    const og_image         = (req.body.og_image         || '').trim() || null;
+
+    await bvoPool.query(
+      `UPDATE model_groups
+          SET is_featured=?, sort_order=?, custom_image=?, image_alt=?, video_url=?,
+              description=?, meta_title=?, meta_description=?, og_image=?
+        WHERE id = ?`,
+      [is_featured, sort_order, custom_image, image_alt, video_url,
+       description, meta_title, meta_description, og_image, id]
+    );
+    req.session.flash = { type: 'success', msg: 'Model group saved.' };
+    res.redirect(`/admin/models/${id}/edit`);
+  } catch (err) {
+    req.session.flash = { type: 'error', msg: 'Save failed: ' + err.message };
+    res.redirect(`/admin/models/${id}/edit`);
+  }
+};
+
+/** POST /admin/models/:id/delete */
+exports.modelDelete = async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id);
+    const [[row]] = await bvoPool.query('SELECT model_name FROM model_groups WHERE id = ?', [id]);
+    if (!row) {
+      req.session.flash = { type: 'error', msg: 'Model group not found.' };
+      return res.redirect('/admin/models');
+    }
+    await bvoPool.query('DELETE FROM model_groups WHERE id = ?', [id]);
+    req.session.flash = { type: 'success', msg: `Model "${row.model_name}" removed from management.` };
+    res.redirect('/admin/models');
+  } catch (err) {
+    req.session.flash = { type: 'error', msg: 'Delete failed: ' + err.message };
+    res.redirect('/admin/models');
+  }
+};
+
+/** POST /admin/models/:id/featured — AJAX toggle is_featured */
+exports.modelToggleFeatured = async (req, res) => {
+  try {
+    const id    = parseInt(req.params.id);
+    const value = req.body.featured ? 1 : 0;
+    await bvoPool.query('UPDATE model_groups SET is_featured = ? WHERE id = ?', [value, id]);
+    res.json({ ok: true, featured: !!value });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+};
+
+/** Multer middleware for model image AJAX upload */
+exports.modelImageAjaxMiddleware = (req, res, next) => {
+  _upload.single('image')(req, res, (err) => {
+    if (err) {
+      console.error('[Model Upload] multer error:', err.message);
+      return res.status(400).json({ ok: false, error: err.message });
+    }
+    next();
+  });
+};
+
+/** POST /admin/models/:id/image/ajax */
+exports.modelSetImageAjax = async (req, res) => {
+  const id = parseInt(req.params.id);
+  try {
+    if (!req.file) return res.status(400).json({ ok: false, error: 'No file received.' });
+    const url = `/images/uploads/${req.file.filename}`;
+    await bvoPool.query('UPDATE model_groups SET custom_image = ? WHERE id = ?', [url, id]);
+    res.json({ ok: true, url });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+};
+
+/** POST /admin/models/:id/image/remove */
+exports.modelRemoveImage = async (req, res) => {
+  const id = parseInt(req.params.id);
+  try {
+    await bvoPool.query('UPDATE model_groups SET custom_image = NULL WHERE id = ?', [id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+};

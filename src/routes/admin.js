@@ -66,6 +66,17 @@ router.post('/categories/:id/image/ajax',   ctrl.categoryImageAjaxMiddleware, ct
 router.post('/categories/:id/image/remove', ctrl.categoryRemoveImage);
 router.post('/categories/:id/image',      ctrl.categoryImageMiddleware,      ctrl.categorySetImage);
 
+/* ── Model Groups ───────────────────────────────────────────── */
+router.get ('/models',                                         ctrl.modelList);
+router.get ('/models/new',                                     ctrl.modelNew);
+router.post('/models',                                         ctrl.modelCreate);
+router.get ('/models/:id/edit',                                ctrl.modelEditPage);
+router.post('/models/:id',                                     ctrl.modelUpdate);
+router.post('/models/:id/delete',                              ctrl.modelDelete);
+router.post('/models/:id/featured',                            ctrl.modelToggleFeatured);
+router.post('/models/:id/image/ajax', ctrl.modelImageAjaxMiddleware, ctrl.modelSetImageAjax);
+router.post('/models/:id/image/remove',                        ctrl.modelRemoveImage);
+
 /* ── Orders ─────────────────────────────────────────────────── */
 router.get ('/orders',            ctrl.orderList);
 router.post('/orders/:id/status', ctrl.orderUpdateStatus);

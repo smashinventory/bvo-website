@@ -1,0 +1,270 @@
+<%
+/**
+ * Admin — Model Groups list
+ * Locals: models [{model_name, product_count, price_from, auto_image, mg: {id, is_featured, sort_order, custom_image, ...} | null}]
+ *         orphans [{id, model_name, ...}]  — model_groups rows with no matching product
+ *         flash {type, msg} | null
+ */
+%>
+
+<style>
+.mg-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;gap:1rem;flex-wrap:wrap}
+.mg-toolbar h1{font-size:1.35rem;font-weight:700;color:var(--navy);margin:0}
+.mg-intro{color:var(--text-muted);font-size:.85rem;margin-bottom:1.5rem;line-height:1.5}
+.mg-table{width:100%;border-collapse:collapse;font-size:.875rem}
+.mg-table th{background:#f4f2ee;font-weight:600;color:var(--navy);padding:.6rem .9rem;text-align:left;border-bottom:2px solid var(--border-card);white-space:nowrap}
+.mg-table td{padding:.65rem .9rem;border-bottom:1px solid var(--border-card);vertical-align:middle}
+.mg-table tr:last-child td{border-bottom:none}
+.mg-table tr:hover td{background:#faf9f6}
+.mg-thumb{width:48px;height:48px;border-radius:6px;object-fit:cover;border:1px solid var(--border-card);background:#f4f2ee;display:block}
+.mg-thumb-ph{width:48px;height:48px;border-radius:6px;background:#f0ede8;display:flex;align-items:center;justify-content:center;color:#ccc;flex-shrink:0}
+.mg-name{font-weight:600;color:var(--navy)}
+.mg-sub{font-size:.78rem;color:var(--text-muted);margin-top:2px}
+.mg-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:.72rem;font-weight:600;letter-spacing:.02em}
+.mg-badge--featured{background:#e8f4e8;color:#2d7a2d}
+.mg-badge--managed{background:#eef2ff;color:#3c4dba}
+.mg-badge--auto{background:#f4f2ee;color:#888}
+/* Featured toggle switch */
+.mg-feat-switch{position:relative;display:inline-block;width:36px;height:20px;cursor:pointer}
+.mg-feat-switch input{opacity:0;width:0;height:0;position:absolute}
+.mg-feat-slider{position:absolute;inset:0;border-radius:20px;background:#ddd;transition:.2s}
+.mg-feat-slider:before{content:'';position:absolute;width:14px;height:14px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+.mg-feat-switch input:checked+.mg-feat-slider{background:#2d7a2d}
+.mg-feat-switch input:checked+.mg-feat-slider:before{transform:translateX(16px)}
+.mg-feat-switch.mg-feat-saving .mg-feat-slider{opacity:.6}
+.mg-actions{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.adm-btn--sm{padding:.3rem .75rem;font-size:.8rem}
+.mg-empty{padding:3rem 1rem;text-align:center;color:var(--text-muted)}
+.mg-empty svg{opacity:.3;margin-bottom:.75rem}
+.mg-section-label{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);padding:.5rem .9rem;background:#faf8f4;border-bottom:1px solid var(--border-card)}
+.mg-card{background:#fff;border:1px solid var(--border-card);border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.mg-info-bar{background:#fff8e6;border:1px solid #f0d07a;border-radius:8px;padding:.75rem 1rem;font-size:.82rem;color:#7a5a00;margin-bottom:1.25rem;display:flex;gap:.5rem;align-items:flex-start}
+.mg-stat-row{display:flex;gap:2rem;margin-bottom:1.5rem;flex-wrap:wrap}
+.mg-stat{background:#fff;border:1px solid var(--border-card);border-radius:8px;padding:.8rem 1.2rem;min-width:120px;flex:1}
+.mg-stat-val{font-size:1.5rem;font-weight:700;color:var(--navy)}
+.mg-stat-lbl{font-size:.75rem;color:var(--text-muted);margin-top:2px}
+/* Button base (matches other admin views) */
+.adm-btn{display:inline-flex;align-items:center;gap:5px;padding:7px 16px;border-radius:6px;border:1px solid #d0cdc8;background:#fff;font-size:.8rem;font-weight:600;cursor:pointer;color:#333;text-decoration:none;white-space:nowrap}
+.adm-btn:hover{border-color:#B8963A;color:#B8963A}
+.adm-btn--primary{background:#B8963A;border-color:#B8963A;color:#fff}
+.adm-btn--primary:hover{background:#a07c28;border-color:#a07c28;color:#fff}
+.adm-btn--danger{border-color:#dc3545;color:#dc3545}
+.adm-btn--danger:hover{background:#fff5f5}
+.adm-btn--outline{border-color:#B8963A;color:#B8963A;background:#fff}
+.adm-btn--outline:hover{background:#fdf6e9}
+.adm-flash{padding:.65rem 1rem;border-radius:6px;margin-bottom:1.1rem;font-size:.85rem}
+.adm-flash--success{background:#e8f5e9;color:#1b5e20;border:1px solid #a5d6a7}
+.adm-flash--error{background:#fdecea;color:#b71c1c;border:1px solid #ef9a9a}
+</style>
+
+<% if (locals.flash) { %>
+<div class="adm-flash adm-flash--<%= flash.type %>"><%- flash.msg %></div>
+<% } %>
+
+<div class="mg-toolbar">
+  <h1>Model Groups</h1>
+  <a href="/admin/models/new" class="adm-btn adm-btn--primary">
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:4px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Add Model Group
+  </a>
+</div>
+
+<p class="mg-intro">
+  Manage curated metadata for vanity model lines — custom hero images, descriptions, SEO fields, and homepage feature order.
+  Models without a group record are still shown on the homepage (auto-ranked by product count), but <strong>featured</strong> models appear first and use your custom content.
+</p>
+
+<%
+const featuredCount = models.filter(m => m.mg && m.mg.is_featured).length;
+const managedCount  = models.filter(m => m.mg).length;
+%>
+<div class="mg-stat-row">
+  <div class="mg-stat">
+    <div class="mg-stat-val"><%= models.length %></div>
+    <div class="mg-stat-lbl">Total Models</div>
+  </div>
+  <div class="mg-stat">
+    <div class="mg-stat-val"><%= managedCount %></div>
+    <div class="mg-stat-lbl">Managed</div>
+  </div>
+  <div class="mg-stat">
+    <div class="mg-stat-val" style="color:#2d7a2d"><%= featuredCount %></div>
+    <div class="mg-stat-lbl">Featured on Homepage</div>
+  </div>
+</div>
+
+<% if (featuredCount > 0) { %>
+<div class="mg-info-bar">
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+  <span>The Featured Models section on the homepage will use your <strong><%= featuredCount %> featured</strong> model(s) in sort order, overriding the auto-ranked display. Un-feature all to revert to automatic ranking.</span>
+</div>
+<% } %>
+
+<div class="mg-card">
+  <table class="mg-table">
+    <thead>
+      <tr>
+        <th style="width:56px">Image</th>
+        <th>Model Name</th>
+        <th style="width:80px;text-align:center">Products</th>
+        <th style="width:100px;text-align:center">Featured</th>
+        <th style="width:70px;text-align:center">Order</th>
+        <th style="width:80px;text-align:center">Status</th>
+        <th style="width:130px;text-align:right">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if (!models.length) { %>
+      <tr><td colspan="7">
+        <div class="mg-empty">
+          <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-4 0v2"/></svg>
+          <p>No active vanity models found in the product catalog.</p>
+        </div>
+      </td></tr>
+      <% } %>
+      <% models.forEach(function(m) {
+        const thumb = (m.mg && m.mg.custom_image) ? m.mg.custom_image : m.auto_image;
+        const mgId  = m.mg ? m.mg.id : null;
+      %>
+      <tr data-mg-id="<%= mgId || '' %>" data-model="<%= m.model_name %>">
+        <td>
+          <% if (thumb) { %>
+            <img src="<%= thumb %>" alt="<%= m.model_name %>" class="mg-thumb" loading="lazy">
+          <% } else { %>
+            <div class="mg-thumb-ph">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            </div>
+          <% } %>
+        </td>
+        <td>
+          <div class="mg-name"><%= m.model_name %></div>
+          <% if (m.mg && m.mg.description) { %>
+          <div class="mg-sub" style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><%= m.mg.description %></div>
+          <% } %>
+        </td>
+        <td style="text-align:center"><%= m.product_count %></td>
+        <td style="text-align:center">
+          <% if (m.mg) { %>
+          <label class="mg-feat-switch" title="Toggle featured">
+            <input type="checkbox" class="mg-feat-cb" data-id="<%= m.mg.id %>"
+                   <%= m.mg.is_featured ? 'checked' : '' %>>
+            <span class="mg-feat-slider"></span>
+          </label>
+          <% } else { %>
+          <span style="color:#ccc;font-size:.75rem">—</span>
+          <% } %>
+        </td>
+        <td style="text-align:center;color:var(--text-muted);font-size:.85rem">
+          <%= (m.mg && m.mg.sort_order != null) ? m.mg.sort_order : '—' %>
+        </td>
+        <td style="text-align:center">
+          <% if (m.mg && m.mg.is_featured) { %>
+            <span class="mg-badge mg-badge--featured">★ Featured</span>
+          <% } else if (m.mg) { %>
+            <span class="mg-badge mg-badge--managed">Managed</span>
+          <% } else { %>
+            <span class="mg-badge mg-badge--auto">Auto</span>
+          <% } %>
+        </td>
+        <td style="text-align:right">
+          <div class="mg-actions" style="justify-content:flex-end">
+            <% if (m.mg) { %>
+            <a href="/admin/models/<%= m.mg.id %>/edit" class="adm-btn adm-btn--sm">Edit</a>
+            <form method="POST" action="/admin/models/<%= m.mg.id %>/delete"
+                  onsubmit="return confirm('Remove management record for \'<%= m.model_name %>\'? The model will revert to auto-ranking.')">
+              <button type="submit" class="adm-btn adm-btn--sm adm-btn--danger">Remove</button>
+            </form>
+            <% } else { %>
+            <a href="/admin/models/new?model=<%= encodeURIComponent(m.model_name) %>"
+               class="adm-btn adm-btn--sm adm-btn--outline">+ Manage</a>
+            <% } %>
+          </div>
+        </td>
+      </tr>
+      <% }); %>
+    </tbody>
+  </table>
+
+  <% if (orphans && orphans.length) { %>
+  <div class="mg-section-label">Orphaned records (model no longer in product catalog)</div>
+  <table class="mg-table">
+    <tbody>
+      <% orphans.forEach(function(o) { %>
+      <tr>
+        <td style="width:56px">
+          <div class="mg-thumb-ph">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#e05" stroke-width="1.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+        </td>
+        <td>
+          <div class="mg-name"><%= o.model_name %></div>
+          <div class="mg-sub">No matching products — safe to remove</div>
+        </td>
+        <td style="text-align:center">0</td>
+        <td colspan="3"></td>
+        <td style="text-align:right">
+          <form method="POST" action="/admin/models/<%= o.id %>/delete"
+                onsubmit="return confirm('Delete orphaned record for \'<%= o.model_name %>\'?')">
+            <button type="submit" class="adm-btn adm-btn--sm adm-btn--danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      <% }); %>
+    </tbody>
+  </table>
+  <% } %>
+</div>
+
+<script>
+(function() {
+  // AJAX featured toggle
+  document.querySelectorAll('.mg-feat-cb').forEach(function(cb) {
+    cb.addEventListener('change', function() {
+      const id  = this.dataset.id;
+      const val = this.checked ? 1 : 0;
+      const sw  = this.closest('.mg-feat-switch');
+      sw.classList.add('mg-feat-saving');
+
+      fetch('/admin/models/' + id + '/featured', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'featured=' + val,
+        credentials: 'same-origin',
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        sw.classList.remove('mg-feat-saving');
+        if (!data.ok) {
+          alert('Failed to update: ' + data.error);
+          cb.checked = !cb.checked;
+        } else {
+          // Update the status badge in the same row
+          const row    = sw.closest('tr');
+          const badge  = row.querySelector('.mg-badge');
+          if (badge) {
+            if (data.featured) {
+              badge.className = 'mg-badge mg-badge--featured';
+              badge.textContent = '★ Featured';
+            } else {
+              badge.className = 'mg-badge mg-badge--managed';
+              badge.textContent = 'Managed';
+            }
+          }
+          // Update stat counter
+          const featCount = document.querySelectorAll('.mg-feat-cb:checked').length;
+          const statEl = document.querySelector('.mg-stat-val[style*="color"]');
+          if (statEl) statEl.textContent = featCount;
+        }
+      })
+      .catch(function() {
+        sw.classList.remove('mg-feat-saving');
+        cb.checked = !cb.checked;
+        alert('Network error. Please try again.');
+      });
+    });
+  });
+
+  // Pre-fill model name on "new" page when coming from "+ Manage" link
+  // (handled server-side via ?model= query param in modelNew controller)
+})();
+</script>

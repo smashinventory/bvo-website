@@ -1,0 +1,396 @@
+<%
+/**
+ * Admin — Model Group add / edit
+ * Locals:
+ *   mg       {id, model_name, is_featured, sort_order, custom_image, image_alt,
+ *             video_url, description, meta_title, meta_description, og_image} | null
+ *   isNew    Boolean
+ *   available [{model_name}]  — models not yet managed (for new-record dropdown)
+ *   flash    {type, msg} | null
+ */
+const isNew      = locals.isNew !== false;
+const mg         = locals.mg || {};
+const available  = locals.available || [];
+const formAction = isNew ? '/admin/models' : `/admin/models/${mg.id}`;
+
+// Pre-fill model name from ?model= query param (set by "+ Manage" link on list page)
+const prefillModel = typeof query !== 'undefined' && query && query.model ? query.model : '';
+%>
+
+<style>
+/* Re-use category-edit class prefixes where they match (ce-*), add mg-* for specifics */
+.me-breadcrumb{display:flex;align-items:center;gap:.4rem;font-size:.82rem;color:var(--text-muted);margin-bottom:1.25rem}
+.me-breadcrumb a{color:var(--navy);text-decoration:none}.me-breadcrumb a:hover{text-decoration:underline}
+.me-topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;gap:1rem;flex-wrap:wrap}
+.me-title{font-size:1.25rem;font-weight:700;color:var(--navy);margin:0}
+.me-layout{display:grid;grid-template-columns:1fr 300px;gap:1.5rem;align-items:start}
+@media(max-width:860px){.me-layout{grid-template-columns:1fr}}
+.me-card{background:#fff;border:1px solid var(--border-card);border-radius:10px;padding:1.25rem 1.4rem;margin-bottom:1.25rem}
+.me-card-title{font-size:.82rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin:0 0 1rem}
+.me-field{margin-bottom:1rem}
+.me-field:last-child{margin-bottom:0}
+.me-label{display:block;font-size:.82rem;font-weight:600;color:#444;margin-bottom:.35rem}
+.me-label-hint{font-weight:400;color:var(--text-muted);font-size:.78rem;margin-left:.4rem}
+.me-input,.me-textarea,.me-select{width:100%;padding:.55rem .75rem;border:1px solid #ddd;border-radius:6px;font-size:.875rem;color:#222;background:#fff;transition:border-color .15s;box-sizing:border-box}
+.me-input:focus,.me-textarea:focus,.me-select:focus{outline:none;border-color:var(--navy)}
+.me-textarea{resize:vertical;min-height:80px;font-family:inherit}
+.me-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.me-char-count{font-size:.72rem;color:var(--text-muted);text-align:right;margin-top:2px}
+.me-char-count.over{color:#c00}
+/* Toggle */
+.me-toggle-row{display:flex;align-items:center;gap:.75rem;padding:.6rem 0}
+.me-toggle{position:relative;display:inline-block;width:42px;height:24px;cursor:pointer;flex-shrink:0}
+.me-toggle input{opacity:0;width:0;height:0;position:absolute}
+.me-toggle-slider{position:absolute;inset:0;border-radius:24px;background:#ddd;transition:.2s}
+.me-toggle-slider:before{content:'';position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.me-toggle input:checked+.me-toggle-slider{background:#2d7a2d}
+.me-toggle input:checked+.me-toggle-slider:before{transform:translateX(18px)}
+.me-toggle-label{font-size:.875rem;font-weight:600;color:#333}
+.me-toggle-desc{font-size:.78rem;color:var(--text-muted);margin-top:2px}
+/* Image card */
+.me-img-preview{position:relative;margin-bottom:.75rem;border-radius:8px;overflow:hidden;background:#f4f2ee;min-height:120px;display:flex;align-items:center;justify-content:center}
+.me-img-preview img{width:100%;max-height:200px;object-fit:cover;display:block}
+.me-img-remove{position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.5);color:#fff;border:none;cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center}
+.me-img-placeholder{display:flex;flex-direction:column;align-items:center;gap:.4rem;padding:1.5rem;color:#bbb;font-size:.8rem;text-align:center}
+.me-upload-label{display:inline-flex;align-items:center;gap:.4rem;padding:.45rem .85rem;border:1px dashed #bbb;border-radius:6px;font-size:.8rem;color:#555;cursor:pointer;transition:.15s;margin-bottom:.6rem;width:100%;box-sizing:border-box;justify-content:center}
+.me-upload-label:hover{border-color:var(--navy);color:var(--navy);background:#f8f7f4}
+.me-file-input{display:none}
+.me-upload-hint{font-size:.72rem;color:var(--text-muted);margin-top:4px}
+.adm-flash{padding:.65rem 1rem;border-radius:6px;margin-bottom:1.1rem;font-size:.85rem}
+.adm-flash--success{background:#e8f5e9;color:#1b5e20;border:1px solid #a5d6a7}
+.adm-flash--error{background:#fdecea;color:#b71c1c;border:1px solid #ef9a9a}
+.me-delete-zone{margin-top:.5rem;padding-top:.75rem;border-top:1px solid var(--border-card)}
+.me-hint{font-size:.76rem;color:var(--text-muted);margin-top:.3rem;line-height:1.4}
+.me-model-badge{display:inline-block;padding:.3rem .7rem;background:var(--navy);color:#fff;border-radius:5px;font-size:.82rem;font-weight:600;margin-bottom:1rem}
+/* Button base (matches other admin views) */
+.adm-btn{display:inline-flex;align-items:center;gap:5px;padding:7px 16px;border-radius:6px;border:1px solid #d0cdc8;background:#fff;font-size:.8rem;font-weight:600;cursor:pointer;color:#333;text-decoration:none;white-space:nowrap}
+.adm-btn:hover{border-color:#B8963A;color:#B8963A}
+.adm-btn--primary{background:#B8963A;border-color:#B8963A;color:#fff}
+.adm-btn--primary:hover{background:#a07c28;border-color:#a07c28;color:#fff}
+.adm-btn--danger{border-color:#dc3545;color:#dc3545;background:#fff;width:auto}
+.adm-btn--danger:hover{background:#fff5f5}
+</style>
+
+<!-- Breadcrumb -->
+<div class="me-breadcrumb">
+  <a href="/admin/models">Model Groups</a>
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#aaa" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+  <span><%= isNew ? 'New Model Group' : mg.model_name %></span>
+</div>
+
+<% if (locals.flash) { %>
+<div class="adm-flash adm-flash--<%= flash.type %>"><%- flash.msg %></div>
+<% } %>
+
+<form method="POST" action="<%= formAction %>" id="meForm" novalidate>
+
+  <!-- Top bar -->
+  <div class="me-topbar">
+    <h2 class="me-title"><%= isNew ? 'New Model Group' : 'Edit Model Group' %></h2>
+    <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+      <a href="/admin/models" class="adm-btn">Discard</a>
+      <button type="submit" class="adm-btn adm-btn--primary">Save</button>
+    </div>
+  </div>
+
+  <div class="me-layout">
+
+    <!-- ── LEFT: main fields ──────────────────────────────────── -->
+    <div>
+
+      <!-- Model name -->
+      <div class="me-card">
+        <p class="me-card-title">Model</p>
+        <% if (!isNew) { %>
+        <div class="me-model-badge"><%= mg.model_name %></div>
+        <input type="hidden" name="model_name" value="<%= mg.model_name %>">
+        <p class="me-hint">Model name is set at creation and cannot be changed. If you need a different model, delete this record and create a new one.</p>
+        <% } else { %>
+        <div class="me-field">
+          <label class="me-label" for="meModelName">Model Name <span style="color:#c00">*</span></label>
+          <% if (available.length) { %>
+          <select id="meModelName" name="model_name" class="me-select" required>
+            <option value="">— Select a model —</option>
+            <% available.forEach(function(a) { %>
+            <option value="<%= a.model_name %>"
+              <%= (prefillModel === a.model_name) ? 'selected' : '' %>>
+              <%= a.model_name %>
+            </option>
+            <% }); %>
+          </select>
+          <p class="me-hint">Only models not yet in Model Groups are shown. To add metadata for a managed model, edit its existing record.</p>
+          <% } else { %>
+          <input type="text" id="meModelName" name="model_name" class="me-input"
+                 value="<%= prefillModel %>" placeholder="e.g. Brittany" required>
+          <p class="me-hint">Type the exact model name as it appears in your product catalog.</p>
+          <% } %>
+        </div>
+        <% } %>
+      </div>
+
+      <!-- Description / tagline -->
+      <div class="me-card">
+        <p class="me-card-title">Content</p>
+
+        <div class="me-field">
+          <label class="me-label" for="meDesc">
+            Description / Tagline
+            <span class="me-label-hint">shown under model name on homepage carousel</span>
+          </label>
+          <textarea id="meDesc" name="description" class="me-textarea"
+                    rows="3" maxlength="300"
+                    placeholder="Timeless elegance with modern storage — available in 6 finishes."
+                    oninput="meCharCount(this,'meDescCount',300)"><%= mg.description || '' %></textarea>
+          <div class="me-char-count" id="meDescCount"><%= (mg.description||'').length %>/300</div>
+        </div>
+
+        <div class="me-field">
+          <label class="me-label" for="meVideo">
+            Video URL
+            <span class="me-label-hint">YouTube or direct MP4 — shown as the video badge on carousel cards</span>
+          </label>
+          <input type="url" id="meVideo" name="video_url" class="me-input"
+                 value="<%= mg.video_url || '' %>"
+                 placeholder="https://www.youtube.com/watch?v=...">
+        </div>
+      </div>
+
+      <!-- SEO -->
+      <div class="me-card">
+        <p class="me-card-title">SEO &amp; Open Graph</p>
+
+        <div class="me-field">
+          <label class="me-label" for="meMetaTitle">
+            Meta Title
+            <span class="me-label-hint">browser tab / search result title</span>
+          </label>
+          <input type="text" id="meMetaTitle" name="meta_title" class="me-input"
+                 value="<%= mg.meta_title || '' %>" maxlength="70"
+                 placeholder="Brittany Vanity Collection | BathroomVanitiesOutlet.com"
+                 oninput="meCharCount(this,'meMetaTitleCount',70)">
+          <div class="me-char-count" id="meMetaTitleCount"><%= (mg.meta_title||'').length %>/70</div>
+        </div>
+
+        <div class="me-field">
+          <label class="me-label" for="meMetaDesc">
+            Meta Description
+            <span class="me-label-hint">search snippet — 120–160 chars ideal</span>
+          </label>
+          <textarea id="meMetaDesc" name="meta_description" class="me-textarea"
+                    rows="3" maxlength="200"
+                    placeholder="Shop the Brittany collection — premium bathroom vanities in 6 finishes. Free shipping. Outlet prices."
+                    oninput="meCharCount(this,'meMetaDescCount',160)"><%= mg.meta_description || '' %></textarea>
+          <div class="me-char-count" id="meMetaDescCount"><%= (mg.meta_description||'').length %>/160</div>
+        </div>
+
+        <div class="me-field">
+          <label class="me-label" for="meOgImage">
+            OG / Share Image URL
+            <span class="me-label-hint">1200×630 px recommended</span>
+          </label>
+          <input type="url" id="meOgImage" name="og_image" class="me-input"
+                 value="<%= mg.og_image || '' %>"
+                 placeholder="https://…">
+        </div>
+      </div>
+
+    </div><!-- /left -->
+
+    <!-- ── RIGHT: sidebar ─────────────────────────────────────── -->
+    <div>
+
+      <!-- Featured toggle + sort order -->
+      <div class="me-card">
+        <p class="me-card-title">Homepage Placement</p>
+
+        <div class="me-toggle-row">
+          <label class="me-toggle">
+            <input type="checkbox" name="is_featured" id="meIsFeatured"
+                   value="1" <%= (mg.is_featured || isNew) ? 'checked' : '' %>>
+            <span class="me-toggle-slider"></span>
+          </label>
+          <div>
+            <div class="me-toggle-label">Featured on Homepage</div>
+            <div class="me-toggle-desc">Pin to the Featured Models carousel</div>
+          </div>
+        </div>
+
+        <div class="me-field" style="margin-top:.75rem">
+          <label class="me-label" for="meSortOrder">
+            Sort Order
+            <span class="me-label-hint">lower = earlier</span>
+          </label>
+          <input type="number" id="meSortOrder" name="sort_order" class="me-input"
+                 value="<%= mg.sort_order != null ? mg.sort_order : 0 %>"
+                 min="0" max="999" step="1" style="width:100px">
+        </div>
+      </div>
+
+      <!-- Custom image -->
+      <div class="me-card">
+        <p class="me-card-title">Custom Hero Image</p>
+        <p class="me-hint" style="margin-bottom:.8rem">Overrides the auto-selected product photo on the homepage carousel card.</p>
+
+        <% if (!isNew) { %>
+        <div class="me-img-preview" id="meImgPreview">
+          <% if (mg.custom_image) { %>
+            <img src="<%= mg.custom_image %>" alt="<%= mg.model_name %>" id="meCurrentImg">
+            <button type="button" class="me-img-remove" id="meRemoveImg" title="Remove image">×</button>
+          <% } else { %>
+            <div class="me-img-placeholder" id="meImgPlaceholder">
+              <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#ccc" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              <span>No custom image</span>
+            </div>
+          <% } %>
+        </div>
+
+        <label class="me-upload-label" for="meImgInput" id="meUploadLabel">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span id="meUploadLabelText">Upload image</span>
+        </label>
+        <input type="file" id="meImgInput" name="_mg_image_file" accept="image/*" class="me-file-input">
+        <div class="me-upload-hint">PNG, JPG, WebP — recommended 800×600 px or wider</div>
+
+        <div class="me-field" style="margin-top:.75rem">
+          <label class="me-label" for="meCustomImageUrl">Or paste image URL</label>
+          <input type="url" id="meCustomImageUrl" name="custom_image" class="me-input"
+                 value="<%= mg.custom_image || '' %>"
+                 placeholder="https://…"
+                 oninput="mePreviewImg(this.value)">
+        </div>
+
+        <% } else { %>
+        <p class="me-hint">Save the model group first, then upload a custom image.</p>
+        <input type="hidden" name="custom_image" value="">
+        <% } %>
+
+        <div class="me-field" style="margin-top:.75rem">
+          <label class="me-label" for="meImageAlt">Image Alt Text</label>
+          <input type="text" id="meImageAlt" name="image_alt" class="me-input"
+                 value="<%= mg.image_alt || '' %>"
+                 placeholder="Brittany bathroom vanity in white">
+        </div>
+      </div>
+
+      <!-- Delete -->
+      <% if (!isNew) { %>
+      <div class="me-card">
+        <p class="me-card-title" style="color:#c00">Danger Zone</p>
+        <p class="me-hint">Removes this management record. The model line will revert to auto-ranking on the homepage.</p>
+        <div class="me-delete-zone">
+          <form method="POST" action="/admin/models/<%= mg.id %>/delete"
+                onsubmit="return confirm('Remove management record for \'<%= mg.model_name %>\'?\n\nThis model will revert to automatic ranking.')">
+            <button type="submit" class="adm-btn adm-btn--danger" style="width:100%">Remove Model Group</button>
+          </form>
+        </div>
+      </div>
+      <% } %>
+
+    </div><!-- /right sidebar -->
+  </div><!-- /me-layout -->
+
+</form>
+
+<script>
+(function() {
+
+  /* ── Character counters ──────────────────────────────────── */
+  window.meCharCount = function(el, counterId, max) {
+    const n = el.value.length;
+    const counter = document.getElementById(counterId);
+    if (!counter) return;
+    counter.textContent = n + '/' + max;
+    counter.className = 'me-char-count' + (n > max ? ' over' : '');
+  };
+  // Init on load
+  document.querySelectorAll('textarea[maxlength], input[maxlength]').forEach(function(el) {
+    const id    = el.id;
+    const max   = parseInt(el.getAttribute('maxlength'));
+    if (!id || !max) return;
+    const counterMap = {
+      'meDesc':       'meDescCount',
+      'meMetaTitle':  'meMetaTitleCount',
+      'meMetaDesc':   'meMetaDescCount',
+    };
+    if (counterMap[id]) meCharCount(el, counterMap[id], max);
+  });
+
+<% if (!isNew) { %>
+  /* ── Image upload AJAX ───────────────────────────────────── */
+  const meImgInput     = document.getElementById('meImgInput');
+  const mePreview      = document.getElementById('meImgPreview');
+  const meCurrentImg   = document.getElementById('meCurrentImg');
+  const mePlaceholder  = document.getElementById('meImgPlaceholder');
+  const meRemoveBtn    = document.getElementById('meRemoveImg');
+  const meUploadLabel  = document.getElementById('meUploadLabelText');
+  const meUrlInput     = document.getElementById('meCustomImageUrl');
+
+  window.mePreviewImg = function(url) {
+    if (!url) return;
+    if (meCurrentImg) { meCurrentImg.src = url; }
+    else if (mePlaceholder) {
+      const img = document.createElement('img');
+      img.src = url;
+      img.id  = 'meCurrentImg';
+      mePlaceholder.style.display = 'none';
+      mePreview.insertBefore(img, mePlaceholder);
+    }
+  };
+
+  if (meImgInput) {
+    meImgInput.addEventListener('change', function() {
+      const file = this.files[0];
+      if (!file) return;
+      meUploadLabel.textContent = 'Uploading…';
+
+      const fd = new FormData();
+      fd.append('image', file);
+      fetch('/admin/models/<%= mg.id %>/image/ajax', {
+        method:      'POST',
+        body:        fd,
+        credentials: 'same-origin',
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.ok) {
+          if (meUrlInput) meUrlInput.value = data.url;
+          mePreviewImg(data.url);
+          if (meRemoveBtn) meRemoveBtn.style.display = 'flex';
+          if (mePlaceholder) mePlaceholder.style.display = 'none';
+          meUploadLabel.textContent = 'Change image';
+        } else {
+          meUploadLabel.textContent = 'Upload image';
+          alert('Upload failed: ' + data.error);
+        }
+      })
+      .catch(function() {
+        meUploadLabel.textContent = 'Upload image';
+        alert('Network error during upload.');
+      });
+    });
+  }
+
+  if (meRemoveBtn) {
+    meRemoveBtn.addEventListener('click', function() {
+      if (!confirm('Remove custom image?')) return;
+      fetch('/admin/models/<%= mg.id %>/image/remove', {
+        method:      'POST',
+        credentials: 'same-origin',
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.ok) {
+          if (meCurrentImg)  meCurrentImg.remove();
+          if (meUrlInput)    meUrlInput.value = '';
+          if (mePlaceholder) mePlaceholder.style.display = 'flex';
+          meRemoveBtn.style.display = 'none';
+        } else {
+          alert('Remove failed: ' + data.error);
+        }
+      });
+    });
+  }
+<% } %>
+
+})();
+</script>
