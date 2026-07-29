@@ -1729,43 +1729,58 @@ exports.themeSaveOrder = (req, res) => {
 
 /**
  * POST /admin/theme/duplicate
- * Copies settings from one section key to its _2 duplicate slot,
- * enables the _2 slot, and appends it to homepage_section_order.
- * Only allowed pairs: image_with_text → image_with_text_2, before_after → before_after_2
+ * Dynamically duplicates any duplicatable section type to the next available _N slot.
+ * Accepts { from } — the key the user clicked Duplicate on (base or any _N copy).
+ * Strips the suffix to find the base type, scans the current order for all existing
+ * slots of that type, and creates baseType_N where N = existing count + 1.
  */
 exports.themeDuplicate = (req, res) => {
   try {
-    const { from, to } = req.body || {};
-    const ALLOWED = {
-      'image_with_text': 'image_with_text_2',
-      'before_after':    'before_after_2',
-      'video_text':      'video_text_2',
-      'trust_band':      'trust_band_2',
-      'parallax':        'parallax_2',
-      'testimonials':    'testimonials_2',
-    };
-    if (!from || ALLOWED[from] !== to) {
-      return res.status(400).json({ ok: false, error: 'Invalid duplicate pair' });
+    const { from } = req.body || {};
+    const DUPLICATABLE_BASES = new Set([
+      'image_with_text', 'before_after', 'video_text',
+      'trust_band', 'parallax', 'testimonials',
+    ]);
+
+    // Derive base type (strips _2, _3, etc.)
+    const baseType = (from || '').replace(/_\d+$/, '');
+    if (!from || !DUPLICATABLE_BASES.has(baseType)) {
+      return res.status(400).json({ ok: false, error: 'Not a duplicatable section type' });
     }
+
     const settings = themeSettings.get();
-    if (!settings[from]) return res.status(400).json({ ok: false, error: 'Source section not found' });
+    const order = Array.isArray(settings.homepage_section_order)
+      ? [...settings.homepage_section_order]
+      : [];
 
-    // Deep-copy source to destination, then enable it
-    settings[to] = JSON.parse(JSON.stringify(settings[from]));
-    settings[to].enabled = true;
+    // Find all existing slots for this base type (base key + any _N variants)
+    const slotRe = new RegExp('^' + baseType + '(_\\d+)?$');
+    const existing = order.filter(k => slotRe.test(k));
+    const nextN = existing.length + 1;
+    const newKey = baseType + '_' + nextN;
 
-    // Add to section order if not already there (immediately after the source)
-    const order = Array.isArray(settings.homepage_section_order) ? settings.homepage_section_order : [];
-    if (!order.includes(to)) {
-      const srcIdx = order.indexOf(from);
-      if (srcIdx !== -1) order.splice(srcIdx + 1, 0, to);
-      else order.push(to);
-      settings.homepage_section_order = order;
+    if (order.includes(newKey)) {
+      return res.status(400).json({ ok: false, error: 'Slot ' + newKey + ' already exists in order' });
     }
+
+    // Copy from the highest existing slot (so _3 copies _2's content, etc.)
+    const copyFrom = existing[existing.length - 1] || baseType;
+    if (!settings[copyFrom]) {
+      return res.status(400).json({ ok: false, error: 'Source section data not found' });
+    }
+
+    settings[newKey] = JSON.parse(JSON.stringify(settings[copyFrom]));
+    settings[newKey].enabled = true;
+
+    // Insert immediately after the last existing slot
+    const insertAfter = order.indexOf(copyFrom);
+    if (insertAfter !== -1) order.splice(insertAfter + 1, 0, newKey);
+    else order.push(newKey);
+    settings.homepage_section_order = order;
 
     _persistSettings(settings);
     themeSettings.reload();
-    res.json({ ok: true });
+    res.json({ ok: true, newKey });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }

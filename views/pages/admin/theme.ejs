@@ -25,7 +25,23 @@ const THEME_SECS = [
   { key:'seo',     label:'SEO & Meta' },
   { key:'global',  label:'Global Settings' },
 ];
-const ALL_TEMPLATE_KEYS = ['scrolling_ticker','hero','brand_logos','categories_section','featured_section','featured_models','image_with_text','video_text','image_with_text_2','before_after','before_after_2','trust_band','trust_band_2','parallax','parallax_2','testimonials','testimonials_2','video_text_2','newsletter'];
+// Static (non-duplicatable) section keys — order matters for the default layout
+const _STATIC_KEYS = ['scrolling_ticker','hero','brand_logos','categories_section','featured_section','featured_models','image_with_text','video_text','before_after','trust_band','parallax','testimonials','newsletter'];
+const _DUPL_BASES  = new Set(['image_with_text','before_after','video_text','trust_band','parallax','testimonials']);
+
+// Build ALL_TEMPLATE_KEYS: static keys + any _N copies present in the saved order
+const savedOrder = (Array.isArray(t.homepage_section_order) && t.homepage_section_order.length)
+  ? t.homepage_section_order
+  : _STATIC_KEYS;
+
+const ALL_TEMPLATE_KEYS = [..._STATIC_KEYS];
+savedOrder.forEach(function(k) {
+  if (!ALL_TEMPLATE_KEYS.includes(k)) {
+    var m = k.match(/^(.+?)_(\d+)$/);
+    if (m && _DUPL_BASES.has(m[1])) ALL_TEMPLATE_KEYS.push(k);
+  }
+});
+
 const TEMPLATE_META = {
   scrolling_ticker:   { label:'Announcement Bar',     desc:'Scrolling promo ticker at page top' },
   hero:               { label:'Hero Banner',           desc:'Full-width hero with CTAs' },
@@ -34,23 +50,24 @@ const TEMPLATE_META = {
   featured_section:   { label:'Featured Products',     desc:'Handpicked product grid' },
   featured_models:    { label:'Featured Models',       desc:'Model collection carousel with swatches' },
   image_with_text:    { label:'Image with Text',       desc:'Split image + copy block' },
-  image_with_text_2:  { label:'Image with Text (2)',   desc:'Second image + text block (duplicate)' },
   video_text:         { label:'Video + Text',          desc:'Split video and text content block' },
-  video_text_2:       { label:'Video + Text (2)',      desc:'Second video + text block (duplicate)' },
   before_after:       { label:'Before / After',        desc:'Drag-handle comparison slider' },
-  before_after_2:     { label:'Before / After (2)',    desc:'Second comparison slider (duplicate)' },
   trust_band:         { label:'Trust Band',            desc:'Three key stats / trust signals' },
-  trust_band_2:       { label:'Trust Band (2)',        desc:'Second trust band (duplicate)' },
   parallax:           { label:'Parallax Band',         desc:'Full-width parallax CTA section' },
-  parallax_2:         { label:'Parallax Band (2)',     desc:'Second parallax section (duplicate)' },
   testimonials:       { label:'Testimonials',           desc:'Customer review cards' },
-  testimonials_2:     { label:'Testimonials (2)',      desc:'Second testimonials block (duplicate)' },
   newsletter:         { label:'Newsletter',             desc:'Email capture / sign-up section' },
 };
 
-const savedOrder = (Array.isArray(t.homepage_section_order) && t.homepage_section_order.length)
-  ? t.homepage_section_order
-  : ALL_TEMPLATE_KEYS;
+// Dynamic meta lookup: derives label/desc for any _N copy from its base key
+function getMeta(key) {
+  if (TEMPLATE_META[key]) return TEMPLATE_META[key];
+  var m = key.match(/^(.+?)_(\d+)$/);
+  if (m && TEMPLATE_META[m[1]]) {
+    var base = TEMPLATE_META[m[1]];
+    return { label: base.label + ' (' + m[2] + ')', desc: base.desc + ' — copy ' + m[2] };
+  }
+  return { label: key, desc: '' };
+}
 
 // Build display-order list (saved order first, then any extras not yet in saved)
 const orderedKeys = [];
@@ -93,7 +110,8 @@ function secIcon(key) {
     seo:         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
     global:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
   };
-  return icons[key] || icons['design'];
+  // Fall back to base key icon for any _N copy (e.g. image_with_text_3 → image_with_text)
+  return icons[key] || icons[key.replace(/_\d+$/, '')] || icons['design'];
 }
 
 /* ── EJS helpers ─────────────────────────────────────────── */
@@ -278,7 +296,7 @@ function teArrayLinks(prefix,listId,tplId,items){
           <div class="te4-sec-group">
             <div class="te4-group-label">Template</div>
             <div class="te4-drag-list" id="te4DragList">
-              <% orderedKeys.forEach(function(key){ var enabled=isSectionEnabled(key); var meta=TEMPLATE_META[key]||{}; %>
+              <% orderedKeys.forEach(function(key){ var enabled=isSectionEnabled(key); var meta=getMeta(key); %>
               <div class="te4-sec-row te4-sec-draggable<%= enabled?'':' is-hidden' %>"
                    draggable="true"
                    data-key="<%= key %>"
@@ -790,339 +808,180 @@ function teArrayLinks(prefix,listId,tplId,items){
             </div>
           </div>
 
-          <!-- ── IMAGE WITH TEXT ────────────────────────────── -->
-          <div class="te4-panel" id="panel-image_with_text">
-            <% const iwtsec=t.image_with_text||{}; %>
-            <%- teToggle('image_with_text.enabled','Show section',iwtsec.enabled) %>
+          <!-- ── DUPLICATABLE SECTION PANELS (dynamic loop) ── -->
+          <!-- Renders one panel per duplicatable key in orderedKeys.
+               Handles base keys and any _N copies (image_with_text_2, _3, _4, …). -->
+          <% orderedKeys.forEach(function(pk) {
+               var pkBase = pk.replace(/_\d+$/, '');
+               if (!_DUPL_BASES.has(pkBase)) return;  // skip non-duplicatable sections
+               var pkIsCopy = (pk !== pkBase);
+               var d = t[pk] || {};
+               var pkListId = pk.replace(/\W/g,'') + 'List';
+               var pkTplId  = pk.replace(/\W/g,'') + 'Tpl';
+          %>
+          <div class="te4-panel" id="panel-<%= pk %>">
+            <%- teToggle(pk+'.enabled','Show section',d.enabled) %>
+            <% if (pkIsCopy) { %>
+            <div class="te4-hint" style="margin-bottom:.75rem">This is a copy of the <%= getMeta(pkBase).label %> section. Fill it in and enable it to show this additional block.</div>
+            <% } %>
+
+            <% if (pkBase === 'image_with_text') { %>
             <div class="te4-section-label">Image</div>
-            <%- teImage('image_with_text.image_url','image_with_text.image_alt',iwtsec.image_url,iwtsec.image_alt,'Section image') %>
+            <%- teImage(pk+'.image_url', pk+'.image_alt', d.image_url, d.image_alt, 'Section image') %>
             <div class="te4-section-label">Layout</div>
-            <div class="te4-field"><label>Layout mode</label><select name="image_with_text.image_position" class="te4-select"><option value="left" <%=(iwtsec.image_position||'left')==='left'?'selected':''%>>Image left, text right</option><option value="right" <%=iwtsec.image_position==='right'?'selected':''%>>Image right, text left</option><option value="center" <%=iwtsec.image_position==='center'?'selected':''%>>Center — text over image</option></select></div>
+            <div class="te4-field"><label>Layout mode</label><select name="<%= pk %>.image_position" class="te4-select">
+              <option value="left"   <%=(d.image_position||'left')==='left'  ?'selected':''%>>Image left, text right</option>
+              <option value="right"  <%=d.image_position==='right'           ?'selected':''%>>Image right, text left</option>
+              <option value="center" <%=d.image_position==='center'          ?'selected':''%>>Center — text over image</option>
+            </select></div>
             <div class="te4-row2">
-              <div class="te4-field"><label>Image width <small style="opacity:.6">(side-by-side only)</small></label><select name="image_with_text.image_width" class="te4-select"><option value="40%" <%=(iwtsec.image_width||'50%')==='40%'?'selected':''%>>40% image / 60% text</option><option value="50%" <%=(iwtsec.image_width||'50%')==='50%'?'selected':''%>>50% / 50% (equal)</option><option value="60%" <%=iwtsec.image_width==='60%'?'selected':''%>>60% image / 40% text</option></select></div>
-              <%- teAlignment('image_with_text.text_align', iwtsec.text_align || 'left') %>
+              <div class="te4-field"><label>Image width <small style="opacity:.6">(side-by-side only)</small></label><select name="<%= pk %>.image_width" class="te4-select">
+                <option value="40%" <%=(d.image_width||'50%')==='40%'?'selected':''%>>40% image / 60% text</option>
+                <option value="50%" <%=(d.image_width||'50%')==='50%'?'selected':''%>>50% / 50% (equal)</option>
+                <option value="60%" <%=d.image_width==='60%'          ?'selected':''%>>60% image / 40% text</option>
+              </select></div>
+              <%- teAlignment(pk+'.text_align', d.text_align || 'left') %>
             </div>
             <div class="te4-section-label">Text content</div>
-            <%- teField('text','image_with_text.eyebrow','Eyebrow',iwtsec.eyebrow) %>
+            <%- teField('text', pk+'.eyebrow', 'Eyebrow', d.eyebrow) %>
             <div class="te4-row2">
-              <%- teHeadingLevel('image_with_text.heading_level',iwtsec.heading_level||'h2') %>
-              <%- teTextSize('image_with_text.heading_size',iwtsec.heading_size,'Heading size',20,56) %>
+              <%- teHeadingLevel(pk+'.heading_level', d.heading_level||'h2') %>
+              <%- teTextSize(pk+'.heading_size', d.heading_size, 'Heading size', 20, 56) %>
             </div>
-            <%- teField('text','image_with_text.heading','Heading',iwtsec.heading) %>
-            <%- teTextSize('image_with_text.body_size',iwtsec.body_size,'Body text size',14,22) %>
-            <%- teField('textarea','image_with_text.body','Body copy',iwtsec.body) %>
+            <%- teField('text', pk+'.heading', 'Heading', d.heading) %>
+            <%- teTextSize(pk+'.body_size', d.body_size, 'Body text size', 14, 22) %>
+            <%- teField('textarea', pk+'.body', 'Body copy', d.body) %>
             <div class="te4-row2">
-              <%- teField('text','image_with_text.cta_text','CTA label',iwtsec.cta_text) %>
-              <%- teField('url', 'image_with_text.cta_url', 'CTA URL',  iwtsec.cta_url) %>
+              <%- teField('text', pk+'.cta_text', 'CTA label', d.cta_text) %>
+              <%- teField('url',  pk+'.cta_url',  'CTA URL',   d.cta_url) %>
             </div>
-          </div>
 
-          <!-- ── IMAGE WITH TEXT 2 (duplicate) ────────────── -->
-          <div class="te4-panel" id="panel-image_with_text_2">
-            <% const iwt2sec=t.image_with_text_2||{}; %>
-            <%- teToggle('image_with_text_2.enabled','Show section',iwt2sec.enabled) %>
-            <div class="te4-hint" style="margin-bottom:.75rem">This is a duplicate of the Image with Text section. Fill it in and enable it to add a second block.</div>
-            <div class="te4-section-label">Image</div>
-            <%- teImage('image_with_text_2.image_url','image_with_text_2.image_alt',iwt2sec.image_url,iwt2sec.image_alt,'Section image') %>
-            <div class="te4-section-label">Layout</div>
-            <div class="te4-field"><label>Layout mode</label><select name="image_with_text_2.image_position" class="te4-select"><option value="left" <%=(iwt2sec.image_position||'right')==='left'?'selected':''%>>Image left, text right</option><option value="right" <%=(iwt2sec.image_position||'right')==='right'?'selected':''%>>Image right, text left</option><option value="center" <%=iwt2sec.image_position==='center'?'selected':''%>>Center — text over image</option></select></div>
-            <div class="te4-row2">
-              <div class="te4-field"><label>Image width <small style="opacity:.6">(side-by-side only)</small></label><select name="image_with_text_2.image_width" class="te4-select"><option value="40%" <%=(iwt2sec.image_width||'50%')==='40%'?'selected':''%>>40% image / 60% text</option><option value="50%" <%=(iwt2sec.image_width||'50%')==='50%'?'selected':''%>>50% / 50% (equal)</option><option value="60%" <%=iwt2sec.image_width==='60%'?'selected':''%>>60% image / 40% text</option></select></div>
-              <%- teAlignment('image_with_text_2.text_align', iwt2sec.text_align || 'left') %>
-            </div>
-            <div class="te4-section-label">Text content</div>
-            <%- teField('text','image_with_text_2.eyebrow','Eyebrow',iwt2sec.eyebrow) %>
-            <div class="te4-row2">
-              <%- teHeadingLevel('image_with_text_2.heading_level',iwt2sec.heading_level||'h2') %>
-              <%- teTextSize('image_with_text_2.heading_size',iwt2sec.heading_size,'Heading size',20,56) %>
-            </div>
-            <%- teField('text','image_with_text_2.heading','Heading',iwt2sec.heading) %>
-            <%- teTextSize('image_with_text_2.body_size',iwt2sec.body_size,'Body text size',14,22) %>
-            <%- teField('textarea','image_with_text_2.body','Body copy',iwt2sec.body) %>
-            <div class="te4-row2">
-              <%- teField('text','image_with_text_2.cta_text','CTA label',iwt2sec.cta_text) %>
-              <%- teField('url', 'image_with_text_2.cta_url', 'CTA URL',  iwt2sec.cta_url) %>
-            </div>
-          </div>
-
-          <!-- ── VIDEO + TEXT 2 (duplicate) ───────────────── -->
-          <div class="te4-panel" id="panel-video_text_2">
-            <% const vt2sec=t.video_text_2||{}; %>
-            <%- teToggle('video_text_2.enabled','Show section',vt2sec.enabled) %>
-            <div class="te4-hint" style="margin-bottom:.75rem">Second Video + Text block. Enable and fill in to add a second video section.</div>
-            <div class="te4-section-label">Video</div>
-            <%- teVideoField('video_text_2.video_url', vt2sec.video_url) %>
-            <div class="te4-section-label">Layout</div>
-            <div class="te4-row2">
-              <div class="te4-field"><label>Video side</label><select name="video_text_2.video_side" class="te4-select"><option value="left" <%=(vt2sec.video_side||'left')==='left'?'selected':''%>>Video left, text right</option><option value="right" <%=vt2sec.video_side==='right'?'selected':''%>>Video right, text left</option></select></div>
-              <div class="te4-field"><label>Video width</label><select name="video_text_2.split" class="te4-select"><option value="40" <%=(vt2sec.split||'50')==='40'?'selected':''%>>40% video / 60% text</option><option value="50" <%=(vt2sec.split||'50')==='50'?'selected':''%>>50% / 50% (equal)</option><option value="60" <%=vt2sec.split==='60'?'selected':''%>>60% video / 40% text</option></select></div>
-            </div>
-            <div class="te4-section-label">Content</div>
-            <%- teField('text','video_text_2.eyebrow','Eyebrow label',vt2sec.eyebrow) %>
-            <div class="te4-row2">
-              <%- teHeadingLevel('video_text_2.heading_level', vt2sec.heading_level||'h2') %>
-            </div>
-            <%- teField('text','video_text_2.heading','Heading',vt2sec.heading) %>
-            <%- teField('textarea','video_text_2.body','Body text',vt2sec.body) %>
-            <div class="te4-row2">
-              <%- teField('text','video_text_2.cta_text','Button label',vt2sec.cta_text) %>
-              <%- teField('url','video_text_2.cta_url','Button URL',vt2sec.cta_url) %>
-            </div>
-          </div>
-
-          <!-- ── VIDEO + TEXT ──────────────────────────────── -->
-          <div class="te4-panel" id="panel-video_text">
-            <% const vtsec=t.video_text||{}; %>
-            <%- teToggle('video_text.enabled','Show section',vtsec.enabled) %>
+            <% } else if (pkBase === 'video_text') { %>
+            <% if (!pkIsCopy) { %>
             <div class="te4-hint" style="margin-bottom:.75rem">Paste a YouTube URL or a direct .mp4 URL. Upload a local video file using the button below.</div>
-
+            <% } %>
             <div class="te4-section-label">Video</div>
-            <%- teVideoField('video_text.video_url', vtsec.video_url) %>
-
+            <%- teVideoField(pk+'.video_url', d.video_url) %>
             <div class="te4-section-label">Layout</div>
             <div class="te4-row2">
-              <div class="te4-field"><label>Video side</label><select name="video_text.video_side" class="te4-select"><option value="left" <%=(vtsec.video_side||'left')==='left'?'selected':''%>>Video left, text right</option><option value="right" <%=vtsec.video_side==='right'?'selected':''%>>Video right, text left</option></select></div>
-              <div class="te4-field"><label>Video width</label><select name="video_text.split" class="te4-select"><option value="40" <%=(vtsec.split||'50')==='40'?'selected':''%>>40% video / 60% text</option><option value="50" <%=(vtsec.split||'50')==='50'?'selected':''%>>50% / 50% (equal)</option><option value="60" <%=vtsec.split==='60'?'selected':''%>>60% video / 40% text</option></select></div>
+              <div class="te4-field"><label>Video side</label><select name="<%= pk %>.video_side" class="te4-select">
+                <option value="left"  <%=(d.video_side||'left')==='left' ?'selected':''%>>Video left, text right</option>
+                <option value="right" <%=d.video_side==='right'          ?'selected':''%>>Video right, text left</option>
+              </select></div>
+              <div class="te4-field"><label>Video width</label><select name="<%= pk %>.split" class="te4-select">
+                <option value="40" <%=(d.split||'50')==='40'?'selected':''%>>40% video / 60% text</option>
+                <option value="50" <%=(d.split||'50')==='50'?'selected':''%>>50% / 50% (equal)</option>
+                <option value="60" <%=d.split==='60'         ?'selected':''%>>60% video / 40% text</option>
+              </select></div>
             </div>
-
             <div class="te4-section-label">Content</div>
-            <%- teField('text','video_text.eyebrow','Eyebrow label',vtsec.eyebrow) %>
+            <%- teField('text', pk+'.eyebrow', 'Eyebrow label', d.eyebrow) %>
+            <div class="te4-row2"><%- teHeadingLevel(pk+'.heading_level', d.heading_level||'h2') %></div>
+            <%- teField('text',     pk+'.heading',  'Heading',    d.heading) %>
+            <%- teField('textarea', pk+'.body',     'Body text',  d.body) %>
             <div class="te4-row2">
-              <%- teHeadingLevel('video_text.heading_level', vtsec.heading_level||'h2') %>
+              <%- teField('text', pk+'.cta_text', 'Button label', d.cta_text) %>
+              <%- teField('url',  pk+'.cta_url',  'Button URL',   d.cta_url) %>
             </div>
-            <%- teField('text','video_text.heading','Heading',vtsec.heading) %>
-            <%- teField('textarea','video_text.body','Body text',vtsec.body) %>
-            <div class="te4-row2">
-              <%- teField('text','video_text.cta_text','Button label',vtsec.cta_text) %>
-              <%- teField('url','video_text.cta_url','Button URL',vtsec.cta_url) %>
-            </div>
-          </div>
 
-          <!-- ── BEFORE / AFTER ─────────────────────────────── -->
-          <div class="te4-panel" id="panel-before_after">
-            <% const basec=t.before_after||{}; %>
-            <%- teToggle('before_after.enabled','Show section',basec.enabled) %>
+            <% } else if (pkBase === 'before_after') { %>
             <div class="te4-section-label">Section header</div>
-            <%- teField('text','before_after.eyebrow','Eyebrow',basec.eyebrow) %>
+            <%- teField('text', pk+'.eyebrow', 'Eyebrow', d.eyebrow) %>
             <div class="te4-row2">
-              <%- teHeadingLevel('before_after.heading_level',basec.heading_level||'h2') %>
-              <%- teAlignment('before_after.text_align',basec.text_align||'center') %>
+              <%- teHeadingLevel(pk+'.heading_level', d.heading_level||'h2') %>
+              <%- teAlignment(pk+'.text_align', d.text_align||'center') %>
             </div>
-            <%- teField('text','before_after.heading','Heading',basec.heading) %>
-            <%- teField('text','before_after.subtitle','Subtitle',basec.subtitle) %>
+            <%- teField('text', pk+'.heading',  'Heading',  d.heading) %>
+            <%- teField('text', pk+'.subtitle', 'Subtitle', d.subtitle) %>
             <div class="te4-section-label">Before image</div>
-            <%- teImage('before_after.before_image','before_after.before_alt',basec.before_image,basec.before_alt,'Before') %>
-            <%- teField('text','before_after.before_label','Label overlay',basec.before_label) %>
+            <%- teImage(pk+'.before_image', pk+'.before_alt', d.before_image, d.before_alt, 'Before') %>
+            <%- teField('text', pk+'.before_label', 'Label overlay', d.before_label) %>
             <div class="te4-section-label">After image</div>
-            <%- teImage('before_after.after_image','before_after.after_alt',basec.after_image,basec.after_alt,'After') %>
-            <%- teField('text','before_after.after_label','Label overlay',basec.after_label) %>
+            <%- teImage(pk+'.after_image', pk+'.after_alt', d.after_image, d.after_alt, 'After') %>
+            <%- teField('text', pk+'.after_label', 'Label overlay', d.after_label) %>
             <div class="te4-section-label">Slider</div>
-            <div class="te4-field"><label>Starting position</label><div class="te4-slider-wrap"><input type="range" class="te4-slider" name="before_after.initial_pos" min="10" max="90" step="5" value="<%=basec.initial_pos||50%>"><input type="number" class="te4-slider-num" min="10" max="90" step="5" value="<%=basec.initial_pos||50%>"><span class="te4-slider-unit">%</span></div></div>
-          </div>
+            <div class="te4-field"><label>Starting position</label><div class="te4-slider-wrap"><input type="range" class="te4-slider" name="<%= pk %>.initial_pos" min="10" max="90" step="5" value="<%=d.initial_pos||50%>"><input type="number" class="te4-slider-num" min="10" max="90" step="5" value="<%=d.initial_pos||50%>"><span class="te4-slider-unit">%</span></div></div>
 
-          <!-- ── BEFORE / AFTER 2 (duplicate) ──────────────── -->
-          <div class="te4-panel" id="panel-before_after_2">
-            <% const ba2sec=t.before_after_2||{}; %>
-            <%- teToggle('before_after_2.enabled','Show section',ba2sec.enabled) %>
-            <div class="te4-hint" style="margin-bottom:.75rem">Second comparison slider — enable and fill in images to add a second before/after block.</div>
-            <div class="te4-section-label">Section header</div>
-            <%- teField('text','before_after_2.eyebrow','Eyebrow',ba2sec.eyebrow) %>
-            <div class="te4-row2">
-              <%- teHeadingLevel('before_after_2.heading_level',ba2sec.heading_level||'h2') %>
-              <%- teAlignment('before_after_2.text_align',ba2sec.text_align||'center') %>
-            </div>
-            <%- teField('text','before_after_2.heading','Heading',ba2sec.heading) %>
-            <%- teField('text','before_after_2.subtitle','Subtitle',ba2sec.subtitle) %>
-            <div class="te4-section-label">Before image</div>
-            <%- teImage('before_after_2.before_image','before_after_2.before_alt',ba2sec.before_image,ba2sec.before_alt,'Before') %>
-            <%- teField('text','before_after_2.before_label','Label overlay',ba2sec.before_label) %>
-            <div class="te4-section-label">After image</div>
-            <%- teImage('before_after_2.after_image','before_after_2.after_alt',ba2sec.after_image,ba2sec.after_alt,'After') %>
-            <%- teField('text','before_after_2.after_label','Label overlay',ba2sec.after_label) %>
-            <div class="te4-section-label">Slider</div>
-            <div class="te4-field"><label>Starting position</label><div class="te4-slider-wrap"><input type="range" class="te4-slider" name="before_after_2.initial_pos" min="10" max="90" step="5" value="<%=ba2sec.initial_pos||50%>"><input type="number" class="te4-slider-num" min="10" max="90" step="5" value="<%=ba2sec.initial_pos||50%>"><span class="te4-slider-unit">%</span></div></div>
-          </div>
-
-          <!-- ── TRUST BAND 2 (duplicate) ─────────────────── -->
-          <div class="te4-panel" id="panel-trust_band_2">
-            <% const tb2sec=t.trust_band_2||{}; %>
-            <%- teToggle('trust_band_2.enabled','Show trust band',tb2sec.enabled) %>
-            <div class="te4-hint" style="margin-bottom:.75rem">Second trust band — useful for a different set of stats lower on the page.</div>
+            <% } else if (pkBase === 'trust_band') { %>
             <div class="te4-section-label">Colors <small style="font-weight:400;opacity:.6">(leave blank for defaults)</small></div>
             <div class="te4-row2">
-              <%- teColor('trust_band_2.bg_color','Background',tb2sec.bg_color||'#F8F6F2') %>
-              <%- teColor('trust_band_2.text_color','Text color',tb2sec.text_color||'#182840') %>
+              <%- teColor(pk+'.bg_color',   'Background', d.bg_color  ||'#F8F6F2') %>
+              <%- teColor(pk+'.text_color', 'Text color', d.text_color||'#182840') %>
             </div>
             <div class="te4-section-label">Stat 1</div>
-            <div class="te4-row3"><%- teField('text','trust_band_2.stat1_icon','Icon / Emoji',tb2sec.stat1_icon,true) %><%- teField('text','trust_band_2.stat1_value','Number / Value',tb2sec.stat1_value,true) %><%- teField('text','trust_band_2.stat1_label','Label text',tb2sec.stat1_label,true) %></div>
+            <div class="te4-row3"><%- teField('text',pk+'.stat1_icon','Icon / Emoji',d.stat1_icon,true) %><%- teField('text',pk+'.stat1_value','Number / Value',d.stat1_value,true) %><%- teField('text',pk+'.stat1_label','Label text',d.stat1_label,true) %></div>
             <div class="te4-section-label">Stat 2</div>
-            <div class="te4-row3"><%- teField('text','trust_band_2.stat2_icon','Icon / Emoji',tb2sec.stat2_icon,true) %><%- teField('text','trust_band_2.stat2_value','Number / Value',tb2sec.stat2_value,true) %><%- teField('text','trust_band_2.stat2_label','Label text',tb2sec.stat2_label,true) %></div>
+            <div class="te4-row3"><%- teField('text',pk+'.stat2_icon','Icon / Emoji',d.stat2_icon,true) %><%- teField('text',pk+'.stat2_value','Number / Value',d.stat2_value,true) %><%- teField('text',pk+'.stat2_label','Label text',d.stat2_label,true) %></div>
             <div class="te4-section-label">Stat 3</div>
-            <div class="te4-row3"><%- teField('text','trust_band_2.stat3_icon','Icon / Emoji',tb2sec.stat3_icon,true) %><%- teField('text','trust_band_2.stat3_value','Number / Value',tb2sec.stat3_value,true) %><%- teField('text','trust_band_2.stat3_label','Label text',tb2sec.stat3_label,true) %></div>
-          </div>
+            <div class="te4-row3"><%- teField('text',pk+'.stat3_icon','Icon / Emoji',d.stat3_icon,true) %><%- teField('text',pk+'.stat3_value','Number / Value',d.stat3_value,true) %><%- teField('text',pk+'.stat3_label','Label text',d.stat3_label,true) %></div>
 
-          <!-- ── TRUST BAND ─────────────────────────────────── -->
-          <div class="te4-panel" id="panel-trust_band">
-            <% const tbsec=t.trust_band||{}; %>
-            <%- teToggle('trust_band.enabled','Show trust band',tbsec.enabled) %>
-            <div class="te4-section-label">Colors <small style="font-weight:400;opacity:.6">(leave blank for defaults)</small></div>
-            <div class="te4-row2">
-              <%- teColor('trust_band.bg_color','Background',tbsec.bg_color||'#F8F6F2') %>
-              <%- teColor('trust_band.text_color','Text color',tbsec.text_color||'#182840') %>
-            </div>
-            <div class="te4-section-label">Stat 1</div>
-            <div class="te4-row3"><%- teField('text','trust_band.stat1_icon','Icon / Emoji',tbsec.stat1_icon,true) %><%- teField('text','trust_band.stat1_value','Number / Value',tbsec.stat1_value,true) %><%- teField('text','trust_band.stat1_label','Label text',tbsec.stat1_label,true) %></div>
-            <div class="te4-section-label">Stat 2</div>
-            <div class="te4-row3"><%- teField('text','trust_band.stat2_icon','Icon / Emoji',tbsec.stat2_icon,true) %><%- teField('text','trust_band.stat2_value','Number / Value',tbsec.stat2_value,true) %><%- teField('text','trust_band.stat2_label','Label text',tbsec.stat2_label,true) %></div>
-            <div class="te4-section-label">Stat 3</div>
-            <div class="te4-row3"><%- teField('text','trust_band.stat3_icon','Icon / Emoji',tbsec.stat3_icon,true) %><%- teField('text','trust_band.stat3_value','Number / Value',tbsec.stat3_value,true) %><%- teField('text','trust_band.stat3_label','Label text',tbsec.stat3_label,true) %></div>
-          </div>
-
-          <!-- ── PARALLAX 2 (duplicate) ────────────────────── -->
-          <div class="te4-panel" id="panel-parallax_2">
-            <% const par2sec=t.parallax_2||{}; %>
-            <%- teToggle('parallax_2.enabled','Show section',par2sec.enabled) %>
-            <div class="te4-hint" style="margin-bottom:.75rem">Second parallax band — great for a mid-page CTA with a different image and message.</div>
+            <% } else if (pkBase === 'parallax') { %>
             <div class="te4-section-label">Background</div>
-            <%- teImage('parallax_2.image_url','parallax_2.image_alt',par2sec.image_url,par2sec.image_alt,'Background image') %>
+            <%- teImage(pk+'.image_url', pk+'.image_alt', d.image_url, d.image_alt, 'Background image') %>
             <div class="te4-row2">
-              <%- teColor('parallax_2.overlay_color','Overlay color',par2sec.overlay_color||'#0f1f35') %>
-              <div class="te4-field"><label>Overlay opacity</label><div class="te4-slider-wrap"><input type="range" class="te4-slider" name="parallax_2.overlay_opacity" min="0" max="90" step="5" value="<%=par2sec.overlay_opacity||65%>"><input type="number" class="te4-slider-num" min="0" max="90" step="5" value="<%=par2sec.overlay_opacity||65%>"><span class="te4-slider-unit">%</span></div></div>
+              <%- teColor(pk+'.overlay_color', 'Overlay color', d.overlay_color||'#0f1f35') %>
+              <div class="te4-field"><label>Overlay opacity</label><div class="te4-slider-wrap"><input type="range" class="te4-slider" name="<%= pk %>.overlay_opacity" min="0" max="90" step="5" value="<%=d.overlay_opacity||65%>"><input type="number" class="te4-slider-num" min="0" max="90" step="5" value="<%=d.overlay_opacity||65%>"><span class="te4-slider-unit">%</span></div></div>
             </div>
             <div class="te4-section-label">Content</div>
-            <%- teField('text','parallax_2.eyebrow','Eyebrow',par2sec.eyebrow) %>
+            <%- teField('text', pk+'.eyebrow', 'Eyebrow', d.eyebrow) %>
             <div class="te4-row2">
-              <%- teHeadingLevel('parallax_2.heading_level',par2sec.heading_level||'h2') %>
-              <%- teAlignment('parallax_2.text_align',par2sec.text_align||'center') %>
+              <%- teHeadingLevel(pk+'.heading_level', d.heading_level||'h2') %>
+              <%- teAlignment(pk+'.text_align', d.text_align||'center') %>
             </div>
-            <%- teField('text','parallax_2.title_line1','Title line 1',par2sec.title_line1) %>
-            <%- teField('text','parallax_2.title_line2','Title line 2 (amber)',par2sec.title_line2) %>
-            <%- teField('textarea','parallax_2.subtitle','Subtitle',par2sec.subtitle) %>
+            <%- teField('text',     pk+'.title_line1', 'Title line 1',        d.title_line1) %>
+            <%- teField('text',     pk+'.title_line2', 'Title line 2 (amber)',d.title_line2) %>
+            <%- teField('textarea', pk+'.subtitle',    'Subtitle',            d.subtitle) %>
             <div class="te4-section-label">Buttons</div>
-            <div class="te4-row2"><%- teField('text','parallax_2.cta1_text','Button 1 label',par2sec.cta1_text) %><%- teField('url','parallax_2.cta1_url','Button 1 URL',par2sec.cta1_url) %></div>
-            <div class="te4-row2"><%- teField('text','parallax_2.cta2_text','Button 2 label',par2sec.cta2_text) %><%- teField('url','parallax_2.cta2_url','Button 2 URL',par2sec.cta2_url) %></div>
-          </div>
+            <div class="te4-row2"><%- teField('text',pk+'.cta1_text','Button 1 label',d.cta1_text) %><%- teField('url',pk+'.cta1_url','Button 1 URL',d.cta1_url) %></div>
+            <div class="te4-row2"><%- teField('text',pk+'.cta2_text','Button 2 label',d.cta2_text) %><%- teField('url',pk+'.cta2_url','Button 2 URL',d.cta2_url) %></div>
 
-          <!-- ── PARALLAX ───────────────────────────────────── -->
-          <div class="te4-panel" id="panel-parallax">
-            <% const parsec=t.parallax||{}; %>
-            <%- teToggle('parallax.enabled','Show section',parsec.enabled) %>
-            <div class="te4-section-label">Background</div>
-            <%- teImage('parallax.image_url','parallax.image_alt',parsec.image_url,parsec.image_alt,'Background image') %>
-            <div class="te4-row2">
-              <%- teColor('parallax.overlay_color','Overlay color',parsec.overlay_color||'#0f1f35') %>
-              <div class="te4-field"><label>Overlay opacity</label><div class="te4-slider-wrap"><input type="range" class="te4-slider" name="parallax.overlay_opacity" min="0" max="90" step="5" value="<%=parsec.overlay_opacity||65%>"><input type="number" class="te4-slider-num" min="0" max="90" step="5" value="<%=parsec.overlay_opacity||65%>"><span class="te4-slider-unit">%</span></div></div>
-            </div>
-            <div class="te4-section-label">Content</div>
-            <%- teField('text','parallax.eyebrow','Eyebrow',parsec.eyebrow) %>
-            <div class="te4-row2">
-              <%- teHeadingLevel('parallax.heading_level',parsec.heading_level||'h2') %>
-              <%- teAlignment('parallax.text_align',parsec.text_align||'center') %>
-            </div>
-            <%- teField('text','parallax.title_line1','Title line 1',parsec.title_line1) %>
-            <%- teField('text','parallax.title_line2','Title line 2 (amber)',parsec.title_line2) %>
-            <%- teField('textarea','parallax.subtitle','Subtitle',parsec.subtitle) %>
-            <div class="te4-section-label">Buttons</div>
-            <div class="te4-row2"><%- teField('text','parallax.cta1_text','Button 1 label',parsec.cta1_text) %><%- teField('url','parallax.cta1_url','Button 1 URL',parsec.cta1_url) %></div>
-            <div class="te4-row2"><%- teField('text','parallax.cta2_text','Button 2 label',parsec.cta2_text) %><%- teField('url','parallax.cta2_url','Button 2 URL',parsec.cta2_url) %></div>
-          </div>
-
-          <!-- ── TESTIMONIALS 2 (duplicate) ───────────────── -->
-          <div class="te4-panel" id="panel-testimonials_2">
-            <% const tst2sec=t.testimonials_2||{}; %>
-            <%- teToggle('testimonials_2.enabled','Show section',tst2sec.enabled) %>
-            <div class="te4-hint" style="margin-bottom:.75rem">Second testimonials block — add a different set of reviews in a new position on the page.</div>
+            <% } else if (pkBase === 'testimonials') { %>
             <div class="te4-section-label">Section header</div>
-            <%- teField('text','testimonials_2.eyebrow','Eyebrow',tst2sec.eyebrow) %>
+            <%- teField('text', pk+'.eyebrow', 'Eyebrow', d.eyebrow) %>
             <div class="te4-row2">
-              <%- teHeadingLevel('testimonials_2.heading_level',tst2sec.heading_level||'h2') %>
-              <%- teAlignment('testimonials_2.text_align',tst2sec.text_align||'center') %>
+              <%- teHeadingLevel(pk+'.heading_level', d.heading_level||'h2') %>
+              <%- teAlignment(pk+'.text_align', d.text_align||'center') %>
             </div>
-            <%- teField('text','testimonials_2.heading','Heading',tst2sec.heading) %>
-            <%- teField('text','testimonials_2.subtitle','Subtitle',tst2sec.subtitle) %>
+            <%- teField('text', pk+'.heading',  'Heading',  d.heading) %>
+            <%- teField('text', pk+'.subtitle', 'Subtitle', d.subtitle) %>
             <div class="te4-array-header">
               <span class="te4-section-label">Reviews</span>
-              <button type="button" class="te4-add-btn" data-target="testimonials2List" data-tpl="testimonial2Tpl">+ Add</button>
+              <button type="button" class="te4-add-btn" data-target="<%= pkListId %>" data-tpl="<%= pkTplId %>">+ Add</button>
             </div>
-            <div class="te4-array-list" id="testimonials2List">
-              <% (tst2sec.items||[]).forEach(function(item,i){ %>
+            <div class="te4-array-list" id="<%= pkListId %>">
+              <% (d.items||[]).forEach(function(item,i){ %>
               <div class="te4-array-row">
                 <span class="te4-array-drag">⠿</span>
                 <div class="te4-array-fields">
-                  <%- teField('textarea','testimonials_2.items['+i+'].text','Review',item.text,true) %>
+                  <%- teField('textarea', pk+'.items['+i+'].text',     'Review',   item.text,        true) %>
                   <div class="te4-row3">
-                    <%- teField('text','testimonials_2.items['+i+'].author','Author',item.author,true) %>
-                    <%- teField('text','testimonials_2.items['+i+'].location','Location',item.location,true) %>
-                    <%- teField('number','testimonials_2.items['+i+'].rating','Stars',item.rating||5,true) %>
+                    <%- teField('text',   pk+'.items['+i+'].author',   'Author',   item.author,      true) %>
+                    <%- teField('text',   pk+'.items['+i+'].location', 'Location', item.location,    true) %>
+                    <%- teField('number', pk+'.items['+i+'].rating',   'Stars',    item.rating||5,   true) %>
                   </div>
                 </div>
                 <button type="button" class="te4-remove-row">×</button>
               </div>
               <% }) %>
             </div>
-            <template id="testimonial2Tpl">
+            <template id="<%= pkTplId %>">
               <div class="te4-array-row">
                 <span class="te4-array-drag">⠿</span>
                 <div class="te4-array-fields">
-                  <%- teField('textarea','testimonials_2.items[__i__].text','Review','',true) %>
+                  <%- teField('textarea', pk+'.items[__i__].text',     'Review',   '', true) %>
                   <div class="te4-row3">
-                    <%- teField('text','testimonials_2.items[__i__].author','Author','',true) %>
-                    <%- teField('text','testimonials_2.items[__i__].location','Location','',true) %>
-                    <%- teField('number','testimonials_2.items[__i__].rating','Stars',5,true) %>
+                    <%- teField('text',   pk+'.items[__i__].author',   'Author',   '', true) %>
+                    <%- teField('text',   pk+'.items[__i__].location', 'Location', '', true) %>
+                    <%- teField('number', pk+'.items[__i__].rating',   'Stars',    5,  true) %>
                   </div>
                 </div>
                 <button type="button" class="te4-remove-row">×</button>
               </div>
             </template>
-          </div>
+            <% } %>
 
-          <!-- ── TESTIMONIALS ───────────────────────────────── -->
-          <div class="te4-panel" id="panel-testimonials">
-            <% const tstsec=t.testimonials||{}; %>
-            <%- teToggle('testimonials.enabled','Show section',tstsec.enabled) %>
-            <div class="te4-section-label">Section header</div>
-            <%- teField('text','testimonials.eyebrow','Eyebrow',tstsec.eyebrow) %>
-            <div class="te4-row2">
-              <%- teHeadingLevel('testimonials.heading_level',tstsec.heading_level||'h2') %>
-              <%- teAlignment('testimonials.text_align',tstsec.text_align||'center') %>
-            </div>
-            <%- teField('text','testimonials.heading','Heading',tstsec.heading) %>
-            <%- teField('text','testimonials.subtitle','Subtitle',tstsec.subtitle) %>
-            <div class="te4-array-header">
-              <span class="te4-section-label">Reviews</span>
-              <button type="button" class="te4-add-btn" data-target="testimonialsList" data-tpl="testimonialTpl">+ Add</button>
-            </div>
-            <div class="te4-array-list" id="testimonialsList">
-              <% (tstsec.items||[]).forEach(function(item,i){ %>
-              <div class="te4-array-row">
-                <span class="te4-array-drag">⠿</span>
-                <div class="te4-array-fields">
-                  <%- teField('textarea','testimonials.items['+i+'].text','Review',item.text,true) %>
-                  <div class="te4-row3">
-                    <%- teField('text','testimonials.items['+i+'].author','Author',item.author,true) %>
-                    <%- teField('text','testimonials.items['+i+'].location','Location',item.location,true) %>
-                    <%- teField('number','testimonials.items['+i+'].rating','Stars',item.rating||5,true) %>
-                  </div>
-                </div>
-                <button type="button" class="te4-remove-row">×</button>
-              </div>
-              <% }) %>
-            </div>
-            <template id="testimonialTpl">
-              <div class="te4-array-row">
-                <span class="te4-array-drag">⠿</span>
-                <div class="te4-array-fields">
-                  <%- teField('textarea','testimonials.items[__i__].text','Review','',true) %>
-                  <div class="te4-row3">
-                    <%- teField('text','testimonials.items[__i__].author','Author','',true) %>
-                    <%- teField('text','testimonials.items[__i__].location','Location','',true) %>
-                    <%- teField('number','testimonials.items[__i__].rating','Stars',5,true) %>
-                  </div>
-                </div>
-                <button type="button" class="te4-remove-row">×</button>
-              </div>
-            </template>
-          </div>
+          </div><!-- /panel-<%= pk %> -->
+          <% }); /* end duplicatable panel loop */ %>
 
           <!-- ── NEWSLETTER ─────────────────────────────────── -->
           <div class="te4-panel" id="panel-newsletter">
@@ -1213,13 +1072,15 @@ function teArrayLinks(prefix,listId,tplId,items){
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
-    <p class="te4-modal-hint">Show/hide sections or click <strong>Duplicate</strong> to add a second copy of any duplicatable section.</p>
-    <%
-    var _DUPLICATABLE = new Set(['image_with_text','before_after','video_text','trust_band','parallax','testimonials']);
-    var _DUP_TARGETS  = new Set(['image_with_text_2','before_after_2','video_text_2','trust_band_2','parallax_2','testimonials_2']);
-    %>
+    <p class="te4-modal-hint">Show/hide sections or click <strong>Duplicate</strong> to add additional copies of any duplicatable section.</p>
     <div class="te4-modal-grid">
-      <% orderedKeys.forEach(function(key){ var meta=TEMPLATE_META[key]||{}; var enabled=isSectionEnabled(key); %>
+      <% orderedKeys.forEach(function(key){ var meta=getMeta(key); var enabled=isSectionEnabled(key); %>
+      <%
+        var _mBaseKey = key.replace(/_\d+$/, '');
+        var _mCopyMatch = key.match(/_(\d+)$/);
+        var _mIsCopy = !!_mCopyMatch;
+        var _mIsBase = !_mIsCopy && _DUPL_BASES.has(key);
+      %>
       <div class="te4-modal-card<%= enabled?' is-active':'' %>" data-key="<%= key %>">
         <div class="te4-modal-icon"><%- secIcon(key) %></div>
         <div class="te4-modal-card-body">
@@ -1231,11 +1092,11 @@ function teArrayLinks(prefix,listId,tplId,items){
           <button type="button" class="te4-modal-toggle-btn" data-key="<%= key %>">
             <%= enabled?'Hide':'Show' %>
           </button>
-          <% if (_DUPLICATABLE.has(key) && !orderedKeys.includes(key + '_2')) { %>
-          <button type="button" class="te4-modal-dup-btn" data-from="<%= key %>" data-to="<%= key %>_2">Duplicate</button>
+          <% if (_mIsBase) { %>
+          <button type="button" class="te4-modal-dup-btn" data-from="<%= key %>">Duplicate</button>
           <% } %>
-          <% if (_DUP_TARGETS.has(key)) { %>
-          <span class="te4-modal-dup-label">Copy</span>
+          <% if (_mIsCopy) { %>
+          <span class="te4-modal-dup-label">Copy <%= _mCopyMatch[1] %></span>
           <% } %>
         </div>
       </div>
@@ -1576,13 +1437,12 @@ document.querySelectorAll('.te4-modal-toggle-btn').forEach(function (btn) {
 document.querySelectorAll('.te4-modal-dup-btn').forEach(function (btn) {
   btn.addEventListener('click', function () {
     var fromKey = btn.dataset.from;
-    var toKey   = btn.dataset.to;
     btn.disabled = true;
     btn.textContent = 'Duplicating…';
     fetch('/admin/theme/duplicate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: fromKey, to: toKey })
+      body: JSON.stringify({ from: fromKey })
     })
     .then(function (r) { return r.json(); })
     .then(function (data) {
