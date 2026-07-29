@@ -7,7 +7,11 @@ const cs   = S.categories_section || {};
 const fs_  = S.featured_section   || {};
 const fm_  = S.featured_models    || {};
 const iwt  = S.image_with_text    || {};
-const iwt2 = S.image_with_text_2  || {};
+const iwt2  = S.image_with_text_2  || {};
+const vt2   = S.video_text_2       || {};
+const tb2   = S.trust_band_2       || {};
+const par2  = S.parallax_2         || {};
+const test2 = S.testimonials_2     || {};
 const vt   = S.video_text         || {};
 const ba   = S.before_after       || {};
 const ba2  = S.before_after_2     || {};
@@ -39,7 +43,7 @@ function _salsifyImg(url, w, h) {
 
 const _DEFAULT_ORDER = ['scrolling_ticker','hero','brand_logos','categories_section',
   'featured_section','featured_models','image_with_text','video_text','before_after','trust_band','parallax','testimonials','newsletter'];
-const _VALID_KEYS = new Set([..._DEFAULT_ORDER, 'image_with_text_2','before_after_2']);
+const _VALID_KEYS = new Set([..._DEFAULT_ORDER, 'image_with_text_2','before_after_2','video_text_2','trust_band_2','parallax_2','testimonials_2']);
 const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_section_order.length)
   ? S.homepage_section_order
   : _DEFAULT_ORDER;
@@ -571,6 +575,40 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
 </section>
 <% } /* end video_text */ %>
 
+<!-- ── VIDEO + TEXT 2 (duplicate slot) ──────────────────────────── -->
+<% if (sectionKey === 'video_text_2' && vt2.enabled !== false && vt2.video_url) { %>
+<%
+  var _vt2Tag   = _safeTag(vt2.heading_level, 'h2');
+  var _vt2Split = vt2.split || '50';
+  var _vt2Side  = vt2.video_side === 'right' ? 'vt-video-right' : 'vt-video-left';
+  var _vt2IsYT  = _isYT(vt2.video_url);
+  var _vt2YTId  = _vt2IsYT ? _ytId(vt2.video_url) : null;
+%>
+<section class="video-text-section" data-section="video_text_2" data-section-label="Video + Text (2)" aria-label="<%= vt2.eyebrow || vt2.heading || 'Video section' %>">
+  <div class="vt-inner vt-split-<%= _vt2Split %> <%= _vt2Side %>">
+    <div class="vt-video-col">
+      <div class="vt-video-embed">
+        <% if (_vt2IsYT && _vt2YTId) { %>
+        <iframe src="https://www.youtube-nocookie.com/embed/<%= _vt2YTId %>?rel=0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowfullscreen frameborder="0" loading="lazy" title="<%= vt2.heading || 'Video' %>"></iframe>
+        <% } else { %>
+        <video controls preload="metadata" title="<%= vt2.heading || 'Video' %>">
+          <source src="<%= vt2.video_url %>" type="video/mp4">
+        </video>
+        <% } %>
+      </div>
+    </div>
+    <div class="vt-text-col">
+      <% if (vt2.eyebrow) { %><p class="vt-eyebrow"><%= vt2.eyebrow %></p><% } %>
+      <% if (vt2.heading) { %><<%- _vt2Tag %> class="vt-heading"><%= vt2.heading %></<%- _vt2Tag %>><% } %>
+      <% if (vt2.body) { %><p class="vt-body"><%= vt2.body %></p><% } %>
+      <% if (vt2.cta_text && vt2.cta_url) { %><a href="<%= vt2.cta_url %>" class="btn btn-navy"><%= vt2.cta_text %></a><% } %>
+    </div>
+  </div>
+</section>
+<% } /* end video_text_2 */ %>
+
 <!-- ── BEFORE / AFTER SLIDER ─────────────────────────────────────── -->
 <% if (sectionKey === 'before_after' && ba.enabled !== false) { %>
 <%
@@ -684,6 +722,29 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
 </section>
 <% } /* end trust_band */ %>
 
+<!-- ── TRUST BAND 2 (duplicate slot) ────────────────────────────── -->
+<% if (sectionKey === 'trust_band_2' && tb2.enabled !== false) { %>
+<%
+  var _tb2Style = '';
+  if (tb2.bg_color)   _tb2Style += 'background:' + tb2.bg_color + ';';
+  if (tb2.text_color) _tb2Style += 'color:' + tb2.text_color + ';';
+%>
+<section class="trust-band" data-section="trust_band_2" data-section-label="Trust Band (2)" aria-label="Trust statistics"<%= _tb2Style ? ' style="' + _tb2Style + '"' : '' %>>
+  <div class="trust-item">
+    <% if (tb2.stat1_icon) { %><span class="trust-item-icon"><%= tb2.stat1_icon %></span><% } %>
+    <h3><%= tb2.stat1_value || '' %></h3><p><%= tb2.stat1_label || '' %></p>
+  </div>
+  <div class="trust-item">
+    <% if (tb2.stat2_icon) { %><span class="trust-item-icon"><%= tb2.stat2_icon %></span><% } %>
+    <h3><%= tb2.stat2_value || '' %></h3><p><%= tb2.stat2_label || '' %></p>
+  </div>
+  <div class="trust-item">
+    <% if (tb2.stat3_icon) { %><span class="trust-item-icon"><%= tb2.stat3_icon %></span><% } %>
+    <h3><%= tb2.stat3_value || '' %></h3><p><%= tb2.stat3_label || '' %></p>
+  </div>
+</section>
+<% } /* end trust_band_2 */ %>
+
 <!-- ── PARALLAX BAND ─────────────────────────────────────────────── -->
 <% if (sectionKey === 'parallax' && par.enabled !== false) { %>
 <%
@@ -708,6 +769,31 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
   </div>
 </section>
 <% } /* end parallax */ %>
+
+<!-- ── PARALLAX 2 (duplicate slot) ──────────────────────────────── -->
+<% if (sectionKey === 'parallax_2' && par2.enabled !== false) { %>
+<%
+  var _par2Tag   = _safeTag(par2.heading_level, 'h2');
+  var _par2Align = par2.text_align || 'center';
+  var _par2OC    = par2.overlay_color || '#0f1f35';
+  var _par2OO    = (par2.overlay_opacity !== undefined ? par2.overlay_opacity : 65) / 100;
+%>
+<section class="parallax-band" data-section="parallax_2" data-section-label="Parallax Band (2)" aria-label="Design inspiration"
+  <% if (par2.image_url) { %>style="background-image:url('<%= par2.image_url %>'),linear-gradient(135deg,#101828 0%,#182840 40%,#1e3a5f 70%,#14243a 100%)"<% } %>>
+  <div class="parallax-overlay"></div>
+  <div class="parallax-overlay" style="background:<%- _par2OC %>;opacity:<%- _par2OO %>"></div>
+  <div class="parallax-inner" style="text-align:<%= _par2Align %>">
+    <% if (par2.eyebrow) { %><p class="parallax-eyebrow"><%= par2.eyebrow %></p><% } %>
+    <<%- _par2Tag %> class="parallax-title"><%= par2.title_line1 || '' %><% if (par2.title_line2) { %><br><span><%= par2.title_line2 %></span><% } %></<%- _par2Tag %>>
+    <div class="parallax-rule"></div>
+    <% if (par2.subtitle) { %><p class="parallax-sub"><%= par2.subtitle %></p><% } %>
+    <div class="hero-ctas">
+      <% if (par2.cta1_text && par2.cta1_url) { %><a href="<%= par2.cta1_url %>" class="btn btn-amber"><%= par2.cta1_text %></a><% } %>
+      <% if (par2.cta2_text && par2.cta2_url) { %><a href="<%= par2.cta2_url %>" class="btn btn-outline" style="color:#fff;border-color:rgba(255,255,255,.6)"><%= par2.cta2_text %></a><% } %>
+    </div>
+  </div>
+</section>
+<% } /* end parallax_2 */ %>
 
 <!-- ── TESTIMONIALS ───────────────────────────────────────────────── -->
 <% if (sectionKey === 'testimonials' && test.enabled !== false && test.items && test.items.length) { %>
@@ -744,6 +830,42 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
   </div>
 </section>
 <% } /* end testimonials */ %>
+
+<!-- ── TESTIMONIALS 2 ─────────────────────────────────────────────── -->
+<% if (sectionKey === 'testimonials_2' && test2.enabled !== false && test2.items && test2.items.length) { %>
+<%
+  var _test2Tag   = _safeTag(test2.heading_level, 'h2');
+  var _test2Align = test2.text_align    || 'center';
+%>
+<section class="section testimonials-section" data-section="testimonials_2" data-section-label="Testimonials (2)" aria-labelledby="test-heading-2">
+  <div class="section-header" style="text-align:<%= _test2Align %>">
+    <% if (test2.eyebrow) { %><p class="section-eyebrow"><%= test2.eyebrow %></p><% } %>
+    <<%- _test2Tag %> class="section-title" id="test-heading-2"><%= test2.heading || 'What Our Customers Say' %></<%- _test2Tag %>>
+    <% if (test2.subtitle) { %><p class="section-sub"><%= test2.subtitle %></p><% } %>
+  </div>
+  <div class="testimonials-grid">
+    <% test2.items.forEach(function(t) { %>
+    <article class="testimonial-card">
+      <div class="testimonial-stars">
+        <% for (var si=0; si<5; si++) { %>
+        <svg viewBox="0 0 20 20" width="16" height="16"><polygon points="10,1 12.9,7 19.5,7.6 14.5,12 16.2,18.5 10,15 3.8,18.5 5.5,12 0.5,7.6 7.1,7" fill="<%= si < (t.rating||5) ? '#B8862A' : '#D1D5DB' %>"/></svg>
+        <% } %>
+      </div>
+      <blockquote class="testimonial-text">"<%= t.text %>"</blockquote>
+      <footer class="testimonial-author">
+        <div class="testimonial-author-info">
+          <strong class="testimonial-name"><%= t.author %></strong>
+          <% if (t.location) { %><span class="testimonial-location"><%= t.location %></span><% } %>
+        </div>
+        <div class="testimonial-avatar">
+          <% if (t.avatar) { %><img src="<%= t.avatar %>" alt="<%= t.author %>"><% } %>
+        </div>
+      </footer>
+    </article>
+    <% }) %>
+  </div>
+</section>
+<% } /* end testimonials_2 */ %>
 
 <!-- ── NEWSLETTER ─────────────────────────────────────────────────── -->
 <% if (sectionKey === 'newsletter' && news.enabled !== false) { %>

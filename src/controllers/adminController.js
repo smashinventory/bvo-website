@@ -1739,6 +1739,10 @@ exports.themeDuplicate = (req, res) => {
     const ALLOWED = {
       'image_with_text': 'image_with_text_2',
       'before_after':    'before_after_2',
+      'video_text':      'video_text_2',
+      'trust_band':      'trust_band_2',
+      'parallax':        'parallax_2',
+      'testimonials':    'testimonials_2',
     };
     if (!from || ALLOWED[from] !== to) {
       return res.status(400).json({ ok: false, error: 'Invalid duplicate pair' });
