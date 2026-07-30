@@ -54,9 +54,21 @@ function _isValidKey(k) {
   return !!(m && _DUPL_BASES.has(m[1]));
 }
 
-const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_section_order.length)
+// Use saved order from DB; backfill any new static sections that were added
+// after the order was last saved (e.g. bundle_teaser added in a later deploy).
+const _rawOrder = (Array.isArray(S.homepage_section_order) && S.homepage_section_order.length)
   ? S.homepage_section_order
   : _DEFAULT_ORDER;
+const _sectionOrder = _rawOrder.slice(); // mutable copy
+_DEFAULT_ORDER.forEach(function(k) {
+  if (_sectionOrder.indexOf(k) === -1) {
+    // Insert after its left-neighbour in _DEFAULT_ORDER, or append
+    var prevKey = _DEFAULT_ORDER[_DEFAULT_ORDER.indexOf(k) - 1];
+    var insertAt = prevKey ? _sectionOrder.indexOf(prevKey) + 1 : _sectionOrder.length;
+    if (insertAt <= 0) insertAt = _sectionOrder.length;
+    _sectionOrder.splice(insertAt, 0, k);
+  }
+});
 %>
 
 <% _sectionOrder.forEach(function(sectionKey) { %>
