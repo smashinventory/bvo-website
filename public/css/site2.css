@@ -1900,14 +1900,27 @@
 /* Glance 2-col grid fits nicely in right panel */
 .detail-info .pdp-glance-highlights { grid-template-columns: 1fr 1fr; gap: 12px; }
 
-/* ── Product card hover: image swap (JS) + zoom fallback (CSS) ───── */
-/* Primary image fills the container; zoom applies when no 2nd image  */
+/* ── Product card hover: CSS overlay swap (no JS, no delay) ─────── */
+/* Both images are in the DOM and load with the page — no preload race. */
 .product-img .product-img-pri {
   width: 100%; height: 100%;
   object-fit: contain;
   transition: transform .35s ease;
   display: block;
 }
+/* Hover image sits on top of primary, invisible by default           */
+.product-img .product-img-hov {
+  position: absolute;
+  inset: 0;
+  width: 100%; height: 100%;
+  object-fit: contain;
+  opacity: 0;
+  transition: opacity .3s ease;
+  display: block;
+  pointer-events: none;
+}
+/* Reveal hover image on card hover                                   */
+.product-card.has-hover-img:hover .product-img .product-img-hov { opacity: 1; }
 /* Cards WITHOUT a second image: zoom the primary image on hover      */
 .product-card:not(.has-hover-img):hover .product-img .product-img-pri { transform: scale(1.04); }
 

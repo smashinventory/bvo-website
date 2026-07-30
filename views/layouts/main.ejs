@@ -80,7 +80,7 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   <!-- Main site CSS (blocking) -->
   <link rel="stylesheet" href="/css/site.css?v=5">
   <!-- Extended styles (blocking — carousel/card styles must be present before JS sizeCards() runs) -->
-  <link rel="stylesheet" href="/css/site2.css?v=24">
+  <link rel="stylesheet" href="/css/site2.css?v=25">
 
   <!-- Design tokens: CSS var aliases resolved before external CSS (prevents cascade gaps) -->
   <style>
@@ -165,29 +165,6 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
 
   <!-- Site JS -->
   <script src="/js/site.js?v=5"></script>
-
-  <!-- Product card hover image swap (src-based, no hidden elements) -->
-  <script>
-  (function(){
-    function initCardHover() {
-      document.querySelectorAll('.product-img-pri[data-hover]').forEach(function(img) {
-        var primary = img.dataset.primary;
-        var hover   = img.dataset.hover;
-        // Preload hover image so swap is instant
-        var pre = new Image(); pre.src = hover;
-        var card = img.closest('.product-card');
-        if (!card) return;
-        card.addEventListener('mouseenter', function(){ img.src = hover;   });
-        card.addEventListener('mouseleave', function(){ img.src = primary; });
-      });
-    }
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initCardHover);
-    } else {
-      initCardHover();
-    }
-  })();
-  </script>
 
   <!-- Page-level scripts -->
   <%- script %>
