@@ -39,6 +39,7 @@ async function getCabinets() {
    Loaded in full; client-side filtered by width_in to match
    whichever cabinet the shopper selected.                         */
 async function getTops() {
+  /* Quartz and marble only — exclude composite/cultured tops */
   const [rows] = await bvoPool.execute(`
     SELECT
       p.id, p.slug, p.name, p.price, p.compare_price,
@@ -49,6 +50,12 @@ async function getTops() {
     WHERE p.brand     = ?
       AND c.slug      = 'vanity-tops'
       AND p.is_active = 1
+      AND (
+        p.name LIKE '%Quartz%'
+        OR p.name LIKE '%Marble%'
+        OR p.product_type LIKE '%Quartz%'
+        OR p.product_type LIKE '%Marble%'
+      )
     ORDER BY p.width_in ASC, p.price ASC
   `, [JM_BRAND]);
   return rows;

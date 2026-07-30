@@ -6,6 +6,7 @@ const bl   = S.brand_logos        || {};
 const cs   = S.categories_section || {};
 const fs_  = S.featured_section   || {};
 const fm_  = S.featured_models    || {};
+const bt_  = S.bundle_teaser       || {};
 const iwt  = S.image_with_text    || {};
 const iwt2  = S.image_with_text_2  || {};
 const vt2   = S.video_text_2       || {};
@@ -41,8 +42,8 @@ function _salsifyImg(url, w, h) {
   return url.replace('/image/upload/', '/image/upload/w_' + w + ',h_' + h + ',c_fill,f_auto,q_auto/');
 }
 
-const _DEFAULT_ORDER = ['scrolling_ticker','hero','brand_logos','categories_section',
-  'featured_section','featured_models','image_with_text','video_text','before_after','trust_band','parallax','testimonials','bundle_teaser','newsletter'];
+const _DEFAULT_ORDER = ['scrolling_ticker','hero','brand_logos','categories_section','bundle_teaser',
+  'featured_section','featured_models','image_with_text','video_text','before_after','trust_band','parallax','testimonials','newsletter'];
 const _STATIC_SET  = new Set(_DEFAULT_ORDER);
 const _DUPL_BASES  = new Set(['image_with_text','before_after','video_text','trust_band','parallax','testimonials']);
 
@@ -682,15 +683,15 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
 <% } /* end testimonials */ %>
 
 <!-- ── BUNDLE TEASER ──────────────────────────────────────────────── -->
-<% if (sectionKey === 'bundle_teaser') { %>
+<% if (sectionKey === 'bundle_teaser' && bt_.enabled !== false) { %>
 <section class="bundle-teaser-section" data-section="bundle_teaser" data-section-label="Bundle Builder Teaser" aria-labelledby="bt-heading">
   <div class="container">
     <div class="bt-inner">
       <div class="bt-copy">
-        <p class="bt-eyebrow">James Martin Vanities</p>
-        <h2 class="bt-heading" id="bt-heading">Build Your Dream Bathroom</h2>
-        <p class="bt-sub">Mix and match cabinets, tops, and mirrors from the James Martin collection — and save up to 15% when you bundle.</p>
-        <a href="/bundle-builder" class="btn btn-navy bt-cta">Build Your Bundle</a>
+        <% if (bt_.eyebrow) { %><p class="bt-eyebrow"><%= bt_.eyebrow %></p><% } %>
+        <h2 class="bt-heading" id="bt-heading"><%= bt_.heading || 'Build Your Dream Bathroom' %></h2>
+        <% if (bt_.subtitle) { %><p class="bt-sub"><%= bt_.subtitle %></p><% } %>
+        <a href="/bundle-builder" class="btn btn-navy bt-cta"><%= bt_.cta_text || 'Build Your Bundle' %></a>
       </div>
       <div class="bt-steps-grid">
         <div class="bt-step-card">

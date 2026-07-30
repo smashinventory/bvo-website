@@ -131,6 +131,13 @@ const DEFAULTS = {
     title: 'Everything Your Bathroom Needs',
     subtitle: 'Curated collections from the top brands in bath design',
   },
+  bundle_teaser: {
+    enabled: true,
+    eyebrow: 'James Martin Vanities',
+    heading: 'Build Your Dream Bathroom',
+    subtitle: 'Mix and match cabinets, tops, and mirrors from the James Martin collection — and save up to 15% when you bundle.',
+    cta_text: 'Build Your Bundle',
+  },
   featured_section: {
     enabled: true,
     eyebrow: 'Staff Picks',
@@ -280,7 +287,7 @@ const DEFAULTS = {
     items: [],
   },
   homepage_section_order: [
-    'scrolling_ticker','hero','brand_logos','categories_section',
+    'scrolling_ticker','hero','brand_logos','categories_section','bundle_teaser',
     'featured_section','image_with_text','video_text','before_after',
     'trust_band','parallax','testimonials','newsletter',
   ],
