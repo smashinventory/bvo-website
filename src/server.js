@@ -5,6 +5,8 @@ require('dotenv').config();
 const express        = require('express');
 const expressLayouts = require('express-ejs-layouts');
 const session        = require('express-session');
+const MySQLStore     = require('express-mysql-session')(session);
+const { bvoPool }   = require('./config/database');
 const helmet         = require('helmet');
 const compression    = require('compression');
 const morgan         = require('morgan');
@@ -60,10 +62,22 @@ app.use(rateLimit({
 }));
 
 // ── Session ──────────────────────────────────────────────────────
+// MySQL-backed store so sessions survive app restarts and work across
+// all PM2 cluster workers. Uses the same bvoPool connection as the app.
+const _sessionStore = new MySQLStore({
+  expiration:          7 * 24 * 60 * 60 * 1000, // 7 days (ms) — matches cookie maxAge
+  createDatabaseTable: true,                     // auto-creates sessions table if absent
+  schema: {
+    tableName:   'sessions',
+    columnNames: { session_id: 'session_id', expires: 'expires', data: 'data' },
+  },
+}, bvoPool);
+
 app.use(session({
   secret:            process.env.SESSION_SECRET || 'bvo-dev-secret',
   resave:            false,
   saveUninitialized: false,
+  store:             _sessionStore,
   cookie: {
     secure:   process.env.NODE_ENV === 'production',
     httpOnly: true,
