@@ -147,7 +147,6 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
       <span>Hero image</span>
     </div>
     <% } %>
-    <% if (hero.badge_text) { %><span class="hero-badge" aria-hidden="true" style="<%= _heroBSize %>"><%= hero.badge_text %></span><% } %>
     <a href="<%= hero.cta2_url || '/collections/sale' %>" class="btn btn-sage hero-sale-btn"><%= hero.cta2_text || 'View Sale' %></a>
   </div>
 </section>
