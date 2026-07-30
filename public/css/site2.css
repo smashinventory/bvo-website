@@ -1899,3 +1899,32 @@
 .detail-info .pdp-dim-value { font-size: 1.25rem; }
 /* Glance 2-col grid fits nicely in right panel */
 .detail-info .pdp-glance-highlights { grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* ── Product card hover: image swap + zoom fallback ──────────────── */
+/* Primary image fills the container, transitions for both effects    */
+.product-img .product-img-pri {
+  width: 100%; height: 100%;
+  object-fit: contain;
+  transition: transform .35s ease, opacity .35s ease;
+  display: block;
+}
+/* Hover/secondary image: stacked on top, invisible by default        */
+.product-img .product-img-hover {
+  position: absolute;
+  inset: 0;
+  width: 100%; height: 100%;
+  object-fit: contain;
+  background: #fff;
+  opacity: 0;
+  transition: opacity .35s ease;
+  display: block;
+}
+/* Cards WITH a second image: crossfade on hover (no zoom)           */
+.product-card.has-hover-img:hover .product-img-hover { opacity: 1; }
+/* Cards WITHOUT a second image: zoom the primary image              */
+.product-card:not(.has-hover-img):hover .product-img .product-img-pri { transform: scale(1.04); }
+
+/* ── Collection/category card: zoom on hover (matches model card) ── */
+.cat-img { overflow: hidden; }
+.cat-img img { transition: transform .35s ease; }
+.cat-card:hover .cat-img img { transform: scale(1.04); }

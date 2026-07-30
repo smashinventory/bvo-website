@@ -51,6 +51,10 @@ exports.show = async (req, res, next) => {
         SELECT p.id, p.slug, p.name, p.brand, p.price, p.compare_price,
                p.is_new, p.is_featured,
                COALESCE(p.primary_image_url, pi.url) AS primary_image,
+               (SELECT pi2.url FROM product_images pi2
+                WHERE pi2.product_id = p.id
+                ORDER BY pi2.sort_order ASC, pi2.id ASC
+                LIMIT 1 OFFSET 1) AS hover_image,
                'sale' AS badge
         FROM products p
         LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1

@@ -810,12 +810,15 @@
         var _pQtyRaw      = parseInt(product.qty_on_hand || 0, 10);
         var _pQtyDisplay  = Math.min(_pQtyRaw, 4);
       %>
-      <article class="product-card<%= _pQtyRaw === 0 ? ' product-card--no-stock' : '' %>">
+      <article class="product-card<%= product.hover_image ? ' has-hover-img' : '' %><%= _pQtyRaw === 0 ? ' product-card--no-stock' : '' %>">
         <a href="/products/<%= product.slug %>" class="product-img-link" aria-label="<%= product.name %>">
           <div class="product-img">
             <% if (product.primary_image) { %>
-              <img src="<%= product.primary_image %>" alt="<%= product.name %>" loading="lazy"
+              <img class="product-img-pri" src="<%= product.primary_image %>" alt="<%= product.name %>" loading="lazy"
                    id="<%= _pImgId %>">
+              <% if (product.hover_image) { %>
+              <img class="product-img-hover" src="<%= product.hover_image %>" alt="" loading="lazy" aria-hidden="true">
+              <% } %>
             <% } else { %>
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" aria-hidden="true">
                 <rect x="3" y="3" width="18" height="18" rx="2"/>
