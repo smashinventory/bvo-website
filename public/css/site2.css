@@ -1728,8 +1728,7 @@
   transition: background .15s;
 }
 .specs-seemore-btn:hover { background: #f0f0ee; }
-.specs-seemore-btn svg { transition: transform .25s; }
-.specs-seemore-btn.is-open svg { transform: rotate(180deg); }
+.specs-seemore-btn svg { flex-shrink: 0; }
 
 @media (max-width: 600px) {
   .pdp-glance-highlights { gap: 16px; }

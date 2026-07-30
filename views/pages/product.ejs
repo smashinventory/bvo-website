@@ -316,14 +316,14 @@
       <table class="specs-table" aria-label="Product specifications">
         <tbody>
           <% _specRows.forEach(function(r, idx) { %>
-          <tr<%= idx >= 8 ? ' class="specs-row-hidden"' : '' %>>
+          <tr<%= idx >= 6 ? ' class="specs-row-hidden" style="display:none"' : '' %>>
             <td><%= r.label %></td>
             <td><%= r.val %></td>
           </tr>
           <% }) %>
         </tbody>
       </table>
-      <% if (_specRows.length > 8) { %>
+      <% if (_specRows.length > 6) { %>
       <div class="specs-seemore-wrap">
         <button class="specs-seemore-btn" id="pdpSpecsToggle" aria-expanded="false">
           <svg class="specs-toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -340,10 +340,10 @@
         var open = btn.classList.toggle('is-open');
         btn.setAttribute('aria-expanded', String(open));
         document.querySelectorAll('#pdpSpecsCard tr.specs-row-hidden').forEach(function(r){
-          r.style.display = open ? '' : 'none';
+          r.style.display = open ? 'table-row' : 'none';
         });
         btn.innerHTML = open
-          ? '<svg class="specs-toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/></svg> Show fewer'
+          ? '<svg class="specs-toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/></svg> Show less'
           : '<svg class="specs-toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> See all <%= _specRows.length %> specifications';
       });
     })();
