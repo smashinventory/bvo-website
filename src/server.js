@@ -181,6 +181,7 @@ app.use('/cart',        require('./routes/cart'));
 app.use('/account',     require('./routes/account'));
 app.use('/admin',       require('./routes/admin'));
 app.use('/api',         require('./routes/api'));
+app.use('/bundle-builder', require('./routes/bundle'));
 
 // ── SEO / crawler files ──────────────────────────────────────────
 const sitemapCtrl = require('./controllers/sitemapController');

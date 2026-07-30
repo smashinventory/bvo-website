@@ -42,7 +42,7 @@ function _salsifyImg(url, w, h) {
 }
 
 const _DEFAULT_ORDER = ['scrolling_ticker','hero','brand_logos','categories_section',
-  'featured_section','featured_models','image_with_text','video_text','before_after','trust_band','parallax','testimonials','newsletter'];
+  'featured_section','featured_models','image_with_text','video_text','before_after','trust_band','parallax','testimonials','bundle_teaser','newsletter'];
 const _STATIC_SET  = new Set(_DEFAULT_ORDER);
 const _DUPL_BASES  = new Set(['image_with_text','before_after','video_text','trust_band','parallax','testimonials']);
 
@@ -680,6 +680,57 @@ const _sectionOrder = (Array.isArray(S.homepage_section_order) && S.homepage_sec
   </div>
 </section>
 <% } /* end testimonials */ %>
+
+<!-- ── BUNDLE TEASER ──────────────────────────────────────────────── -->
+<% if (sectionKey === 'bundle_teaser') { %>
+<section class="bundle-teaser-section" data-section="bundle_teaser" data-section-label="Bundle Builder Teaser" aria-labelledby="bt-heading">
+  <div class="container">
+    <div class="bt-inner">
+      <div class="bt-copy">
+        <p class="bt-eyebrow">James Martin Vanities</p>
+        <h2 class="bt-heading" id="bt-heading">Build Your Dream Bathroom</h2>
+        <p class="bt-sub">Mix and match cabinets, tops, and mirrors from the James Martin collection — and save up to 15% when you bundle.</p>
+        <a href="/bundle-builder" class="btn btn-navy bt-cta">Build Your Bundle</a>
+      </div>
+      <div class="bt-steps-grid">
+        <div class="bt-step-card">
+          <div class="bt-step-icon" aria-hidden="true">
+            <svg viewBox="0 0 40 40" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="12" width="32" height="22" rx="2"/><path d="M4 20h32"/><rect x="12" y="4" width="16" height="8" rx="1"/></svg>
+          </div>
+          <p class="bt-step-name">Cabinet</p>
+          <p class="bt-step-desc">Choose your base</p>
+        </div>
+        <div class="bt-step-card">
+          <div class="bt-step-icon" aria-hidden="true">
+            <svg viewBox="0 0 40 40" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="8" width="32" height="8" rx="2"/><path d="M8 16v16M32 16v16M4 32h32"/></svg>
+          </div>
+          <p class="bt-step-name">Top</p>
+          <p class="bt-step-desc">Match your countertop</p>
+        </div>
+        <div class="bt-step-card">
+          <div class="bt-step-icon" aria-hidden="true">
+            <svg viewBox="0 0 40 40" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="10" y="4" width="20" height="28" rx="3"/><ellipse cx="20" cy="18" rx="6" ry="8"/><path d="M20 32v4M14 36h12"/></svg>
+          </div>
+          <p class="bt-step-name">Mirror</p>
+          <p class="bt-step-desc">Complete the look</p>
+        </div>
+        <div class="bt-step-card bt-step-card--soon">
+          <div class="bt-step-icon" aria-hidden="true">
+            <svg viewBox="0 0 40 40" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 34V20M20 20C20 12 12 10 6 14M20 20C20 12 28 10 34 14"/><circle cx="20" cy="18" r="3"/><path d="M14 34h12"/></svg>
+          </div>
+          <p class="bt-step-name">Faucet</p>
+          <p class="bt-step-desc">Coming soon</p>
+        </div>
+      </div>
+    </div>
+    <div class="bt-badge-strip">
+      <span class="bt-badge">2 items = 5% Off</span>
+      <span class="bt-badge bt-badge--active">3 items = 10% Off</span>
+      <span class="bt-badge">4 items = 15% Off</span>
+    </div>
+  </div>
+</section>
+<% } /* end bundle_teaser */ %>
 
 <!-- ── NEWSLETTER ─────────────────────────────────────────────────── -->
 <% if (sectionKey === 'newsletter' && news.enabled !== false) { %>
