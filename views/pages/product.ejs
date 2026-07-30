@@ -89,7 +89,6 @@
       </div>
     </div>
 
-  </div><!-- /.gallery-lightbox -->
   <script>
   var pdpGallery = (function(){
     var _allImgs = <%- JSON.stringify(_imgs.map(function(i){return{url:i.url||'',alt:i.alt_text||''};})) %>;
@@ -114,7 +113,7 @@
   })();
   </script>
 
-</div><!-- /detail-gallery -->
+  </div><!-- /detail-gallery -->
 
   <!-- ── Product info ──────────────────────────────────────────────── -->
   <div class="detail-info">
@@ -327,7 +326,7 @@
       <% if (_specRows.length > 8) { %>
       <div class="specs-seemore-wrap">
         <button class="specs-seemore-btn" id="pdpSpecsToggle" aria-expanded="false">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          <svg class="specs-toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           See all <%= _specRows.length %> specifications
         </button>
       </div>
@@ -344,8 +343,8 @@
           r.style.display = open ? '' : 'none';
         });
         btn.innerHTML = open
-          ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg> Show fewer'
-          : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg> See all <%= _specRows.length %> specifications';
+          ? '<svg class="specs-toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/></svg> Show fewer'
+          : '<svg class="specs-toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> See all <%= _specRows.length %> specifications';
       });
     })();
     </script>
