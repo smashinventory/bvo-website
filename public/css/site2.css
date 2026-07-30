@@ -1919,8 +1919,8 @@
   display: block;
   pointer-events: none;
 }
-/* Reveal hover image on card hover                                   */
-.product-card.has-hover-img:hover .product-img .product-img-hov { opacity: 1; }
+/* Reveal hover image on card hover (!important overrides inline style="opacity:0") */
+.product-card.has-hover-img:hover .product-img .product-img-hov { opacity: 1 !important; }
 /* Cards WITHOUT a second image: zoom the primary image on hover      */
 .product-card:not(.has-hover-img):hover .product-img .product-img-pri { transform: scale(1.04); }
 

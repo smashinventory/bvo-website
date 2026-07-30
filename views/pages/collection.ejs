@@ -817,7 +817,7 @@
               <img class="product-img-pri" src="<%= product.primary_image %>" alt="<%= product.name %>" loading="lazy"
                    id="<%= _pImgId %>">
               <% if (product.hover_image) { %>
-              <img class="product-img-hov" src="<%= product.hover_image %>" alt="" aria-hidden="true" loading="lazy">
+              <img class="product-img-hov" src="<%= product.hover_image %>" alt="" aria-hidden="true" loading="lazy" style="opacity:0">
               <% } %>
             <% } else { %>
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" aria-hidden="true">
