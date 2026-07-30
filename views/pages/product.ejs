@@ -164,157 +164,166 @@
       </button>
     </div>
 
-    <!-- ── Specs + Glance ──────────────────────────────────────────── -->
-    <%
-      /* Attr keys whose numeric/text values represent inches — display with “ suffix */
-      var _inchKeys = new Set(['size_in','width_in','depth_in','height_in',
-                               'sink_depth_in','sink_width_in','sink_basin_depth_in',
-                               'countertop_thickness','faucet_spread_in']);
+  </div><!-- /detail-info -->
+</div><!-- /detail-layout -->
 
-      /* Operational EAV keys — stored in DB for internal use, never shown to customers */
-      var _hiddenKeys = new Set(['substitute_sku']);
+<!-- ── At a Glance + Dims + Specs (full-width) ──────────────────────── -->
+<%
+  var _inchKeys = new Set(['size_in','width_in','depth_in','height_in',
+                           'sink_depth_in','sink_width_in','sink_basin_depth_in',
+                           'countertop_thickness','faucet_spread_in']);
+  var _hiddenKeys = new Set(['substitute_sku']);
+  var _lblOver = {
+    'wireless_charging_fc_certified': 'Wireless Charging FC Certified',
+    'wireless_charging_ul':           'Wireless Charging UL Certification',
+    'tip_out_drawers':                'Tip-Out Drawers',
+    'drawer_count':                   'Number of Drawers',
+    'num_doors':                      'Number of Doors',
+    'num_shelves':                    'Number of Shelves',
+    'sink_width_in':                  'Sink Width',
+    'sink_depth_in':                  'Sink Depth',
+    'sink_basin_depth_in':            'Sink Basin Depth',
+    'faucet_spread_in':               'Faucet Spread',
+    'ada_compliant':                  'ADA Compliant',
+    'has_electrical':                 'Electrical Component',
+    'has_makeup_counter':             'Includes Makeup Counter',
+    'primary_material':               'Primary Material',
+    'vanity_type':                    'Vanity Type',
+  };
+  var _fmtN = function(v){ return v ? String(parseFloat(v)) : ''; };
 
-      /* Label overrides for keys whose auto-generated labels look wrong */
-      var _labelOverrides = {
-        'wireless_charging_fc_certified': 'Wireless Charging FC Certified',
-        'wireless_charging_ul':           'Wireless Charging UL Certification',
-        'tip_out_drawers':                'Tip-Out Drawers',
-        'drawer_count':                   'Number of Drawers',
-        'num_doors':                      'Number of Doors',
-        'num_shelves':                    'Number of Shelves',
-        'sink_width_in':                  'Sink Width',
-        'sink_depth_in':                  'Sink Depth',
-        'sink_basin_depth_in':            'Sink Basin Depth',
-        'faucet_spread_in':               'Faucet Spread',
-        'ada_compliant':                  'ADA Compliant',
-        'has_electrical':                 'Electrical Component',
-        'has_makeup_counter':             'Includes Makeup Counter',
-        'primary_material':               'Primary Material',
-        'vanity_type':                    'Vanity Type',
-      };
+  /* Build deduplicated spec rows */
+  var _specRows = []; var _seenK = new Set();
+  product.attributes.forEach(function(a) {
+    if (_hiddenKeys.has(a.attr_key) || _seenK.has(a.attr_key)) return;
+    _seenK.add(a.attr_key);
+    var lbl = _lblOver[a.attr_key]
+      || (a.display_name && a.display_name !== a.attr_key ? a.display_name : null)
+      || a.attr_key.replace(/_in$/, '').replace(/_/g,' ')
+                   .replace(/\b\w/g, function(c){ return c.toUpperCase(); });
+    var inch = _inchKeys.has(a.attr_key);
+    var val  = '';
+    if (a.value_text)             val = inch ? a.value_text + '"' : a.value_text;
+    else if (a.value_num != null) val = inch ? _fmtN(a.value_num) + '"' : String(a.value_num);
+    if (val) _specRows.push({ label:lbl, val:val, key:a.attr_key });
+  });
+  /* Add from product fields only when not already in EAV */
+  if (product.width_in   && !_seenK.has('width_in'))   _specRows.push({ label:'Width',  val:_fmtN(product.width_in)+'"',  key:'width_in'   });
+  if (product.depth_in   && !_seenK.has('depth_in'))   _specRows.push({ label:'Depth',  val:_fmtN(product.depth_in)+'"',  key:'depth_in'   });
+  if (product.height_in  && !_seenK.has('height_in'))  _specRows.push({ label:'Height', val:_fmtN(product.height_in)+'"', key:'height_in'  });
+  if (product.weight_lbs && !_seenK.has('weight_lbs')) _specRows.push({ label:'Weight', val:product.weight_lbs+' lbs',    key:'weight_lbs' });
 
-      /* Build flat spec list */
-      var _specRows = [];
-      product.attributes.forEach(function(attr) {
-        if (_hiddenKeys.has(attr.attr_key)) return;
-        var _label = _labelOverrides[attr.attr_key]
-          || (attr.display_name && attr.display_name !== attr.attr_key ? attr.display_name : null)
-          || attr.attr_key.replace(/_in$/, '').replace(/_/g, ' ')
-                          .replace(/\b\w/g, function(c){ return c.toUpperCase(); });
-        var _isInch = _inchKeys.has(attr.attr_key);
-        var _val = '';
-        if (attr.value_text)       _val = _isInch ? attr.value_text + '”' : attr.value_text;
-        else if (attr.value_num != null) _val = _isInch ? attr.value_num + '”' : String(attr.value_num);
-        if (_val) _specRows.push({ label: _label, val: _val, key: attr.attr_key });
-      });
-      if (product.width_in)  _specRows.push({ label:'Width',  val: product.width_in  + '”', key:'width_in'  });
-      if (product.depth_in)  _specRows.push({ label:'Depth',  val: product.depth_in  + '”', key:'depth_in'  });
-      if (product.height_in) _specRows.push({ label:'Height', val: product.height_in + '”', key:'height_in' });
-      if (product.weight_lbs)_specRows.push({ label:'Weight', val: product.weight_lbs + ' lbs', key:'weight_lbs' });
+  /* At a Glance — pick up to 4 meaningful highlights */
+  var _gkMap = {
+    'countertop_material_type': { icon:'countertop', gl:'Countertop'      },
+    'sink_type':                { icon:'sink',       gl:'Sink Type'        },
+    'primary_material':         { icon:'material',   gl:'Primary Material' },
+    'finish':                   { icon:'finish',     gl:'Finish'           },
+    'vanity_type':              { icon:'type',       gl:'Style'            },
+    'hardware_finish':          { icon:'finish',     gl:'Hardware Finish'  },
+    'number_of_sinks':          { icon:'sink',       gl:'Number of Sinks'  },
+    'warranty':                 { icon:'warranty',   gl:'Warranty'         },
+    'certifications':           { icon:'cert',       gl:'Certifications'   },
+    'sink_material':            { icon:'sink',       gl:'Sink Material'    },
+    'material':                 { icon:'material',   gl:'Material'         },
+  };
+  var _glanceItems = []; var _usedGK = new Set();
+  _specRows.forEach(function(r) {
+    if (_gkMap[r.key] && !_usedGK.has(r.key) && _glanceItems.length < 4) {
+      _usedGK.add(r.key);
+      _glanceItems.push({ icon:_gkMap[r.key].icon, label:_gkMap[r.key].gl, val:r.val });
+    }
+  });
+  var _hasDims = !!(product.width_in || product.height_in || product.depth_in);
+%>
 
-      /* “At a Glance” highlights — pick meaningful attributes for quick visual summary */
-      var _glanceKeyMap = {
-        'primary_material':       { icon:'material' },
-        'countertop_material_type':{ icon:'countertop' },
-        'sink_type':              { icon:'sink' },
-        'finish':                 { icon:'finish' },
-        'vanity_type':            { icon:'type' },
-        'certifications':         { icon:'cert' },
-        'warranty':               { icon:'warranty' },
-        'sink_material':          { icon:'sink' },
-        'material':               { icon:'material' },
-        'theme':                  { icon:'style' },
-      };
-      var _glanceItems = [];
-      _specRows.forEach(function(r) {
-        if (_glanceKeyMap[r.key] && _glanceItems.length < 4) {
-          _glanceItems.push({ label: r.label + ': ' + r.val, key: r.key, icon: _glanceKeyMap[r.key].icon });
-        }
-      });
-      var _hasDims = product.width_in || product.height_in || product.depth_in;
-    %>
+<% if (_glanceItems.length > 0 || _hasDims || _specRows.length > 0) { %>
+<section class="pdp-extra-section">
+  <div class="pdp-extra-inner">
 
-    <!-- At a Glance -->
     <% if (_glanceItems.length > 0 || _hasDims) { %>
-    <div class=”pdp-glance”>
-      <p class=”pdp-glance-title”>At a Glance</p>
-      <% if (_glanceItems.length > 0) { %>
-      <div class=”pdp-glance-highlights”>
-        <% _glanceItems.forEach(function(gi) { %>
-        <div class=”pdp-glance-item”>
-          <div class=”pdp-glance-icon”>
-            <% if (gi.icon === 'material') { %>
-            <svg viewBox=”0 0 24 24” fill=”none” stroke=”currentColor” stroke-width=”1.4”><path d=”M2 8l10-5 10 5v1L12 9 2 9z”/><path d=”M2 12l10-5 10 5v1l-10 5-10-5z” opacity=”.5”/><path d=”M2 16l10-5 10 5v1l-10 5-10-5z” opacity=”.25”/></svg>
-            <% } else if (gi.icon === 'countertop') { %>
-            <svg viewBox=”0 0 24 24” fill=”none” stroke=”currentColor” stroke-width=”1.4”><rect x=”2” y=”9” width=”20” height=”3” rx=”1”/><path d=”M5 12v7M19 12v7M7 12v7M17 12v7” stroke-width=”1.2”/><rect x=”4” y=”5” width=”16” height=”4” rx=”1”/></svg>
-            <% } else if (gi.icon === 'sink') { %>
-            <svg viewBox=”0 0 24 24” fill=”none” stroke=”currentColor” stroke-width=”1.4”><path d=”M4 8h16v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8z”/><path d=”M12 3v5M10 3h4” stroke-width=”1.2”/><ellipse cx=”12” cy=”14” rx=”4” ry=”2.5”/></svg>
-            <% } else if (gi.icon === 'finish') { %>
-            <svg viewBox=”0 0 24 24” fill=”none” stroke=”currentColor” stroke-width=”1.4”><circle cx=”12” cy=”12” r=”9”/><path d=”M8 12a4 4 0 0 1 8 0”/><circle cx=”12” cy=”12” r=”2” fill=”currentColor” stroke=”none”/></svg>
-            <% } else if (gi.icon === 'type') { %>
-            <svg viewBox=”0 0 24 24” fill=”none” stroke=”currentColor” stroke-width=”1.4”><rect x=”3” y=”10” width=”18” height=”10” rx=”1”/><path d=”M7 10V7a5 5 0 0 1 10 0v3”/></svg>
-            <% } else if (gi.icon === 'warranty') { %>
-            <svg viewBox=”0 0 24 24” fill=”none” stroke=”currentColor” stroke-width=”1.4”><path d=”M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z”/><polyline points=”9 12 11 14 15 10” stroke-width=”1.6”/></svg>
-            <% } else if (gi.icon === 'cert') { %>
-            <svg viewBox=”0 0 24 24” fill=”none” stroke=”currentColor” stroke-width=”1.4”><circle cx=”12” cy=”8” r=”5”/><path d=”M8 14l-2 7 6-3 6 3-2-7”/></svg>
-            <% } else { %>
-            <svg viewBox=”0 0 24 24” fill=”none” stroke=”currentColor” stroke-width=”1.4”><circle cx=”12” cy=”12” r=”10”/><path d=”M12 8v4l3 3”/></svg>
-            <% } %>
-          </div>
-          <span class=”pdp-glance-label”><%= gi.label %></span>
-        </div>
-        <% }) %>
-      </div>
-      <% } %>
-      <% if (_specRows.length > 4) { %>
-      <button class=”pdp-glance-viewmore” onclick=”document.getElementById('pdpSpecsCard').scrollIntoView({behavior:'smooth'})”>View More ↓</button>
-      <% } %>
-    </div>
-    <% } %>
+    <div class="pdp-highlight-row">
 
-    <!-- Product Dimensions -->
-    <% if (_hasDims) { %>
-    <div class=”pdp-dims”>
-      <p class=”pdp-dims-title”>
-        <svg viewBox=”0 0 24 24” fill=”none” stroke=”currentColor” stroke-width=”1.6”><path d=”M2 9l10-5 10 5v6l-10 5-10-5V9z”/><path d=”M12 4v16M2 9l10 5 10-5” stroke-width=”1.2”/></svg>
-        Product Dimensions
-      </p>
-      <div class=”pdp-dims-grid”>
-        <% if (product.width_in) { %>
-        <div class=”pdp-dim-item”>
-          <div class=”pdp-dim-value”><%= product.width_in %><span class=”pdp-dim-unit”> in</span></div>
-          <div class=”pdp-dim-label”>Actual Width</div>
+      <!-- At a Glance -->
+      <% if (_glanceItems.length > 0) { %>
+      <div class="pdp-glance">
+        <p class="pdp-glance-title">At a Glance</p>
+        <div class="pdp-glance-highlights">
+          <% _glanceItems.forEach(function(gi) { %>
+          <div class="pdp-glance-item">
+            <div class="pdp-glance-icon">
+              <% if (gi.icon==='material') { %>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+              <% } else if (gi.icon==='countertop') { %>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1" y="9" width="22" height="4" rx="1"/><path d="M4 13v5M20 13v5M6 13v5M18 13v5"/><rect x="3" y="4" width="18" height="5" rx="1"/></svg>
+              <% } else if (gi.icon==='sink') { %>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 7h18v9a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7z"/><path d="M12 3v4"/><path d="M9 3h6" stroke-width="1.3"/><circle cx="12" cy="13" r="3"/></svg>
+              <% } else if (gi.icon==='finish') { %>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M8.5 12a3.5 3.5 0 0 1 7 0"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg>
+              <% } else if (gi.icon==='type') { %>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="11" width="20" height="10" rx="1.5"/><path d="M7 11V8a5 5 0 0 1 10 0v3"/></svg>
+              <% } else if (gi.icon==='warranty') { %>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10" stroke-width="2"/></svg>
+              <% } else if (gi.icon==='cert') { %>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="5"/><path d="M8 14l-2 7 6-3 6 3-2-7"/></svg>
+              <% } else { %>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+              <% } %>
+            </div>
+            <div class="pdp-glance-item-text">
+              <span class="pdp-glance-label"><%= gi.label %></span>
+              <span class="pdp-glance-val"><%= gi.val %></span>
+            </div>
+          </div>
+          <% }) %>
         </div>
-        <% } %>
-        <% if (product.height_in) { %>
-        <div class=”pdp-dim-item”>
-          <div class=”pdp-dim-value”><%= product.height_in %><span class=”pdp-dim-unit”> in</span></div>
-          <div class=”pdp-dim-label”>Actual Height</div>
-        </div>
-        <% } %>
-        <% if (product.depth_in) { %>
-        <div class=”pdp-dim-item”>
-          <div class=”pdp-dim-value”><%= product.depth_in %><span class=”pdp-dim-unit”> in</span></div>
-          <div class=”pdp-dim-label”>Actual Depth</div>
-        </div>
-        <% } %>
       </div>
-      <% if (_specRows.length > 0) { %>
-      <button class=”pdp-dims-viewfull” onclick=”document.getElementById('pdpSpecsCard').scrollIntoView({behavior:'smooth'})”>View Full Dimensions ↓</button>
       <% } %>
-    </div>
+
+      <!-- Product Dimensions -->
+      <% if (_hasDims) { %>
+      <div class="pdp-dims">
+        <p class="pdp-dims-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 6H3M21 12H3M21 18H3" stroke-width="1.3"/><line x1="3" y1="3" x2="3" y2="21" stroke-width="2"/></svg>
+          Product Dimensions
+        </p>
+        <div class="pdp-dims-grid">
+          <% if (product.width_in) { %>
+          <div class="pdp-dim-item">
+            <div class="pdp-dim-value"><%= _fmtN(product.width_in) %><span class="pdp-dim-unit">&Prime;</span></div>
+            <div class="pdp-dim-label">Width</div>
+          </div>
+          <% } %>
+          <% if (product.height_in) { %>
+          <div class="pdp-dim-item">
+            <div class="pdp-dim-value"><%= _fmtN(product.height_in) %><span class="pdp-dim-unit">&Prime;</span></div>
+            <div class="pdp-dim-label">Height</div>
+          </div>
+          <% } %>
+          <% if (product.depth_in) { %>
+          <div class="pdp-dim-item">
+            <div class="pdp-dim-value"><%= _fmtN(product.depth_in) %><span class="pdp-dim-unit">&Prime;</span></div>
+            <div class="pdp-dim-label">Depth</div>
+          </div>
+          <% } %>
+        </div>
+        <button class="pdp-dims-viewfull" onclick="document.getElementById('pdpSpecsCard').scrollIntoView({behavior:'smooth'})">View Full Dimensions ↓</button>
+      </div>
+      <% } %>
+
+    </div><!-- /pdp-highlight-row -->
     <% } %>
 
     <!-- Specifications Table -->
     <% if (_specRows.length > 0) { %>
-    <div class=”specs-card” id=”pdpSpecsCard”>
-      <div class=”specs-card-head”>
-        <p class=”specs-card-title”>Specifications &amp; Measurements</p>
+    <div class="specs-card" id="pdpSpecsCard">
+      <div class="specs-card-head">
+        <p class="specs-card-title">Specifications &amp; Measurements</p>
       </div>
-      <table class=”specs-table” aria-label=”Product specifications”>
+      <table class="specs-table" aria-label="Product specifications">
         <tbody>
           <% _specRows.forEach(function(r, idx) { %>
-          <tr class=”<%= idx >= 8 ? 'specs-row-hidden' : '' %>”>
+          <tr<%= idx >= 8 ? ' class="specs-row-hidden"' : '' %>>
             <td><%= r.label %></td>
             <td><%= r.val %></td>
           </tr>
@@ -322,9 +331,9 @@
         </tbody>
       </table>
       <% if (_specRows.length > 8) { %>
-      <div class=”specs-seemore-wrap”>
-        <button class=”specs-seemore-btn” id=”pdpSpecsToggle” aria-expanded=”false”>
-          <svg width=”14” height=”14” viewBox=”0 0 24 24” fill=”none” stroke=”currentColor” stroke-width=”2.5”><polyline points=”6 9 12 15 18 9”/></svg>
+      <div class="specs-seemore-wrap">
+        <button class="specs-seemore-btn" id="pdpSpecsToggle" aria-expanded="false">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
           See all <%= _specRows.length %> specifications
         </button>
       </div>
@@ -336,20 +345,21 @@
       if (!btn) return;
       btn.addEventListener('click', function() {
         var open = btn.classList.toggle('is-open');
-        btn.setAttribute('aria-expanded', open);
-        document.querySelectorAll('#pdpSpecsCard .specs-row-hidden, #pdpSpecsCard tr.specs-row-hidden').forEach(function(r){
+        btn.setAttribute('aria-expanded', String(open));
+        document.querySelectorAll('#pdpSpecsCard tr.specs-row-hidden').forEach(function(r){
           r.style.display = open ? '' : 'none';
         });
         btn.innerHTML = open
-          ? '<svg width=”14” height=”14” viewBox=”0 0 24 24” fill=”none” stroke=”currentColor” stroke-width=”2.5”><polyline points=”18 15 12 9 6 15”/></svg> Show fewer'
-          : '<svg width=”14” height=”14” viewBox=”0 0 24 24” fill=”none” stroke=”currentColor” stroke-width=”2.5”><polyline points=”6 9 12 15 18 9”/></svg> See all <%= _specRows.length %> specifications';
+          ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg> Show fewer'
+          : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg> See all <%= _specRows.length %> specifications';
       });
     })();
     </script>
     <% } %>
 
-  </div><!-- /detail-info -->
-</div><!-- /detail-layout -->
+  </div><!-- /pdp-extra-inner -->
+</section>
+<% } %>
 
 <!-- ── Trust badges (19G.6) ────────────────────────────────────────── -->
 <div class="trust-bar" aria-label="Why shop with us">

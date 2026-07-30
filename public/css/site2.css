@@ -1736,3 +1736,78 @@
   .pdp-dim-item { flex: 0 0 calc(50% - 12px); }
   .pdp-dims-grid { gap: 12px 0; }
 }
+
+/* ── PDP Extra Sections — full-width container ────────────────────── */
+.pdp-extra-section {
+  padding: 32px 64px 0;
+}
+.pdp-extra-inner {
+  max-width: 100%;
+}
+/* At a Glance + Dimensions: side-by-side */
+.pdp-highlight-row {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 16px;
+  margin-bottom: 16px;
+  align-items: start;
+}
+/* Glance icon: circular tinted background */
+.pdp-glance-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: #EDF0F6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #182840;
+  flex-shrink: 0;
+}
+.pdp-glance-icon svg { width: 28px; height: 28px; }
+/* Glance item: icon left, text right */
+.pdp-glance-item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+}
+.pdp-glance-item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+/* Override: label = category name (small muted), val = bold value */
+.pdp-glance-label {
+  font-size: .68rem;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #888;
+  line-height: 1.2;
+}
+.pdp-glance-val {
+  font-size: .9rem;
+  font-weight: 600;
+  color: #182840;
+  line-height: 1.3;
+}
+/* Glance highlights: 2-column grid */
+.pdp-glance-highlights {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 24px;
+  margin-bottom: 0;
+}
+/* Specs card: full width */
+.specs-card { margin-bottom: 0; }
+
+@media (max-width: 900px) {
+  .pdp-extra-section { padding: 24px 24px 0; }
+  .pdp-highlight-row { grid-template-columns: 1fr; }
+  .pdp-glance-highlights { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 500px) {
+  .pdp-glance-highlights { grid-template-columns: 1fr; }
+}
