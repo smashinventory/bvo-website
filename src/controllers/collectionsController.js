@@ -119,7 +119,17 @@ exports.show = async (req, res, next) => {
       // Active filter values — sizes are bucket labels (strings), not raw numbers
       const mgActiveSizes      = [].concat(req.query.size_in      || []).filter(Boolean);
       const mgActiveBrands     = [].concat(req.query.brand         || []).filter(Boolean);
-      const mgActiveTypes      = [].concat(req.query.type          || []).filter(Boolean);
+      let   mgActiveTypes      = [].concat(req.query.type          || []).filter(Boolean);
+      // Taxonomy overhaul 2026-07-31: auto-inject product_type filters for new SEO display
+      // categories so they show only the correct sub-type without requiring a ?type= param.
+      // Products physically live in bathroom-vanities; these slugs are routing/display only.
+      const SLUG_DEFAULT_TYPES = {
+        'bathroom-vanities-with-tops': ['Single Sink Vanity With Top', 'Double Sink Vanity With Top'],
+        'bathroom-vanity-cabinets':    ['Single Sink Cabinet Only',    'Double Sink Cabinet Only'],
+      };
+      if (SLUG_DEFAULT_TYPES[slug] && mgActiveTypes.length === 0) {
+        mgActiveTypes = SLUG_DEFAULT_TYPES[slug];
+      }
       const mgColorFamilyParam = [].concat(req.query.color_family  || []).filter(Boolean);
       const mgColorExactParam  = [].concat(req.query.color_exact   || []).filter(Boolean);
       const mgMinPrice         = req.query.min_price ? parseFloat(req.query.min_price) : undefined;
@@ -294,6 +304,16 @@ exports.show = async (req, res, next) => {
       const mgSwatchMap     = {}; // [model] = [{color, hex, border, image_url, sizeImages}]
 
       if (mgModelNames.length) {
+        // Build mgCsRows WHERE dynamically so product_type filter applies when mgActiveTypes
+        // is set (either by user ?type= param or by SLUG_DEFAULT_TYPES auto-injection above).
+        // Without this, Cabinet Only model cards would still show Single/Double Sink swatches
+        // when browsing bathroom-vanity-cabinets or filtering by type on bathroom-vanities.
+        let   mgCsWhere    = `p.is_active = 1 AND p.category_id = ? AND p.model IN (${mgModelNames.map(() => '?').join(',')}) AND p.color IS NOT NULL`;
+        const mgCsParams   = [mgProductCatId, ...mgModelNames];
+        if (mgActiveTypes.length) {
+          mgCsWhere += ` AND p.product_type IN (${mgActiveTypes.map(() => '?').join(',')})`;
+          mgCsParams.push(...mgActiveTypes);
+        }
         const [mgCsRows] = await bvoPool.query(`
           SELECT p.model, p.color, p.color_family, p.width_in AS size_in,
             COALESCE(
@@ -303,13 +323,10 @@ exports.show = async (req, res, next) => {
             MIN(p.price) AS price
           FROM products p
           LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
-          WHERE p.is_active = 1
-            AND p.category_id = ?
-            AND p.model IN (${mgModelNames.map(() => '?').join(',')})
-            AND p.color IS NOT NULL
+          WHERE ${mgCsWhere}
           GROUP BY p.model, p.color, p.color_family, p.width_in
           ORDER BY p.model, p.color, p.width_in
-        `, [mgProductCatId, ...mgModelNames]);
+        `, mgCsParams);
 
         const mgColorSizePriceMap = {}; // [model][color][bucketKey] = min price
         const mgSizePriceMap      = {}; // [model][bucketKey] = min price across all colors

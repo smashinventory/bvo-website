@@ -370,63 +370,73 @@ async function replaceAccessories(conn, sku, accessories) {
 //   JM categories not yet added here). Default: 1 (bathroom-vanities).
 
 // Primary routing — JM "Product Category" column exact values (lowercased)
+//
+// ⚠️ TAXONOMY FIX (July 2026): JM feed sends 'Vanities' (plural), not 'Vanity'.
+// 'General Products' is the JM broad category for mirrors, accessories, storage,
+// tops, and samples — intentionally absent here so it falls through to PRODUCT_TYPE_MAP.
+// 'Tops' is a standalone JM category for countertop/top products.
 const PRODUCT_CATEGORY_MAP = {
   // ── Bathroom Vanities (1) ──────────────────────────────────────────
-  'vanity':            1,  // cabinet + top combo (complete set with sink)
-  'cabinet':           1,  // vanity cabinet only, no top — NOT storage
-  'console':           1,  // pedestal vanity component
-  'console base':      1,  // pedestal vanity component
-  'floating console':  1,  // pedestal sink component
-
-  // ── Mirrors (2) ───────────────────────────────────────────────────
-  'mirror':            2,
-
-  // ── Accessories (4) ───────────────────────────────────────────────
-  'bench':             4,  // vanity seat
-  'knobs & legs':      4,  // hardware / leg kit
-  'metal base':        4,  // optional wall-hung base component
-  'pull':              4,  // handle/pull accessory
-  'shelf':             4,  // optional bottom shelf (e.g. Columbia wall-hung)
-
-  // ── Samples (10) ──────────────────────────────────────────────────
-  'metal sample':      10,  // metallic finish swatch
-  'stone sample':      10,  // stone/countertop material swatch
-  'wood sample':       10,  // paint or stain finish swatch
-
-  // ── Storage (6) ───────────────────────────────────────────────────
-  'drawer unit':       6,  // modular bridge joining two vanity cabinets (model-specific)
-  'hutch':             6,  // component of vanity-with-storage set
-  'linen cabinet':     6,  // component of vanity-with-storage set
-  'side cabinet':      6,  // component of vanity-with-storage set
-  'storage cabinet':   6,  // optional pedestal sink component
-
-  // ── Vanity Tops (7) ───────────────────────────────────────────────
-  'backsplash':        7,  // matching stone backsplash — optional upgrade for stone tops
-  'countertop unit':   7,  // composite top for wall-hung vanities
-  'top':               7,  // composite countertop (wall-hung)
+  'vanities':          1,  // JM broad category for all vanity types (Vanity + Cabinet sub-types)
+  'cabinet':           1,  // JM parallel path: Cabinet category → cabinet only, NOT storage
+  'console':           1,  // pedestal vanity component (older feed format fallback)
+  'console base':      1,  // pedestal vanity component (older feed format fallback)
+  'floating console':  1,  // pedestal sink component (older feed format fallback)
+  // Legacy single-value category entries (kept for backward compatibility
+  // with older JM feed formats that used specific category names):
+  'vanity':            1,  // older: cabinet + top combo
+  'mirror':            2,  // older: mirror category
+  'bench':             4,  // older: accessory
+  'knobs & legs':      4,  // older: hardware / leg kit
+  'metal base':        4,  // older: optional wall-hung base component
+  'pull':              4,  // older: handle/pull accessory
+  'shelf':             4,  // older: optional bottom shelf
+  'metal sample':      10, // older: metallic finish swatch
+  'stone sample':      10, // older: stone/countertop material swatch
+  'wood sample':       10, // older: paint or stain finish swatch
+  'drawer unit':       6,  // older: modular bridge
+  'hutch':             6,  // older: storage component
+  'linen cabinet':     6,  // older: storage component
+  'side cabinet':      6,  // older: storage component
+  'storage cabinet':   6,  // older: storage component
+  'backsplash':        7,  // older: stone backsplash — optional upgrade for stone tops
+  'countertop unit':   7,  // older: composite top for wall-hung vanities
+  // ── Tops (7) — standalone JM Product Category for countertops ─────
+  'tops':              7,  // JM 'Tops' category → vanity-tops
 };
 
-// Fallback routing — JM "Product Type" column (used when Product Category absent/unmapped)
+// Fallback routing — JM "Product Type" column (used when Product Category is
+// 'General Products', absent, or unmapped). Keyed on lowercased Product Type value.
 const PRODUCT_TYPE_MAP = {
-  'vanity':            1,
+  // ── Bathroom Vanities (1) ──────────────────────────────────────────
+  'vanity':            1,  // complete set (Vanities/Vanity in feed)
+  'cabinet':           1,  // cabinet only → bathroom-vanities (NOT Storage)
   'floating console':  1,
   'console':           1,
   'console base':      1,
+  // ── Mirrors (2) ───────────────────────────────────────────────────
   'mirror':            2,
+  // ── Accessories (4) ───────────────────────────────────────────────
+  'bench':             4,
+  'knobs & legs':      4,  // ampersand variant (JM sends 'Knobs & Legs')
+  'knobs and legs':    4,  // 'and' variant (older feed formats)
+  'metal base':        4,
+  'pull':              4,
+  'shelf':             4,
+  // ── Vanity Tops (7) ───────────────────────────────────────────────
   'top':               7,
   'countertop unit':   7,
-  'backsplash':        7,  // aligned with PRODUCT_CATEGORY_MAP
-  'cabinet':           6,  // fallback only — Product Category routes cabinet→1
+  'backsplash':        7,
+  // ── Storage (6) ───────────────────────────────────────────────────
   'side cabinet':      6,
   'storage cabinet':   6,
   'linen cabinet':     6,
   'hutch':             6,
-  'shelf':             6,
-  'drawer unit':       6,  // aligned with PRODUCT_CATEGORY_MAP
-  'metal base':        4,
-  'knobs and legs':    4,
-  'pull':              4,
-  'bench':             4,
+  'drawer unit':       6,
+  // ── Samples (10) ──────────────────────────────────────────────────
+  'metal sample':      10,
+  'stone sample':      10,
+  'wood sample':       10,
 };
 
 /**
@@ -569,18 +579,26 @@ async function importFromWorkbook(wb, opts = {}) {
         const categoryId = resolveCategoryId(productCatRaw, productTypRaw);
         const isSample   = /sample/i.test(productTypRaw || '');
 
-        // BVO canonical product_type (Rule 8) — derived from JM columns, not copied.
-        // Bathroom vanities: derived from Product Category + sink_count.
-        // All other categories: BVO name matching the product's category (universal
-        //   English terms, not JM-specific vocabulary — e.g. both JM 'top' and
-        //   'countertop unit' normalise to BVO 'Vanity Top').
-        // Console / console base / floating console → null; grouped by model card later.
+        // BVO canonical product_type (Rule 8) — derived from JM columns, never copied verbatim.
+        //
+        // TAXONOMY FIX (July 2026) — 4-value system replacing ambiguous 2-value system:
+        //   'Single Sink Vanity With Top' — Vanities/Vanity + sink_count=1
+        //   'Double Sink Vanity With Top' — Vanities/Vanity + sink_count=2
+        //   'Single Sink Cabinet Only'    — Vanities/Cabinet or Cabinet/Cabinet + "Single" in name
+        //   'Double Sink Cabinet Only'    — Vanities/Cabinet or Cabinet/Cabinet + "Double" in name
+        //
+        // Non-vanity categories: CATEGORY_TYPE_MAP maps vendor sub-type → BVO canonical term.
+        // Dual lookup (catLower then productTypLower) handles both:
+        //   a) Older JM feeds where Product Category IS the specific type (e.g. 'mirror')
+        //   b) Current JM feed where Product Category = 'General Products' and
+        //      Product Type = 'Mirror' — catLower won't match, ptLower will.
         const CATEGORY_TYPE_MAP = {
           'mirror':          'Mirror',
           'bench':           'Bench',
           'pull':            'Pull',
           'shelf':           'Shelf',
           'knobs & legs':    'Knobs & Legs',
+          'knobs and legs':  'Knobs & Legs',  // older feed variant
           'metal base':      'Metal Base',
           'metal sample':    'Sample',
           'stone sample':    'Sample',
@@ -595,19 +613,45 @@ async function importFromWorkbook(wb, opts = {}) {
           'top':             'Vanity Top',
         };
 
+        // JM Product Type column — lowercased for CATEGORY_TYPE_MAP and product_type logic
+        const productTypLower = String(productTypRaw || '').toLowerCase().trim();
+        // Product name — lowercased for single/double cabinet detection
+        const nameLower       = String(clean(row['Product Name']) || '').toLowerCase();
+
         let productType = null;
         if (categoryId === 1) {
           const sinkCount = cleanNum(row['Number of Sinks Included (0, 1, or 2)']);
-          if (catLower === 'vanity') {
-            if (sinkCount === 1)      productType = 'Single Sink';
-            else if (sinkCount === 2) productType = 'Double Sink';
-            // sink_count=0 under Product Category=Vanity should not occur per taxonomy rules
-          } else if (catLower === 'cabinet') {
-            productType = 'Cabinet Only';
+
+          if (catLower === 'vanities' && productTypLower === 'vanity') {
+            // Complete set: cabinet + top + integrated sinks (Vanities/Vanity in JM feed)
+            if (sinkCount === 2)      productType = 'Double Sink Vanity With Top';
+            else if (sinkCount === 1) productType = 'Single Sink Vanity With Top';
+            // sink_count=0 under Vanities/Vanity should not occur per JM taxonomy rules
+
+          } else if (
+            (catLower === 'vanities' && productTypLower === 'cabinet') ||
+            catLower === 'cabinet'
+          ) {
+            // Cabinet only — no top, no integrated sink.
+            // JM: Vanities/Cabinet (289 rows) OR Cabinet/Cabinet (42 rows — parallel path).
+            // Single vs. Double from product name since sink_count=0 for all cabinet-only SKUs.
+            if (/double/i.test(nameLower))  productType = 'Double Sink Cabinet Only';
+            else                             productType = 'Single Sink Cabinet Only';
+
+          } else if (catLower === 'vanity') {
+            // Legacy older-feed format: Product Category='Vanity' (singular)
+            if (sinkCount === 2)      productType = 'Double Sink Vanity With Top';
+            else if (sinkCount === 1) productType = 'Single Sink Vanity With Top';
           }
-          // console / console base / floating console → null; grouped by model card later
+          // console / console base / floating console → productType stays null;
+          // grouped by model card later (Boston, Addison, Athena)
+
         } else {
-          productType = CATEGORY_TYPE_MAP[catLower] || null;
+          // Non-vanity: map to BVO canonical product_type.
+          // Primary: catLower (direct Product Category match — works for older feed formats)
+          // Fallback: productTypLower (Product Type column — correct for 'General Products'
+          //   category rows where the sub-type is in the Product Type column).
+          productType = CATEGORY_TYPE_MAP[catLower] || CATEGORY_TYPE_MAP[productTypLower] || null;
         }
 
         const sku       = itemNumber;

@@ -368,18 +368,19 @@
        * human-friendly labels.
        */%>
 
-      <%/* ── Configuration ──────────────────────────────────────────
-       * Single Vanity  → sink_count=1  (EAV → attrFilters)
-       * Double Vanity  → sink_count=2  (EAV → attrFilters)
-       * Cabinet Only   → type=Cabinet+Only (productTypes, same as mega menu)
+      <%/* ── Configuration (taxonomy overhaul 2026-07-31) ─────────────
+       * All 4 options use ?type= (product_type). sink_count EAV filter
+       * deprecated from sidebar — the new 4-value product_type system
+       * encodes both form (vanity-with-top vs cabinet-only) and sink count
+       * in a single canonical field, removing the need for EAV cross-join.
        */%>
       <% if (isVanityCategory) { %>
       <%
-        var _cfSinkVals  = attrFilters['sink_count'] || [];
-        var _cfTypeVals  = (typeof productTypes !== 'undefined') ? productTypes : [];
-        var _cfCabOnly   = _cfTypeVals.includes('Cabinet Only');
-        var _cfBadge     = _cfSinkVals.length + (_cfCabOnly ? 1 : 0);
-        var _cfActive    = _cfBadge > 0;
+        var _cfAllTypes = ['Single Sink Vanity With Top', 'Double Sink Vanity With Top',
+                           'Single Sink Cabinet Only',    'Double Sink Cabinet Only'];
+        var _cfTypeVals = (typeof productTypes !== 'undefined') ? productTypes : [];
+        var _cfBadge    = _cfTypeVals.filter(function(t) { return _cfAllTypes.indexOf(t) !== -1; }).length;
+        var _cfActive   = _cfBadge > 0;
       %>
       <div class="filter-group">
         <button type="button" class="filter-group-toggle"
@@ -390,19 +391,24 @@
         </button>
         <div class="filter-group-body<%= _cfActive ? '' : ' is-collapsed' %>">
           <label class="filter-option">
-            <input type="checkbox" name="sink_count" value="1"
-              <%= _cfSinkVals.includes('1') ? 'checked' : '' %>>
-            <span>Single Vanity</span>
+            <input type="checkbox" name="type" value="Single Sink Vanity With Top"
+              <%= _cfTypeVals.includes('Single Sink Vanity With Top') ? 'checked' : '' %>>
+            <span>Single Sink Vanity With Top</span>
           </label>
           <label class="filter-option">
-            <input type="checkbox" name="sink_count" value="2"
-              <%= _cfSinkVals.includes('2') ? 'checked' : '' %>>
-            <span>Double Vanity</span>
+            <input type="checkbox" name="type" value="Double Sink Vanity With Top"
+              <%= _cfTypeVals.includes('Double Sink Vanity With Top') ? 'checked' : '' %>>
+            <span>Double Sink Vanity With Top</span>
           </label>
           <label class="filter-option">
-            <input type="checkbox" name="type" value="Cabinet Only"
-              <%= _cfCabOnly ? 'checked' : '' %>>
-            <span>Cabinet Only</span>
+            <input type="checkbox" name="type" value="Single Sink Cabinet Only"
+              <%= _cfTypeVals.includes('Single Sink Cabinet Only') ? 'checked' : '' %>>
+            <span>Single Sink Cabinet Only</span>
+          </label>
+          <label class="filter-option">
+            <input type="checkbox" name="type" value="Double Sink Cabinet Only"
+              <%= _cfTypeVals.includes('Double Sink Cabinet Only') ? 'checked' : '' %>>
+            <span>Double Sink Cabinet Only</span>
           </label>
         </div>
       </div>
@@ -487,8 +493,13 @@
       <% if (typeof mgAvailTypes !== 'undefined' && mgAvailTypes.length > 0) { %>
       <%
         var _mgTypeActive = typeof mgActiveTypes !== 'undefined' && mgActiveTypes.length > 0;
-        /* Human-friendly labels for each product_type value */
-        var _mgTypeLabel = { 'Cabinet Only': 'Cabinet Only', 'Single Sink': 'Single Vanity', 'Double Sink': 'Double Vanity' };
+        /* Human-friendly labels for each product_type value (taxonomy overhaul 2026-07-31) */
+        var _mgTypeLabel = {
+          'Single Sink Vanity With Top': 'Single Sink Vanity With Top',
+          'Double Sink Vanity With Top': 'Double Sink Vanity With Top',
+          'Single Sink Cabinet Only':    'Single Sink Cabinet Only',
+          'Double Sink Cabinet Only':    'Double Sink Cabinet Only',
+        };
       %>
       <div class="filter-group">
         <button type="button" class="filter-group-toggle"

@@ -52,8 +52,9 @@ function groupByModel(rows) {
 
 /* ── Step 1: Cabinet Only ─────────────────────────────────────────────
    Matches the megamenu "Cabinet Only" link:
-     /collections/bathroom-vanities?type=Cabinet+Only
-   which filters on products.product_type = 'Cabinet Only'.
+     /collections/bathroom-vanity-cabinets
+   which filters on products.product_type IN the two new cabinet values
+   (taxonomy overhaul 2026-07-31 — 4-value system replaces old 2-value).
    Ordered model ASC → width_in ASC → price ASC so each model's
    sizes and price tiers are naturally arranged.                         */
 async function getCabinets() {
@@ -65,10 +66,10 @@ async function getCabinets() {
       ${CHIP_SQL}
     FROM products p
     INNER JOIN categories c ON c.id = p.category_id
-    WHERE p.brand        = ?
-      AND c.slug         = 'bathroom-vanities'
-      AND p.product_type = 'Cabinet Only'
-      AND p.is_active    = 1
+    WHERE p.brand           = ?
+      AND c.slug            = 'bathroom-vanities'
+      AND p.product_type IN ('Single Sink Cabinet Only', 'Double Sink Cabinet Only')
+      AND p.is_active       = 1
     ORDER BY p.model ASC, p.width_in ASC, p.price ASC
   `, [JM_BRAND, JM_BRAND]);
   return rows;

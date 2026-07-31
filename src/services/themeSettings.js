@@ -62,10 +62,13 @@ const DEFAULTS = {
      *  Kept separate from nav.links so array reindex never corrupts nested keys. */
     vanities_mega: {
       section_heading: 'Shop By Type',
+      // Taxonomy overhaul 2026-07-31: links updated to new SEO display category slugs.
+      // Note: Admin → Theme Editor → Navigation may have DB-stored overrides that take
+      // precedence over these defaults. User must update those manually after code deploy.
       links: [
-        { label: 'Single Sink Vanity', url: '/collections/bathroom-vanities?sink_count=1' },
-        { label: 'Double Sink Vanity', url: '/collections/bathroom-vanities?sink_count=2' },
-        { label: 'Cabinet Only',       url: '/collections/vanity-models?type=Cabinet+Only' },
+        { label: 'Single Sink Vanity With Top', url: '/collections/bathroom-vanities-with-tops?type=Single+Sink+Vanity+With+Top' },
+        { label: 'Double Sink Vanity With Top', url: '/collections/bathroom-vanities-with-tops?type=Double+Sink+Vanity+With+Top' },
+        { label: 'Cabinet Only',               url: '/collections/bathroom-vanity-cabinets' },
       ],
       promo: {
         url:    '/collections/vanity-models',
