@@ -1,36 +1,27 @@
-<%
-/* ── Bundle Builder — /bundle-builder ─────────────────────────
-   James Martin Vanities exclusive. Standalone page (not a collection).
-   Step 1: Cabinet Only  (required)
-   Step 2: Vanity Top    (required, size-locked to cabinet)   → unlocks 5% off
-   Step 3: Mirror        (optional)                           → unlocks 10% off
-   Step 4: Faucet        (coming soon)                        → unlocks 15% off
-   ─────────────────────────────────────────────────────────── */
-%>
+<%/* ── Bundle Builder ─────────────────────────────────────────────────
+     /bundle-builder — standalone page (not a collection)
+     Step 1 · Cabinet Only  (required)           → 0 % off alone
+     Step 2 · Vanity Top    (required + cabinet) → 5 % off
+     Step 3 · Mirror        (optional)           → 10% off
+     Step 4 · Faucet        (coming soon)        → 15% off
+     ──────────────────────────────────────────────────────────────── */%>
+
+<!-- Breadcrumb — site standard pattern (matches collection pages) -->
+<div class="breadcrumb">
+  <a href="/">Home</a> &rsaquo;
+  James Martin Bundle Builder
+</div>
 
 <div class="bb-wrap">
 
-  <!-- ── Breadcrumb ─────────────────────────────────────────── -->
-  <nav class="breadcrumb-nav" aria-label="Breadcrumb">
-    <ol class="breadcrumb">
-      <li class="breadcrumb-item"><a href="/">Home</a><span class="breadcrumb-sep" aria-hidden="true">›</span></li>
-      <li class="breadcrumb-item breadcrumb-item--active"><span>James Martin Bundle Builder</span></li>
-    </ol>
-  </nav>
-
-  <!-- ── Hero header ────────────────────────────────────────── -->
+  <!-- ── Page hero ──────────────────────────────────────────────── -->
   <header class="bb-hero">
     <p class="bb-eyebrow">James Martin Vanities</p>
     <h1 class="bb-title">Build Your Unique Bundle</h1>
     <p class="bb-subtitle">Mix and match, save up to 15%. Each item ships free.</p>
 
-    <!-- Discount tier bar -->
+    <!-- Discount tier bar (starts at Vanity + Top — no 0% entry) -->
     <div class="bb-tiers" aria-label="Bundle discount tiers">
-      <div class="bb-tier" data-items="1">
-        <span class="bb-tier-label">Vanity Only</span>
-        <span class="bb-tier-pct">0% Off</span>
-      </div>
-      <div class="bb-tier-arrow" aria-hidden="true">›</div>
       <div class="bb-tier" data-items="2">
         <span class="bb-tier-label">Vanity + Top</span>
         <span class="bb-tier-pct">5% Off</span>
@@ -48,69 +39,95 @@
     </div>
   </header>
 
-  <!-- ── Steps ──────────────────────────────────────────────── -->
+  <!-- ── Steps ──────────────────────────────────────────────────── -->
   <div class="bb-steps">
 
-    <!-- Step 1: Cabinet (required) -->
+    <!-- ── STEP 1: Cabinet ──────────────────────────────────────── -->
     <section class="bb-step" id="bb-step-cabinet">
       <div class="bb-step-hd">
         <div class="bb-step-num" aria-hidden="true">1</div>
         <div class="bb-step-hd-text">
           <h2 class="bb-step-title">Pick Your Vanity Cabinet</h2>
-          <p class="bb-step-meta">Required · Cabinet only — top sold separately</p>
+          <p class="bb-step-meta" id="bb-meta-cabinet">Required · Cabinet only — top sold separately</p>
         </div>
-        <div class="bb-step-selected-badge" id="bb-selected-cabinet" hidden>
-          <svg viewBox="0 0 20 20" width="14" height="14" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
-          <span id="bb-selected-cabinet-name">Selected</span>
+        <div class="bb-vnav" id="bb-vnav-cabinet">
+          <button class="bb-vnav-btn" id="bb-prev-cabinet" type="button" aria-label="Previous model">‹</button>
+          <span class="bb-vnav-count" id="bb-count-cabinet">—</span>
+          <button class="bb-vnav-btn" id="bb-next-cabinet" type="button" aria-label="Next model">›</button>
+        </div>
+        <div class="bb-sel-badge" id="bb-badge-cabinet" hidden>
+          <svg viewBox="0 0 20 20" width="13" height="13" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+          <span id="bb-badge-text-cabinet"></span>
         </div>
       </div>
-      <div class="bb-size-chips-wrap" id="bb-sizes-cabinet"></div>
-      <div class="bb-carousel-outer">
-        <button class="bb-arrow bb-arrow--left" id="bb-arrow-cabinet-left" type="button" aria-label="Scroll left" hidden>
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
-        </button>
-        <div class="bb-products-scroll" id="bb-products-cabinet">
-          <% if (cabinets.length === 0) { %>
-          <p class="bb-empty">No James Martin cabinets found.</p>
-          <% } %>
+
+      <div class="bb-mcard" id="bb-mcard-cabinet">
+        <!-- Image col -->
+        <div class="bb-mcard-img-col">
+          <img class="bb-mcard-img" id="bb-img-cabinet" src="" alt="" loading="lazy">
+          <button class="heart-btn" id="bb-heart-cabinet" type="button"
+                  data-product-id="" data-product-slug="" aria-label="Save to favorites">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+            </svg>
+          </button>
         </div>
-        <button class="bb-arrow bb-arrow--right" id="bb-arrow-cabinet-right" type="button" aria-label="Scroll right" hidden>
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
+        <!-- Info col -->
+        <div class="bb-mcard-info">
+          <p class="bb-mcard-collection" id="bb-col-cabinet"></p>
+          <div class="bb-mcard-name-price">
+            <span class="bb-mcard-name" id="bb-name-cabinet"></span>
+            <span class="bb-mcard-price" id="bb-price-cabinet"></span>
+          </div>
+          <!-- Size chips -->
+          <div class="bb-picker-row">
+            <span class="bb-picker-lbl">Size</span>
+            <div class="bb-size-chips" id="bb-sizes-cabinet"></div>
+          </div>
+          <!-- Finish swatches -->
+          <div class="bb-picker-row bb-picker-row--finish">
+            <span class="bb-picker-lbl">Finish</span>
+            <div class="bb-swatches-wrap">
+              <div class="bb-swatches" id="bb-swatches-cabinet"></div>
+              <span class="bb-finish-name" id="bb-finish-cabinet"></span>
+            </div>
+          </div>
+          <a class="bb-view-link" id="bb-viewlink-cabinet" href="" target="_blank">View product page ›</a>
+          <button class="btn btn-navy bb-select-btn" id="bb-select-cabinet" type="button" disabled>Select</button>
+        </div>
       </div>
     </section>
 
-    <!-- Step 2: Top (required, unlocks 5% — auto-filtered to cabinet width) -->
+    <!-- ── STEP 2: Top ──────────────────────────────────────────── -->
     <section class="bb-step bb-step--locked" id="bb-step-top">
       <div class="bb-step-hd">
         <div class="bb-step-num" aria-hidden="true">2</div>
         <div class="bb-step-hd-text">
           <h2 class="bb-step-title">Pick Your Vanity Top</h2>
-          <p class="bb-step-meta" id="bb-top-meta">Required · Select a vanity first · Adds 5% off your bundle</p>
+          <p class="bb-step-meta" id="bb-meta-top">Required · Select a vanity cabinet first · Adds 5% off</p>
         </div>
-        <div class="bb-step-selected-badge" id="bb-selected-top" hidden>
-          <svg viewBox="0 0 20 20" width="14" height="14" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
-          <span id="bb-selected-top-name">Selected</span>
+        <div class="bb-vnav" id="bb-vnav-top">
+          <button class="bb-vnav-btn" id="bb-prev-top" type="button" aria-label="Previous model" disabled>‹</button>
+          <span class="bb-vnav-count" id="bb-count-top">—</span>
+          <button class="bb-vnav-btn" id="bb-next-top" type="button" aria-label="Next model" disabled>›</button>
+        </div>
+        <div class="bb-sel-badge" id="bb-badge-top" hidden>
+          <svg viewBox="0 0 20 20" width="13" height="13" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+          <span id="bb-badge-text-top"></span>
         </div>
       </div>
-      <div class="bb-size-chips-wrap" id="bb-sizes-top"></div>
-      <div class="bb-carousel-outer">
-        <button class="bb-arrow bb-arrow--left" id="bb-arrow-top-left" type="button" aria-label="Scroll left" hidden>
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
-        </button>
-        <div class="bb-products-scroll" id="bb-products-top">
-          <div class="bb-locked-msg" id="bb-top-locked-msg">
-            <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-            <p>Select your vanity cabinet above to see matching tops</p>
-          </div>
+
+      <div class="bb-mcard" id="bb-mcard-top">
+        <div class="bb-locked-msg">
+          <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+          </svg>
+          <p>Select your vanity cabinet above to see matching tops</p>
         </div>
-        <button class="bb-arrow bb-arrow--right" id="bb-arrow-top-right" type="button" aria-label="Scroll right" hidden>
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
       </div>
     </section>
 
-    <!-- Step 3: Mirror (optional → unlocks 10%) -->
+    <!-- ── STEP 3: Mirror ──────────────────────────────────────── -->
     <section class="bb-step" id="bb-step-mirror">
       <div class="bb-step-hd">
         <div class="bb-step-num" aria-hidden="true">3</div>
@@ -118,28 +135,55 @@
           <h2 class="bb-step-title">Pick Your Mirror <span class="bb-optional-tag">Optional</span></h2>
           <p class="bb-step-meta">Add a mirror to unlock 10% off your entire bundle</p>
         </div>
-        <div class="bb-step-selected-badge" id="bb-selected-mirror" hidden>
-          <svg viewBox="0 0 20 20" width="14" height="14" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
-          <span id="bb-selected-mirror-name">Selected</span>
+        <div class="bb-vnav" id="bb-vnav-mirror">
+          <button class="bb-vnav-btn" id="bb-prev-mirror" type="button" aria-label="Previous model">‹</button>
+          <span class="bb-vnav-count" id="bb-count-mirror">—</span>
+          <button class="bb-vnav-btn" id="bb-next-mirror" type="button" aria-label="Next model">›</button>
+        </div>
+        <div class="bb-sel-badge" id="bb-badge-mirror" hidden>
+          <svg viewBox="0 0 20 20" width="13" height="13" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+          <span id="bb-badge-text-mirror"></span>
         </div>
       </div>
-      <div class="bb-size-chips-wrap" id="bb-sizes-mirror"></div>
-      <div class="bb-carousel-outer">
-        <button class="bb-arrow bb-arrow--left" id="bb-arrow-mirror-left" type="button" aria-label="Scroll left" hidden>
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
-        </button>
-        <div class="bb-products-scroll" id="bb-products-mirror">
-          <% if (mirrors.length === 0) { %>
-          <p class="bb-empty">No James Martin mirrors found.</p>
-          <% } %>
+
+      <div class="bb-mcard" id="bb-mcard-mirror">
+        <!-- Image col -->
+        <div class="bb-mcard-img-col">
+          <img class="bb-mcard-img" id="bb-img-mirror" src="" alt="" loading="lazy">
+          <button class="heart-btn" id="bb-heart-mirror" type="button"
+                  data-product-id="" data-product-slug="" aria-label="Save to favorites">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+            </svg>
+          </button>
         </div>
-        <button class="bb-arrow bb-arrow--right" id="bb-arrow-mirror-right" type="button" aria-label="Scroll right" hidden>
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
+        <!-- Info col -->
+        <div class="bb-mcard-info">
+          <p class="bb-mcard-collection" id="bb-col-mirror"></p>
+          <div class="bb-mcard-name-price">
+            <span class="bb-mcard-name" id="bb-name-mirror"></span>
+            <span class="bb-mcard-price" id="bb-price-mirror"></span>
+          </div>
+          <!-- Size chips -->
+          <div class="bb-picker-row">
+            <span class="bb-picker-lbl">Size</span>
+            <div class="bb-size-chips" id="bb-sizes-mirror"></div>
+          </div>
+          <!-- Finish swatches -->
+          <div class="bb-picker-row bb-picker-row--finish">
+            <span class="bb-picker-lbl">Finish</span>
+            <div class="bb-swatches-wrap">
+              <div class="bb-swatches" id="bb-swatches-mirror"></div>
+              <span class="bb-finish-name" id="bb-finish-mirror"></span>
+            </div>
+          </div>
+          <a class="bb-view-link" id="bb-viewlink-mirror" href="" target="_blank">View product page ›</a>
+          <button class="btn btn-navy bb-select-btn" id="bb-select-mirror" type="button" disabled>Select</button>
+        </div>
       </div>
     </section>
 
-    <!-- Step 4: Faucet (coming soon → will unlock 15%) -->
+    <!-- ── STEP 4: Faucet (coming soon) ─────────────────────────── -->
     <section class="bb-step bb-step--coming-soon" id="bb-step-faucet">
       <div class="bb-step-hd">
         <div class="bb-step-num" aria-hidden="true">4</div>
@@ -159,14 +203,14 @@
           </svg>
         </div>
         <p class="bb-coming-soon-title">Faucets Coming Soon</p>
-        <p class="bb-coming-soon-sub">The James Martin faucet collection is being added. Check back soon — adding a faucet will unlock 15% off your entire bundle.</p>
+        <p class="bb-coming-soon-sub">The James Martin faucet collection is being added. Adding a faucet will unlock 15% off your entire bundle.</p>
       </div>
     </section>
 
   </div><!-- /.bb-steps -->
 
-  <!-- ── Sticky Summary Bar ─────────────────────────────────── -->
-  <div class="bb-summary" id="bb-summary" aria-label="Bundle summary">
+  <!-- ── Sticky summary ────────────────────────────────────────── -->
+  <div class="bb-summary" id="bb-summary">
     <div class="bb-summary-items" id="bb-summary-items">
       <div class="bb-sum-row bb-sum-row--empty"><span class="bb-sum-cat">Cabinet</span><span class="bb-sum-none">Not selected</span></div>
       <div class="bb-sum-row bb-sum-row--empty"><span class="bb-sum-cat">Top</span><span class="bb-sum-none">Not selected</span></div>
@@ -180,10 +224,10 @@
         <span class="bb-final-total" id="bb-final-total">$0.00</span>
       </div>
       <p class="bb-savings-line" id="bb-savings-line"></p>
-      <button class="btn btn-navy bb-add-cart-btn" id="bb-add-cart" type="button" disabled>
+      <button class="btn btn-navy bb-cart-btn" id="bb-add-cart" type="button" disabled>
         Add Bundle to Cart
       </button>
-      <p class="bb-cart-note">Each item added at discounted price</p>
+      <p class="bb-cart-note">Each item added at the discounted price</p>
     </div>
   </div>
 
@@ -193,303 +237,455 @@
 (function () {
   'use strict';
 
-  /* ── Server data ──────────────────────────────────────────── */
-  var CABINETS = <%- JSON.stringify(cabinets) %>;
-  var TOPS     = <%- JSON.stringify(tops) %>;
-  var MIRRORS  = <%- JSON.stringify(mirrors) %>;
+  /* ── Server data ──────────────────────────────────────────────── */
+  var CABINET_MODELS = <%- JSON.stringify(cabinetModels) %>;
+  var TOP_MODELS     = <%- JSON.stringify(topModels)     %>;
+  var MIRROR_MODELS  = <%- JSON.stringify(mirrorModels)  %>;
+  var FAMILY_HEX     = <%- JSON.stringify(familyHex)     %>;
 
-  /* ── Discount tiers: index = category count ───────────────── */
-  /* 0 items→0%, 1 cabinet only→0%, 2 cabinet+top→5%, 3→10%, 4→15% */
+  /* ── Discount tiers: index = selected-item count ──────────────── */
+  /* 0 items→0%, 1 cabinet only→0%, 2 cab+top→5%, 3→10%, 4→15% */
   var TIERS = [0, 0, 5, 10, 15];
 
-  /* ── Bundle state ─────────────────────────────────────────── */
-  var state      = { cabinet: null, top: null, mirror: null };
-  var sizeFilter = { cabinet: null, top: null, mirror: null };
+  /* ── Viewer state ─────────────────────────────────────────────── */
+  var gIdx   = { cabinet: 0,    top: 0,    mirror: 0    };   // current model index
+  var gSize  = { cabinet: null,             mirror: null };   // persists across model nav
+  var gColor = { cabinet: null, top: null,  mirror: null };   // resets on model change
 
-  /* ── Utils ────────────────────────────────────────────────── */
-  function esc(s) {
-    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;')
-      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  }
+  /* ── Selection state ──────────────────────────────────────────── */
+  var state = { cabinet: null, top: null, mirror: null };
+
+  /* ── Helpers ──────────────────────────────────────────────────── */
   function fmt(n) {
-    return '$' + parseFloat(n || 0).toLocaleString('en-US',
-      { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return '$' + parseFloat(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
+  function esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function el(id) { return document.getElementById(id); }
+
+  /* ── Model lists ──────────────────────────────────────────────── */
+  function getModels(step) {
+    if (step === 'cabinet') return CABINET_MODELS;
+    if (step === 'top')     return activeTops();
+    if (step === 'mirror')  return MIRROR_MODELS;
+    return [];
+  }
+
+  /* Tops filtered to cabinet's width once a cabinet is selected */
+  function activeTops() {
+    if (!state.cabinet || !state.cabinet.width_in) return TOP_MODELS;
+    var w = parseFloat(state.cabinet.width_in);
+    return TOP_MODELS.map(function(m) {
+      var match = m.skus.filter(function(s) { return parseFloat(s.width_in) === w; });
+      return match.length ? { model: m.model, skus: match } : null;
+    }).filter(Boolean);
+  }
+
+  /* SKUs for current model, optionally size-filtered (except top — already width-locked) */
+  function getSizeFilteredSkus(step, model) {
+    if (!model) return [];
+    var skus = model.skus;
+    if (step === 'top') return skus;
+    var size = gSize[step];
+    if (size !== null) {
+      var f = skus.filter(function(s) { return parseFloat(s.width_in) === size; });
+      if (f.length) return f;
+    }
+    return skus;
+  }
+
+  /* The SKU to display right now (color-selected or first available) */
+  function getDisplaySku(step, model) {
+    var skus = getSizeFilteredSkus(step, model);
+    var c    = gColor[step];
+    if (c) {
+      var m = skus.find(function(s) { return s.color === c; });
+      if (m) return m;
+    }
+    return skus[0] || null;
+  }
+
+  /* ── Swatch rendering ─────────────────────────────────────────── */
+  function swatchHtml(step, sku) {
+    var chipImg  = sku.chip_image;
+    var cfKey    = sku.color_family || '';
+    var hex      = FAMILY_HEX[cfKey] || '#C9B89A';
+    var border   = FAMILY_HEX[cfKey + '_border'] || hex;
+    var isActive = gColor[step] === sku.color;
+    var style    = chipImg
+      ? 'background-image:url(' + esc(chipImg) + ');background-size:cover;background-position:center;border-color:' + (isActive ? 'var(--amber,#B8862A)' : border)
+      : 'background-color:' + hex + ';border-color:' + (isActive ? 'var(--amber,#B8862A)' : border);
+    return '<button class="bb-swatch' + (isActive ? ' is-active' : '') + '"'
+      + ' type="button"'
+      + ' data-step="'  + step         + '"'
+      + ' data-color="' + esc(sku.color) + '"'
+      + ' title="'      + esc(sku.color) + '"'
+      + ' aria-label="' + esc(sku.color) + '"'
+      + ' style="'      + style          + '">'
+      + '</button>';
+  }
+
+  /* ── Full viewer render for a step ───────────────────────────── */
+  function renderViewer(step) {
+    var models = getModels(step);
+    var idx    = gIdx[step];
+    var model  = models[idx] || null;
+    var total  = models.length;
+
+    /* Nav counter + arrows */
+    var countEl = el('bb-count-' + step);
+    if (countEl) countEl.textContent = total ? (idx + 1) + ' / ' + total : '—';
+    var prevBtn = el('bb-prev-' + step);
+    var nextBtn = el('bb-next-' + step);
+    if (prevBtn) prevBtn.disabled = (idx === 0 || !total);
+    if (nextBtn) nextBtn.disabled = (idx >= total - 1 || !total);
+
+    /* If step is top and no cabinet selected yet → leave locked */
+    if (step === 'top' && !state.cabinet) return;
+
+    /* No models */
+    if (!model) {
+      var mc = el('bb-mcard-' + step);
+      if (mc) mc.innerHTML = '<p class="bb-empty bb-empty--padded">No products match your current selection.</p>';
+      return;
+    }
+
+    var sizeSkus   = getSizeFilteredSkus(step, model);
+    var displaySku = getDisplaySku(step, model);
+
+    /* Image */
+    var imgEl = el('bb-img-' + step);
+    if (imgEl) {
+      imgEl.src = (displaySku && displaySku.primary_image) || '/images/placeholder-product.png';
+      imgEl.alt = (displaySku && displaySku.name) || model.model;
+    }
+
+    /* Heart */
+    var hrt = el('bb-heart-' + step);
+    if (hrt && displaySku) {
+      hrt.dataset.productId   = displaySku.id;
+      hrt.dataset.productSlug = displaySku.slug;
+      hrt.classList.remove('is-saved');
+    }
+
+    /* View link */
+    var vlink = el('bb-viewlink-' + step);
+    if (vlink && displaySku) vlink.href = '/products/' + displaySku.slug;
+
+    /* Collection / model name */
+    var colEl = el('bb-col-' + step);
+    if (colEl) colEl.textContent = model.model || '';
+
+    /* SKU name + price */
+    var nameEl  = el('bb-name-' + step);
+    var priceEl = el('bb-price-' + step);
+    if (nameEl)  nameEl.textContent  = (displaySku && displaySku.name)  || '';
+    if (priceEl) priceEl.textContent = (displaySku && displaySku.price) ? fmt(displaySku.price) : '';
+
+    /* Size chips (cabinet + mirror only — tops are width-locked) */
+    if (step !== 'top') {
+      var allSizes = [];
+      model.skus.forEach(function(s) {
+        var n = parseFloat(s.width_in);
+        if (!isNaN(n) && n > 0 && allSizes.indexOf(n) === -1) allSizes.push(n);
+      });
+      allSizes.sort(function(a, b) { return a - b; });
+      var sizesEl = el('bb-sizes-' + step);
+      if (sizesEl) {
+        sizesEl.innerHTML = allSizes.map(function(s) {
+          return '<button class="model-card-size-btn' + (gSize[step] === s ? ' is-active' : '') + '"'
+            + ' type="button" data-step="' + step + '" data-size="' + s + '">'
+            + s + '"</button>';
+        }).join('');
+      }
+    }
+
+    /* Finish swatches */
+    var seen = {};
+    var uniqueSkus = [];
+    sizeSkus.forEach(function(s) {
+      if (s.color && !seen[s.color]) { seen[s.color] = true; uniqueSkus.push(s); }
+    });
+    var swatchEl = el('bb-swatches-' + step);
+    if (swatchEl) swatchEl.innerHTML = uniqueSkus.map(function(s) { return swatchHtml(step, s); }).join('');
+
+    /* Finish name */
+    var finEl = el('bb-finish-' + step);
+    if (finEl) finEl.textContent = (displaySku && displaySku.color) ? displaySku.color : '';
+
+    /* Select button */
+    var selBtn = el('bb-select-' + step);
+    if (selBtn) {
+      var isSel  = !!(state[step] && displaySku && String(state[step].id) === String(displaySku.id));
+      selBtn.disabled    = !displaySku;
+      selBtn.textContent = isSel ? 'Selected ✓' : 'Select';
+      selBtn.classList.toggle('is-selected', isSel);
+    }
+  }
+
+  /* Lightweight image/name/price update after swatch/size pick */
+  function updateCard(step, displaySku) {
+    var imgEl   = el('bb-img-'   + step);
+    var nameEl  = el('bb-name-'  + step);
+    var priceEl = el('bb-price-' + step);
+    var finEl   = el('bb-finish-'+ step);
+    var vlink   = el('bb-viewlink-' + step);
+    var hrt     = el('bb-heart-' + step);
+    if (!displaySku) return;
+    if (imgEl)   imgEl.src = displaySku.primary_image || '/images/placeholder-product.png';
+    if (nameEl)  nameEl.textContent  = displaySku.name  || '';
+    if (priceEl) priceEl.textContent = displaySku.price ? fmt(displaySku.price) : '';
+    if (finEl)   finEl.textContent   = displaySku.color || '';
+    if (vlink)   vlink.href = '/products/' + displaySku.slug;
+    if (hrt) { hrt.dataset.productId = displaySku.id; hrt.dataset.productSlug = displaySku.slug; }
+    var selBtn = el('bb-select-' + step);
+    if (selBtn) {
+      var isSel = !!(state[step] && String(state[step].id) === String(displaySku.id));
+      selBtn.disabled    = false;
+      selBtn.textContent = isSel ? 'Selected ✓' : 'Select';
+      selBtn.classList.toggle('is-selected', isSel);
+    }
+  }
+
+  /* ── Navigation ───────────────────────────────────────────────── */
+  function navModel(step, dir) {
+    var models = getModels(step);
+    var newIdx = gIdx[step] + dir;
+    if (newIdx < 0 || newIdx >= models.length) return;
+    gIdx[step]   = newIdx;
+    gColor[step] = null;          /* reset color, keep size */
+    renderViewer(step);
+  }
+
+  /* ── Size chip ────────────────────────────────────────────────── */
+  function pickSize(step, size) {
+    /* Toggle: clicking active chip de-selects it */
+    gSize[step]  = (gSize[step] === size) ? null : size;
+    gColor[step] = null;
+    renderViewer(step);
+  }
+
+  /* ── Swatch pick ──────────────────────────────────────────────── */
+  function pickColor(step, color) {
+    gColor[step] = (gColor[step] === color) ? null : color;
+
+    /* Update swatch active styles */
+    var container = el('bb-swatches-' + step);
+    if (container) {
+      container.querySelectorAll('.bb-swatch').forEach(function(btn) {
+        var isActive = btn.dataset.color === gColor[step];
+        btn.classList.toggle('is-active', isActive);
+        /* update border colour inline */
+        var cfKey  = ''; /* we don't have cf per-btn; just use amber / default */
+        btn.style.borderColor = isActive ? 'var(--amber,#B8862A)' : '';
+      });
+    }
+
+    /* Lightweight card update */
+    var models = getModels(step);
+    var model  = models[gIdx[step]] || null;
+    if (model) updateCard(step, getDisplaySku(step, model));
+  }
+
+  /* ── Select/deselect ──────────────────────────────────────────── */
+  function selectProduct(step) {
+    var models     = getModels(step);
+    var model      = models[gIdx[step]] || null;
+    var displaySku = model ? getDisplaySku(step, model) : null;
+    if (!displaySku) return;
+
+    if (state[step] && String(state[step].id) === String(displaySku.id)) {
+      state[step] = null;
+      if (step === 'cabinet') lockTopStep();
+    } else {
+      state[step] = displaySku;
+      if (step === 'cabinet') unlockTopStep();
+    }
+
+    updateBadge(step);
+    renderViewer(step);
+    updateSummary();
+  }
+
+  /* ── Top step lock / unlock ───────────────────────────────────── */
+  function lockTopStep() {
+    var section = el('bb-step-top');
+    if (section) section.classList.add('bb-step--locked');
+    state.top  = null; gIdx.top = 0; gColor.top = null;
+    var mc = el('bb-mcard-top');
+    if (mc) mc.innerHTML = '<div class="bb-locked-msg"><svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg><p>Select your vanity cabinet above to see matching tops</p></div>';
+    var meta = el('bb-meta-top');
+    if (meta) meta.textContent = 'Required · Select a vanity cabinet first · Adds 5% off';
+    var countEl = el('bb-count-top');
+    if (countEl) countEl.textContent = '—';
+    var pBtn = el('bb-prev-top'); var nBtn = el('bb-next-top');
+    if (pBtn) pBtn.disabled = true;
+    if (nBtn) nBtn.disabled = true;
+    updateBadge('top');
+    updateSummary();
+  }
+
+  function unlockTopStep() {
+    var section = el('bb-step-top');
+    if (section) section.classList.remove('bb-step--locked');
+    gIdx.top = 0; gColor.top = null;
+
+    /* Rebuild mcard markup for top */
+    var mc = el('bb-mcard-top');
+    if (mc) {
+      mc.innerHTML =
+        '<div class="bb-mcard-img-col">'
+        + '<img class="bb-mcard-img" id="bb-img-top" src="" alt="" loading="lazy">'
+        + '<button class="heart-btn" id="bb-heart-top" type="button" data-product-id="" data-product-slug="" aria-label="Save to favorites">'
+        + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>'
+        + '</button>'
+        + '</div>'
+        + '<div class="bb-mcard-info">'
+        + '<p class="bb-mcard-collection" id="bb-col-top"></p>'
+        + '<div class="bb-mcard-name-price"><span class="bb-mcard-name" id="bb-name-top"></span><span class="bb-mcard-price" id="bb-price-top"></span></div>'
+        + '<div class="bb-picker-row bb-picker-row--finish"><span class="bb-picker-lbl">Finish</span><div class="bb-swatches-wrap"><div class="bb-swatches" id="bb-swatches-top"></div><span class="bb-finish-name" id="bb-finish-top"></span></div></div>'
+        + '<a class="bb-view-link" id="bb-viewlink-top" href="" target="_blank">View product page ›</a>'
+        + '<button class="btn btn-navy bb-select-btn" id="bb-select-top" type="button" disabled>Select</button>'
+        + '</div>';
+    }
+
+    var tops  = activeTops();
+    var meta  = el('bb-meta-top');
+    if (meta) {
+      var w = state.cabinet ? state.cabinet.width_in : null;
+      meta.textContent = w
+        ? 'Showing ' + tops.length + ' top' + (tops.length !== 1 ? 's' : '') + ' matching ' + w + '" cabinet · Adds 5% off'
+        : 'Choose your vanity top · Adds 5% off';
+    }
+    renderViewer('top');
+  }
+
+  /* ── Badge ────────────────────────────────────────────────────── */
+  function updateBadge(step) {
+    var badge = el('bb-badge-' + step);
+    var text  = el('bb-badge-text-' + step);
+    if (!badge) return;
+    if (state[step]) {
+      if (text) text.textContent = state[step].name;
+      badge.hidden = false;
+    } else {
+      badge.hidden = true;
+    }
+  }
+
+  /* ── Summary bar ──────────────────────────────────────────────── */
   function itemCount() {
     return (state.cabinet ? 1 : 0) + (state.top ? 1 : 0) + (state.mirror ? 1 : 0);
   }
   function discount() { return TIERS[Math.min(itemCount(), 4)]; }
 
-  /* ── Product card HTML ────────────────────────────────────── */
-  function cardHtml(p, step) {
-    var img = esc(p.primary_image || '/images/placeholder-product.png');
-    var w   = p.width_in ? p.width_in + '"' : '';
-    return '<article class="bb-card"'
-      + ' data-id="'    + p.id           + '"'
-      + ' data-step="'  + step           + '"'
-      + ' data-price="' + (p.price || 0) + '"'
-      + ' data-width="' + (p.width_in||0)+ '"'
-      + ' data-slug="'  + esc(p.slug)    + '"'
-      + ' data-name="'  + esc(p.name)    + '"'
-      + ' data-image="' + img            + '">'
-      + '<a href="/products/' + esc(p.slug) + '" class="bb-card-view-link" target="_blank" tabindex="-1" aria-hidden="true">View</a>'
-      + '<div class="bb-card-img">'
-      + '<img src="' + img + '" alt="' + esc(p.name) + '" loading="lazy">'
-      + '<div class="bb-card-check" aria-hidden="true">'
-      + '<svg viewBox="0 0 20 20" width="20" height="20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>'
-      + '</div></div>'
-      + '<div class="bb-card-body">'
-      + (p.model ? '<p class="bb-card-model">' + esc(p.model) + '</p>' : '')
-      + '<p class="bb-card-name">' + esc(p.name) + '</p>'
-      + (w ? '<span class="bb-card-size">' + w + '</span>' : '')
-      + '<p class="bb-card-price">' + fmt(p.price) + '</p>'
-      + '<button class="bb-select-btn" type="button">Select</button>'
-      + '</div>'
-      + '</article>';
-  }
-
-  /* ── Size chips HTML ──────────────────────────────────────── */
-  function sizeChipsHtml(products, activeSize, step) {
-    var sizes = [];
-    products.forEach(function(p) {
-      var n = parseFloat(p.width_in);
-      if (!isNaN(n) && sizes.indexOf(n) === -1) sizes.push(n);
-    });
-    sizes.sort(function(a,b){ return a-b; });
-    if (!sizes.length) return '';
-    return '<div class="bb-size-chips"><span class="bb-size-label">Filter by size:</span>'
-      + sizes.map(function(s){
-          return '<button class="bb-size-chip' + (s===activeSize?' is-active':'') + '" type="button" data-step="'+step+'" data-size="'+s+'">'+s+'"</button>';
-        }).join('')
-      + '<button class="bb-size-chip' + (activeSize===null?' is-active':'') + '" type="button" data-step="'+step+'" data-size="">All</button>'
-      + '</div>';
-  }
-
-  /* ── Render a step's carousel ─────────────────────────────── */
-  function renderProducts(step, products, selectedId) {
-    var container = document.getElementById('bb-products-' + step);
-    var sizeWrap  = document.getElementById('bb-sizes-'    + step);
-    if (!container) return;
-
-    var active   = sizeFilter[step];
-    var filtered = active !== null
-      ? products.filter(function(p){ return parseFloat(p.width_in) === active; })
-      : products;
-    if (!filtered.length && active !== null) { sizeFilter[step] = null; filtered = products; }
-
-    container.innerHTML = filtered.length
-      ? filtered.map(function(p){ return cardHtml(p, step); }).join('')
-      : '<p class="bb-empty">No products match this size.</p>';
-
-    if (sizeWrap) sizeWrap.innerHTML = sizeChipsHtml(products, sizeFilter[step], step);
-
-    if (selectedId) {
-      var sel = container.querySelector('[data-id="' + selectedId + '"]');
-      if (sel) sel.classList.add('is-selected');
-    }
-
-    updateArrows(step);
-  }
-
-  /* ── Arrow visibility ─────────────────────────────────────── */
-  function updateArrows(step) {
-    var track = document.getElementById('bb-products-' + step);
-    var btnL  = document.getElementById('bb-arrow-' + step + '-left');
-    var btnR  = document.getElementById('bb-arrow-' + step + '-right');
-    if (!track || !btnL || !btnR) return;
-    var canScrollL = track.scrollLeft > 4;
-    var canScrollR = track.scrollLeft < track.scrollWidth - track.clientWidth - 4;
-    btnL.hidden = !canScrollL;
-    btnR.hidden = !canScrollR;
-  }
-
-  /* ── Arrow click: scroll by one card width ────────────────── */
-  function wireArrows(step) {
-    var track = document.getElementById('bb-products-' + step);
-    var btnL  = document.getElementById('bb-arrow-' + step + '-left');
-    var btnR  = document.getElementById('bb-arrow-' + step + '-right');
-    if (!track) return;
-    var cardW = function() {
-      var first = track.querySelector('.bb-card');
-      return first ? first.offsetWidth + 16 : 260; // card width + gap
-    };
-    if (btnL) btnL.addEventListener('click', function(){ track.scrollBy({ left: -cardW(), behavior: 'smooth' }); });
-    if (btnR) btnR.addEventListener('click', function(){ track.scrollBy({ left:  cardW(), behavior: 'smooth' }); });
-    track.addEventListener('scroll', function(){ updateArrows(step); }, { passive: true });
-  }
-
-  /* ── Selected badge in step header ───────────────────────── */
-  function updateBadge(step, item) {
-    var badge  = document.getElementById('bb-selected-' + step);
-    var nameEl = document.getElementById('bb-selected-' + step + '-name');
-    if (!badge) return;
-    if (item) { nameEl.textContent = item.name; badge.hidden = false; }
-    else       { badge.hidden = true; }
-  }
-
-  /* ── Summary bar ──────────────────────────────────────────── */
   function updateSummary() {
-    var disc = discount();
-    var keys = ['cabinet','top','mirror'];
-    var origTotal = 0;
-    keys.forEach(function(k){ if (state[k]) origTotal += parseFloat(state[k].price || 0); });
-    var finalTotal = origTotal * (1 - disc / 100);
-    var savings    = origTotal - finalTotal;
-
-    /* Tier bar highlight */
+    var disc  = discount();
     var count = itemCount();
-    document.querySelectorAll('.bb-tier').forEach(function(el){
-      el.classList.toggle('is-active', parseInt(el.dataset.items, 10) === count);
+
+    /* Tier highlights */
+    document.querySelectorAll('.bb-tier').forEach(function(t) {
+      t.classList.toggle('is-active', parseInt(t.dataset.items, 10) === count);
     });
 
-    /* Discount badge */
-    var badge = document.getElementById('bb-discount-badge');
+    /* Badge */
+    var badge = el('bb-discount-badge');
     if (badge) {
       if (disc > 0) { badge.textContent = disc + '% Bundle Savings'; badge.classList.add('has-discount'); }
       else          { badge.textContent = 'Add items to save';        badge.classList.remove('has-discount'); }
     }
 
     /* Totals */
-    var origEl    = document.getElementById('bb-original-total');
-    var finalEl   = document.getElementById('bb-final-total');
-    var savingsEl = document.getElementById('bb-savings-line');
-    if (origEl)    origEl.innerHTML     = (disc > 0 && origTotal > 0) ? '<s>' + fmt(origTotal) + '</s>' : '';
-    if (finalEl)   finalEl.textContent  = origTotal > 0 ? fmt(finalTotal) : '$0.00';
-    if (savingsEl) savingsEl.textContent= savings > 0 ? 'You save ' + fmt(savings) : '';
+    var orig  = 0;
+    ['cabinet','top','mirror'].forEach(function(k) { if (state[k]) orig += parseFloat(state[k].price || 0); });
+    var final   = orig * (1 - disc / 100);
+    var savings = orig - final;
+    var origEl  = el('bb-original-total');
+    var finEl   = el('bb-final-total');
+    var savEl   = el('bb-savings-line');
+    if (origEl) origEl.innerHTML    = (disc > 0 && orig > 0) ? '<s>' + fmt(orig) + '</s>' : '';
+    if (finEl)  finEl.textContent   = orig > 0 ? fmt(final) : '$0.00';
+    if (savEl)  savEl.textContent   = savings > 0 ? 'You save ' + fmt(savings) : '';
 
     /* Rows */
-    var labels = { cabinet:'Cabinet', top:'Top', mirror:'Mirror' };
-    var wrap   = document.getElementById('bb-summary-items');
+    var wrap = el('bb-summary-items');
     if (wrap) {
-      var rows = keys.map(function(k){
+      var labels = { cabinet: 'Cabinet', top: 'Top', mirror: 'Mirror' };
+      var html = ['cabinet','top','mirror'].map(function(k) {
         var item = state[k];
-        if (!item) return '<div class="bb-sum-row bb-sum-row--empty"><span class="bb-sum-cat">'+labels[k]+'</span><span class="bb-sum-none">Not selected</span></div>';
+        if (!item) return '<div class="bb-sum-row bb-sum-row--empty"><span class="bb-sum-cat">' + labels[k] + '</span><span class="bb-sum-none">Not selected</span></div>';
         var dp = parseFloat(item.price) * (1 - disc / 100);
-        return '<div class="bb-sum-row"><span class="bb-sum-cat">'+labels[k]+'</span>'
-          + '<span class="bb-sum-name">'+esc(item.name)+'</span>'
-          + '<span class="bb-sum-price">'+(disc>0?'<s class="bb-sum-orig">'+fmt(item.price)+'</s> ':'')+fmt(dp)+'</span></div>';
+        return '<div class="bb-sum-row"><span class="bb-sum-cat">' + labels[k] + '</span>'
+          + '<span class="bb-sum-name">' + esc(item.name) + '</span>'
+          + '<span class="bb-sum-price">' + (disc > 0 ? '<s class="bb-sum-orig">' + fmt(item.price) + '</s> ' : '') + fmt(dp) + '</span></div>';
       });
-      rows.push('<div class="bb-sum-row bb-sum-row--empty bb-sum-row--cs"><span class="bb-sum-cat">Faucet</span><span class="bb-sum-none">Coming soon</span></div>');
-      wrap.innerHTML = rows.join('');
+      html.push('<div class="bb-sum-row bb-sum-row--empty bb-sum-row--cs"><span class="bb-sum-cat">Faucet</span><span class="bb-sum-none">Coming soon</span></div>');
+      wrap.innerHTML = html.join('');
     }
 
-    var cartBtn = document.getElementById('bb-add-cart');
+    var cartBtn = el('bb-add-cart');
     if (cartBtn) cartBtn.disabled = !state.cabinet;
   }
 
-  /* ── Card select / deselect ───────────────────────────────── */
-  function handleCardClick(e) {
-    if (e.target.closest('.bb-card-view-link')) return; // let product link through
-    var btn  = e.target.closest('.bb-select-btn');
-    var card = btn ? btn.closest('.bb-card') : e.target.closest('.bb-card');
-    if (!card) return;
-    var step = card.dataset.step;
-    if (!state.hasOwnProperty(step)) return;
-
-    var product = {
-      id:       card.dataset.id,
-      slug:     card.dataset.slug,
-      name:     card.dataset.name,
-      price:    parseFloat(card.dataset.price),
-      width_in: parseFloat(card.dataset.width) || null,
-      image:    card.dataset.image,
-    };
-
-    if (state[step] && String(state[step].id) === String(product.id)) {
-      /* Deselect */
-      state[step] = null;
-      if (step === 'cabinet') {
-        /* Re-lock top step */
-        state.top        = null;
-        sizeFilter.top   = null;
-        document.getElementById('bb-step-top').classList.add('bb-step--locked');
-        document.getElementById('bb-products-top').innerHTML = document.getElementById('bb-top-locked-msg').outerHTML;
-        document.getElementById('bb-sizes-top').innerHTML    = '';
-        document.getElementById('bb-top-meta').textContent   = 'Required · Select a vanity first · Adds 5% off your bundle';
-        updateBadge('top', null);
-        var arL = document.getElementById('bb-arrow-top-left');
-        var arR = document.getElementById('bb-arrow-top-right');
-        if (arL) arL.hidden = true;
-        if (arR) arR.hidden = true;
-      }
-    } else {
-      /* Select */
-      state[step] = product;
-      if (step === 'cabinet') {
-        state.top      = null;
-        sizeFilter.top = product.width_in ? product.width_in : null;
-        updateBadge('top', null);
-        document.getElementById('bb-step-top').classList.remove('bb-step--locked');
-        document.getElementById('bb-top-meta').textContent = product.width_in
-          ? 'Showing tops matching ' + product.width_in + '" cabinet · Adds 5% off'
-          : 'Required · Choose your countertop · Adds 5% off';
-        renderProducts('top', TOPS, null);
-      }
-    }
-
-    /* Re-render the changed step */
-    var dataMap = { cabinet: CABINETS, top: TOPS, mirror: MIRRORS };
-    renderProducts(step, dataMap[step], state[step] ? state[step].id : null);
-    updateBadge(step, state[step]);
-    updateSummary();
-  }
-
-  /* ── Size chip click ──────────────────────────────────────── */
-  function handleSizeChip(e) {
-    var chip = e.target.closest('.bb-size-chip');
-    if (!chip) return;
-    var step = chip.dataset.step;
-    sizeFilter[step] = chip.dataset.size ? parseFloat(chip.dataset.size) : null;
-    var dataMap = { cabinet: CABINETS, top: TOPS, mirror: MIRRORS };
-    renderProducts(step, dataMap[step], state[step] ? state[step].id : null);
-  }
-
-  /* ── Add bundle to cart ───────────────────────────────────── */
+  /* ── Add to cart ──────────────────────────────────────────────── */
   function addToCart() {
     if (!state.cabinet) return;
-    var btn = document.getElementById('bb-add-cart');
+    var btn = el('bb-add-cart');
     btn.disabled    = true;
     btn.textContent = 'Adding…';
     var disc  = discount();
-    var items = ['cabinet','top','mirror'].filter(function(k){ return state[k]; }).map(function(k){ return state[k]; });
-    Promise.all(items.map(function(item){
+    var items = ['cabinet','top','mirror'].filter(function(k) { return !!state[k]; }).map(function(k) { return state[k]; });
+    Promise.all(items.map(function(item) {
       var dp = (parseFloat(item.price) * (1 - disc / 100)).toFixed(2);
       var fd = new FormData();
       fd.append('product_id',          item.id);
       fd.append('slug',                item.slug);
       fd.append('name',                item.name);
       fd.append('price',               dp);
-      fd.append('image',               item.image || '');
+      fd.append('image',               item.primary_image || '');
       fd.append('original_price',      item.price);
       fd.append('bundle_discount_pct', disc);
-      fd.append('qty',                 '1');
-      return fetch('/cart/add', { method:'POST', headers:{'X-Requested-With':'XMLHttpRequest'}, body:fd });
-    })).then(function(){ window.location.href = '/cart'; })
-      .catch(function(){
+      fd.append('qty', '1');
+      return fetch('/cart/add', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: fd });
+    })).then(function() { window.location.href = '/cart'; })
+      .catch(function() {
         btn.disabled    = false;
         btn.textContent = 'Add Bundle to Cart';
         alert('Something went wrong. Please try again.');
       });
   }
 
-  /* ── Init ─────────────────────────────────────────────────── */
+  /* ── Global click handler ─────────────────────────────────────── */
+  function onPageClick(e) {
+    /* Prev/next model */
+    var prev = e.target.closest('[id^="bb-prev-"]');
+    if (prev) { navModel(prev.id.replace('bb-prev-', ''), -1); return; }
+    var next = e.target.closest('[id^="bb-next-"]');
+    if (next) { navModel(next.id.replace('bb-next-', ''),  1); return; }
+
+    /* Size chip */
+    var sChip = e.target.closest('.model-card-size-btn[data-step]');
+    if (sChip) { pickSize(sChip.dataset.step, parseFloat(sChip.dataset.size)); return; }
+
+    /* Finish swatch */
+    var sw = e.target.closest('.bb-swatch[data-step]');
+    if (sw) { pickColor(sw.dataset.step, sw.dataset.color); return; }
+
+    /* Select button */
+    var selBtn = e.target.closest('[id^="bb-select-"]');
+    if (selBtn && !selBtn.disabled) { selectProduct(selBtn.id.replace('bb-select-', '')); return; }
+
+    /* Add bundle to cart */
+    if (e.target.closest('#bb-add-cart')) { addToCart(); return; }
+  }
+
+  /* ── Init ─────────────────────────────────────────────────────── */
   function init() {
-    renderProducts('cabinet', CABINETS, null);
-    renderProducts('mirror',  MIRRORS,  null);
+    renderViewer('cabinet');
+    renderViewer('mirror');
     updateSummary();
-    ['cabinet','top','mirror'].forEach(wireArrows);
-
-    var stepsEl = document.querySelector('.bb-steps');
-    if (stepsEl) {
-      stepsEl.addEventListener('click', function(e){
-        if (e.target.closest('.bb-size-chip'))  { handleSizeChip(e);  return; }
-        if (e.target.closest('.bb-arrow'))       { return; } // handled by wireArrows
-        if (e.target.closest('.bb-card') || e.target.closest('.bb-select-btn')) { handleCardClick(e); }
-      });
-    }
-
-    var cartBtn = document.getElementById('bb-add-cart');
-    if (cartBtn) cartBtn.addEventListener('click', addToCart);
+    document.addEventListener('click', onPageClick);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
