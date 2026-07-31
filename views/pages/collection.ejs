@@ -483,6 +483,35 @@
       </div>
       <% } %>
 
+      <%/* ── Configuration / product_type (model-group) ──────── */%>
+      <% if (typeof mgAvailTypes !== 'undefined' && mgAvailTypes.length > 0) { %>
+      <%
+        var _mgTypeActive = typeof mgActiveTypes !== 'undefined' && mgActiveTypes.length > 0;
+        /* Human-friendly labels for each product_type value */
+        var _mgTypeLabel = { 'Cabinet Only': 'Cabinet Only', 'Single Sink': 'Single Vanity', 'Double Sink': 'Double Vanity' };
+      %>
+      <div class="filter-group">
+        <button type="button" class="filter-group-toggle"
+          aria-expanded="<%= _mgTypeActive ? 'true' : 'false' %>">
+          Configuration
+          <% if (_mgTypeActive) { %><span class="filter-badge"><%= mgActiveTypes.length %></span><% } %>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="filter-group-body<%= _mgTypeActive ? '' : ' is-collapsed' %>">
+          <% mgAvailTypes.forEach(function(t) {
+               var isChecked = _mgTypeActive && mgActiveTypes.indexOf(t) !== -1;
+               var lbl       = _mgTypeLabel[t] || t;
+          %>
+          <label class="filter-option">
+            <input type="checkbox" name="type" value="<%= t %>"
+              <%= isChecked ? 'checked' : '' %>>
+            <span><%= lbl %></span>
+          </label>
+          <% }) %>
+        </div>
+      </div>
+      <% } %>
+
       <%/* ── Cabinet Color (model-group) ──────────────────────── */%>
       <%
         var _mgHasColorActive = colorFamilyActive.length > 0 || colorExactActive.length > 0;
@@ -590,6 +619,7 @@
         <% if (typeof displayMode !== 'undefined' && displayMode === 'model-group') { %>
           <%= total %> model collection<%= total !== 1 ? 's' : '' %>
           <% if ((activeBrands || []).length) { %> · <strong><%= (activeBrands || []).join(', ') %></strong><% } %>
+          <% if (typeof mgActiveTypes !== 'undefined' && mgActiveTypes.length) { %> · <strong><%= mgActiveTypes.join(' / ') %></strong><% } %>
         <% } else { %>
           <%= total %> product<%= total !== 1 ? 's' : '' %>
           <% if (brands.length) { %> · <strong><%= brands.join(', ') %></strong><% } %>
@@ -760,6 +790,7 @@
         var _mgQs = '';
         (activeSizes  || []).forEach(function(s) { _mgQs += '&size_in='      + encodeURIComponent(s); });
         (activeBrands || []).forEach(function(b) { _mgQs += '&brand='        + encodeURIComponent(b); });
+        (typeof mgActiveTypes !== 'undefined' ? mgActiveTypes : []).forEach(function(t) { _mgQs += '&type=' + encodeURIComponent(t); });
         colorFamilyActive.forEach(function(f)    { _mgQs += '&color_family=' + encodeURIComponent(f); });
         colorExactActive.forEach(function(e)     { _mgQs += '&color_exact='  + encodeURIComponent(e); });
         if (minPrice != null) _mgQs += '&min_price=' + minPrice;

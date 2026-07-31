@@ -119,6 +119,7 @@ exports.show = async (req, res, next) => {
       // Active filter values — sizes are bucket labels (strings), not raw numbers
       const mgActiveSizes      = [].concat(req.query.size_in      || []).filter(Boolean);
       const mgActiveBrands     = [].concat(req.query.brand         || []).filter(Boolean);
+      const mgActiveTypes      = [].concat(req.query.type          || []).filter(Boolean);
       const mgColorFamilyParam = [].concat(req.query.color_family  || []).filter(Boolean);
       const mgColorExactParam  = [].concat(req.query.color_exact   || []).filter(Boolean);
       const mgMinPrice         = req.query.min_price ? parseFloat(req.query.min_price) : undefined;
@@ -135,15 +136,16 @@ exports.show = async (req, res, next) => {
       const mgHasColorFilter  = mgColorFamilyParam.length > 0 || mgColorExactParam.length > 0;
 
       const mgHasActiveFilters = !!(
-        mgActiveSizes.length || mgActiveBrands.length ||
+        mgActiveSizes.length || mgActiveBrands.length || mgActiveTypes.length ||
         mgHasColorFilter || mgMinPrice != null || mgMaxPrice != null
       );
 
       // Filter option universe — all active products that have a model assigned.
       // No width_in constraint here so all colors (including gray products that
       // may lack a width) appear in the color filter options.
+      // product_type included so the Configuration sidebar filter can list available types.
       const [mgOptRows] = await bvoPool.query(`
-        SELECT DISTINCT p.width_in AS size_in, p.brand, p.color, p.color_family
+        SELECT DISTINCT p.width_in AS size_in, p.brand, p.color, p.color_family, p.product_type
         FROM products p
         WHERE p.is_active = 1 AND p.model IS NOT NULL AND p.category_id = ?
       `, [mgProductCatId]);
@@ -157,6 +159,8 @@ exports.show = async (req, res, next) => {
       // color_family keys directly — used as primary visibility signal so families
       // whose products have non-standard color strings still appear in the sidebar.
       const mgAvailColorFamilies = [...new Set(mgOptRows.map(r => r.color_family).filter(Boolean))];
+      // Available product_types for the Configuration filter sidebar
+      const mgAvailTypes         = [...new Set(mgOptRows.map(r => r.product_type).filter(Boolean))].sort();
 
       // Color families config — ALL families (cabinet + metallic-finish vanities).
       // Same pool as the regular vanity collection route. The template's
@@ -189,6 +193,12 @@ exports.show = async (req, res, next) => {
       if (mgActiveBrands.length) {
         mgWhere += ` AND p.brand IN (${mgActiveBrands.map(() => '?').join(',')})`;
         mgWhereParams.push(...mgActiveBrands);
+      }
+
+      // Product type → WHERE (model must contain at least one SKU of the selected type)
+      if (mgActiveTypes.length) {
+        mgWhere += ` AND p.product_type IN (${mgActiveTypes.map(() => '?').join(',')})`;
+        mgWhereParams.push(...mgActiveTypes);
       }
 
       // Color → HAVING (keeps full model data, filters model groups not individual rows)
@@ -435,6 +445,8 @@ exports.show = async (req, res, next) => {
         activeSizes:         mgActiveSizes,
         allBrands:           mgAllBrands,
         activeBrands:        mgActiveBrands,
+        mgActiveTypes,       // product_type filter (e.g. ['Cabinet Only'])
+        mgAvailTypes,        // all product_types present in this category
         colorFamiliesConfig: mgColorFamiliesConfig,
         colorFamilyActive:   mgColorFamilyParam,
         colorExactActive:    mgColorExactParam,
