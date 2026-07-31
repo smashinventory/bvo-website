@@ -2133,8 +2133,40 @@
   color: #fff;
 }
 
+/* ── Carousel outer wrapper (holds arrows + scroll track) ─────── */
+.bb-carousel-outer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+
+/* ── Prev / Next arrow buttons ───────────────────────────────── */
+.bb-arrow {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border, #E8E4DC);
+  background: #fff;
+  color: var(--navy, #182840);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color .15s, background .15s, box-shadow .15s;
+  z-index: 2;
+}
+.bb-arrow:hover {
+  border-color: var(--navy, #182840);
+  box-shadow: 0 2px 8px rgba(0,0,0,.10);
+}
+.bb-arrow[hidden] { display: none; }
+
 /* ── Horizontal scroll product row ──────────────────────────── */
 .bb-products-scroll {
+  flex: 1;
+  min-width: 0;
   display: flex;
   gap: 1rem;
   overflow-x: auto;
@@ -2148,7 +2180,7 @@
 
 /* ── Product card ────────────────────────────────────────────── */
 .bb-card {
-  flex: 0 0 200px;
+  flex: 0 0 280px;
   scroll-snap-align: start;
   border: 1.5px solid var(--border, #E8E4DC);
   border-radius: 12px;
@@ -2165,7 +2197,7 @@
 }
 .bb-card-img {
   position: relative;
-  height: 160px;
+  height: 200px;
   background: var(--whisper, #F8F6F2);
   overflow: hidden;
 }
@@ -2244,6 +2276,26 @@
   background: var(--navy, #182840);
   color: #fff;
 }
+/* Discreet "View" product link — sits at top of card, shown on hover */
+.bb-card-view-link {
+  position: absolute;
+  top: .5rem;
+  left: .5rem;
+  font-size: .68rem;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--navy, #182840);
+  background: rgba(255,255,255,.88);
+  border: 1px solid var(--border, #E8E4DC);
+  border-radius: 4px;
+  padding: .15rem .45rem;
+  text-decoration: none;
+  opacity: 0;
+  transition: opacity .15s;
+  z-index: 3;
+}
+.bb-card:hover .bb-card-view-link { opacity: 1; }
 
 /* ── Locked state message ────────────────────────────────────── */
 .bb-locked-msg {
@@ -2404,8 +2456,9 @@
   .bb-tier  { min-width: 72px; padding: .45rem .5rem; }
   .bb-tier-label { font-size: .6rem; }
   .bb-tier-pct   { font-size: .85rem; }
-  .bb-card { flex: 0 0 170px; }
-  .bb-card-img { height: 130px; }
+  .bb-arrow { width: 32px; height: 32px; }
+  .bb-card { flex: 0 0 220px; }
+  .bb-card-img { height: 160px; }
   .bb-step { padding: 1rem 1rem 1.25rem; }
   .bb-summary { flex-direction: column; }
   .bb-summary-right { align-items: stretch; width: 100%; }

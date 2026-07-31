@@ -1,17 +1,11 @@
 <%
 /* ── Bundle Builder — /bundle-builder ─────────────────────────
-   James Martin Vanities exclusive.
+   James Martin Vanities exclusive. Standalone page (not a collection).
    Step 1: Cabinet Only  (required)
-   Step 2: Vanity Top    (required, size-locked to cabinet)
-   Step 3: Mirror        (optional)
-   Step 4: Faucet        (coming soon)
-   Discount tiers: 1 item=0%, 2=5%, 3=10%, 4=15%
+   Step 2: Vanity Top    (required, size-locked to cabinet)   → unlocks 5% off
+   Step 3: Mirror        (optional)                           → unlocks 10% off
+   Step 4: Faucet        (coming soon)                        → unlocks 15% off
    ─────────────────────────────────────────────────────────── */
-const _breadcrumbs = [
-  { label: 'Home',        url: '/' },
-  { label: 'Collections', url: '/collections' },
-  { label: 'James Martin Bundle Builder', url: null },
-];
 %>
 
 <div class="bb-wrap">
@@ -19,12 +13,8 @@ const _breadcrumbs = [
   <!-- ── Breadcrumb ─────────────────────────────────────────── -->
   <nav class="breadcrumb-nav" aria-label="Breadcrumb">
     <ol class="breadcrumb">
-      <% _breadcrumbs.forEach(function(b, i) { %>
-      <li class="breadcrumb-item<%= i === _breadcrumbs.length-1 ? ' breadcrumb-item--active' : '' %>">
-        <% if (b.url) { %><a href="<%= b.url %>"><%= b.label %></a><% } else { %><span><%= b.label %></span><% } %>
-        <% if (i < _breadcrumbs.length-1) { %><span class="breadcrumb-sep" aria-hidden="true">›</span><% } %>
-      </li>
-      <% }) %>
+      <li class="breadcrumb-item"><a href="/">Home</a><span class="breadcrumb-sep" aria-hidden="true">›</span></li>
+      <li class="breadcrumb-item breadcrumb-item--active"><span>James Martin Bundle Builder</span></li>
     </ol>
   </nav>
 
@@ -32,17 +22,17 @@ const _breadcrumbs = [
   <header class="bb-hero">
     <p class="bb-eyebrow">James Martin Vanities</p>
     <h1 class="bb-title">Build Your Unique Bundle</h1>
-    <p class="bb-subtitle">Bring your vision to life — customized for you. Mix and match, save up to 15%.</p>
+    <p class="bb-subtitle">Mix and match, save up to 15%. Each item ships free.</p>
 
-    <!-- Discount tier progress bar -->
+    <!-- Discount tier bar -->
     <div class="bb-tiers" aria-label="Bundle discount tiers">
       <div class="bb-tier" data-items="1">
-        <span class="bb-tier-label">Cabinet Only</span>
+        <span class="bb-tier-label">Vanity Only</span>
         <span class="bb-tier-pct">0% Off</span>
       </div>
       <div class="bb-tier-arrow" aria-hidden="true">›</div>
       <div class="bb-tier" data-items="2">
-        <span class="bb-tier-label">+ Top</span>
+        <span class="bb-tier-label">Vanity + Top</span>
         <span class="bb-tier-pct">5% Off</span>
       </div>
       <div class="bb-tier-arrow" aria-hidden="true">›</div>
@@ -66,7 +56,7 @@ const _breadcrumbs = [
       <div class="bb-step-hd">
         <div class="bb-step-num" aria-hidden="true">1</div>
         <div class="bb-step-hd-text">
-          <h2 class="bb-step-title">Pick Your Cabinet</h2>
+          <h2 class="bb-step-title">Pick Your Vanity Cabinet</h2>
           <p class="bb-step-meta">Required · Cabinet only — top sold separately</p>
         </div>
         <div class="bb-step-selected-badge" id="bb-selected-cabinet" hidden>
@@ -75,20 +65,28 @@ const _breadcrumbs = [
         </div>
       </div>
       <div class="bb-size-chips-wrap" id="bb-sizes-cabinet"></div>
-      <div class="bb-products-scroll" id="bb-products-cabinet">
-        <% if (cabinets.length === 0) { %>
-        <p class="bb-empty">No James Martin cabinets found. Import the JM feed first.</p>
-        <% } %>
+      <div class="bb-carousel-outer">
+        <button class="bb-arrow bb-arrow--left" id="bb-arrow-cabinet-left" type="button" aria-label="Scroll left" hidden>
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <div class="bb-products-scroll" id="bb-products-cabinet">
+          <% if (cabinets.length === 0) { %>
+          <p class="bb-empty">No James Martin cabinets found.</p>
+          <% } %>
+        </div>
+        <button class="bb-arrow bb-arrow--right" id="bb-arrow-cabinet-right" type="button" aria-label="Scroll right" hidden>
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
       </div>
     </section>
 
-    <!-- Step 2: Top (required, unlocks after cabinet selected) -->
+    <!-- Step 2: Top (required, unlocks 5% — auto-filtered to cabinet width) -->
     <section class="bb-step bb-step--locked" id="bb-step-top">
       <div class="bb-step-hd">
         <div class="bb-step-num" aria-hidden="true">2</div>
         <div class="bb-step-hd-text">
-          <h2 class="bb-step-title">Pick Your Top</h2>
-          <p class="bb-step-meta" id="bb-top-meta">Required · Select a cabinet first</p>
+          <h2 class="bb-step-title">Pick Your Vanity Top</h2>
+          <p class="bb-step-meta" id="bb-top-meta">Required · Select a vanity first · Adds 5% off your bundle</p>
         </div>
         <div class="bb-step-selected-badge" id="bb-selected-top" hidden>
           <svg viewBox="0 0 20 20" width="14" height="14" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
@@ -96,21 +94,29 @@ const _breadcrumbs = [
         </div>
       </div>
       <div class="bb-size-chips-wrap" id="bb-sizes-top"></div>
-      <div class="bb-products-scroll" id="bb-products-top">
-        <div class="bb-locked-msg" id="bb-top-locked-msg">
-          <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-          <p>Select your cabinet above to see matching tops</p>
+      <div class="bb-carousel-outer">
+        <button class="bb-arrow bb-arrow--left" id="bb-arrow-top-left" type="button" aria-label="Scroll left" hidden>
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <div class="bb-products-scroll" id="bb-products-top">
+          <div class="bb-locked-msg" id="bb-top-locked-msg">
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+            <p>Select your vanity cabinet above to see matching tops</p>
+          </div>
         </div>
+        <button class="bb-arrow bb-arrow--right" id="bb-arrow-top-right" type="button" aria-label="Scroll right" hidden>
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
       </div>
     </section>
 
-    <!-- Step 3: Mirror (optional) -->
+    <!-- Step 3: Mirror (optional → unlocks 10%) -->
     <section class="bb-step" id="bb-step-mirror">
       <div class="bb-step-hd">
         <div class="bb-step-num" aria-hidden="true">3</div>
         <div class="bb-step-hd-text">
           <h2 class="bb-step-title">Pick Your Mirror <span class="bb-optional-tag">Optional</span></h2>
-          <p class="bb-step-meta">Save 10% when you add a mirror to your bundle</p>
+          <p class="bb-step-meta">Add a mirror to unlock 10% off your entire bundle</p>
         </div>
         <div class="bb-step-selected-badge" id="bb-selected-mirror" hidden>
           <svg viewBox="0 0 20 20" width="14" height="14" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
@@ -118,28 +124,42 @@ const _breadcrumbs = [
         </div>
       </div>
       <div class="bb-size-chips-wrap" id="bb-sizes-mirror"></div>
-      <div class="bb-products-scroll" id="bb-products-mirror">
-        <% if (mirrors.length === 0) { %>
-        <p class="bb-empty">No James Martin mirrors found.</p>
-        <% } %>
+      <div class="bb-carousel-outer">
+        <button class="bb-arrow bb-arrow--left" id="bb-arrow-mirror-left" type="button" aria-label="Scroll left" hidden>
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <div class="bb-products-scroll" id="bb-products-mirror">
+          <% if (mirrors.length === 0) { %>
+          <p class="bb-empty">No James Martin mirrors found.</p>
+          <% } %>
+        </div>
+        <button class="bb-arrow bb-arrow--right" id="bb-arrow-mirror-right" type="button" aria-label="Scroll right" hidden>
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
       </div>
     </section>
 
-    <!-- Step 4: Faucet (coming soon) -->
+    <!-- Step 4: Faucet (coming soon → will unlock 15%) -->
     <section class="bb-step bb-step--coming-soon" id="bb-step-faucet">
       <div class="bb-step-hd">
         <div class="bb-step-num" aria-hidden="true">4</div>
         <div class="bb-step-hd-text">
           <h2 class="bb-step-title">Pick Your Faucet <span class="bb-optional-tag">Optional</span></h2>
-          <p class="bb-step-meta">Add a faucet for 15% off your entire bundle</p>
+          <p class="bb-step-meta">Add a faucet to unlock 15% off your entire bundle</p>
         </div>
       </div>
       <div class="bb-coming-soon-card">
         <div class="bb-coming-soon-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M12 22V12M12 12C12 7 7 5 4 8M12 12C12 7 17 5 20 8"/><circle cx="12" cy="10" r="2"/><path d="M8 22h8"/></svg>
+          <svg viewBox="0 0 56 50" width="48" height="42" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="2" y1="46" x2="54" y2="46"/>
+            <rect x="4" y="35" width="11" height="11" rx="1"/><line x1="5" y1="39" x2="1" y2="34"/>
+            <rect x="41" y="35" width="11" height="11" rx="1"/><line x1="51" y1="39" x2="55" y2="34"/>
+            <rect x="24" y="28" width="8" height="18" rx="1"/><line x1="28" y1="31" x2="28" y2="38"/>
+            <path d="M28 28 C28 16 28 10 40 8"/><path d="M40 8 C47 8 50 12 49 18"/>
+          </svg>
         </div>
         <p class="bb-coming-soon-title">Faucets Coming Soon</p>
-        <p class="bb-coming-soon-sub">James Martin faucet collection is being added. Check back soon to complete your bundle with a matching faucet and unlock 15% off.</p>
+        <p class="bb-coming-soon-sub">The James Martin faucet collection is being added. Check back soon — adding a faucet will unlock 15% off your entire bundle.</p>
       </div>
     </section>
 
@@ -148,22 +168,10 @@ const _breadcrumbs = [
   <!-- ── Sticky Summary Bar ─────────────────────────────────── -->
   <div class="bb-summary" id="bb-summary" aria-label="Bundle summary">
     <div class="bb-summary-items" id="bb-summary-items">
-      <div class="bb-sum-row bb-sum-row--empty">
-        <span class="bb-sum-cat">Cabinet</span>
-        <span class="bb-sum-none">Not selected</span>
-      </div>
-      <div class="bb-sum-row bb-sum-row--empty">
-        <span class="bb-sum-cat">Top</span>
-        <span class="bb-sum-none">Not selected</span>
-      </div>
-      <div class="bb-sum-row bb-sum-row--empty">
-        <span class="bb-sum-cat">Mirror</span>
-        <span class="bb-sum-none">Not selected</span>
-      </div>
-      <div class="bb-sum-row bb-sum-row--empty bb-sum-row--cs">
-        <span class="bb-sum-cat">Faucet</span>
-        <span class="bb-sum-none">Coming soon</span>
-      </div>
+      <div class="bb-sum-row bb-sum-row--empty"><span class="bb-sum-cat">Cabinet</span><span class="bb-sum-none">Not selected</span></div>
+      <div class="bb-sum-row bb-sum-row--empty"><span class="bb-sum-cat">Top</span><span class="bb-sum-none">Not selected</span></div>
+      <div class="bb-sum-row bb-sum-row--empty"><span class="bb-sum-cat">Mirror</span><span class="bb-sum-none">Not selected</span></div>
+      <div class="bb-sum-row bb-sum-row--empty bb-sum-row--cs"><span class="bb-sum-cat">Faucet</span><span class="bb-sum-none">Coming soon</span></div>
     </div>
     <div class="bb-summary-right">
       <div class="bb-discount-badge" id="bb-discount-badge">Add items to save</div>
@@ -190,17 +198,18 @@ const _breadcrumbs = [
   var TOPS     = <%- JSON.stringify(tops) %>;
   var MIRRORS  = <%- JSON.stringify(mirrors) %>;
 
-  /* ── Discount tiers [itemCount] → pct (index 0 unused) ───── */
+  /* ── Discount tiers: index = category count ───────────────── */
+  /* 0 items→0%, 1 cabinet only→0%, 2 cabinet+top→5%, 3→10%, 4→15% */
   var TIERS = [0, 0, 5, 10, 15];
 
   /* ── Bundle state ─────────────────────────────────────────── */
-  var state = { cabinet: null, top: null, mirror: null };
+  var state      = { cabinet: null, top: null, mirror: null };
   var sizeFilter = { cabinet: null, top: null, mirror: null };
 
   /* ── Utils ────────────────────────────────────────────────── */
   function esc(s) {
-    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
   function fmt(n) {
     return '$' + parseFloat(n || 0).toLocaleString('en-US',
@@ -210,27 +219,25 @@ const _breadcrumbs = [
     return (state.cabinet ? 1 : 0) + (state.top ? 1 : 0) + (state.mirror ? 1 : 0);
   }
   function discount() { return TIERS[Math.min(itemCount(), 4)]; }
-  function discPrice(p) { return parseFloat(p) * (1 - discount() / 100); }
 
   /* ── Product card HTML ────────────────────────────────────── */
   function cardHtml(p, step) {
     var img = esc(p.primary_image || '/images/placeholder-product.png');
     var w   = p.width_in ? p.width_in + '"' : '';
-    return '<article class="bb-card" '
-      + 'data-id="' + p.id + '" '
-      + 'data-step="' + step + '" '
-      + 'data-price="' + (p.price || 0) + '" '
-      + 'data-width="' + (p.width_in || 0) + '" '
-      + 'data-slug="' + esc(p.slug) + '" '
-      + 'data-name="' + esc(p.name) + '" '
-      + 'data-image="' + img + '">'
+    return '<article class="bb-card"'
+      + ' data-id="'    + p.id           + '"'
+      + ' data-step="'  + step           + '"'
+      + ' data-price="' + (p.price || 0) + '"'
+      + ' data-width="' + (p.width_in||0)+ '"'
+      + ' data-slug="'  + esc(p.slug)    + '"'
+      + ' data-name="'  + esc(p.name)    + '"'
+      + ' data-image="' + img            + '">'
+      + '<a href="/products/' + esc(p.slug) + '" class="bb-card-view-link" target="_blank" tabindex="-1" aria-hidden="true">View</a>'
       + '<div class="bb-card-img">'
       + '<img src="' + img + '" alt="' + esc(p.name) + '" loading="lazy">'
       + '<div class="bb-card-check" aria-hidden="true">'
-      + '<svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor">'
-      + '<path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/>'
-      + '</svg></div>'
-      + '</div>'
+      + '<svg viewBox="0 0 20 20" width="20" height="20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>'
+      + '</div></div>'
       + '<div class="bb-card-body">'
       + (p.model ? '<p class="bb-card-model">' + esc(p.model) + '</p>' : '')
       + '<p class="bb-card-name">' + esc(p.name) + '</p>'
@@ -241,148 +248,141 @@ const _breadcrumbs = [
       + '</article>';
   }
 
-  /* ── Size chip bar HTML ───────────────────────────────────── */
+  /* ── Size chips HTML ──────────────────────────────────────── */
   function sizeChipsHtml(products, activeSize, step) {
     var sizes = [];
-    products.forEach(function (p) {
+    products.forEach(function(p) {
       var n = parseFloat(p.width_in);
       if (!isNaN(n) && sizes.indexOf(n) === -1) sizes.push(n);
     });
-    sizes.sort(function (a, b) { return a - b; });
+    sizes.sort(function(a,b){ return a-b; });
     if (!sizes.length) return '';
-    var html = '<div class="bb-size-chips">'
-      + '<span class="bb-size-label">Size:</span>'
-      + sizes.map(function (s) {
-        return '<button class="bb-size-chip' + (s === activeSize ? ' is-active' : '') + '" '
-          + 'type="button" data-step="' + step + '" data-size="' + s + '">' + s + '"</button>';
-      }).join('')
-      + '<button class="bb-size-chip' + (activeSize === null ? ' is-active' : '') + '" '
-      + 'type="button" data-step="' + step + '" data-size="">All</button>'
+    return '<div class="bb-size-chips"><span class="bb-size-label">Filter by size:</span>'
+      + sizes.map(function(s){
+          return '<button class="bb-size-chip' + (s===activeSize?' is-active':'') + '" type="button" data-step="'+step+'" data-size="'+s+'">'+s+'"</button>';
+        }).join('')
+      + '<button class="bb-size-chip' + (activeSize===null?' is-active':'') + '" type="button" data-step="'+step+'" data-size="">All</button>'
       + '</div>';
-    return html;
   }
 
-  /* ── Render products for a step ───────────────────────────── */
+  /* ── Render a step's carousel ─────────────────────────────── */
   function renderProducts(step, products, selectedId) {
     var container = document.getElementById('bb-products-' + step);
-    var sizeWrap  = document.getElementById('bb-sizes-' + step);
+    var sizeWrap  = document.getElementById('bb-sizes-'    + step);
     if (!container) return;
 
-    var active = sizeFilter[step];
+    var active   = sizeFilter[step];
     var filtered = active !== null
-      ? products.filter(function (p) { return parseFloat(p.width_in) === active; })
+      ? products.filter(function(p){ return parseFloat(p.width_in) === active; })
       : products;
-
-    // If filter yields nothing, fall back to all and clear filter
-    if (!filtered.length && active !== null) {
-      sizeFilter[step] = null;
-      filtered = products;
-    }
+    if (!filtered.length && active !== null) { sizeFilter[step] = null; filtered = products; }
 
     container.innerHTML = filtered.length
-      ? filtered.map(function (p) { return cardHtml(p, step); }).join('')
+      ? filtered.map(function(p){ return cardHtml(p, step); }).join('')
       : '<p class="bb-empty">No products match this size.</p>';
 
     if (sizeWrap) sizeWrap.innerHTML = sizeChipsHtml(products, sizeFilter[step], step);
 
-    // Restore selected highlight
     if (selectedId) {
       var sel = container.querySelector('[data-id="' + selectedId + '"]');
       if (sel) sel.classList.add('is-selected');
     }
+
+    updateArrows(step);
   }
 
-  /* ── Update selected badge in step header ─────────────────── */
+  /* ── Arrow visibility ─────────────────────────────────────── */
+  function updateArrows(step) {
+    var track = document.getElementById('bb-products-' + step);
+    var btnL  = document.getElementById('bb-arrow-' + step + '-left');
+    var btnR  = document.getElementById('bb-arrow-' + step + '-right');
+    if (!track || !btnL || !btnR) return;
+    var canScrollL = track.scrollLeft > 4;
+    var canScrollR = track.scrollLeft < track.scrollWidth - track.clientWidth - 4;
+    btnL.hidden = !canScrollL;
+    btnR.hidden = !canScrollR;
+  }
+
+  /* ── Arrow click: scroll by one card width ────────────────── */
+  function wireArrows(step) {
+    var track = document.getElementById('bb-products-' + step);
+    var btnL  = document.getElementById('bb-arrow-' + step + '-left');
+    var btnR  = document.getElementById('bb-arrow-' + step + '-right');
+    if (!track) return;
+    var cardW = function() {
+      var first = track.querySelector('.bb-card');
+      return first ? first.offsetWidth + 16 : 260; // card width + gap
+    };
+    if (btnL) btnL.addEventListener('click', function(){ track.scrollBy({ left: -cardW(), behavior: 'smooth' }); });
+    if (btnR) btnR.addEventListener('click', function(){ track.scrollBy({ left:  cardW(), behavior: 'smooth' }); });
+    track.addEventListener('scroll', function(){ updateArrows(step); }, { passive: true });
+  }
+
+  /* ── Selected badge in step header ───────────────────────── */
   function updateBadge(step, item) {
-    var badge = document.getElementById('bb-selected-' + step);
+    var badge  = document.getElementById('bb-selected-' + step);
     var nameEl = document.getElementById('bb-selected-' + step + '-name');
     if (!badge) return;
-    if (item) {
-      nameEl.textContent = item.name;
-      badge.hidden = false;
-    } else {
-      badge.hidden = true;
-    }
+    if (item) { nameEl.textContent = item.name; badge.hidden = false; }
+    else       { badge.hidden = true; }
   }
 
-  /* ── Update summary bar ───────────────────────────────────── */
+  /* ── Summary bar ──────────────────────────────────────────── */
   function updateSummary() {
-    var disc  = discount();
-    var items = ['cabinet', 'top', 'mirror'];
-    var originalTotal = 0;
-    items.forEach(function (k) {
-      if (state[k]) originalTotal += parseFloat(state[k].price || 0);
-    });
-    var finalTotal = originalTotal * (1 - disc / 100);
-    var savings    = originalTotal - finalTotal;
+    var disc = discount();
+    var keys = ['cabinet','top','mirror'];
+    var origTotal = 0;
+    keys.forEach(function(k){ if (state[k]) origTotal += parseFloat(state[k].price || 0); });
+    var finalTotal = origTotal * (1 - disc / 100);
+    var savings    = origTotal - finalTotal;
 
-    /* Tier bar */
+    /* Tier bar highlight */
     var count = itemCount();
-    document.querySelectorAll('.bb-tier').forEach(function (el) {
+    document.querySelectorAll('.bb-tier').forEach(function(el){
       el.classList.toggle('is-active', parseInt(el.dataset.items, 10) === count);
     });
 
     /* Discount badge */
     var badge = document.getElementById('bb-discount-badge');
     if (badge) {
-      if (disc > 0) {
-        badge.textContent  = disc + '% Bundle Savings';
-        badge.classList.add('has-discount');
-      } else {
-        badge.textContent  = 'Add items to save';
-        badge.classList.remove('has-discount');
-      }
+      if (disc > 0) { badge.textContent = disc + '% Bundle Savings'; badge.classList.add('has-discount'); }
+      else          { badge.textContent = 'Add items to save';        badge.classList.remove('has-discount'); }
     }
 
     /* Totals */
     var origEl    = document.getElementById('bb-original-total');
     var finalEl   = document.getElementById('bb-final-total');
     var savingsEl = document.getElementById('bb-savings-line');
-    if (origEl)    origEl.innerHTML  = (disc > 0 && originalTotal > 0) ? '<s>' + fmt(originalTotal) + '</s>' : '';
-    if (finalEl)   finalEl.textContent = originalTotal > 0 ? fmt(finalTotal) : '$0.00';
-    if (savingsEl) savingsEl.textContent = savings > 0 ? 'You save ' + fmt(savings) : '';
+    if (origEl)    origEl.innerHTML     = (disc > 0 && origTotal > 0) ? '<s>' + fmt(origTotal) + '</s>' : '';
+    if (finalEl)   finalEl.textContent  = origTotal > 0 ? fmt(finalTotal) : '$0.00';
+    if (savingsEl) savingsEl.textContent= savings > 0 ? 'You save ' + fmt(savings) : '';
 
-    /* Summary rows */
-    var summaryWrap = document.getElementById('bb-summary-items');
-    if (summaryWrap) {
-      var labels = { cabinet: 'Cabinet', top: 'Top', mirror: 'Mirror' };
-      var rows = items.map(function (k) {
+    /* Rows */
+    var labels = { cabinet:'Cabinet', top:'Top', mirror:'Mirror' };
+    var wrap   = document.getElementById('bb-summary-items');
+    if (wrap) {
+      var rows = keys.map(function(k){
         var item = state[k];
-        if (!item) {
-          return '<div class="bb-sum-row bb-sum-row--empty">'
-            + '<span class="bb-sum-cat">' + labels[k] + '</span>'
-            + '<span class="bb-sum-none">Not selected</span>'
-            + '</div>';
-        }
+        if (!item) return '<div class="bb-sum-row bb-sum-row--empty"><span class="bb-sum-cat">'+labels[k]+'</span><span class="bb-sum-none">Not selected</span></div>';
         var dp = parseFloat(item.price) * (1 - disc / 100);
-        return '<div class="bb-sum-row">'
-          + '<span class="bb-sum-cat">' + labels[k] + '</span>'
-          + '<span class="bb-sum-name">' + esc(item.name) + '</span>'
-          + '<span class="bb-sum-price">'
-          + (disc > 0 ? '<s class="bb-sum-orig">' + fmt(item.price) + '</s> ' : '')
-          + fmt(dp)
-          + '</span></div>';
+        return '<div class="bb-sum-row"><span class="bb-sum-cat">'+labels[k]+'</span>'
+          + '<span class="bb-sum-name">'+esc(item.name)+'</span>'
+          + '<span class="bb-sum-price">'+(disc>0?'<s class="bb-sum-orig">'+fmt(item.price)+'</s> ':'')+fmt(dp)+'</span></div>';
       });
-      rows.push(
-        '<div class="bb-sum-row bb-sum-row--empty bb-sum-row--cs">'
-        + '<span class="bb-sum-cat">Faucet</span>'
-        + '<span class="bb-sum-none">Coming soon</span>'
-        + '</div>'
-      );
-      summaryWrap.innerHTML = rows.join('');
+      rows.push('<div class="bb-sum-row bb-sum-row--empty bb-sum-row--cs"><span class="bb-sum-cat">Faucet</span><span class="bb-sum-none">Coming soon</span></div>');
+      wrap.innerHTML = rows.join('');
     }
 
-    /* Add to cart button */
-    var btn = document.getElementById('bb-add-cart');
-    if (btn) btn.disabled = !state.cabinet;
+    var cartBtn = document.getElementById('bb-add-cart');
+    if (cartBtn) cartBtn.disabled = !state.cabinet;
   }
 
-  /* ── Handle card select ───────────────────────────────────── */
+  /* ── Card select / deselect ───────────────────────────────── */
   function handleCardClick(e) {
+    if (e.target.closest('.bb-card-view-link')) return; // let product link through
     var btn  = e.target.closest('.bb-select-btn');
     var card = btn ? btn.closest('.bb-card') : e.target.closest('.bb-card');
     if (!card) return;
-
     var step = card.dataset.step;
     if (!state.hasOwnProperty(step)) return;
 
@@ -395,127 +395,104 @@ const _breadcrumbs = [
       image:    card.dataset.image,
     };
 
-    /* Toggle: clicking selected card deselects it */
     if (state[step] && String(state[step].id) === String(product.id)) {
+      /* Deselect */
       state[step] = null;
-      /* If deselecting cabinet, also clear top and re-lock step */
       if (step === 'cabinet') {
-        state.top = null;
-        sizeFilter.top = null;
+        /* Re-lock top step */
+        state.top        = null;
+        sizeFilter.top   = null;
         document.getElementById('bb-step-top').classList.add('bb-step--locked');
-        var lockedMsg = document.getElementById('bb-top-locked-msg');
-        var topMeta   = document.getElementById('bb-top-meta');
-        if (lockedMsg) lockedMsg.style.display = '';
-        if (topMeta)   topMeta.textContent = 'Required · Select a cabinet first';
-        document.getElementById('bb-products-top').innerHTML =
-          document.getElementById('bb-top-locked-msg').outerHTML;
-        document.getElementById('bb-sizes-top').innerHTML = '';
+        document.getElementById('bb-products-top').innerHTML = document.getElementById('bb-top-locked-msg').outerHTML;
+        document.getElementById('bb-sizes-top').innerHTML    = '';
+        document.getElementById('bb-top-meta').textContent   = 'Required · Select a vanity first · Adds 5% off your bundle';
         updateBadge('top', null);
+        var arL = document.getElementById('bb-arrow-top-left');
+        var arR = document.getElementById('bb-arrow-top-right');
+        if (arL) arL.hidden = true;
+        if (arR) arR.hidden = true;
       }
     } else {
+      /* Select */
       state[step] = product;
-      /* Selecting cabinet: unlock top step, filter to matching size */
       if (step === 'cabinet') {
-        state.top = null;
-        updateBadge('top', null);
+        state.top      = null;
         sizeFilter.top = product.width_in ? product.width_in : null;
-        var topStep = document.getElementById('bb-step-top');
-        topStep.classList.remove('bb-step--locked');
-        var topMeta2 = document.getElementById('bb-top-meta');
-        if (topMeta2) {
-          topMeta2.textContent = product.width_in
-            ? 'Showing tops matching ' + product.width_in + '" cabinet'
-            : 'Required · Choose your countertop';
-        }
+        updateBadge('top', null);
+        document.getElementById('bb-step-top').classList.remove('bb-step--locked');
+        document.getElementById('bb-top-meta').textContent = product.width_in
+          ? 'Showing tops matching ' + product.width_in + '" cabinet · Adds 5% off'
+          : 'Required · Choose your countertop · Adds 5% off';
         renderProducts('top', TOPS, null);
       }
     }
 
-    /* Re-render the step that changed */
+    /* Re-render the changed step */
     var dataMap = { cabinet: CABINETS, top: TOPS, mirror: MIRRORS };
     renderProducts(step, dataMap[step], state[step] ? state[step].id : null);
     updateBadge(step, state[step]);
     updateSummary();
   }
 
-  /* ── Handle size chip click ───────────────────────────────── */
+  /* ── Size chip click ──────────────────────────────────────── */
   function handleSizeChip(e) {
     var chip = e.target.closest('.bb-size-chip');
     if (!chip) return;
     var step = chip.dataset.step;
-    var size = chip.dataset.size;
-    sizeFilter[step] = size ? parseFloat(size) : null;
+    sizeFilter[step] = chip.dataset.size ? parseFloat(chip.dataset.size) : null;
     var dataMap = { cabinet: CABINETS, top: TOPS, mirror: MIRRORS };
     renderProducts(step, dataMap[step], state[step] ? state[step].id : null);
   }
 
   /* ── Add bundle to cart ───────────────────────────────────── */
   function addToCart() {
-    var btn = document.getElementById('bb-add-cart');
     if (!state.cabinet) return;
-    btn.disabled = true;
-    btn.textContent = 'Adding to cart…';
-
+    var btn = document.getElementById('bb-add-cart');
+    btn.disabled    = true;
+    btn.textContent = 'Adding…';
     var disc  = discount();
-    var items = ['cabinet', 'top', 'mirror']
-      .filter(function (k) { return state[k]; })
-      .map(function (k) { return state[k]; });
-
-    var promises = items.map(function (item) {
-      var dp  = (parseFloat(item.price) * (1 - disc / 100)).toFixed(2);
-      var fd  = new FormData();
-      fd.append('product_id',        item.id);
-      fd.append('slug',              item.slug);
-      fd.append('name',              item.name);
-      fd.append('price',             dp);
-      fd.append('image',             item.image || '');
-      fd.append('original_price',    item.price);
+    var items = ['cabinet','top','mirror'].filter(function(k){ return state[k]; }).map(function(k){ return state[k]; });
+    Promise.all(items.map(function(item){
+      var dp = (parseFloat(item.price) * (1 - disc / 100)).toFixed(2);
+      var fd = new FormData();
+      fd.append('product_id',          item.id);
+      fd.append('slug',                item.slug);
+      fd.append('name',                item.name);
+      fd.append('price',               dp);
+      fd.append('image',               item.image || '');
+      fd.append('original_price',      item.price);
       fd.append('bundle_discount_pct', disc);
-      fd.append('qty',               '1');
-      return fetch('/cart/add', {
-        method:  'POST',
-        headers: { 'X-Requested-With': 'XMLHttpRequest' },
-        body:    fd,
+      fd.append('qty',                 '1');
+      return fetch('/cart/add', { method:'POST', headers:{'X-Requested-With':'XMLHttpRequest'}, body:fd });
+    })).then(function(){ window.location.href = '/cart'; })
+      .catch(function(){
+        btn.disabled    = false;
+        btn.textContent = 'Add Bundle to Cart';
+        alert('Something went wrong. Please try again.');
       });
-    });
-
-    Promise.all(promises).then(function () {
-      window.location.href = '/cart';
-    }).catch(function () {
-      btn.disabled    = false;
-      btn.textContent = 'Add Bundle to Cart';
-      alert('Something went wrong adding to cart. Please try again.');
-    });
   }
 
   /* ── Init ─────────────────────────────────────────────────── */
   function init() {
-    /* Initial renders */
     renderProducts('cabinet', CABINETS, null);
     renderProducts('mirror',  MIRRORS,  null);
     updateSummary();
+    ['cabinet','top','mirror'].forEach(wireArrows);
 
-    /* Event delegation for the whole steps section */
     var stepsEl = document.querySelector('.bb-steps');
     if (stepsEl) {
-      stepsEl.addEventListener('click', function (e) {
-        if (e.target.closest('.bb-size-chip')) {
-          handleSizeChip(e);
-        } else if (e.target.closest('.bb-card') || e.target.closest('.bb-select-btn')) {
-          handleCardClick(e);
-        }
+      stepsEl.addEventListener('click', function(e){
+        if (e.target.closest('.bb-size-chip'))  { handleSizeChip(e);  return; }
+        if (e.target.closest('.bb-arrow'))       { return; } // handled by wireArrows
+        if (e.target.closest('.bb-card') || e.target.closest('.bb-select-btn')) { handleCardClick(e); }
       });
     }
 
-    /* Add to cart button */
     var cartBtn = document.getElementById('bb-add-cart');
     if (cartBtn) cartBtn.addEventListener('click', addToCart);
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
 })();
 </script>
