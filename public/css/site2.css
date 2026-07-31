@@ -2468,10 +2468,10 @@
 
 /* + separator between cards */
 .bt-plus {
-  font-size: 1.5rem;
-  font-weight: 300;
-  color: var(--border, #E8E4DC);
-  padding: 0 .5rem;
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--navy, #182840);
+  padding: 0 .75rem;
   flex-shrink: 0;
 }
 
