@@ -696,52 +696,65 @@ _DEFAULT_ORDER.forEach(function(k) {
 
 <!-- ── BUNDLE TEASER ──────────────────────────────────────────────── -->
 <% if (sectionKey === 'bundle_teaser' && bt_.enabled !== false) { %>
-<section class="bundle-teaser-section" data-section="bundle_teaser" data-section-label="Bundle Builder Teaser" aria-labelledby="bt-heading">
-  <div class="container">
-    <div class="bt-inner">
-      <div class="bt-copy">
-        <% if (bt_.eyebrow) { %><p class="bt-eyebrow"><%= bt_.eyebrow %></p><% } %>
-        <h2 class="bt-heading" id="bt-heading"><%= bt_.heading || 'Build Your Dream Bathroom' %></h2>
-        <% if (bt_.subtitle) { %><p class="bt-sub"><%= bt_.subtitle %></p><% } %>
-        <a href="/bundle-builder" class="btn btn-navy bt-cta"><%= bt_.cta_text || 'Build Your Bundle' %></a>
-      </div>
-      <div class="bt-steps-grid">
-        <div class="bt-step-card">
-          <div class="bt-step-icon" aria-hidden="true">
-            <svg viewBox="0 0 40 40" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="12" width="32" height="22" rx="2"/><path d="M4 20h32"/><rect x="12" y="4" width="16" height="8" rx="1"/></svg>
-          </div>
-          <p class="bt-step-name">Cabinet</p>
-          <p class="bt-step-desc">Choose your base</p>
-        </div>
-        <div class="bt-step-card">
-          <div class="bt-step-icon" aria-hidden="true">
-            <svg viewBox="0 0 40 40" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="8" width="32" height="8" rx="2"/><path d="M8 16v16M32 16v16M4 32h32"/></svg>
-          </div>
-          <p class="bt-step-name">Top</p>
-          <p class="bt-step-desc">Match your countertop</p>
-        </div>
-        <div class="bt-step-card">
-          <div class="bt-step-icon" aria-hidden="true">
-            <svg viewBox="0 0 40 40" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="10" y="4" width="20" height="28" rx="3"/><ellipse cx="20" cy="18" rx="6" ry="8"/><path d="M20 32v4M14 36h12"/></svg>
-          </div>
-          <p class="bt-step-name">Mirror</p>
-          <p class="bt-step-desc">Complete the look</p>
-        </div>
-        <div class="bt-step-card bt-step-card--soon">
-          <div class="bt-step-icon" aria-hidden="true">
-            <svg viewBox="0 0 40 40" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 34V20M20 20C20 12 12 10 6 14M20 20C20 12 28 10 34 14"/><circle cx="20" cy="18" r="3"/><path d="M14 34h12"/></svg>
-          </div>
-          <p class="bt-step-name">Faucet</p>
-          <p class="bt-step-desc">Coming soon</p>
-        </div>
-      </div>
-    </div>
-    <div class="bt-badge-strip">
-      <span class="bt-badge">2 items = 5% Off</span>
-      <span class="bt-badge bt-badge--active">3 items = 10% Off</span>
-      <span class="bt-badge">4 items = 15% Off</span>
-    </div>
+<section class="section bundle-teaser-section" data-section="bundle_teaser" data-section-label="Bundle Builder Teaser" aria-labelledby="bt-heading">
+  <div class="section-header" style="text-align:center">
+    <% if (bt_.eyebrow) { %><p class="section-eyebrow"><%= bt_.eyebrow %></p><% } %>
+    <h2 class="section-title" id="bt-heading"><%= bt_.heading || 'Build Your Dream Bathroom' %></h2>
+    <% if (bt_.subtitle) { %><p class="section-sub"><%= bt_.subtitle %></p><% } %>
   </div>
+
+  <div class="bt-cards-row">
+
+    <div class="bt-step-card">
+      <div class="bt-step-icon" aria-hidden="true">
+        <svg viewBox="0 0 48 48" width="44" height="44" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="16" width="38" height="26" rx="2"/><path d="M5 26h38"/><rect x="14" y="6" width="20" height="10" rx="1"/></svg>
+      </div>
+      <p class="bt-step-name">Cabinet</p>
+      <p class="bt-step-desc">Choose your base</p>
+    </div>
+
+    <span class="bt-plus" aria-hidden="true">+</span>
+
+    <div class="bt-step-card">
+      <div class="bt-step-icon" aria-hidden="true">
+        <svg viewBox="0 0 48 48" width="44" height="44" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10" width="38" height="10" rx="2"/><path d="M9 20v18M39 20v18M5 38h38"/></svg>
+      </div>
+      <p class="bt-step-name">Top</p>
+      <p class="bt-step-desc">Match your countertop</p>
+    </div>
+
+    <span class="bt-plus" aria-hidden="true">+</span>
+
+    <div class="bt-step-card">
+      <div class="bt-step-icon" aria-hidden="true">
+        <svg viewBox="0 0 48 48" width="44" height="44" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="12" y="4" width="24" height="34" rx="3"/><ellipse cx="24" cy="21" rx="7" ry="10"/><path d="M24 38v5M17 43h14"/></svg>
+      </div>
+      <p class="bt-step-name">Mirror</p>
+      <p class="bt-step-desc">Complete the look</p>
+    </div>
+
+    <span class="bt-plus" aria-hidden="true">+</span>
+
+    <div class="bt-step-card bt-step-card--soon">
+      <div class="bt-step-icon" aria-hidden="true">
+        <svg viewBox="0 0 48 48" width="44" height="44" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M24 42V24M24 24C24 14 14 12 7 17M24 24C24 14 34 12 41 17"/><circle cx="24" cy="21" r="3"/><path d="M17 42h14"/></svg>
+      </div>
+      <p class="bt-step-name">Faucet</p>
+      <p class="bt-step-desc">Coming soon</p>
+    </div>
+
+  </div>
+
+  <div class="bt-badge-strip">
+    <span class="bt-badge">2 items = 5% Off</span>
+    <span class="bt-badge bt-badge--active">3 items = 10% Off</span>
+    <span class="bt-badge">4 items = 15% Off</span>
+  </div>
+
+  <div class="bt-cta-wrap">
+    <a href="/bundle-builder" class="btn btn-navy"><%= bt_.cta_text || 'Build Your Bundle' %></a>
+  </div>
+
 </section>
 <% } /* end bundle_teaser */ %>
 

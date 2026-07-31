@@ -2414,43 +2414,101 @@
 
 /* ════════════════════════════════════════════════════════════════
    BUNDLE TEASER SECTION — homepage
+   Uses site's .section / .section-header / .section-eyebrow / .section-title
    ════════════════════════════════════════════════════════════════ */
-.bundle-teaser-section {
-  padding: 4.5rem 0;
-  background: var(--whisper, #F8F6F2);
-  border-top: 1px solid var(--border, #E8E4DC);
-  border-bottom: 1px solid var(--border, #E8E4DC);
-}
-.bt-inner {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 3rem;
+
+/* Cards row — 4 cards with + separators, centered */
+.bt-cards-row {
+  display: flex;
   align-items: center;
-  margin-bottom: 2rem;
+  justify-content: center;
+  gap: 0;
+  flex-wrap: wrap;
+  margin: 2rem auto 0;
+  max-width: 900px;
 }
-.bt-eyebrow {
-  font-size: .72rem;
-  font-weight: 700;
-  letter-spacing: .15em;
-  text-transform: uppercase;
+.bt-step-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 1.75rem 1.5rem 1.5rem;
+  background: #fff;
+  border: 1.5px solid var(--border, #E8E4DC);
+  border-radius: var(--radius-card, 12px);
+  min-width: 150px;
+  flex: 1 1 150px;
+  max-width: 200px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.bt-step-card:hover {
+  border-color: var(--amber, #B8862A);
+  box-shadow: 0 4px 16px rgba(0,0,0,.07);
+}
+.bt-step-card--soon {
+  opacity: .5;
+  pointer-events: none;
+}
+.bt-step-icon {
   color: var(--amber, #B8862A);
-  margin-bottom: .5rem;
+  margin-bottom: .875rem;
 }
-.bt-heading {
+.bt-step-name {
   font-family: var(--font-serif, Georgia, serif);
-  font-size: clamp(1.6rem, 3vw, 2.2rem);
-  font-weight: var(--h-weight, 600);
+  font-size: 1rem;
+  font-weight: 600;
   color: var(--navy, #182840);
-  line-height: 1.2;
-  margin-bottom: .75rem;
+  margin: 0 0 .3rem;
 }
-.bt-sub {
-  font-size: .95rem;
+.bt-step-desc {
+  font-size: .78rem;
   color: var(--muted, #7A7264);
-  line-height: 1.65;
-  margin-bottom: 1.5rem;
+  margin: 0;
 }
-.bt-cta { display: inline-block; }
+
+/* + separator between cards */
+.bt-plus {
+  font-size: 1.5rem;
+  font-weight: 300;
+  color: var(--border, #E8E4DC);
+  padding: 0 .5rem;
+  flex-shrink: 0;
+}
+
+/* Discount badge strip */
+.bt-badge-strip {
+  display: flex;
+  justify-content: center;
+  gap: .5rem;
+  flex-wrap: wrap;
+  margin-top: 1.75rem;
+}
+.bt-badge {
+  font-size: .75rem;
+  font-weight: 600;
+  padding: .3rem .9rem;
+  border: 1.5px solid var(--border, #E8E4DC);
+  border-radius: 20px;
+  color: var(--muted, #7A7264);
+  background: #fff;
+}
+.bt-badge--active {
+  border-color: var(--amber, #B8862A);
+  color: var(--amber, #B8862A);
+  background: #FDF8F0;
+}
+
+/* Centered CTA button */
+.bt-cta-wrap {
+  text-align: center;
+  margin-top: 2rem;
+}
+
+@media (max-width: 640px) {
+  .bt-cards-row { gap: .5rem; }
+  .bt-step-card { min-width: 120px; padding: 1.25rem .75rem 1rem; }
+  .bt-plus { padding: 0 .25rem; font-size: 1.1rem; }
+}
 
 /* 2×2 step grid */
 .bt-steps-grid {
