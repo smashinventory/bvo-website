@@ -65,7 +65,7 @@ async function getCabinets() {
     FROM products p
     INNER JOIN categories c ON c.id = p.category_id
     WHERE p.brand        = ?
-      AND c.slug         = 'vanities'
+      AND c.slug         = 'bathroom-vanities'
       AND p.product_type = 'Cabinet Only'
       AND p.is_active    = 1
     ORDER BY p.model ASC, p.width_in ASC, p.price ASC

@@ -535,7 +535,7 @@ The entire bundle builder CSS lives in one contiguous block in `site2.css`, star
 
 | Assumption | Risk | How to detect |
 |---|---|---|
-| `product_type = 'Cabinet Only'` matches all JM vanity cabinet SKUs | If importer uses a different value, Step 1 returns zero products | `SELECT DISTINCT product_type FROM products WHERE brand='James Martin Vanities' AND category_id IN (SELECT id FROM categories WHERE slug='vanities')` |
+| `product_type = 'Cabinet Only'` matches all JM vanity cabinet SKUs | If importer uses a different value, Step 1 returns zero products | `SELECT DISTINCT product_type FROM products WHERE brand='James Martin Vanities' AND category_id IN (SELECT id FROM categories WHERE slug='bathroom-vanities')` |
 | Tops live in `c.slug = 'vanity-tops'` | If importeer maps to different slug, Step 2 empty | `SELECT DISTINCT c.slug FROM products p JOIN categories c ON c.id=p.category_id WHERE p.brand='James Martin Vanities' AND p.product_type LIKE '%Quartz%'` |
 | Mirrors in `c.slug = 'accessories'` OR `'mirrors'` | Wrong slug → Step 3 empty | `SELECT DISTINCT c.slug, p.product_type FROM products p JOIN categories c ON c.id=p.category_id WHERE p.brand='James Martin Vanities' AND p.product_type LIKE '%Mirror%'` |
 | JM Sample products at `category_id = 10` | category_id might differ; chip_image NULLs everywhere | `SELECT id, name FROM categories WHERE id=10` |
