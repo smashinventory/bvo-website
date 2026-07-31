@@ -2,6 +2,7 @@
 
 const { bvoPool }              = require('../config/database');
 const { FAMILIES }             = require('../config/colorFamilies');
+const { SIZE_BUCKETS }         = require('../config/sizeBuckets');
 
 const JM_BRAND = 'James Martin Vanities';
 const SITE_URL = process.env.SITE_URL || 'https://bathroomvanitiesoutlet.com';
@@ -136,6 +137,7 @@ exports.getBundleBuilder = async (req, res) => {
       topModels:     groupByModel(tops),
       mirrorModels:  groupByModel(mirrors),
       familyHex:     FAMILY_HEX,
+      sizeBuckets:   SIZE_BUCKETS,
     });
   } catch (err) {
     console.error('[bundle] getBundleBuilder error:', err);

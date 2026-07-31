@@ -242,6 +242,7 @@
   var TOP_MODELS     = <%- JSON.stringify(topModels)     %>;
   var MIRROR_MODELS  = <%- JSON.stringify(mirrorModels)  %>;
   var FAMILY_HEX     = <%- JSON.stringify(familyHex)     %>;
+  var SIZE_BUCKETS   = <%- JSON.stringify(sizeBuckets)   %>;
 
   /* ── Discount tiers: index = selected-item count ──────────────── */
   /* 0 items→0%, 1 cabinet only→0%, 2 cab+top→5%, 3→10%, 4→15% */
@@ -256,6 +257,26 @@
   var state = { cabinet: null, top: null, mirror: null };
 
   /* ── Helpers ──────────────────────────────────────────────────── */
+
+  /* Map a raw width_in value to its SIZE_BUCKET object (or null) */
+  function getBucket(widthIn) {
+    var w = parseFloat(widthIn);
+    if (isNaN(w) || w <= 0) return null;
+    return SIZE_BUCKETS.find(function(b) { return w >= b.min && w <= b.max; }) || null;
+  }
+
+  /* Unique sorted buckets for all SKUs in a model (used for size chips) */
+  function modelBuckets(model) {
+    var seen = {};
+    var out  = [];
+    (model ? model.skus : []).forEach(function(s) {
+      var b = getBucket(s.width_in);
+      if (b && !seen[b.label]) { seen[b.label] = true; out.push(b); }
+    });
+    out.sort(function(a, b) { return a.min - b.min; });
+    return out;
+  }
+
   function fmt(n) {
     return '$' + parseFloat(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
@@ -272,24 +293,34 @@
     return [];
   }
 
-  /* Tops filtered to cabinet's width once a cabinet is selected */
+  /* Tops filtered to cabinet's size bucket once a cabinet is selected.
+     Uses bucket range (not exact equality) so minor width variations
+     (e.g. 35.875" vs 36.0") still produce matches. */
   function activeTops() {
     if (!state.cabinet || !state.cabinet.width_in) return TOP_MODELS;
-    var w = parseFloat(state.cabinet.width_in);
+    var cabBkt = getBucket(state.cabinet.width_in);
+    if (!cabBkt) return TOP_MODELS;
     return TOP_MODELS.map(function(m) {
-      var match = m.skus.filter(function(s) { return parseFloat(s.width_in) === w; });
+      var match = m.skus.filter(function(s) {
+        var w = parseFloat(s.width_in);
+        return w >= cabBkt.min && w <= cabBkt.max;
+      });
       return match.length ? { model: m.model, skus: match } : null;
     }).filter(Boolean);
   }
 
-  /* SKUs for current model, optionally size-filtered (except top — already width-locked) */
+  /* SKUs for current model, optionally size-filtered (except top — already width-locked).
+     gSize[step] is a SIZE_BUCKET object { label, min, max } or null. */
   function getSizeFilteredSkus(step, model) {
     if (!model) return [];
     var skus = model.skus;
     if (step === 'top') return skus;
-    var size = gSize[step];
-    if (size !== null) {
-      var f = skus.filter(function(s) { return parseFloat(s.width_in) === size; });
+    var bkt = gSize[step];
+    if (bkt) {
+      var f = skus.filter(function(s) {
+        var w = parseFloat(s.width_in);
+        return w >= bkt.min && w <= bkt.max;
+      });
       if (f.length) return f;
     }
     return skus;
@@ -383,20 +414,19 @@
     if (nameEl)  nameEl.textContent  = (displaySku && displaySku.name)  || '';
     if (priceEl) priceEl.textContent = (displaySku && displaySku.price) ? fmt(displaySku.price) : '';
 
-    /* Size chips (cabinet + mirror only — tops are width-locked) */
+    /* Size chips (cabinet + mirror only — tops are width-locked).
+       Uses SIZE_BUCKETS nominal labels (e.g. "36") — same method as
+       the collection page and megamenu. No inch mark in visible text (Rule 13). */
     if (step !== 'top') {
-      var allSizes = [];
-      model.skus.forEach(function(s) {
-        var n = parseFloat(s.width_in);
-        if (!isNaN(n) && n > 0 && allSizes.indexOf(n) === -1) allSizes.push(n);
-      });
-      allSizes.sort(function(a, b) { return a - b; });
-      var sizesEl = el('bb-sizes-' + step);
+      var buckets  = modelBuckets(model);
+      var activeLbl = gSize[step] ? gSize[step].label : null;
+      var sizesEl   = el('bb-sizes-' + step);
       if (sizesEl) {
-        sizesEl.innerHTML = allSizes.map(function(s) {
-          return '<button class="model-card-size-btn' + (gSize[step] === s ? ' is-active' : '') + '"'
-            + ' type="button" data-step="' + step + '" data-size="' + s + '">'
-            + s + '"</button>';
+        sizesEl.innerHTML = buckets.map(function(b) {
+          return '<button class="model-card-size-btn' + (activeLbl === b.label ? ' is-active' : '') + '"'
+            + ' type="button" data-step="' + step + '" data-bucket="' + esc(b.label) + '"'
+            + ' aria-label="' + b.label + ' inch" title="' + b.label + ' inch">'
+            + b.label + '</button>';
         }).join('');
       }
     }
@@ -459,9 +489,12 @@
   }
 
   /* ── Size chip ────────────────────────────────────────────────── */
-  function pickSize(step, size) {
-    /* Toggle: clicking active chip de-selects it */
-    gSize[step]  = (gSize[step] === size) ? null : size;
+  function pickSize(step, bucketLabel) {
+    /* Look up the bucket object by its label (e.g. "36").
+       Toggle: clicking the already-active chip de-selects it. */
+    var bucket = SIZE_BUCKETS.find(function(b) { return b.label === bucketLabel; });
+    if (!bucket) return;
+    gSize[step]  = (gSize[step] && gSize[step].label === bucketLabel) ? null : bucket;
     gColor[step] = null;
     renderViewer(step);
   }
@@ -553,10 +586,10 @@
     var tops  = activeTops();
     var meta  = el('bb-meta-top');
     if (meta) {
-      var w = state.cabinet ? state.cabinet.width_in : null;
-      meta.textContent = w
-        ? 'Showing ' + tops.length + ' top' + (tops.length !== 1 ? 's' : '') + ' matching ' + w + '" cabinet · Adds 5% off'
-        : 'Choose your vanity top · Adds 5% off';
+      var cabBucket  = getBucket(state.cabinet.width_in);
+      var bucketLabel = cabBucket ? cabBucket.label : state.cabinet.width_in;
+      meta.textContent = 'Showing ' + tops.length + ' top' + (tops.length !== 1 ? 's' : '')
+        + ' matching ' + bucketLabel + '" cabinet · Adds 5% off';
     }
     renderViewer('top');
   }
@@ -666,7 +699,7 @@
 
     /* Size chip */
     var sChip = e.target.closest('.model-card-size-btn[data-step]');
-    if (sChip) { pickSize(sChip.dataset.step, parseFloat(sChip.dataset.size)); return; }
+    if (sChip) { pickSize(sChip.dataset.step, sChip.dataset.bucket); return; }
 
     /* Finish swatch */
     var sw = e.target.closest('.bb-swatch[data-step]');
