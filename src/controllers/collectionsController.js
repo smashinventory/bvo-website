@@ -169,8 +169,14 @@ exports.show = async (req, res, next) => {
       // color_family keys directly — used as primary visibility signal so families
       // whose products have non-standard color strings still appear in the sidebar.
       const mgAvailColorFamilies = [...new Set(mgOptRows.map(r => r.color_family).filter(Boolean))];
-      // Available product_types for the Configuration filter sidebar
-      const mgAvailTypes         = [...new Set(mgOptRows.map(r => r.product_type).filter(Boolean))].sort();
+      // Available product_types for the Configuration filter sidebar.
+      // Scoped to SLUG_DEFAULT_TYPES[slug] when on a display category (bathroom-vanities-with-tops,
+      // bathroom-vanity-cabinets) so cabinet types never appear on the with-tops page and vice versa.
+      // On bathroom-vanities (all vanities) all types are shown.
+      const mgRawAvailTypes      = [...new Set(mgOptRows.map(r => r.product_type).filter(Boolean))].sort();
+      const mgAvailTypes         = SLUG_DEFAULT_TYPES[slug]
+        ? mgRawAvailTypes.filter(t => SLUG_DEFAULT_TYPES[slug].includes(t))
+        : mgRawAvailTypes;
 
       // Color families config — ALL families (cabinet + metallic-finish vanities).
       // Same pool as the regular vanity collection route. The template's

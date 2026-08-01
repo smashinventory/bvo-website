@@ -555,4 +555,241 @@ The entire bundle builder CSS lives in one contiguous block in `site2.css`, star
 - **No analytics events** on step completion or cart add. Consider adding `gtag('event', 'bundle_step_complete', ...)` calls.
 
 ---
+
+## Taxonomy Overhaul — 4-Value product_type + New Display Category Slugs
+**Commits:** `5d6db53b` (taxonomy overhaul) · `b974e2b2` (SEO slug renames) · pending push (sidebar fix + admin fixes)
+**Date:** 2026-07-31 – 2026-08-01
+**Rollback:** Revert these commits; run inverse SQL (see "To Reverse" below)
+
+---
+
+### 1. Problem
+
+The old `product_type` system had only 2 meaningful values for vanities (`Single Sink`, `Double Sink`) plus `Cabinet Only`. This made it impossible to distinguish between:
+- A vanity *with* a countertop included vs a cabinet-only unit
+- A single-sink vs double-sink cabinet
+
+Additionally, the JM feed importer had a silent root bug: `PRODUCT_CATEGORY_MAP` used key `'vanity'` (singular) but the JM feed always sends `'Vanities'` (plural). Result: ALL 4,473 Vanities-category products fell through to `PRODUCT_TYPE_MAP`, where `Product Type='Cabinet'` routed to Storage (category_id=6) with `product_type=NULL`.
+
+---
+
+### 2. New Canonical product_type Values (bathroom-vanities products only)
+
+| Old value | New value | Trigger condition |
+|---|---|---|
+| `Single Sink` | `Single Sink Vanity With Top` | JM: Vanities/Vanity + sink_count=1 |
+| `Double Sink` | `Double Sink Vanity With Top` | JM: Vanities/Vanity + sink_count=2 |
+| `Cabinet Only` (single) | `Single Sink Cabinet Only` | JM: Vanities/Cabinet or Cabinet/Cabinet + no "Double" in name |
+| `Cabinet Only` (double) | `Double Sink Cabinet Only` | JM: Vanities/Cabinet or Cabinet/Cabinet + "Double" in name |
+
+### 3. New Display Category Slugs
+
+| Slug | Display Name | display_mode | Auto-filter applied |
+|---|---|---|---|
+| `bathroom-vanities-with-tops` | Bathroom Vanities With Tops | `model-group` | `product_type IN ('Single Sink Vanity With Top', 'Double Sink Vanity With Top')` |
+| `bathroom-vanity-cabinets` | Bathroom Vanity Cabinets | `model-group` | `product_type IN ('Single Sink Cabinet Only', 'Double Sink Cabinet Only')` |
+
+Products physically remain in `bathroom-vanities` (category_id=1). These are routing/display-only categories.
+
+### 4. Slug Renames (Rule 12)
+
+| Old slug | New slug | New display name |
+|---|---|---|
+| `mirrors` | `bathroom-mirrors` | Bathroom Mirrors |
+| `vanity-tops` | `bathroom-vanity-tops` | Bathroom Vanity Tops |
+
+`vanity-tops` / `bathroom-vanity-tops` is a REAL category containing standalone top SKUs — not a display category. The bundle builder Step 2 queries this slug.
+
+---
+
+### 5. Code Changes
+
+#### `src/jobs/importJamesMartinFeed.js`
+- `PRODUCT_CATEGORY_MAP`: `'vanity'` → `'vanities'` (plural — matches live JM feed; fixes root bug)
+- `PRODUCT_CATEGORY_MAP`: added `'tops': 7` for JM `'Tops'` Product Category
+- `PRODUCT_TYPE_MAP`: `'cabinet': 6` → `'cabinet': 1` (Cabinet was routing to Storage instead of bathroom-vanities)
+- `PRODUCT_TYPE_MAP`: added `'knobs & legs': 4`, `'metal sample': 10`, `'stone sample': 10`, `'wood sample': 10`
+- `product_type` assignment block: full replacement from old 2-value to new 4-value system:
+  ```js
+  if (categoryId === 1) {
+    const sinkCount = cleanNum(row['Number of Sinks Included (0, 1, or 2)']);
+    if (catLower === 'vanities' && productTypLower === 'vanity') {
+      if (sinkCount === 2)      productType = 'Double Sink Vanity With Top';
+      else if (sinkCount === 1) productType = 'Single Sink Vanity With Top';
+    } else if (
+      (catLower === 'vanities' && productTypLower === 'cabinet') || catLower === 'cabinet'
+    ) {
+      if (/double/i.test(nameLower)) productType = 'Double Sink Cabinet Only';
+      else                           productType = 'Single Sink Cabinet Only';
+    } else if (catLower === 'vanity') {
+      // Legacy older-feed format
+      if (sinkCount === 2)      productType = 'Double Sink Vanity With Top';
+      else if (sinkCount === 1) productType = 'Single Sink Vanity With Top';
+    }
+  } else {
+    productType = CATEGORY_TYPE_MAP[catLower] || CATEGORY_TYPE_MAP[productTypLower] || null;
+  }
+  ```
+- `CATEGORY_TYPE_MAP`: now dual-key lookup (`catLower || productTypLower`) — fixes General Products rows
+- Comment references updated: `mirrors` → `bathroom-mirrors`, `vanity-tops` → `bathroom-vanity-tops`
+
+#### `src/controllers/collectionsController.js`
+- `const mgActiveTypes` → `let mgActiveTypes` (must be reassignable for auto-injection)
+- Added `SLUG_DEFAULT_TYPES` map and auto-injection block:
+  ```js
+  const SLUG_DEFAULT_TYPES = {
+    'bathroom-vanities-with-tops': ['Single Sink Vanity With Top', 'Double Sink Vanity With Top'],
+    'bathroom-vanity-cabinets':    ['Single Sink Cabinet Only',    'Double Sink Cabinet Only'],
+  };
+  if (SLUG_DEFAULT_TYPES[slug] && mgActiveTypes.length === 0) {
+    mgActiveTypes = SLUG_DEFAULT_TYPES[slug];
+  }
+  ```
+- `mgCsRows` WHERE clause made dynamic — adds `AND p.product_type IN (...)` when `mgActiveTypes.length > 0`:
+  ```js
+  let mgCsWhere = `p.is_active = 1 AND p.category_id = ? AND p.model IN (...) AND p.color IS NOT NULL`;
+  if (mgActiveTypes.length) {
+    mgCsWhere += ` AND p.product_type IN (${mgActiveTypes.map(() => '?').join(',')})`;
+    mgCsParams.push(...mgActiveTypes);
+  }
+  ```
+- `mgAvailTypes` sidebar scoping fix (2026-08-01) — prevents cabinet types appearing on `bathroom-vanities-with-tops` and vice versa:
+  ```js
+  // BEFORE (bug):
+  const mgAvailTypes = [...new Set(mgOptRows.map(r => r.product_type).filter(Boolean))].sort();
+
+  // AFTER (fix):
+  const mgRawAvailTypes = [...new Set(mgOptRows.map(r => r.product_type).filter(Boolean))].sort();
+  const mgAvailTypes    = SLUG_DEFAULT_TYPES[slug]
+    ? mgRawAvailTypes.filter(t => SLUG_DEFAULT_TYPES[slug].includes(t))
+    : mgRawAvailTypes;
+  ```
+
+#### `src/controllers/bundleController.js`
+- `getCabinets()`: `AND p.product_type = 'Cabinet Only'` → `AND p.product_type IN ('Single Sink Cabinet Only', 'Double Sink Cabinet Only')`
+- `getTops()`: `c.slug = 'vanity-tops'` → `c.slug = 'bathroom-vanity-tops'`
+- `getMirrors()`: `c.slug = 'mirrors'` → `c.slug = 'bathroom-mirrors'` (alongside existing `accessories` fallback)
+
+#### `src/services/themeSettings.js` (code defaults only — live settings come from DB `app_settings` table)
+- Nav link: `/collections/mirrors` → `/collections/bathroom-mirrors`
+- Footer link: `/collections/mirrors` → `/collections/bathroom-mirrors`
+- `vanities_mega.links` updated to new taxonomy URLs
+
+#### `src/services/rflposSync.js`
+- `CAT_MAP`: `'mirror'`, `'mirrors'`, `'bathroom mirror'` → `'bathroom-mirrors'`
+
+#### `views/pages/collection.ejs`
+- Configuration sidebar filter (regular collection path): replaced 3-option mixed `sink_count`/`type` filter with 4-option pure `product_type` filter. Removed `sink_count` EAV from sidebar.
+- `_mgTypeLabel` map (model-group path): updated from old 3 values to new 4 canonical values
+
+#### `data/theme_settings.json` *(gitignored — does NOT deploy via git)*
+- Nav + footer mirror URLs: `/collections/mirrors` → `/collections/bathroom-mirrors`
+- `vanities_mega.links` — 3 Shop By Type links updated to:
+  - `Single Sink Vanity With Top` → `/collections/bathroom-vanities-with-tops?type=Single+Sink+Vanity+With+Top`
+  - `Double Sink Vanity With Top` → `/collections/bathroom-vanities-with-tops?type=Double+Sink+Vanity+With+Top`
+  - `Cabinet Only` → `/collections/bathroom-vanity-cabinets`
+- ⚠️ **Must update live server manually** via Admin → Theme Editor → Navigation after push
+
+---
+
+### 6. DB Changes Required (Script 1 — run in phpMyAdmin)
+
+```sql
+-- 1. Add new display categories
+INSERT INTO categories (name, slug, display_mode, is_active) VALUES
+  ('Bathroom Vanities With Tops', 'bathroom-vanities-with-tops', 'model-group', 1),
+  ('Bathroom Vanity Cabinets',    'bathroom-vanity-cabinets',    'model-group', 1)
+ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+-- 2. Slug renames
+UPDATE categories SET slug='bathroom-mirrors',     name='Bathroom Mirrors'     WHERE slug='mirrors';
+UPDATE categories SET slug='bathroom-vanity-tops', name='Bathroom Vanity Tops' WHERE slug='vanity-tops';
+
+-- 3. Update existing vanity-with-top product_type values
+UPDATE products SET product_type='Single Sink Vanity With Top' WHERE product_type='Single Sink';
+UPDATE products SET product_type='Double Sink Vanity With Top' WHERE product_type='Double Sink';
+
+-- 4. Split Cabinet Only → Single / Double by name
+UPDATE products SET product_type='Double Sink Cabinet Only'
+  WHERE product_type='Cabinet Only' AND name LIKE '%Double%';
+UPDATE products SET product_type='Single Sink Cabinet Only'
+  WHERE product_type='Cabinet Only' AND name NOT LIKE '%Double%';
+
+-- 5. Move JM cabinet SKUs stranded in Storage → bathroom-vanities
+UPDATE products SET category_id=1
+  WHERE category_id=6
+    AND brand='James Martin Vanities'
+    AND (name LIKE '%Cabinet%'
+         OR product_type IN ('Single Sink Cabinet Only','Double Sink Cabinet Only'));
+```
+
+---
+
+### 7. To Reverse
+
+**Code:** Revert commits `5d6db53b`, `b974e2b2`, and the pending push.
+
+**DB inverse SQL:**
+```sql
+-- Reverse slug renames
+UPDATE categories SET slug='mirrors',     name='Mirrors'     WHERE slug='bathroom-mirrors';
+UPDATE categories SET slug='vanity-tops', name='Vanity Tops' WHERE slug='bathroom-vanity-tops';
+
+-- Remove new display categories
+DELETE FROM categories WHERE slug IN ('bathroom-vanities-with-tops','bathroom-vanity-cabinets');
+
+-- Reverse product_type values
+UPDATE products SET product_type='Single Sink'  WHERE product_type='Single Sink Vanity With Top';
+UPDATE products SET product_type='Double Sink'  WHERE product_type='Double Sink Vanity With Top';
+UPDATE products SET product_type='Cabinet Only' WHERE product_type IN ('Single Sink Cabinet Only','Double Sink Cabinet Only');
+```
+
+---
+
+## Admin Fixes — Theme Editor URL Input + Category Image Nested Form Bug
+**Commits:** `e2840b6` (category-edit AJAX, local only — deploys with next push) · pending push
+**Date:** 2026-08-01
+
+### 1. Theme Editor Nav Link URL Input Box (admin-theme-editor.css + theme.ejs)
+
+**Problem:** The nav link row in the Theme Editor used `te4-row3` (3-column CSS grid) but had 4 children (Label, URL, Highlight toggle, Mega menu toggle). The URL input was the 4th child squeezed into a 3-column grid — rendered ~2 characters wide, non-functional.
+
+**Fix — `public/css/admin-theme-editor.css`:**
+```css
+/* Added after .te4-row3 rule */
+.te4-nav-link-row {
+  display: grid;
+  grid-template-columns: 1fr 2fr auto auto;
+  gap: 8px;
+  align-items: end;
+}
+```
+Label: 1fr, URL: 2fr (double-wide), Highlight toggle: auto, Mega menu toggle: auto.
+
+**Fix — `views/pages/admin/theme.ejs` (2 locations):**
+- Line 499 (live nav link rows): `te4-array-fields te4-row3` → `te4-array-fields te4-nav-link-row`
+- Line 512 (new-row template): `te4-array-fields te4-row3` → `te4-array-fields te4-nav-link-row`
+- Line 210: `admin-theme-editor.css` → `admin-theme-editor.css?v=2` (cache bust)
+
+**To reverse:** Change `te4-nav-link-row` back to `te4-row3` in theme.ejs (2 places); remove `.te4-nav-link-row` rule from admin-theme-editor.css.
+
+---
+
+### 2. Category Image Nested Form Bug (category-edit.ejs)
+
+**Problem:** The category edit admin page had a standard HTML `<form enctype="multipart/form-data">` for image upload nested inside the main `catEditForm`. Browsers silently ignore nested forms — clicking "Upload image" submitted the outer save form instead, which saved the category record without an image, clearing `image_url` to NULL. This caused all category card images to disappear after any admin category edit.
+
+**Root cause of missing category images on homepage:** The `categories.image_url` column was being set to NULL by this bug each time the admin opened and saved a category.
+
+**Fix — `views/pages/admin/category-edit.ejs`:**
+- Image upload converted to AJAX (`fetch POST /admin/categories/:id/image/ajax`) instead of a nested form
+- File input uses `type="file"` without a wrapping `<form>` element
+- Image remove button also uses `fetch POST /admin/categories/:id/image/remove`
+- Danger zone delete form moved entirely outside `catEditForm` to its own standalone `<form>`
+- Comment added: *"Upload via AJAX — avoids nested-form bug (this card is inside catEditForm)"*
+
+**To reverse:** Replace AJAX fetch with a nested `<form enctype="multipart/form-data">` around the file input. Not recommended — this reintroduces the image-clearing bug.
+
+---
+
 *End of brief*
