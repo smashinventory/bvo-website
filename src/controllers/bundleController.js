@@ -89,7 +89,7 @@ async function getTops() {
     FROM products p
     INNER JOIN categories c ON c.id = p.category_id
     WHERE p.brand      = ?
-      AND c.slug       = 'vanity-tops'
+      AND c.slug       = 'bathroom-vanity-tops'
       AND p.is_active  = 1
       AND (
         p.name         LIKE '%Quartz%'
@@ -113,7 +113,7 @@ async function getMirrors() {
     FROM products p
     INNER JOIN categories c ON c.id = p.category_id
     WHERE p.brand         = ?
-      AND (c.slug = 'accessories' OR c.slug = 'mirrors')
+      AND (c.slug = 'accessories' OR c.slug = 'bathroom-mirrors')
       AND p.product_type  LIKE '%Mirror%'
       AND p.is_active     = 1
     ORDER BY p.model ASC, p.width_in ASC, p.price ASC

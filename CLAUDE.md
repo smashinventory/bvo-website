@@ -12,7 +12,7 @@
 2. **Never assume what the user wants.** Ask. Do not infer intent from prior sessions or partial context.
 3. **Always provide git push commands** in a copyable code block. Never push silently.
 4. **Scope discipline** — only touch files required by the current task. Do not "improve" adjacent code while fixing something else.
-5. **Bump `?v=N`** on `/css/site2.css` in `views/layouts/main.ejs` every time any CSS changes. Hostinger CDN caches aggressively. Current version: `v13`.
+5. **Bump `?v=N`** on `/css/site2.css` in `views/layouts/main.ejs` every time any CSS changes. Hostinger CDN caches aggressively. Current version: `v31`.
 
 ---
 
@@ -74,9 +74,53 @@ Size chips and color swatches are **identical on ALL card types**:
 | CSS cache bust link | `views/layouts/main.ejs` (bump `?v=N`) |
 | rflposSync CAT_MAP | `src/services/rflposSync.js` lines 50-53 — maps to `bathroom-vanities` NOT `vanities` |
 
-## Known Pending Issues (as of 2026-07-21)
+## Known Pending Issues (as of 2026-07-31)
 
 - **rflposSync CAT_MAP** still maps vanity product types to slug `'vanities'` (retired). Must change to `'bathroom-vanities'`. See `src/services/rflposSync.js` lines 50–53.
-- **vanity-models collection shows 0 results** — model-group query filters by `category.id` (vanity-models ID) but products live in `bathroom-vanities`. Fix pending user decision: remove category filter (Option A) or look up bathroom-vanities by slug (Option B).
 - **header.ejs mega menu size chips** — still render `"` inch mark in visible text (line 64). Separate fix needed.
 - **Task #12** — nested form bug on category-edit admin page. Committed as `e2840b6`, push verification pending.
+
+### ✅ Resolved (no longer pending)
+- **vanity-models collection shows 0 results** — FIXED. `mgProductCatId` now resolved via `Category.findBySlug('bathroom-vanities')` in `collectionsController.js` lines 113–115. Not a pending issue.
+
+---
+
+## ⚠️ Taxonomy Overhaul — Approved, Implementation Pending
+
+**Decision locked July 2026.** All implementation steps need approval before each code change.
+
+### New Canonical `product_type` Values (bathroom-vanities products only)
+
+| Old value | New value | Trigger |
+|---|---|---|
+| `'Single Sink'` | `'Single Sink Vanity With Top'` | JM: Vanities/Vanity + sink_count=1 |
+| `'Double Sink'` | `'Double Sink Vanity With Top'` | JM: Vanities/Vanity + sink_count=2 |
+| `'Cabinet Only'` (single) | `'Single Sink Cabinet Only'` | JM: Vanities/Cabinet or Cabinet/Cabinet + "Single" in name |
+| `'Cabinet Only'` (double) | `'Double Sink Cabinet Only'` | JM: Vanities/Cabinet or Cabinet/Cabinet + "Double" in name |
+
+### New Display Category Slugs
+
+| Slug | Display Name | display_mode | Auto-filter applied |
+|---|---|---|---|
+| `bathroom-vanities-with-tops` | Bathroom Vanities With Tops | `model-group` | `product_type IN ('Single Sink Vanity With Top', 'Double Sink Vanity With Top')` |
+| `bathroom-vanity-cabinets` | Bathroom Vanity Cabinets | `model-group` | `product_type IN ('Single Sink Cabinet Only', 'Double Sink Cabinet Only')` |
+
+Products physically remain in `bathroom-vanities` (category_id=1). These are routing/display categories.
+
+### JM Importer Root Bug
+
+`PRODUCT_CATEGORY_MAP` has `'vanity'` (singular) but the JM feed says `'Vanities'` (plural — all 4,473 Vanities-category rows). Result: ALL Vanities products fall through to `PRODUCT_TYPE_MAP`, where `Product Type='Cabinet'` → Storage (category 6). Cabinet Only SKUs end up in wrong category with `product_type=NULL`.
+
+### Implementation Checklist (get approval before each step)
+
+1. [ ] **DB — Add new categories** (phpMyAdmin): `bathroom-vanities-with-tops` + `bathroom-vanity-cabinets`, `display_mode='model-group'`
+2. [ ] **DB — UPDATE product_type values**: existing Single Sink → Single Sink Vanity With Top, Double Sink → Double Sink Vanity With Top
+3. [ ] **DB — Fix Cabinet Only rows**: move from Storage → bathroom-vanities, set Single/Double Sink Cabinet Only
+4. [ ] **Importer fix** (`importJamesMartinFeed.js`): correct PRODUCT_CATEGORY_MAP (`'vanities'` plural), new 4-value product_type assignment logic
+5. [ ] **collectionsController.js**: (a) handle new slug → auto-inject mgActiveTypes; (b) fix `mgCsRows` to filter by `product_type` when `mgActiveTypes.length > 0`
+6. [ ] **bundleController.js**: update `getCabinets()` query to `product_type IN ('Single Sink Cabinet Only', 'Double Sink Cabinet Only')`
+7. [ ] **themeSettings.js defaults**: update megamenu links to new slugs/params
+8. [ ] **collection.ejs**: update sidebar labels + `_mgTypeLabel` map
+9. [ ] **Admin → Theme Editor → Navigation**: user must update live megamenu URLs manually (DB overrides defaults)
+10. [ ] **Re-import JM feed** OR run targeted SQL to fix remaining NULL product_type rows
+11. [ ] **Tops slug rename** — `vanity-tops` → `bathroom-vanity-tops`, Display Name → "Bathroom Vanity Tops". Code updated July 2026. DB UPDATE + DB name change required (see slug rename scripts).

@@ -357,7 +357,7 @@ async function replaceAccessories(conn, sku, accessories) {
 
 // ── Category routing ──────────────────────────────────────────────────
 // BVO category IDs:
-//   migration 001 → 1=bathroom-vanities, 2=mirrors, 3=faucets,
+//   migration 001 → 1=bathroom-vanities, 2=bathroom-mirrors, 3=faucets,
 //                   4=accessories, 5=lighting, 6=storage
 //   migration 010 → 7=vanity-tops
 //   migration 014 → 10=samples (auto_increment skipped 8; 8 was a deleted category)
@@ -402,7 +402,7 @@ const PRODUCT_CATEGORY_MAP = {
   'backsplash':        7,  // older: stone backsplash — optional upgrade for stone tops
   'countertop unit':   7,  // older: composite top for wall-hung vanities
   // ── Tops (7) — standalone JM Product Category for countertops ─────
-  'tops':              7,  // JM 'Tops' category → vanity-tops
+  'tops':              7,  // JM 'Tops' category → bathroom-vanity-tops
 };
 
 // Fallback routing — JM "Product Type" column (used when Product Category is

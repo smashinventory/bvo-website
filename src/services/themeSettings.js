@@ -53,7 +53,7 @@ const DEFAULTS = {
     brand_line3: '.com',
     links: [
       { label: 'Vanities',    url: '/collections/bathroom-vanities', megaMenu: true },
-      { label: 'Mirrors',     url: '/collections/mirrors' },
+      { label: 'Mirrors',     url: '/collections/bathroom-mirrors' },
       { label: 'Faucets',     url: '/collections/faucets' },
       { label: 'Accessories', url: '/collections/accessories' },
       { label: 'Sale',        url: '/collections/sale', highlight: true },
@@ -310,7 +310,7 @@ const DEFAULTS = {
     col_shop_heading: 'Shop',
     col_shop_links: [
       { label: 'Bathroom Vanities', url: '/collections/bathroom-vanities' },
-      { label: 'Mirrors',           url: '/collections/mirrors' },
+      { label: 'Mirrors',           url: '/collections/bathroom-mirrors' },
       { label: 'Faucets',           url: '/collections/faucets' },
       { label: 'Sale',              url: '/collections/sale' },
     ],
