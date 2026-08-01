@@ -792,4 +792,112 @@ Label: 1fr, URL: 2fr (double-wide), Highlight toggle: auto, Mega menu toggle: au
 
 ---
 
+## Scope — Stone/Composite Top Distinction + Bundle Builder Faucet Step
+**Date:** 2026-08-01
+
+### Summary
+Introduced a two-type top taxonomy (Stone vs Composite), added a stone-top-compatibility depth filter to the bundle builder Step 1, wired up the faucet step with real products, and pinned category card CTAs to card bottom.
+
+---
+
+### Top Material Types (new product_type values)
+
+Two new canonical `product_type` values replace the generic `'Vanity Top'` for products in `category_id=7`:
+
+| Type | Detection | Value stored |
+|---|---|---|
+| Stone | Name or `countertop_material` EAV contains "Quartz" or "Marble" | `'Stone Top'` |
+| Composite | All other tops in category 7 (not Backsplash) | `'Composite Top'` |
+
+Backsplash SKUs in category 7 are unaffected — they continue to receive `product_type = 'Backsplash'`.
+
+---
+
+### Stone-Top Compatibility Rule (James Martin Vanities only)
+
+**Rule:** James Martin vanity cabinets with `depth_in >= 22.5"` accept the 23–23.5" stone tops (Quartz/Marble). Cabinets shallower than 22.5" require Composite tops.
+
+**Scope:** This rule is JM-SPECIFIC. The 23–23.5" stone tops are exclusive to JM cabinets. Other brands added to BVO in future will have different depth specs and must NOT be filtered by the 22.5" threshold.
+
+---
+
+### Files Changed
+
+**`src/jobs/importJamesMartinFeed.js`**
+- Added dedicated `else if (categoryId === 7)` branch before the generic `else` block
+- Backsplash sub-type detected first via `CATEGORY_TYPE_MAP` (`'Backsplash'` pass-through)
+- All other tops: `isStone = /quartz|marble/i.test(nameLower || matField)` → `'Stone Top'` or `'Composite Top'`
+- Added full rule comment with JM-only scope caveat
+
+**`src/controllers/bundleController.js`**
+- `getCabinets()`: Added `INNER JOIN product_attribute_values pav_depth ON attr_key='depth_in' AND value_num >= 22.5` — only shows stone-top-compatible cabinets in bundle builder. Added rule comment.
+- `getTops()`: Changed filter from fragile `name LIKE '%Quartz%' OR '%Marble%'` to clean `product_type = 'Stone Top'`
+- Added `getFaucets()`: Queries `c.slug = 'faucets'`, all brands (no JM restriction). No `CHIP_SQL` (faucets are not JM products).
+- `getBundleBuilder()`: Added `getFaucets()` to `Promise.all`, passes `faucetModels` to template.
+
+**`views/pages/bundle-builder.ejs`**
+- Step 1 meta text: updated to "Stone-top-compatible cabinets"
+- Step 4: Replaced "coming soon" placeholder with full viewer card (image, swatches, size chips, select button)
+- Added `.bb-compat-note` above faucet card: "James Martin vanities use standard 8" widespread faucet holes — compatible with any brand. Mix and match freely."
+- `FAUCET_MODELS` server data variable added
+- `gIdx`, `gSize`, `gColor`, `state` all extended to include `'faucet'`
+- `getModels()` returns `FAUCET_MODELS` for `step === 'faucet'`
+- `itemCount()` includes `state.faucet`
+- `updateSummary()` totals and row rendering include faucet
+- `addToCart()` items array includes faucet
+- `init()` calls `renderViewer('faucet')`
+- Summary bar static faucet row updated (removed "Coming soon" placeholder)
+
+**`public/css/site2.css`**
+- Added `.bb-compat-note` styles (blue info box with icon, shown above faucet viewer card)
+
+**`public/css/site.css`**
+- `.cat-card`: `display: block` → `display: flex; flex-direction: column` (pins CTA to bottom)
+- `.cat-body`: added `flex: 1; display: flex; flex-direction: column`
+- `.cat-link`: added `margin-top: auto; display: block` (pins "Shop Now →" to bottom of card)
+
+---
+
+### DB Script — Update Existing Tops
+
+Run AFTER Script 1 (slug renames). Updates `product_type` for all existing top SKUs in category 7:
+
+```sql
+-- 1. Mark stone tops (Quartz/Marble — by name or countertop_material EAV)
+UPDATE products p
+SET p.product_type = 'Stone Top'
+WHERE p.category_id = 7
+  AND (
+    p.name LIKE '%Quartz%' OR p.name LIKE '%Marble%'
+    OR EXISTS (
+      SELECT 1 FROM product_attribute_values pav
+      WHERE pav.product_id = p.id
+        AND pav.attr_key   = 'countertop_material'
+        AND (pav.value_text LIKE '%Quartz%' OR pav.value_text LIKE '%Marble%')
+    )
+  );
+
+-- 2. All remaining category-7 tops that aren't already 'Stone Top' or 'Backsplash'
+UPDATE products SET product_type = 'Composite Top'
+WHERE category_id = 7
+  AND product_type NOT IN ('Stone Top', 'Backsplash');
+```
+
+**To reverse:**
+```sql
+UPDATE products SET product_type = 'Vanity Top'
+WHERE category_id = 7 AND product_type IN ('Stone Top', 'Composite Top');
+```
+
+---
+
+### Faucet Notes
+
+- Initial brand: Huntington Brass (one SKU added manually)
+- Additional brands to be added via import or manual entry over time
+- JM vanities use 8" widespread faucet holes — standard universal sizing, any brand fits
+- Bundle builder Step 4 does NOT restrict by brand; `getFaucets()` queries all active products in the `faucets` category slug
+
+---
+
 *End of brief*

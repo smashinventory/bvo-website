@@ -312,15 +312,15 @@ ul[role="list"] { list-style: none; }
 
 /* ── Category grid ──────────────────────────────────────────────── */
 .category-grid   { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
-.cat-card        { border-radius: 8px; overflow: hidden; background: var(--white); border: 1px solid var(--border); cursor: pointer; display: block; color: inherit; transition: box-shadow .2s; }
+.cat-card        { border-radius: 8px; overflow: hidden; background: var(--white); border: 1px solid var(--border); cursor: pointer; display: flex; flex-direction: column; color: inherit; transition: box-shadow .2s; }
 .cat-card:hover  { box-shadow: 0 8px 24px rgba(24,40,64,.1); }
 .cat-img         { height: 180px; display: flex; align-items: center; justify-content: center; background: var(--hero-bg); color: var(--muted); }
 .cat-img img     { width: 100%; height: 100%; object-fit: cover; }
 .cat-img svg     { opacity: .3; }
-.cat-body        { padding: 16px; }
+.cat-body        { padding: 16px; flex: 1; display: flex; flex-direction: column; }
 .cat-body h3     { font-family: var(--font-serif); font-size: 1rem; color: var(--navy); margin-bottom: 4px; }
 .cat-body p      { font-size: .75rem; color: var(--muted); margin-bottom: 12px; }
-.cat-link        { font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--sage); }
+.cat-link        { font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--sage); margin-top: auto; display: block; }
 
 /* ── Product grid ───────────────────────────────────────────────── */
 .product-grid      { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }

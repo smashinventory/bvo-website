@@ -50,13 +50,18 @@ function groupByModel(rows) {
     .map(([model, skus]) => ({ model, skus }));
 }
 
-/* ── Step 1: Cabinet Only ─────────────────────────────────────────────
-   Matches the megamenu "Cabinet Only" link:
-     /collections/bathroom-vanity-cabinets
-   which filters on products.product_type IN the two new cabinet values
-   (taxonomy overhaul 2026-07-31 — 4-value system replaces old 2-value).
-   Ordered model ASC → width_in ASC → price ASC so each model's
-   sizes and price tiers are naturally arranged.                         */
+/* ── Step 1: Cabinet Only (stone-top-compatible) ──────────────────────
+   Returns JM cabinet-only SKUs whose depth qualifies them for stone tops.
+   (Taxonomy overhaul 2026-07-31 — 4-value product_type system.)
+   Ordered model ASC → width_in ASC → price ASC.
+   ──────────────────────────────────────────────────────────────────────
+   STONE-TOP COMPATIBILITY RULE (James Martin only — 2026-07-31):
+     JM cabinets with depth_in >= 22.5" accept the 23–23.5" stone tops
+     (Quartz/Marble). Shallower cabinets require Composite tops and are
+     not shown in the bundle builder (which is stone-top-focused).
+     This rule is JM-SPECIFIC — other brands have different depth specs
+     and must NOT be filtered by this threshold when added to BVO.
+   ────────────────────────────────────────────────────────────────────── */
 async function getCabinets() {
   const [rows] = await bvoPool.execute(`
     SELECT
@@ -66,6 +71,11 @@ async function getCabinets() {
       ${CHIP_SQL}
     FROM products p
     INNER JOIN categories c ON c.id = p.category_id
+    /* Stone-top depth filter: only JM cabinets >= 22.5" deep take stone tops */
+    INNER JOIN product_attribute_values pav_depth
+      ON  pav_depth.product_id = p.id
+      AND pav_depth.attr_key   = 'depth_in'
+      AND pav_depth.value_num  >= 22.5
     WHERE p.brand           = ?
       AND c.slug            = 'bathroom-vanities'
       AND p.product_type IN ('Single Sink Cabinet Only', 'Double Sink Cabinet Only')
@@ -75,10 +85,13 @@ async function getCabinets() {
   return rows;
 }
 
-/* ── Step 2: Vanity Tops (quartz + marble only) ───────────────────────
-   Width filtering is done client-side: once a cabinet is selected,
-   only tops matching that width_in are shown. Finish-only viewer
-   (no size chips — width is locked to the chosen cabinet).              */
+/* ── Step 2: Stone Tops only (Quartz + Marble) ────────────────────────
+   Width filtering done client-side: once a cabinet is selected, only
+   tops matching that width_in are shown (finish-only viewer, no size
+   chips — width is locked to the chosen cabinet).
+   Filters on product_type = 'Stone Top' — set by the importer when
+   name/countertop_material contains 'Quartz' or 'Marble'.
+   (Replaces fragile LIKE pattern; requires importer re-run + DB update.) */
 async function getTops() {
   const [rows] = await bvoPool.execute(`
     SELECT
@@ -88,21 +101,17 @@ async function getTops() {
       ${CHIP_SQL}
     FROM products p
     INNER JOIN categories c ON c.id = p.category_id
-    WHERE p.brand      = ?
-      AND c.slug       = 'bathroom-vanity-tops'
-      AND p.is_active  = 1
-      AND (
-        p.name         LIKE '%Quartz%'
-        OR p.name      LIKE '%Marble%'
-        OR p.product_type LIKE '%Quartz%'
-        OR p.product_type LIKE '%Marble%'
-      )
+    WHERE p.brand          = ?
+      AND c.slug           = 'bathroom-vanity-tops'
+      AND p.product_type   = 'Stone Top'
+      AND p.is_active      = 1
     ORDER BY p.model ASC, p.width_in ASC, p.price ASC
   `, [JM_BRAND, JM_BRAND]);
   return rows;
 }
 
-/* ── Step 3: Mirrors ─────────────────────────────────────────────────  */
+/* ── Step 3: Mirrors ─────────────────────────────────────────────────
+   JM mirrors matched by model to the selected cabinet.                 */
 async function getMirrors() {
   const [rows] = await bvoPool.execute(`
     SELECT
@@ -121,13 +130,35 @@ async function getMirrors() {
   return rows;
 }
 
+/* ── Step 4: Faucets (all brands) ────────────────────────────────────
+   JM vanities use standard 8" widespread faucet holes — any brand fits.
+   No CHIP_SQL here: faucets are not JM products and have no sample chips.
+   Initial brand: Huntington Brass. Additional brands added over time.
+   NOTE: Do NOT restrict by brand = JM_BRAND — faucets are intentionally
+   multi-brand and the bundle builder note explains universal compatibility. */
+async function getFaucets() {
+  const [rows] = await bvoPool.execute(`
+    SELECT
+      p.id, p.slug, p.name, p.model, p.brand, p.price, p.compare_price,
+      p.width_in, p.color, p.color_family,
+      ${IMG_SQL}
+    FROM products p
+    INNER JOIN categories c ON c.id = p.category_id
+    WHERE c.slug       = 'faucets'
+      AND p.is_active  = 1
+    ORDER BY p.brand ASC, p.model ASC, p.price ASC
+  `);
+  return rows;
+}
+
 /* ── GET /bundle-builder ─────────────────────────────────────────────── */
 exports.getBundleBuilder = async (req, res) => {
   try {
-    const [cabinets, tops, mirrors] = await Promise.all([
+    const [cabinets, tops, mirrors, faucets] = await Promise.all([
       getCabinets(),
       getTops(),
       getMirrors(),
+      getFaucets(),
     ]);
 
     res.render('pages/bundle-builder', {
@@ -137,6 +168,7 @@ exports.getBundleBuilder = async (req, res) => {
       cabinetModels: groupByModel(cabinets),
       topModels:     groupByModel(tops),
       mirrorModels:  groupByModel(mirrors),
+      faucetModels:  groupByModel(faucets),
       familyHex:     FAMILY_HEX,
       sizeBuckets:   SIZE_BUCKETS,
     });

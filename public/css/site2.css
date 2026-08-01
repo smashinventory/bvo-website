@@ -2330,7 +2330,23 @@
   padding: 1rem 0;
 }
 
-/* ── Coming soon card ────────────────────────────────────────── */
+/* ── Universal compatibility note (faucet step) ─────────────── */
+.bb-compat-note {
+  display: flex;
+  align-items: flex-start;
+  gap: .5rem;
+  padding: .65rem .9rem;
+  margin-bottom: .75rem;
+  background: #EFF4FF;
+  border: 1px solid #C7D7F5;
+  border-radius: 8px;
+  font-size: .8rem;
+  color: #2A3F6F;
+  line-height: 1.45;
+}
+.bb-compat-note svg { flex-shrink: 0; margin-top: .05rem; color: #4169C4; }
+
+/* ── Coming soon card (kept for backward reference) ──────────── */
 .bb-coming-soon-card {
   display: flex;
   flex-direction: column;

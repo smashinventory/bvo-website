@@ -646,6 +646,31 @@ async function importFromWorkbook(wb, opts = {}) {
           // console / console base / floating console → productType stays null;
           // grouped by model card later (Boston, Addison, Athena)
 
+        } else if (categoryId === 7) {
+          // ── Vanity Tops — Stone vs Composite distinction ──────────────────
+          //
+          // STONE TOP RULE (James Martin Vanities only — July 2026):
+          //   JM produces two top families:
+          //     • Stone tops  — Quartz and Marble (23–23.5" depth, sold in bathroom-vanity-tops)
+          //     • Composite tops — Polymer composite (shallower profiles)
+          //
+          //   Stone tops are EXCLUSIVELY designed for JM cabinets with cabinet depth ≥ 22.5".
+          //   Cabinets below that depth require Composite tops.
+          //   This rule is JM-specific — other brands have different depth specs and must be
+          //   evaluated separately before being added to this importer.
+          //
+          //   Detection: stone = name or countertop_material contains 'Quartz' or 'Marble'.
+          //   Backsplash SKUs (catLower/productTypLower === 'backsplash') route through the
+          //   CATEGORY_TYPE_MAP and get product_type='Backsplash', not Stone/Composite.
+          const baseType = CATEGORY_TYPE_MAP[catLower] || CATEGORY_TYPE_MAP[productTypLower];
+          if (baseType === 'Backsplash') {
+            productType = 'Backsplash';
+          } else {
+            // Stone detection: check product name AND the Vanity Countertop Material field.
+            const matField = clean(row['Vanity Countertop Material ']) || '';
+            const isStone  = /quartz|marble/i.test(nameLower) || /quartz|marble/i.test(matField);
+            productType    = isStone ? 'Stone Top' : 'Composite Top';
+          }
         } else {
           // Non-vanity: map to BVO canonical product_type.
           // Primary: catLower (direct Product Category match — works for older feed formats)
