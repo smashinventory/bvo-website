@@ -2322,15 +2322,24 @@
 .bb-swatch--topmat:hover::after { opacity: 1; }
 
 /* ── Stone material swatch grid — tops collection sidebar ─────────── */
+/* Flex-wrap approach: 2 swatches per row, fixed 48px each.
+   max-width keeps the container exactly 2 columns wide.
+   padding:0 + box-sizing:border-box zero out UA button padding.       */
 .stone-mat-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 48px);
+  display: flex;
+  flex-wrap: wrap;
   gap: .45rem;
+  max-width: calc(2 * 48px + .45rem);
 }
 .stone-mat-sw {
-  display: block;       /* prevent inline fallback */
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  flex: 0 0 48px;
   width: 48px;
   height: 48px;
+  padding: 0;
+  box-sizing: border-box;
   border-radius: 4px;
   border: 2px solid #D6CEC4;
   cursor: pointer;
