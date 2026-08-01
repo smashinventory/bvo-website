@@ -675,6 +675,38 @@ exports.show = async (req, res, next) => {
       }
     }
 
+    // ── Stone material filter — tops (category 7) ─────────────────
+    // Passed as ?countertop_material=<val>; applied as an EAV filter via
+    // Product.findByCategory() which handles arbitrary EAV attr keys.
+    // Stone sample images (category_id=10) are fetched here for the sidebar
+    // swatch grid, matched to products by name keyword overlap at render time.
+    let stoneMaterialActive   = [];
+    let stoneMaterialSwatches = [];
+    if (category.id === 7) {
+      stoneMaterialActive = [].concat(req.query.countertop_material || []).filter(Boolean);
+      if (stoneMaterialActive.length) attrFilters['countertop_material'] = stoneMaterialActive;
+
+      const [sampleRows] = await bvoPool.query(`
+        SELECT p.name,
+          COALESCE(
+            (SELECT pi.url FROM product_images pi
+             WHERE pi.product_id = p.id
+             ORDER BY pi.sort_order ASC, pi.id ASC LIMIT 1),
+            p.primary_image_url
+          ) AS img_url
+        FROM products p
+        WHERE p.brand       = 'James Martin Vanities'
+          AND p.category_id = 10
+          AND p.name        LIKE 'Stone Sample -%'
+          AND p.is_active   = 1
+        ORDER BY p.name ASC
+      `);
+      stoneMaterialSwatches = sampleRows.map(r => ({
+        material: r.name.replace(/^Stone Sample\s*-\s*/i, '').trim(),
+        imgUrl:   r.img_url || null,
+      }));
+    }
+
     const mergedAttrFilters = { ...attrFilters };
     for (const [key, { min, max }] of Object.entries(rangeFilters)) {
       mergedAttrFilters[key] = [min, max];
@@ -868,6 +900,9 @@ exports.show = async (req, res, next) => {
       availHardwareFinishes,
       // Favorites
       savedProductIds,
+      // Stone material swatches — tops category (cat 7) only
+      stoneMaterialSwatches,
+      stoneMaterialActive,
     });
   } catch (err) { next(err); }
 };

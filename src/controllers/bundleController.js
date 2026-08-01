@@ -151,15 +151,77 @@ async function getFaucets() {
   return rows;
 }
 
+/* ── Stone sample helpers for Step 2 material swatches ───────────────
+   JM ships "Stone Sample - <Material>" products (category_id=10) for
+   every countertop material.  We fetch them here and match each stone
+   top to its sample image by word-overlap so the bundle builder can
+   show a photo swatch for each material rather than a plain colour dot.
+   ──────────────────────────────────────────────────────────────────── */
+async function getStoneSamples() {
+  const [rows] = await bvoPool.execute(`
+    SELECT
+      p.name,
+      COALESCE(
+        (SELECT pi.url FROM product_images pi
+         WHERE pi.product_id = p.id
+         ORDER BY pi.sort_order ASC, pi.id ASC LIMIT 1),
+        p.primary_image_url
+      ) AS img_url
+    FROM products p
+    WHERE p.brand       = ?
+      AND p.category_id = 10
+      AND p.name        LIKE 'Stone Sample -%'
+      AND p.is_active   = 1
+    ORDER BY p.name ASC
+  `, [JM_BRAND]);
+  return rows;
+}
+
+/** Extract material name from a top product name.
+ *  "Brooklyn 60\" W x 23\" D Stone Top, 3 CM Carrara White Marble w/ Sink"
+ *  → "Carrara White Marble"                                               */
+function extractTopMaterial(topName) {
+  const m = topName.match(/,\s*\d+(?:\.\d+)?\s*CM\s+(.+?)\s+w\/\s*Sink/i);
+  return m ? m[1].trim() : '';
+}
+
+/** Count words longer than 3 chars that appear in both strings. */
+function wordOverlapScore(a, b) {
+  const wordsA = a.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+  const setB   = new Set(b.toLowerCase().split(/\s+/).filter(w => w.length > 3));
+  return wordsA.filter(w => setB.has(w)).length;
+}
+
+/** Adds stone_material + stone_image fields to each top row. */
+function enrichTopsWithMaterial(topRows, sampleRows) {
+  const samples = sampleRows.map(s => ({
+    material: s.name.replace(/^Stone Sample\s*-\s*/i, '').trim(),
+    imgUrl:   s.img_url || null,
+  }));
+
+  return topRows.map(top => {
+    const material = extractTopMaterial(top.name);
+    let bestImg   = null;
+    let bestScore = 0;
+    for (const sample of samples) {
+      const score = wordOverlapScore(material, sample.material);
+      if (score > bestScore) { bestScore = score; bestImg = sample.imgUrl; }
+    }
+    return { ...top, stone_material: material, stone_image: bestScore > 0 ? bestImg : null };
+  });
+}
+
 /* ── GET /bundle-builder ─────────────────────────────────────────────── */
 exports.getBundleBuilder = async (req, res) => {
   try {
-    const [cabinets, tops, mirrors, faucets] = await Promise.all([
+    const [cabinets, rawTops, mirrors, faucets, stoneSamples] = await Promise.all([
       getCabinets(),
       getTops(),
       getMirrors(),
       getFaucets(),
+      getStoneSamples(),
     ]);
+    const tops = enrichTopsWithMaterial(rawTops, stoneSamples);
 
     res.render('pages/bundle-builder', {
       pageTitle:     'Build Your James Martin Bundle | BathroomVanitiesOutlet.com',

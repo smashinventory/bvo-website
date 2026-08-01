@@ -590,6 +590,46 @@
 
       <% } /* end model-group filter groups */ %>
 
+      <%/* ── Stone Material swatches (tops collection — category 7 only) ──
+       * Sidebar filter that lets shoppers jump straight to a material
+       * (Carrara White Marble, White Zeus Quartz, etc.) using photo swatches
+       * sourced from JM stone sample products (category_id=10).
+       * Clicking a swatch adds ?countertop_material=<val> to the URL.
+       * The controller handles it as an EAV filter on countertop_material.
+       */%>
+      <% if (category.id === 7 && typeof stoneMaterialSwatches !== 'undefined' && stoneMaterialSwatches.length > 0) { %>
+      <%
+        var _matActive   = typeof stoneMaterialActive !== 'undefined' ? stoneMaterialActive : [];
+        var _matExpanded = _matActive.length > 0;
+      %>
+      <div class="filter-group" id="stone-material-filter-group">
+        <button type="button" class="filter-group-toggle"
+          aria-expanded="<%= _matExpanded ? 'true' : 'false' %>">
+          Stone Material
+          <% if (_matActive.length > 0) { %><span class="filter-badge"><%= _matActive.length %></span><% } %>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="filter-group-body<%= _matExpanded ? '' : ' is-collapsed' %>">
+          <div class="stone-mat-grid">
+            <% stoneMaterialSwatches.forEach(function(sw) { %>
+            <%   var _swActive = _matActive.indexOf(sw.material) !== -1; %>
+            <button type="button"
+              class="stone-mat-sw<%= _swActive ? ' is-active' : '' %>"
+              data-material="<%= sw.material %>"
+              title="<%= sw.material %>"
+              aria-label="<%= sw.material %>"
+              style="<%= sw.imgUrl ? 'background-image:url(' + sw.imgUrl + ');background-size:cover;background-position:center;' : 'background-color:#C9B89A;' %>">
+            </button>
+            <% }) %>
+          </div>
+          <%/* Preserve active material params when other filters fire form.submit() */%>
+          <% _matActive.forEach(function(m) { %>
+          <input type="hidden" name="countertop_material" value="<%= m %>">
+          <% }) %>
+        </div>
+      </div>
+      <% } /* end stone material filter */ %>
+
       <!-- ── Price Range (always last) ─────────────────────────── -->
       <div class="filter-group">
         <button type="button" class="filter-group-toggle"

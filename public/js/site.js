@@ -943,6 +943,36 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 })();
 
+// ── Stone material swatch filter (tops collection — category 7) ──────
+// Clicking a .stone-mat-sw button toggles ?countertop_material=<val> in
+// the URL using the same URLSearchParams pattern as the colour filters.
+(function () {
+  var grid = document.getElementById('stone-material-filter-group');
+  if (!grid) return;
+
+  function navigate(materials) {
+    if (window._bvoSaveScroll) window._bvoSaveScroll();
+    var sp = new URLSearchParams(window.location.search);
+    sp.delete('countertop_material');
+    sp.delete('page');
+    materials.forEach(function (m) { sp.append('countertop_material', m); });
+    window.location.search = sp.toString();
+  }
+
+  grid.querySelectorAll('.stone-mat-sw').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var mat     = btn.dataset.material;
+      var sp      = new URLSearchParams(window.location.search);
+      var current = sp.getAll('countertop_material');
+      if (current.includes(mat)) {
+        navigate(current.filter(function (m) { return m !== mat; }));
+      } else {
+        navigate(current.concat([mat]));
+      }
+    });
+  });
+})();
+
 // ── Mobile filter drawer ──────────────────────────────────────────────
 (function () {
   var panel    = document.querySelector('.filter-panel');

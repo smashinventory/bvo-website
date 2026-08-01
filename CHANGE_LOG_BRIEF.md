@@ -1,5 +1,93 @@
 # BVO Change Log Brief
-*Last updated: 2026-07-21*
+*Last updated: 2026-08-01*
+
+---
+
+## Task #65 — Stone Material Swatches (Bundle Builder + Tops Collection Sidebar)
+**Date:** 2026-08-01
+
+### Problem
+- Bundle builder Step 2 (stone tops) showed no material swatches because all 144 top SKUs have `color=NULL` and `model=NULL` — the existing swatch renderer relied on `sku.color`, which is always null for tops.
+- `/collections/bathroom-vanity-tops` sidebar had no material filter; shoppers could only browse by width or price.
+
+### Root Cause
+Stone tops are a homogeneous category — one SKU per material per size, no colour variants. The existing "finish swatch" system groups by `products.color`, which is unused for stone. A different swatch mechanism is needed: one swatch per unique material, clicking jumps to that top.
+
+### Matching Strategy — Name Keyword Overlap
+JM ships "Stone Sample - <Material>" products (`category_id=10`) with photo swatches. To connect tops to samples:
+1. Extract material from top name via regex: `/,\s*\d+(?:\.\d+)?\s*CM\s+(.+?)\s+w\/\s*Sink/i` → "Carrara White Marble"
+2. Strip "Stone Sample - " prefix from sample name
+3. Score overlap by counting words > 3 chars that appear in both strings
+4. Best-score sample's image becomes `stone_image` on the top row
+5. Unmatched tops get `stone_image: null` → grey `#C9B89A` fallback swatch
+
+New fields added to top rows at server-render time: `stone_material`, `stone_image`.
+
+### Changes Made
+
+**`src/controllers/bundleController.js`**
+- Added `getStoneSamples()` — queries `category_id=10`, `name LIKE 'Stone Sample -%'`, brand=JM
+- Added `extractTopMaterial(topName)` — regex extract between ", N CM " and " w/ Sink"
+- Added `wordOverlapScore(a, b)` — counts overlapping words > 3 chars
+- Added `enrichTopsWithMaterial(topRows, sampleRows)` — attaches `stone_material` + `stone_image` to each top row
+- `getBundleBuilder()`: now fetches stone samples in parallel (`Promise.all`), calls `enrichTopsWithMaterial` before `groupByModel`
+
+**`views/pages/bundle-builder.ejs`**
+- Added `topMatSwatchHtml(material, imgUrl, topIdx, isActive)` — renders `<button class="bb-swatch bb-swatch--topmat">` with `data-top-idx`; uses sample image background or grey fallback
+- Added `renderTopMatSwatches()` — calls `activeTops()`, deduplicates by `stone_material`, renders one swatch per unique material at its first `activeTops()` index; also updates `bb-finish-top` span with current material name
+- Modified `renderViewer(step)` swatch block: branches on `step === 'top'` → calls `renderTopMatSwatches()` instead of standard colour-swatch loop
+- Added `pickTopMat(topIdx)` — sets `gIdx.top = topIdx` and re-renders Step 2
+- `onPageClick` handler: `.bb-swatch--topmat` match added BEFORE `.bb-swatch[data-step]` check to avoid interference
+- `unlockTopStep()`: picker label changed from `"Finish"` → `"Stone Material"` for tops card
+
+**`src/controllers/collectionsController.js`**
+- For `category.id === 7` (tops): reads `req.query.countertop_material`, injects into `attrFilters['countertop_material']` so `Product.findByCategory()` applies it as an EAV EXISTS subquery (no changes to Product.js needed)
+- Fetches stone samples for sidebar swatch display; builds `stoneMaterialSwatches` array: `[{ material, imgUrl }]`
+- Passes `stoneMaterialSwatches` + `stoneMaterialActive` to template render call
+
+**`views/pages/collection.ejs`**
+- Added "Stone Material" filter group before Price Range, gated on `category.id === 7`
+- Renders `.stone-mat-grid` (2-column CSS grid) of `.stone-mat-sw` buttons with `data-material`, `title`, and `style="background-image:..."` (or grey fallback)
+- Active material hidden inputs preserve selection when other filters fire `form.submit()`
+- Hover tooltip via CSS `::after` with `content: attr(title)` — no extra markup needed
+
+**`public/js/site.js`**
+- Added IIFE stone material swatch handler (mirrors colour filter IIFE pattern)
+- Reads `window.location.search` → URLSearchParams → `getAll('countertop_material')`
+- Toggle logic: clicking active swatch removes it; clicking inactive appends it
+- Calls `navigate(materials)` which rebuilds URL, resets `page=`, navigates
+
+**`public/css/site2.css`**
+- `.bb-swatch--topmat` — CSS tooltip via `::after` + `content:attr(title)`; inherits size/border/active from `.bb-swatch`
+- `.stone-mat-grid` — `grid-template-columns: repeat(2, 1fr); gap: .5rem`
+- `.stone-mat-sw` — square (aspect-ratio: 1, max-width: 52px), rounded, `background-size:cover`; hover scale + border darken; active amber border + outline
+- `.stone-mat-sw::after` — same tooltip pattern as bundle builder
+
+### Key Design Decisions
+- **No `attribute_definitions` DB row needed** for `countertop_material` — the controller injects it directly into `attrFilters` for category 7. `Product.findByCategory()` handles arbitrary EAV keys.
+- **"Stone Material" label** used throughout (bundle builder Step 2 picker + sidebar group header) instead of "Finish" — per user direction 2026-08-01.
+- **Composite tops excluded** from both surfaces — `SLUG_DEFAULT_PRODUCT_TYPES` gates `/collections/bathroom-vanity-tops` to `product_type = 'Stone Top'` only (Task #60). Composite tops appear only in combo product displays.
+- **Grey fallback** `#C9B89A` used when no stone sample image matches a top; no separate "Other" grouping.
+
+### EAV Filter Flow (countertop_material)
+```
+URL: ?countertop_material=Carrara+White+Marble
+→ collectionsController: attrFilters['countertop_material'] = ['Carrara White Marble']
+→ mergedAttrFilters includes it
+→ Product.findByCategory() adds: AND EXISTS (
+    SELECT 1 FROM product_attribute_values
+    WHERE product_id = p.id
+      AND attr_key   = 'countertop_material'
+      AND value_text IN ('Carrara White Marble')
+  )
+```
+
+### Future Notes
+- If new stone materials are added via JM feed re-import, their "Stone Sample -" products auto-appear in the sidebar with no code changes.
+- The word-overlap matching is case-insensitive and ignores short words (≤3 chars). If a material name has very short words only, it falls back to grey swatch.
+- Multi-select is supported (clicking multiple swatches adds multiple `countertop_material` params).
+
+---
 
 ---
 
