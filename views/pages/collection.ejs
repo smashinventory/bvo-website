@@ -622,6 +622,8 @@
             </button>
             <% }) %>
           </div>
+          <!-- Active material name shown below grid -->
+          <p class="stone-mat-sel-name" id="stone-mat-sel-name"><%= _matActive.length === 1 ? _matActive[0] : (_matActive.length > 1 ? _matActive.length + ' selected' : '') %></p>
           <%/* Preserve active material params when other filters fire form.submit() */%>
           <% _matActive.forEach(function(m) { %>
           <input type="hidden" name="countertop_material" value="<%= m %>">

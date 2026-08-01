@@ -959,16 +959,27 @@ document.addEventListener('DOMContentLoaded', function () {
     window.location.search = sp.toString();
   }
 
+  var nameLabel = document.getElementById('stone-mat-sel-name');
+
   grid.querySelectorAll('.stone-mat-sw').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var mat     = btn.dataset.material;
       var sp      = new URLSearchParams(window.location.search);
       var current = sp.getAll('countertop_material');
-      if (current.includes(mat)) {
-        navigate(current.filter(function (m) { return m !== mat; }));
-      } else {
-        navigate(current.concat([mat]));
+      var next    = current.includes(mat)
+        ? current.filter(function (m) { return m !== mat; })
+        : current.concat([mat]);
+
+      /* Optimistic UI: update active styles + name label before navigation */
+      grid.querySelectorAll('.stone-mat-sw').forEach(function (b) {
+        b.classList.toggle('is-active', next.includes(b.dataset.material));
+      });
+      if (nameLabel) {
+        nameLabel.textContent = next.length === 1 ? next[0]
+          : next.length > 1 ? next.length + ' selected' : '';
       }
+
+      navigate(next);
     });
   });
 })();

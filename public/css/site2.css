@@ -2288,10 +2288,19 @@
 }
 
 /* ── Top material swatches — bundle builder Step 2 ──────────────── */
-/* .bb-swatch--topmat inherits size/border/active from .bb-swatch above.
-   Tooltip is the only addition needed here.                           */
+/* Override circle to square so stone texture photos fill the swatch. */
 .bb-swatch--topmat {
+  border-radius: 4px;   /* square, not 50% circle */
   position: relative;
+}
+/* Active material name — shown below swatch strip, centred */
+.bb-topmat-name {
+  font-size: .72rem;
+  color: var(--muted, #7A7264);
+  font-style: italic;
+  text-align: center;
+  min-height: 1em;
+  margin-top: .15rem;
 }
 .bb-swatch--topmat::after {
   content: attr(title);
@@ -2335,6 +2344,15 @@
 .stone-mat-sw.is-active {
   border-color: var(--amber, #B8862A);
   outline: 2px solid var(--amber, #B8862A);
+}
+/* Active material name — below the grid, centred */
+.stone-mat-sel-name {
+  font-size: .7rem;
+  color: var(--muted, #7A7264);
+  font-style: italic;
+  text-align: center;
+  margin-top: .3rem;
+  min-height: 1em;
 }
 .stone-mat-sw::after {
   content: attr(title);
