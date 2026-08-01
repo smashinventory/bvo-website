@@ -345,20 +345,28 @@
     return match.concat(rest);
   }
 
-  /* Tops filtered to cabinet's size bucket once a cabinet is selected.
-     Uses bucket range (not exact equality) so minor width variations
-     (e.g. 35.875" vs 36.0") still produce matches. */
+  /* Tops: each SKU is its own navigable item.
+     Stone/composite tops have no meaningful color variants — each is a
+     distinct material (Carrara White Marble, White Zeus Quartz, etc.).
+     Flattening to individual SKUs lets the user arrow through all options.
+     Width bucket filter applied once a cabinet is selected (range match,
+     not exact equality, to handle minor dimension variations). */
   function activeTops() {
-    if (!state.cabinet || !state.cabinet.width_in) return TOP_MODELS;
-    var cabBkt = getBucket(state.cabinet.width_in);
-    if (!cabBkt) return TOP_MODELS;
-    return TOP_MODELS.map(function(m) {
-      var match = m.skus.filter(function(s) {
-        var w = parseFloat(s.width_in);
-        return w >= cabBkt.min && w <= cabBkt.max;
-      });
-      return match.length ? { model: m.model, skus: match } : null;
-    }).filter(Boolean);
+    var allSkus = [];
+    TOP_MODELS.forEach(function(m) { allSkus = allSkus.concat(m.skus); });
+
+    if (state.cabinet && state.cabinet.width_in) {
+      var cabBkt = getBucket(state.cabinet.width_in);
+      if (cabBkt) {
+        allSkus = allSkus.filter(function(s) {
+          var w = parseFloat(s.width_in);
+          return w >= cabBkt.min && w <= cabBkt.max;
+        });
+      }
+    }
+
+    // Each SKU becomes its own model entry — no color grouping for tops
+    return allSkus.map(function(s) { return { model: null, skus: [s] }; });
   }
 
   /* SKUs for current model, optionally size-filtered (except top — already width-locked).
