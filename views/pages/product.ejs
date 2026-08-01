@@ -191,7 +191,9 @@
     <%
       var _inchKeys = new Set(['size_in','width_in','depth_in','height_in',
                                'sink_depth_in','sink_width_in','sink_basin_depth_in',
-                               'countertop_thickness','faucet_spread_in']);
+                               'faucet_spread_in']);
+      // countertop_thickness is stored in CM (not inches) — display as e.g. "3 CM"
+      var _cmKeys   = new Set(['countertop_thickness']);
       var _hiddenKeys = new Set(['substitute_sku']);
       var _lblOver = {
         'wireless_charging_fc_certified': 'Wireless Charging FC Certified',
@@ -220,9 +222,10 @@
           || a.attr_key.replace(/_in$/, '').replace(/_/g,' ')
                        .replace(/\b\w/g, function(c){ return c.toUpperCase(); });
         var inch = _inchKeys.has(a.attr_key);
+        var cm   = _cmKeys.has(a.attr_key);
         var val  = '';
-        if (a.value_text)             val = inch ? a.value_text + '"' : a.value_text;
-        else if (a.value_num != null) val = inch ? _fmtN(a.value_num) + '"' : String(a.value_num);
+        if (a.value_text)             val = inch ? a.value_text + '"' : (cm ? a.value_text + ' CM' : a.value_text);
+        else if (a.value_num != null) val = inch ? _fmtN(a.value_num) + '"' : (cm ? String(a.value_num) + ' CM' : String(a.value_num));
         if (val) _specRows.push({ label:lbl, val:val, key:a.attr_key });
       });
       if (product.width_in   && !_seenK.has('width_in'))   _specRows.push({ label:'Width',  val:_fmtN(product.width_in)+'"',  key:'width_in'   });

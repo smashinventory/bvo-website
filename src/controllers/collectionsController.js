@@ -504,7 +504,10 @@ exports.show = async (req, res, next) => {
       });
     }
 
-    const isVanityCategory = category.id === 1;
+    const isVanityCategory  = category.id === 1;
+    // Tops (cat 7) also support size/width chips — same SIZE_BUCKETS mechanism
+    // as vanities since width_in is stored on all JM products including tops.
+    const isSizableCategory = isVanityCategory || category.id === 7;
 
     // ── Parse standard query params ──────────────────────────────
     const page         = Math.max(1, parseInt(req.query.page  || '1', 10));
@@ -713,7 +716,7 @@ exports.show = async (req, res, next) => {
         model,
       }),
       Product.getPriceRange(category.id),
-      isVanityCategory
+      isSizableCategory
         ? Product.getAvailableWidths(category.id, { brands, productTypes, colorFilters, hwColorFilters, minPrice, maxPrice, model })
         : Promise.resolve([]),
     ]);
