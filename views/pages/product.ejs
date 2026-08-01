@@ -485,6 +485,46 @@
 </section>
 <% } %>
 
+<!-- Complete the Look — same-collection JM mirrors (vanity pages only) -->
+<% if (suggestedMirrors && suggestedMirrors.length > 0) { %>
+<section class="related-section" aria-labelledby="ctl-heading">
+  <div class="section-header">
+    <p class="section-eyebrow"><%= product.model %> Collection</p>
+    <h2 class="section-title" id="ctl-heading">Complete the Look</h2>
+  </div>
+  <div class="product-grid">
+    <% suggestedMirrors.forEach(function(m) { %>
+    <article class="product-card">
+      <a href="/products/<%= m.slug %>" class="product-img-link">
+        <div class="product-img">
+          <% if (m.primary_image) { %>
+            <img src="<%= m.primary_image %>" alt="<%= m.name %>" loading="lazy">
+          <% } else { %>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" aria-hidden="true">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <polyline points="21 15 16 10 5 21"/>
+            </svg>
+          <% } %>
+        </div>
+      </a>
+      <div class="product-body">
+        <p class="product-brand"><%= product.brand %></p>
+        <h3 class="product-title"><a href="/products/<%= m.slug %>"><%= m.name %></a></h3>
+        <div class="product-price-row">
+          <span class="product-price">$<%= parseFloat(m.price).toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
+          <% if (m.compare_price && m.compare_price > m.price) { %>
+          <span class="product-was">$<%= parseFloat(m.compare_price).toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
+          <% } %>
+        </div>
+        <a href="/products/<%= m.slug %>" class="btn btn-sage">View Mirror</a>
+      </div>
+    </article>
+    <% }) %>
+  </div>
+</section>
+<% } %>
+
 <!-- Related products -->
 <% if (related.length > 0) { %>
 <section class="related-section" aria-labelledby="related-heading">

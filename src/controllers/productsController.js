@@ -25,8 +25,14 @@ exports.show = async (req, res, next) => {
       }
     }
 
-    // Related products + documents + videos (parallel)
-    const [related, docRows, videoRows] = await Promise.all([
+    // Related products + documents + videos + suggested mirrors (parallel)
+    //
+    // suggestedMirrors: shown on vanity product pages (category_id=1) when the
+    // product has a model name. Queries same-brand, same-model mirrors so shoppers
+    // can see the mirror designed to match their vanity collection.
+    // Returns up to 4 mirrors ordered by price ASC (entry price first).
+    const isSuggestMirrors = !!(product.model && product.category_id === 1);
+    const [related, docRows, videoRows, suggestedMirrors] = await Promise.all([
       product.category_id
         ? Product.findRelated(product.category_id, product.id, 4)
         : Promise.resolve([]),
@@ -38,6 +44,25 @@ exports.show = async (req, res, next) => {
         'SELECT url, title FROM product_videos WHERE product_id = ? ORDER BY sort_order ASC, id ASC',
         [product.id]
       ).then(([rows]) => rows).catch(() => []),
+      isSuggestMirrors
+        ? bvoPool.query(`
+            SELECT p.id, p.slug, p.name, p.price, p.compare_price,
+              COALESCE(
+                p.primary_image_url,
+                (SELECT pi.url FROM product_images pi
+                 WHERE pi.product_id = p.id
+                 ORDER BY pi.sort_order ASC, pi.id ASC LIMIT 1)
+              ) AS primary_image
+            FROM products p
+            INNER JOIN categories c ON c.id = p.category_id
+            WHERE p.brand     = 'James Martin Vanities'
+              AND p.model     = ?
+              AND c.slug      = 'bathroom-mirrors'
+              AND p.is_active = 1
+            ORDER BY p.price ASC
+            LIMIT 4
+          `, [product.model]).then(([rows]) => rows).catch(() => [])
+        : Promise.resolve([]),
     ]);
 
     // Savings — only compute when compare_price is genuinely higher than price
@@ -63,6 +88,7 @@ exports.show = async (req, res, next) => {
       product,
       category,
       related,
+      suggestedMirrors,
       productDocs:   docRows,
       productVideos: videoRows,
       isFavorited,

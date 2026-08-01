@@ -328,9 +328,21 @@
   function getModels(step) {
     if (step === 'cabinet') return CABINET_MODELS;
     if (step === 'top')     return activeTops();
-    if (step === 'mirror')  return MIRROR_MODELS;
+    if (step === 'mirror')  return activeMirrors();
     if (step === 'faucet')  return FAUCET_MODELS;
     return [];
+  }
+
+  /* Mirrors sorted with same-model mirror first once a cabinet is selected.
+     Full list remains navigable — this is a suggestion, not a filter.
+     When no cabinet is selected (or cabinet has no model), returns MIRROR_MODELS
+     in original order. Re-sort fires whenever state.cabinet changes. */
+  function activeMirrors() {
+    if (!state.cabinet || !state.cabinet.model) return MIRROR_MODELS;
+    var cabModel = state.cabinet.model;
+    var match    = MIRROR_MODELS.filter(function(m) { return m.model === cabModel; });
+    var rest     = MIRROR_MODELS.filter(function(m) { return m.model !== cabModel; });
+    return match.concat(rest);
   }
 
   /* Tops filtered to cabinet's size bucket once a cabinet is selected.
@@ -570,10 +582,20 @@
 
     if (state[step] && String(state[step].id) === String(displaySku.id)) {
       state[step] = null;
-      if (step === 'cabinet') lockTopStep();
+      if (step === 'cabinet') {
+        lockTopStep();
+        /* Cabinet deselected — reset mirror to default order */
+        gIdx.mirror = 0; gColor.mirror = null;
+        renderViewer('mirror');
+      }
     } else {
       state[step] = displaySku;
-      if (step === 'cabinet') unlockTopStep();
+      if (step === 'cabinet') {
+        unlockTopStep();
+        /* Cabinet selected — float same-model mirror to front */
+        gIdx.mirror = 0; gColor.mirror = null;
+        renderViewer('mirror');
+      }
     }
 
     updateBadge(step);

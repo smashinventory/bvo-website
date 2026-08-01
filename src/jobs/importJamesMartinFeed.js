@@ -400,7 +400,11 @@ const PRODUCT_CATEGORY_MAP = {
   'side cabinet':      6,  // older: storage component
   'storage cabinet':   6,  // older: storage component
   'backsplash':        7,  // older: stone backsplash — optional upgrade for stone tops
-  'countertop unit':   7,  // older: composite top for wall-hung vanities
+  // ⚠️ COUNTERTOP UNIT NOTE (July 2026):
+  // A JM "Countertop Unit" is a small floor/wall-hung storage unit with an
+  // integrated countertop — it is NOT a standalone vanity top. Routes to
+  // Storage (6), not Tops (7). Do not move back to 7.
+  'countertop unit':   6,  // JM cabinet+top storage unit → Storage (NOT a standalone top)
   // ── Tops (7) — standalone JM Product Category for countertops ─────
   'tops':              7,  // JM 'Tops' category → bathroom-vanity-tops
 };
@@ -425,8 +429,9 @@ const PRODUCT_TYPE_MAP = {
   'shelf':             4,
   // ── Vanity Tops (7) ───────────────────────────────────────────────
   'top':               7,
-  'countertop unit':   7,
   'backsplash':        7,
+  // ⚠️ COUNTERTOP UNIT → Storage (6), NOT Tops (7). See note in PRODUCT_CATEGORY_MAP above.
+  'countertop unit':   6,
   // ── Storage (6) ───────────────────────────────────────────────────
   'side cabinet':      6,
   'storage cabinet':   6,
@@ -609,7 +614,8 @@ async function importFromWorkbook(wb, opts = {}) {
           'storage cabinet': 'Storage Cabinet',
           'drawer unit':     'Drawer Unit',
           'backsplash':      'Backsplash',
-          'countertop unit': 'Vanity Top',
+          // Countertop Unit → Storage category; product_type reflects what it IS
+          'countertop unit': 'Countertop Unit',
           'top':             'Vanity Top',
         };
 
@@ -667,8 +673,9 @@ async function importFromWorkbook(wb, opts = {}) {
             productType = 'Backsplash';
           } else {
             // Stone detection: check product name AND the Vanity Countertop Material field.
+            // Silestone is Cosentino's brand of engineered quartz — treat as Stone Top.
             const matField = clean(row['Vanity Countertop Material ']) || '';
-            const isStone  = /quartz|marble/i.test(nameLower) || /quartz|marble/i.test(matField);
+            const isStone  = /quartz|marble|silestone/i.test(nameLower) || /quartz|marble|silestone/i.test(matField);
             productType    = isStone ? 'Stone Top' : 'Composite Top';
           }
         } else {

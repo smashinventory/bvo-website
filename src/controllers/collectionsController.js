@@ -511,6 +511,18 @@ exports.show = async (req, res, next) => {
     const sort         = req.query.sort || 'featured';
     const brands       = [].concat(req.query.brand        || []).filter(Boolean);
     const productTypes = [].concat(req.query.type         || []).filter(Boolean);
+
+    // Auto-inject product_type defaults for select slugs on the regular (non-model-group)
+    // collection path — mirrors SLUG_DEFAULT_TYPES on the model-group path (line ~126).
+    // bathroom-vanity-tops: Stone Tops only. Composite Tops are excluded from a la carte
+    // browsing — they surface only as part of vanity+top combo product listings.
+    const SLUG_DEFAULT_PRODUCT_TYPES = {
+      'bathroom-vanity-tops': ['Stone Top'],
+    };
+    if (SLUG_DEFAULT_PRODUCT_TYPES[slug] && productTypes.length === 0) {
+      productTypes.push(...SLUG_DEFAULT_PRODUCT_TYPES[slug]);
+    }
+
     const model        = req.query.model || null;
     const minPrice     = req.query.min_price ? parseFloat(req.query.min_price) : undefined;
     const maxPrice     = req.query.max_price ? parseFloat(req.query.max_price) : undefined;
