@@ -207,7 +207,7 @@ function teArrayLinks(prefix,listId,tplId,items){
 }
 %>
 
-<link rel="stylesheet" href="/css/admin-theme-editor.css">
+<link rel="stylesheet" href="/css/admin-theme-editor.css?v=2">
 
 <!-- ════════════════════════════════════════════════════════
      THEME EDITOR SHELL
@@ -496,7 +496,7 @@ function teArrayLinks(prefix,listId,tplId,items){
               <% (nav.links||[]).forEach(function(lnk,i){ %>
               <div class="te4-array-row">
                 <span class="te4-array-drag">⠿</span>
-                <div class="te4-array-fields te4-row3">
+                <div class="te4-array-fields te4-nav-link-row">
                   <%- teField('text','nav.links['+i+'].label','Label',lnk.label,true) %>
                   <%- teField('url', 'nav.links['+i+'].url',  'URL',  lnk.url,  true) %>
                   <%- teToggle('nav.links['+i+'].highlight','Highlight',lnk.highlight,true) %>
@@ -509,7 +509,7 @@ function teArrayLinks(prefix,listId,tplId,items){
             <template id="navLinkTpl">
               <div class="te4-array-row">
                 <span class="te4-array-drag">⠿</span>
-                <div class="te4-array-fields te4-row3">
+                <div class="te4-array-fields te4-nav-link-row">
                   <%- teField('text','nav.links[__i__].label','Label','',true) %>
                   <%- teField('url', 'nav.links[__i__].url',  'URL',  '',true) %>
                   <%- teToggle('nav.links[__i__].highlight','Highlight',false,true) %>

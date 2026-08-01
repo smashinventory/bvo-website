@@ -519,6 +519,7 @@ details[open] > .te4-accord-head { color: var(--color-navy,#182840); }
 
 .te4-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .te4-row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.te4-nav-link-row { display: grid; grid-template-columns: 1fr 2fr auto auto; gap: 8px; align-items: end; }
 
 .te4-section-label {
   font-size: .62rem;
