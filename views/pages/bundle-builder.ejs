@@ -788,23 +788,26 @@
     btn.textContent = 'Adding…';
     var disc  = discount();
     var items = ['cabinet','top','mirror','faucet'].filter(function(k) { return !!state[k]; }).map(function(k) { return state[k]; });
-    Promise.all(items.map(function(item) {
-      var dp = (parseFloat(item.price) * (1 - disc / 100)).toFixed(2);
-      // URLSearchParams sends application/x-www-form-urlencoded which Express
-      // urlencoded() can parse. FormData sends multipart/form-data which
-      // Express cannot parse without multer — req.body would be empty, storing
-      // null values in the session and crashing cart.ejs on .toLocaleString().
-      var fd = new URLSearchParams();
-      fd.append('product_id',          item.id);
-      fd.append('slug',                item.slug);
-      fd.append('name',                item.name);
-      fd.append('price',               dp);
-      fd.append('image',               item.primary_image || '');
-      fd.append('original_price',      item.price);
-      fd.append('bundle_discount_pct', disc);
-      fd.append('qty', '1');
-      return fetch('/cart/add', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded' }, body: fd });
-    })).then(function() { window.location.href = '/cart'; })
+    // Sequential (not parallel) — Promise.all fires all fetches simultaneously,
+    // causing a session race condition where each request reads the same empty
+    // cart, adds one item, and saves, with the last write winning. Sequential
+    // execution ensures each add completes (session saved) before the next read.
+    items.reduce(function(chain, item) {
+      return chain.then(function() {
+        var dp = (parseFloat(item.price) * (1 - disc / 100)).toFixed(2);
+        var fd = new URLSearchParams();
+        fd.append('product_id',          item.id);
+        fd.append('slug',                item.slug);
+        fd.append('name',                item.name);
+        fd.append('price',               dp);
+        fd.append('image',               item.primary_image || '');
+        fd.append('original_price',      item.price);
+        fd.append('bundle_discount_pct', disc);
+        fd.append('qty', '1');
+        return fetch('/cart/add', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded' }, body: fd });
+      });
+    }, Promise.resolve())
+      .then(function() { window.location.href = '/cart'; })
       .catch(function() {
         btn.disabled    = false;
         btn.textContent = 'Add Bundle to Cart';
