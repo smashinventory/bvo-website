@@ -622,8 +622,11 @@
 }
 .model-card-was {
   font-size: .82rem;
-  color: #9CA3AF;
+  font-weight: 400;
+  color: var(--muted, #7A7264);
   text-decoration: line-through;
+  text-decoration-color: var(--color-amber, #B8862A);
+  text-decoration-thickness: 2px;
 }
 .model-card-name {
   font-family: var(--font-serif, Georgia, serif);

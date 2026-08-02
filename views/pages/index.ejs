@@ -417,6 +417,9 @@ _DEFAULT_ORDER.forEach(function(k) {
             <% if (m.compare_price_from && !(m.price_to && m.price_to > m.price_from)) { %>
             <span class="model-card-was">$<%= m.compare_price_from.toLocaleString('en-US') %></span>
             <% } %>
+            <% if (_saveAmt > 0 && !(m.price_to && m.price_to > m.price_from)) { %>
+            <span class="card-save-badge">Save $<%= _saveAmt.toLocaleString('en-US') %></span>
+            <% } %>
           </div>
 
           <h3 class="model-card-name">
