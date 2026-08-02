@@ -946,15 +946,13 @@
               <% if (_onSale) { %>
                 <span class="card-price__sale">$<%= parseFloat(product.price).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}) %></span>
                 <span class="card-price__was">$<%= parseFloat(product.compare_price).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}) %></span>
+                <span class="card-save-badge">Save $<%= Math.round(parseFloat(product.compare_price) - parseFloat(product.price)).toLocaleString('en-US') %></span>
               <% } else { %>
                 <span class="card-price__regular">$<%= parseFloat(product.price).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}) %></span>
               <% } %>
             </div>
             <span class="card-qty<%= _pQtyRaw === 0 ? ' card-qty--zero' : '' %>">QTY: <%= _pQtyDisplay %></span>
           </div>
-          <% if (_onSale) { %>
-          <span class="card-save-badge">Save $<%= Math.round(parseFloat(product.compare_price) - parseFloat(product.price)).toLocaleString('en-US') %></span>
-          <% } %>
           <% } %>
 
           <!-- Finishes -->

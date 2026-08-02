@@ -1253,9 +1253,9 @@
 .card-price          { display: flex; align-items: baseline; gap: 8px; }
 .card-price__sale    { font-size: 1rem; font-weight: 700; color: var(--color-gold); }
 .card-price__regular { font-size: 1rem; font-weight: 700; color: var(--color-gold); }
-.card-price__was     { font-size: .8rem; font-weight: 500; color: var(--color-navy);
+.card-price__was     { font-size: .8rem; font-weight: 400; color: var(--muted, #7A7264);
                        text-decoration: line-through;
-                       text-decoration-color: var(--color-amber);
+                       text-decoration-color: var(--color-amber, #B8862A);
                        text-decoration-thickness: 2px; }
 
 /* ── QTY badge + no-stock card treatment (Rule 11) ──────────────── */
@@ -3236,8 +3236,13 @@
 .savings-label { opacity: .9; }
 
 /* ── Site-wide "Save $X" green badge (cards + homepage) ─────────── */
+/* Inline badge — sits inside a flex row alongside sale price + MSRP.
+   align-self: flex-start prevents stretch when used in column-flex containers. */
 .card-save-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;   /* never stretch to parent width */
+  width: fit-content;
   background: var(--color-sage, #5A7A5A);
   color: #fff;
   font-size: .7rem;
@@ -3246,13 +3251,8 @@
   padding: .2rem .55rem;
   border-radius: .25rem;
   white-space: nowrap;
+  flex-shrink: 0;
 }
-/* Position it below the price row on featured product cards */
-.product-price-row .card-save-badge {
-  margin-left: .1rem;
-}
-/* Position it below card-price-qty-row on SKU cards */
-.card-save-badge { margin-top: .25rem; display: inline-block; }
 
 @media (max-width: 600px) {
   .bb-mcard-price { font-size: 1rem; }
