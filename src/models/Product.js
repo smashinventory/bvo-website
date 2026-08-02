@@ -113,6 +113,16 @@ const Product = {
           continue;
         }
 
+        // countertop_material: material lives in the product NAME, not in EAV.
+        // e.g. "36\" 3 CM Carrara White Marble w/ Sink" — filter with LIKE.
+        // OR across all selected materials so multi-select works correctly.
+        if (key === 'countertop_material') {
+          const orParts = vals.map(() => 'p.name LIKE ?');
+          where += ` AND (${orParts.join(' OR ')})`;
+          params.push(...vals.map(v => `%${v}%`));
+          continue;
+        }
+
         // Default: text equality (checkbox, boolean, color_swatch)
         where += `
           AND EXISTS (

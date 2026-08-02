@@ -2288,9 +2288,12 @@
 }
 
 /* ── Top material swatches — bundle builder Step 2 ──────────────── */
-/* Override circle to square so stone texture photos fill the swatch. */
+/* Override circle → square, and double the size (26px → 52px)
+   so stone textures are actually discernible.                   */
 .bb-swatch--topmat {
-  border-radius: 4px;   /* square, not 50% circle */
+  border-radius: 4px;
+  width: 52px;
+  height: 52px;
   position: relative;
 }
 /* Active material name — shown below swatch strip, centred */
