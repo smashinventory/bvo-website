@@ -3,6 +3,16 @@
 /* ── Cart helpers ───────────────────────────────────────────────── */
 function getCart(req) {
   if (!req.session.cart) req.session.cart = { items: [], count: 0, subtotal: 0 };
+  // Self-heal: drop poisoned entries (null/empty product_id from old FormData bug
+  // where Express urlencoded couldn't parse multipart bodies → req.body was {}).
+  const items = req.session.cart.items || [];
+  const clean = items.filter(
+    i => i.product_id != null && i.product_id !== '' && String(i.product_id) !== 'undefined'
+  );
+  if (clean.length !== items.length) {
+    req.session.cart.items = clean;
+    recalc(req.session.cart);
+  }
   return req.session.cart;
 }
 
