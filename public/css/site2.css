@@ -3130,3 +3130,132 @@
   .pdp-trust-bar { gap: .85rem; }
   .pay-logo { width: 38px; height: 24px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   PRICING CONSISTENCY — Bundle builder + Cart + Site-wide save badge
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Bundle builder: card price block ───────────────────────────── */
+.bb-mcard-price-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .15rem;
+  margin-top: .25rem;
+}
+.bb-mcard-compare {
+  font-size: .8rem;
+  color: var(--muted, #7A7264);
+  text-decoration: line-through;
+  text-decoration-color: var(--amber, #B8862A);
+  text-decoration-thickness: 1.5px;
+  font-weight: 400;
+}
+.bb-mcard-price {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--color-gold, #B8862A);
+}
+.bb-mcard-save-badge {
+  display: inline-block;
+  background: var(--color-sage, #5A7A5A);
+  color: #fff;
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+  padding: .18rem .5rem;
+  border-radius: .25rem;
+  margin-top: .1rem;
+}
+
+/* ── Bundle builder: savings breakdown panel ─────────────────────── */
+.bb-savings-breakdown {
+  width: 100%;
+  margin: .5rem 0 .75rem;
+  border-top: 1px solid rgba(0,0,0,.08);
+  padding-top: .5rem;
+  font-size: .82rem;
+}
+.bb-sav-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: .2rem 0;
+  color: var(--color-navy, #1E2A3B);
+}
+.bb-sav-row--total {
+  border-top: 1px solid rgba(0,0,0,.1);
+  margin-top: .25rem;
+  padding-top: .35rem;
+  font-weight: 700;
+}
+.bb-sav-lbl { opacity: .8; }
+.bb-sav-amt {
+  color: var(--color-sage, #5A7A5A);
+  font-weight: 600;
+}
+.bb-sav-amt--total {
+  color: var(--color-sage, #5A7A5A);
+  font-size: .9rem;
+}
+
+/* ── Cart: line item MSRP strikethrough ─────────────────────────── */
+.cart-item-msrp {
+  font-size: .8rem;
+  color: var(--muted, #7A7264);
+  text-decoration: line-through;
+  text-decoration-color: var(--amber, #B8862A);
+  text-decoration-thickness: 1.5px;
+  margin-right: .35rem;
+}
+.cart-item-final {
+  font-weight: 600;
+  color: var(--color-gold, #B8862A);
+}
+
+/* ── Cart: dual savings callouts ─────────────────────────────────── */
+.summary-savings {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: .5rem .75rem;
+  border-radius: .35rem;
+  font-size: .85rem;
+  margin-bottom: .4rem;
+}
+.summary-savings--outlet {
+  background: #EFF7EF;
+  border: 1px solid #C3DEC3;
+  color: #2E5B2E;
+}
+.summary-savings--bundle {
+  background: #FFF8EE;
+  border: 1px solid #E8C97A;
+  color: #7A5A00;
+}
+.savings-label { opacity: .9; }
+
+/* ── Site-wide "Save $X" green badge (cards + homepage) ─────────── */
+.card-save-badge {
+  display: inline-block;
+  background: var(--color-sage, #5A7A5A);
+  color: #fff;
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+  padding: .2rem .55rem;
+  border-radius: .25rem;
+  white-space: nowrap;
+}
+/* Position it below the price row on featured product cards */
+.product-price-row .card-save-badge {
+  margin-left: .1rem;
+}
+/* Position it below card-price-qty-row on SKU cards */
+.card-save-badge { margin-top: .25rem; display: inline-block; }
+
+@media (max-width: 600px) {
+  .bb-mcard-price { font-size: 1rem; }
+  .bb-savings-breakdown { font-size: .78rem; }
+  .summary-savings { font-size: .8rem; }
+}

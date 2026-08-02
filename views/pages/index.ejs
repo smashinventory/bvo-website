@@ -344,6 +344,7 @@ _DEFAULT_ORDER.forEach(function(k) {
           <span class="product-price">$<%= product.price.toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
           <% if (product.compare_price && product.compare_price > product.price) { %>
           <span class="product-was">$<%= product.compare_price.toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
+          <span class="card-save-badge">Save $<%= Math.round(product.compare_price - product.price).toLocaleString('en-US') %></span>
           <% } %>
           <span class="card-qty<%= _fpQtyRaw === 0 ? ' card-qty--zero' : '' %>">QTY: <%= _fpQtyDisplay %></span>
         </div>
@@ -377,6 +378,8 @@ _DEFAULT_ORDER.forEach(function(k) {
       <% _carouselModels.forEach(function(m) { %>
       <%
         var _discPct         = m.compare_price_from ? Math.round((1 - m.price_from / m.compare_price_from) * 100) : 0;
+        var _saveAmt         = (m.compare_price_from && m.price_from && m.compare_price_from > m.price_from)
+                                 ? Math.round(m.compare_price_from - m.price_from) : 0;
         var _visibleSwatches = m.finishes.slice(0, 4);
         var _extraSwatches   = m.finishes.length > 4 ? m.finishes.length - 4 : 0;
         var _mId             = m.model ? m.model.toLowerCase().replace(/[^a-z0-9]+/g, '-') : 'model';
@@ -386,8 +389,8 @@ _DEFAULT_ORDER.forEach(function(k) {
       <article class="model-card" data-model="<%= m.model %>" data-sizes="<%= m.sizes.map(function(s){return s.key}).join(',') %>">
 
         <div class="model-card-img-wrap">
-          <% if (_discPct > 0) { %>
-          <span class="model-card-badge"><%= _discPct %>% OFF</span>
+          <% if (_saveAmt > 0) { %>
+          <span class="model-card-badge">Save $<%= _saveAmt.toLocaleString('en-US') %></span>
           <% } %>
           <a href="<%= _mHref %>" class="model-card-img-link" tabindex="-1" aria-hidden="true">
             <img src="<%= _mImg %>"

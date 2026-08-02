@@ -732,6 +732,8 @@
       <% models.forEach(function(m) { %>
       <%
         var _discPct         = m.compare_price_from ? Math.round((1 - m.price_from / m.compare_price_from) * 100) : 0;
+        var _saveAmt         = (m.compare_price_from && m.price_from && m.compare_price_from > m.price_from)
+                                 ? Math.round(m.compare_price_from - m.price_from) : 0;
         var _visibleSwatches = m.finishes.slice(0, 4);
         var _extraSwatches   = m.finishes.length > 4 ? m.finishes.length - 4 : 0;
         var _mId             = m.model ? m.model.toLowerCase().replace(/[^a-z0-9]+/g, '-') : 'model';
@@ -745,8 +747,8 @@
       <article class="model-card" data-model="<%= m.model %>" data-sizes="<%= m.sizes.join(',') %>">
 
         <div class="model-card-img-wrap">
-          <% if (_discPct > 0) { %>
-          <span class="model-card-badge"><%= _discPct %>% OFF</span>
+          <% if (_saveAmt > 0) { %>
+          <span class="model-card-badge">Save $<%= _saveAmt.toLocaleString('en-US') %></span>
           <% } %>
           <% if (m.video_url) { %>
           <span class="product-video-badge" data-video-url="<%= m.video_url %>" aria-label="Watch video">
@@ -950,6 +952,9 @@
             </div>
             <span class="card-qty<%= _pQtyRaw === 0 ? ' card-qty--zero' : '' %>">QTY: <%= _pQtyDisplay %></span>
           </div>
+          <% if (_onSale) { %>
+          <span class="card-save-badge">Save $<%= Math.round(parseFloat(product.compare_price) - parseFloat(product.price)).toLocaleString('en-US') %></span>
+          <% } %>
           <% } %>
 
           <!-- Finishes -->

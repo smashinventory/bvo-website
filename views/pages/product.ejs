@@ -135,7 +135,7 @@
       <span class="detail-price">$<%= product.price.toLocaleString('en-US', {minimumFractionDigits:2}) %></span>
       <% if (product.compare_price && product.compare_price > product.price) { %>
       <span class="detail-was">$<%= product.compare_price.toLocaleString('en-US', {minimumFractionDigits:2}) %></span>
-      <span class="detail-save">Save <%= product.savingsPct %>%</span>
+      <span class="detail-save">Save $<%= product.savings %></span>
       <% } %>
     </div>
     <p class="detail-shipping">

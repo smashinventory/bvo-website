@@ -77,7 +77,11 @@
           <p class="bb-mcard-collection" id="bb-col-cabinet"></p>
           <div class="bb-mcard-name-price">
             <span class="bb-mcard-name" id="bb-name-cabinet"></span>
-            <span class="bb-mcard-price" id="bb-price-cabinet"></span>
+            <div class="bb-mcard-price-block">
+              <s class="bb-mcard-compare" id="bb-compare-cabinet"></s>
+              <span class="bb-mcard-price" id="bb-price-cabinet"></span>
+              <span class="bb-mcard-save-badge" id="bb-save-cabinet"></span>
+            </div>
           </div>
           <!-- Size chips -->
           <div class="bb-picker-row">
@@ -162,7 +166,11 @@
           <p class="bb-mcard-collection" id="bb-col-mirror"></p>
           <div class="bb-mcard-name-price">
             <span class="bb-mcard-name" id="bb-name-mirror"></span>
-            <span class="bb-mcard-price" id="bb-price-mirror"></span>
+            <div class="bb-mcard-price-block">
+              <s class="bb-mcard-compare" id="bb-compare-mirror"></s>
+              <span class="bb-mcard-price" id="bb-price-mirror"></span>
+              <span class="bb-mcard-save-badge" id="bb-save-mirror"></span>
+            </div>
           </div>
           <!-- Size chips -->
           <div class="bb-picker-row">
@@ -224,7 +232,11 @@
           <p class="bb-mcard-collection" id="bb-col-faucet"></p>
           <div class="bb-mcard-name-price">
             <span class="bb-mcard-name" id="bb-name-faucet"></span>
-            <span class="bb-mcard-price" id="bb-price-faucet"></span>
+            <div class="bb-mcard-price-block">
+              <s class="bb-mcard-compare" id="bb-compare-faucet"></s>
+              <span class="bb-mcard-price" id="bb-price-faucet"></span>
+              <span class="bb-mcard-save-badge" id="bb-save-faucet"></span>
+            </div>
           </div>
           <!-- Size chips (faucet — optional, shown only if width_in present) -->
           <div class="bb-picker-row" id="bb-sizes-row-faucet">
@@ -261,7 +273,11 @@
         <span class="bb-original-total" id="bb-original-total"></span>
         <span class="bb-final-total" id="bb-final-total">$0.00</span>
       </div>
-      <p class="bb-savings-line" id="bb-savings-line"></p>
+      <div class="bb-savings-breakdown" id="bb-savings-breakdown" style="display:none">
+        <div class="bb-sav-row"><span class="bb-sav-lbl">Outlet savings</span><span class="bb-sav-amt" id="bb-outlet-sav"></span></div>
+        <div class="bb-sav-row"><span class="bb-sav-lbl">Bundle savings</span><span class="bb-sav-amt" id="bb-bundle-sav"></span></div>
+        <div class="bb-sav-row bb-sav-row--total"><span class="bb-sav-lbl">Total saved</span><span class="bb-sav-amt bb-sav-amt--total" id="bb-total-sav"></span></div>
+      </div>
       <button class="btn btn-navy bb-cart-btn" id="bb-add-cart" type="button" disabled>
         Add Bundle to Cart
       </button>
@@ -397,6 +413,30 @@
     return skus[0] || null;
   }
 
+  /* ── Price block renderer (compare, sale, save-badge) ────────── */
+  function renderPriceBlock(step, displaySku) {
+    var priceEl     = el('bb-price-'   + step);
+    var compareEl   = el('bb-compare-' + step);
+    var saveBadgeEl = el('bb-save-'    + step);
+    if (!displaySku || !parseFloat(displaySku.price)) {
+      if (priceEl)     priceEl.textContent    = '';
+      if (compareEl)   compareEl.textContent   = '';
+      if (saveBadgeEl) saveBadgeEl.textContent = '';
+      return;
+    }
+    var sp = parseFloat(displaySku.price);
+    var cp = parseFloat(displaySku.compare_price || 0);
+    if (priceEl) priceEl.textContent = fmt(sp);
+    if (compareEl) {
+      if (cp > sp) { compareEl.textContent = fmt(cp); compareEl.style.display = ''; }
+      else         { compareEl.textContent = '';       compareEl.style.display = 'none'; }
+    }
+    if (saveBadgeEl) {
+      if (cp > sp) { saveBadgeEl.textContent = 'Save ' + fmt(cp - sp); saveBadgeEl.style.display = ''; }
+      else         { saveBadgeEl.textContent = '';                      saveBadgeEl.style.display = 'none'; }
+    }
+  }
+
   /* ── Swatch rendering ─────────────────────────────────────────── */
   function swatchHtml(step, sku) {
     var chipImg  = sku.chip_image;
@@ -507,11 +547,10 @@
     var colEl = el('bb-col-' + step);
     if (colEl) colEl.textContent = model.model || '';
 
-    /* SKU name + price */
-    var nameEl  = el('bb-name-' + step);
-    var priceEl = el('bb-price-' + step);
-    if (nameEl)  nameEl.textContent  = (displaySku && displaySku.name)  || '';
-    if (priceEl) priceEl.textContent = (displaySku && displaySku.price) ? fmt(displaySku.price) : '';
+    /* SKU name + price block */
+    var nameEl = el('bb-name-' + step);
+    if (nameEl) nameEl.textContent = (displaySku && displaySku.name) || '';
+    renderPriceBlock(step, displaySku);
 
     /* Size chips (cabinet + mirror only — tops are width-locked).
        Uses SIZE_BUCKETS nominal labels (e.g. "36") — same method as
@@ -559,18 +598,17 @@
 
   /* Lightweight image/name/price update after swatch/size pick */
   function updateCard(step, displaySku) {
-    var imgEl   = el('bb-img-'   + step);
-    var nameEl  = el('bb-name-'  + step);
-    var priceEl = el('bb-price-' + step);
-    var finEl   = el('bb-finish-'+ step);
-    var vlink   = el('bb-viewlink-' + step);
-    var hrt     = el('bb-heart-' + step);
+    var imgEl  = el('bb-img-'      + step);
+    var nameEl = el('bb-name-'     + step);
+    var finEl  = el('bb-finish-'   + step);
+    var vlink  = el('bb-viewlink-' + step);
+    var hrt    = el('bb-heart-'    + step);
     if (!displaySku) return;
-    if (imgEl)   imgEl.src = displaySku.primary_image || '/images/placeholder-product.png';
-    if (nameEl)  nameEl.textContent  = displaySku.name  || '';
-    if (priceEl) priceEl.textContent = displaySku.price ? fmt(displaySku.price) : '';
-    if (finEl)   finEl.textContent   = displaySku.color || '';
-    if (vlink)   vlink.href = '/products/' + displaySku.slug;
+    if (imgEl)  imgEl.src = displaySku.primary_image || '/images/placeholder-product.png';
+    if (nameEl) nameEl.textContent = displaySku.name || '';
+    renderPriceBlock(step, displaySku);
+    if (finEl)  finEl.textContent = displaySku.color || '';
+    if (vlink)  vlink.href = '/products/' + displaySku.slug;
     if (hrt) { hrt.dataset.productId = displaySku.id; hrt.dataset.productSlug = displaySku.slug; }
     var selBtn = el('bb-select-' + step);
     if (selBtn) {
@@ -695,7 +733,8 @@
         + '</div>'
         + '<div class="bb-mcard-info">'
         + '<p class="bb-mcard-collection" id="bb-col-top"></p>'
-        + '<div class="bb-mcard-name-price"><span class="bb-mcard-name" id="bb-name-top"></span><span class="bb-mcard-price" id="bb-price-top"></span></div>'
+        + '<div class="bb-mcard-name-price"><span class="bb-mcard-name" id="bb-name-top"></span>'
+        + '<div class="bb-mcard-price-block"><s class="bb-mcard-compare" id="bb-compare-top"></s><span class="bb-mcard-price" id="bb-price-top"></span><span class="bb-mcard-save-badge" id="bb-save-top"></span></div></div>'
         + '<div class="bb-picker-row bb-picker-row--finish"><span class="bb-picker-lbl">Stone Material</span><div class="bb-swatches-wrap"><div class="bb-swatches" id="bb-swatches-top"></div></div></div>'
         + '<p class="bb-topmat-name" id="bb-finish-top"></p>'
         + '<a class="bb-view-link" id="bb-viewlink-top" href="" target="_blank">View product page ›</a>'
@@ -742,36 +781,65 @@
       t.classList.toggle('is-active', parseInt(t.dataset.items, 10) === count);
     });
 
-    /* Badge */
+    /* Compute totals */
+    var msrpTotal = 0;
+    var saleTotal = 0;
+    ['cabinet','top','mirror','faucet'].forEach(function(k) {
+      if (!state[k]) return;
+      var sp = parseFloat(state[k].price || 0);
+      var cp = parseFloat(state[k].compare_price || 0);
+      saleTotal += sp;
+      msrpTotal += (cp > sp) ? cp : sp;  // fallback to sale price when no MSRP
+    });
+    var bundleTotal    = saleTotal * (1 - disc / 100);
+    var outletSavings  = msrpTotal - saleTotal;
+    var bundleSavings  = saleTotal - bundleTotal;
+    var totalSavings   = msrpTotal - bundleTotal;
+
+    /* Badge — show dollar bundle savings */
     var badge = el('bb-discount-badge');
     if (badge) {
-      if (disc > 0) { badge.textContent = disc + '% Bundle Savings'; badge.classList.add('has-discount'); }
-      else          { badge.textContent = 'Add items to save';        badge.classList.remove('has-discount'); }
+      if (disc > 0 && bundleSavings > 0.005) {
+        badge.textContent = 'Bundle Savings: −' + fmt(bundleSavings);
+        badge.classList.add('has-discount');
+      } else {
+        badge.textContent = 'Add items to save';
+        badge.classList.remove('has-discount');
+      }
     }
 
-    /* Totals */
-    var orig  = 0;
-    ['cabinet','top','mirror','faucet'].forEach(function(k) { if (state[k]) orig += parseFloat(state[k].price || 0); });
-    var final   = orig * (1 - disc / 100);
-    var savings = orig - final;
-    var origEl  = el('bb-original-total');
-    var finEl   = el('bb-final-total');
-    var savEl   = el('bb-savings-line');
-    if (origEl) origEl.innerHTML    = (disc > 0 && orig > 0) ? '<s>' + fmt(orig) + '</s>' : '';
-    if (finEl)  finEl.textContent   = orig > 0 ? fmt(final) : '$0.00';
-    if (savEl)  savEl.textContent   = savings > 0 ? 'You save ' + fmt(savings) : '';
+    /* Price line: MSRP strikethrough → bundle total */
+    var origEl = el('bb-original-total');
+    var finEl  = el('bb-final-total');
+    if (origEl) origEl.innerHTML  = msrpTotal > 0 ? '<s>' + fmt(msrpTotal) + '</s>' : '';
+    if (finEl)  finEl.textContent = saleTotal > 0 ? fmt(bundleTotal) : '$0.00';
 
-    /* Rows */
+    /* Savings breakdown */
+    var breakdownEl = el('bb-savings-breakdown');
+    var outletSavEl = el('bb-outlet-sav');
+    var bundleSavEl = el('bb-bundle-sav');
+    var totalSavEl  = el('bb-total-sav');
+    if (breakdownEl) breakdownEl.style.display = saleTotal > 0 ? '' : 'none';
+    if (outletSavEl) outletSavEl.textContent = outletSavings > 0.005 ? '−' + fmt(outletSavings) : '—';
+    if (bundleSavEl) bundleSavEl.textContent = bundleSavings > 0.005 ? '−' + fmt(bundleSavings) : (disc === 0 && saleTotal > 0 ? 'Add Top to unlock' : '—');
+    if (totalSavEl)  totalSavEl.textContent  = totalSavings  > 0.005 ? '−' + fmt(totalSavings) : '';
+
+    /* Item rows — show MSRP strikethrough → bundle price */
     var wrap = el('bb-summary-items');
     if (wrap) {
       var labels = { cabinet: 'Cabinet', top: 'Top', mirror: 'Mirror', faucet: 'Faucet' };
       var html = ['cabinet','top','mirror','faucet'].map(function(k) {
         var item = state[k];
         if (!item) return '<div class="bb-sum-row bb-sum-row--empty"><span class="bb-sum-cat">' + labels[k] + '</span><span class="bb-sum-none">Not selected</span></div>';
-        var dp = parseFloat(item.price) * (1 - disc / 100);
+        var sp = parseFloat(item.price);
+        var cp = parseFloat(item.compare_price || 0);
+        var dp = sp * (1 - disc / 100);
+        /* Show MSRP strike-through when available; otherwise sale price strike-through if bundle discount applies */
+        var strikePrice = cp > sp ? cp : (disc > 0 ? sp : 0);
+        var priceHtml = (strikePrice > 0 ? '<s class="bb-sum-orig">' + fmt(strikePrice) + '</s> ' : '') + fmt(dp);
         return '<div class="bb-sum-row"><span class="bb-sum-cat">' + labels[k] + '</span>'
           + '<span class="bb-sum-name">' + esc(item.name) + '</span>'
-          + '<span class="bb-sum-price">' + (disc > 0 ? '<s class="bb-sum-orig">' + fmt(item.price) + '</s> ' : '') + fmt(dp) + '</span></div>';
+          + '<span class="bb-sum-price">' + priceHtml + '</span></div>';
       });
       wrap.innerHTML = html.join('');
     }
@@ -802,6 +870,7 @@
         fd.append('price',               dp);
         fd.append('image',               item.primary_image || '');
         fd.append('original_price',      item.price);
+        fd.append('compare_price',       item.compare_price || '');
         fd.append('bundle_discount_pct', disc);
         fd.append('qty', '1');
         return fetch('/cart/add', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded' }, body: fd });

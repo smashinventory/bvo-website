@@ -41,7 +41,7 @@ exports.add = (req, res) => {
   const cart  = getCart(req);
   const {
     product_id, slug, name, price, image, qty: rawQty,
-    original_price, bundle_discount_pct,
+    original_price, compare_price, bundle_discount_pct,
   } = req.body;
 
   // Reject add if product_id is missing — happens when FormData is sent instead
@@ -59,6 +59,7 @@ exports.add = (req, res) => {
   // (JSON.stringify(NaN) → null, and null.toLocaleString() throws in cart.ejs).
   const pricef         = parseFloat(price) || 0;
   const origPricef     = parseFloat(original_price) || pricef;
+  const comparePricef  = parseFloat(compare_price) || 0;  // MSRP — 0 means not set
   const bundleDiscPct  = parseFloat(bundle_discount_pct) || 0;
 
   const existing = cart.items.find(i => i.product_id === product_id);
@@ -67,12 +68,13 @@ exports.add = (req, res) => {
   } else {
     cart.items.push({
       product_id,
-      slug:               slug || '',
-      name:               name || '',
-      price:              pricef,
-      image:              image || null,
+      slug:                slug || '',
+      name:                name || '',
+      price:               pricef,
+      image:               image || null,
       qty,
-      original_price:     origPricef,
+      original_price:      origPricef,
+      compare_price:       comparePricef,   // MSRP (0 = not set)
       bundle_discount_pct: bundleDiscPct,
     });
   }
