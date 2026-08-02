@@ -790,7 +790,11 @@
     var items = ['cabinet','top','mirror','faucet'].filter(function(k) { return !!state[k]; }).map(function(k) { return state[k]; });
     Promise.all(items.map(function(item) {
       var dp = (parseFloat(item.price) * (1 - disc / 100)).toFixed(2);
-      var fd = new FormData();
+      // URLSearchParams sends application/x-www-form-urlencoded which Express
+      // urlencoded() can parse. FormData sends multipart/form-data which
+      // Express cannot parse without multer — req.body would be empty, storing
+      // null values in the session and crashing cart.ejs on .toLocaleString().
+      var fd = new URLSearchParams();
       fd.append('product_id',          item.id);
       fd.append('slug',                item.slug);
       fd.append('name',                item.name);
@@ -799,7 +803,7 @@
       fd.append('original_price',      item.price);
       fd.append('bundle_discount_pct', disc);
       fd.append('qty', '1');
-      return fetch('/cart/add', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: fd });
+      return fetch('/cart/add', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded' }, body: fd });
     })).then(function() { window.location.href = '/cart'; })
       .catch(function() {
         btn.disabled    = false;

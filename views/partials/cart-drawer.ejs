@@ -3,7 +3,8 @@ const _cd  = (settings && settings.cart_drawer) ? settings.cart_drawer : {};
 const _gl  = (settings && settings.global)      ? settings.global      : {};
 const _threshold = parseFloat(_cd.free_shipping_threshold || _gl.free_shipping_threshold || 0);
 const _cartItems = (typeof cart !== 'undefined' && cart) ? cart : { items: [], count: 0, total: 0 };
-const _total     = parseFloat(_cartItems.total || 0);
+// cart stores subtotal (not total); fall back to 0 to avoid NaN in footer
+const _total     = parseFloat(_cartItems.subtotal || _cartItems.total || 0);
 const _remaining = Math.max(0, _threshold - _total);
 const _pct       = _threshold > 0 ? Math.min(100, Math.round((_total / _threshold) * 100)) : 100;
 %>
@@ -70,13 +71,13 @@ const _pct       = _threshold > 0 ? Math.min(100, Math.round((_total / _threshol
         </div>
         <div class="cd-item-controls">
           <form action="/cart/update" method="POST" class="cd-qty-form">
-            <input type="hidden" name="productId" value="<%= item.productId %>">
-            <button type="button" class="cd-qty-btn" data-action="decrease" data-id="<%= item.productId %>">−</button>
+            <input type="hidden" name="product_id" value="<%= item.product_id %>">
+            <button type="button" class="cd-qty-btn" data-action="decrease" data-id="<%= item.product_id %>">−</button>
             <span class="cd-qty-val"><%= item.qty %></span>
-            <button type="button" class="cd-qty-btn" data-action="increase" data-id="<%= item.productId %>">+</button>
+            <button type="button" class="cd-qty-btn" data-action="increase" data-id="<%= item.product_id %>">+</button>
           </form>
           <form action="/cart/remove" method="POST" class="cd-remove-form">
-            <input type="hidden" name="productId" value="<%= item.productId %>">
+            <input type="hidden" name="product_id" value="<%= item.product_id %>">
             <button type="submit" class="cd-remove-btn" aria-label="Remove">
               <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
             </button>

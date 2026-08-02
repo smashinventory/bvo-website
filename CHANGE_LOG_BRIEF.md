@@ -3,6 +3,72 @@
 
 ---
 
+## Task #66–70 — Cart Page 500 Error Fix
+**Date:** 2026-08-01
+
+### Problem
+Visiting `/cart` after adding bundle builder items showed "Something went wrong / An unexpected error occurred." Cart count badge correctly showed N items, but the cart page crashed with a 500.
+
+### Root Cause — FormData vs urlencoded (primary bug)
+`bundle-builder.ejs` `addToCart()` used `new FormData()` to POST items to `/cart/add`. `FormData` sends `Content-Type: multipart/form-data`. Express's `express.urlencoded()` middleware **only** parses `application/x-www-form-urlencoded` — it silently ignores multipart bodies. As a result:
+
+- `req.body` was `{}` for every bundle add request
+- `product_id`, `name`, `price`, `slug`, `image` were all `undefined`
+- `parseFloat(undefined)` = `NaN`
+- `recalc()` computed `subtotal = parseFloat(NaN.toFixed(2))` = NaN
+- `JSON.stringify(NaN)` = `null` (JS spec: NaN serialises to null in JSON)
+- Session stored `{ items: [{ product_id: null, price: null, ... }], subtotal: null }`
+- On `/cart` GET, `cart.subtotal.toLocaleString(...)` threw `TypeError: Cannot read properties of null (reading 'toLocaleString')` → 500
+
+The AJAX response still returned `{ ok: true, count: 1 }` (count from `recalc`), so the cart badge showed "1", masking the underlying data corruption.
+
+### Why it wasn't caught locally
+- Local test (node -e with ejs.render) proved the template was fine with valid data
+- Full server test couldn't run in the sandbox (express-mysql-session not installed)
+- The bug only manifested end-to-end via AJAX add → redirect to /cart
+
+### How to detect recurrence
+- Cart badge shows items but `/cart` crashes → check for null prices in session
+- `console.error('[ERROR]', err.stack)` in the error handler will log the full stack to PM2 logs on Hostinger (check via Hostinger panel → Node.js → Logs)
+- Look for: `TypeError: Cannot read properties of null (reading 'toLocaleString')`
+
+### How to unwind
+If session data is poisoned (nulls in cart items), users need to clear their cart. There's no admin purge UI. Options:
+1. User clears browser cookies/session (easiest)
+2. Admin can run: `DELETE FROM sessions WHERE data LIKE '%"price":null%';` in phpMyAdmin
+3. The defensive guards added in this fix (`parseFloat(x)||0`) mean poisoned sessions now render correctly with $0.00 rather than crashing
+
+### Changes Made
+
+**`views/pages/bundle-builder.ejs`** (primary fix)
+- `addToCart()`: changed `new FormData()` → `new URLSearchParams()`
+- Added explicit `Content-Type: application/x-www-form-urlencoded` header to the fetch call
+- Added explanatory comment warning about the multipart/urlencoded distinction
+- `URLSearchParams` serialises identically to HTML form POST bodies, so all existing urlencoded middleware parses it correctly
+
+**`src/controllers/cartController.js`** (defensive hardening)
+- `recalc()`: changed bare `i.price` → `(parseFloat(i.price) || 0)` in the reduce so NaN can never propagate to `subtotal`
+- `add()`: added guard block at top — if `product_id` is missing (body parse failure), return 400 JSON for AJAX or redirect for form POSTs rather than storing garbage
+- `add()`: changed `parseFloat(price)` → `parseFloat(price) || 0` so pricef is always a valid number
+- `add()`: changed `slug, name` → `slug: slug || '', name: name || ''` so string fields are always strings
+
+**`views/pages/cart.ejs`** (defensive rendering)
+- `item.price.toLocaleString(...)` → `(parseFloat(item.price)||0).toLocaleString(...)` (line 38)
+- `item.qty * item.price` → `item.qty * (parseFloat(item.price)||0)` (line 59)
+- `cart.subtotal.toLocaleString(...)` → `(parseFloat(cart.subtotal)||0).toLocaleString(...)` (lines 71, 79, both uses)
+- These guards ensure old poisoned sessions render $0.00 rather than crashing
+
+**`views/partials/cart-drawer.ejs`** (2 separate bugs fixed)
+- `_total`: changed `parseFloat(_cartItems.total || 0)` → `parseFloat(_cartItems.subtotal || _cartItems.total || 0)` — cart uses `subtotal` not `total`; drawer was always showing $0.00 in footer
+- `item.productId` (camelCase) → `item.product_id` (snake_case) in 4 places: hidden input `name="product_id"`, hidden `value=`, and 2 `data-id=` attributes on qty buttons — cart items are stored with snake_case key so camelCase was always undefined
+
+### Future Notes
+- Never use `new FormData()` for AJAX POSTs to Express unless you add `multer` middleware to that route. Use `URLSearchParams` or `JSON.stringify` with `Content-Type: application/json` instead.
+- The cart drawer qty +/- buttons use `type="button"` with `data-action` attributes — they don't submit the form directly. There must be JS in site.js listening for those (or it needs to be added) for qty changes in the drawer to work.
+- `/checkout` route does not exist yet — "Proceed to Checkout" link currently hits the 404 handler.
+
+---
+
 ## Task #65 — Stone Material Swatches (Bundle Builder + Tops Collection Sidebar)
 **Date:** 2026-08-01
 
