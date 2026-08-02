@@ -2485,54 +2485,51 @@
   overflow: hidden;
 }
 
-/* 4-column grid row shared by items + totals */
-.bb-sum-row {
-  display: grid;
-  grid-template-columns: 72px 1fr 92px 110px;
-  align-items: center;
-  padding: 8px 20px;
+/* Specs-style table */
+.bb-sum-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
   font-size: .82rem;
-  gap: 0;
 }
+.bb-sum-table col.bsc-item    { width: 72px; }
+.bb-sum-table col.bsc-msrp    { width: 100px; }
+.bb-sum-table col.bsc-price   { width: 120px; }
+/* bsc-product takes the remaining space */
 
-/* Column header row */
-.bb-sum-row--head {
-  background: #f0ece5;
+/* Header row */
+.bb-sum-table thead tr { background: #f0ece5; border-bottom: 2px solid var(--color-amber, #B8862A); }
+.bb-sum-table th {
+  padding: 9px 12px;
   font-size: .68rem;
   font-weight: 700;
   letter-spacing: .06em;
   text-transform: uppercase;
   color: #555;
-  border-bottom: 1.5px solid #E0D6C8;
-  padding-top: 10px;
-  padding-bottom: 10px;
+  vertical-align: middle;
 }
 
-/* Alternating rows — item section */
-#bb-summary-items .bb-sum-row:nth-child(odd)  { background: #fff; }
-#bb-summary-items .bb-sum-row:nth-child(even) { background: #f7f7f5; }
-
-/* Alternating rows — totals section */
-.bb-sum-totals-wrap .bb-sum-row:nth-child(odd)  { background: #fff; }
-.bb-sum-totals-wrap .bb-sum-row:nth-child(even) { background: #f7f7f5; }
+/* Alternating rows */
+#bb-summary-items tr:nth-child(odd)      { background: #fff; }
+#bb-summary-items tr:nth-child(even)     { background: #f7f7f5; }
+#bb-savings-breakdown tr:nth-child(odd)  { background: #fff; }
+#bb-savings-breakdown tr:nth-child(even) { background: #f7f7f5; }
 
 /* Cell styles */
+.bb-sum-table td { padding: 8px 12px; vertical-align: middle; }
 .bb-sum-cat   { font-weight: 600; color: #555; }
-.bb-sum-name  { color: var(--navy, #182840); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 10px; }
+.bb-sum-name  { color: var(--navy, #182840); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bb-sum-msrp  { text-align: right; color: var(--muted, #7A7264); font-weight: 400; }
-.bb-sum-price { text-align: right; color: var(--navy, #182840); font-weight: 600; padding-right: 2px; }
+.bb-sum-price { text-align: right; color: var(--navy, #182840); font-weight: 600; }
+.bb-sum-table th.bb-sum-msrp,
+.bb-sum-table th.bb-sum-price { text-align: right; }
 .bb-sum-none  { color: var(--muted, #7A7264) !important; font-style: italic; font-weight: 400 !important; }
 
-/* Totals section divider */
-.bb-sum-totals-wrap { border-top: 1.5px solid #E0D6C8; }
+/* Totals section — top border separates from items */
+#bb-savings-breakdown tr:first-child td { border-top: 2px solid var(--color-amber, #B8862A); }
 .bb-sum-row--sub .bb-sum-name { color: var(--muted, #7A7264); }
-.bb-sum-row--total {
-  background: #fff !important;
-  border-top: 1.5px solid #E0D6C8;
-  padding-top: 10px;
-  padding-bottom: 10px;
-}
-.bb-sum-row--total .bb-sum-name  { font-weight: 700; color: var(--navy, #182840); font-size: .88rem; }
+.bb-sum-row--total td { border-top: 1px solid #e4e4e4; padding-top: 10px; padding-bottom: 10px; }
+.bb-sum-row--total .bb-sum-name { font-weight: 700; font-size: .88rem; color: var(--navy, #182840); }
 .bb-final-total { font-size: 1.15rem; font-weight: 700; color: var(--navy, #182840); }
 
 /* Savings colors */
@@ -2588,9 +2585,10 @@
   .bb-step { padding: 1rem 1rem 1.25rem; }
   .bb-step-hd { flex-wrap: wrap; row-gap: .5rem; }
   .bb-vnav { margin-left: 0; }
-  /* On mobile collapse MSRP column — show price in 3 cols */
-  .bb-sum-row { grid-template-columns: 60px 1fr 96px; padding: 7px 12px; }
+  /* On mobile collapse MSRP column */
+  .bb-sum-table col.bsc-msrp { width: 0; }
   .bb-sum-msrp { display: none; }
+  .bb-sum-table col.bsc-price { width: 90px; }
   .bb-sum-actions-bar { flex-direction: column; align-items: stretch; }
   .bb-sum-btn-group { align-items: stretch; }
   .bb-cart-btn { width: 100%; }
