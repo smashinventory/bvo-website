@@ -1054,4 +1054,106 @@ WHERE category_id = 7 AND product_type IN ('Stone Top', 'Composite Top');
 
 ---
 
+---
+
+## Tasks #71–75 — Product/Cart/Checkout Conversion Improvements
+**Date:** 2026-08-01
+
+### Overview
+Implemented Phase 1 of the cart page industry analysis recommendations: trust signals, payment logos, Google Reviews, bundle savings callout, a full checkout page, and Clover Hosted Checkout payment integration.
+
+### Files Changed
+
+**`src/services/themeSettings.js`**
+- Added `google_reviews_rating` (default `'4.9'`) and `google_reviews_count` (default `'150'`) to `DEFAULTS.global`
+- Admin can update these values in the Theme Editor under the global settings panel
+- User should look up actual values from Google Business Profile for "Bathroom Vanities Outlet" and update accordingly
+
+**`views/pages/product.ejs`**
+- Added three blocks after the `.detail-ctas` div (after wishlist button):
+  1. Google Reviews star rating row (conditional on `settings.global.google_reviews_rating > 0`)
+  2. Three-item trust bar: 30-Day Returns · Free Shipping · Secure Checkout
+  3. Payment logos row: Visa, Mastercard, Amex, PayPal, Apple Pay, Google Pay (inline SVGs)
+
+**`src/controllers/cartController.js`**
+- `add()` now captures `original_price` and `bundle_discount_pct` from request body
+- Stores both on the cart item so cart.ejs can compute "You save $X" callout
+- Backward-compatible: if not sent, defaults to `pricef` / `0`
+
+**`views/pages/cart.ejs`**
+- Added bundle savings callout ("🎉 Bundle savings: −$X") in order summary (conditional on items having `bundle_discount_pct > 0`)
+- Added three-icon trust row (SSL · Returns · Free Shipping) below Continue Shopping button
+- Added payment logos (same 6 brands as product page) in order summary
+- Added Google Reviews rating in order summary (conditional)
+
+**`src/controllers/checkoutController.js`** *(new file)*
+- `GET /checkout` — renders checkout.ejs, passes cart + optional error message
+- `POST /checkout` — validates email, calls Clover Hosted Checkout API, redirects to Clover's payment page
+- `GET /checkout/success` — clears cart from session, renders confirmation page
+- `GET /checkout/cancel` — renders cancellation page (cart preserved)
+
+**`src/routes/checkout.js`** *(new file)*
+- Registers GET `/`, POST `/`, GET `/success`, GET `/cancel` — all handled by checkoutController
+
+**`src/server.js`**
+- Added `app.use('/checkout', require('./routes/checkout'))` between `/cart` and `/account`
+
+**`views/pages/checkout.ejs`** *(new file)*
+- Two-column layout: left = contact form (email, name, phone) + order item review; right = sticky order summary + submit CTA
+- Submit button uses `form="checkout-form"` cross-reference pattern — submits the left-column form from the right column
+- Trust row and payment logos repeated in summary sidebar
+
+**`views/pages/checkout-success.ejs`** *(new file)*
+- Confirmation page shown after Clover redirects back on successful payment
+- Displays customer first name, email, order total from session
+- Clears cart and `pendingCheckout` from session on render
+
+**`views/pages/checkout-cancel.ejs`** *(new file)*
+- Shown when customer cancels or payment fails on Clover's page
+- Cart is NOT cleared — customer can retry
+
+**`public/css/site2.css`**
+- Appended all new CSS sections:
+  - `.pdp-google-rating` / `.cart-google-rating` — star rating row
+  - `.pdp-trust-bar` / `.ptb-item` — 3-item trust bar on product page
+  - `.pay-logo` — shared payment logo SVG sizing
+  - `.pdp-payment-logos` / `.cart-payment-logos` — logo container rows
+  - `.cart-trust-row` / `.ctr-item` — compact trust row in cart/checkout summary
+  - `.summary-savings` — green savings callout badge
+  - `.checkout-page`, `.checkout-layout`, `.checkout-card`, `.checkout-form`, `.checkout-field`, `.checkout-field-row`, `.co-item`, `.co-sum-*`, `.checkout-submit-btn` — full checkout page layout
+  - `.checkout-confirm-page`, `.confirm-icon`, `.confirm-heading`, `.confirm-actions` — success/cancel pages
+  - Responsive breakpoints at 900px and 600px
+
+### Clover Hosted Checkout Setup
+
+**Required `.env` variables** (add to `.env` on Hostinger before activating payment):
+```
+CLOVER_API_KEY=your_private_api_key_here
+CLOVER_ENV=production
+```
+
+**How to get the API key:**
+1. Log into your Clover Merchant Dashboard
+2. Go to: Account & Setup → Ecommerce API Tokens
+3. Copy the **Private API Token**
+4. Add as `CLOVER_API_KEY` in `.env`
+
+**Payment flow:**
+1. Customer fills email on `/checkout`
+2. POST → server calls `POST https://scl.clover.com/invoicingcheckout/v1/checkouts`
+3. Clover returns `{ href: "https://checkout.clover.com/v1/checkout/SESSION_ID" }`
+4. Server redirects customer to Clover's PCI-compliant hosted payment page
+5. Clover collects card + shipping → processes payment
+6. On success → Clover redirects to `https://bathroomvanitiesoutlet.com/checkout/success`
+7. On cancel/failure → `https://bathroomvanitiesoutlet.com/checkout/cancel`
+
+**CSP:** No changes needed — `res.redirect()` is a 302 header, not a fetch/iframe.
+
+**Docs:** https://docs.clover.com/dev/docs/hosted-checkout-api
+
+### To Undo
+Remove `app.use('/checkout', ...)` from server.js, delete the 5 new files, revert cart.ejs, cartController.js, product.ejs to their previous versions, remove the new CSS block from site2.css, and remove the `google_reviews_*` keys from themeSettings.js defaults.
+
+---
+
 *End of brief*

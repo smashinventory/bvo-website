@@ -1,0 +1,34 @@
+<div class="checkout-confirm-page">
+  <div class="confirm-icon">
+    <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+      <polyline points="22 4 12 14.01 9 11.01"/>
+    </svg>
+  </div>
+
+  <h1 class="confirm-heading">Order Confirmed!</h1>
+
+  <% if (typeof firstName !== 'undefined' && firstName) { %>
+  <p class="confirm-sub">Thank you, <strong><%= firstName %></strong>.</p>
+  <% } else { %>
+  <p class="confirm-sub">Thank you for your order.</p>
+  <% } %>
+
+  <% if (typeof email !== 'undefined' && email) { %>
+  <p class="confirm-email">A confirmation will be sent to <strong><%= email %></strong>.</p>
+  <% } %>
+
+  <% if (typeof subtotal !== 'undefined' && subtotal > 0) { %>
+  <p class="confirm-total">Order total: <strong>$<%= (parseFloat(subtotal)||0).toLocaleString('en-US',{minimumFractionDigits:2}) %></strong></p>
+  <% } %>
+
+  <div class="confirm-next">
+    <p>Your order is being processed. You'll receive an email receipt shortly.</p>
+    <p>Questions? <a href="mailto:<%= (settings && settings.global && settings.global.contact_email) ? settings.global.contact_email : 'info@bathroomvanitiesoutlet.com' %>">Contact us</a> — we're happy to help.</p>
+  </div>
+
+  <div class="confirm-actions">
+    <a href="/collections" class="btn btn-amber">Continue Shopping</a>
+    <a href="/" class="btn btn-outline">Back to Home</a>
+  </div>
+</div>

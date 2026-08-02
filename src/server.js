@@ -178,6 +178,7 @@ app.use('/',            require('./routes/index'));
 app.use('/products',    require('./routes/products'));
 app.use('/collections', require('./routes/collections'));
 app.use('/cart',        require('./routes/cart'));
+app.use('/checkout',    require('./routes/checkout'));
 app.use('/account',     require('./routes/account'));
 app.use('/admin',       require('./routes/admin'));
 app.use('/api',         require('./routes/api'));

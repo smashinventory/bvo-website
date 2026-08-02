@@ -38,6 +38,11 @@ const DEFAULTS = {
     contact_phone:          '',
     free_shipping_threshold: 0,
     free_shipping_label:    'Free Shipping on Every Order',
+    // Google Reviews — update these from your Google Business Profile for
+    // "Bathroom Vanities Outlet" once you look up the current rating + count.
+    // These appear on product pages and the cart page as social proof.
+    google_reviews_rating:  '4.9',   // e.g. '4.9'
+    google_reviews_count:   '150',   // e.g. '312'
   },
   promo_strip: {
     enabled: true,

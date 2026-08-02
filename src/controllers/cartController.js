@@ -39,7 +39,10 @@ exports.index = (req, res) => {
 /* ── POST /cart/add ─────────────────────────────────────────────── */
 exports.add = (req, res) => {
   const cart  = getCart(req);
-  const { product_id, slug, name, price, image, qty: rawQty } = req.body;
+  const {
+    product_id, slug, name, price, image, qty: rawQty,
+    original_price, bundle_discount_pct,
+  } = req.body;
 
   // Reject add if product_id is missing — happens when FormData is sent instead
   // of application/x-www-form-urlencoded (Express urlencoded can't parse multipart).
@@ -54,13 +57,24 @@ exports.add = (req, res) => {
   const qty    = Math.max(1, parseInt(rawQty || '1', 10));
   // Guard: parseFloat(undefined/null/NaN) → 0 so we never store NaN in the session
   // (JSON.stringify(NaN) → null, and null.toLocaleString() throws in cart.ejs).
-  const pricef = parseFloat(price) || 0;
+  const pricef         = parseFloat(price) || 0;
+  const origPricef     = parseFloat(original_price) || pricef;
+  const bundleDiscPct  = parseFloat(bundle_discount_pct) || 0;
 
   const existing = cart.items.find(i => i.product_id === product_id);
   if (existing) {
     existing.qty += qty;
   } else {
-    cart.items.push({ product_id, slug: slug || '', name: name || '', price: pricef, image: image || null, qty });
+    cart.items.push({
+      product_id,
+      slug:               slug || '',
+      name:               name || '',
+      price:              pricef,
+      image:              image || null,
+      qty,
+      original_price:     origPricef,
+      bundle_discount_pct: bundleDiscPct,
+    });
   }
 
   recalc(cart);

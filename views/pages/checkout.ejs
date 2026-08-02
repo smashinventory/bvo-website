@@ -1,0 +1,168 @@
+<div class="checkout-page">
+  <div class="checkout-header">
+    <h1>Checkout</h1>
+    <a href="/cart" class="checkout-back">← Back to cart</a>
+  </div>
+
+  <% if (typeof checkoutError !== 'undefined' && checkoutError) { %>
+  <div class="checkout-error-banner" role="alert">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+      <line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    <%= checkoutError %>
+  </div>
+  <% } %>
+
+  <div class="checkout-layout">
+
+    <!-- ── Left: Contact + order items ──────────────────────────── -->
+    <div class="checkout-form-section">
+
+      <!-- Contact info -->
+      <div class="checkout-card">
+        <h2 class="checkout-card-title">Contact Information</h2>
+        <p class="checkout-card-sub">Your name and email are sent to Clover for your payment receipt. All billing, shipping, and card details are securely collected on the next page.</p>
+
+        <form action="/checkout" method="POST" id="checkout-form" class="checkout-form">
+          <div class="checkout-field-row">
+            <div class="checkout-field">
+              <label for="co-first">First Name</label>
+              <input type="text" id="co-first" name="first_name" placeholder="First name" autocomplete="given-name">
+            </div>
+            <div class="checkout-field">
+              <label for="co-last">Last Name</label>
+              <input type="text" id="co-last" name="last_name" placeholder="Last name" autocomplete="family-name">
+            </div>
+          </div>
+          <div class="checkout-field">
+            <label for="co-email">Email Address <span class="req">*</span></label>
+            <input type="email" id="co-email" name="email" placeholder="you@example.com"
+                   autocomplete="email" required>
+            <span class="checkout-field-hint">Your order confirmation will be sent here.</span>
+          </div>
+          <div class="checkout-field">
+            <label for="co-phone">Phone (optional)</label>
+            <input type="tel" id="co-phone" name="phone" placeholder="(555) 000-0000"
+                   autocomplete="tel">
+          </div>
+
+          <!-- Hidden button — actual submit is the big amber button at bottom -->
+          <button type="submit" style="display:none" aria-hidden="true">submit</button>
+        </form>
+      </div>
+
+      <!-- Order items -->
+      <div class="checkout-card checkout-items-card">
+        <h2 class="checkout-card-title">Your Order</h2>
+        <% cart.items.forEach(function(item) { %>
+        <div class="co-item">
+          <% if (item.image) { %>
+          <img src="<%= item.image %>" alt="<%= item.name %>" class="co-item-img" loading="lazy">
+          <% } else { %>
+          <div class="co-item-img co-item-img--placeholder"></div>
+          <% } %>
+          <div class="co-item-info">
+            <p class="co-item-name"><%= item.name %></p>
+            <p class="co-item-meta">Qty: <%= item.qty %></p>
+          </div>
+          <div class="co-item-price">
+            $<%= (item.qty * (parseFloat(item.price)||0)).toLocaleString('en-US',{minimumFractionDigits:2}) %>
+          </div>
+        </div>
+        <% }); %>
+      </div>
+
+    </div><!-- /checkout-form-section -->
+
+    <!-- ── Right: Order summary ──────────────────────────────────── -->
+    <aside class="checkout-summary">
+      <div class="checkout-card">
+        <h2 class="checkout-card-title">Order Summary</h2>
+
+        <div class="co-sum-row">
+          <span>Subtotal (<%= cart.count %> <%= cart.count === 1 ? 'item' : 'items' %>)</span>
+          <span>$<%= (parseFloat(cart.subtotal)||0).toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
+        </div>
+        <div class="co-sum-row">
+          <span>Shipping</span>
+          <span class="free-label">FREE</span>
+        </div>
+        <div class="co-sum-row co-sum-total">
+          <span>Total</span>
+          <span>$<%= (parseFloat(cart.subtotal)||0).toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
+        </div>
+
+        <p class="co-sum-note">Taxes calculated at next step</p>
+
+        <button type="submit" form="checkout-form" class="btn btn-amber checkout-submit-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="margin-right:6px;vertical-align:middle">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+          Proceed to Payment
+        </button>
+        <p class="co-sum-redirect-note">You'll be redirected to our secure payment partner to enter card details.</p>
+
+        <!-- Trust row -->
+        <div class="cart-trust-row" style="margin-top:1rem">
+          <div class="ctr-item">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+            <span>256-bit SSL</span>
+          </div>
+          <div class="ctr-item">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/>
+            </svg>
+            <span>30-Day Returns</span>
+          </div>
+          <div class="ctr-item">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h3l4 4v5h-7V8z"/>
+              <circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+            </svg>
+            <span>Free Shipping</span>
+          </div>
+        </div>
+
+        <!-- Payment logos -->
+        <div class="cart-payment-logos" style="margin-top:1rem">
+          <svg class="pay-logo" viewBox="0 0 60 38" role="img" aria-label="Visa">
+            <rect width="60" height="38" rx="4" fill="#1A1F71"/>
+            <text x="30" y="24" text-anchor="middle" fill="#fff" font-size="15" font-weight="700" font-style="italic" font-family="Arial,sans-serif" letter-spacing="1">VISA</text>
+          </svg>
+          <svg class="pay-logo" viewBox="0 0 60 38" role="img" aria-label="Mastercard">
+            <rect width="60" height="38" rx="4" fill="#f0f0f0" stroke="#ddd" stroke-width=".5"/>
+            <circle cx="23" cy="19" r="10" fill="#EB001B"/>
+            <circle cx="37" cy="19" r="10" fill="#F79E1B"/>
+            <path d="M30 11.2a10 10 0 0 1 0 15.6A10 10 0 0 1 30 11.2Z" fill="#FF5F00"/>
+          </svg>
+          <svg class="pay-logo" viewBox="0 0 60 38" role="img" aria-label="American Express">
+            <rect width="60" height="38" rx="4" fill="#007BC1"/>
+            <text x="30" y="16" text-anchor="middle" fill="#fff" font-size="7" font-weight="600" font-family="Arial,sans-serif" letter-spacing=".8">AMERICAN</text>
+            <text x="30" y="27" text-anchor="middle" fill="#fff" font-size="9" font-weight="800" font-family="Arial,sans-serif" letter-spacing=".5">EXPRESS</text>
+          </svg>
+          <svg class="pay-logo" viewBox="0 0 60 38" role="img" aria-label="PayPal">
+            <rect width="60" height="38" rx="4" fill="#fff" stroke="#ddd" stroke-width=".5"/>
+            <text x="30" y="24" text-anchor="middle" font-size="12" font-weight="800" font-style="italic" font-family="Arial,sans-serif">
+              <tspan fill="#003087">Pay</tspan><tspan fill="#009CDE">Pal</tspan>
+            </text>
+          </svg>
+          <svg class="pay-logo" viewBox="0 0 60 38" role="img" aria-label="Apple Pay">
+            <rect width="60" height="38" rx="4" fill="#000"/>
+            <text x="30" y="24" text-anchor="middle" fill="#fff" font-size="11" font-weight="500" font-family="-apple-system,Arial,sans-serif">&#xf8ff; Pay</text>
+          </svg>
+          <svg class="pay-logo" viewBox="0 0 60 38" role="img" aria-label="Google Pay">
+            <rect width="60" height="38" rx="4" fill="#fff" stroke="#ddd" stroke-width=".5"/>
+            <text x="30" y="24" text-anchor="middle" font-size="12" font-weight="500" font-family="Arial,sans-serif">
+              <tspan fill="#4285F4">G</tspan><tspan fill="#757575">Pay</tspan>
+            </text>
+          </svg>
+        </div>
+
+      </div>
+    </aside>
+
+  </div><!-- /checkout-layout -->
+</div>
