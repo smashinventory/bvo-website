@@ -264,51 +264,59 @@
 
     <table class="bb-sum-table">
       <colgroup>
-        <col class="bsc-item">
+        <col class="bsc-num">
         <col class="bsc-product">
         <col class="bsc-msrp">
-        <col class="bsc-price">
+        <col class="bsc-sale">
+        <col class="bsc-bundle">
+        <col class="bsc-final">
       </colgroup>
       <thead>
+        <!-- Spanning title row -->
+        <tr class="bb-sum-hd-span">
+          <th colspan="2" class="bb-sum-hd-title">Your Custom Bundle</th>
+          <th></th>
+          <th colspan="2" class="bb-sum-hd-disc">Discounts</th>
+          <th></th>
+        </tr>
+        <!-- Column headers -->
         <tr>
-          <th class="bb-sum-cat">Item</th>
+          <th class="bb-sum-num">Item</th>
           <th class="bb-sum-name">Product</th>
           <th class="bb-sum-msrp">MSRP</th>
-          <th class="bb-sum-price">Bundle Price</th>
+          <th class="bb-sum-sale-col">Sale ↓</th>
+          <th class="bb-sum-bundle-col">Bundle ↓</th>
+          <th class="bb-sum-price">Final</th>
         </tr>
       </thead>
       <!-- Item rows — JS replaces tbody innerHTML -->
       <tbody id="bb-summary-items">
-        <tr class="bb-sum-row--empty"><td class="bb-sum-cat">Cabinet</td><td class="bb-sum-name bb-sum-none">Not selected</td><td class="bb-sum-msrp bb-sum-none">—</td><td class="bb-sum-price bb-sum-none">—</td></tr>
-        <tr class="bb-sum-row--empty"><td class="bb-sum-cat">Top</td><td class="bb-sum-name bb-sum-none">Not selected</td><td class="bb-sum-msrp bb-sum-none">—</td><td class="bb-sum-price bb-sum-none">—</td></tr>
-        <tr class="bb-sum-row--empty"><td class="bb-sum-cat">Mirror</td><td class="bb-sum-name bb-sum-none">Not selected</td><td class="bb-sum-msrp bb-sum-none">—</td><td class="bb-sum-price bb-sum-none">—</td></tr>
-        <tr class="bb-sum-row--empty"><td class="bb-sum-cat">Faucet</td><td class="bb-sum-name bb-sum-none">Not selected</td><td class="bb-sum-msrp bb-sum-none">—</td><td class="bb-sum-price bb-sum-none">—</td></tr>
+        <tr class="bb-sum-row--empty"><td class="bb-sum-num">1</td><td class="bb-sum-name bb-sum-none">Cabinet not selected</td><td class="bb-sum-msrp bb-sum-none">—</td><td class="bb-sum-sale-col bb-sum-none">—</td><td class="bb-sum-bundle-col bb-sum-none">—</td><td class="bb-sum-price bb-sum-none">—</td></tr>
+        <tr class="bb-sum-row--empty"><td class="bb-sum-num">2</td><td class="bb-sum-name bb-sum-none">Top not selected</td><td class="bb-sum-msrp bb-sum-none">—</td><td class="bb-sum-sale-col bb-sum-none">—</td><td class="bb-sum-bundle-col bb-sum-none">—</td><td class="bb-sum-price bb-sum-none">—</td></tr>
+        <tr class="bb-sum-row--empty"><td class="bb-sum-num">3</td><td class="bb-sum-name bb-sum-none">Mirror not selected</td><td class="bb-sum-msrp bb-sum-none">—</td><td class="bb-sum-sale-col bb-sum-none">—</td><td class="bb-sum-bundle-col bb-sum-none">—</td><td class="bb-sum-price bb-sum-none">—</td></tr>
+        <tr class="bb-sum-row--empty"><td class="bb-sum-num">4</td><td class="bb-sum-name bb-sum-none">Faucet not selected</td><td class="bb-sum-msrp bb-sum-none">—</td><td class="bb-sum-sale-col bb-sum-none">—</td><td class="bb-sum-bundle-col bb-sum-none">—</td><td class="bb-sum-price bb-sum-none">—</td></tr>
       </tbody>
       <!-- Totals tbody — JS shows/hides via id="bb-savings-breakdown" -->
       <tbody id="bb-savings-breakdown" style="display:none">
         <tr class="bb-sum-row--sub">
-          <td class="bb-sum-cat"></td>
-          <td class="bb-sum-name">Retail Total</td>
-          <td class="bb-sum-msrp" id="bb-original-total"></td>
-          <td class="bb-sum-price"></td>
+          <td colspan="4" class="bb-sum-totals-lbl">Total Retail</td>
+          <td class="bb-sum-dollar">$</td>
+          <td class="bb-sum-amt" id="bb-original-total"></td>
         </tr>
-        <tr>
-          <td class="bb-sum-cat"></td>
-          <td class="bb-sum-name bb-sav-lbl">Outlet Savings</td>
-          <td class="bb-sum-msrp"></td>
-          <td class="bb-sum-price bb-sav-green" id="bb-outlet-sav"></td>
+        <tr class="bb-sum-row--sub">
+          <td colspan="4" class="bb-sum-totals-lbl bb-sav-lbl">Outlet Savings</td>
+          <td class="bb-sum-dollar bb-sum-red">$</td>
+          <td class="bb-sum-amt bb-sum-red" id="bb-outlet-sav"></td>
         </tr>
-        <tr>
-          <td class="bb-sum-cat"></td>
-          <td class="bb-sum-name bb-sav-lbl">Bundle Savings</td>
-          <td class="bb-sum-msrp"></td>
-          <td class="bb-sum-price bb-sav-amber" id="bb-bundle-sav"></td>
+        <tr class="bb-sum-row--sub">
+          <td colspan="4" class="bb-sum-totals-lbl bb-sav-lbl">Bundle Savings</td>
+          <td class="bb-sum-dollar bb-sum-red">$</td>
+          <td class="bb-sum-amt bb-sum-red" id="bb-bundle-sav"></td>
         </tr>
-        <tr class="bb-sum-row--total">
-          <td class="bb-sum-cat"></td>
-          <td class="bb-sum-name">Bundle Total</td>
-          <td class="bb-sum-msrp"></td>
-          <td class="bb-sum-price bb-final-total" id="bb-final-total"></td>
+        <tr class="bb-sum-row--bundle-total">
+          <td colspan="4" class="bb-sum-bundle-total-lbl">Your Custom Bundle Total</td>
+          <td class="bb-final-dollar">$</td>
+          <td class="bb-final-total" id="bb-final-total"></td>
         </tr>
       </tbody>
     </table>
@@ -849,46 +857,54 @@
       }
     }
 
-    /* Price columns: MSRP in its own cell, bundle total in its own cell */
-    var origEl = el('bb-original-total');
-    var finEl  = el('bb-final-total');
-    if (origEl) origEl.textContent = msrpTotal > 0 ? fmt(msrpTotal) : '';
-    if (finEl)  finEl.textContent  = saleTotal > 0 ? fmt(bundleTotal) : '';
+    /* Number-only formatter (no $ — used in totals where $ is a separate cell) */
+    function num(n) {
+      return parseFloat(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
 
-    /* Savings breakdown */
-    var breakdownEl = el('bb-savings-breakdown');
-    var outletSavEl = el('bb-outlet-sav');
-    var bundleSavEl = el('bb-bundle-sav');
-    var totalSavEl  = el('bb-total-sav');
-    if (breakdownEl) breakdownEl.style.display = saleTotal > 0 ? '' : 'none';
-    if (outletSavEl) outletSavEl.textContent = outletSavings > 0.005 ? '−' + fmt(outletSavings) : '—';
-    if (bundleSavEl) bundleSavEl.textContent = bundleSavings > 0.005 ? '−' + fmt(bundleSavings) : (disc === 0 && saleTotal > 0 ? 'Add Top to unlock' : '—');
-    if (totalSavEl)  totalSavEl.textContent  = totalSavings  > 0.005 ? '−' + fmt(totalSavings) : '';
-
-    /* Item rows — 4 columns: category | product name | MSRP | bundle price */
+    /* Item rows — 6 columns: # | product | MSRP | sale savings | bundle savings | final */
     var wrap = el('bb-summary-items');
     if (wrap) {
-      var labels = { cabinet: 'Cabinet', top: 'Top', mirror: 'Mirror', faucet: 'Faucet' };
+      var nums    = { cabinet: '1', top: '2', mirror: '3', faucet: '4' };
+      var empties = { cabinet: 'Cabinet not selected', top: 'Top not selected', mirror: 'Mirror not selected', faucet: 'Faucet not selected' };
       var html = ['cabinet','top','mirror','faucet'].map(function(k) {
         var item = state[k];
         if (!item) return '<tr class="bb-sum-row--empty">'
-          + '<td class="bb-sum-cat">' + labels[k] + '</td>'
-          + '<td class="bb-sum-name bb-sum-none">Not selected</td>'
+          + '<td class="bb-sum-num">'         + nums[k]    + '</td>'
+          + '<td class="bb-sum-name bb-sum-none">' + empties[k] + '</td>'
           + '<td class="bb-sum-msrp bb-sum-none">—</td>'
+          + '<td class="bb-sum-sale-col bb-sum-none">—</td>'
+          + '<td class="bb-sum-bundle-col bb-sum-none">—</td>'
           + '<td class="bb-sum-price bb-sum-none">—</td>'
           + '</tr>';
-        var sp = parseFloat(item.price);
-        var cp = parseFloat(item.compare_price || 0);
-        var dp = sp * (1 - disc / 100);
+        var sp        = parseFloat(item.price || 0);
+        var cp        = parseFloat(item.compare_price || 0);
+        var outletSav = (cp > sp) ? (cp - sp) : 0;
+        var dp        = sp * (1 - disc / 100);
+        var bundleSav = sp - dp;
         return '<tr>'
-          + '<td class="bb-sum-cat">' + labels[k] + '</td>'
-          + '<td class="bb-sum-name">' + esc(item.name) + '</td>'
-          + '<td class="bb-sum-msrp">' + (cp > sp ? fmt(cp) : '—') + '</td>'
-          + '<td class="bb-sum-price">' + fmt(dp) + '</td>'
+          + '<td class="bb-sum-num">'    + nums[k] + '</td>'
+          + '<td class="bb-sum-name">'   + esc(item.name) + '</td>'
+          + '<td class="bb-sum-msrp">'   + (cp > sp ? fmt(cp) : '—') + '</td>'
+          + '<td class="bb-sum-sale-col' + (outletSav > 0.005 ? ' bb-sum-red' : '') + '">' + (outletSav > 0.005 ? '(' + fmt(outletSav) + ')' : '—') + '</td>'
+          + '<td class="bb-sum-bundle-col' + (bundleSav > 0.005 ? ' bb-sum-red' : '') + '">' + (bundleSav > 0.005 ? '(' + fmt(bundleSav) + ')' : '—') + '</td>'
+          + '<td class="bb-sum-price">'  + fmt(dp) + '</td>'
           + '</tr>';
       });
       wrap.innerHTML = html.join('');
     }
+
+    /* Totals — $ is a separate cell so we use num() not fmt() */
+    var origEl      = el('bb-original-total');
+    var outletSavEl = el('bb-outlet-sav');
+    var bundleSavEl = el('bb-bundle-sav');
+    var finEl       = el('bb-final-total');
+    var breakdownEl = el('bb-savings-breakdown');
+    if (origEl)      origEl.textContent      = msrpTotal > 0     ? num(msrpTotal)     : '';
+    if (outletSavEl) outletSavEl.textContent = outletSavings > 0.005 ? num(outletSavings) : '—';
+    if (bundleSavEl) bundleSavEl.textContent = bundleSavings > 0.005 ? num(bundleSavings) : (disc === 0 && saleTotal > 0 ? 'Add Top to unlock' : '—');
+    if (finEl)       finEl.textContent       = saleTotal > 0     ? num(bundleTotal)   : '';
+    if (breakdownEl) breakdownEl.style.display = saleTotal > 0 ? '' : 'none';
 
     var cartBtn = el('bb-add-cart');
     if (cartBtn) cartBtn.disabled = !state.cabinet;
