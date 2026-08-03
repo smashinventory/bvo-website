@@ -104,7 +104,6 @@ async function getTops() {
     WHERE p.brand          = ?
       AND c.slug           = 'bathroom-vanity-tops'
       AND p.product_type   = 'Stone Top'
-      AND LOWER(p.name)    NOT LIKE '%backsplash%'
       AND p.is_active      = 1
     ORDER BY p.model ASC, p.width_in ASC, p.price ASC
   `, [JM_BRAND, JM_BRAND]);
