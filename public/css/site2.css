@@ -2404,6 +2404,45 @@
   width: 100%;
   margin-top: auto;
 }
+
+/* ── Qty toggle (mirror / faucet pair) ───────────────────────── */
+.bb-qty-row {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin-top: .6rem;
+  padding: .45rem .75rem;
+  background: #f7f7f5;
+  border-radius: .25rem;
+  border: 1px solid var(--border, #E8E4DC);
+}
+.bb-qty-lbl { font-size: .75rem; font-weight: 600; color: var(--muted, #7A7264); white-space: nowrap; }
+.bb-qty-btns { display: flex; gap: .35rem; }
+.bb-qty-btn {
+  padding: .28rem .7rem;
+  font-size: .76rem;
+  font-weight: 600;
+  border: 1.5px solid var(--border, #E8E4DC);
+  border-radius: .2rem;
+  background: #fff;
+  color: var(--navy, #182840);
+  cursor: pointer;
+  transition: border-color .15s, background .15s, color .15s;
+  line-height: 1.4;
+}
+.bb-qty-btn:hover { border-color: var(--color-amber, #B8862A); }
+.bb-qty-btn.is-active {
+  background: var(--navy, #182840);
+  border-color: var(--navy, #182840);
+  color: #fff;
+}
+/* ×2 label in summary table */
+.bb-qty-x2 {
+  font-size: .72rem;
+  font-weight: 700;
+  color: var(--color-amber, #B8862A);
+  margin-left: .2rem;
+}
 .bb-select-btn.is-selected {
   background: var(--sage, #5A7A5A);
   border-color: var(--sage, #5A7A5A);
@@ -2715,6 +2754,13 @@
   border-color: var(--amber, #B8862A);
   color: var(--amber, #B8862A);
   background: #FDF8F0;
+}
+.bt-pair-note {
+  text-align: center;
+  font-size: .75rem;
+  color: var(--muted, #7A7264);
+  margin: .6rem auto 0;
+  max-width: 480px;
 }
 
 /* Centered CTA button */

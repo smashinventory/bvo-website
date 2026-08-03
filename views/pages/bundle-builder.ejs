@@ -18,7 +18,7 @@
   <header class="bb-hero">
     <p class="bb-eyebrow">James Martin Vanities</p>
     <h1 class="bb-title">Build Your Unique Bundle</h1>
-    <p class="bb-subtitle">Mix and match, save up to 15%. Each item ships free.</p>
+    <p class="bb-subtitle">Mix and match, save up to 15%. Mirrors and faucets can be added as a matched pair for double vanities — a pair still counts as one bundle step. Each item ships free.</p>
 
     <!-- Discount tier bar (starts at Vanity + Top — no 0% entry) -->
     <div class="bb-tiers" aria-label="Bundle discount tiers">
@@ -28,12 +28,12 @@
       </div>
       <div class="bb-tier-arrow" aria-hidden="true">›</div>
       <div class="bb-tier" data-items="3">
-        <span class="bb-tier-label">+ Mirror</span>
+        <span class="bb-tier-label">+ Mirror (or pair)</span>
         <span class="bb-tier-pct">10% Off</span>
       </div>
       <div class="bb-tier-arrow" aria-hidden="true">›</div>
       <div class="bb-tier" data-items="4">
-        <span class="bb-tier-label">+ Faucet</span>
+        <span class="bb-tier-label">+ Faucet (or pair)</span>
         <span class="bb-tier-pct">15% Off</span>
       </div>
     </div>
@@ -137,7 +137,7 @@
         <div class="bb-step-num" aria-hidden="true">3</div>
         <div class="bb-step-hd-text">
           <h2 class="bb-step-title">Pick Your Mirror <span class="bb-optional-tag">Optional</span></h2>
-          <p class="bb-step-meta">Add a mirror to unlock 10% off your entire bundle</p>
+          <p class="bb-step-meta">Add a mirror — or a matched pair for double vanities — to unlock 10% off your entire bundle</p>
         </div>
         <div class="bb-vnav" id="bb-vnav-mirror">
           <button class="bb-vnav-btn" id="bb-prev-mirror" type="button" aria-label="Previous model">‹</button>
@@ -187,6 +187,14 @@
           </div>
           <a class="bb-view-link" id="bb-viewlink-mirror" href="" target="_blank">View product page ›</a>
           <button class="btn btn-navy bb-select-btn" id="bb-select-mirror" type="button" disabled>Select</button>
+          <!-- Qty toggle — shown after selection -->
+          <div class="bb-qty-row" id="bb-qty-row-mirror" style="display:none">
+            <span class="bb-qty-lbl">Quantity:</span>
+            <div class="bb-qty-btns">
+              <button class="bb-qty-btn is-active" data-step="mirror" data-qty="1" type="button">1</button>
+              <button class="bb-qty-btn" data-step="mirror" data-qty="2" type="button">2 &mdash; Matched Pair</button>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -197,7 +205,7 @@
         <div class="bb-step-num" aria-hidden="true">4</div>
         <div class="bb-step-hd-text">
           <h2 class="bb-step-title">Pick Your Faucet <span class="bb-optional-tag">Optional</span></h2>
-          <p class="bb-step-meta">Add a faucet to unlock 15% off your entire bundle</p>
+          <p class="bb-step-meta">Add a faucet — or a matched pair for double vanities — to unlock 15% off your entire bundle</p>
         </div>
         <div class="bb-vnav" id="bb-vnav-faucet">
           <button class="bb-vnav-btn" id="bb-prev-faucet" type="button" aria-label="Previous faucet">‹</button>
@@ -253,6 +261,14 @@
           </div>
           <a class="bb-view-link" id="bb-viewlink-faucet" href="" target="_blank">View product page ›</a>
           <button class="btn btn-navy bb-select-btn" id="bb-select-faucet" type="button" disabled>Select</button>
+          <!-- Qty toggle — shown after selection -->
+          <div class="bb-qty-row" id="bb-qty-row-faucet" style="display:none">
+            <span class="bb-qty-lbl">Quantity:</span>
+            <div class="bb-qty-btns">
+              <button class="bb-qty-btn is-active" data-step="faucet" data-qty="1" type="button">1</button>
+              <button class="bb-qty-btn" data-step="faucet" data-qty="2" type="button">2 &mdash; Matched Pair</button>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -358,7 +374,7 @@
   var gColor = { cabinet: null, top: null,  mirror: null, faucet: null };  // resets on model change
 
   /* ── Selection state ──────────────────────────────────────────── */
-  var state = { cabinet: null, top: null, mirror: null, faucet: null };
+  var state = { cabinet: null, top: null, mirror: null, faucet: null, mirrorQty: 1, faucetQty: 1 };
 
   /* ── Helpers ──────────────────────────────────────────────────── */
 
@@ -732,6 +748,15 @@
         gIdx.mirror = 0; gColor.mirror = null;
         renderViewer('mirror');
       }
+      /* Reset qty on deselect */
+      if (step === 'mirror' || step === 'faucet') {
+        state[step + 'Qty'] = 1;
+        var qtyRow = el('bb-qty-row-' + step);
+        if (qtyRow) qtyRow.style.display = 'none';
+        document.querySelectorAll('.bb-qty-btn[data-step="' + step + '"]').forEach(function(b) {
+          b.classList.toggle('is-active', parseInt(b.dataset.qty, 10) === 1);
+        });
+      }
     } else {
       state[step] = displaySku;
       if (step === 'cabinet') {
@@ -739,6 +764,11 @@
         /* Cabinet selected — float same-model mirror to front */
         gIdx.mirror = 0; gColor.mirror = null;
         renderViewer('mirror');
+      }
+      /* Show qty row on select */
+      if (step === 'mirror' || step === 'faucet') {
+        var qtyRow = el('bb-qty-row-' + step);
+        if (qtyRow) qtyRow.style.display = '';
       }
     }
 
@@ -830,13 +860,14 @@
       t.classList.toggle('is-active', parseInt(t.dataset.items, 10) === count);
     });
 
-    /* Compute totals */
+    /* Compute totals — mirror/faucet multiply by qty */
     var msrpTotal = 0;
     var saleTotal = 0;
     ['cabinet','top','mirror','faucet'].forEach(function(k) {
       if (!state[k]) return;
-      var sp = parseFloat(state[k].price || 0);
-      var cp = parseFloat(state[k].compare_price || 0);
+      var qty = (k === 'mirror' || k === 'faucet') ? (state[k + 'Qty'] || 1) : 1;
+      var sp = parseFloat(state[k].price || 0) * qty;
+      var cp = parseFloat(state[k].compare_price || 0) * qty;
       saleTotal += sp;
       msrpTotal += (cp > sp) ? cp : sp;  // fallback to sale price when no MSRP
     });
@@ -877,14 +908,16 @@
           + '<td class="bb-sum-bundle-col bb-sum-none">—</td>'
           + '<td class="bb-sum-price bb-sum-none">—</td>'
           + '</tr>';
-        var sp        = parseFloat(item.price || 0);
-        var cp        = parseFloat(item.compare_price || 0);
+        var qty       = (k === 'mirror' || k === 'faucet') ? (state[k + 'Qty'] || 1) : 1;
+        var sp        = parseFloat(item.price || 0) * qty;
+        var cp        = parseFloat(item.compare_price || 0) * qty;
         var outletSav = (cp > sp) ? (cp - sp) : 0;
         var dp        = sp * (1 - disc / 100);
         var bundleSav = sp - dp;
+        var namePart  = esc(item.name) + (qty > 1 ? ' <span class="bb-qty-x2">×' + qty + '</span>' : '');
         return '<tr>'
           + '<td class="bb-sum-num">'    + nums[k] + '</td>'
-          + '<td class="bb-sum-name">'   + esc(item.name) + '</td>'
+          + '<td class="bb-sum-name">'   + namePart + '</td>'
           + '<td class="bb-sum-msrp">'   + (cp > sp ? fmt(cp) : '—') + '</td>'
           + '<td class="bb-sum-sale-col' + (outletSav > 0.005 ? ' bb-sav-green' : '') + '">' + (outletSav > 0.005 ? '(' + fmt(outletSav) + ')' : '—') + '</td>'
           + '<td class="bb-sum-bundle-col' + (bundleSav > 0.005 ? ' bb-sav-amber' : '') + '">' + (bundleSav > 0.005 ? '(' + fmt(bundleSav) + ')' : '—') + '</td>'
@@ -917,7 +950,13 @@
     btn.disabled    = true;
     btn.textContent = 'Adding…';
     var disc  = discount();
-    var items = ['cabinet','top','mirror','faucet'].filter(function(k) { return !!state[k]; }).map(function(k) { return state[k]; });
+    /* Build items list — mirror/faucet repeated if qty = 2 */
+    var items = [];
+    ['cabinet','top','mirror','faucet'].forEach(function(k) {
+      if (!state[k]) return;
+      var qty = (k === 'mirror' || k === 'faucet') ? (state[k + 'Qty'] || 1) : 1;
+      for (var i = 0; i < qty; i++) items.push(state[k]);
+    });
     // Sequential (not parallel) — Promise.all fires all fetches simultaneously,
     // causing a session race condition where each request reads the same empty
     // cart, adds one item, and saves, with the last write winning. Sequential
@@ -965,6 +1004,19 @@
     /* Finish swatch */
     var sw = e.target.closest('.bb-swatch[data-step]');
     if (sw) { pickColor(sw.dataset.step, sw.dataset.color); return; }
+
+    /* Qty toggle (mirror / faucet pair) */
+    var qtyBtn = e.target.closest('.bb-qty-btn');
+    if (qtyBtn) {
+      var qStep = qtyBtn.dataset.step;
+      var qty   = parseInt(qtyBtn.dataset.qty, 10);
+      state[qStep + 'Qty'] = qty;
+      document.querySelectorAll('.bb-qty-btn[data-step="' + qStep + '"]').forEach(function(b) {
+        b.classList.toggle('is-active', parseInt(b.dataset.qty, 10) === qty);
+      });
+      updateSummary();
+      return;
+    }
 
     /* Select button */
     var selBtn = e.target.closest('[id^="bb-select-"]');
