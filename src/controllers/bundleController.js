@@ -104,6 +104,7 @@ async function getTops() {
     WHERE p.brand          = ?
       AND c.slug           = 'bathroom-vanity-tops'
       AND p.product_type   = 'Stone Top'
+      AND LOWER(p.name)    NOT LIKE '%backsplash%'
       AND p.is_active      = 1
     ORDER BY p.model ASC, p.width_in ASC, p.price ASC
   `, [JM_BRAND, JM_BRAND]);
@@ -181,7 +182,8 @@ async function getStoneSamples() {
  *  "Brooklyn 60\" W x 23\" D Stone Top, 3 CM Carrara White Marble w/ Sink"
  *  → "Carrara White Marble"                                               */
 function extractTopMaterial(topName) {
-  const m = topName.match(/,\s*\d+(?:\.\d+)?\s*CM\s+(.+?)\s+w\/\s*Sink/i);
+  // Stop at "w/" — don't require "Sink" immediately after (handles "w/ Undermount Sink", "w/ Rectangular Sink", etc.)
+  const m = topName.match(/,\s*\d+(?:\.\d+)?\s*CM\s+(.+?)\s+w\//i);
   return m ? m[1].trim() : '';
 }
 
