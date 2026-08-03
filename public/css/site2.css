@@ -2540,7 +2540,7 @@
 
 /* Spanning title row */
 .bb-sum-hd-span { background: var(--color-sage, #6B8C74); }
-.bb-sum-hd-span th { padding: 7px 12px; font-size: .78rem; font-weight: 700; color: #fff; letter-spacing: .02em; }
+.bb-sum-hd-span th { padding: 7px 12px; font-size: .78rem; font-weight: 700; color: #fff !important; letter-spacing: .02em; }
 .bb-sum-hd-title { text-align: left; font-family: var(--font-serif, Georgia, serif); font-size: .88rem; }
 .bb-sum-hd-disc  { text-align: center; }
 
@@ -2600,7 +2600,7 @@
   color: #fff;
 }
 .bb-final-dollar { text-align: right; font-size: 1.05rem; font-weight: 700; color: var(--color-gold, #B8963A); padding-right: 2px; }
-.bb-final-total  { text-align: right; font-size: 1.25rem; font-weight: 700; color: var(--color-gold, #B8963A); padding-right: 12px; }
+.bb-final-total  { text-align: right; font-size: 1.25rem; font-weight: 700; color: var(--color-gold, #B8963A); padding-right: 16px !important; }
 
 /* Savings colors (legacy / badge) */
 .bb-sav-green { color: var(--color-sage, #5A7A5A) !important; font-weight: 600; }
