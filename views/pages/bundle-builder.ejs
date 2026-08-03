@@ -316,23 +316,19 @@
       <tbody id="bb-savings-breakdown" style="display:none">
         <tr class="bb-sum-row--sub">
           <td colspan="4" class="bb-sum-totals-lbl">Total Retail</td>
-          <td class="bb-sum-dollar">$</td>
-          <td class="bb-sum-amt" id="bb-original-total"></td>
+          <td colspan="2" class="bb-sum-amt" id="bb-original-total"></td>
         </tr>
         <tr class="bb-sum-row--sub">
           <td colspan="4" class="bb-sum-totals-lbl bb-sav-lbl">Outlet Savings</td>
-          <td class="bb-sum-dollar bb-sav-green">$</td>
-          <td class="bb-sum-amt bb-sav-green" id="bb-outlet-sav"></td>
+          <td colspan="2" class="bb-sum-amt bb-sav-green" id="bb-outlet-sav"></td>
         </tr>
         <tr class="bb-sum-row--sub">
           <td colspan="4" class="bb-sum-totals-lbl bb-sav-lbl">Bundle Savings</td>
-          <td class="bb-sum-dollar bb-sav-amber">$</td>
-          <td class="bb-sum-amt bb-sav-amber" id="bb-bundle-sav"></td>
+          <td colspan="2" class="bb-sum-amt bb-sav-amber" id="bb-bundle-sav"></td>
         </tr>
         <tr class="bb-sum-row--bundle-total">
           <td colspan="4" class="bb-sum-bundle-total-lbl">Your Custom Bundle Total</td>
-          <td class="bb-final-dollar">$</td>
-          <td class="bb-final-total" id="bb-final-total"></td>
+          <td colspan="2" class="bb-final-total" id="bb-final-total"></td>
         </tr>
       </tbody>
     </table>
@@ -934,16 +930,16 @@
       wrap.innerHTML = html.join('');
     }
 
-    /* Totals — $ is a separate cell so we use num() not fmt() */
+    /* Totals — $ is included inline in the amount cell (colspan="2") */
     var origEl      = el('bb-original-total');
     var outletSavEl = el('bb-outlet-sav');
     var bundleSavEl = el('bb-bundle-sav');
     var finEl       = el('bb-final-total');
     var breakdownEl = el('bb-savings-breakdown');
-    if (origEl)      origEl.textContent      = msrpTotal > 0     ? num(msrpTotal)     : '';
-    if (outletSavEl) outletSavEl.textContent = outletSavings > 0.005 ? num(outletSavings) : '—';
-    if (bundleSavEl) bundleSavEl.textContent = bundleSavings > 0.005 ? num(bundleSavings) : (disc === 0 && saleTotal > 0 ? 'Add Top to unlock' : '—');
-    if (finEl)       finEl.textContent       = saleTotal > 0     ? num(bundleTotal)   : '';
+    if (origEl)      origEl.textContent      = msrpTotal > 0     ? '$ ' + num(msrpTotal)     : '';
+    if (outletSavEl) outletSavEl.textContent = outletSavings > 0.005 ? '$ ' + num(outletSavings) : '—';
+    if (bundleSavEl) bundleSavEl.textContent = bundleSavings > 0.005 ? '$ ' + num(bundleSavings) : (disc === 0 && saleTotal > 0 ? 'Add Top to unlock' : '—');
+    if (finEl)       finEl.textContent       = saleTotal > 0     ? '$ ' + num(bundleTotal)   : '';
     if (breakdownEl) breakdownEl.style.display = saleTotal > 0 ? '' : 'none';
 
     var cartBtn = el('bb-add-cart');
