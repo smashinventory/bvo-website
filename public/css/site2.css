@@ -2133,8 +2133,8 @@
   gap: .3rem;
   font-size: .78rem;
   font-weight: 600;
-  color: var(--sage, #5A7A5A);
-  background: var(--sage-light, #DCF0E2);
+  color: var(--color-amber, #B8862A);
+  background: #FBF4E5;
   border-radius: 20px;
   padding: .25rem .75rem;
   white-space: nowrap;
@@ -2477,14 +2477,14 @@
   gap: .5rem;
   padding: .65rem .9rem;
   margin-bottom: .75rem;
-  background: #EFF4FF;
-  border: 1px solid #C7D7F5;
+  background: var(--whisper, #F8F6F2);
+  border: 1px solid var(--border, #E8E4DC);
   border-radius: 8px;
   font-size: .8rem;
-  color: #2A3F6F;
+  color: var(--navy, #182840);
   line-height: 1.45;
 }
-.bb-compat-note svg { flex-shrink: 0; margin-top: .05rem; color: #4169C4; }
+.bb-compat-note svg { flex-shrink: 0; margin-top: .05rem; color: var(--color-amber, #B8862A); }
 
 /* ── Coming soon card (kept for backward reference) ──────────── */
 .bb-coming-soon-card {

@@ -535,6 +535,12 @@
       + '</button>';
   }
 
+  function matBaseKey(mat) {
+    // Silestone is Cosentino's brand of engineered quartz — normalize it so
+    // "X Quartz" and "X Silestone" share one swatch. Marble stays distinct.
+    return mat.replace(/\bSilestone\b/i, 'Quartz').toLowerCase().trim();
+  }
+
   function renderTopMatSwatches() {
     var allTops = activeTops();
     var seen = {};
@@ -542,8 +548,9 @@
     allTops.forEach(function(m, idx) {
       var sku = m.skus[0];
       var mat = sku ? (sku.stone_material || '') : '';
-      if (!seen[mat]) {
-        seen[mat] = true;
+      var key = matBaseKey(mat);
+      if (!seen[key]) {
+        seen[key] = true;
         mats.push({ material: mat, imgUrl: (sku && sku.stone_image) || null, topIdx: idx });
       }
     });

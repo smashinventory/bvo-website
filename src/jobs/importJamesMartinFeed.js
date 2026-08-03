@@ -674,9 +674,11 @@ async function importFromWorkbook(wb, opts = {}) {
           } else {
             // Stone detection: check product name AND the Vanity Countertop Material field.
             // Silestone is Cosentino's brand of engineered quartz — treat as Stone Top.
-            const matField = clean(row['Vanity Countertop Material ']) || '';
-            const isStone  = /quartz|marble|silestone/i.test(nameLower) || /quartz|marble|silestone/i.test(matField);
-            productType    = isStone ? 'Stone Top' : 'Composite Top';
+            // Wireless charging tops → always Stone Top regardless of material field.
+            const matField   = clean(row['Vanity Countertop Material ']) || '';
+            const isStone    = /quartz|marble|silestone/i.test(nameLower) || /quartz|marble|silestone/i.test(matField);
+            const hasCharger = /^y/i.test(clean(row['Wireless Charging Unit (Y/N)']) || '');
+            productType      = (isStone || hasCharger) ? 'Stone Top' : 'Composite Top';
           }
         } else {
           // Non-vanity: map to BVO canonical product_type.
