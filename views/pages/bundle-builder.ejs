@@ -305,13 +305,13 @@
         </tr>
         <tr class="bb-sum-row--sub">
           <td colspan="4" class="bb-sum-totals-lbl bb-sav-lbl">Outlet Savings</td>
-          <td class="bb-sum-dollar bb-sum-red">$</td>
-          <td class="bb-sum-amt bb-sum-red" id="bb-outlet-sav"></td>
+          <td class="bb-sum-dollar bb-sav-green">$</td>
+          <td class="bb-sum-amt bb-sav-green" id="bb-outlet-sav"></td>
         </tr>
         <tr class="bb-sum-row--sub">
           <td colspan="4" class="bb-sum-totals-lbl bb-sav-lbl">Bundle Savings</td>
-          <td class="bb-sum-dollar bb-sum-red">$</td>
-          <td class="bb-sum-amt bb-sum-red" id="bb-bundle-sav"></td>
+          <td class="bb-sum-dollar bb-sav-amber">$</td>
+          <td class="bb-sum-amt bb-sav-amber" id="bb-bundle-sav"></td>
         </tr>
         <tr class="bb-sum-row--bundle-total">
           <td colspan="4" class="bb-sum-bundle-total-lbl">Your Custom Bundle Total</td>
@@ -886,8 +886,8 @@
           + '<td class="bb-sum-num">'    + nums[k] + '</td>'
           + '<td class="bb-sum-name">'   + esc(item.name) + '</td>'
           + '<td class="bb-sum-msrp">'   + (cp > sp ? fmt(cp) : '—') + '</td>'
-          + '<td class="bb-sum-sale-col' + (outletSav > 0.005 ? ' bb-sum-red' : '') + '">' + (outletSav > 0.005 ? '(' + fmt(outletSav) + ')' : '—') + '</td>'
-          + '<td class="bb-sum-bundle-col' + (bundleSav > 0.005 ? ' bb-sum-red' : '') + '">' + (bundleSav > 0.005 ? '(' + fmt(bundleSav) + ')' : '—') + '</td>'
+          + '<td class="bb-sum-sale-col' + (outletSav > 0.005 ? ' bb-sav-green' : '') + '">' + (outletSav > 0.005 ? '(' + fmt(outletSav) + ')' : '—') + '</td>'
+          + '<td class="bb-sum-bundle-col' + (bundleSav > 0.005 ? ' bb-sav-amber' : '') + '">' + (bundleSav > 0.005 ? '(' + fmt(bundleSav) + ')' : '—') + '</td>'
           + '<td class="bb-sum-price">'  + fmt(dp) + '</td>'
           + '</tr>';
       });
