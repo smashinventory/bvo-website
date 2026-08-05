@@ -13,6 +13,40 @@ const path           = require('path');
 const fs             = require('fs');
 const multer         = require('multer');
 
+/* ── Allowed-extension whitelists ────────────────────────────── */
+const ALLOWED_IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp']);
+const ALLOWED_DOC_EXTS   = new Set(['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png']);
+const ALLOWED_VIDEO_EXTS = new Set(['.mp4', '.webm', '.mov']);
+
+/* ── Magic-byte signatures for image types ───────────────────── */
+const _IMG_MAGIC = {
+  '.jpg':  [0xFF, 0xD8, 0xFF],
+  '.jpeg': [0xFF, 0xD8, 0xFF],
+  '.png':  [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A],
+  '.gif':  [0x47, 0x49, 0x46, 0x38],  // GIF8
+  '.webp': [0x52, 0x49, 0x46, 0x46],  // RIFF (WebP container)
+};
+
+/**
+ * Read the first 8 bytes of an uploaded image and verify they match
+ * the expected magic signature for the file's extension.
+ * Returns true if valid, false if the file should be rejected.
+ */
+function _imageMagicOk(file) {
+  try {
+    const ext = path.extname(file.filename).toLowerCase();
+    const sig = _IMG_MAGIC[ext];
+    if (!sig) return false;
+    const buf = Buffer.alloc(8);
+    const fd  = fs.openSync(file.path, 'r');
+    fs.readSync(fd, buf, 0, 8, 0);
+    fs.closeSync(fd);
+    return sig.every((b, i) => buf[i] === b);
+  } catch {
+    return false;
+  }
+}
+
 /* ── Multer — image uploads ──────────────────────────────────── */
 const _storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -31,8 +65,12 @@ const _upload = multer({
   storage: _storage,
   limits:  { fileSize: 10 * 1024 * 1024 }, // 10 MB
   fileFilter: (req, file, cb) => {
-    if (/^image\//i.test(file.mimetype)) cb(null, true);
-    else cb(new Error('Only image files are allowed'), false);
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!ALLOWED_IMAGE_EXTS.has(ext))
+      return cb(new Error('Only JPEG, PNG, GIF, or WebP images are allowed'), false);
+    if (!/^image\//i.test(file.mimetype))
+      return cb(new Error('Only image files are allowed'), false);
+    cb(null, true);
   },
 });
 
@@ -54,9 +92,12 @@ const _docUpload = multer({
   storage: _docStorage,
   limits:  { fileSize: 25 * 1024 * 1024 }, // 25 MB
   fileFilter: (req, file, cb) => {
-    const ok = /^application\/pdf$|^application\/msword|^application\/vnd\.openxmlformats|^image\//i.test(file.mimetype);
-    if (ok) cb(null, true);
-    else cb(new Error('Only PDF, Word doc, or image files are allowed'), false);
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!ALLOWED_DOC_EXTS.has(ext))
+      return cb(new Error('Only PDF, Word, or image files are allowed'), false);
+    const mimeOk = /^application\/pdf$|^application\/msword|^application\/vnd\.openxmlformats|^image\//i.test(file.mimetype);
+    if (!mimeOk) return cb(new Error('Only PDF, Word doc, or image files are allowed'), false);
+    cb(null, true);
   },
 });
 
@@ -78,8 +119,12 @@ const _videoUpload = multer({
   storage: _videoStorage,
   limits:  { fileSize: 500 * 1024 * 1024 }, // 500 MB
   fileFilter: (req, file, cb) => {
-    if (/^video\//i.test(file.mimetype) || /^image\//i.test(file.mimetype)) cb(null, true);
-    else cb(new Error('Only video or image files are allowed'), false);
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!ALLOWED_VIDEO_EXTS.has(ext))
+      return cb(new Error('Only MP4, WebM, or MOV video files are allowed'), false);
+    if (!/^video\//i.test(file.mimetype) && !/^image\//i.test(file.mimetype))
+      return cb(new Error('Only video or image files are allowed'), false);
+    cb(null, true);
   },
 });
 
@@ -590,6 +635,10 @@ exports.productAddImageMiddleware = (req, res, next) => {
       console.error('[Product Upload] multer error:', err.message);
       return res.status(400).json({ ok: false, error: err.message });
     }
+    if (req.file && !_imageMagicOk(req.file)) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(400).json({ ok: false, error: 'File content does not match its declared type.' });
+    }
     next();
   });
 };
@@ -829,6 +878,11 @@ async function _buildAndSendCSV(res, ids, next) {
 exports.productImportMiddleware = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (ext !== '.csv') return cb(new Error('Only .csv files are accepted'), false);
+    cb(null, true);
+  },
 }).single('csv_file');
 
 /**
@@ -1813,6 +1867,10 @@ exports.uploadMiddleware = (req, res, next) => {
       console.error('[Upload] multer error:', err.message);
       return res.status(400).json({ ok: false, error: err.message });
     }
+    if (req.file && !_imageMagicOk(req.file)) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(400).json({ ok: false, error: 'File content does not match its declared type.' });
+    }
     next();
   });
 };
@@ -2276,6 +2334,10 @@ exports.categoryImageAjaxMiddleware = (req, res, next) => {
       console.error('[Category Upload] multer error:', err.message);
       return res.status(400).json({ ok: false, error: err.message });
     }
+    if (req.file && !_imageMagicOk(req.file)) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(400).json({ ok: false, error: 'File content does not match its declared type.' });
+    }
     next();
   });
 };
@@ -2315,6 +2377,11 @@ exports.categoryImageMiddleware = (req, res, next) => {
   _upload.single('image')(req, res, (err) => {
     if (err) {
       req.session.flash = { type: 'error', msg: 'Upload failed: ' + err.message };
+      return res.redirect(`/admin/categories/${req.params.id}/edit`);
+    }
+    if (req.file && !_imageMagicOk(req.file)) {
+      fs.unlink(req.file.path, () => {});
+      req.session.flash = { type: 'error', msg: 'Upload failed: file content does not match its extension.' };
       return res.redirect(`/admin/categories/${req.params.id}/edit`);
     }
     next();
@@ -2688,6 +2755,10 @@ exports.modelImageAjaxMiddleware = (req, res, next) => {
     if (err) {
       console.error('[Model Upload] multer error:', err.message);
       return res.status(400).json({ ok: false, error: err.message });
+    }
+    if (req.file && !_imageMagicOk(req.file)) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(400).json({ ok: false, error: 'File content does not match its declared type.' });
     }
     next();
   });
