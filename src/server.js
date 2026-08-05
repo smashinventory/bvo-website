@@ -73,6 +73,14 @@ app.use(helmet({
   },
 }));
 
+// Allow compute-pressure API — Tidio uses it to throttle itself under CPU load.
+// Helmet blocks it by default; appending here preserves all other Helmet restrictions.
+app.use((req, res, next) => {
+  const pp = res.getHeader('Permissions-Policy');
+  if (pp) res.setHeader('Permissions-Policy', `${pp}, compute-pressure=*`);
+  next();
+});
+
 app.use(compression());
 
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
