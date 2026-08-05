@@ -8,10 +8,10 @@ if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32) {
   console.error('FATAL: SESSION_SECRET must be set to at least 32 characters in .env');
   process.exit(1);
 }
-if (!process.env.ADMIN_USER || !process.env.ADMIN_PASSWORD_HASH) {
+if (!process.env.ADMIN_USER || !process.env.ADMIN_PW_B64) {
   // Warn but don't crash — admin login will safely return false if hash is missing.
   // A hard exit here prevents the site from starting when hPanel env injection is delayed.
-  console.warn('[WARN] ADMIN_USER or ADMIN_PASSWORD_HASH not set — admin login will be disabled');
+  console.warn('[WARN] ADMIN_USER or ADMIN_PW_B64 not set — admin login will be disabled');
 }
 
 const express        = require('express');
