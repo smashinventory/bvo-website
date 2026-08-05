@@ -39,7 +39,10 @@ function getTypesenseClient() {
 router.get('/predict', async (req, res) => {
   const q      = String(req.query.q  || '').trim().slice(0, 120);
   const limit  = Math.min(parseInt(req.query.limit || '8', 10), 20);
-  const catSlug = req.query.category || null;
+  // Whitelist slug characters before embedding in Typesense filter_by string.
+  // MySQL fallback uses parameterised queries so it's already safe.
+  const _rawCat = req.query.category || '';
+  const catSlug = /^[a-z0-9-]+$/.test(_rawCat) ? _rawCat : null;
 
   if (q.length < 2) return res.json({ hits: [] });
 
