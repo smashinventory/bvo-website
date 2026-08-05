@@ -23,7 +23,6 @@ const compression    = require('compression');
 const morgan         = require('morgan');
 const rateLimit      = require('express-rate-limit');
 const path           = require('path');
-const crypto         = require('crypto');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
