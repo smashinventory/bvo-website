@@ -1,5 +1,7 @@
 'use strict';
 
+const { bvoPool } = require('../config/database');
+
 /* ── Cart helpers ───────────────────────────────────────────────── */
 function getCart(req) {
   if (!req.session.cart) req.session.cart = { items: [], count: 0, subtotal: 0 };
@@ -37,12 +39,14 @@ exports.index = (req, res) => {
 };
 
 /* ── POST /cart/add ─────────────────────────────────────────────── */
-exports.add = (req, res) => {
-  const cart  = getCart(req);
+exports.add = async (req, res) => {
+  const cart = getCart(req);
   const {
-    product_id, slug, name, price, image, qty: rawQty,
-    original_price, compare_price, bundle_discount_pct,
+    product_id, slug, name, image, qty: rawQty,
+    bundle_discount_pct,
   } = req.body;
+  // price, original_price, compare_price intentionally NOT read from req.body —
+  // monetary values must come from the DB, never from the client.
 
   // Reject add if product_id is missing — happens when FormData is sent instead
   // of application/x-www-form-urlencoded (Express urlencoded can't parse multipart).
@@ -54,27 +58,52 @@ exports.add = (req, res) => {
     return res.redirect('/cart');
   }
 
-  const qty    = Math.max(1, parseInt(rawQty || '1', 10));
-  // Guard: parseFloat(undefined/null/NaN) → 0 so we never store NaN in the session
-  // (JSON.stringify(NaN) → null, and null.toLocaleString() throws in cart.ejs).
-  const pricef         = parseFloat(price) || 0;
-  const origPricef     = parseFloat(original_price) || pricef;
-  const comparePricef  = parseFloat(compare_price) || 0;  // MSRP — 0 means not set
-  const bundleDiscPct  = parseFloat(bundle_discount_pct) || 0;
+  // ── Fetch authoritative price from DB — never trust client-supplied prices ──
+  let pricef, comparePricef;
+  try {
+    const [rows] = await bvoPool.query(
+      'SELECT price, compare_price FROM products WHERE id = ? AND is_active = 1',
+      [product_id]
+    );
+    if (!rows.length) {
+      return res.status(400).json({ ok: false, error: 'Product not found' });
+    }
+    pricef        = parseFloat(rows[0].price)         || 0;
+    comparePricef = parseFloat(rows[0].compare_price) || 0;  // MSRP — 0 means not set
+  } catch (err) {
+    console.error('[cart/add] DB price lookup failed:', err.message);
+    if (req.headers['x-requested-with'] === 'XMLHttpRequest' ||
+        req.headers.accept?.includes('application/json')) {
+      return res.status(500).json({ ok: false, error: 'Unable to add item. Please try again.' });
+    }
+    return res.redirect('/cart');
+  }
+
+  const qty = Math.max(1, parseInt(rawQty || '1', 10) || 1);
+
+  // Validate bundle discount is exactly one of the allowed tier values (0, 5, 10, 15%).
+  // Any other value (e.g. client-supplied 99) is silently reset to 0.
+  const ALLOWED_BUNDLE_DISC = new Set([0, 5, 10, 15]);
+  const rawDisc      = parseFloat(bundle_discount_pct) || 0;
+  const bundleDiscPct = ALLOWED_BUNDLE_DISC.has(rawDisc) ? rawDisc : 0;
 
   const existing = cart.items.find(i => i.product_id === product_id);
   if (existing) {
-    existing.qty += qty;
+    existing.qty            += qty;
+    // Refresh price from DB in case it changed since the item was first added
+    existing.price           = pricef;
+    existing.compare_price   = comparePricef;
+    existing.original_price  = comparePricef || pricef;
   } else {
     cart.items.push({
       product_id,
-      slug:                slug || '',
-      name:                name || '',
+      slug:                slug  || '',
+      name:                name  || '',
       price:               pricef,
       image:               image || null,
       qty,
-      original_price:      origPricef,
-      compare_price:       comparePricef,   // MSRP (0 = not set)
+      original_price:      comparePricef || pricef,  // MSRP, falls back to sale price
+      compare_price:       comparePricef,             // MSRP (0 = not set)
       bundle_discount_pct: bundleDiscPct,
     });
   }
