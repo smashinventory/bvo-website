@@ -79,7 +79,7 @@ exports.add = async (req, res) => {
     return res.redirect('/cart');
   }
 
-  const qty = Math.max(1, parseInt(rawQty || '1', 10) || 1);
+  const qty = Math.min(99, Math.max(1, parseInt(rawQty || '1', 10) || 1));
 
   // Validate bundle discount is exactly one of the allowed tier values (0, 5, 10, 15%).
   // Any other value (e.g. client-supplied 99) is silently reset to 0.
@@ -123,7 +123,8 @@ exports.add = async (req, res) => {
 exports.update = (req, res) => {
   const cart = getCart(req);
   const { product_id, qty: rawQty } = req.body;
-  const qty = parseInt(rawQty, 10);
+  // NaN (non-numeric input) → 0 → removes item; valid values capped at 99.
+  const qty = Math.min(99, parseInt(rawQty, 10) || 0);
 
   if (qty <= 0) {
     cart.items = cart.items.filter(i => i.product_id !== product_id);

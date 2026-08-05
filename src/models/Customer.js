@@ -8,7 +8,7 @@ const Customer = {
   async findByEmail(email) {
     try {
       const [rows] = await bvoPool.query(
-        'SELECT * FROM customers WHERE email = ? LIMIT 1',
+        'SELECT id, email, first_name, last_name, password_hash, accepts_marketing, last_login_at, created_at FROM customers WHERE email = ? LIMIT 1',
         [email.toLowerCase().trim()]
       );
       return rows[0] || null;
