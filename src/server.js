@@ -215,9 +215,7 @@ app.use((req, res, next) => {
 // on every request from a 10-min cached DB query. See middleware/megaMenuData.js.
 app.use(require('./middleware/megaMenuData'));
 
-// ── Rate limiting ────────────────────────────────────────────────
-const rateLimit = require('express-rate-limit');
-
+// ── Auth-specific rate limiters ──────────────────────────────────
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 10,
