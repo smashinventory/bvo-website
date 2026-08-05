@@ -46,7 +46,9 @@ exports.login = async (req, res, next) => {
     req.session.customer   = { id: customer.id, firstName: customer.first_name, email: customer.email };
     await Customer.updateLastLogin(customer.id);
 
-    res.redirect(return_to && return_to.startsWith('/') ? return_to : '/account');
+    // /^\/(?!\/)/ rejects protocol-relative URLs like //evil.com that pass startsWith('/')
+    const safeReturn = return_to && /^\/(?!\/)/.test(return_to) ? return_to : '/account';
+    res.redirect(safeReturn);
   } catch (err) { next(err); }
 };
 
