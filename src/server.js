@@ -2,6 +2,17 @@
 
 require('dotenv').config();
 
+// ── Critical startup guards ──────────────────────────────────────
+// Fail fast with a clear message rather than silently using insecure defaults.
+if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32) {
+  console.error('FATAL: SESSION_SECRET must be set to at least 32 characters in .env');
+  process.exit(1);
+}
+if (!process.env.ADMIN_USER || !process.env.ADMIN_PASSWORD_HASH) {
+  console.error('FATAL: ADMIN_USER and ADMIN_PASSWORD_HASH must be set in .env');
+  process.exit(1);
+}
+
 const express        = require('express');
 const expressLayouts = require('express-ejs-layouts');
 const session        = require('express-session');
@@ -74,7 +85,7 @@ const _sessionStore = new MySQLStore({
 }, bvoPool);
 
 app.use(session({
-  secret:            process.env.SESSION_SECRET || 'bvo-dev-secret',
+  secret:            process.env.SESSION_SECRET,
   resave:            false,
   saveUninitialized: false,
   store:             _sessionStore,

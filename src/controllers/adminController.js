@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto         = require('crypto');
+const bcrypt         = require('bcrypt');
 const { bvoPool }   = require('../config/database');
 const Product        = require('../models/Product');
 const Category       = require('../models/Category');
@@ -129,20 +130,21 @@ exports.loginPage = (req, res) => {
 };
 
 /* POST /admin/login */
-exports.login = (req, res) => {
+exports.login = async (req, res) => {
   const { username, password } = req.body;
-  const validUser = process.env.ADMIN_USER     || 'admin';
-  const validPass = process.env.ADMIN_PASSWORD || 'changeme';
+  const validUser = process.env.ADMIN_USER;
+  const passHash  = process.env.ADMIN_PASSWORD_HASH;
 
-  // Timing-safe comparison — prevents timing-based user/password enumeration.
-  // Buffers must be equal length for timingSafeEqual; pad-compare so length
-  // difference doesn't short-circuit early (still returns false on mismatch).
-  const uBuf = Buffer.from(username  || '');
-  const pBuf = Buffer.from(password  || '');
-  const vuBuf = Buffer.from(validUser);
-  const vpBuf = Buffer.from(validPass);
+  // Timing-safe username comparison — prevents timing-based enumeration.
+  // Buffers must be equal length for timingSafeEqual; length difference alone
+  // would short-circuit, so we only call it when lengths match.
+  const uBuf      = Buffer.from(username  || '');
+  const vuBuf     = Buffer.from(validUser || '');
   const userMatch = uBuf.length === vuBuf.length && crypto.timingSafeEqual(uBuf, vuBuf);
-  const passMatch = pBuf.length === vpBuf.length && crypto.timingSafeEqual(pBuf, vpBuf);
+
+  // bcrypt.compare is inherently constant-time for the hash comparison.
+  // Always call it (even on user mismatch) to avoid timing side-channels.
+  const passMatch = passHash ? await bcrypt.compare(password || '', passHash) : false;
 
   if (userMatch && passMatch) {
     // Regenerate session ID to prevent session fixation
