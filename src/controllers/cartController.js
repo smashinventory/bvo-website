@@ -19,12 +19,26 @@ function getCart(req) {
 }
 
 function recalc(cart) {
-  cart.count    = cart.items.reduce((s, i) => s + i.qty, 0);
+  cart.count = cart.items.reduce((s, i) => s + i.qty, 0);
+  // Apply bundle discount so cart.subtotal is the actual amount to pay.
   // Guard: i.price may be null/NaN if a poisoned session entry slipped through;
-  // treat null/NaN as 0 so the reduce never produces NaN (which JSON serialises
-  // to null and then crashes cart.ejs on .toLocaleString()).
-  const raw = cart.items.reduce((s, i) => s + i.qty * (parseFloat(i.price) || 0), 0);
+  // treat null/NaN as 0 so the reduce never produces NaN.
+  const raw = cart.items.reduce((s, i) => {
+    const disc      = parseFloat(i.bundle_discount_pct) || 0;
+    const unitPrice = (parseFloat(i.price) || 0) * (1 - disc / 100);
+    return s + i.qty * unitPrice;
+  }, 0);
   cart.subtotal = parseFloat(raw.toFixed(2));
+}
+
+// Strip bundle discount from all items that share the same bundle_id.
+// Called when any item in a bundle is removed so the remaining items
+// revert to their standard sale price.
+function stripBundleGroup(cart, bundleId) {
+  if (!bundleId) return;
+  cart.items.forEach(i => {
+    if (i.bundle_id === bundleId) i.bundle_discount_pct = 0;
+  });
 }
 
 /* ── GET /cart ──────────────────────────────────────────────────── */
@@ -43,7 +57,7 @@ exports.add = async (req, res) => {
   const cart = getCart(req);
   const {
     product_id, slug, name, image, qty: rawQty,
-    bundle_discount_pct,
+    bundle_discount_pct, bundle_id,
   } = req.body;
   // price, original_price, compare_price intentionally NOT read from req.body —
   // monetary values must come from the DB, never from the client.
@@ -97,14 +111,15 @@ exports.add = async (req, res) => {
   } else {
     cart.items.push({
       product_id,
-      slug:                slug  || '',
-      name:                name  || '',
+      slug:                slug      || '',
+      name:                name      || '',
       price:               pricef,
-      image:               image || null,
+      image:               image     || null,
       qty,
       original_price:      comparePricef || pricef,  // MSRP, falls back to sale price
       compare_price:       comparePricef,             // MSRP (0 = not set)
       bundle_discount_pct: bundleDiscPct,
+      bundle_id:           bundle_id || null,         // groups items from the same bundle
     });
   }
 
@@ -127,7 +142,10 @@ exports.update = (req, res) => {
   const qty = Math.min(99, parseInt(rawQty, 10) || 0);
 
   if (qty <= 0) {
+    const removed = cart.items.find(i => i.product_id === product_id);
     cart.items = cart.items.filter(i => i.product_id !== product_id);
+    // If this item was part of a bundle, strip discounts from its bundle-mates.
+    if (removed?.bundle_discount_pct > 0) stripBundleGroup(cart, removed.bundle_id);
   } else {
     const item = cart.items.find(i => i.product_id === product_id);
     if (item) item.qty = qty;
@@ -140,8 +158,11 @@ exports.update = (req, res) => {
 
 /* ── POST /cart/remove ──────────────────────────────────────────── */
 exports.remove = (req, res) => {
-  const cart = getCart(req);
-  cart.items  = cart.items.filter(i => i.product_id !== req.body.product_id);
+  const cart    = getCart(req);
+  const removed = cart.items.find(i => i.product_id === req.body.product_id);
+  cart.items    = cart.items.filter(i => i.product_id !== req.body.product_id);
+  // If this item was part of a bundle, strip discounts from its bundle-mates.
+  if (removed?.bundle_discount_pct > 0) stripBundleGroup(cart, removed.bundle_id);
   recalc(cart);
   req.session.cart = cart;
   res.redirect('/cart');

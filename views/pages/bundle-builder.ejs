@@ -360,9 +360,9 @@
   var FAMILY_HEX     = <%- JSON.stringify(familyHex)     %>;
   var SIZE_BUCKETS   = <%- JSON.stringify(sizeBuckets)   %>;
 
-  /* ── Discount tiers: index = selected-item count ──────────────── */
-  /* 0 items→0%, 1 cabinet only→0%, 2 cab+top→5%, 3→10%, 4→15% */
-  var TIERS = [0, 0, 5, 10, 15];
+  /* ── Per-item-type bundle discounts ───────────────────────────── */
+  /* Vanity is never discounted; each add-on earns its own fixed % off */
+  var ITEM_DISC = { cabinet: 0, top: 5, mirror: 10, faucet: 15 };
 
   /* ── Viewer state ─────────────────────────────────────────────── */
   var gIdx   = { cabinet: 0,    top: 0,    mirror: 0,    faucet: 0    };  // current model index
@@ -852,10 +852,8 @@
   function itemCount() {
     return (state.cabinet ? 1 : 0) + (state.top ? 1 : 0) + (state.mirror ? 1 : 0) + (state.faucet ? 1 : 0);
   }
-  function discount() { return TIERS[Math.min(itemCount(), 4)]; }
 
   function updateSummary() {
-    var disc  = discount();
     var count = itemCount();
 
     /* Tier highlights */
@@ -863,26 +861,28 @@
       t.classList.toggle('is-active', parseInt(t.dataset.items, 10) === count);
     });
 
-    /* Compute totals — mirror/faucet multiply by qty */
-    var msrpTotal = 0;
-    var saleTotal = 0;
+    /* Compute totals — each item type uses its own fixed discount % */
+    var msrpTotal   = 0;
+    var saleTotal   = 0;
+    var bundleTotal = 0;
     ['cabinet','top','mirror','faucet'].forEach(function(k) {
       if (!state[k]) return;
-      var qty = (k === 'mirror' || k === 'faucet') ? (state[k + 'Qty'] || 1) : 1;
-      var sp = parseFloat(state[k].price || 0) * qty;
-      var cp = parseFloat(state[k].compare_price || 0) * qty;
-      saleTotal += sp;
-      msrpTotal += (cp > sp) ? cp : sp;  // fallback to sale price when no MSRP
+      var qty  = (k === 'mirror' || k === 'faucet') ? (state[k + 'Qty'] || 1) : 1;
+      var sp   = parseFloat(state[k].price || 0) * qty;
+      var cp   = parseFloat(state[k].compare_price || 0) * qty;
+      var disc = ITEM_DISC[k];
+      saleTotal   += sp;
+      msrpTotal   += (cp > sp) ? cp : sp;
+      bundleTotal += sp * (1 - disc / 100);
     });
-    var bundleTotal    = saleTotal * (1 - disc / 100);
-    var outletSavings  = msrpTotal - saleTotal;
-    var bundleSavings  = saleTotal - bundleTotal;
-    var totalSavings   = msrpTotal - bundleTotal;
+    var outletSavings = msrpTotal - saleTotal;
+    var bundleSavings = saleTotal - bundleTotal;
+    var totalSavings  = msrpTotal - bundleTotal;
 
     /* Badge — show dollar bundle savings */
     var badge = el('bb-discount-badge');
     if (badge) {
-      if (disc > 0 && bundleSavings > 0.005) {
+      if (bundleSavings > 0.005) {
         badge.textContent = 'Bundle Savings: −' + fmt(bundleSavings);
         badge.classList.add('has-discount');
       } else {
@@ -914,8 +914,9 @@
         var qty       = (k === 'mirror' || k === 'faucet') ? (state[k + 'Qty'] || 1) : 1;
         var sp        = parseFloat(item.price || 0) * qty;
         var cp        = parseFloat(item.compare_price || 0) * qty;
+        var itemDisc  = ITEM_DISC[k];
         var outletSav = (cp > sp) ? (cp - sp) : 0;
-        var dp        = sp * (1 - disc / 100);
+        var dp        = sp * (1 - itemDisc / 100);
         var bundleSav = sp - dp;
         var namePart  = esc(item.name) + (qty > 1 ? ' <span class="bb-qty-x2">×' + qty + '</span>' : '');
         return '<tr>'
@@ -938,7 +939,7 @@
     var breakdownEl = el('bb-savings-breakdown');
     if (origEl)      origEl.textContent      = msrpTotal > 0     ? '$ ' + num(msrpTotal)     : '';
     if (outletSavEl) outletSavEl.textContent = outletSavings > 0.005 ? '$ ' + num(outletSavings) : '—';
-    if (bundleSavEl) bundleSavEl.textContent = bundleSavings > 0.005 ? '$ ' + num(bundleSavings) : (disc === 0 && saleTotal > 0 ? 'Add Top to unlock' : '—');
+    if (bundleSavEl) bundleSavEl.textContent = bundleSavings > 0.005 ? '$ ' + num(bundleSavings) : (saleTotal > 0 && !state.top ? 'Add Top to unlock' : '—');
     if (finEl)       finEl.textContent       = saleTotal > 0     ? '$ ' + num(bundleTotal)   : '';
     if (breakdownEl) breakdownEl.style.display = saleTotal > 0 ? '' : 'none';
 
@@ -952,22 +953,24 @@
     var btn = el('bb-add-cart');
     btn.disabled    = true;
     btn.textContent = 'Adding…';
-    var disc  = discount();
-    /* Build items list — mirror/faucet repeated if qty = 2 */
+    var bundleId = 'bndl_' + Date.now(); // unique ID ties all items in this bundle together
+    /* Build items list — track type so we can apply the correct per-item discount */
     var items = [];
     ['cabinet','top','mirror','faucet'].forEach(function(k) {
       if (!state[k]) return;
       var qty = (k === 'mirror' || k === 'faucet') ? (state[k + 'Qty'] || 1) : 1;
-      for (var i = 0; i < qty; i++) items.push(state[k]);
+      for (var i = 0; i < qty; i++) items.push({ item: state[k], type: k });
     });
     // Sequential (not parallel) — Promise.all fires all fetches simultaneously,
     // causing a session race condition where each request reads the same empty
     // cart, adds one item, and saves, with the last write winning. Sequential
     // execution ensures each add completes (session saved) before the next read.
-    items.reduce(function(chain, item) {
+    items.reduce(function(chain, entry) {
       return chain.then(function() {
-        var dp = (parseFloat(item.price) * (1 - disc / 100)).toFixed(2);
-        var fd = new URLSearchParams();
+        var item = entry.item;
+        var disc = ITEM_DISC[entry.type];          // per-item-type discount %
+        var dp   = (parseFloat(item.price) * (1 - disc / 100)).toFixed(2);
+        var fd   = new URLSearchParams();
         fd.append('product_id',          item.id);
         fd.append('slug',                item.slug);
         fd.append('name',                item.name);
@@ -976,6 +979,7 @@
         fd.append('original_price',      item.price);
         fd.append('compare_price',       item.compare_price || '');
         fd.append('bundle_discount_pct', disc);
+        fd.append('bundle_id',           bundleId);
         fd.append('qty', '1');
         return fetch('/cart/add', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded' }, body: fd });
       });

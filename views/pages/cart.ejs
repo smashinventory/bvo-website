@@ -36,12 +36,15 @@
         <div class="cart-item-info">
           <a href="/products/<%= item.slug %>" class="cart-item-name"><%= item.name %></a>
           <%
-            var _cp  = parseFloat(item.compare_price) || 0;
-            var _sp  = parseFloat(item.original_price) || parseFloat(item.price) || 0;
-            var _bp  = parseFloat(item.price) || 0;
+            var _cp   = parseFloat(item.compare_price) || 0;  // MSRP
+            var _sale = parseFloat(item.price) || 0;           // sale price from DB
+            var _disc = parseFloat(item.bundle_discount_pct) || 0;
+            var _bp   = parseFloat((_sale * (1 - _disc / 100)).toFixed(2)); // bundle price
+            // Show MSRP as strikethrough if it's higher than the bundle-final price
+            var _show_msrp = _cp > _bp && _cp > 0;
           %>
           <p class="cart-item-price">
-            <% if (_cp > _bp) { %>
+            <% if (_show_msrp) { %>
               <s class="cart-item-msrp">$<%= _cp.toLocaleString('en-US',{minimumFractionDigits:2}) %></s>
             <% } %>
             <span class="cart-item-final">$<%= _bp.toLocaleString('en-US',{minimumFractionDigits:2}) %> each</span>
@@ -66,9 +69,13 @@
           </form>
         </div>
 
-        <!-- Line total -->
+        <!-- Line total (bundle-discounted price × qty) -->
         <div class="cart-item-total">
-          $<%= (item.qty * (parseFloat(item.price)||0)).toLocaleString('en-US',{minimumFractionDigits:2}) %>
+          <%
+            var _ltDisc  = parseFloat(item.bundle_discount_pct) || 0;
+            var _ltPrice = (parseFloat(item.price) || 0) * (1 - _ltDisc / 100);
+          %>
+          $<%= (item.qty * _ltPrice).toLocaleString('en-US',{minimumFractionDigits:2}) %>
         </div>
       </div>
       <% }) %>
@@ -78,37 +85,36 @@
     <aside class="cart-summary">
       <h2>Order Summary</h2>
 
+      <%
+        // Outlet savings = MSRP − sale price (compare_price vs price)
+        var _outletSavings = cart.items.reduce(function(acc, i) {
+          var cp   = parseFloat(i.compare_price) || 0;
+          var sale = parseFloat(i.price)         || 0;
+          if (cp > sale && sale > 0) acc += i.qty * (cp - sale);
+          return acc;
+        }, 0);
+        // Bundle savings = sale price − bundle price (pct applied to sale price)
+        var _bundleSavings = cart.items.reduce(function(acc, i) {
+          var pct  = parseFloat(i.bundle_discount_pct) || 0;
+          var sale = parseFloat(i.price)               || 0;
+          if (pct > 0 && sale > 0) acc += i.qty * sale * (pct / 100);
+          return acc;
+        }, 0);
+        // Item subtotal = sum of sale prices (before bundle discount)
+        var _itemSubtotal = cart.items.reduce(function(acc, i) {
+          return acc + i.qty * (parseFloat(i.price) || 0);
+        }, 0);
+      %>
+
       <div class="summary-row">
         <span>Subtotal</span>
-        <span>$<%= (parseFloat(cart.subtotal)||0).toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
+        <span>$<%= _itemSubtotal.toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
       </div>
       <div class="summary-row summary-shipping">
         <span>Shipping</span>
         <span class="free-label">FREE</span>
       </div>
-      <div class="summary-row summary-total">
-        <span>Total</span>
-        <span>$<%= (parseFloat(cart.subtotal)||0).toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
-      </div>
 
-      <p class="summary-note">Taxes calculated at checkout</p>
-
-      <%
-        // Outlet savings = MSRP − sale price per item (compare_price vs original_price)
-        var _outletSavings = cart.items.reduce(function(acc, i) {
-          var cp   = parseFloat(i.compare_price)  || 0;
-          var orig = parseFloat(i.original_price) || parseFloat(i.price) || 0;
-          if (cp > orig && orig > 0) acc += i.qty * (cp - orig);
-          return acc;
-        }, 0);
-        // Bundle savings = sale price − bundle price (bundle_discount_pct on original_price)
-        var _bundleSavings = cart.items.reduce(function(acc, i) {
-          var pct  = parseFloat(i.bundle_discount_pct) || 0;
-          var orig = parseFloat(i.original_price) || parseFloat(i.price) || 0;
-          if (pct > 0 && orig > 0) acc += i.qty * orig * (pct / 100);
-          return acc;
-        }, 0);
-      %>
       <% if (_outletSavings > 0.01) { %>
       <div class="summary-savings summary-savings--outlet">
         <span class="savings-label">💚 Outlet savings</span>
@@ -121,6 +127,13 @@
         <strong>−$<%= _bundleSavings.toLocaleString('en-US',{minimumFractionDigits:2}) %></strong>
       </div>
       <% } %>
+
+      <div class="summary-row summary-total">
+        <span>Total</span>
+        <span>$<%= (parseFloat(cart.subtotal)||0).toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
+      </div>
+
+      <p class="summary-note">Taxes calculated at checkout</p>
 
       <a href="/checkout" class="btn btn-amber" style="width:100%;margin-bottom:12px;padding:.9rem">
         Proceed to Checkout

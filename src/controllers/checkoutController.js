@@ -94,7 +94,8 @@ exports.process = async (req, res) => {
   const lineItems = cart.items.map(item => ({
     name:     item.name || 'Product',
     unitQty:  item.qty,
-    price:    toCents(item.price),  // Clover requires cents
+    // Apply bundle discount so Clover charges the correct bundle-discounted price.
+    price:    toCents((parseFloat(item.price) || 0) * (1 - (parseFloat(item.bundle_discount_pct) || 0) / 100)),
     note:     item.slug ? `SKU: ${item.slug}` : '',
   }));
 
