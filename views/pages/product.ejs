@@ -164,6 +164,7 @@
     <!-- CTAs -->
     <div class="detail-ctas">
       <form action="/cart/add" method="POST">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <input type="hidden" name="product_id" value="<%= product.id %>">
         <input type="hidden" name="slug"        value="<%= product.slug %>">
         <input type="hidden" name="name"        value="<%= product.name %>">

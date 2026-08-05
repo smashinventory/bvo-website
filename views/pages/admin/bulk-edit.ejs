@@ -15,6 +15,7 @@
   </p>
 
   <form method="POST" action="/admin/products/bulk-edit" id="bulkEditForm">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <input type="hidden" name="_returnIds" value="<%= ids %>">
 
     <div class="be-table-wrap">

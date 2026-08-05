@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="/css/site.css">
 
   <%- style %>
+  <meta name="csrf-token" content="<%= csrfToken %>">
 </head>
 <body class="admin-body">
 
@@ -78,6 +79,7 @@
           View Store
         </a>
         <form action="/admin/logout" method="POST">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <button type="submit" class="admin-footer-link admin-signout-btn">
             <svg viewBox="0 0 24 24" class="admin-nav-icon"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
             Sign Out
@@ -109,6 +111,21 @@
     </div>
 
   </div><!-- /.admin-shell -->
+
+  <!-- CSRF: patch fetch to include token on all non-GET requests -->
+  <script>
+  (function(){
+    var _f = window.fetch;
+    window.fetch = function(url, opts){
+      opts = opts || {};
+      if (!opts.method || opts.method.toUpperCase() === 'GET') return _f(url, opts);
+      opts.headers = opts.headers || {};
+      var t = document.querySelector('meta[name="csrf-token"]');
+      if (t) opts.headers['X-CSRF-Token'] = t.content;
+      return _f(url, opts);
+    };
+  })();
+  </script>
 
   <script src="/js/site.js"></script>
   <script>

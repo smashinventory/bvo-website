@@ -22,6 +22,7 @@ const formAction = isNew ? '/admin/categories' : `/admin/categories/${cat.id}`;
 <% } %>
 
 <form method="POST" action="<%= formAction %>" id="catEditForm" novalidate>
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
   <!-- Top bar -->
   <div class="ce-topbar">
@@ -214,6 +215,7 @@ const formAction = isNew ? '/admin/categories' : `/admin/categories/${cat.id}`;
         </div>
         <form method="POST" action="/admin/categories/<%= cat.id %>/delete"
               onsubmit="return confirm('Delete «<%= cat.name %>»? This cannot be undone.')">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <button type="submit" class="adm-btn adm-btn--danger">Delete</button>
         </form>
       </div>

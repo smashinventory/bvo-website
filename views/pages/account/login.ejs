@@ -11,6 +11,7 @@
     <% } %>
 
     <form action="/account/login" method="POST" class="auth-form" novalidate>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <input type="hidden" name="return_to" value="<%= returnTo %>">
 
       <div class="form-group">

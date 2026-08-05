@@ -16,6 +16,7 @@
 
   <form action="<%= isNew ? '/admin/products' : '/admin/products/' + product.id %>"
         method="POST" class="adm-form" id="productForm" novalidate>
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <div class="adm-form-grid">
 
       <!-- ══ LEFT COLUMN ══════════════════════════════════════════ -->
@@ -872,6 +873,7 @@
   <div class="adm-form-actions" style="margin-top:0;border-top:none;padding-top:0">
     <form method="POST" action="/admin/products/<%= product.id %>/delete" style="margin-left:auto"
       onsubmit="return confirm('Permanently delete this product?')">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <button type="submit" class="btn" style="color:#c00;border-color:#c00">Delete Product</button>
     </form>
   </div>

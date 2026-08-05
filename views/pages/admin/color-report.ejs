@@ -98,6 +98,7 @@ families.forEach(function(f){ familyHex[f.key] = { hex: f.hex, label: f.label };
         </td>
         <td>
           <form method="POST" action="/admin/products/color-report" class="cr-apply-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
             <input type="hidden" name="vendor_color" value="<%= row.color %>">
             <input type="hidden" name="context" value="<%= defaultCtx %>" class="cr-ctx-hidden"
                    id="ctx_hidden_<%= row.color.replace(/[^a-zA-Z0-9]/g,'_') %>">
@@ -192,6 +193,7 @@ families.forEach(function(f){ familyHex[f.key] = { hex: f.hex, label: f.label };
         </td>
         <td>
           <form method="POST" action="/admin/products/color-mapping/update" class="cr-edit-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <input type="hidden" name="vendor_color" value="<%= row.vendor_color %>">
           <select name="context" class="adm-select adm-select--sm">
             <option value="cabinet" <%= ctx === 'cabinet' ? 'selected' : '' %>>Cabinet</option>

@@ -140,6 +140,7 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   <script async src="https://www.googletagmanager.com/gtag/js?id=<%= _gaId %>"></script>
   <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','<%= _gaId %>');</script>
   <% } %>
+  <meta name="csrf-token" content="<%= csrfToken %>">
 </head>
 <body>
 
@@ -162,6 +163,21 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
 
   <!-- Auth state for client-side heart toggle -->
   <script>window.__bvoIsLoggedIn = <%= (typeof isLoggedIn !== 'undefined' && isLoggedIn) ? 'true' : 'false' %>;</script>
+
+  <!-- CSRF: patch fetch to include token on all non-GET requests -->
+  <script>
+  (function(){
+    var _f = window.fetch;
+    window.fetch = function(url, opts){
+      opts = opts || {};
+      if (!opts.method || opts.method.toUpperCase() === 'GET') return _f(url, opts);
+      opts.headers = opts.headers || {};
+      var t = document.querySelector('meta[name="csrf-token"]');
+      if (t) opts.headers['X-CSRF-Token'] = t.content;
+      return _f(url, opts);
+    };
+  })();
+  </script>
 
   <!-- Site JS -->
   <script src="/js/site.js?v=5"></script>

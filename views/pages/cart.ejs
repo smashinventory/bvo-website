@@ -51,6 +51,7 @@
         <!-- Qty + remove -->
         <div class="cart-item-actions">
           <form action="/cart/update" method="POST" class="cart-qty-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
             <input type="hidden" name="product_id" value="<%= item.product_id %>">
             <div class="detail-qty" style="margin-bottom:8px">
               <button class="qty-btn" type="submit" name="qty" value="<%= item.qty - 1 %>" aria-label="Decrease">−</button>
@@ -59,6 +60,7 @@
             </div>
           </form>
           <form action="/cart/remove" method="POST">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
             <input type="hidden" name="product_id" value="<%= item.product_id %>">
             <button type="submit" class="cart-remove-btn">Remove</button>
           </form>

@@ -25,6 +25,7 @@
         <p class="checkout-card-sub">Your name and email are sent to Clover for your payment receipt. All billing, shipping, and card details are securely collected on the next page.</p>
 
         <form action="/checkout" method="POST" id="checkout-form" class="checkout-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <div class="checkout-field-row">
             <div class="checkout-field">
               <label for="co-first">First Name</label>

@@ -83,6 +83,7 @@ const prefillModel = typeof query !== 'undefined' && query && query.model ? quer
 <% } %>
 
 <form method="POST" action="<%= formAction %>" id="meForm" novalidate>
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
   <!-- Top bar -->
   <div class="me-topbar">
@@ -280,6 +281,7 @@ const prefillModel = typeof query !== 'undefined' && query && query.model ? quer
         <div class="me-delete-zone">
           <form method="POST" action="/admin/models/<%= mg.id %>/delete"
                 onsubmit="return confirm('Remove management record for \'<%= mg.model_name %>\'?\n\nThis model will revert to automatic ranking.')">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
             <button type="submit" class="adm-btn adm-btn--danger" style="width:100%">Remove Model Group</button>
           </form>
         </div>

@@ -82,6 +82,7 @@
       </a>
       <form method="POST" action="/admin/categories/<%= cat.id %>/delete" style="display:inline"
             onsubmit="return confirm('Delete «<%= cat.name %>»? This cannot be undone.')">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <button class="adm-btn adm-btn--danger" type="submit">Delete</button>
       </form>
     </div>

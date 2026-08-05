@@ -97,6 +97,17 @@ app.use(session({
   },
 }));
 
+// ── CSRF token generation ────────────────────────────────────────
+// Generate a random token per session and make it available to templates.
+const crypto = require('crypto');
+app.use((req, res, next) => {
+  if (!req.session.csrfToken) {
+    req.session.csrfToken = crypto.randomBytes(32).toString('hex');
+  }
+  res.locals.csrfToken = req.session.csrfToken;
+  next();
+});
+
 // ── Body parsers ─────────────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
 // extended:false uses Node's built-in querystring, which keeps bracket-notation
@@ -176,6 +187,26 @@ app.use((req, res, next) => {
   res.locals.siteUrl      = siteUrl;
   res.locals.canonicalUrl = `${siteUrl}${req.path}`;
   res.locals.noindex      = false;   // true → <meta name="robots" content="noindex,follow">
+  next();
+});
+
+// ── CSRF validation ──────────────────────────────────────────────
+// Reject state-changing requests that don't carry the session token.
+// Exempts /api routes (they use their own bearer-token auth).
+const _CSRF_SAFE = new Set(['GET', 'HEAD', 'OPTIONS']);
+app.use((req, res, next) => {
+  if (_CSRF_SAFE.has(req.method)) return next();
+  if (req.path.startsWith('/api/')) return next(); // API uses own auth
+  const token = (req.body && req.body._csrf) || req.headers['x-csrf-token'];
+  if (!token || token !== req.session.csrfToken) {
+    const wantsJson = req.headers.accept?.includes('application/json')
+      || req.headers['x-requested-with'] === 'XMLHttpRequest';
+    if (wantsJson) return res.status(403).json({ ok: false, error: 'Invalid CSRF token' });
+    return res.status(403).render('pages/error', {
+      pageTitle: 'Security Error | BathroomVanitiesOutlet.com',
+      message: 'Your session may have expired. Please go back and try again.',
+    });
+  }
   next();
 });
 

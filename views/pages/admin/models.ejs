@@ -172,6 +172,7 @@ const managedCount  = models.filter(m => m.mg).length;
             <a href="/admin/models/<%= m.mg.id %>/edit" class="adm-btn adm-btn--sm">Edit</a>
             <form method="POST" action="/admin/models/<%= m.mg.id %>/delete"
                   onsubmit="return confirm('Remove management record for \'<%= m.model_name %>\'? The model will revert to auto-ranking.')">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <button type="submit" class="adm-btn adm-btn--sm adm-btn--danger">Remove</button>
             </form>
             <% } else { %>
@@ -205,6 +206,7 @@ const managedCount  = models.filter(m => m.mg).length;
         <td style="text-align:right">
           <form method="POST" action="/admin/models/<%= o.id %>/delete"
                 onsubmit="return confirm('Delete orphaned record for \'<%= o.model_name %>\'?')">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
             <button type="submit" class="adm-btn adm-btn--sm adm-btn--danger">Delete</button>
           </form>
         </td>
