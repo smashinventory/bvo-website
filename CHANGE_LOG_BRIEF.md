@@ -3,6 +3,66 @@
 
 ---
 
+## Security Hardening Sprint — LOW fixes + Autocomplete sweep
+**Date:** 2026-08-05
+**Audit source:** `BVO_SECURITY_AUDIT.md` (LOW-1, LOW-2, LOW-4, LOW-5, LOW-7, LOW-8, LOW-9)
+
+### LOW-1 · `res.redirect('back')` removed
+**File:** `src/controllers/adminController.js:603, 609`
+**Problem:** `redirect('back')` trusts the client-supplied `Referer` header — an attacker could set `Referer: https://evil.com` and redirect an admin there after bulk action.
+**Fix:** Changed both `activate` and `deactivate` bulk-action redirects to the explicit safe path `/admin/products`.
+
+---
+
+### LOW-2 · XLSX formula injection disabled
+**File:** `src/controllers/adminController.js:1259`
+**Problem:** `_xlsxLib.read()` with default options parses and caches formula strings. A malicious XLSX with `=HYPERLINK(...)` or similar could exfiltrate data when the formula is later serialized.
+**Fix:** Added `cellFormula: false` to the `_xlsxLib.read()` call — formulas are now stripped at parse time.
+
+---
+
+### LOW-4 · DB_PASS startup guard
+**File:** `src/config/database.js`
+**Problem:** `process.env.DB_PASS || ''` silently connected to MySQL with an empty password if the env var was missing, opening the DB to unauthenticated local connections.
+**Fix:** Added `process.exit(1)` guard at module load if `DB_PASS` is absent — same pattern as `SESSION_SECRET` in `server.js`.
+
+---
+
+### LOW-5 · Password complexity increased
+**Files:** `src/controllers/accountController.js`, `views/pages/account/register.ejs`
+**Problem:** Minimum of 8 characters with no complexity requirement allows trivially brute-forced passwords.
+**Fix:** Registration now requires ≥12 characters + at least one digit + at least one non-alphanumeric character. `minlength` attribute on the form input updated to 12. Error message updated accordingly.
+
+---
+
+### LOW-7 · Unused `csv-parse` dependency removed
+**File:** `package.json`
+**Problem:** `csv-parse ^5.4.0` was listed as a production dependency but had zero `require()` calls anywhere in `src/`. Dead dependencies increase attack surface and supply-chain risk.
+**Fix:** Removed the dependency. Run `npm install` after deploy to clean `node_modules`.
+
+---
+
+### LOW-8 · Raw `err.message` no longer returned to admin browser
+**File:** `src/controllers/adminController.js` (all 500-level JSON error responses)
+**Problem:** Database error messages, file-system paths, and stack fragments were forwarded directly to the admin browser in JSON error bodies, leaking internal implementation details.
+**Fix:** Replaced all `res.status(500).json({ ok: false, error: err.message })` and `res.json({ ok: false, error: err.message })` with `'An unexpected error occurred.'`. Full errors are still logged server-side via the existing `console.error` calls. 400-level multer/input-validation errors were left unchanged (those messages are safe and useful to the admin).
+
+---
+
+### LOW-9 · CHIP_SQL parameter binding documented
+**File:** `src/controllers/bundleController.js:30`
+**Problem:** `CHIP_SQL` contains a positional `?` placeholder for `brand`. Every query that embeds it must supply `brand` as its first bind param. This was undocumented, making refactors fragile.
+**Fix:** Added explicit comment on the `CHIP_SQL` constant documenting the required parameter position.
+
+---
+
+### Autocomplete DevTools sweep
+**Files:** `views/pages/admin/product-edit.ejs`, `views/pages/admin/category-edit.ejs`, `views/pages/admin/model-edit.ejs`
+**Problem:** Browser flagged admin data-entry fields (`name`, `brand`, `color`, `material`, etc.) as missing `autocomplete` attributes. User-facing forms (login, register, checkout) already had correct `autocomplete` values.
+**Fix:** Added `autocomplete="off"` to the `<form>` element of all three admin edit forms. This suppresses browser autofill on data fields where it makes no sense and clears the DevTools violation.
+
+---
+
 ## Security Hardening Sprint — CRIT / HIGH / MED fixes
 **Date:** 2026-08-05
 **Audit source:** `BVO_SECURITY_AUDIT.md`

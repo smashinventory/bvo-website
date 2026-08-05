@@ -600,13 +600,13 @@ exports.productBulkAction = async (req, res, next) => {
     if (action === 'activate') {
       await bvoPool.query(`UPDATE products SET is_active=1, updated_at=NOW() WHERE id IN (${ph})`, ids);
       req.session.flash = { type: 'success', msg: `${ids.length} product(s) activated.` };
-      return res.redirect('back');
+      return res.redirect('/admin/products'); // LOW-1: avoid client-controlled Referer
     }
 
     if (action === 'deactivate') {
       await bvoPool.query(`UPDATE products SET is_active=0, updated_at=NOW() WHERE id IN (${ph})`, ids);
       req.session.flash = { type: 'success', msg: `${ids.length} product(s) deactivated.` };
-      return res.redirect('back');
+      return res.redirect('/admin/products'); // LOW-1: avoid client-controlled Referer
     }
 
     if (action === 'delete') {
@@ -678,7 +678,7 @@ exports.productAddImage = async (req, res) => {
     res.json({ ok: true, url, imgId: result.insertId, isPrimary });
   } catch (err) {
     console.error('[productAddImage] error:', err.message);
-    res.status(500).json({ ok: false, error: err.message });
+    res.status(500).json({ ok: false, error: 'An unexpected error occurred.' });
   }
 };
 
@@ -689,7 +689,7 @@ exports.productDeleteImage = async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error('[productDeleteImage] error:', err.message);
-    res.status(500).json({ ok: false, error: err.message });
+    res.status(500).json({ ok: false, error: 'An unexpected error occurred.' });
   }
 };
 
@@ -701,7 +701,7 @@ exports.productSetPrimaryImage = async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error('[productSetPrimaryImage] error:', err.message);
-    res.status(500).json({ ok: false, error: err.message });
+    res.status(500).json({ ok: false, error: 'An unexpected error occurred.' });
   }
 };
 
@@ -721,7 +721,7 @@ exports.productReorderImages = async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error('[productReorderImages] error:', err.message);
-    res.status(500).json({ ok: false, error: err.message });
+    res.status(500).json({ ok: false, error: 'An unexpected error occurred.' });
   }
 };
 
@@ -1256,7 +1256,7 @@ exports.productImportJM = async (req, res, next) => {
   // Parse workbook synchronously (fast — just reads buffer into memory).
   let wb;
   try {
-    wb = _xlsxLib.read(req.file.buffer, { cellDates: false });
+    wb = _xlsxLib.read(req.file.buffer, { cellDates: false, cellFormula: false }); // LOW-2: disable formula execution
   } catch (err) {
     req.session.flash = { type: 'error', msg: `Could not parse XLSX: ${err.message}` };
     return res.redirect('/admin/products');
@@ -1771,7 +1771,7 @@ exports.themeSavePreview = (req, res) => {
     req.session.tePreviewSettings = settings;
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    res.status(500).json({ ok: false, error: 'An unexpected error occurred.' });
   }
 };
 
@@ -1792,7 +1792,7 @@ exports.themeSaveOrder = (req, res) => {
     themeSettings.reload();
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    res.status(500).json({ ok: false, error: 'An unexpected error occurred.' });
   }
 };
 
@@ -1851,7 +1851,7 @@ exports.themeDuplicate = (req, res) => {
     themeSettings.reload();
     res.json({ ok: true, newKey });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    res.status(500).json({ ok: false, error: 'An unexpected error occurred.' });
   }
 };
 
@@ -2027,7 +2027,7 @@ exports.syncRun = async (req, res) => {
     res.json({ ok: true, ...result });
   } catch (err) {
     console.error('[SYNC RUN]', err);
-    res.json({ ok: false, error: err.message });
+    res.json({ ok: false, error: 'An unexpected error occurred.' });
   }
 };
 
@@ -2040,7 +2040,7 @@ exports.syncApprove = async (req, res) => {
     );
     res.json({ ok: true });
   } catch (err) {
-    res.json({ ok: false, error: err.message });
+    res.json({ ok: false, error: 'An unexpected error occurred.' });
   }
 };
 
@@ -2055,7 +2055,7 @@ exports.syncSkip = async (req, res) => {
     );
     res.json({ ok: true });
   } catch (err) {
-    res.json({ ok: false, error: err.message });
+    res.json({ ok: false, error: 'An unexpected error occurred.' });
   }
 };
 
@@ -2067,7 +2067,7 @@ exports.syncApproveAll = async (req, res) => {
     );
     res.json({ ok: true });
   } catch (err) {
-    res.json({ ok: false, error: err.message });
+    res.json({ ok: false, error: 'An unexpected error occurred.' });
   }
 };
 
@@ -2247,7 +2247,7 @@ exports.syncSaveSettings = (req, res) => {
     });
     res.json({ ok: true });
   } catch (err) {
-    res.json({ ok: false, error: err.message });
+    res.json({ ok: false, error: 'An unexpected error occurred.' });
   }
 };
 
@@ -2355,7 +2355,7 @@ exports.categorySetImageAjax = async (req, res) => {
     res.json({ ok: true, url });
   } catch (err) {
     console.error('[Category Upload] DB error:', err.message);
-    res.status(500).json({ ok: false, error: err.message });
+    res.status(500).json({ ok: false, error: 'An unexpected error occurred.' });
   }
 };
 
@@ -2368,7 +2368,7 @@ exports.categoryRemoveImage = async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error('[Category Image] remove error:', err.message);
-    res.status(500).json({ ok: false, error: err.message });
+    res.status(500).json({ ok: false, error: 'An unexpected error occurred.' });
   }
 };
 
@@ -2745,7 +2745,7 @@ exports.modelToggleFeatured = async (req, res) => {
     await bvoPool.query('UPDATE model_groups SET is_featured = ? WHERE id = ?', [value, id]);
     res.json({ ok: true, featured: !!value });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    res.status(500).json({ ok: false, error: 'An unexpected error occurred.' });
   }
 };
 
@@ -2773,7 +2773,7 @@ exports.modelSetImageAjax = async (req, res) => {
     await bvoPool.query('UPDATE model_groups SET custom_image = ? WHERE id = ?', [url, id]);
     res.json({ ok: true, url });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    res.status(500).json({ ok: false, error: 'An unexpected error occurred.' });
   }
 };
 
@@ -2784,6 +2784,6 @@ exports.modelRemoveImage = async (req, res) => {
     await bvoPool.query('UPDATE model_groups SET custom_image = NULL WHERE id = ?', [id]);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    res.status(500).json({ ok: false, error: 'An unexpected error occurred.' });
   }
 };

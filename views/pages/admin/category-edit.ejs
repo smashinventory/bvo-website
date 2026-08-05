@@ -21,7 +21,7 @@ const formAction = isNew ? '/admin/categories' : `/admin/categories/${cat.id}`;
 <div class="adm-flash adm-flash--<%= flash.type %>"><%-  flash.msg %></div>
 <% } %>
 
-<form method="POST" action="<%= formAction %>" id="catEditForm" novalidate>
+<form method="POST" action="<%= formAction %>" id="catEditForm" novalidate autocomplete="off">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
   <!-- Top bar -->

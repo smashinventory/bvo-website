@@ -26,7 +26,10 @@ const IMG_SQL = `
 
 /* ── Color chip image — looks up a matching Sample product (category_id=10)
    that shares the same brand + model + color as the cabinet/top/mirror SKU.
-   These are the swatch/chip photos JM provides with every collection.       */
+   These are the swatch/chip photos JM provides with every collection.
+   LOW-9 NOTE: CHIP_SQL contains one positional `?` placeholder (brand).
+   Every query that embeds CHIP_SQL must supply `brand` as the FIRST
+   parameter in its bind array, before any other params.                      */
 const CHIP_SQL = `
   (SELECT pi2.url FROM product_images pi2
    INNER JOIN products s ON s.id = pi2.product_id

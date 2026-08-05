@@ -2,6 +2,12 @@
 
 const mysql = require('mysql2/promise');
 
+// LOW-4: Refuse to start if DB_PASS is absent — a blank password is a misconfiguration.
+if (!process.env.DB_PASS) {
+  console.error('FATAL: DB_PASS is not set in .env — refusing to start without a database password');
+  process.exit(1);
+}
+
 // ── BVO Website DB ───────────────────────────────────────────────
 const bvoPool = mysql.createPool({
   host:              process.env.DB_HOST     || 'localhost',

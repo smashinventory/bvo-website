@@ -90,11 +90,16 @@ exports.register = async (req, res, next) => {
         query: req.query,
       });
     }
-    if (passwordStr.length < 8) {
+    // LOW-5: Require min 12 chars + at least one digit + one non-alphanumeric character
+    if (
+      passwordStr.length < 12 ||
+      !/[0-9]/.test(passwordStr) ||
+      !/[^a-zA-Z0-9]/.test(passwordStr)
+    ) {
       return res.render('pages/account/register', {
         pageTitle: 'Create Account | BathroomVanitiesOutlet.com',
         metaDesc:  '',
-        error: 'Password must be at least 8 characters.',
+        error: 'Password must be at least 12 characters and include at least one number and one special character (e.g. !@#$%).',
         query: req.query,
       });
     }

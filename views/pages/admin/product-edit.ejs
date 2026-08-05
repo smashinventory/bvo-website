@@ -15,7 +15,7 @@
   <% } %>
 
   <form action="<%= isNew ? '/admin/products' : '/admin/products/' + product.id %>"
-        method="POST" class="adm-form" id="productForm" novalidate>
+        method="POST" class="adm-form" id="productForm" novalidate autocomplete="off">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <div class="adm-form-grid">
 

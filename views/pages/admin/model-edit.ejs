@@ -82,7 +82,7 @@ const prefillModel = typeof query !== 'undefined' && query && query.model ? quer
 <div class="adm-flash adm-flash--<%= flash.type %>"><%- flash.msg %></div>
 <% } %>
 
-<form method="POST" action="<%= formAction %>" id="meForm" novalidate>
+<form method="POST" action="<%= formAction %>" id="meForm" novalidate autocomplete="off">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
   <!-- Top bar -->
