@@ -22,7 +22,8 @@
  * Price note: Clover requires amounts in CENTS (integer). $299.00 → 29900.
  */
 
-const axios = require('axios');
+const axios    = require('axios');
+const { bvoPool } = require('../config/database');
 
 /* ── Helpers ────────────────────────────────────────────────────── */
 
@@ -121,13 +122,17 @@ exports.process = async (req, res) => {
       timeout: 10000,
     });
 
-    // Save email + session ID for the success page
+    // Save everything needed to record the order on the success page.
+    // Cart items are snapshotted here because the cart is cleared on success.
     req.session.pendingCheckout = {
       email,
       firstName:         first_name || '',
       lastName:          last_name  || '',
+      phone:             phone      || '',
       checkoutSessionId: data.checkoutSessionId || '',
       subtotal:          cart.subtotal,
+      customerId:        req.session.customer?.id || null,
+      items:             cart.items.map(i => ({ ...i })),  // snapshot
     };
 
     // Redirect customer to Clover's PCI-compliant hosted payment page
@@ -146,20 +151,116 @@ exports.process = async (req, res) => {
 };
 
 /* ── GET /checkout/success ──────────────────────────────────────── */
-exports.success = (req, res) => {
-  const pending = req.session.pendingCheckout || {};
+exports.success = async (req, res) => {
+  const pending    = req.session.pendingCheckout || {};
+  const cartItems  = pending.items || [];
+  let   orderNumber = '';
 
-  // Clear cart and pending checkout from session
+  /* ── Write order to DB (only when we have a real pending checkout) ── */
+  if (pending.checkoutSessionId && cartItems.length > 0) {
+    try {
+      /* Idempotency: if the customer refreshes the confirmation page,
+         the checkoutSessionId already exists — skip the insert and reuse
+         the order number stored in rflpos_order_id match.              */
+      const [existing] = await bvoPool.query(
+        'SELECT id, order_number FROM orders WHERE rflpos_order_id = ? LIMIT 1',
+        [pending.checkoutSessionId]
+      );
+
+      if (existing.length > 0) {
+        orderNumber = existing[0].order_number;
+      } else {
+        const conn = await bvoPool.getConnection();
+        try {
+          await conn.beginTransaction();
+
+          /* Total = sum of each item's effective price (after bundle discount) */
+          const total = cartItems.reduce((sum, i) => {
+            const disc = parseFloat(i.bundle_discount_pct) || 0;
+            const unitPrice = parseFloat(i.price || 0) * (1 - disc / 100);
+            return sum + unitPrice * (i.qty || 1);
+          }, 0);
+
+          /* Insert order row — order_number starts as placeholder */
+          const [result] = await conn.query(
+            `INSERT INTO orders
+               (order_number, customer_id, guest_email, status,
+                subtotal, total, ship_first_name, ship_last_name, rflpos_order_id)
+             VALUES (?,?,?,?,?,?,?,?,?)`,
+            [
+              'PENDING',
+              pending.customerId || null,
+              pending.email      || null,
+              'pending',
+              parseFloat(pending.subtotal || 0).toFixed(2),
+              total.toFixed(2),
+              pending.firstName || '',
+              pending.lastName  || '',
+              pending.checkoutSessionId,
+            ]
+          );
+
+          /* Generate order number: BVO-YYYY-MM-DD-NNNNN
+             Offset +106 so the first order displays as 00107, not 00001. */
+          const now    = new Date();
+          const year   = now.getFullYear();
+          const month  = String(now.getMonth() + 1).padStart(2, '0');
+          const day    = String(now.getDate()).padStart(2, '0');
+          const seq    = String(result.insertId + 106).padStart(5, '0');
+          orderNumber  = `BVO-${year}-${month}-${day}-${seq}`;
+
+          await conn.query(
+            'UPDATE orders SET order_number = ? WHERE id = ?',
+            [orderNumber, result.insertId]
+          );
+
+          /* Insert one row per cart item */
+          for (const item of cartItems) {
+            const disc      = parseFloat(item.bundle_discount_pct) || 0;
+            const unitPrice = parseFloat(item.price || 0) * (1 - disc / 100);
+            const lineTotal = unitPrice * (item.qty || 1);
+            await conn.query(
+              `INSERT INTO order_items
+                 (order_id, product_id, sku, name, qty, unit_price, line_total)
+               VALUES (?,?,?,?,?,?,?)`,
+              [
+                result.insertId,
+                item.product_id || null,
+                item.slug       || '',
+                item.name       || 'Product',
+                item.qty        || 1,
+                unitPrice.toFixed(2),
+                lineTotal.toFixed(2),
+              ]
+            );
+          }
+
+          await conn.commit();
+        } catch (dbErr) {
+          await conn.rollback();
+          /* Log but don't surface to the customer — they paid successfully */
+          console.error('[checkout/success] Failed to record order:', dbErr.message);
+        } finally {
+          conn.release();
+        }
+      }
+    } catch (err) {
+      console.error('[checkout/success] DB error:', err.message);
+    }
+  }
+
+  /* Clear cart and pending checkout from session */
   req.session.cart            = { items: [], count: 0, subtotal: 0 };
   req.session.pendingCheckout = null;
 
   res.render('pages/checkout-success', {
-    pageTitle: 'Order Confirmed | BathroomVanitiesOutlet.com',
-    metaDesc:  '',
-    noindex:   true,
-    email:     pending.email     || '',
-    firstName: pending.firstName || '',
-    subtotal:  pending.subtotal  || 0,
+    pageTitle:   'Order Confirmed | BathroomVanitiesOutlet.com',
+    metaDesc:    '',
+    noindex:     true,
+    email:       pending.email     || '',
+    firstName:   pending.firstName || '',
+    subtotal:    pending.subtotal  || 0,
+    orderNumber,
   });
 };
 

@@ -14,6 +14,10 @@
   <p class="confirm-sub">Thank you for your order.</p>
   <% } %>
 
+  <% if (typeof orderNumber !== 'undefined' && orderNumber) { %>
+  <p class="confirm-order-num">Order <strong><%= orderNumber %></strong></p>
+  <% } %>
+
   <% if (typeof email !== 'undefined' && email) { %>
   <p class="confirm-email">A confirmation will be sent to <strong><%= email %></strong>.</p>
   <% } %>
