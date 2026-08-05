@@ -101,10 +101,12 @@ exports.register = async (req, res, next) => {
 
     const existing = await Customer.findByEmail(emailStr);
     if (existing) {
+      // Generic message — does not reveal whether the email is registered (MED-2)
       return res.render('pages/account/register', {
         pageTitle: 'Create Account | BathroomVanitiesOutlet.com',
         metaDesc:  '',
-        error: 'An account with that email already exists.',
+        error: 'We were unable to create an account with that email. If you already have an account, please sign in.',
+        query: req.query,
       });
     }
 

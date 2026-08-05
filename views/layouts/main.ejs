@@ -18,12 +18,14 @@ const _gfQuery = _fontFamilies.map(f => {
 }).join('&');
 const _gfUrl = `https://fonts.googleapis.com/css2?${_gfQuery}&display=optional`;
 
-// CSS color overrides (only output if diverging from brand defaults)
-const _navyC   = _colors.navy    || '#182840';
-const _amberC  = _colors.amber   || '#B8862A';
-const _sageC   = _colors.sage    || '#5A7A5A';
-const _whisperC= _colors.whisper || '#F8F6F2';
-const _whiteC  = _colors.white   || '#FFFFFF';
+// CSS color overrides — validate hex before injecting into <style> block (MED-3)
+const _hexRe = /^#[0-9a-fA-F]{3}$|^#[0-9a-fA-F]{6}$/;
+function _safeColor(val, def) { return (val && _hexRe.test(val.trim())) ? val.trim() : def; }
+const _navyC   = _safeColor(_colors.navy,    '#182840');
+const _amberC  = _safeColor(_colors.amber,   '#B8862A');
+const _sageC   = _safeColor(_colors.sage,    '#5A7A5A');
+const _whisperC= _safeColor(_colors.whisper, '#F8F6F2');
+const _whiteC  = _safeColor(_colors.white,   '#FFFFFF');
 
 // SEO
 const _pageTitle = typeof pageTitle !== 'undefined' && pageTitle
