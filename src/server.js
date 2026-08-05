@@ -23,6 +23,7 @@ const compression    = require('compression');
 const morgan         = require('morgan');
 const rateLimit      = require('express-rate-limit');
 const path           = require('path');
+const crypto         = require('crypto');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -39,6 +40,13 @@ const uploadDir = process.env.UPLOADS_IMG_PATH
   || path.join(__dirname, '..', 'public', 'images', 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
+// ── CSP nonce — generated per request, must run before helmet ────
+// res.locals.cspNonce is available in all EJS templates as <%= cspNonce %>
+app.use((req, res, next) => {
+  res.locals.cspNonce = crypto.randomBytes(16).toString('base64');
+  next();
+});
+
 // ── Security / performance middleware ────────────────────────────
 app.use(helmet({
   crossOriginEmbedderPolicy: false, // YouTube iframes don't send CORP headers; COEP: require-corp blocks them
@@ -46,9 +54,15 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc:     ["'self'"],
-      scriptSrc:      ["'self'", "'unsafe-inline'", 'https://www.googletagmanager.com',
-                       'https://www.google-analytics.com', 'https://code.tidio.co',
-                       'https://widget.tidio.co', 'https://fonts.googleapis.com'],
+      scriptSrc:      [
+                         // Nonce: CSP3 browsers allow only nonce-bearing scripts +
+                         // scripts they spawn (strict-dynamic). 'unsafe-inline' and
+                         // 'https:' are ignored by CSP3 but serve as CSP2 fallback.
+                         (req, res) => `'nonce-${res.locals.cspNonce}'`,
+                         "'strict-dynamic'",
+                         "'unsafe-inline'",
+                         "https:",
+                       ],
       styleSrc:       ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       fontSrc:        ["'self'", 'https://fonts.gstatic.com'],
       imgSrc:         ["'self'", 'data:', 'https:', 'blob:'],

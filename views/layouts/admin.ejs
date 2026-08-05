@@ -113,7 +113,7 @@
   </div><!-- /.admin-shell -->
 
   <!-- CSRF: patch fetch to include token on all non-GET requests -->
-  <script>
+  <script nonce="<%= cspNonce %>">
   (function(){
     var _f = window.fetch;
     window.fetch = function(url, opts){
@@ -127,8 +127,8 @@
   })();
   </script>
 
-  <script src="/js/site.js"></script>
-  <script>
+  <script nonce="<%= cspNonce %>" src="/js/site.js"></script>
+  <script nonce="<%= cspNonce %>">
     // Sidebar toggle (mobile)
     document.getElementById('adminMenuToggle')?.addEventListener('click', () => {
       document.getElementById('adminSidebar').classList.toggle('open');

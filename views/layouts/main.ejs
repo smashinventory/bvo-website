@@ -129,7 +129,7 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
 
   <!-- Google Tag Manager -->
   <% if (typeof gtmId !== 'undefined' && gtmId) { %>
-  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+  <script nonce="<%= cspNonce %>">(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
   new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
   j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
@@ -139,8 +139,8 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   <!-- GA4 -->
   <% const _gaId = (typeof ga4Id !== 'undefined' && ga4Id) ? ga4Id : _seo.google_analytics_id; %>
   <% if (_gaId && !(typeof gtmId !== 'undefined' && gtmId)) { %>
-  <script async src="https://www.googletagmanager.com/gtag/js?id=<%= _gaId %>"></script>
-  <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','<%= _gaId %>');</script>
+  <script nonce="<%= cspNonce %>" async src="https://www.googletagmanager.com/gtag/js?id=<%= _gaId %>"></script>
+  <script nonce="<%= cspNonce %>">window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','<%= _gaId %>');</script>
   <% } %>
   <meta name="csrf-token" content="<%= csrfToken %>">
 </head>
@@ -164,10 +164,10 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   <%- include('../partials/footer') %>
 
   <!-- Auth state for client-side heart toggle -->
-  <script>window.__bvoIsLoggedIn = <%= (typeof isLoggedIn !== 'undefined' && isLoggedIn) ? 'true' : 'false' %>;</script>
+  <script nonce="<%= cspNonce %>">window.__bvoIsLoggedIn = <%= (typeof isLoggedIn !== 'undefined' && isLoggedIn) ? 'true' : 'false' %>;</script>
 
   <!-- CSRF: patch fetch to include token on all non-GET requests -->
-  <script>
+  <script nonce="<%= cspNonce %>">
   (function(){
     var _f = window.fetch;
     window.fetch = function(url, opts){
@@ -182,14 +182,14 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   </script>
 
   <!-- Site JS -->
-  <script src="/js/site.js?v=5"></script>
+  <script nonce="<%= cspNonce %>" src="/js/site.js?v=5"></script>
 
   <!-- Page-level scripts -->
   <%- script %>
 
   <!-- Tidio Live Chat -->
   <% if (typeof tidioKey !== 'undefined' && tidioKey) { %>
-  <script src="//code.tidio.co/<%= tidioKey %>.js" async></script>
+  <script nonce="<%= cspNonce %>" src="//code.tidio.co/<%= tidioKey %>.js" async></script>
   <% } %>
 
 

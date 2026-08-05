@@ -217,7 +217,7 @@ const managedCount  = models.filter(m => m.mg).length;
   <% } %>
 </div>
 
-<script>
+<script nonce="<%= cspNonce %>">
 (function() {
   // AJAX featured toggle
   document.querySelectorAll('.mg-feat-cb').forEach(function(cb) {

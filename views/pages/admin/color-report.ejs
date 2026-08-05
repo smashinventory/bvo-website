@@ -254,7 +254,7 @@ families.forEach(function(f){ familyHex[f.key] = { hex: f.hex, label: f.label };
 .cr-hidden { display:none }
 </style>
 
-<script>
+<script nonce="<%= cspNonce %>">
 // Sync context hidden input for unmapped rows
 document.querySelectorAll('.cr-ctx-select').forEach(function(sel) {
   sel.addEventListener('change', function() {

@@ -859,7 +859,7 @@ _DEFAULT_ORDER.forEach(function(k) {
     border-radius: 4px;
   }
 </style>
-<script>
+<script nonce="<%= cspNonce %>">
 /* ── Hero video — defer until after page paint to protect FCP ── */
 (function () {
   function initHeroVideo() {
@@ -894,7 +894,7 @@ _DEFAULT_ORDER.forEach(function(k) {
 }());
 </script>
 
-<script>
+<script nonce="<%= cspNonce %>">
 (function () {
   var isPreview = window.location.search.indexOf('te_preview') !== -1;
   if (isPreview) document.body.classList.add('te4-preview-mode');

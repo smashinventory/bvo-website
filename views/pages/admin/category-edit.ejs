@@ -314,7 +314,7 @@ const formAction = isNew ? '/admin/categories' : `/admin/categories/${cat.id}`;
 .adm-btn--danger:hover  { background:#fff5f5 }
 </style>
 
-<script>
+<script nonce="<%= cspNonce %>">
 /* ── Category image upload (AJAX) ────────────────────────────────
    The upload input lives inside catEditForm, so we can't use a nested
    <form enctype="multipart/form-data"> — browsers silently drop inner

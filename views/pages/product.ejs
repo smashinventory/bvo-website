@@ -89,7 +89,7 @@
       </div>
     </div>
 
-  <script>
+  <script nonce="<%= cspNonce %>">
   var pdpGallery = (function(){
     var _allImgs = <%- JSON.stringify(_imgs.map(function(i){return{url:i.url||'',alt:i.alt_text||''};})) %>;
     var _active = 0;
@@ -429,7 +429,7 @@
       </div>
       <% } %>
     </div>
-    <script>
+    <script nonce="<%= cspNonce %>">
     (function(){
       var btn   = document.getElementById('pdpSpecsToggle');
       var extra = document.getElementById('pdpSpecsExtra');
