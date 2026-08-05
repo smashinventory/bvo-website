@@ -215,13 +215,37 @@ app.use((req, res, next) => {
 // on every request from a 10-min cached DB query. See middleware/megaMenuData.js.
 app.use(require('./middleware/megaMenuData'));
 
+// ── Rate limiting ────────────────────────────────────────────────
+const rateLimit = require('express-rate-limit');
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many attempts from this IP. Please try again in 15 minutes.',
+  skipSuccessfulRequests: true,
+});
+
+const adminAuthLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many admin login attempts. Please try again in 15 minutes.',
+  skipSuccessfulRequests: true,
+});
+
 // ── Routes ───────────────────────────────────────────────────────
 app.use('/',            require('./routes/index'));
 app.use('/products',    require('./routes/products'));
 app.use('/collections', require('./routes/collections'));
 app.use('/cart',        require('./routes/cart'));
 app.use('/checkout',    require('./routes/checkout'));
+app.use('/account/login',    authLimiter);
+app.use('/account/register', authLimiter);
 app.use('/account',     require('./routes/account'));
+app.use('/admin/login',      adminAuthLimiter);
 app.use('/admin',       require('./routes/admin'));
 app.use('/api',         require('./routes/api'));
 app.use('/bundle-builder', require('./routes/bundle'));
