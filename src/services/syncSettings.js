@@ -8,7 +8,7 @@
 const fs   = require('fs');
 const path = require('path');
 
-const FILE = path.join(__dirname, '../data/sync_settings.json');
+const FILE = path.join(__dirname, '../../data/sync_settings.json');
 
 const DEFAULTS = {
   interval:      'manual',  // 'manual' | 'hourly' | '6h' | 'daily'

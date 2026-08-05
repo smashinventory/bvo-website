@@ -1,6 +1,7 @@
 'use strict';
 
-const Customer = require('../models/Customer');
+const Customer         = require('../models/Customer');
+const { bvoPool }      = require('../config/database');
 
 /* ── GET /account/login ─────────────────────────────────────────── */
 exports.loginPage = (req, res) => {
@@ -107,13 +108,16 @@ exports.register = async (req, res, next) => {
       });
     }
 
+    const firstNameStr = (first_name || '').trim().slice(0, 100);
+    const lastNameStr  = (last_name  || '').trim().slice(0, 100);
+
     const id = await Customer.create({
-      email: emailStr, firstName: (first_name || '').trim(), lastName: (last_name || '').trim(),
+      email: emailStr, firstName: firstNameStr, lastName: lastNameStr,
       password: passwordStr, acceptsMarketing: !!accepts_marketing,
     });
 
     req.session.customerId = id;
-    req.session.customer   = { id, firstName: (first_name || '').trim(), email: emailStr };
+    req.session.customer   = { id, firstName: firstNameStr, email: emailStr };
     res.redirect('/account');
   } catch (err) { next(err); }
 };
@@ -175,7 +179,6 @@ exports.logout = (req, res) => {
 // Accepts { email } JSON from the homepage newsletter form.
 // Always returns { ok: true } — never reveals whether an account exists.
 exports.newsletter = async (req, res) => {
-  const { bvoPool } = require('../config/database');
   try {
     const email = (req.body.email || '').trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {

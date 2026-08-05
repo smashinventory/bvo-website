@@ -101,9 +101,9 @@ exports.process = async (req, res) => {
   const payload = {
     customer: {
       email,
-      firstName:   first_name || '',
-      lastName:    last_name  || '',
-      phoneNumber: phone      || '',
+      firstName:   (first_name || '').trim().slice(0, 100),
+      lastName:    (last_name  || '').trim().slice(0, 100),
+      phoneNumber: (phone      || '').trim().slice(0, 30),
     },
     shoppingCart: { lineItems },
     redirectUrls: {
@@ -135,8 +135,19 @@ exports.process = async (req, res) => {
       items:             cart.items.map(i => ({ ...i })),  // snapshot
     };
 
-    // Redirect customer to Clover's PCI-compliant hosted payment page
+    // Redirect customer to Clover's PCI-compliant hosted payment page.
+    // Validate the domain first — guards against open redirect if the API
+    // response were ever tampered with.
     if (data.href) {
+      const _CLOVER_DOMAINS = [
+        'https://checkout.clover.com/',
+        'https://sandbox.dev.clover.com/',
+        'https://scl.clover.com/',
+      ];
+      if (!_CLOVER_DOMAINS.some(d => data.href.startsWith(d))) {
+        console.error('[checkout] Unexpected Clover href domain:', data.href);
+        throw new Error('Unexpected payment redirect URL');
+      }
       return res.redirect(data.href);
     }
 

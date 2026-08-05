@@ -1,5 +1,121 @@
 # BVO Change Log Brief
-*Last updated: 2026-08-01*
+*Last updated: 2026-08-05*
+
+---
+
+## Security Hardening Sprint — CRIT / HIGH / MED fixes
+**Date:** 2026-08-05
+**Audit source:** `BVO_SECURITY_AUDIT.md`
+
+### CRIT-5 · Stored XSS in header.ejs
+**File:** `views/partials/header.ejs` lines 106, 108
+**Problem:** Promo bar used `<%-` (unescaped output) for `_vmp.title` and `_vmp.cta`. Any admin-entered promo text containing `<script>` would execute in every visitor's browser.
+**Fix:** Changed both to `<%= %>` (HTML-escaped). Also removed `<br>` from the default fallback string since `<%=` encodes angle brackets.
+**To reverse:** Change `<%= _vmp.title %>` back to `<%- _vmp.title %>` (not recommended).
+
+---
+
+### HIGH-1 · Full CSRF Protection
+**Files:** `src/server.js`, `views/layouts/main.ejs`, `views/layouts/admin.ejs`, all form-containing view files (28 forms total)
+**Problem:** No CSRF tokens anywhere — any malicious site could silently POST to authenticated routes on behalf of logged-in admins or customers.
+**Fix:**
+- `src/server.js`: Added token-generation middleware (after session) — generates `crypto.randomBytes(32).toString('hex')` per session, stored as `req.session.csrfToken`, exposed as `res.locals.csrfToken`.
+- `src/server.js`: Added validation middleware (before routes) — rejects all non-GET/HEAD/OPTIONS requests to non-`/api/` paths if token is missing or mismatched. Returns 403 JSON for AJAX, 403 HTML error page for form POSTs.
+- `/api/*` routes exempted (they use their own auth).
+- `views/layouts/main.ejs` + `views/layouts/admin.ejs`: Added `<meta name="csrf-token">` tag + global `fetch` interceptor that auto-attaches `X-CSRF-Token` header to all non-GET fetch calls.
+- All 28 forms: Added `<input type="hidden" name="_csrf" value="<%= csrfToken %>">`.
+
+**Forms covered:**
+`account/login`, `account/register`, `account/dashboard`, `account/favorites`, `account/orders`, `admin/login`, `checkout`, `cart` (×2), `product`, `cart-drawer` (×2), `admin/models` (×2), `admin/theme`, `admin/category-edit` (×2), `admin/bulk-edit`, `admin/product-edit` (×2), `admin/color-report` (×2), `admin/categories`, `admin/products` (×3 + delete), `admin/model-edit` (×2), `admin/orders`
+
+**Bug fixed during implementation:** Automated regex script matched `%>` inside EJS action URLs as form-tag end, injecting the hidden input mid-attribute. Manually corrected 9 malformed injections in: `product-edit.ejs`, `models.ejs` (×2), `category-edit.ejs` (×2), `categories.ejs`, `model-edit.ejs` (×2).
+
+**To reverse:** Remove the two middleware blocks from `server.js`. Remove `<meta name="csrf-token">` and the fetch interceptor script from both layouts. Remove `_csrf` hidden inputs from all forms.
+
+---
+
+### Bulk Edit Save Bug Fix
+**File:** `src/controllers/adminController.js` — `productBulkEditSave()`
+**Problem:** `express.urlencoded({ extended: false })` does not parse bracket-notation keys (`rows[0][price]`) into nested objects — treats them as literal string keys. `req.body.rows` was always `undefined`, so bulk edit saved 0 products every time.
+**Fix:** Manually parse the flat bracket-notation keys from `req.body` using a regex: `/^rows\[(\d+)\]\[([^\]]+)\]$/`. Builds the expected `{ idx: { field: value } }` structure before the save loop.
+**Root cause note:** `extended: false` was intentional — `extended: true` (qs) mangles dot-path keys in theme settings (`nav.links[0].label` collapses to a URL string). The fix is in the controller, not the body parser.
+
+---
+
+### HIGH-2 · Rate Limiting on Auth Routes
+**File:** `src/server.js`
+**Problem:** No rate limiting on login/register — brute-force attacks against customer passwords or admin panel were unrestricted.
+**Fix:** Added two `express-rate-limit` limiters (package already in `package.json`):
+- `authLimiter`: 10 failed attempts / 15 min per IP on `POST /account/login` and `POST /account/register`
+- `adminAuthLimiter`: 5 failed attempts / 15 min per IP on `POST /admin/login`
+- Both use `skipSuccessfulRequests: true` — successful logins do not count toward the limit.
+- Applied as route-prefix middleware before the router mounts: `app.use('/account/login', authLimiter)` etc.
+
+**Bug during deploy:** Duplicate `const rateLimit = require('express-rate-limit')` — package was already required at line 24. Fixed by removing the second declaration added inside the routes block.
+
+---
+
+### HIGH-4 · File Upload Security
+**File:** `src/controllers/adminController.js` lines 16–84 + 5 middleware wrappers + `productImportMiddleware`
+**Problem:** All three multer instances (`_upload`, `_docUpload`, `_videoUpload`) relied on `file.mimetype` alone for filtering — trivially spoofed by the client. No extension whitelist. `productImportMiddleware` (CSV) had no filter at all.
+**Fix:**
+- Added extension whitelists as `Set` constants:
+  - `ALLOWED_IMAGE_EXTS`: `.jpg .jpeg .png .gif .webp`
+  - `ALLOWED_DOC_EXTS`: `.pdf .doc .docx .jpg .jpeg .png`
+  - `ALLOWED_VIDEO_EXTS`: `.mp4 .webm .mov`
+- Updated all three `fileFilter` callbacks to check extension AND MIME type.
+- Added `_imageMagicOk(file)` helper: reads first 8 bytes from disk after upload; validates against known magic byte signatures (JPEG `FF D8 FF`, PNG `89 50 4E 47…`, GIF `47 49 46 38`, WebP `52 49 46 46`). Returns `false` if extension unknown or bytes don't match.
+- Added magic byte check to all 5 image upload middleware wrappers: `productAddImageMiddleware`, `uploadMiddleware`, `categoryImageAjaxMiddleware`, `categoryImageMiddleware`, `modelImageAjaxMiddleware`. If check fails, file is deleted from disk and 400 returned.
+- `productImportMiddleware` (CSV): added `fileFilter` rejecting any extension other than `.csv`.
+
+**To reverse:** Remove `ALLOWED_*_EXTS` constants, `_IMG_MAGIC` object, and `_imageMagicOk()` function. Revert the three `fileFilter` callbacks to MIME-only checks. Remove magic check calls from the 5 middleware wrappers. Remove CSV fileFilter.
+
+---
+
+### HIGH-5 · Clover Redirect Domain Validation
+**File:** `src/controllers/checkoutController.js`
+**Problem:** Server blindly redirected to whatever URL Clover's API returned in `data.href` — an open redirect if the response were ever tampered with.
+**Fix:** Validate `data.href` starts with one of three known Clover domains before redirecting: `https://checkout.clover.com/`, `https://sandbox.dev.clover.com/`, `https://scl.clover.com/`. Throws an error (caught by the existing try/catch) if the domain doesn't match.
+**Note:** Clover is not yet configured. This code path is unreachable until `CLOVER_API_KEY` is set in Hostinger env vars.
+
+---
+
+### HIGH-6 · Typesense filter_by Injection via catSlug
+**File:** `src/routes/search.js` line 42
+**Problem:** `req.query.category` was embedded directly into the Typesense `filter_by` string: `` `category_slug:${catSlug} && in_stock:true` ``. An attacker could inject arbitrary Typesense filter conditions via the query string.
+**Fix:** Validate `catSlug` against `/^[a-z0-9-]+$/` before use. Any value that doesn't match is treated as `null` (no category filter applied). The MySQL fallback already used parameterized queries and was safe.
+
+---
+
+### MED-4 · syncSettings.js Wrong Data Path
+**File:** `src/services/syncSettings.js` line 11
+**Problem:** `path.join(__dirname, '../data/sync_settings.json')` resolves to `src/data/sync_settings.json` — one level too shallow. The `data/` directory is at the project root, not inside `src/`. `themeSettings.js` correctly uses `../../data/`.
+**Fix:** Changed to `path.join(__dirname, '../../data/sync_settings.json')`.
+
+---
+
+### MED-5 · require() Inside Exported Function Body
+**File:** `src/controllers/accountController.js` line 178 (before fix)
+**Problem:** `const { bvoPool } = require('../config/database')` was inside `exports.newsletter` — called on every newsletter POST. Node.js caches `require()` calls so this is functionally harmless, but it's an anti-pattern that makes dependencies invisible and complicates static analysis.
+**Fix:** Moved `const { bvoPool } = require('../config/database')` to the top of the file with the other imports. Removed the inline require from the function body.
+
+---
+
+### MED-6 · No Length Validation on Customer String Fields
+**Files:** `src/controllers/accountController.js`, `src/controllers/checkoutController.js`
+**Problem:** `first_name`, `last_name`, and `phone` from user input were passed directly to DB queries and external APIs (Clover) with no length cap. A sufficiently long string could corrupt DB column values or cause unexpected API behavior.
+**Fix:**
+- `accountController.js` (registration): `first_name` and `last_name` capped at 100 chars via `.trim().slice(0, 100)` before `Customer.create()` call.
+- `checkoutController.js` (Clover payload): `first_name` / `last_name` capped at 100 chars, `phone` capped at 30 chars, all trimmed before the Clover API payload is built.
+
+---
+
+### MED-7 · megaMenuData Middleware Silently Swallows DB Errors
+**File:** `src/middleware/megaMenuData.js` line 71
+**Problem:** The `catch` block returned empty arrays silently — if the mega menu DB query failed repeatedly, there would be no log trace to diagnose it.
+**Fix:** Changed `} catch {` to `} catch (err) {` and added `console.error('[megaMenuData] DB error:', err.message)`. The graceful degradation (empty arrays) is preserved; errors are now visible in Hostinger's Node.js log panel.
+
+---
 
 ---
 

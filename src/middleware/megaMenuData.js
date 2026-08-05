@@ -68,8 +68,9 @@ async function loadMegaMenuData() {
     _cache     = { megaMenuSizes, megaMenuColorFamilies };
     _cacheTime = now;
     return _cache;
-  } catch {
+  } catch (err) {
     // On DB error return empty arrays — mega menu degrades gracefully
+    console.error('[megaMenuData] DB error:', err.message);
     return { megaMenuSizes: [], megaMenuColorFamilies: [] };
   }
 }
