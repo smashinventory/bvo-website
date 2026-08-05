@@ -133,7 +133,11 @@ exports.loginPage = (req, res) => {
 exports.login = async (req, res) => {
   const { username, password } = req.body;
   const validUser = process.env.ADMIN_USER;
-  const passHash  = process.env.ADMIN_PASSWORD_HASH;
+  // ADMIN_PASSWORD_HASH is stored as base64 to avoid shell $ interpolation on Hostinger.
+  // Decode it back to the raw bcrypt hash string before comparing.
+  const passHash  = process.env.ADMIN_PASSWORD_HASH
+    ? Buffer.from(process.env.ADMIN_PASSWORD_HASH, 'base64').toString()
+    : '';
 
   // Timing-safe username comparison — prevents timing-based enumeration.
   // Buffers must be equal length for timingSafeEqual; length difference alone
