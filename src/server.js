@@ -9,8 +9,9 @@ if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32) {
   process.exit(1);
 }
 if (!process.env.ADMIN_USER || !process.env.ADMIN_PASSWORD_HASH) {
-  console.error('FATAL: ADMIN_USER and ADMIN_PASSWORD_HASH must be set in .env');
-  process.exit(1);
+  // Warn but don't crash — admin login will safely return false if hash is missing.
+  // A hard exit here prevents the site from starting when hPanel env injection is delayed.
+  console.warn('[WARN] ADMIN_USER or ADMIN_PASSWORD_HASH not set — admin login will be disabled');
 }
 
 const express        = require('express');
