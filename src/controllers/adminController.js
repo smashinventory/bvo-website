@@ -1495,7 +1495,15 @@ exports.productBulkEditSave = async (req, res, next) => {
     // This avoids the double-send bug from the hidden-input + checkbox trick:
     // checked checkboxes now only send '1'; the submit handler injects '0'
     // for unchecked ones, so we always get exactly one value per field per row.
-    const rows = req.body.rows || {};
+    // extended:false keeps bracket keys as literals (e.g. "rows[0][price]").
+    // Parse them manually into a nested structure.
+    const rows = {};
+    for (const [key, val] of Object.entries(req.body)) {
+      const m = key.match(/^rows\[(\d+)\]\[([^\]]+)\]$/);
+      if (!m) continue;
+      if (!rows[m[1]]) rows[m[1]] = {};
+      rows[m[1]][m[2]] = val;
+    }
 
     let saved = 0;
     for (const row of Object.values(rows)) {
