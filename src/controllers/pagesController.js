@@ -119,22 +119,21 @@ exports.adminEdit = async (req, res) => {
 
 exports.adminUpdate = async (req, res) => {
   const { id } = req.params;
-  const { title, slug: rawSlug, content, meta_title, meta_desc, og_image, is_visible, sort_order } = req.body;
-
-  if (!title || !title.trim()) {
-    const [[page]] = await bvoPool.query('SELECT * FROM pages WHERE id = ?', [id]).catch(() => [[null]]);
-    return res.render('pages/admin/page-edit', {
-      layout:     'layouts/admin',
-      pageTitle:  'Edit Page | BVO Admin',
-      activePage: 'pages',
-      page:       { ...req.body, id },
-      flash:      { type: 'error', msg: 'Title is required.' },
-    });
-  }
-
-  const slug = rawSlug ? makeSlug(rawSlug) : makeSlug(title);
-
   try {
+    const { title, slug: rawSlug, content, meta_title, meta_desc, og_image, is_visible, sort_order } = req.body || {};
+
+    if (!title || !title.trim()) {
+      return res.render('pages/admin/page-edit', {
+        layout:     'layouts/admin',
+        pageTitle:  'Edit Page | BVO Admin',
+        activePage: 'pages',
+        page:       { ...(req.body || {}), id },
+        flash:      { type: 'error', msg: 'Title is required.' },
+      });
+    }
+
+    const slug = rawSlug ? makeSlug(rawSlug) : makeSlug(title);
+
     await bvoPool.query(
       `UPDATE pages SET slug=?, title=?, content=?, meta_title=?, meta_desc=?, og_image=?,
        is_visible=?, sort_order=? WHERE id=?`,
@@ -144,14 +143,17 @@ exports.adminUpdate = async (req, res) => {
     );
     req.session.flash = { type: 'success', msg: `Page updated.` };
     res.redirect('/admin/pages');
+
   } catch (err) {
+    console.error('[pagesController] adminUpdate id=%s:', id, err.message);
+    const slug = makeSlug((req.body || {}).slug || (req.body || {}).title || '');
     const dupSlug = err.code === 'ER_DUP_ENTRY';
-    res.render('pages/admin/page-edit', {
+    res.status(dupSlug ? 422 : 500).render('pages/admin/page-edit', {
       layout:     'layouts/admin',
       pageTitle:  'Edit Page | BVO Admin',
       activePage: 'pages',
-      page:       { ...req.body, id, slug },
-      flash:      { type: 'error', msg: dupSlug ? `Slug "<strong>${slug}</strong>" is already taken.` : err.message },
+      page:       { ...(req.body || {}), id, slug },
+      flash:      { type: 'error', msg: dupSlug ? `Slug "<strong>${slug}</strong>" is already taken.` : 'An unexpected error occurred — check server logs.' },
     });
   }
 };
