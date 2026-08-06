@@ -24,6 +24,29 @@ exports.xml = async (req, res) => {
   const today   = new Date().toISOString().split('T')[0];
 
   try {
+    /* ── Fetch CMS pages ──────────────────────────────────────── */
+    let cmsPages;
+    try {
+      const [rows] = await bvoPool.query(`
+        SELECT slug, updated_at FROM pages WHERE is_visible=1
+      `);
+      cmsPages = rows;
+    } catch {
+      cmsPages = [];
+    }
+
+    /* ── Fetch blog posts ──────────────────────────────────────── */
+    let blogPosts;
+    try {
+      const [rows] = await bvoPool.query(`
+        SELECT slug, updated_at FROM blog_posts WHERE is_visible=1
+        ORDER BY published_at DESC LIMIT 10000
+      `);
+      blogPosts = rows;
+    } catch {
+      blogPosts = [];
+    }
+
     /* ── Fetch categories ──────────────────────────────────────── */
     let categories;
     try {
@@ -65,6 +88,39 @@ exports.xml = async (req, res) => {
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>`);
+
+    // Blog index
+    if (blogPosts.length) {
+      urls.push(`
+  <url>
+    <loc>${escUrl(siteUrl)}/blog</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>`);
+    }
+
+    // CMS pages
+    for (const p of cmsPages) {
+      urls.push(`
+  <url>
+    <loc>${escUrl(`${siteUrl}/pages/${p.slug}`)}</loc>
+    <lastmod>${fmtDate(p.updated_at)}</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>`);
+    }
+
+    // Blog posts
+    for (const p of blogPosts) {
+      urls.push(`
+  <url>
+    <loc>${escUrl(`${siteUrl}/blog/${p.slug}`)}</loc>
+    <lastmod>${fmtDate(p.updated_at)}</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>`);
+    }
 
     // Collections index
     urls.push(`

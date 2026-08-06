@@ -26,6 +26,38 @@ const VANITY_CAT_ID  = 1;
 let _cache     = null;
 let _cacheTime = 0;
 
+// Separate short-lived cache for CMS data (nav/pages change more often)
+let _cmsCache     = null;
+let _cmsCacheTime = 0;
+const CMS_TTL_MS  = 5 * 60 * 1000; // 5 minutes
+
+async function loadCmsData() {
+  const now = Date.now();
+  if (_cmsCache && (now - _cmsCacheTime) < CMS_TTL_MS) return _cmsCache;
+
+  try {
+    const [navItems, cmsPages] = await Promise.all([
+      bvoPool.query(`
+        SELECT ni.id, ni.label, ni.url, ni.sort_order, ni.is_highlight
+        FROM nav_menu_items ni
+        JOIN nav_menus nm ON nm.id = ni.menu_id
+        WHERE nm.handle = 'main-menu'
+        ORDER BY ni.sort_order, ni.id
+      `).then(([r]) => r),
+      bvoPool.query(`
+        SELECT id, slug, title, sort_order FROM pages
+        WHERE is_visible=1 ORDER BY sort_order ASC, id ASC
+      `).then(([r]) => r),
+    ]);
+    _cmsCache     = { navMenuItems: navItems, cmsPages };
+    _cmsCacheTime = now;
+    return _cmsCache;
+  } catch {
+    // Tables may not exist yet on first deploy — return empty gracefully
+    return { navMenuItems: [], cmsPages: [] };
+  }
+}
+
 async function loadMegaMenuData() {
   const now = Date.now();
   if (_cache && (now - _cacheTime) < CACHE_TTL_MS) return _cache;
@@ -76,8 +108,10 @@ async function loadMegaMenuData() {
 }
 
 module.exports = async function megaMenuData(req, res, next) {
-  const data = await loadMegaMenuData();
+  const [data, cms] = await Promise.all([loadMegaMenuData(), loadCmsData()]);
   res.locals.megaMenuSizes         = data.megaMenuSizes;
   res.locals.megaMenuColorFamilies = data.megaMenuColorFamilies;
+  res.locals.navMenuItems          = cms.navMenuItems;   // DB-driven main nav
+  res.locals.cmsPages              = cms.cmsPages;       // DB pages (for footer)
   next();
 };

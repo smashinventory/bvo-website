@@ -1,0 +1,209 @@
+<%/* Admin — Page Editor (new + edit) */%>
+<% const isNew = !page || !page.id; %>
+<style>
+.pe-wrap{max-width:900px}
+.pe-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;gap:1rem;flex-wrap:wrap}
+.pe-toolbar h1{font-size:1.35rem;font-weight:700;color:var(--navy);margin:0}
+.pe-grid{display:grid;grid-template-columns:1fr 280px;gap:1.25rem;align-items:start}
+@media(max-width:720px){.pe-grid{grid-template-columns:1fr}}
+.pe-card{background:#fff;border:1px solid var(--border-card);border-radius:10px;padding:1.25rem;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.pe-card h2{font-size:.9rem;font-weight:700;color:var(--navy);margin:0 0 1rem;text-transform:uppercase;letter-spacing:.04em}
+.pe-field{margin-bottom:1rem}
+.pe-field label{display:block;font-size:.82rem;font-weight:600;color:var(--navy);margin-bottom:.3rem}
+.pe-field input[type=text],.pe-field input[type=url],.pe-field input[type=number],.pe-field textarea,.pe-field select{width:100%;padding:.55rem .75rem;border:1px solid #d0cdc8;border-radius:6px;font-size:.875rem;font-family:inherit;color:#1a1a1a;box-sizing:border-box}
+.pe-field input:focus,.pe-field textarea:focus,.pe-field select:focus{outline:none;border-color:#B8963A;box-shadow:0 0 0 2px rgba(184,134,58,.12)}
+.pe-field .pe-hint{font-size:.75rem;color:var(--text-muted);margin-top:.25rem}
+.pe-field .pe-slug-preview{font-size:.75rem;font-family:monospace;color:var(--text-muted);margin-top:.3rem;background:#f8f7f3;padding:.25rem .5rem;border-radius:4px}
+/* Toggle */
+.pe-toggle{display:flex;align-items:center;gap:.6rem;cursor:pointer;margin-bottom:.5rem}
+.pe-toggle-track{width:36px;height:20px;border-radius:20px;background:#ddd;position:relative;flex-shrink:0;transition:.2s}
+.pe-toggle-track:before{content:'';position:absolute;width:14px;height:14px;top:3px;left:3px;background:#fff;border-radius:50%;transition:.2s}
+.pe-toggle input{position:absolute;opacity:0;width:0;height:0}
+.pe-toggle input:checked~.pe-toggle-track{background:#2d7a2d}
+.pe-toggle input:checked~.pe-toggle-track:before{transform:translateX(16px)}
+.pe-toggle-lbl{font-size:.84rem;font-weight:600;color:var(--navy)}
+/* Rich text */
+#quill-editor{min-height:280px;font-size:.9rem;line-height:1.6}
+#quill-editor p{margin:0 0 .75em}
+#quill-editor h2{font-size:1.2em;font-weight:700;margin:.5em 0}
+#quill-editor h3{font-size:1.05em;font-weight:700;margin:.4em 0}
+#quill-editor ul,#quill-editor ol{padding-left:1.4em;margin:0 0 .75em}
+.ql-toolbar.ql-snow{border-radius:6px 6px 0 0;border-color:#d0cdc8}
+.ql-container.ql-snow{border-radius:0 0 6px 6px;border-color:#d0cdc8}
+/* Buttons */
+.adm-btn{display:inline-flex;align-items:center;gap:5px;padding:7px 16px;border-radius:6px;border:1px solid #d0cdc8;background:#fff;font-size:.8rem;font-weight:600;cursor:pointer;color:#333;text-decoration:none;white-space:nowrap}
+.adm-btn:hover{border-color:#B8963A;color:#B8963A}
+.adm-btn--primary{background:#B8963A;border-color:#B8963A;color:#fff}
+.adm-btn--primary:hover{background:#a07c28;border-color:#a07c28;color:#fff}
+.adm-flash{padding:.65rem 1rem;border-radius:6px;margin-bottom:1.1rem;font-size:.85rem}
+.adm-flash--success{background:#e8f5e9;color:#1b5e20;border:1px solid #a5d6a7}
+.adm-flash--error{background:#fdecea;color:#b71c1c;border:1px solid #ef9a9a}
+</style>
+
+<%
+  var _p      = page || {};
+  var _title  = _p.title  || '';
+  var _slug   = _p.slug   || '';
+  var _cont   = _p.content || '';
+  var _mt     = _p.meta_title || '';
+  var _md     = _p.meta_desc  || '';
+  var _ogi    = _p.og_image   || '';
+  var _vis    = (_p.is_visible === undefined || _p.is_visible === null) ? true : (_p.is_visible == 1 || _p.is_visible === 'true');
+  var _sort   = (_p.sort_order !== undefined && _p.sort_order !== null) ? _p.sort_order : 0;
+  var _action = isNew ? '/admin/pages' : '/admin/pages/' + _p.id;
+%>
+
+<% if (flash) { %>
+<div class="adm-flash adm-flash--<%= flash.type %>"><%- flash.msg %></div>
+<% } %>
+
+<div class="pe-wrap">
+  <div class="pe-toolbar">
+    <h1><%= isNew ? 'New Page' : 'Edit Page' %></h1>
+    <div style="display:flex;gap:.5rem">
+      <a href="/admin/pages" class="adm-btn">← Back</a>
+      <button form="page-form" type="submit" class="adm-btn adm-btn--primary">Save Page</button>
+    </div>
+  </div>
+
+  <form id="page-form" method="POST" action="<%= _action %>">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+    <div class="pe-grid">
+
+      <!-- Left: main content -->
+      <div style="display:flex;flex-direction:column;gap:1.25rem">
+
+        <!-- Title + Slug -->
+        <div class="pe-card">
+          <h2>Content</h2>
+          <div class="pe-field">
+            <label for="pg-title">Page Title *</label>
+            <input type="text" id="pg-title" name="title" value="<%- _title %>" required placeholder="e.g. About Us">
+          </div>
+          <div class="pe-field">
+            <label for="pg-slug">URL Slug</label>
+            <input type="text" id="pg-slug" name="slug" value="<%- _slug %>" placeholder="auto-generated from title">
+            <div class="pe-slug-preview" id="slug-preview">/pages/<%- _slug || '…' %></div>
+            <div class="pe-hint">Letters, numbers, and hyphens only. Leave blank to auto-generate.</div>
+          </div>
+
+          <!-- Rich text editor -->
+          <div class="pe-field">
+            <label>Page Content</label>
+            <div id="quill-editor"><%- _cont %></div>
+            <input type="hidden" id="pg-content" name="content">
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right: settings sidebar -->
+      <div style="display:flex;flex-direction:column;gap:1.25rem">
+
+        <!-- Visibility & order -->
+        <div class="pe-card">
+          <h2>Settings</h2>
+          <div class="pe-field">
+            <label class="pe-toggle">
+              <input type="hidden" name="is_visible" value="false">
+              <input type="checkbox" id="pg-vis" name="is_visible" value="true" <%= _vis ? 'checked' : '' %>>
+              <span class="pe-toggle-track"></span>
+              <span class="pe-toggle-lbl">Published</span>
+            </label>
+            <div class="pe-hint">Published pages appear on the site and in the footer.</div>
+          </div>
+          <div class="pe-field">
+            <label for="pg-sort">Sort Order</label>
+            <input type="number" id="pg-sort" name="sort_order" value="<%- _sort %>" min="0" step="10" style="width:100px">
+            <div class="pe-hint">Lower = appears first in footer links.</div>
+          </div>
+        </div>
+
+        <!-- SEO -->
+        <div class="pe-card">
+          <h2>SEO &amp; Meta</h2>
+          <div class="pe-field">
+            <label for="pg-mt">Meta Title</label>
+            <input type="text" id="pg-mt" name="meta_title" value="<%- _mt %>" placeholder="Page Title | BathroomVanitiesOutlet.com" maxlength="255">
+            <div class="pe-hint">Recommended: 50–60 characters.</div>
+          </div>
+          <div class="pe-field">
+            <label for="pg-md">Meta Description</label>
+            <textarea id="pg-md" name="meta_desc" rows="3" placeholder="Brief description for search engines…" maxlength="500"><%- _md %></textarea>
+            <div class="pe-hint">Recommended: 150–160 characters.</div>
+          </div>
+          <div class="pe-field">
+            <label for="pg-ogi">OG Image URL</label>
+            <input type="text" id="pg-ogi" name="og_image" value="<%- _ogi %>" placeholder="/images/uploads/…">
+            <div class="pe-hint">Shown when page is shared on social media (1200×630px).</div>
+          </div>
+        </div>
+
+        <% if (!isNew) { %>
+        <div class="pe-card" style="background:#fff8f8;border-color:#f5c6c6">
+          <h2 style="color:#b71c1c">Danger Zone</h2>
+          <form method="POST" action="/admin/pages/<%= _p.id %>/delete"
+                onsubmit="return confirm('Delete this page? This cannot be undone.')">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button type="submit" class="adm-btn adm-btn--danger" style="width:100%;justify-content:center">
+              Delete Page
+            </button>
+          </form>
+        </div>
+        <% } %>
+
+      </div>
+    </div>
+
+  </form>
+</div>
+
+<!-- Quill CDN (loaded nonce-free via strict-dynamic) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.snow.min.css">
+
+<script nonce="<%= cspNonce %>">
+// Load Quill from CDN
+(function() {
+  var s = document.createElement('script');
+  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.min.js';
+  s.onload = function() {
+    var quill = new Quill('#quill-editor', {
+      theme: 'snow',
+      modules: {
+        toolbar: [
+          [{ header: [1,2,3,false] }],
+          ['bold','italic','underline','strike'],
+          [{ list:'ordered' },{ list:'bullet' }],
+          ['link','blockquote','clean'],
+        ]
+      }
+    });
+
+    // Sync hidden input on form submit
+    document.getElementById('page-form').addEventListener('submit', function() {
+      document.getElementById('pg-content').value = quill.root.innerHTML;
+    });
+  };
+  document.head.appendChild(s);
+})();
+
+// Slug preview
+var titleEl = document.getElementById('pg-title');
+var slugEl  = document.getElementById('pg-slug');
+var preview = document.getElementById('slug-preview');
+function slugify(s) {
+  return s.toLowerCase().trim()
+    .replace(/[^a-z0-9\s-]/g,'').replace(/\s+/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'');
+}
+titleEl.addEventListener('input', function() {
+  if (!slugEl.value) preview.textContent = '/pages/' + slugify(this.value) || '…';
+});
+slugEl.addEventListener('input', function() {
+  preview.textContent = '/pages/' + (slugify(this.value) || '…');
+});
+slugEl.addEventListener('blur', function() {
+  this.value = slugify(this.value);
+  preview.textContent = '/pages/' + (this.value || '…');
+});
+</script>

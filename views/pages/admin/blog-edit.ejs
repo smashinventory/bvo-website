@@ -1,0 +1,224 @@
+<%/* Admin — Blog Post Editor (new + edit) */%>
+<% const isNew = !post || !post.id; %>
+<style>
+.be-wrap{max-width:960px}
+.be-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;gap:1rem;flex-wrap:wrap}
+.be-toolbar h1{font-size:1.35rem;font-weight:700;color:var(--navy);margin:0}
+.be-grid{display:grid;grid-template-columns:1fr 280px;gap:1.25rem;align-items:start}
+@media(max-width:720px){.be-grid{grid-template-columns:1fr}}
+.be-card{background:#fff;border:1px solid var(--border-card);border-radius:10px;padding:1.25rem;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.be-card h2{font-size:.9rem;font-weight:700;color:var(--navy);margin:0 0 1rem;text-transform:uppercase;letter-spacing:.04em}
+.be-field{margin-bottom:1rem}
+.be-field label{display:block;font-size:.82rem;font-weight:600;color:var(--navy);margin-bottom:.3rem}
+.be-field input[type=text],.be-field input[type=url],.be-field input[type=datetime-local],.be-field textarea,.be-field select{width:100%;padding:.55rem .75rem;border:1px solid #d0cdc8;border-radius:6px;font-size:.875rem;font-family:inherit;color:#1a1a1a;box-sizing:border-box}
+.be-field input:focus,.be-field textarea:focus,.be-field select:focus{outline:none;border-color:#B8963A;box-shadow:0 0 0 2px rgba(184,134,58,.12)}
+.be-field .be-hint{font-size:.75rem;color:var(--text-muted);margin-top:.25rem}
+.be-field .be-slug-preview{font-size:.75rem;font-family:monospace;color:var(--text-muted);margin-top:.3rem;background:#f8f7f3;padding:.25rem .5rem;border-radius:4px}
+/* Rich text */
+#quill-editor{min-height:320px;font-size:.9rem;line-height:1.7}
+.ql-toolbar.ql-snow{border-radius:6px 6px 0 0;border-color:#d0cdc8}
+.ql-container.ql-snow{border-radius:0 0 6px 6px;border-color:#d0cdc8}
+/* Toggle */
+.be-toggle{display:flex;align-items:center;gap:.6rem;cursor:pointer;margin-bottom:.5rem}
+.be-toggle-track{width:36px;height:20px;border-radius:20px;background:#ddd;position:relative;flex-shrink:0;transition:.2s}
+.be-toggle-track:before{content:'';position:absolute;width:14px;height:14px;top:3px;left:3px;background:#fff;border-radius:50%;transition:.2s}
+.be-toggle input{position:absolute;opacity:0;width:0;height:0}
+.be-toggle input:checked~.be-toggle-track{background:#2d7a2d}
+.be-toggle input:checked~.be-toggle-track:before{transform:translateX(16px)}
+.be-toggle-lbl{font-size:.84rem;font-weight:600;color:var(--navy)}
+/* Buttons */
+.adm-btn{display:inline-flex;align-items:center;gap:5px;padding:7px 16px;border-radius:6px;border:1px solid #d0cdc8;background:#fff;font-size:.8rem;font-weight:600;cursor:pointer;color:#333;text-decoration:none;white-space:nowrap}
+.adm-btn:hover{border-color:#B8963A;color:#B8963A}
+.adm-btn--primary{background:#B8963A;border-color:#B8963A;color:#fff}
+.adm-btn--primary:hover{background:#a07c28;border-color:#a07c28;color:#fff}
+.adm-btn--danger{border-color:#dc3545;color:#dc3545}
+.adm-btn--danger:hover{background:#fff5f5}
+.adm-flash{padding:.65rem 1rem;border-radius:6px;margin-bottom:1.1rem;font-size:.85rem}
+.adm-flash--success{background:#e8f5e9;color:#1b5e20;border:1px solid #a5d6a7}
+.adm-flash--error{background:#fdecea;color:#b71c1c;border:1px solid #ef9a9a}
+/* Image preview */
+.be-img-preview{max-width:100%;height:auto;border-radius:6px;margin-top:.5rem;border:1px solid var(--border-card)}
+</style>
+
+<%
+  var _p   = post || {};
+  var _vis = (_p.is_visible === undefined || _p.is_visible === null) ? false : (_p.is_visible == 1 || _p.is_visible === 'true');
+  // Format published_at for datetime-local input
+  var _pub = '';
+  if (_p.published_at) {
+    var d = new Date(_p.published_at);
+    _pub  = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0')
+          + 'T' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  }
+  var _action = isNew ? '/admin/blog' : '/admin/blog/' + _p.id;
+%>
+
+<% if (flash) { %>
+<div class="adm-flash adm-flash--<%= flash.type %>"><%- flash.msg %></div>
+<% } %>
+
+<div class="be-wrap">
+  <div class="be-toolbar">
+    <h1><%= isNew ? 'New Post' : 'Edit Post' %></h1>
+    <div style="display:flex;gap:.5rem">
+      <a href="/admin/blog" class="adm-btn">← Back</a>
+      <button form="blog-form" type="submit" class="adm-btn adm-btn--primary">Save Post</button>
+    </div>
+  </div>
+
+  <form id="blog-form" method="POST" action="<%= _action %>">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+    <div class="be-grid">
+
+      <!-- Left: main content -->
+      <div style="display:flex;flex-direction:column;gap:1.25rem">
+
+        <!-- Title + Slug -->
+        <div class="be-card">
+          <h2>Post Content</h2>
+          <div class="be-field">
+            <label for="bl-title">Post Title *</label>
+            <input type="text" id="bl-title" name="title" value="<%- _p.title || '' %>" required placeholder="e.g. 10 Bathroom Renovation Mistakes to Avoid">
+          </div>
+          <div class="be-field">
+            <label for="bl-slug">URL Slug</label>
+            <input type="text" id="bl-slug" name="slug" value="<%- _p.slug || '' %>" placeholder="auto-generated from title">
+            <div class="be-slug-preview" id="slug-preview">/blog/<%- _p.slug || '…' %></div>
+          </div>
+
+          <!-- Quill rich text -->
+          <div class="be-field">
+            <label>Content</label>
+            <div id="quill-editor"><%- _p.content || '' %></div>
+            <input type="hidden" id="bl-content" name="content">
+          </div>
+
+          <!-- Excerpt -->
+          <div class="be-field" style="margin-top:1.25rem">
+            <label for="bl-excerpt">Excerpt <span style="font-weight:400;color:var(--text-muted)">(optional — auto-generated if blank)</span></label>
+            <textarea id="bl-excerpt" name="excerpt" rows="3" placeholder="Short summary shown on blog list page…" maxlength="500"><%- _p.excerpt || '' %></textarea>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right: sidebar -->
+      <div style="display:flex;flex-direction:column;gap:1.25rem">
+
+        <!-- Publish settings -->
+        <div class="be-card">
+          <h2>Publish</h2>
+          <div class="be-field">
+            <label class="be-toggle">
+              <input type="hidden" name="is_visible" value="false">
+              <input type="checkbox" name="is_visible" value="true" <%= _vis ? 'checked' : '' %>>
+              <span class="be-toggle-track"></span>
+              <span class="be-toggle-lbl">Published</span>
+            </label>
+            <div class="be-hint">Unpublished posts are saved as drafts.</div>
+          </div>
+          <div class="be-field">
+            <label for="bl-pub">Publish Date</label>
+            <input type="datetime-local" id="bl-pub" name="published_at" value="<%= _pub %>">
+            <div class="be-hint">Leave blank to use current date/time when first published.</div>
+          </div>
+          <div class="be-field">
+            <label for="bl-author">Author</label>
+            <input type="text" id="bl-author" name="author" value="<%- _p.author || 'BVO Team' %>">
+          </div>
+          <div class="be-field">
+            <label for="bl-tags">Tags <span style="font-weight:400;color:var(--text-muted)">(comma-separated)</span></label>
+            <input type="text" id="bl-tags" name="tags" value="<%- _p.tags || '' %>" placeholder="vanities, bathroom renovation, tips">
+          </div>
+        </div>
+
+        <!-- Featured image -->
+        <div class="be-card">
+          <h2>Featured Image</h2>
+          <div class="be-field">
+            <label for="bl-fi">Image URL</label>
+            <input type="text" id="bl-fi" name="featured_image" value="<%- _p.featured_image || '' %>" placeholder="/images/uploads/…" oninput="updateImgPreview(this.value)">
+            <div class="be-hint">Paste URL or use Theme Editor upload.</div>
+          </div>
+          <img id="fi-preview" class="be-img-preview" src="<%- _p.featured_image || '' %>" alt="" style="<%= _p.featured_image ? '' : 'display:none' %>">
+        </div>
+
+        <!-- SEO -->
+        <div class="be-card">
+          <h2>SEO &amp; Meta</h2>
+          <div class="be-field">
+            <label for="bl-mt">Meta Title</label>
+            <input type="text" id="bl-mt" name="meta_title" value="<%- _p.meta_title || '' %>" placeholder="Post Title | BathroomVanitiesOutlet.com" maxlength="255">
+          </div>
+          <div class="be-field">
+            <label for="bl-md">Meta Description</label>
+            <textarea id="bl-md" name="meta_desc" rows="3" placeholder="Brief description for search engines…" maxlength="500"><%- _p.meta_desc || '' %></textarea>
+          </div>
+        </div>
+
+        <% if (!isNew) { %>
+        <div class="be-card" style="background:#fff8f8;border-color:#f5c6c6">
+          <h2 style="color:#b71c1c">Danger Zone</h2>
+          <form method="POST" action="/admin/blog/<%= _p.id %>/delete"
+                onsubmit="return confirm('Delete this post? This cannot be undone.')">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button type="submit" class="adm-btn adm-btn--danger" style="width:100%;justify-content:center">
+              Delete Post
+            </button>
+          </form>
+        </div>
+        <% } %>
+
+      </div>
+    </div>
+  </form>
+</div>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.snow.min.css">
+<script nonce="<%= cspNonce %>">
+(function() {
+  var s = document.createElement('script');
+  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.min.js';
+  s.onload = function() {
+    var quill = new Quill('#quill-editor', {
+      theme: 'snow',
+      modules: {
+        toolbar: [
+          [{ header: [1,2,3,false] }],
+          ['bold','italic','underline','strike'],
+          [{ list:'ordered' },{ list:'bullet' }],
+          ['link','image','blockquote','clean'],
+        ]
+      }
+    });
+    document.getElementById('blog-form').addEventListener('submit', function() {
+      document.getElementById('bl-content').value = quill.root.innerHTML;
+    });
+  };
+  document.head.appendChild(s);
+})();
+
+function slugify(s) {
+  return s.toLowerCase().trim().replace(/[^a-z0-9\s-]/g,'').replace(/\s+/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'');
+}
+var titleEl = document.getElementById('bl-title');
+var slugEl  = document.getElementById('bl-slug');
+var preview = document.getElementById('slug-preview');
+titleEl.addEventListener('input', function() {
+  if (!slugEl.value) preview.textContent = '/blog/' + slugify(this.value);
+});
+slugEl.addEventListener('input', function() {
+  preview.textContent = '/blog/' + (slugify(this.value) || '…');
+});
+slugEl.addEventListener('blur', function() {
+  this.value = slugify(this.value);
+  preview.textContent = '/blog/' + (this.value || '…');
+});
+
+function updateImgPreview(url) {
+  var img = document.getElementById('fi-preview');
+  if (url) { img.src = url; img.style.display = 'block'; }
+  else      { img.style.display = 'none'; }
+}
+</script>

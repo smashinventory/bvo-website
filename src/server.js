@@ -269,6 +269,14 @@ app.use('/admin',       require('./routes/admin'));
 app.use('/api',         require('./routes/api'));
 app.use('/bundle-builder', require('./routes/bundle'));
 
+// ── Public CMS routes ────────────────────────────────────────
+// Must come before the 404 handler
+const pagesCtrl = require('./controllers/pagesController');
+const blogCtrl  = require('./controllers/blogController');
+app.get('/pages/:slug', pagesCtrl.publicPage);
+app.get('/blog',        blogCtrl.publicList);
+app.get('/blog/:slug',  blogCtrl.publicPost);
+
 // ── SEO / crawler files ──────────────────────────────────────────
 const sitemapCtrl = require('./controllers/sitemapController');
 app.get('/sitemap.xml', sitemapCtrl.xml);

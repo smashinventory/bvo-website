@@ -38,13 +38,18 @@
         </ul>
       </div>
 
-      <!-- Company column -->
+      <!-- Company column — falls back to DB pages if no theme links set -->
       <div class="footer-col">
         <h4><%= ft.col_company_heading || 'Company' %></h4>
         <ul role="list">
-          <% (ft.col_company_links || []).forEach(l => { %>
+          <%
+            var _footerCompanyLinks = ft.col_company_links && ft.col_company_links.length
+              ? ft.col_company_links
+              : (typeof cmsPages !== 'undefined' ? cmsPages.map(function(p){ return { url: '/pages/' + p.slug, label: p.title }; }) : []);
+          %>
+          <% _footerCompanyLinks.forEach(function(l) { %>
           <li><a href="<%= l.url %>"><%= l.label %></a></li>
-          <% }) %>
+          <% }); %>
         </ul>
       </div>
 

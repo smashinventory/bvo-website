@@ -1,0 +1,239 @@
+<%/* Admin — Menu Manager */%>
+<style>
+.mn-wrap{display:grid;grid-template-columns:200px 1fr;gap:1.25rem;align-items:start}
+@media(max-width:680px){.mn-wrap{grid-template-columns:1fr}}
+.mn-sidebar{background:#fff;border:1px solid var(--border-card);border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.mn-sidebar-title{font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);padding:.8rem 1rem;border-bottom:1px solid var(--border-card)}
+.mn-menu-btn{display:block;width:100%;text-align:left;padding:.7rem 1rem;border:none;background:none;cursor:pointer;font-size:.875rem;font-weight:500;color:#333;border-bottom:1px solid var(--border-card)}
+.mn-menu-btn:last-child{border-bottom:none}
+.mn-menu-btn.active{background:#fff8e8;color:#B8963A;font-weight:700}
+.mn-menu-btn:hover:not(.active){background:#faf9f6}
+.mn-main{display:flex;flex-direction:column;gap:1.25rem}
+.mn-card{background:#fff;border:1px solid var(--border-card);border-radius:10px;padding:1.25rem;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.mn-card h2{font-size:.9rem;font-weight:700;color:var(--navy);margin:0 0 1rem;text-transform:uppercase;letter-spacing:.04em}
+.mn-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;gap:1rem;flex-wrap:wrap}
+.mn-toolbar h1{font-size:1.35rem;font-weight:700;color:var(--navy);margin:0}
+/* Item list */
+.mn-item-list{list-style:none;padding:0;margin:0}
+.mn-item{display:flex;align-items:center;gap:.75rem;padding:.6rem .75rem;border:1px solid var(--border-card);border-radius:6px;margin-bottom:.5rem;background:#fff;cursor:grab;user-select:none}
+.mn-item.dragging{opacity:.5;border-color:#B8963A}
+.mn-item.drag-over{border-color:#B8963A;background:#fff8e8}
+.mn-handle{color:#ccc;cursor:grab;flex-shrink:0}
+.mn-item-label{font-weight:600;color:var(--navy);flex:1;font-size:.875rem}
+.mn-item-url{font-size:.75rem;font-family:monospace;color:var(--text-muted);flex:2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mn-item-hl{font-size:.7rem;font-weight:700;color:#B8963A;background:#fff8e8;border:1px solid #e0c878;border-radius:4px;padding:1px 6px;flex-shrink:0}
+.mn-item-actions{display:flex;gap:.35rem;flex-shrink:0}
+/* Add item form */
+.mn-add-grid{display:grid;grid-template-columns:1fr 1fr auto;gap:.5rem;align-items:end;flex-wrap:wrap}
+@media(max-width:600px){.mn-add-grid{grid-template-columns:1fr}}
+.mn-field label{display:block;font-size:.78rem;font-weight:600;color:var(--navy);margin-bottom:.25rem}
+.mn-field input{width:100%;padding:.5rem .65rem;border:1px solid #d0cdc8;border-radius:5px;font-size:.875rem;font-family:inherit;box-sizing:border-box}
+.mn-field input:focus{outline:none;border-color:#B8963A}
+/* Edit modal */
+.mn-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center}
+.mn-modal-bg.open{display:flex}
+.mn-modal{background:#fff;border-radius:10px;padding:1.5rem;width:440px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.18)}
+.mn-modal h3{margin:0 0 1rem;font-size:1.05rem;color:var(--navy)}
+.mn-modal .mn-field{margin-bottom:.75rem}
+.mn-modal-btns{display:flex;gap:.5rem;justify-content:flex-end;margin-top:1.25rem}
+/* Highlight toggle */
+.mn-hl-toggle{display:flex;align-items:center;gap:.5rem;font-size:.82rem;cursor:pointer}
+.mn-hl-toggle input[type=checkbox]{accent-color:#B8963A;width:15px;height:15px}
+/* Buttons */
+.adm-btn{display:inline-flex;align-items:center;gap:5px;padding:7px 16px;border-radius:6px;border:1px solid #d0cdc8;background:#fff;font-size:.8rem;font-weight:600;cursor:pointer;color:#333;text-decoration:none;white-space:nowrap}
+.adm-btn:hover{border-color:#B8963A;color:#B8963A}
+.adm-btn--primary{background:#B8963A;border-color:#B8963A;color:#fff}
+.adm-btn--primary:hover{background:#a07c28;border-color:#a07c28;color:#fff}
+.adm-btn--sm{padding:.3rem .75rem;font-size:.8rem}
+.adm-btn--danger{border-color:#dc3545;color:#dc3545}
+.adm-btn--danger:hover{background:#fff5f5}
+.adm-flash{padding:.65rem 1rem;border-radius:6px;margin-bottom:1.1rem;font-size:.85rem}
+.adm-flash--success{background:#e8f5e9;color:#1b5e20;border:1px solid #a5d6a7}
+.adm-flash--error{background:#fdecea;color:#b71c1c;border:1px solid #ef9a9a}
+</style>
+
+<% if (flash) { %>
+<div class="adm-flash adm-flash--<%= flash.type %>"><%- flash.msg %></div>
+<% } %>
+
+<div class="mn-toolbar">
+  <h1>Menu Manager</h1>
+</div>
+
+<div class="mn-wrap">
+
+  <!-- Menu switcher sidebar -->
+  <div class="mn-sidebar">
+    <div class="mn-sidebar-title">Menus</div>
+    <% menus.forEach(function(m) { %>
+    <button class="mn-menu-btn <%= m.handle === activeHandle ? 'active' : '' %>"
+            onclick="window.location='/admin/menus?menu=<%= m.handle %>'">
+      <%= m.name %>
+      <span style="color:#bbb;font-size:.75rem;margin-left:.25rem">(<%= m.items.length %>)</span>
+    </button>
+    <% }); %>
+  </div>
+
+  <!-- Active menu editor -->
+  <div class="mn-main">
+  <% var activeMenu = menus.find(function(m){ return m.handle === activeHandle; }); %>
+  <% if (!activeMenu) { %>
+    <div class="mn-card"><p style="color:var(--text-muted)">Select a menu to edit.</p></div>
+  <% } else { %>
+
+    <!-- Item list (drag to reorder) -->
+    <div class="mn-card">
+      <h2><%= activeMenu.name %> — Items</h2>
+      <ul class="mn-item-list" id="item-list" data-handle="<%= activeMenu.handle %>">
+        <% if (!activeMenu.items.length) { %>
+        <li style="color:var(--text-muted);padding:.5rem 0;font-size:.85rem">No items yet — add one below.</li>
+        <% } %>
+        <% activeMenu.items.forEach(function(item) { %>
+        <li class="mn-item" data-id="<%= item.id %>">
+          <span class="mn-handle">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="8" x2="21" y2="8"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="16" x2="21" y2="16"/></svg>
+          </span>
+          <span class="mn-item-label"><%= item.label %></span>
+          <span class="mn-item-url"><%= item.url %></span>
+          <% if (item.is_highlight) { %><span class="mn-item-hl">Highlight</span><% } %>
+          <div class="mn-item-actions">
+            <button class="adm-btn adm-btn--sm mn-edit-btn"
+                    data-id="<%= item.id %>"
+                    data-label="<%= item.label %>"
+                    data-url="<%= item.url %>"
+                    data-hl="<%= item.is_highlight ? '1' : '0' %>">Edit</button>
+            <form method="POST" action="/admin/menus/<%= activeMenu.handle %>/items/<%= item.id %>/delete"
+                  onsubmit="return confirm('Remove this menu item?')">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <button type="submit" class="adm-btn adm-btn--sm adm-btn--danger">✕</button>
+            </form>
+          </div>
+        </li>
+        <% }); %>
+      </ul>
+      <p style="font-size:.77rem;color:var(--text-muted);margin-top:.5rem">Drag items to reorder. Changes are saved automatically.</p>
+    </div>
+
+    <!-- Add item form -->
+    <div class="mn-card">
+      <h2>Add Item</h2>
+      <form method="POST" action="/admin/menus/<%= activeMenu.handle %>/items">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div class="mn-add-grid">
+          <div class="mn-field">
+            <label>Label</label>
+            <input type="text" name="label" placeholder="e.g. About Us" required>
+          </div>
+          <div class="mn-field">
+            <label>URL</label>
+            <input type="text" name="url" placeholder="/pages/about-us" required>
+          </div>
+          <div style="padding-bottom:2px">
+            <button type="submit" class="adm-btn adm-btn--primary">Add</button>
+          </div>
+        </div>
+        <label class="mn-hl-toggle" style="margin-top:.75rem">
+          <input type="checkbox" name="is_highlight" value="true">
+          Highlight link (shown in accent color — useful for "Sale")
+        </label>
+      </form>
+    </div>
+
+  <% } %>
+  </div>
+</div>
+
+<!-- Edit item modal -->
+<div class="mn-modal-bg" id="editModal">
+  <div class="mn-modal">
+    <h3>Edit Menu Item</h3>
+    <form id="editForm" method="POST">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div class="mn-field">
+        <label>Label</label>
+        <input type="text" id="edit-label" name="label" required>
+      </div>
+      <div class="mn-field">
+        <label>URL</label>
+        <input type="text" id="edit-url" name="url" required>
+      </div>
+      <label class="mn-hl-toggle" style="margin-bottom:.5rem">
+        <input type="checkbox" id="edit-hl" name="is_highlight" value="true">
+        Highlight link
+      </label>
+      <div class="mn-modal-btns">
+        <button type="button" class="adm-btn" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="adm-btn adm-btn--primary">Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script nonce="<%= cspNonce %>">
+(function() {
+  // ── Edit modal ─────────────────────────────────────────────
+  var modal     = document.getElementById('editModal');
+  var editForm  = document.getElementById('editForm');
+  var editLabel = document.getElementById('edit-label');
+  var editUrl   = document.getElementById('edit-url');
+  var editHl    = document.getElementById('edit-hl');
+
+  document.querySelectorAll('.mn-edit-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var id    = this.dataset.id;
+      var handle = document.getElementById('item-list').dataset.handle;
+      editLabel.value  = this.dataset.label;
+      editUrl.value    = this.dataset.url;
+      editHl.checked   = this.dataset.hl === '1';
+      editForm.action  = '/admin/menus/' + handle + '/items/' + id;
+      modal.classList.add('open');
+    });
+  });
+
+  window.closeModal = function() { modal.classList.remove('open'); };
+  modal.addEventListener('click', function(e) { if (e.target === modal) closeModal(); });
+
+  // ── Drag-to-reorder ────────────────────────────────────────
+  var list     = document.getElementById('item-list');
+  if (!list) return;
+  var dragged  = null;
+
+  list.addEventListener('dragstart', function(e) {
+    dragged = e.target.closest('.mn-item');
+    if (dragged) { setTimeout(function(){ dragged.classList.add('dragging'); }, 0); }
+  });
+  list.addEventListener('dragend', function() {
+    if (dragged) dragged.classList.remove('dragging');
+    list.querySelectorAll('.mn-item').forEach(function(el) { el.classList.remove('drag-over'); });
+    saveOrder();
+  });
+  list.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    var target = e.target.closest('.mn-item');
+    if (target && target !== dragged) {
+      target.classList.add('drag-over');
+      var rect = target.getBoundingClientRect();
+      var next = (e.clientY - rect.top) > (rect.height / 2) ? target.nextSibling : target;
+      list.insertBefore(dragged, next);
+    }
+  });
+  list.addEventListener('dragleave', function(e) {
+    var target = e.target.closest('.mn-item');
+    if (target) target.classList.remove('drag-over');
+  });
+
+  // Make items draggable
+  list.querySelectorAll('.mn-item').forEach(function(el) { el.setAttribute('draggable', 'true'); });
+
+  function saveOrder() {
+    var handle = list.dataset.handle;
+    var items  = Array.from(list.querySelectorAll('.mn-item'));
+    var order  = items.map(function(el, i) { return { id: parseInt(el.dataset.id), sort_order: (i + 1) * 10 }; });
+    fetch('/admin/menus/' + handle + '/reorder', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ order: order }),
+    }).catch(function() { console.error('Reorder save failed'); });
+  }
+})();
+</script>

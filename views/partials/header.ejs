@@ -21,14 +21,21 @@
 <header class="site-header">
   <nav class="site-nav" aria-label="Main navigation">
 
-    <!-- Logo (never regenerated — locked asset) -->
+    <!-- Logo — editable via Theme Editor > Navigation > Logo -->
+    <%
+      var _navCfg   = nav || {};
+      var _logoSrc  = _navCfg.logo_url    || '/images/logos/BVOLOGOSQ_512.png';
+      var _logoW    = parseInt(_navCfg.logo_width)  || 90;
+      var _logoH    = parseInt(_navCfg.logo_height) || 90;
+      var _logoAlt  = _navCfg.logo_alt    || ((S.global || {}).site_name || 'BathroomVanitiesOutlet.com') + ' logo';
+    %>
     <a href="/" class="nav-logo-link" aria-label="<%= (S.global || {}).site_name || 'BathroomVanitiesOutlet.com' %> — Home">
       <img
         class="nav-logo"
-        src="/images/logos/BVOLOGOSQ_512.png"
-        alt="<%= (S.global || {}).site_name || 'BathroomVanitiesOutlet.com' %> logo"
-        width="90"
-        height="90"
+        src="<%= _logoSrc %>"
+        alt="<%= _logoAlt %>"
+        width="<%= _logoW %>"
+        height="<%= _logoH %>"
         loading="eager"
       >
     </a>

@@ -1,0 +1,91 @@
+<%/* Public Blog Post — /blog/:slug */%>
+<%
+  var pubDate = post.published_at
+    ? new Date(post.published_at).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})
+    : '';
+  var tags = (post.tags || '').split(',').map(function(t){return t.trim();}).filter(Boolean);
+%>
+
+<article class="bpost-wrap" itemscope itemtype="https://schema.org/BlogPosting">
+
+  <!-- Hero -->
+  <% if (post.featured_image) { %>
+  <div class="bpost-hero">
+    <img src="<%= post.featured_image %>" alt="<%= post.title %>"
+         class="bpost-hero-img" loading="eager" itemprop="image">
+  </div>
+  <% } %>
+
+  <div class="bpost-container">
+    <div class="bpost-layout">
+
+      <!-- Main content -->
+      <div class="bpost-main">
+        <!-- Tags -->
+        <% if (tags.length) { %>
+        <div class="bpost-tags">
+          <% tags.forEach(function(tag) { %><span class="blog-tag"><%= tag %></span><% }); %>
+        </div>
+        <% } %>
+
+        <h1 class="bpost-title" itemprop="headline"><%= post.title %></h1>
+
+        <div class="bpost-byline">
+          <% if (pubDate) { %>
+          <time datetime="<%= post.published_at %>" itemprop="datePublished"><%= pubDate %></time>
+          <% } %>
+          <% if (post.author) { %>
+          <span class="bpost-byline-sep">·</span>
+          <span itemprop="author" itemscope itemtype="https://schema.org/Organization">
+            <span itemprop="name"><%= post.author %></span>
+          </span>
+          <% } %>
+        </div>
+
+        <div class="bpost-content" itemprop="articleBody">
+          <%- post.content %>
+        </div>
+
+        <!-- Back / share -->
+        <div class="bpost-footer">
+          <a href="/blog" class="bpost-back">← All Posts</a>
+          <% if (tags.length) { %>
+          <div class="bpost-tag-list">
+            <span class="bpost-tags-label">Tags:</span>
+            <% tags.forEach(function(tag) { %><span class="blog-tag"><%= tag %></span><% }); %>
+          </div>
+          <% } %>
+        </div>
+      </div>
+
+      <!-- Sidebar -->
+      <aside class="bpost-sidebar">
+
+        <% if (recent.length) { %>
+        <div class="bpost-sidebar-card">
+          <h3 class="bpost-sidebar-title">Recent Posts</h3>
+          <ul class="bpost-recent-list">
+            <% recent.forEach(function(r) {
+              var rDate = r.published_at ? new Date(r.published_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
+            %>
+            <li class="bpost-recent-item">
+              <a href="/blog/<%= r.slug %>" class="bpost-recent-link"><%= r.title %></a>
+              <% if (rDate) { %><time class="bpost-recent-date"><%= rDate %></time><% } %>
+            </li>
+            <% }); %>
+          </ul>
+        </div>
+        <% } %>
+
+        <!-- CTA card -->
+        <div class="bpost-sidebar-card bpost-cta-card">
+          <h3 class="bpost-cta-title">Find Your Perfect Vanity</h3>
+          <p class="bpost-cta-text">Browse our curated collection of bathroom vanities with free shipping on every order.</p>
+          <a href="/collections/bathroom-vanities" class="btn btn-amber">Shop Vanities →</a>
+        </div>
+
+      </aside>
+    </div>
+  </div>
+
+</article>

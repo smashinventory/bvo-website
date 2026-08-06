@@ -4,6 +4,9 @@ const express       = require('express');
 const rateLimit     = require('express-rate-limit');
 const router        = express.Router();
 const ctrl          = require('../controllers/adminController');
+const pagesCtrl     = require('../controllers/pagesController');
+const blogCtrl      = require('../controllers/blogController');
+const menusCtrl     = require('../controllers/menusController');
 const { requireAdmin } = require('../middleware/adminAuth');
 
 /* ── Strict rate limit on admin login — 10 attempts / 15 min ── */
@@ -81,6 +84,31 @@ router.post('/models/:id/image/remove',                        ctrl.modelRemoveI
 router.get ('/orders',            ctrl.orderList);
 router.post('/orders/:id/status', ctrl.orderUpdateStatus);
 
+/* ── Pages (CMS) ─────────────────────────────────────────────── */
+router.get ('/pages',                      pagesCtrl.adminList);
+router.get ('/pages/new',                  pagesCtrl.adminNew);
+router.post('/pages',                      pagesCtrl.adminCreate);
+router.get ('/pages/:id/edit',             pagesCtrl.adminEdit);
+router.post('/pages/:id/delete',           pagesCtrl.adminDelete);
+router.post('/pages/:id/toggle',           pagesCtrl.adminToggle);
+router.post('/pages/:id',                  pagesCtrl.adminUpdate);
+
+/* ── Blog ────────────────────────────────────────────────────── */
+router.get ('/blog',                       blogCtrl.adminList);
+router.get ('/blog/new',                   blogCtrl.adminNew);
+router.post('/blog',                       blogCtrl.adminCreate);
+router.get ('/blog/:id/edit',              blogCtrl.adminEdit);
+router.post('/blog/:id/delete',            blogCtrl.adminDelete);
+router.post('/blog/:id/toggle',            blogCtrl.adminToggle);
+router.post('/blog/:id',                   blogCtrl.adminUpdate);
+
+/* ── Menus ───────────────────────────────────────────────────── */
+router.get ('/menus',                                        menusCtrl.adminList);
+router.post('/menus/:handle/items',                          menusCtrl.adminAddItem);
+router.post('/menus/:handle/items/:itemId/delete',           menusCtrl.adminDeleteItem);
+router.post('/menus/:handle/items/:itemId',                  menusCtrl.adminUpdateItem);
+router.post('/menus/:handle/reorder',                        menusCtrl.adminReorder);
+
 /* ── Theme Editor ───────────────────────────────────────────── */
 router.get ('/theme',          ctrl.themeEditor);
 router.post('/theme',          ctrl.themeSave);
@@ -93,13 +121,17 @@ router.post('/upload',        ctrl.uploadMiddleware,      ctrl.uploadImage);
 router.post('/upload/video',  ctrl.uploadVideoMiddleware, ctrl.uploadVideo);
 router.get ('/upload/probe',  ctrl.uploadProbe);  // diagnostic: check upload dir
 
-/* ── RFLPOS Sync ─────────────────────────────────────────────── */
-router.get ('/sync/probe',        ctrl.syncProbe);
-router.get ('/sync',              ctrl.syncPage);
-router.post('/sync/run',          ctrl.syncRun);
-router.post('/sync/approve/:id',  ctrl.syncApprove);
-router.post('/sync/skip/:id',     ctrl.syncSkip);
-router.post('/sync/approve-all',  ctrl.syncApproveAll);
-router.post('/sync/settings',     ctrl.syncSaveSettings);
+/* ── RFLPOS Sync — DISABLED (rflpos.com server compromise 2026-07-28) ─── */
+// router.get ('/sync/probe',        ctrl.syncProbe);
+// router.get ('/sync',              ctrl.syncPage);
+// router.post('/sync/run',          ctrl.syncRun);
+// router.post('/sync/approve/:id',  ctrl.syncApprove);
+// router.post('/sync/skip/:id',     ctrl.syncSkip);
+// router.post('/sync/approve-all',  ctrl.syncApproveAll);
+// router.post('/sync/settings',     ctrl.syncSaveSettings);
+router.all('/sync*', (req, res) => res.status(503).render('pages/error', {
+  pageTitle: 'Sync Unavailable',
+  message:   'RFLPOS sync is temporarily disabled.',
+}));
 
 module.exports = router;

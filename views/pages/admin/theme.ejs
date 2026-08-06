@@ -483,6 +483,19 @@ function teArrayLinks(prefix,listId,tplId,items){
           <!-- ── NAVIGATION ─────────────────────────────────── -->
           <div class="te4-panel" id="panel-nav">
             <% const nav=t.nav||{}; %>
+
+            <!-- Logo & Header -->
+            <div class="te4-section-label">Logo</div>
+            <%- teImageField('nav.logo_url','Logo Image',nav.logo_url) %>
+            <div class="te4-row2" style="margin-top:.5rem">
+              <%- teField('number','nav.logo_width','Logo Width (px)',nav.logo_width||'90',true) %>
+              <%- teField('number','nav.logo_height','Logo Height (px)',nav.logo_height||'90',true) %>
+            </div>
+            <%- teField('text','nav.logo_alt','Logo Alt Text',nav.logo_alt,true) %>
+            <p style="font-size:.77rem;color:var(--te4-muted,#888);margin:.25rem 0 1rem">
+              Recommended: square PNG, 180–512px. Leave Logo Image blank to use the default BVO logo.
+            </p>
+
             <div class="te4-section-label">Brand Name (3 lines)</div>
             <div class="te4-row3">
               <%- teField('text','nav.brand_line1','Line 1',nav.brand_line1,true) %>

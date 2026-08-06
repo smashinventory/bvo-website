@@ -1,0 +1,131 @@
+<%/* Admin — Blog Post List */%>
+<style>
+.bl-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;gap:1rem;flex-wrap:wrap}
+.bl-toolbar h1{font-size:1.35rem;font-weight:700;color:var(--navy);margin:0}
+.bl-table{width:100%;border-collapse:collapse;font-size:.875rem}
+.bl-table th{background:#f4f2ee;font-weight:600;color:var(--navy);padding:.6rem .9rem;text-align:left;border-bottom:2px solid var(--border-card);white-space:nowrap}
+.bl-table td{padding:.65rem .9rem;border-bottom:1px solid var(--border-card);vertical-align:middle}
+.bl-table tr:last-child td{border-bottom:none}
+.bl-table tr:hover td{background:#faf9f6}
+.bl-card{background:#fff;border:1px solid var(--border-card);border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.bl-title{font-weight:600;color:var(--navy);max-width:260px}
+.bl-slug{font-size:.78rem;color:var(--text-muted);font-family:monospace}
+.bl-badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:.72rem;font-weight:600}
+.bl-badge--pub{background:#e8f5e9;color:#2d7a2d}
+.bl-badge--draft{background:#f4f2ee;color:#888}
+.bl-actions{display:flex;align-items:center;gap:.4rem;justify-content:flex-end}
+.bl-sw{position:relative;display:inline-block;width:36px;height:20px;cursor:pointer;flex-shrink:0}
+.bl-sw input{opacity:0;width:0;height:0;position:absolute}
+.bl-sw-track{position:absolute;inset:0;border-radius:20px;background:#ddd;transition:.2s}
+.bl-sw-track:before{content:'';position:absolute;width:14px;height:14px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+.bl-sw input:checked+.bl-sw-track{background:#2d7a2d}
+.bl-sw input:checked+.bl-sw-track:before{transform:translateX(16px)}
+.adm-btn{display:inline-flex;align-items:center;gap:5px;padding:7px 16px;border-radius:6px;border:1px solid #d0cdc8;background:#fff;font-size:.8rem;font-weight:600;cursor:pointer;color:#333;text-decoration:none;white-space:nowrap}
+.adm-btn:hover{border-color:#B8963A;color:#B8963A}
+.adm-btn--primary{background:#B8963A;border-color:#B8963A;color:#fff}
+.adm-btn--primary:hover{background:#a07c28;border-color:#a07c28;color:#fff}
+.adm-btn--sm{padding:.3rem .75rem;font-size:.8rem}
+.adm-btn--danger{border-color:#dc3545;color:#dc3545}
+.adm-btn--danger:hover{background:#fff5f5}
+.adm-flash{padding:.65rem 1rem;border-radius:6px;margin-bottom:1.1rem;font-size:.85rem}
+.adm-flash--success{background:#e8f5e9;color:#1b5e20;border:1px solid #a5d6a7}
+.adm-flash--error{background:#fdecea;color:#b71c1c;border:1px solid #ef9a9a}
+.bl-empty{padding:3rem;text-align:center;color:var(--text-muted)}
+</style>
+
+<% if (flash) { %>
+<div class="adm-flash adm-flash--<%= flash.type %>"><%- flash.msg %></div>
+<% } %>
+
+<div class="bl-toolbar">
+  <h1>Blog Posts</h1>
+  <a href="/admin/blog/new" class="adm-btn adm-btn--primary">
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    New Post
+  </a>
+</div>
+
+<div class="bl-card">
+  <table class="bl-table">
+    <thead>
+      <tr>
+        <th>Title / Slug</th>
+        <th style="width:100px">Author</th>
+        <th style="width:110px">Published</th>
+        <th style="width:80px;text-align:center">Visible</th>
+        <th style="width:80px;text-align:center">Status</th>
+        <th style="width:150px;text-align:right">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if (!posts.length) { %>
+      <tr><td colspan="6"><div class="bl-empty">No posts yet — write your first blog post above.</div></td></tr>
+      <% } %>
+      <% posts.forEach(function(p) {
+        var pubDate = p.published_at ? new Date(p.published_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+      %>
+      <tr>
+        <td>
+          <div class="bl-title"><%= p.title %></div>
+          <div class="bl-slug">/blog/<%= p.slug %></div>
+        </td>
+        <td style="color:var(--text-muted)"><%= p.author || 'BVO Team' %></td>
+        <td style="color:var(--text-muted);font-size:.82rem"><%= pubDate %></td>
+        <td style="text-align:center">
+          <label class="bl-sw" title="Toggle visibility">
+            <input type="checkbox" class="bl-vis-cb" data-id="<%= p.id %>" <%= p.is_visible ? 'checked' : '' %>>
+            <span class="bl-sw-track"></span>
+          </label>
+        </td>
+        <td style="text-align:center">
+          <span class="bl-badge bl-badge--<%= p.is_visible ? 'pub' : 'draft' %>">
+            <%= p.is_visible ? 'Published' : 'Draft' %>
+          </span>
+        </td>
+        <td>
+          <div class="bl-actions">
+            <% if (p.is_visible) { %>
+            <a href="/blog/<%= p.slug %>" target="_blank" class="adm-btn adm-btn--sm" title="View live post">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </a>
+            <% } %>
+            <a href="/admin/blog/<%= p.id %>/edit" class="adm-btn adm-btn--sm">Edit</a>
+            <form method="POST" action="/admin/blog/<%= p.id %>/delete"
+                  onsubmit="return confirm('Delete post &quot;<%= p.title %>&quot;?')">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <button type="submit" class="adm-btn adm-btn--sm adm-btn--danger">Delete</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      <% }); %>
+    </tbody>
+  </table>
+</div>
+
+<script nonce="<%= cspNonce %>">
+document.querySelectorAll('.bl-vis-cb').forEach(function(cb) {
+  cb.addEventListener('change', function() {
+    var id  = this.dataset.id;
+    var val = this.checked ? '1' : '0';
+    fetch('/admin/blog/' + id + '/toggle', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body:    'visible=' + val,
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.ok) { alert('Error: ' + d.error); cb.checked = !cb.checked; }
+      else {
+        var row   = cb.closest('tr');
+        var badge = row.querySelector('.bl-badge');
+        if (badge) {
+          badge.className   = d.visible ? 'bl-badge bl-badge--pub' : 'bl-badge bl-badge--draft';
+          badge.textContent = d.visible ? 'Published' : 'Draft';
+        }
+      }
+    })
+    .catch(function() { alert('Network error'); cb.checked = !cb.checked; });
+  });
+});
+</script>
