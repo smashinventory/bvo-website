@@ -197,7 +197,8 @@ exports.adminToggle = async (req, res) => {
     await bvoPool.query('UPDATE blog_posts SET is_visible=?, published_at=? WHERE id=?', [visible, pubAt, req.params.id]);
     res.json({ ok: true, visible });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    console.error('[blogController] adminToggle:', err.message);
+    res.status(500).json({ ok: false, error: 'An unexpected error occurred.' });
   }
 };
 

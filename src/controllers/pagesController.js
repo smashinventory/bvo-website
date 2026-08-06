@@ -172,7 +172,8 @@ exports.adminToggle = async (req, res) => {
     await bvoPool.query('UPDATE pages SET is_visible=? WHERE id=?', [visible, req.params.id]);
     res.json({ ok: true, visible });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    console.error('[pagesController] adminToggle:', err.message);
+    res.status(500).json({ ok: false, error: 'An unexpected error occurred.' });
   }
 };
 

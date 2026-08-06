@@ -128,7 +128,8 @@ exports.adminReorder = async (req, res) => {
     _invalidate(handle);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    console.error('[menusController] adminReorder:', err.message);
+    res.status(500).json({ ok: false, error: 'An unexpected error occurred.' });
   }
 };
 
