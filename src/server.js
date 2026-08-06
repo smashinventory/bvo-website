@@ -211,6 +211,13 @@ app.use((req, res, next) => {
   next();
 });
 
+// ── Dynamic mega menu data (sizes + cabinet colors) ──────────────
+// Populates res.locals.megaMenuSizes + res.locals.megaMenuColorFamilies
+// on every request from a 10-min cached DB query. See middleware/megaMenuData.js.
+// MUST run before CSRF middleware so error renders (pages/error via main.ejs)
+// have megaMenuSizes available — otherwise CSRF failures cascade into a second 500.
+app.use(require('./middleware/megaMenuData'));
+
 // ── CSRF validation ──────────────────────────────────────────────
 // Reject state-changing requests that don't carry the session token.
 // Exempts /api routes (they use their own bearer-token auth).
@@ -220,6 +227,8 @@ app.use((req, res, next) => {
   if (req.path.startsWith('/api/')) return next(); // API uses own auth
   const token = (req.body && req.body._csrf) || req.headers['x-csrf-token'];
   if (!token || token !== req.session.csrfToken) {
+    console.warn('[CSRF] token mismatch', req.method, req.path,
+      '| has_token:', !!token, '| has_session_token:', !!req.session.csrfToken);
     const wantsJson = req.headers.accept?.includes('application/json')
       || req.headers['x-requested-with'] === 'XMLHttpRequest'
       || (req.method !== 'GET' && (req.headers['content-type'] || '').includes('multipart'));
@@ -231,11 +240,6 @@ app.use((req, res, next) => {
   }
   next();
 });
-
-// ── Dynamic mega menu data (sizes + cabinet colors) ──────────────
-// Populates res.locals.megaMenuSizes + res.locals.megaMenuColorFamilies
-// on every request from a 10-min cached DB query. See middleware/megaMenuData.js.
-app.use(require('./middleware/megaMenuData'));
 
 // ── Auth-specific rate limiters ──────────────────────────────────
 const authLimiter = rateLimit({

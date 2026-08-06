@@ -74,7 +74,7 @@
               <p class="mega-heading">Shop By Size</p>
               <%/* Dynamic: only sizes with ≥1 active vanity product — from megaMenuData middleware */%>
               <div class="mega-sizes">
-                <% (megaMenuSizes || []).forEach(function(sz) { %>
+                <% (typeof megaMenuSizes !== 'undefined' ? megaMenuSizes : []).forEach(function(sz) { %>
                 <a class="mega-size-chip" href="/collections/bathroom-vanities?size_in=<%= encodeURIComponent(sz) %>"><%= sz %>"</a>
                 <% }) %>
               </div>
@@ -86,7 +86,7 @@
               <p class="mega-heading">Shop By Finish</p>
               <%/* Dynamic: cabinet color families with ≥1 active vanity — labels from colorFamilies.js.
                 * Rose, Sage, etc. appear automatically once matching products are imported. */%>
-              <% (megaMenuColorFamilies || []).forEach(function(fam) { %>
+              <% (typeof megaMenuColorFamilies !== 'undefined' ? megaMenuColorFamilies : []).forEach(function(fam) { %>
               <a class="mega-link" href="/collections/bathroom-vanities?color_family=<%= fam.key %>"><%= fam.label %> Vanities</a>
               <% }) %>
             </div>
@@ -201,7 +201,7 @@
       <%/* Promo card target — editable in admin */%>
       <li class="mobile-sub"><a href="<%= ((nav.vanities_mega || {}).promo || {}).url || '/collections/vanity-models' %>">Browse All Collections</a></li>
       <%/* Dynamic color families — same source as desktop mega menu */%>
-      <% (megaMenuColorFamilies || []).forEach(function(fam) { %>
+      <% (typeof megaMenuColorFamilies !== 'undefined' ? megaMenuColorFamilies : []).forEach(function(fam) { %>
       <li class="mobile-sub"><a href="/collections/bathroom-vanities?color_family=<%= fam.key %>"><%= fam.label %> Vanities</a></li>
       <% }) %>
       <%/* Style links — mirrors desktop mega menu Style column */%>
