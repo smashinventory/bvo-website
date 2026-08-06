@@ -22,6 +22,13 @@
 .pe-toggle input:checked~.pe-toggle-track{background:#2d7a2d}
 .pe-toggle input:checked~.pe-toggle-track:before{transform:translateX(16px)}
 .pe-toggle-lbl{font-size:.84rem;font-weight:600;color:var(--navy)}
+/* Image upload */
+.pe-img-row{display:flex;align-items:flex-start;gap:.75rem;flex-wrap:wrap}
+.pe-img-thumb{width:80px;height:54px;object-fit:cover;border-radius:6px;border:1px solid var(--border-card);flex-shrink:0}
+.pe-img-controls{flex:1;min-width:0;display:flex;flex-direction:column;gap:.4rem}
+.pe-upload-label{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:6px;border:1px solid #d0cdc8;background:#fff;font-size:.78rem;font-weight:600;cursor:pointer;color:#555;width:fit-content}
+.pe-upload-label:hover{border-color:#B8963A;color:#B8963A}
+.pe-upload-label input[type=file]{display:none}
 /* Rich text */
 #quill-editor{min-height:280px;font-size:.9rem;line-height:1.6}
 #quill-editor p{margin:0 0 .75em}
@@ -134,9 +141,19 @@
             <div class="pe-hint">Recommended: 150–160 characters.</div>
           </div>
           <div class="pe-field">
-            <label for="pg-ogi">OG Image URL</label>
-            <input type="text" id="pg-ogi" name="og_image" value="<%- _ogi %>" placeholder="/images/uploads/…">
-            <div class="pe-hint">Shown when page is shared on social media (1200×630px).</div>
+            <label for="pg-ogi">Page Image (OG / Hero)</label>
+            <div class="pe-img-row">
+              <% if (_ogi) { %><img src="<%- _ogi %>" alt="" class="pe-img-thumb" id="pg-img-preview"><% } else { %><img src="" alt="" class="pe-img-thumb" id="pg-img-preview" style="display:none"><% } %>
+              <div class="pe-img-controls">
+                <input type="text" id="pg-ogi" name="og_image" value="<%- _ogi %>" placeholder="/images/uploads/…">
+                <label class="pe-upload-label">
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  Upload image
+                  <input type="file" accept="image/*" id="pg-og-file">
+                </label>
+              </div>
+            </div>
+            <div class="pe-hint">Shown on inspiration hub cards, social shares, and as page hero image (1200×630px recommended).</div>
           </div>
         </div>
 
@@ -186,6 +203,36 @@
     });
   };
   document.head.appendChild(s);
+})();
+
+// OG Image upload
+(function() {
+  var fileInput   = document.getElementById('pg-og-file');
+  var urlInput    = document.getElementById('pg-ogi');
+  var preview     = document.getElementById('pg-img-preview');
+  if (!fileInput) return;
+  fileInput.addEventListener('change', function() {
+    var file = this.files[0]; if (!file) return;
+    var fd = new FormData(); fd.append('image', file);
+    fetch('/admin/upload', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function(r) {
+        if (!r.ok) return r.json().catch(function(){ throw new Error('Server error ' + r.status); }).then(function(d){ throw new Error(d.error || 'Server error ' + r.status); });
+        return r.json();
+      })
+      .then(function(data) {
+        if (!data.ok) throw new Error(data.error || 'Upload failed');
+        urlInput.value = data.url;
+        if (preview) { preview.src = data.url; preview.style.display = ''; }
+      })
+      .catch(function(e) {
+        alert('Image upload failed: ' + e.message + '\n\nYou can paste a URL in the field instead.');
+      })
+      .finally(function() { fileInput.value = ''; });
+  });
+  // Also update preview when URL is typed
+  urlInput.addEventListener('change', function() {
+    if (preview) { preview.src = this.value; preview.style.display = this.value ? '' : 'none'; }
+  });
 })();
 
 // Slug preview

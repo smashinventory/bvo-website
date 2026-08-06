@@ -221,7 +221,8 @@ app.use((req, res, next) => {
   const token = (req.body && req.body._csrf) || req.headers['x-csrf-token'];
   if (!token || token !== req.session.csrfToken) {
     const wantsJson = req.headers.accept?.includes('application/json')
-      || req.headers['x-requested-with'] === 'XMLHttpRequest';
+      || req.headers['x-requested-with'] === 'XMLHttpRequest'
+      || (req.method !== 'GET' && (req.headers['content-type'] || '').includes('multipart'));
     if (wantsJson) return res.status(403).json({ ok: false, error: 'Invalid CSRF token' });
     return res.status(403).render('pages/error', {
       pageTitle: 'Security Error | BathroomVanitiesOutlet.com',

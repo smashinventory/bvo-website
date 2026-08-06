@@ -17,6 +17,11 @@
       <%/* Main content */%>
       <main class="inspo-guide-main">
         <h1 class="inspo-guide-title"><%= page.title %></h1>
+        <% if (page.og_image) { %>
+        <div class="inspo-guide-hero-img">
+          <img src="<%= page.og_image %>" alt="<%= page.title %>" loading="eager" width="800" height="480">
+        </div>
+        <% } %>
         <div class="inspo-guide-content">
           <%- page.content %>
         </div>
@@ -61,12 +66,19 @@
       <h2 class="inspo-related-title">More Guides You May Like</h2>
       <div class="inspo-related-grid">
         <% related.forEach(function(r) { %>
-        <a href="/inspiration/<%= r.slug %>" class="inspo-card">
-          <span class="inspo-card-title"><%= r.title %></span>
-          <% if (r.meta_desc) { %>
-          <span class="inspo-card-desc"><%= r.meta_desc.substring(0, 90) + (r.meta_desc.length > 90 ? '…' : '') %></span>
+        <a href="/inspiration/<%= r.slug %>" class="inspo-card<%= r.og_image ? ' inspo-card--img' : '' %>">
+          <% if (r.og_image) { %>
+          <div class="inspo-card-img-wrap">
+            <img src="<%= r.og_image %>" alt="<%= r.title %>" class="inspo-card-img" loading="lazy" width="400" height="240">
+          </div>
           <% } %>
-          <span class="inspo-card-arrow">Read guide →</span>
+          <div class="inspo-card-body">
+            <span class="inspo-card-title"><%= r.title %></span>
+            <% if (r.meta_desc) { %>
+            <span class="inspo-card-desc"><%= r.meta_desc.substring(0, 90) + (r.meta_desc.length > 90 ? '…' : '') %></span>
+            <% } %>
+            <span class="inspo-card-arrow">Read guide →</span>
+          </div>
         </a>
         <% }) %>
       </div>

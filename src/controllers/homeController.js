@@ -342,16 +342,46 @@ async function getFeaturedCategories() {
   }
 }
 
+async function getFeaturedInspirationPages() {
+  try {
+    // Fetch up to 3 inspiration pages that have images, ordered by sort_order
+    const [rows] = await bvoPool.query(`
+      SELECT slug, title, meta_desc, og_image
+      FROM pages
+      WHERE is_visible = 1 AND page_type = 'inspiration' AND og_image IS NOT NULL AND og_image != ''
+      ORDER BY sort_order ASC, id ASC
+      LIMIT 3
+    `);
+    // If fewer than 3 have images, fill the rest with any visible inspiration pages
+    if (rows.length < 3) {
+      const existingSlugs = rows.map(r => r.slug);
+      const ph = existingSlugs.length ? `AND slug NOT IN (${existingSlugs.map(() => '?').join(',')})` : '';
+      const [extra] = await bvoPool.query(`
+        SELECT slug, title, meta_desc, og_image
+        FROM pages
+        WHERE is_visible = 1 AND page_type = 'inspiration' ${ph}
+        ORDER BY sort_order ASC, id ASC
+        LIMIT ?
+      `, [...existingSlugs, 3 - rows.length]);
+      rows.push(...extra);
+    }
+    return rows;
+  } catch {
+    return [];
+  }
+}
+
 exports.index = async (req, res, next) => {
   try {
     const ts = themeSettings.get();
     const fmSettings = ts.featured_models || {};
     const fmLimit    = fmSettings.limit || 8;
 
-    const [products, categories, featuredModels] = await Promise.all([
+    const [products, categories, featuredModels, inspirationPages] = await Promise.all([
       getFeaturedProducts(),
       getFeaturedCategories(),
       fmSettings.enabled !== false ? getFeaturedModels(fmLimit) : Promise.resolve([]),
+      getFeaturedInspirationPages(),
     ]);
 
     res.render('pages/index', {
@@ -360,6 +390,7 @@ exports.index = async (req, res, next) => {
       products,
       categories,
       featuredModels,
+      inspirationPages,
       settings: ts,
     });
   } catch (err) {

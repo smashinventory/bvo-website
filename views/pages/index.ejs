@@ -43,7 +43,7 @@ function _salsifyImg(url, w, h) {
 }
 
 const _DEFAULT_ORDER = ['scrolling_ticker','hero','brand_logos','categories_section','bundle_teaser',
-  'featured_section','featured_models','image_with_text','video_text','before_after','trust_band','parallax','testimonials','newsletter'];
+  'featured_section','featured_models','inspiration','image_with_text','video_text','before_after','trust_band','parallax','testimonials','newsletter'];
 const _STATIC_SET  = new Set(_DEFAULT_ORDER);
 const _DUPL_BASES  = new Set(['image_with_text','before_after','video_text','trust_band','parallax','testimonials']);
 
@@ -492,6 +492,45 @@ _DEFAULT_ORDER.forEach(function(k) {
   </div>
 </section>
 <% } /* end featured_models */ %>
+
+<!-- ── INSPIRATION GUIDES ────────────────────────────────────────── -->
+<% if (sectionKey === 'inspiration' && typeof inspirationPages !== 'undefined' && inspirationPages && inspirationPages.length) { %>
+<section class="hp-inspo" id="inspiration-section" data-section="inspiration" data-section-label="Style Guides">
+  <div class="hp-inspo-inner">
+    <div class="hp-inspo-header">
+      <div>
+        <p class="hp-inspo-eyebrow">Style Guides</p>
+        <h2 class="hp-inspo-title">Bathroom Vanity Ideas &amp; Inspiration</h2>
+      </div>
+      <a href="/inspiration" class="hp-inspo-all-link">Browse All Guides →</a>
+    </div>
+    <div class="hp-inspo-grid">
+      <% inspirationPages.forEach(function(p) { %>
+      <a href="/inspiration/<%= p.slug %>" class="hp-inspo-card">
+        <div class="hp-inspo-card-img-wrap">
+          <% if (p.og_image) { %>
+          <img src="<%= p.og_image %>" alt="<%= p.title %>" class="hp-inspo-card-img" loading="lazy" width="400" height="225">
+          <% } else { %>
+          <div class="hp-inspo-card-placeholder">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          </div>
+          <% } %>
+        </div>
+        <div class="hp-inspo-card-body">
+          <span class="hp-inspo-card-label">Style Guide</span>
+          <h3 class="hp-inspo-card-title"><%= p.title %></h3>
+          <% if (p.meta_desc) { %><p class="hp-inspo-card-desc"><%= p.meta_desc.substring(0, 100) + (p.meta_desc.length > 100 ? '…' : '') %></p><% } %>
+          <span class="hp-inspo-card-cta">Read guide →</span>
+        </div>
+      </a>
+      <% }) %>
+    </div>
+    <div class="hp-inspo-footer">
+      <a href="/inspiration" class="hp-inspo-browse-btn">Browse All Style Guides</a>
+    </div>
+  </div>
+</section>
+<% } /* end inspiration */ %>
 
 <!-- ── IMAGE WITH TEXT ───────────────────────────────────────────── -->
 <!-- ── IMAGE WITH TEXT (any copy) ────────────────────────────────── -->

@@ -1554,9 +1554,9 @@ function wireUploadBtns(root) {
       var label = input.closest('label');
       if (label) { label.style.opacity = '.5'; label.style.pointerEvents = 'none'; }
       var fd = new FormData(); fd.append('image', file);
-      fetch('/admin/upload', { method: 'POST', body: fd })
+      fetch('/admin/upload', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
         .then(function (r) {
-          if (!r.ok) throw new Error('Server returned ' + r.status);
+          if (!r.ok) return r.json().catch(function(){ throw new Error('Server error ' + r.status); }).then(function(d){ throw new Error(d.error || 'Server error ' + r.status); });
           return r.json();
         })
         .then(function (data) {

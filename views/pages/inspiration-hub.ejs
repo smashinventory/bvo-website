@@ -16,12 +16,19 @@
       <h2 class="inspo-hub-section-title"><%= group.label %></h2>
       <div class="inspo-hub-grid">
         <% group.pages.forEach(function(p) { %>
-        <a href="/inspiration/<%= p.slug %>" class="inspo-card">
-          <span class="inspo-card-title"><%= p.title %></span>
-          <% if (p.meta_desc) { %>
-          <span class="inspo-card-desc"><%= p.meta_desc.substring(0, 100) + (p.meta_desc.length > 100 ? '…' : '') %></span>
+        <a href="/inspiration/<%= p.slug %>" class="inspo-card<%= p.og_image ? ' inspo-card--img' : '' %>">
+          <% if (p.og_image) { %>
+          <div class="inspo-card-img-wrap">
+            <img src="<%= p.og_image %>" alt="<%= p.title %>" class="inspo-card-img" loading="lazy" width="400" height="240">
+          </div>
           <% } %>
-          <span class="inspo-card-arrow">Read guide →</span>
+          <div class="inspo-card-body">
+            <span class="inspo-card-title"><%= p.title %></span>
+            <% if (p.meta_desc) { %>
+            <span class="inspo-card-desc"><%= p.meta_desc.substring(0, 100) + (p.meta_desc.length > 100 ? '…' : '') %></span>
+            <% } %>
+            <span class="inspo-card-arrow">Read guide →</span>
+          </div>
         </a>
         <% }) %>
       </div>
