@@ -1,0 +1,77 @@
+<%/* Inspiration Guide — /inspiration/:slug */%>
+<div class="inspo-guide-wrap">
+
+  <div class="inspo-guide-container">
+
+    <%/* Breadcrumb */%>
+    <nav class="inspo-breadcrumb" aria-label="Breadcrumb">
+      <a href="/">Home</a>
+      <span class="inspo-breadcrumb-sep" aria-hidden="true">›</span>
+      <a href="/inspiration">Inspiration</a>
+      <span class="inspo-breadcrumb-sep" aria-hidden="true">›</span>
+      <span aria-current="page"><%= page.title %></span>
+    </nav>
+
+    <div class="inspo-guide-layout">
+
+      <%/* Main content */%>
+      <main class="inspo-guide-main">
+        <h1 class="inspo-guide-title"><%= page.title %></h1>
+        <div class="inspo-guide-content">
+          <%- page.content %>
+        </div>
+      </main>
+
+      <%/* Sidebar */%>
+      <aside class="inspo-guide-sidebar">
+
+        <div class="inspo-sidebar-card">
+          <p class="inspo-sidebar-card-label">Shop Vanities</p>
+          <p class="inspo-sidebar-card-text">Free shipping on every order. Premium quality at outlet prices.</p>
+          <a href="/collections/bathroom-vanities" class="inspo-sidebar-btn">Browse Vanities</a>
+        </div>
+
+        <div class="inspo-sidebar-card">
+          <p class="inspo-sidebar-card-label">Complete the Look</p>
+          <ul class="inspo-sidebar-links">
+            <li><a href="/collections/bathroom-mirrors">Bathroom Mirrors</a></li>
+            <li><a href="/collections/faucets">Faucets</a></li>
+            <li><a href="/collections/accessories">Accessories</a></li>
+            <li><a href="/bundle-builder">Bundle Builder</a></li>
+          </ul>
+        </div>
+
+        <% if (related && related.length > 0) { %>
+        <div class="inspo-sidebar-card">
+          <p class="inspo-sidebar-card-label">More Inspiration</p>
+          <ul class="inspo-sidebar-links">
+            <% related.forEach(function(r) { %>
+            <li><a href="/inspiration/<%= r.slug %>"><%= r.title %></a></li>
+            <% }) %>
+          </ul>
+        </div>
+        <% } %>
+
+      </aside>
+    </div>
+
+    <%/* Related guides strip */%>
+    <% if (related && related.length > 0) { %>
+    <section class="inspo-related">
+      <h2 class="inspo-related-title">More Guides You May Like</h2>
+      <div class="inspo-related-grid">
+        <% related.forEach(function(r) { %>
+        <a href="/inspiration/<%= r.slug %>" class="inspo-card">
+          <span class="inspo-card-title"><%= r.title %></span>
+          <% if (r.meta_desc) { %>
+          <span class="inspo-card-desc"><%= r.meta_desc.substring(0, 90) + (r.meta_desc.length > 90 ? '…' : '') %></span>
+          <% } %>
+          <span class="inspo-card-arrow">Read guide →</span>
+        </a>
+        <% }) %>
+      </div>
+    </section>
+    <% } %>
+
+  </div>
+</div>

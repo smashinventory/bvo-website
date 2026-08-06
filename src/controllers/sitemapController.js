@@ -24,15 +24,29 @@ exports.xml = async (req, res) => {
   const today   = new Date().toISOString().split('T')[0];
 
   try {
-    /* ── Fetch CMS pages ──────────────────────────────────────── */
+    /* ── Fetch CMS pages (standard, not inspiration) ─────────── */
     let cmsPages;
     try {
       const [rows] = await bvoPool.query(`
-        SELECT slug, updated_at FROM pages WHERE is_visible=1
+        SELECT slug, updated_at FROM pages
+        WHERE is_visible=1 AND (page_type IS NULL OR page_type = 'page')
       `);
       cmsPages = rows;
     } catch {
       cmsPages = [];
+    }
+
+    /* ── Fetch inspiration / style guide pages ────────────────── */
+    let inspirationPages;
+    try {
+      const [rows] = await bvoPool.query(`
+        SELECT slug, updated_at FROM pages
+        WHERE is_visible=1 AND page_type = 'inspiration'
+        ORDER BY sort_order ASC, id ASC
+      `);
+      inspirationPages = rows;
+    } catch {
+      inspirationPages = [];
     }
 
     /* ── Fetch blog posts ──────────────────────────────────────── */
@@ -96,6 +110,28 @@ exports.xml = async (req, res) => {
     <loc>${escUrl(siteUrl)}/blog</loc>
     <lastmod>${today}</lastmod>
     <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>`);
+    }
+
+    // Inspiration hub
+    if (inspirationPages.length) {
+      urls.push(`
+  <url>
+    <loc>${escUrl(siteUrl)}/inspiration</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>`);
+    }
+
+    // Individual inspiration / style guide pages
+    for (const p of inspirationPages) {
+      urls.push(`
+  <url>
+    <loc>${escUrl(`${siteUrl}/inspiration/${p.slug}`)}</loc>
+    <lastmod>${fmtDate(p.updated_at)}</lastmod>
+    <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>`);
     }

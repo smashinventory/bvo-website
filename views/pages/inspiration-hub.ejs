@@ -1,0 +1,37 @@
+<%/* Inspiration Hub — /inspiration */%>
+<div class="inspo-hub-wrap">
+
+  <div class="inspo-hub-hero">
+    <div class="inspo-hub-hero-inner">
+      <p class="inspo-hub-eyebrow">Style Guides & Inspiration</p>
+      <h1 class="inspo-hub-title">Bathroom Vanity Ideas</h1>
+      <p class="inspo-hub-subtitle">Expert guides for every style, size, and budget — helping you find the perfect vanity with confidence.</p>
+    </div>
+  </div>
+
+  <div class="inspo-hub-container">
+
+    <% groups.forEach(function(group) { %>
+    <section class="inspo-hub-section">
+      <h2 class="inspo-hub-section-title"><%= group.label %></h2>
+      <div class="inspo-hub-grid">
+        <% group.pages.forEach(function(p) { %>
+        <a href="/inspiration/<%= p.slug %>" class="inspo-card">
+          <span class="inspo-card-title"><%= p.title %></span>
+          <% if (p.meta_desc) { %>
+          <span class="inspo-card-desc"><%= p.meta_desc.substring(0, 100) + (p.meta_desc.length > 100 ? '…' : '') %></span>
+          <% } %>
+          <span class="inspo-card-arrow">Read guide →</span>
+        </a>
+        <% }) %>
+      </div>
+    </section>
+    <% }) %>
+
+    <div class="inspo-hub-cta-band">
+      <p class="inspo-hub-cta-text">Ready to shop? Browse our full collection of premium bathroom vanities — free shipping on every order.</p>
+      <a href="/collections/bathroom-vanities" class="inspo-hub-cta-btn">Shop All Vanities</a>
+    </div>
+
+  </div>
+</div>

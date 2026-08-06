@@ -277,6 +277,13 @@ app.get('/pages/:slug', pagesCtrl.publicPage);
 app.get('/blog',        blogCtrl.publicList);
 app.get('/blog/:slug',  blogCtrl.publicPost);
 
+// ── Inspiration / Style Guide routes ─────────────────────────
+// Evergreen pillar pages at /inspiration/:slug
+// Served from `pages` table where page_type = 'inspiration'
+const inspirationCtrl = require('./controllers/inspirationController');
+app.get('/inspiration',       inspirationCtrl.hub);
+app.get('/inspiration/:slug', inspirationCtrl.guide);
+
 // ── SEO / crawler files ──────────────────────────────────────────
 const sitemapCtrl = require('./controllers/sitemapController');
 app.get('/sitemap.xml', sitemapCtrl.xml);
