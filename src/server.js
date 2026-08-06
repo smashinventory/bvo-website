@@ -119,13 +119,18 @@ app.use(session({
 }));
 
 // ── CSRF token generation ────────────────────────────────────────
-// Generate a random token per session and make it available to templates.
+// Token is derived from session ID via HMAC — no session write required.
+// Same session always produces the same token; token rotates on session
+// regeneration (login/logout). Works identically across all PM2 workers
+// without any MySQL dependency.
 const crypto = require('crypto');
+function _makeCsrf(sessionId) {
+  return crypto.createHmac('sha256', process.env.SESSION_SECRET)
+    .update(sessionId || 'anonymous')
+    .digest('hex');
+}
 app.use((req, res, next) => {
-  if (!req.session.csrfToken) {
-    req.session.csrfToken = crypto.randomBytes(32).toString('hex');
-  }
-  res.locals.csrfToken = req.session.csrfToken;
+  res.locals.csrfToken = _makeCsrf(req.sessionID);
   next();
 });
 
@@ -225,10 +230,14 @@ const _CSRF_SAFE = new Set(['GET', 'HEAD', 'OPTIONS']);
 app.use((req, res, next) => {
   if (_CSRF_SAFE.has(req.method)) return next();
   if (req.path.startsWith('/api/')) return next(); // API uses own auth
-  const token = (req.body && req.body._csrf) || req.headers['x-csrf-token'];
-  if (!token || token !== req.session.csrfToken) {
+  // req.body._csrf may be an array if a page has nested forms (e.g. a delete form
+  // embedded inside the main edit form). Both values are the same token — take the first.
+  const _rawToken = (req.body && req.body._csrf) || req.headers['x-csrf-token'];
+  const token = Array.isArray(_rawToken) ? _rawToken[0] : _rawToken;
+  const expected = _makeCsrf(req.sessionID);
+  if (!token || token !== expected) {
     console.warn('[CSRF] token mismatch', req.method, req.path,
-      '| has_token:', !!token, '| has_session_token:', !!req.session.csrfToken);
+      '| has_token:', !!token, '| has_session_id:', !!req.sessionID);
     const wantsJson = req.headers.accept?.includes('application/json')
       || req.headers['x-requested-with'] === 'XMLHttpRequest'
       || (req.method !== 'GET' && (req.headers['content-type'] || '').includes('multipart'));
