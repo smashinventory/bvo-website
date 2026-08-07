@@ -141,6 +141,68 @@ exports.hub = async (req, res) => {
   }
 };
 
+/* ── Slug → product filter mapping ───────────────────────────── */
+// Maps slug prefixes to a color_family LIKE filter for the product showcase.
+const _COLOR_FAMILY_MAP = [
+  ['white-bathroom',    'white'],
+  ['gray-bathroom',     'gray'],
+  ['navy-bathroom',     'blue'],
+  ['black-bathroom',    'black'],
+  ['wood-bathroom',     'wood'],
+  ['espresso-bathroom', 'brown'],
+  ['green-bathroom',    'green'],
+  ['two-tone-bathroom', null],
+];
+
+// Maps slug prefixes to a human-readable shop label used in the showcase heading.
+const _SHOP_LABELS = {
+  'farmhouse':    'Farmhouse',
+  'modern':       'Modern',
+  'traditional':  'Traditional',
+  'contemporary': 'Contemporary',
+  'transitional': 'Transitional',
+  'coastal':      'Coastal',
+  'rustic':       'Rustic',
+  'industrial':   'Industrial',
+  'mid-century':  'Mid-Century Modern',
+  'scandinavian': 'Scandinavian',
+  'white':        'White',
+  'gray':         'Gray',
+  'navy':         'Navy Blue',
+  'black':        'Black',
+  'wood':         'Wood Finish',
+  'espresso':     'Espresso',
+  'green':        'Green',
+  'two-tone':     'Two-Tone',
+  'small':        'Small',
+  'floating':     'Floating',
+  'double-sink':  'Double Sink',
+  'master':       'Master Bathroom',
+  'luxury':       'Luxury',
+  'spa':          'Spa-Style',
+  '30-inch':      '30-Inch',
+  '36-inch':      '36-Inch',
+  '48-inch':      '48-Inch',
+  '60-inch':      '60-Inch',
+  '72-inch':      '72-Inch',
+};
+
+function _slugToShopMeta(slug) {
+  // Determine color_family filter
+  let colorFamily = null;
+  for (const [prefix, family] of _COLOR_FAMILY_MAP) {
+    if (slug.startsWith(prefix)) { colorFamily = family; break; }
+  }
+
+  // Determine display label
+  let shopLabel = 'Featured';
+  for (const [prefix, label] of Object.entries(_SHOP_LABELS)) {
+    if (slug.startsWith(prefix)) { shopLabel = label; break; }
+  }
+
+  return { colorFamily, shopLabel };
+}
+
 /**
  * GET /inspiration/:slug
  * Renders a single inspiration/style guide page.
@@ -163,15 +225,50 @@ exports.guide = async (req, res) => {
       });
     }
 
-    // Related guides: other inspiration pages (up to 4)
+    // Estimate reading time (~200 wpm)
+    const wordCount = (page.content || '').replace(/<[^>]+>/g, ' ').trim().split(/\s+/).filter(Boolean).length;
+    page.readTime   = Math.max(1, Math.round(wordCount / 200));
+
+    // Related guides: other inspiration pages (up to 4, include og_image for cards)
     const [related] = await bvoPool.query(
-      `SELECT slug, title, meta_desc
+      `SELECT slug, title, meta_desc, og_image
        FROM pages
        WHERE page_type = 'inspiration' AND is_visible = 1 AND id <> ?
        ORDER BY RAND()
        LIMIT 4`,
       [page.id]
     );
+
+    // Product showcase — 4 products filtered by slug-derived color family (or featured)
+    const { colorFamily, shopLabel } = _slugToShopMeta(slug);
+    let shopProducts = [];
+    try {
+      const colorWhere = colorFamily ? 'AND LOWER(p.color_family) LIKE ?' : '';
+      const colorParam = colorFamily ? [`%${colorFamily}%`] : [];
+      const [rows] = await bvoPool.query(
+        `SELECT p.id, p.slug, p.name, p.price, p.compare_price, p.brand,
+                COALESCE(p.primary_image_url, pi.url) AS primary_image
+         FROM products p
+         LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
+         WHERE p.is_active = 1 ${colorWhere}
+         ORDER BY p.is_featured DESC, RAND()
+         LIMIT 4`,
+        colorParam
+      );
+      shopProducts = rows.map(p => ({
+        ...p,
+        price:         parseFloat(p.price) || 0,
+        compare_price: p.compare_price != null ? parseFloat(p.compare_price) : null,
+      }));
+    } catch (_e) {
+      // Non-fatal — page renders without product showcase if query fails
+      console.warn('[inspirationController] product showcase query failed:', _e.message);
+    }
+
+    // Collection link for "View All" button
+    const shopCollectionUrl = colorFamily
+      ? `/collections/bathroom-vanities?color_family=${encodeURIComponent(colorFamily)}`
+      : '/collections/bathroom-vanities';
 
     // Article JSON-LD for SEO
     const jsonLd = JSON.stringify({
@@ -190,14 +287,17 @@ exports.guide = async (req, res) => {
     });
 
     res.render('pages/inspiration-guide', {
-      layout:       'layouts/main',
-      pageTitle:    page.meta_title || `${page.title} | BathroomVanitiesOutlet.com`,
-      metaDesc:     page.meta_desc || '',
-      canonicalUrl: `${siteUrl}/inspiration/${page.slug}`,
-      style:        '',
-      script:       `<script type="application/ld+json">${jsonLd}</script>`,
+      layout:            'layouts/main',
+      pageTitle:         page.meta_title || `${page.title} | BathroomVanitiesOutlet.com`,
+      metaDesc:          page.meta_desc || '',
+      canonicalUrl:      `${siteUrl}/inspiration/${page.slug}`,
+      style:             '',
+      script:            `<script type="application/ld+json">${jsonLd}</script>`,
       page,
       related,
+      shopProducts,
+      shopLabel,
+      shopCollectionUrl,
     });
   } catch (err) {
     console.error('[inspirationController] guide:', err.message);

@@ -63,7 +63,11 @@ exports.adminNew = (req, res) => {
 };
 
 exports.adminCreate = async (req, res) => {
-  const { title, slug: rawSlug, content, meta_title, meta_desc, og_image, is_visible, sort_order } = req.body;
+  const { title, slug: rawSlug, content, meta_title, meta_desc, og_image, sort_order } = req.body;
+  // is_visible: hidden field (value="false") + checkbox (value="true") both named is_visible.
+  // Body parser creates an array when both are present — take the last element (checkbox wins).
+  const _rawVis   = req.body.is_visible;
+  const is_visible = Array.isArray(_rawVis) ? _rawVis[_rawVis.length - 1] : _rawVis;
 
   if (!title || !title.trim()) {
     return res.render('pages/admin/page-edit', {
@@ -120,7 +124,11 @@ exports.adminEdit = async (req, res) => {
 exports.adminUpdate = async (req, res) => {
   const { id } = req.params;
   try {
-    const { title, slug: rawSlug, content, meta_title, meta_desc, og_image, is_visible, sort_order } = req.body || {};
+    const { title, slug: rawSlug, content, meta_title, meta_desc, og_image, sort_order } = req.body || {};
+    // is_visible: hidden field + checkbox both named is_visible → body parser makes an array.
+    // Take the last element: hidden="false" comes first, checkbox="true" comes second.
+    const _rawVis    = (req.body || {}).is_visible;
+    const is_visible = Array.isArray(_rawVis) ? _rawVis[_rawVis.length - 1] : _rawVis;
 
     if (!title || !title.trim()) {
       return res.render('pages/admin/page-edit', {

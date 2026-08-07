@@ -153,7 +153,12 @@
                 </label>
               </div>
             </div>
-            <div class="pe-hint">Shown on inspiration hub cards, social shares, and as page hero image (1200×630px recommended).</div>
+            <div class="pe-hint">
+              Shown on inspiration hub cards, social shares, and as the page hero image (1200×630px recommended).
+              <span id="pg-ogi-test" style="display:none;margin-left:.4rem">
+                · <a id="pg-ogi-test-link" href="#" target="_blank" rel="noopener" style="color:var(--amber,#B8862A)">Test image URL ↗</a>
+              </span>
+            </div>
           </div>
         </div>
 
@@ -229,10 +234,20 @@
       })
       .finally(function() { fileInput.value = ''; });
   });
-  // Also update preview when URL is typed
-  urlInput.addEventListener('change', function() {
-    if (preview) { preview.src = this.value; preview.style.display = this.value ? '' : 'none'; }
-  });
+  // Also update preview + test link when URL is typed/changed
+  function _syncOgPreview(url) {
+    if (preview) { preview.src = url; preview.style.display = url ? '' : 'none'; }
+    var testWrap = document.getElementById('pg-ogi-test');
+    var testLink = document.getElementById('pg-ogi-test-link');
+    if (testWrap && testLink) {
+      testWrap.style.display = url ? '' : 'none';
+      testLink.href = url;
+    }
+  }
+  urlInput.addEventListener('change', function() { _syncOgPreview(this.value); });
+  urlInput.addEventListener('input',  function() { _syncOgPreview(this.value); });
+  // Initialise on page load
+  if (urlInput.value) _syncOgPreview(urlInput.value);
 })();
 
 // Slug preview

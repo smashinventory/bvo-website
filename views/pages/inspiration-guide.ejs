@@ -12,19 +12,92 @@
       <span aria-current="page"><%= page.title %></span>
     </nav>
 
+    <%/* ── Full-bleed hero (shown when og_image is set) ────────────── */%>
+    <% if (page.og_image) { %>
+    <div class="inspo-hero">
+      <img class="inspo-hero-img" src="<%= page.og_image %>" alt="<%= page.title %>" loading="eager" width="1200" height="630">
+      <div class="inspo-hero-overlay" aria-hidden="true"></div>
+      <div class="inspo-hero-text">
+        <span class="inspo-eyebrow">Inspiration Guide</span>
+        <h1 class="inspo-hero-title"><%= page.title %></h1>
+        <div class="inspo-guide-meta">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <%= page.readTime %> min read
+        </div>
+      </div>
+    </div>
+    <% } %>
+
     <div class="inspo-guide-layout">
 
       <%/* Main content */%>
       <main class="inspo-guide-main">
-        <h1 class="inspo-guide-title"><%= page.title %></h1>
-        <% if (page.og_image) { %>
-        <div class="inspo-guide-hero-img">
-          <img src="<%= page.og_image %>" alt="<%= page.title %>" loading="eager" width="800" height="480">
+
+        <%/* Editorial header — shown when NO hero image */%>
+        <% if (!page.og_image) { %>
+        <div class="inspo-guide-header-plain">
+          <span class="inspo-eyebrow">Inspiration Guide</span>
+          <h1 class="inspo-guide-title"><%= page.title %></h1>
+          <div class="inspo-guide-meta">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <%= page.readTime %> min read
+          </div>
+        </div>
+        <% } else { %>
+        <%/* When hero shows the title, still add reading time above content */%>
+        <div class="inspo-guide-meta inspo-guide-meta--after-hero">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <%= page.readTime %> min read
         </div>
         <% } %>
+
+        <%/* Article body */%>
         <div class="inspo-guide-content">
           <%- page.content %>
         </div>
+
+        <%/* ── Product showcase ─────────────────────────────────── */%>
+        <% if (shopProducts && shopProducts.length) { %>
+        <section class="inspo-shop-showcase" aria-label="Shop <%= shopLabel %> vanities">
+          <div class="inspo-shop-showcase-header">
+            <span class="inspo-eyebrow">Shop the Look</span>
+            <h2 class="inspo-shop-showcase-title"><%= shopLabel %> Bathroom Vanities</h2>
+          </div>
+          <div class="inspo-shop-grid">
+            <% shopProducts.forEach(function(p) { %>
+            <a href="/products/<%= p.slug %>" class="inspo-shop-card">
+              <div class="inspo-shop-card-img-wrap">
+                <% if (p.primary_image) { %>
+                <img src="<%= p.primary_image %>" alt="<%= p.name %>" class="inspo-shop-card-img" loading="lazy" width="320" height="280">
+                <% } else { %>
+                <div class="inspo-shop-card-img-placeholder"></div>
+                <% } %>
+                <% if (p.compare_price && p.compare_price > p.price) { %>
+                <span class="inspo-shop-badge">Sale</span>
+                <% } %>
+              </div>
+              <div class="inspo-shop-card-body">
+                <% if (p.brand) { %><span class="inspo-shop-card-brand"><%= p.brand %></span><% } %>
+                <span class="inspo-shop-card-name"><%= p.name %></span>
+                <div class="inspo-shop-card-price-row">
+                  <span class="inspo-shop-card-price">$<%= p.price.toLocaleString('en-US', {minimumFractionDigits:0,maximumFractionDigits:0}) %></span>
+                  <% if (p.compare_price && p.compare_price > p.price) { %>
+                  <span class="inspo-shop-card-compare">$<%= p.compare_price.toLocaleString('en-US', {minimumFractionDigits:0,maximumFractionDigits:0}) %></span>
+                  <% } %>
+                </div>
+              </div>
+            </a>
+            <% }) %>
+          </div>
+          <div class="inspo-shop-showcase-footer">
+            <a href="<%= shopCollectionUrl %>" class="inspo-shop-all-btn">
+              View All <%= shopLabel %> Vanities
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </a>
+          </div>
+        </section>
+        <% } %>
+
       </main>
 
       <%/* Sidebar */%>
