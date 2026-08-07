@@ -221,10 +221,23 @@
 
 
 /* ══════════════════════════════════════════════════════════════════
-   8. HERO — micro adjustments for small phones (≤390px)
-   At 375px the 2rem headline and 28px side padding feel cramped.
+   8. HERO — force single-column on mobile (inline style override)
+   The theme editor writes grid-template-columns as an inline style:
+     style="grid-template-columns: 45% 55%"
+   Inline styles beat media queries, so the site.css 860px breakpoint
+   never fires. !important is the correct tool here — we must ALWAYS
+   collapse the split layout on mobile regardless of theme settings.
    ══════════════════════════════════════════════════════════════════ */
 
+@media (max-width: 860px) {
+  /* Override inline grid-template-columns set by theme editor */
+  .hero--split {
+    grid-template-columns: 1fr !important;
+    grid-template-rows:    1fr !important;
+  }
+}
+
+/* Micro adjustments for small phones (≤390px) */
 @media (max-width: 390px) {
   .hero-h1,
   .hero-h2 {
