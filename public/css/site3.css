@@ -1768,7 +1768,7 @@
   top: 50%;
   transform: translateY(-50%);
   width: 34px; height: 34px;
-  background: rgba(255,255,255,.88);
+  background: rgba(255,255,255,.92);
   border: none;
   border-radius: 50%;
   display: flex;
@@ -1776,15 +1776,16 @@
   justify-content: center;
   cursor: pointer;
   z-index: 2;
-  box-shadow: 0 1px 6px rgba(0,0,0,.15);
-  transition: background .15s, opacity .15s;
+  color: #1a2d5a;
+  box-shadow: 0 2px 8px rgba(0,0,0,.28);
+  transition: background .15s, opacity .15s, box-shadow .15s;
   opacity: 0;
 }
 .lb-card:hover .lb-arrow,
 .lb-card:focus-within .lb-arrow { opacity: 1; }
 .lb-arrow--prev { left: .5rem; }
 .lb-arrow--next { right: .5rem; }
-.lb-arrow:hover { background: #fff; }
+.lb-arrow:hover { background: #fff; box-shadow: 0 3px 10px rgba(0,0,0,.35); }
 
 /* Image counter */
 .lb-counter {
