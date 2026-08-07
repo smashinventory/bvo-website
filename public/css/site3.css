@@ -1697,10 +1697,10 @@
 }
 .lb-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.12); }
 
-/* Image container — 4:5 portrait aspect ratio, white dead-space like product cards */
+/* Image container — 3:2 landscape aspect ratio, white dead-space like product cards */
 .lb-card-img-wrap {
   position: relative;
-  aspect-ratio: 4 / 5;
+  aspect-ratio: 3 / 2;
   background: #ffffff;
   overflow: hidden;
   display: flex;

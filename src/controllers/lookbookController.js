@@ -53,65 +53,88 @@ exports.index = async (req, res, next) => {
     );
     const catId = cat ? cat.id : null;
 
-    // ── Build WHERE for product query ─────────────────────────────────
-    const pParams     = [];
-    const pConditions = ['p.is_active = 1'];
-    if (catId) { pConditions.push('p.category_id = ?'); pParams.push(catId); }
+    // ── Build WHERE — two parallel versions ───────────────────────────
+    // pConds / pParams  → outer query  (table alias p.)
+    // iConds / iParams  → inner subquery (bare column names, single table)
+    // Both encode the same logical filters so the subquery picks only
+    // representative products that actually satisfy the active filters.
+
+    const pParams = [], iParams = [];
+    const pConds  = ['p.is_active = 1'], iConds = ['is_active = 1'];
+    if (catId) {
+      pConds.push('p.category_id = ?'); pParams.push(catId);
+      iConds.push('category_id = ?');   iParams.push(catId);
+    }
 
     // Size — each bucket is an OR clause
     if (activeSizes.length) {
-      const sizeClauses = [];
+      const pSz = [], iSz = [];
       for (const label of activeSizes) {
         const bucket = SIZE_BUCKETS.find(b => b.label === label);
         if (!bucket) continue;
         if (bucket.max === Infinity) {
-          sizeClauses.push('p.width_in >= ?');
-          pParams.push(bucket.min);
+          pSz.push('p.width_in >= ?'); pParams.push(bucket.min);
+          iSz.push('width_in >= ?');   iParams.push(bucket.min);
         } else {
-          sizeClauses.push('p.width_in BETWEEN ? AND ?');
-          pParams.push(bucket.min, bucket.max);
+          pSz.push('p.width_in BETWEEN ? AND ?'); pParams.push(bucket.min, bucket.max);
+          iSz.push('width_in BETWEEN ? AND ?');   iParams.push(bucket.min, bucket.max);
         }
       }
-      if (sizeClauses.length) pConditions.push(`(${sizeClauses.join(' OR ')})`);
+      if (pSz.length) { pConds.push(`(${pSz.join(' OR ')})`); iConds.push(`(${iSz.join(' OR ')})`); }
     }
 
-    // Color family (cabinet finish)
+    // Color family
     if (activeColors.length) {
-      pConditions.push(
-        `p.color_family IN (${activeColors.map(() => '?').join(',')})`
-      );
-      pParams.push(...activeColors);
+      const ph = activeColors.map(() => '?').join(',');
+      pConds.push(`p.color_family IN (${ph})`); pParams.push(...activeColors);
+      iConds.push(`color_family IN (${ph})`);   iParams.push(...activeColors);
     }
 
     // Configuration (product_type)
     if (activeTypes.length) {
-      pConditions.push(
-        `p.product_type IN (${activeTypes.map(() => '?').join(',')})`
-      );
-      pParams.push(...activeTypes);
+      const ph = activeTypes.map(() => '?').join(',');
+      pConds.push(`p.product_type IN (${ph})`); pParams.push(...activeTypes);
+      iConds.push(`product_type IN (${ph})`);   iParams.push(...activeTypes);
     }
 
-    // Vanity style (EAV)
+    // Vanity style (EAV) — inner query uses bare 'id' which refers to products.id
     if (activeStyles.length) {
-      pConditions.push(`EXISTS (
+      const ph = activeStyles.map(() => '?').join(',');
+      pConds.push(`EXISTS (
         SELECT 1 FROM product_attribute_values pav
-        WHERE pav.product_id = p.id
-          AND pav.attr_key = 'style'
-          AND pav.value_text IN (${activeStyles.map(() => '?').join(',')})
+        WHERE pav.product_id = p.id AND pav.attr_key = 'style'
+          AND pav.value_text IN (${ph})
       )`);
       pParams.push(...activeStyles);
+      iConds.push(`EXISTS (
+        SELECT 1 FROM product_attribute_values pav
+        WHERE pav.product_id = id AND pav.attr_key = 'style'
+          AND pav.value_text IN (${ph})
+      )`);
+      iParams.push(...activeStyles);
     }
 
-    const PWHERE = pConditions.join(' AND ');
+    const PWHERE = pConds.join(' AND ');
+    const IWHERE = iConds.join(' AND ');
 
-    // ── Fetch products ─────────────────────────────────────────────────
+    // ── Fetch one product per model ────────────────────────────────────
+    // Inner subquery: MIN(id) per model within the active filters → one
+    // representative per model that actually satisfies all active filters.
+    // Products without a model value are excluded (too many one-off SKUs).
     const [products] = await bvoPool.query(`
-      SELECT p.id, p.slug, p.width_in, p.color_family, p.product_type
+      SELECT p.id, p.slug, p.model, p.width_in, p.color_family, p.product_type
       FROM products p
       WHERE ${PWHERE}
-      ORDER BY p.is_featured DESC, p.id DESC
+        AND p.model IS NOT NULL AND p.model != ''
+        AND p.id IN (
+          SELECT MIN(id) FROM products
+          WHERE ${IWHERE}
+            AND model IS NOT NULL AND model != ''
+          GROUP BY model
+        )
+      ORDER BY p.is_featured DESC, p.model ASC
       LIMIT ${LIMIT}
-    `, pParams);
+    `, [...pParams, ...iParams]);
 
     // ── Fetch all images for each product ──────────────────────────────
     if (products.length > 0) {
