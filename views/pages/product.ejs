@@ -271,6 +271,85 @@
       </div>
     </div>
 
+    <!-- ── Variant Selector: Size, Finish, Stone Top ───────────────── -->
+    <% if (typeof variantConfig !== 'undefined' && variantConfig) { %>
+    <% var _vc = variantConfig; %>
+
+    <%/* Card 1 — View Other Options (size chips + finish swatches) */%>
+    <% if (_vc.sizeChips.length > 1 || _vc.colorSwatches.length > 1) { %>
+    <div class="pdp-vc-card">
+      <h4 class="pdp-vc-heading">View Other Options</h4>
+
+      <% if (_vc.sizeChips.length > 1) { %>
+      <div class="pdp-vc-row">
+        <span class="pdp-vc-label">SIZE</span>
+        <div class="pdp-vc-options">
+          <% _vc.sizeChips.forEach(function(chip) { %>
+          <a href="/products/<%= chip.slug %>"
+             class="pdp-size-chip<%= chip.isSelected ? ' is-selected' : '' %>"
+             aria-current="<%= chip.isSelected ? 'page' : 'false' %>"
+          ><%= Math.round(chip.width_in) %>&quot;</a>
+          <% }); %>
+        </div>
+      </div>
+      <% } %>
+
+      <% if (_vc.colorSwatches.length > 1) { %>
+      <div class="pdp-vc-row">
+        <span class="pdp-vc-label">FINISH</span>
+        <div class="pdp-vc-options">
+          <%
+            _vc.colorSwatches.forEach(function(sw) {
+              var _cf   = _vc.colorFamilyMap[sw.color_family];
+              var _hex  = _cf ? _cf.hex    : '#ccc';
+              var _brd  = _cf ? _cf.border : '#aaa';
+              var _lbl  = _cf ? _cf.label  : sw.color_family;
+          %>
+          <a href="/products/<%= sw.slug %>"
+             class="pdp-color-chip<%= sw.isSelected ? ' is-selected' : '' %>"
+             title="<%= _lbl %>"
+             aria-label="<%= _lbl %>"
+             aria-current="<%= sw.isSelected ? 'page' : 'false' %>">
+            <span class="pdp-cc-dot" style="background:<%= _hex %>;border-color:<%= _brd %>"></span>
+          </a>
+          <% }); %>
+        </div>
+      </div>
+      <% } %>
+    </div>
+    <% } %>
+
+    <%/* Card 2 — Stone Top Option */%>
+    <% if (_vc.hasStoneOptions) { %>
+    <div class="pdp-vc-card">
+      <h4 class="pdp-vc-heading">Stone Top Option</h4>
+      <div class="pdp-stone-grid">
+
+        <%/* No Top tile */%>
+        <% if (_vc.cabinetOnlySlug) { %>
+        <a href="/products/<%= _vc.cabinetOnlySlug %>"
+           class="pdp-stone-tile<%= _vc.isCabinetOnly ? ' is-selected' : '' %>"
+           aria-current="<%= _vc.isCabinetOnly ? 'page' : 'false' %>">
+          <span class="pdst-name">No Top</span>
+          <span class="pdst-sub">Cabinet Only</span>
+        </a>
+        <% } %>
+
+        <%/* One tile per stone material */%>
+        <% _vc.stoneTops.forEach(function(top) { %>
+        <a href="/products/<%= top.slug %>"
+           class="pdp-stone-tile<%= top.isSelected ? ' is-selected' : '' %>"
+           aria-current="<%= top.isSelected ? 'page' : 'false' %>">
+          <span class="pdst-name"><%= top.stone_material || top.name %></span>
+        </a>
+        <% }); %>
+
+      </div>
+    </div>
+    <% } %>
+
+    <% } /* end variantConfig */ %>
+
     <!-- ── At a Glance + Dims + Specs ─────────────────────────────── -->
     <%
       var _inchKeys = new Set(['size_in','width_in','depth_in','height_in',
