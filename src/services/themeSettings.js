@@ -200,7 +200,7 @@ const DEFAULTS = {
     title_line2: 'Starts Here',
     subtitle: 'From contemporary minimalism to classic elegance — we carry the brands and styles to bring your vision to life.',
     cta1_text: 'Shop All Vanities', cta1_url: '/collections/bathroom-vanities',
-    cta2_text: 'View Lookbook',     cta2_url: '/pages/inspiration',
+    cta2_text: 'View Lookbook',     cta2_url: '/lookbook',
     image_url: '/images/parallax-bg.jpg',
     image_alt: 'Luxury bathroom inspiration',
   },

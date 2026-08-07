@@ -1,0 +1,387 @@
+<%/* ── LOOKBOOK — Visual Vanity Gallery ──────────────────────────────
+ * Sidebar filters: Size · Color · Configuration · Style
+ * Cards: image carousel only — no name, price, or description.
+ * "Learn More" button leads to the product page.
+ */%>
+
+<!-- Mobile filter overlay backdrop -->
+<div class="filter-overlay" id="lbFilterOverlay" aria-hidden="true"></div>
+
+<!-- Page header -->
+<div class="lb-hero">
+  <div class="lb-hero-inner">
+    <p class="lb-hero-eyebrow">Visual Gallery</p>
+    <h1 class="lb-hero-title">Lookbook</h1>
+    <p class="lb-hero-sub">Browse by feel. Filter by what matters. Click to explore.</p>
+  </div>
+</div>
+
+<!-- Active filter chips + result count bar -->
+<div class="lb-topbar">
+  <div class="lb-topbar-inner">
+    <!-- Mobile filter trigger -->
+    <button class="lb-filter-trigger" id="lbFilterOpen" type="button" aria-expanded="false" aria-controls="lbSidebar">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="16" y2="12"/><line x1="4" y1="18" x2="12" y2="18"/>
+      </svg>
+      Filters<% if (hasActiveFilters) { %> <span class="lb-filter-dot"></span><% } %>
+    </button>
+
+    <!-- Active chips -->
+    <div class="lb-chips" id="lbChips">
+      <% activeSizes.forEach(function(s) { %>
+      <a href="?<%= new URLSearchParams({...(activeColors.length?activeColors.reduce((o,c,i)=>{o['color'+i]=c;return o;},{}):{})}).toString() %>" class="lb-chip" data-remove="size" data-val="<%= s %>"><%= s %>&Prime; <span aria-hidden="true">×</span></a>
+      <% }) %>
+      <% activeColors.forEach(function(c) { %>
+      <a href="#" class="lb-chip" data-remove="color" data-val="<%= c %>"><%= c %> <span aria-hidden="true">×</span></a>
+      <% }) %>
+      <% activeTypes.forEach(function(t) { %>
+      <a href="#" class="lb-chip" data-remove="type" data-val="<%= t %>"><%= t %> <span aria-hidden="true">×</span></a>
+      <% }) %>
+      <% activeStyles.forEach(function(s) { %>
+      <a href="#" class="lb-chip" data-remove="style" data-val="<%= s %>"><%= s %> <span aria-hidden="true">×</span></a>
+      <% }) %>
+      <% if (hasActiveFilters) { %>
+      <a href="/lookbook" class="lb-chip lb-chip--clear">Clear all</a>
+      <% } %>
+    </div>
+
+    <span class="lb-count"><%= total %> vanities</span>
+  </div>
+</div>
+
+<!-- Layout: sidebar + grid -->
+<div class="lb-layout">
+
+  <!-- ── Filter Sidebar ──────────────────────────────────────────────── -->
+  <aside class="filter-panel lb-sidebar" id="lbSidebar" aria-label="Filter lookbook">
+    <form method="GET" id="lb-filter-form">
+
+      <div class="filter-header">
+        <h3>Filter</h3>
+        <% if (hasActiveFilters) { %>
+        <a href="/lookbook" class="filter-clear-top">Clear all</a>
+        <% } %>
+        <button type="button" class="filter-close-btn" id="lbFilterClose" aria-label="Close filters">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- ── Size ──────────────────────────────────────────────────────── -->
+      <%
+        var _szActive = activeSizes.length > 0;
+      %>
+      <div class="filter-group">
+        <button type="button" class="filter-group-toggle" aria-expanded="true">
+          Size (inches)
+          <% if (_szActive) { %><span class="filter-badge"><%= activeSizes.length %></span><% } %>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="filter-group-body">
+          <div class="lb-size-chips">
+            <% sizeBuckets.forEach(function(b) { %>
+            <%   var isOn = activeSizes.includes(b.label); %>
+            <button type="button"
+                    class="lb-size-chip<%= isOn ? ' is-active' : '' %>"
+                    data-size="<%= b.label %>">
+              <%= b.label %>"
+            </button>
+            <% }) %>
+          </div>
+          <!-- Hidden inputs for active sizes -->
+          <% activeSizes.forEach(function(s) { %>
+          <input type="hidden" name="size" value="<%= s %>">
+          <% }) %>
+        </div>
+      </div>
+
+      <!-- ── Color ──────────────────────────────────────────────────────── -->
+      <%
+        var _clActive = activeColors.length > 0;
+      %>
+      <% if (colorFamiliesConfig.length > 0) { %>
+      <div class="filter-group">
+        <button type="button" class="filter-group-toggle" aria-expanded="<%= _clActive ? 'true' : 'false' %>">
+          Cabinet Color
+          <% if (_clActive) { %><span class="filter-badge"><%= activeColors.length %></span><% } %>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="filter-group-body<%= _clActive ? '' : ' is-collapsed' %>">
+          <div class="color-family-row">
+            <% colorFamiliesConfig.forEach(function(fam) { %>
+            <div class="color-family-sw<%= fam.isActive ? ' is-active' : '' %>"
+                 data-lb-color="<%= fam.key %>"
+                 title="<%= fam.label %>"
+                 role="button" tabindex="0"
+                 aria-pressed="<%= fam.isActive ? 'true' : 'false' %>">
+              <span class="color-sw-dot"
+                    style="background:<%= fam.hex %>;border-color:<%= fam.border %>"></span>
+              <span class="color-sw-name"><%= fam.label %></span>
+            </div>
+            <% }) %>
+          </div>
+          <!-- Hidden inputs for active colors -->
+          <% activeColors.forEach(function(c) { %>
+          <input type="hidden" name="color" value="<%= c %>">
+          <% }) %>
+        </div>
+      </div>
+      <% } %>
+
+      <!-- ── Configuration ──────────────────────────────────────────────── -->
+      <%
+        var _tyActive = activeTypes.length > 0;
+      %>
+      <div class="filter-group">
+        <button type="button" class="filter-group-toggle" aria-expanded="<%= _tyActive ? 'true' : 'false' %>">
+          Configuration
+          <% if (_tyActive) { %><span class="filter-badge"><%= activeTypes.length %></span><% } %>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="filter-group-body<%= _tyActive ? '' : ' is-collapsed' %>">
+          <% cfTypes.forEach(function(t) { %>
+          <label class="filter-option">
+            <input type="checkbox" name="type" value="<%= t %>"
+              <%= activeTypes.includes(t) ? 'checked' : '' %>>
+            <span><%= t %></span>
+          </label>
+          <% }) %>
+        </div>
+      </div>
+
+      <!-- ── Style ─────────────────────────────────────────────────────── -->
+      <%
+        var _stActive = activeStyles.length > 0;
+      %>
+      <% if (availStyles.length > 0) { %>
+      <div class="filter-group">
+        <button type="button" class="filter-group-toggle" aria-expanded="<%= _stActive ? 'true' : 'false' %>">
+          Vanity Style
+          <% if (_stActive) { %><span class="filter-badge"><%= activeStyles.length %></span><% } %>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="filter-group-body<%= _stActive ? '' : ' is-collapsed' %>">
+          <% availStyles.forEach(function(s) { %>
+          <label class="filter-option">
+            <input type="checkbox" name="style" value="<%= s %>"
+              <%= activeStyles.includes(s) ? 'checked' : '' %>>
+            <span><%= s %></span>
+          </label>
+          <% }) %>
+        </div>
+      </div>
+      <% } %>
+
+    </form>
+  </aside>
+
+  <!-- ── Product Grid ───────────────────────────────────────────────── -->
+  <main class="lb-main">
+
+    <% if (products.length === 0) { %>
+    <div class="lb-empty">
+      <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <p>No vanities match your filters.</p>
+      <a href="/lookbook" class="btn btn-amber" style="margin-top:1rem">Clear Filters</a>
+    </div>
+
+    <% } else { %>
+    <div class="lb-grid">
+      <% products.forEach(function(product) {
+           var imgs = product.images || [];
+           var primaryImg = imgs[0] || '';
+           if (!primaryImg) return; /* skip products with no images */
+      %>
+      <div class="lb-card" data-images='<%- JSON.stringify(imgs) %>'>
+
+        <!-- Image area -->
+        <div class="lb-card-img-wrap">
+          <% if (primaryImg) { %>
+          <img class="lb-card-img"
+               src="<%= primaryImg %>"
+               alt="Bathroom vanity"
+               loading="lazy"
+               width="400" height="500">
+          <% } else { %>
+          <div class="lb-card-img lb-card-img--placeholder"></div>
+          <% } %>
+
+          <!-- Navigation arrows (only if >1 image) -->
+          <% if (imgs.length > 1) { %>
+          <button class="lb-arrow lb-arrow--prev" type="button" aria-label="Previous image">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+          </button>
+          <button class="lb-arrow lb-arrow--next" type="button" aria-label="Next image">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </button>
+          <span class="lb-counter" aria-live="polite">
+            <span class="lb-counter-cur">1</span>/<%= imgs.length %>
+          </span>
+          <% } %>
+        </div>
+
+        <!-- Learn More CTA -->
+        <div class="lb-card-foot">
+          <a href="/products/<%= product.slug %>" class="lb-learn-btn" tabindex="0">Learn More</a>
+        </div>
+
+      </div>
+      <% }) %>
+    </div>
+    <% } /* end products */ %>
+
+  </main>
+</div><!-- /.lb-layout -->
+
+<script nonce="<%= cspNonce %>">
+(function() {
+  /* ── Filter sidebar toggle (mobile) ─────────────────────────────── */
+  var openBtn  = document.getElementById('lbFilterOpen');
+  var closeBtn = document.getElementById('lbFilterClose');
+  var sidebar  = document.getElementById('lbSidebar');
+  var overlay  = document.getElementById('lbFilterOverlay');
+
+  function openSidebar() {
+    sidebar.classList.add('is-open');
+    overlay.classList.add('is-open');
+    overlay.setAttribute('aria-hidden','false');
+    if (openBtn) openBtn.setAttribute('aria-expanded','true');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeSidebar() {
+    sidebar.classList.remove('is-open');
+    overlay.classList.remove('is-open');
+    overlay.setAttribute('aria-hidden','true');
+    if (openBtn) openBtn.setAttribute('aria-expanded','false');
+    document.body.style.overflow = '';
+  }
+  if (openBtn)  openBtn.addEventListener('click', openSidebar);
+  if (closeBtn) closeBtn.addEventListener('click', closeSidebar);
+  if (overlay)  overlay.addEventListener('click', closeSidebar);
+
+  /* ── Collapsible filter groups ───────────────────────────────────── */
+  document.querySelectorAll('.filter-group-toggle').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var body    = btn.nextElementSibling;
+      var isOpen  = !body.classList.contains('is-collapsed');
+      body.classList.toggle('is-collapsed', isOpen);
+      btn.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+    });
+  });
+
+  /* ── Size chip toggle ─────────────────────────────────────────────── */
+  var form = document.getElementById('lb-filter-form');
+  document.querySelectorAll('.lb-size-chip').forEach(function(chip) {
+    chip.addEventListener('click', function() {
+      var val    = chip.dataset.size;
+      var isOn   = chip.classList.contains('is-active');
+      /* toggle the hidden input */
+      var existing = form.querySelector('input[name="size"][value="' + val + '"]');
+      if (isOn) {
+        chip.classList.remove('is-active');
+        if (existing) existing.remove();
+      } else {
+        chip.classList.add('is-active');
+        if (!existing) {
+          var inp = document.createElement('input');
+          inp.type  = 'hidden';
+          inp.name  = 'size';
+          inp.value = val;
+          form.appendChild(inp);
+        }
+      }
+      form.submit();
+    });
+  });
+
+  /* ── Color swatch toggle ─────────────────────────────────────────── */
+  document.querySelectorAll('[data-lb-color]').forEach(function(sw) {
+    sw.addEventListener('click', function() {
+      var key    = sw.dataset.lbColor;
+      var isOn   = sw.classList.contains('is-active');
+      var existing = form.querySelector('input[name="color"][value="' + key + '"]');
+      if (isOn) {
+        sw.classList.remove('is-active');
+        sw.setAttribute('aria-pressed', 'false');
+        if (existing) existing.remove();
+      } else {
+        sw.classList.add('is-active');
+        sw.setAttribute('aria-pressed', 'true');
+        if (!existing) {
+          var inp = document.createElement('input');
+          inp.type  = 'hidden';
+          inp.name  = 'color';
+          inp.value = key;
+          form.appendChild(inp);
+        }
+      }
+      form.submit();
+    });
+    sw.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); sw.click(); }
+    });
+  });
+
+  /* ── Checkbox filters auto-submit ────────────────────────────────── */
+  form.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
+    cb.addEventListener('change', function() { form.submit(); });
+  });
+
+  /* ── Active chip removal ─────────────────────────────────────────── */
+  /* Build current params as a live object, then generate remove-links */
+  document.querySelectorAll('.lb-chip[data-remove]').forEach(function(chip) {
+    chip.addEventListener('click', function(e) {
+      e.preventDefault();
+      var paramKey = chip.dataset.remove;
+      var paramVal = chip.dataset.val;
+      /* Remove matching hidden input or checkbox in the form */
+      form.querySelectorAll('input[name="' + paramKey + '"][value="' + paramVal + '"]')
+          .forEach(function(el) { el.remove(); });
+      form.querySelectorAll('input[type="checkbox"][name="' + paramKey + '"][value="' + paramVal + '"]')
+          .forEach(function(el) { el.checked = false; });
+      form.submit();
+    });
+  });
+
+  /* ── Image carousel ──────────────────────────────────────────────── */
+  document.querySelectorAll('.lb-card').forEach(function(card) {
+    var raw    = card.dataset.images;
+    var images = [];
+    try { images = JSON.parse(raw); } catch(e) {}
+    if (images.length <= 1) return;
+
+    var idx     = 0;
+    var img     = card.querySelector('.lb-card-img');
+    var cur     = card.querySelector('.lb-counter-cur');
+    var prevBtn = card.querySelector('.lb-arrow--prev');
+    var nextBtn = card.querySelector('.lb-arrow--next');
+
+    function goTo(n) {
+      idx = (n + images.length) % images.length;
+      img.src = images[idx];
+      if (cur) cur.textContent = idx + 1;
+    }
+
+    prevBtn.addEventListener('click', function(e) { e.preventDefault(); goTo(idx - 1); });
+    nextBtn.addEventListener('click', function(e) { e.preventDefault(); goTo(idx + 1); });
+
+    /* Swipe support for touch devices */
+    var touchStartX = 0;
+    card.addEventListener('touchstart', function(e) {
+      touchStartX = e.changedTouches[0].screenX;
+    }, { passive: true });
+    card.addEventListener('touchend', function(e) {
+      var dx = e.changedTouches[0].screenX - touchStartX;
+      if (Math.abs(dx) > 40) goTo(dx < 0 ? idx + 1 : idx - 1);
+    }, { passive: true });
+  });
+})();
+</script>

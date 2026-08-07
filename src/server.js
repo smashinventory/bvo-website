@@ -298,6 +298,10 @@ const inspirationCtrl = require('./controllers/inspirationController');
 app.get('/inspiration',       inspirationCtrl.hub);
 app.get('/inspiration/:slug', inspirationCtrl.guide);
 
+// ── Lookbook — visual image-first vanity gallery ──────────────
+const lookbookCtrl = require('./controllers/lookbookController');
+app.get('/lookbook', lookbookCtrl.index);
+
 // ── SEO / crawler files ──────────────────────────────────────────
 const sitemapCtrl = require('./controllers/sitemapController');
 app.get('/sitemap.xml', sitemapCtrl.xml);
