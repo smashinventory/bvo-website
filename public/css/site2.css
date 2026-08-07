@@ -2191,6 +2191,7 @@
 /* Heart / wishlist button overlaid bottom-right of image */
 .bb-mcard-img-col .heart-btn {
   position: absolute;
+  top: auto;
   bottom: .6rem;
   right: .6rem;
   width: 34px;
