@@ -221,20 +221,82 @@
 
 
 /* ══════════════════════════════════════════════════════════════════
-   8. HERO — force single-column on mobile (inline style override)
-   The theme editor writes grid-template-columns as an inline style:
-     style="grid-template-columns: 45% 55%"
-   Inline styles beat media queries, so the site.css 860px breakpoint
-   never fires. !important is the correct tool here — we must ALWAYS
-   collapse the split layout on mobile regardless of theme settings.
+   8. HERO — full-bleed on mobile (three-layer cascade fix)
+   Three things prevent the site.css 860px rule from working:
+     a) inline style sets grid-template-columns → needs !important
+     b) site2.css resets .hero-image to position:relative (no MQ)
+     c) .hero--split .hero-overlay has opacity:0 by default
+   Fix: at ≤860px, force split → full-bleed, same as hero--bg mode.
    ══════════════════════════════════════════════════════════════════ */
 
 @media (max-width: 860px) {
-  /* Override inline grid-template-columns set by theme editor */
+  /* a) Override inline grid columns from theme editor */
   .hero--split {
     grid-template-columns: 1fr !important;
     grid-template-rows:    1fr !important;
   }
+
+  /* b) Make hero-image fill the container absolutely (site2.css
+        sets it to position:relative which wins in normal cascade) */
+  .hero--split .hero-image {
+    position:   absolute !important;
+    inset:      0 !important;
+    background: transparent !important;
+    align-items:     stretch !important;
+    justify-content: stretch !important;
+  }
+
+  /* c) Show the dark overlay so text is readable */
+  .hero--split .hero-overlay {
+    opacity: var(--ov-op, 0.55) !important;
+  }
+
+  /* Video wrap: full-cover instead of 16:9 contained box */
+  .hero--split .hero-video-wrap {
+    position:     absolute !important;
+    inset:        0 !important;
+    width:        100% !important;
+    aspect-ratio: unset !important;
+    max-height:   none !important;
+  }
+
+  /* iframe: restore the 16:9 cover-scaling trick */
+  .hero--split .hero-video-iframe {
+    position:   absolute !important;
+    top:        50% !important;
+    left:       50% !important;
+    width:      177.78vh !important;
+    height:     100% !important;
+    min-width:  100% !important;
+    min-height: 56.25vw !important;
+    transform:  translate(-50%, -50%) !important;
+  }
+
+  /* MP4 player & poster: switch from contain to cover */
+  .hero--split .hero-video-player {
+    object-fit: cover !important;
+    background: transparent !important;
+  }
+  .hero--split .hero-poster {
+    object-fit: cover !important;
+    background: transparent !important;
+  }
+
+  /* Content sits above overlay */
+  .hero--split .hero-content {
+    position:        relative !important;
+    z-index:         4 !important;
+    justify-content: flex-end !important;
+    padding-bottom:  56px !important;
+  }
+
+  /* Text colours for dark overlay background */
+  .hero--split .hero-eyebrow { color: rgba(255,255,255,.8) !important; }
+  .hero--split .hero-h1      { color: #fff !important; }
+  .hero--split .hero-h2      { color: var(--color-amber, #B8862A) !important; }
+  .hero--split .hero-sub     { color: rgba(255,255,255,.85) !important; }
+  .hero--split .hero-sub2    { color: rgba(255,255,255,.6) !important; }
+  .hero--split .hero-rule    { background: var(--color-sage, #5A7A5A) !important; }
 }
 
 /* Micro adjustments for small phones (≤390px) */
