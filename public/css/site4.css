@@ -291,7 +291,7 @@
   }
 
   /* Text colours for dark overlay background */
-  .hero--split .hero-eyebrow { color: rgba(255,255,255,.8) !important; }
+  .hero--split .hero-eyebrow { color: var(--color-sage, #5A7A5A) !important; }
   .hero--split .hero-h1      { color: #fff !important; }
   .hero--split .hero-h2      { color: var(--color-amber, #B8862A) !important; }
   .hero--split .hero-sub     { color: rgba(255,255,255,.85) !important; }
