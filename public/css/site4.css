@@ -1,0 +1,399 @@
+/* ================================================================
+   SITE4.CSS — RESPONSIVE POLISH & MOBILE OPTIMIZATION
+   Additive-only: no existing selectors overridden destructively.
+   Covers confirmed gaps not handled in site.css – site3.css.
+
+   Breakpoints used (consistent with existing codebase):
+     900px  — checkout column collapse
+     768px  — tablet portrait / touch targets
+     600px  — narrow tablet / form stacking
+     480px  — large phones
+     390px  — standard phones (iPhone 14 base)
+     360px  — small Android phones
+
+   Bump ?v= in main.ejs whenever this file changes.
+   ================================================================ */
+
+
+/* ══════════════════════════════════════════════════════════════════
+   1. CHECKOUT PAGE
+   checkout-layout uses "1fr 380px" with no mobile breakpoint.
+   On phones the 380px column overflows the viewport entirely.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* Tablet: collapse to single column */
+@media (max-width: 900px) {
+  .checkout-layout {
+    grid-template-columns: 1fr;
+  }
+  /* Summary sidebar: unstick so it flows naturally below the form */
+  .checkout-summary {
+    position: static;
+    top: auto;
+  }
+}
+
+/* Phone: stack side-by-side field pairs + tighten page padding */
+@media (max-width: 560px) {
+  .checkout-field-row {
+    grid-template-columns: 1fr;
+  }
+  .checkout-page {
+    padding: 1rem 1rem 3rem;
+  }
+  .checkout-header {
+    flex-wrap: wrap;
+    gap: .6rem;
+  }
+  .checkout-card {
+    padding: 1.1rem 1rem;
+    border-radius: 10px;
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   2. VARIANT SELECTOR — touch targets & readability
+   pdp-size-chip and pdp-color-chip are 2rem (≈32px) — below the
+   44px minimum recommended by Apple HIG and WCAG 2.5.5.
+   ══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  /* Size chips: taller hit area */
+  .pdp-size-chip {
+    min-height: 2.75rem;   /* 44px at 16px base */
+    min-width:  2.75rem;
+    padding: .45rem .85rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Color chips: larger swatch circle */
+  .pdp-color-chip {
+    width:  2.75rem;
+    height: 2.75rem;
+  }
+  .pdp-cc-dot {
+    width:  1.65rem;
+    height: 1.65rem;
+  }
+
+  /* Stone tile product names can be very long — allow wrapping */
+  .pdst-name {
+    word-break:    break-word;
+    overflow-wrap: break-word;
+    white-space:   normal;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Tighter card container on small phones */
+  .pdp-vc-card {
+    padding: .85rem .9rem;
+    border-radius: 10px;
+  }
+  /* Slightly more generous chip gap for fat thumbs */
+  .pdp-vc-options {
+    gap: .5rem;
+  }
+  /* Stone tiles: extra breathing room */
+  .pdp-stone-tile {
+    padding: .75rem 1rem;
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   3. BUNDLE BUILDER — summary table overflow protection
+   Even after hiding MSRP/Sale/Bundle columns at ≤640px the
+   remaining # + name + final columns can overflow at 320px.
+   Wrapping in overflow-x:auto prevents page-level horizontal scroll.
+   ══════════════════════════════════════════════════════════════════ */
+
+.bb-summary {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 480px) {
+  .bb-step {
+    padding: .85rem .9rem 1rem;
+  }
+  /* Full-width "Add to Cart" button sits in its own line */
+  .bb-sum-actions-bar {
+    padding: .6rem .85rem;
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   4. GLOBAL TOUCH TARGETS
+   Raise all action buttons to ≥44px on mobile to meet WCAG 2.5.5
+   and Apple HIG. Applied only at ≤768px so desktop is unchanged.
+   ══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  /* Primary and secondary CTA buttons */
+  .btn {
+    min-height: 44px;
+  }
+
+  /* Filter toggle on collection page */
+  .mobile-filter-btn {
+    min-height: 44px;
+  }
+
+  /* Sort dropdown on listing toolbar */
+  .listing-sort select,
+  .listing-sort-select {
+    min-height: 44px;
+    padding-top: .55rem;
+    padding-bottom: .55rem;
+  }
+
+  /* Nav icon buttons (cart, account, hamburger) */
+  .nav-hamburger,
+  .nav-cart-wrap > a,
+  .nav-cart-btn {
+    min-width:  44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   5. CART QUANTITY CONTROLS
+   .qty-btn is already 38×42px (close to target). Cart-drawer qty
+   buttons (.cd-qty-btn) and bundle builder qty (.bb-qty-btn) should
+   also meet the 40px minimum on mobile.
+   ══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  /* Cart page +/− buttons */
+  .qty-btn {
+    width:  40px;
+    height: 44px;
+  }
+  /* Cart drawer +/− buttons */
+  .cd-qty-btn {
+    width:  36px;
+    height: 36px;
+  }
+  /* Bundle builder step qty buttons */
+  .bb-qty-btn {
+    min-width:  36px;
+    min-height: 36px;
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   6. PRODUCT CARDS — title clamping on 1-column mobile layout
+   On a single-column grid long product names make cards taller than
+   needed. Clamp to 2 lines to keep the grid visually even.
+   ══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 480px) {
+  .product-title a,
+  .product-title {
+    display:             -webkit-box;
+    -webkit-line-clamp:  2;
+    -webkit-box-orient:  vertical;
+    overflow:            hidden;
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   7. BREADCRUMB — overflow prevention
+   Long category paths can cause horizontal scroll on narrow screens.
+   ══════════════════════════════════════════════════════════════════ */
+
+.breadcrumb {
+  overflow:      hidden;
+  text-overflow: ellipsis;
+  white-space:   nowrap;
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   8. HERO — micro adjustments for small phones (≤390px)
+   At 375px the 2rem headline and 28px side padding feel cramped.
+   ══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 390px) {
+  .hero-h1,
+  .hero-h2 {
+    font-size:   1.75rem;
+    line-height: 1.15;
+  }
+  .hero-content {
+    padding: 32px 20px 48px;
+  }
+  /* Stack CTA buttons vertically so they don't crowd */
+  .hero-ctas {
+    flex-direction:  column;
+    align-items:     flex-start;
+    gap:             10px;
+  }
+  .hero-ctas .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   9. OVERFLOW PREVENTION — embedded media & content pages
+   Blog posts and inspiration guides can embed images or iframes that
+   exceed the container width on mobile.
+   ══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  .guide-body img,
+  .post-body img,
+  .page-body img {
+    max-width: 100%;
+    height:    auto;
+  }
+  .guide-body iframe,
+  .post-body iframe,
+  .page-body iframe {
+    max-width: 100%;
+  }
+  /* Inspiration guide hero: tighten heading on phones */
+  .ig-hero-title {
+    font-size: clamp(1.5rem, 5vw, 2.5rem);
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   10. SECTION HEADING SCALE — phones
+   .section-title is 2rem; on very small screens (360px) it clips.
+   Use clamp() to scale gracefully between 1.5rem and 2rem.
+   ══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 480px) {
+  .section-title {
+    font-size: clamp(1.45rem, 5.5vw, 2rem);
+  }
+  .cat-header h1 {
+    font-size: clamp(1.4rem, 5.5vw, 2rem);
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   11. LOOKBOOK — grid on very small screens
+   The 2-col lookbook grid can render cards narrower than ~140px on
+   360px phones. Switch to 1-col at 400px.
+   ══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 400px) {
+  .lookbook-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   12. FOOTER — breathing room on small phones
+   ══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 480px) {
+  .footer-inner {
+    padding-top:    40px;
+    padding-bottom: 32px;
+  }
+  /* Tighten newsletter form CTA */
+  .newsletter-form .btn {
+    width: 100%;
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   13. LISTING TOOLBAR — tighten on very small phones
+   ══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 400px) {
+  .listing-toolbar {
+    padding: 8px 14px;
+  }
+  .listing-count {
+    font-size: .72rem;
+  }
+  /* Shrink the sort dropdown on tiny screens */
+  .listing-sort select {
+    font-size: .8rem;
+    padding: .4rem .6rem;
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   14. BUNDLE BUILDER STEP CARD MODEL SECTION — tiny phones
+   The model section card flips to single column at 820px already.
+   On 360px phones the image + text can still feel cramped.
+   ══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 400px) {
+  .bb-mcard {
+    border-radius: 8px;
+  }
+  .bb-mcard-img-col {
+    max-height: 200px;
+  }
+  .bb-tiers {
+    gap: .1rem;
+  }
+  .bb-tier {
+    min-width: 60px;
+    padding: .4rem .4rem;
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   15. PRODUCT PAGE — detail info padding on narrow phones
+   detail-layout goes to 16px at 720px (site.css).
+   At 360px, 16px each side = 32px total margin on a 360px screen,
+   which is fine. No change needed — existing rule holds.
+
+   Exception: variant cards inside detail-info already get
+   margin-top from the card's own CSS.
+   ══════════════════════════════════════════════════════════════════ */
+
+
+/* ══════════════════════════════════════════════════════════════════
+   16. CART DRAWER — wider on phones so it doesn't clip content
+   The cart drawer slides in from the right. On small phones a fixed
+   width can leave the content area inaccessible. Cap at 100vw - 48px.
+   ══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 480px) {
+  .cart-drawer {
+    width: min(380px, calc(100vw - 48px));
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   17. VALUE BAR — item padding on phones
+   4-item bar collapses to 1-col at 480px (site.css).
+   Add inner padding so items don't flush against edges.
+   ══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 480px) {
+  .value-bar {
+    padding: 20px 20px;
+  }
+  .value-item {
+    padding: .5rem 0;
+  }
+}
