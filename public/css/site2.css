@@ -2165,10 +2165,33 @@
   padding: 1rem;
 }
 
-/* Heart / wishlist button overlaid top-right of image */
-.bb-mcard-img-col .heart-btn {
+/* ── Image-overlaid nav arrows (preferred carousel arrow style) ───── */
+.bb-img-arrow {
   position: absolute;
   top: .6rem;
+  width: 34px;
+  height: 34px;
+  background: rgba(255,255,255,.92);
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #1a2d5a;
+  box-shadow: 0 2px 8px rgba(0,0,0,.28);
+  transition: background .15s, box-shadow .15s;
+  z-index: 2;
+}
+.bb-img-arrow--prev { left: .6rem; }
+.bb-img-arrow--next { right: .6rem; }
+.bb-img-arrow:hover:not(:disabled) { background: #fff; box-shadow: 0 3px 10px rgba(0,0,0,.35); }
+.bb-img-arrow:disabled { opacity: .35; cursor: not-allowed; }
+
+/* Heart / wishlist button overlaid bottom-right of image */
+.bb-mcard-img-col .heart-btn {
+  position: absolute;
+  bottom: .6rem;
   right: .6rem;
   width: 34px;
   height: 34px;
