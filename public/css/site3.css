@@ -1778,11 +1778,8 @@
   z-index: 2;
   color: #1a2d5a;
   box-shadow: 0 2px 8px rgba(0,0,0,.28);
-  transition: background .15s, opacity .15s, box-shadow .15s;
-  opacity: 0;
+  transition: background .15s, box-shadow .15s;
 }
-.lb-card:hover .lb-arrow,
-.lb-card:focus-within .lb-arrow { opacity: 1; }
 .lb-arrow--prev { left: .5rem; }
 .lb-arrow--next { right: .5rem; }
 .lb-arrow:hover { background: #fff; box-shadow: 0 3px 10px rgba(0,0,0,.35); }
@@ -1862,8 +1859,7 @@
   .lb-sidebar.is-open { transform: translateX(0); }
   .lb-layout { padding: 1rem; gap: 0; }
   .lb-count { display: none; }
-  /* Always show arrows on touch */
-  .lb-arrow { opacity: 1; }
+  /* Arrows always visible */
   .lb-counter { opacity: 1; }
 }
 
