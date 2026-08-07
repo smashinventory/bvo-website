@@ -1765,8 +1765,8 @@
 /* Prev / Next arrows */
 .lb-arrow {
   position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
+  top: .6rem;
+  transform: none;
   width: 34px; height: 34px;
   background: rgba(255,255,255,.92);
   border: none;
