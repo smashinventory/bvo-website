@@ -165,6 +165,10 @@ function safeQueryOne(sql, params = []) {
 /* GET /admin/login */
 exports.loginPage = (req, res) => {
   if (req.session?.isAdmin) return res.redirect('/admin');
+  // Force the session to be saved so the session cookie is set before the POST.
+  // With saveUninitialized:false an unmodified new session is never persisted,
+  // meaning GET and POST receive different session IDs → CSRF mismatch.
+  req.session._csrfInit = 1;
   res.render('pages/admin/login', {
     ...LAYOUT,
     pageTitle: 'Admin Login',
