@@ -228,6 +228,32 @@
           <% } %>
         </div>
 
+        <!-- Color swatches — which cabinet colors this model ships in.
+             Clicking a swatch is a shortcut to the sidebar color filter. -->
+        <%
+          var _cardCfs = (product.availColors || [])
+            .map(function(key) {
+              return colorFamiliesConfig.find(function(f) { return f.key === key; });
+            })
+            .filter(Boolean);
+        %>
+        <% if (_cardCfs.length >= 2) { %>
+        <div class="lb-card-swatches">
+          <% _cardCfs.forEach(function(cf) {
+               var _swOn = activeColors.includes(cf.key);
+          %>
+          <div class="lb-card-swatch<%= _swOn ? ' is-active' : '' %>"
+               data-lb-color="<%= cf.key %>"
+               title="<%= cf.label %>"
+               role="button" tabindex="0"
+               aria-pressed="<%= _swOn ? 'true' : 'false' %>">
+            <span class="lb-card-swatch-dot"
+                  style="background:<%= cf.hex %>;border-color:<%= cf.border %>"></span>
+          </div>
+          <% }) %>
+        </div>
+        <% } %>
+
         <!-- Learn More CTA -->
         <div class="lb-card-foot">
           <a href="/products/<%= product.slug %>" class="lb-learn-btn" tabindex="0">Learn More</a>

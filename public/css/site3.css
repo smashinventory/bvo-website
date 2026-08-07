@@ -1720,6 +1720,34 @@
   background: #f0ede8;
 }
 
+/* Card color swatches ─ shortcut to the sidebar color filter */
+.lb-card-swatches {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 12px 4px;
+  flex-wrap: wrap;
+}
+.lb-card-swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 50%;
+  padding: 2px;
+  border: 2px solid transparent;
+  transition: border-color .15s;
+}
+.lb-card-swatch:hover { border-color: #888; }
+.lb-card-swatch.is-active { border-color: #333; }
+.lb-card-swatch-dot {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid rgba(0,0,0,.15);
+}
+
 /* Prev / Next arrows */
 .lb-arrow {
   position: absolute;

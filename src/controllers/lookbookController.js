@@ -60,7 +60,18 @@ exports.index = async (req, res, next) => {
     // representative products that actually satisfy the active filters.
 
     const pParams = [], iParams = [];
-    const pConds  = ['p.is_active = 1'], iConds = ['is_active = 1'];
+    // Always limit to vanity product types — tops, mirrors, faucets, etc. are excluded.
+    const VANITY_TYPES_PH = _CF_TYPES.map(() => '?').join(',');
+    const pConds = [
+      'p.is_active = 1',
+      `p.product_type IN (${VANITY_TYPES_PH})`,
+    ];
+    const iConds = [
+      'is_active = 1',
+      `product_type IN (${VANITY_TYPES_PH})`,
+    ];
+    pParams.push(..._CF_TYPES);
+    iParams.push(..._CF_TYPES);
     if (catId) {
       pConds.push('p.category_id = ?'); pParams.push(catId);
       iConds.push('category_id = ?');   iParams.push(catId);
@@ -127,7 +138,10 @@ exports.index = async (req, res, next) => {
       WHERE ${PWHERE}
         AND p.model IS NOT NULL AND p.model != ''
         AND p.id IN (
-          SELECT MIN(id) FROM products
+          SELECT COALESCE(
+            MIN(CASE WHEN product_type LIKE '%Cabinet Only%' THEN id END),
+            MIN(id)
+          ) FROM products
           WHERE ${IWHERE}
             AND model IS NOT NULL AND model != ''
           GROUP BY model
@@ -136,23 +150,80 @@ exports.index = async (req, res, next) => {
       LIMIT ${LIMIT}
     `, [...pParams, ...iParams]);
 
-    // ── Fetch all images for each product ──────────────────────────────
+    // ── Fetch images from ALL variants + per-model color roster ──────────
+    // For each model card we want:
+    //   • Images from every variant, cabinet-only images first (so the first
+    //     image the user sees is always the cabinet without a top).
+    //   • Deduplicated by URL (many variants share the same hero shot).
+    //   • The full list of cabinet colors the model is available in.
     if (products.length > 0) {
-      const ids = products.map(p => p.id);
-      const [imgRows] = await bvoPool.query(`
-        SELECT product_id, url
-        FROM product_images
-        WHERE product_id IN (${ids.map(() => '?').join(',')})
-        ORDER BY product_id, is_primary DESC, sort_order ASC, id ASC
-      `, ids);
+      const models   = products.map(p => p.model);
+      const modelPh  = models.map(() => '?').join(',');
+      const typePh   = _CF_TYPES.map(() => '?').join(',');
 
-      const byProduct = {};
-      for (const row of imgRows) {
-        if (!byProduct[row.product_id]) byProduct[row.product_id] = [];
-        byProduct[row.product_id].push(row.url);
-      }
-      for (const p of products) {
-        p.images = byProduct[p.id] || [];
+      // All product IDs sharing these model names (same category + type guard).
+      const [allVariants] = await bvoPool.query(`
+        SELECT id, model
+        FROM products
+        WHERE model IN (${modelPh})
+          AND is_active = 1
+          ${catId ? 'AND category_id = ?' : ''}
+          AND product_type IN (${typePh})
+        ORDER BY model,
+                 CASE WHEN product_type LIKE '%Cabinet Only%' THEN 0 ELSE 1 END,
+                 id ASC
+      `, [...models, ...(catId ? [catId] : []), ..._CF_TYPES]);
+
+      if (allVariants.length > 0) {
+        const allIds = allVariants.map(v => v.id);
+        const idPh   = allIds.map(() => '?').join(',');
+
+        // Images for all variant IDs — cabinet-only variant images lead.
+        const [imgRows] = await bvoPool.query(`
+          SELECT pi.product_id, pi.url, p.model
+          FROM product_images pi
+          JOIN products p ON p.id = pi.product_id
+          WHERE pi.product_id IN (${idPh})
+          ORDER BY p.model,
+                   CASE WHEN p.product_type LIKE '%Cabinet Only%' THEN 0 ELSE 1 END,
+                   pi.is_primary DESC, pi.sort_order ASC, pi.id ASC
+        `, allIds);
+
+        // Accumulate per-model, deduplicating by URL.
+        const modelImages  = {};
+        const modelSeenUrl = {};
+        for (const row of imgRows) {
+          if (!modelImages[row.model]) {
+            modelImages[row.model]  = [];
+            modelSeenUrl[row.model] = new Set();
+          }
+          if (!modelSeenUrl[row.model].has(row.url)) {
+            modelImages[row.model].push(row.url);
+            modelSeenUrl[row.model].add(row.url);
+          }
+        }
+
+        // Colors the model is available in (for card swatches).
+        const [colorRows] = await bvoPool.query(`
+          SELECT model,
+                 GROUP_CONCAT(DISTINCT color_family ORDER BY color_family) AS colors
+          FROM products
+          WHERE model IN (${modelPh})
+            AND is_active = 1
+            ${catId ? 'AND category_id = ?' : ''}
+            AND color_family IS NOT NULL AND color_family != ''
+          GROUP BY model
+        `, [...models, ...(catId ? [catId] : [])]);
+
+        const modelColorMap = {};
+        for (const row of colorRows) {
+          modelColorMap[row.model] = row.colors ? row.colors.split(',') : [];
+        }
+
+        for (const p of products) {
+          p.images      = modelImages[p.model]   || [];
+          p.availColors = modelColorMap[p.model] || [];
+        }
       }
     }
 
