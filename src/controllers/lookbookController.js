@@ -159,20 +159,20 @@ exports.index = async (req, res, next) => {
     if (products.length > 0) {
       const models   = products.map(p => p.model);
       const modelPh  = models.map(() => '?').join(',');
-      const typePh   = _CF_TYPES.map(() => '?').join(',');
 
-      // All product IDs sharing these model names (same category + type guard).
+      // Variant IDs for image fetching.  Reuse IWHERE so the carousel only
+      // shows images from variants that satisfy the active filters — e.g.
+      // size=72 → only 72" variants of this model contribute images.
+      // Cabinet-only variants are ordered first so their images lead.
       const [allVariants] = await bvoPool.query(`
         SELECT id, model
         FROM products
         WHERE model IN (${modelPh})
-          AND is_active = 1
-          ${catId ? 'AND category_id = ?' : ''}
-          AND product_type IN (${typePh})
+          AND ${IWHERE}
         ORDER BY model,
                  CASE WHEN product_type LIKE '%Cabinet Only%' THEN 0 ELSE 1 END,
                  id ASC
-      `, [...models, ...(catId ? [catId] : []), ..._CF_TYPES]);
+      `, [...models, ...iParams]);
 
       if (allVariants.length > 0) {
         const allIds = allVariants.map(v => v.id);
