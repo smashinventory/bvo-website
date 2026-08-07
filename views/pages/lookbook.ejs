@@ -267,16 +267,6 @@
   if (closeBtn) closeBtn.addEventListener('click', closeSidebar);
   if (overlay)  overlay.addEventListener('click', closeSidebar);
 
-  /* ── Collapsible filter groups ───────────────────────────────────── */
-  document.querySelectorAll('.filter-group-toggle').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      var body    = btn.nextElementSibling;
-      var isOpen  = !body.classList.contains('is-collapsed');
-      body.classList.toggle('is-collapsed', isOpen);
-      btn.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
-    });
-  });
-
   /* ── Size chip toggle ─────────────────────────────────────────────── */
   var form = document.getElementById('lb-filter-form');
   document.querySelectorAll('.lb-size-chip').forEach(function(chip) {
