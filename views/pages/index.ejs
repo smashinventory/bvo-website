@@ -74,6 +74,13 @@ _DEFAULT_ORDER.forEach(function(k) {
 <% _sectionOrder.forEach(function(sectionKey) { %>
 <% if (!_isValidKey(sectionKey)) { return; } %>
 <% var _baseKey = sectionKey.replace(/_\d+$/, ''); var _d = S[sectionKey] || {}; %>
+<%
+  var _showOn   = (_d && _d.show_on) || 'all';
+  var _visClass = _showOn === 'desktop' ? 'sec--desktop-only'
+                : _showOn === 'mobile'  ? 'sec--mobile-only'
+                : '';
+%>
+<% if (_visClass) { %><div class="<%= _visClass %>"><% } %>
 
 <!-- ── SCROLLING TICKER ──────────────────────────────────────────── -->
 <% if (sectionKey === 'scrolling_ticker' && tick.enabled !== false && tick.items && tick.items.length) { %>
@@ -118,7 +125,7 @@ _DEFAULT_ORDER.forEach(function(k) {
   else if (+hero.max_height_px > 0)  _heroStyle += 'max-height:'+hero.max_height_px+'px;';
   var _ctaAlign = _heroAlign==='center'?'justify-content:center':_heroAlign==='right'?'justify-content:flex-end':'';
 %>
-<section class="hero hero--<%= _heroLayout %>" data-section="hero" data-section-label="Hero Banner" aria-label="Hero" style="<%= _heroStyle %>">
+<section class="hero hero--<%= _heroLayout %><%= hero.video_on_mobile === false ? ' hero--no-mobile-video' : '' %>" data-section="hero" data-section-label="Hero Banner" aria-label="Hero" style="<%= _heroStyle %>">
   <div class="hero-content" style="text-align:<%= _heroAlign %>">
     <p class="hero-eyebrow" style="<%= _heroESize %>"><%= hero.eyebrow || 'Curated for Your Bathroom Renovation' %></p>
     <<%- _heroTag %> class="hero-h1" style="<%= _heroHSize %>"><%= hero.heading_line1 || 'Premium Vanities.' %></<%- _heroTag %>>
@@ -863,6 +870,7 @@ _DEFAULT_ORDER.forEach(function(k) {
 </section>
 <% } /* end newsletter */ %>
 
+<% if (_visClass) { %></div><% } %>
 <% }); /* end _sectionOrder.forEach */ %>
 
 <!-- ── THEME EDITOR INTEGRATION — click-to-edit + section scroll ──── -->

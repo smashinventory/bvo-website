@@ -86,6 +86,7 @@ const DEFAULTS = {
   },
   scrolling_ticker: {
     enabled: true,
+    show_on: 'all',
     speed_seconds: 40,
     bg_color: '',    // '' = CSS default (#182840 navy)
     text_color: '',  // '' = CSS default (white)
@@ -99,6 +100,7 @@ const DEFAULTS = {
     ],
   },
   hero: {
+    show_on: 'all',
     eyebrow: 'Curated for Your Bathroom Renovation',
     heading_line1: 'Premium Vanities.',
     heading_line2: 'Outlet Prices.',
@@ -109,7 +111,8 @@ const DEFAULTS = {
     badge_text: 'Free Shipping',
     image_url: '',
     image_alt: 'Premium bathroom vanity',
-    video_url: '',   // YouTube URL or direct .mp4 URL — autoplay muted loop background
+    video_url: '',        // YouTube URL or direct .mp4 URL — autoplay muted loop background
+    video_on_mobile: true, // false = hide video on ≤860px; poster image shows instead
     // Layout & sizing
     layout: 'split',       // 'split' (text|image side-by-side) | 'bg' (image behind text)
     text_col_pct: 45,      // split layout: text column width %; image gets the remainder
@@ -124,6 +127,7 @@ const DEFAULTS = {
   },
   brand_logos: {
     enabled: true,
+    show_on: 'all',
     eyebrow: 'Trusted Brands We Carry',
     logos: [
       { name:'James Martin',     image_url:'',     url:'/collections/bathroom-vanities?brand=james-martin' },
@@ -135,12 +139,14 @@ const DEFAULTS = {
   },
   categories_section: {
     enabled: true,
+    show_on: 'all',
     eyebrow: 'Browse by Category',
     title: 'Everything Your Bathroom Needs',
     subtitle: 'Curated collections from the top brands in bath design',
   },
   bundle_teaser: {
     enabled: true,
+    show_on: 'all',
     eyebrow: 'James Martin Vanities',
     heading: 'Build Your Dream Bathroom',
     subtitle: 'Mix and match cabinets, tops, and mirrors from the James Martin collection — and save up to 15% when you bundle.',
@@ -148,6 +154,7 @@ const DEFAULTS = {
   },
   featured_section: {
     enabled: true,
+    show_on: 'all',
     eyebrow: 'Staff Picks',
     title: 'Featured Products',
     subtitle: 'Handpicked vanities and accessories our customers love',
@@ -157,6 +164,7 @@ const DEFAULTS = {
   },
   featured_models: {
     enabled: true,
+    show_on: 'all',
     eyebrow: 'Shop by Collection',
     title: 'Featured Models',
     subtitle: 'Explore our most popular vanity collections — click a finish to see it in action.',
@@ -166,6 +174,7 @@ const DEFAULTS = {
   },
   image_with_text: {
     enabled: true,
+    show_on: 'all',
     image_url: '',
     image_alt: 'Our showroom floor',
     image_position: 'left',
@@ -177,6 +186,7 @@ const DEFAULTS = {
   },
   before_after: {
     enabled: true,
+    show_on: 'all',
     eyebrow: 'The BVO Difference',
     heading: 'See the Transformation',
     subtitle: 'Real bathrooms renovated with products from BathroomVanitiesOutlet.com',
@@ -187,6 +197,7 @@ const DEFAULTS = {
   },
   trust_band: {
     enabled: true,
+    show_on: 'all',
     bg_color: '',   // '' = CSS default (whisper)
     text_color: '', // '' = CSS default (navy)
     stat1_value: '', stat1_label: 'Happy customers nationwide', stat1_icon: '🏠',
@@ -195,6 +206,7 @@ const DEFAULTS = {
   },
   parallax: {
     enabled: true,
+    show_on: 'all',
     eyebrow: 'Design Inspiration',
     title_line1: 'Your Dream Bathroom',
     title_line2: 'Starts Here',
@@ -206,6 +218,7 @@ const DEFAULTS = {
   },
   testimonials: {
     enabled: true,
+    show_on: 'all',
     eyebrow: 'Customer Reviews',
     heading: 'What Our Customers Say',
     subtitle: 'Join thousands of happy homeowners who transformed their bathrooms',
@@ -217,6 +230,7 @@ const DEFAULTS = {
   },
   newsletter: {
     enabled: true,
+    show_on: 'all',
     eyebrow: 'Join the Community',
     heading: 'Get Exclusive Deals & Design Ideas',
     subtitle: '',
@@ -227,6 +241,7 @@ const DEFAULTS = {
   },
   video_text: {
     enabled: false,
+    show_on: 'all',
     video_url: '',          // YouTube URL or direct .mp4 URL
     video_side: 'left',     // 'left' | 'right'
     split: '50',            // '40' | '50' | '60' — video column width %
@@ -239,6 +254,7 @@ const DEFAULTS = {
   },
   image_with_text_2: {
     enabled: false,
+    show_on: 'all',
     image_url: '', image_alt: '',
     image_position: 'right',
     eyebrow: '',
@@ -249,6 +265,7 @@ const DEFAULTS = {
   },
   before_after_2: {
     enabled: false,
+    show_on: 'all',
     eyebrow: '',
     heading: '',
     subtitle: '',
@@ -258,6 +275,7 @@ const DEFAULTS = {
   },
   video_text_2: {
     enabled: false,
+    show_on: 'all',
     video_url: '',
     video_side: 'left',
     split: '50',
@@ -270,6 +288,7 @@ const DEFAULTS = {
   },
   trust_band_2: {
     enabled: false,
+    show_on: 'all',
     bg_color: '', text_color: '',
     stat1_value: '', stat1_label: '', stat1_icon: '',
     stat2_value: '', stat2_label: '', stat2_icon: '',
@@ -277,6 +296,7 @@ const DEFAULTS = {
   },
   parallax_2: {
     enabled: false,
+    show_on: 'all',
     eyebrow: '',
     title_line1: '',
     title_line2: '',
@@ -289,6 +309,7 @@ const DEFAULTS = {
   },
   testimonials_2: {
     enabled: false,
+    show_on: 'all',
     eyebrow: '',
     heading: '',
     subtitle: '',

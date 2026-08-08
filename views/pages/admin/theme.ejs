@@ -618,6 +618,14 @@ function teArrayLinks(prefix,listId,tplId,items){
                 <button type="button" class="te4-remove-row">×</button>
               </div>
             </template>
+            <div class="te4-field" style="margin-top:.5rem;padding-top:.75rem;border-top:1px solid var(--te-border)">
+              <label>Visible on</label>
+              <select name="scrolling_ticker.show_on" class="te4-select">
+                <option value="all"     <%=(stk.show_on||'all')==='all'    ?'selected':''%>>All devices</option>
+                <option value="desktop" <%=stk.show_on==='desktop'         ?'selected':''%>>Desktop only</option>
+                <option value="mobile"  <%=stk.show_on==='mobile'          ?'selected':''%>>Mobile only</option>
+              </select>
+            </div>
           </div>
 
           <!-- ── HERO ───────────────────────────────────────── -->
@@ -630,6 +638,8 @@ function teArrayLinks(prefix,listId,tplId,items){
             <div class="te4-section-label">Background Video <small style="opacity:.6;font-weight:400">(optional — plays over the image)</small></div>
             <%- teVideoField('hero.video_url',h.video_url) %>
             <div class="te4-hint" style="margin-bottom:.75rem">Paste a YouTube URL or a direct .mp4 URL (James Martin CDN, Hostinger, etc.). Leave blank to use the image only. Image remains visible until the video loads — good for SEO.</div>
+            <%- teToggle('hero.video_on_mobile','Play video on mobile',h.video_on_mobile!==false) %>
+            <div class="te4-hint" style="margin-bottom:.75rem">When off, mobile visitors see only the static image — saves mobile data and improves performance. Video still plays on desktop.</div>
 
             <div class="te4-section-label">Layout</div>
             <div class="te4-field">
@@ -715,6 +725,14 @@ function teArrayLinks(prefix,listId,tplId,items){
             <div class="te4-section-label">Buttons</div>
             <div class="te4-row2"><%- teField('text','hero.cta1_text','Button 1 label',h.cta1_text) %><%- teField('url','hero.cta1_url','Button 1 URL',h.cta1_url) %></div>
             <div class="te4-row2"><%- teField('text','hero.cta2_text','Button 2 label',h.cta2_text) %><%- teField('url','hero.cta2_url','Button 2 URL',h.cta2_url) %></div>
+            <div class="te4-field" style="margin-top:.5rem;padding-top:.75rem;border-top:1px solid var(--te-border)">
+              <label>Visible on</label>
+              <select name="hero.show_on" class="te4-select">
+                <option value="all"     <%=(h.show_on||'all')==='all'    ?'selected':''%>>All devices</option>
+                <option value="desktop" <%=h.show_on==='desktop'         ?'selected':''%>>Desktop only</option>
+                <option value="mobile"  <%=h.show_on==='mobile'          ?'selected':''%>>Mobile only</option>
+              </select>
+            </div>
           </div>
 
           <!-- ── BRAND LOGOS ─────────────────────────────────── -->
@@ -748,6 +766,14 @@ function teArrayLinks(prefix,listId,tplId,items){
                 <button type="button" class="te4-remove-row">×</button>
               </div>
             </template>
+            <div class="te4-field" style="margin-top:.5rem;padding-top:.75rem;border-top:1px solid var(--te-border)">
+              <label>Visible on</label>
+              <select name="brand_logos.show_on" class="te4-select">
+                <option value="all"     <%=(bll.show_on||'all')==='all'    ?'selected':''%>>All devices</option>
+                <option value="desktop" <%=bll.show_on==='desktop'         ?'selected':''%>>Desktop only</option>
+                <option value="mobile"  <%=bll.show_on==='mobile'          ?'selected':''%>>Mobile only</option>
+              </select>
+            </div>
           </div>
 
           <!-- ── CATEGORIES ─────────────────────────────────── -->
@@ -766,6 +792,14 @@ function teArrayLinks(prefix,listId,tplId,items){
             <div class="te4-section-label">Grid layout</div>
             <div class="te4-field"><label>Columns</label><select name="categories_section.columns" class="te4-select"><option value="2" <%=(catsec.columns||'4')==='2'?'selected':''%>>2 columns</option><option value="3" <%=catsec.columns==='3'?'selected':''%>>3 columns</option><option value="4" <%=(catsec.columns||'4')==='4'?'selected':''%>>4 columns (default)</option></select></div>
             <div class="te4-field"><label>Card style</label><select name="categories_section.card_style" class="te4-select"><option value="image-top" <%=(catsec.card_style||'image-top')==='image-top'?'selected':''%>>Image top</option><option value="overlay" <%=catsec.card_style==='overlay'?'selected':''%>>Text overlay</option></select></div>
+            <div class="te4-field" style="margin-top:.5rem;padding-top:.75rem;border-top:1px solid var(--te-border)">
+              <label>Visible on</label>
+              <select name="categories_section.show_on" class="te4-select">
+                <option value="all"     <%=(catsec.show_on||'all')==='all'    ?'selected':''%>>All devices</option>
+                <option value="desktop" <%=catsec.show_on==='desktop'         ?'selected':''%>>Desktop only</option>
+                <option value="mobile"  <%=catsec.show_on==='mobile'          ?'selected':''%>>Mobile only</option>
+              </select>
+            </div>
           </div>
 
           <!-- ── BUNDLE TEASER ─────────────────────────────── -->
@@ -780,6 +814,14 @@ function teArrayLinks(prefix,listId,tplId,items){
             <div class="te4-section-label">Button</div>
             <%- teField('text','bundle_teaser.cta_text','CTA label',btsec.cta_text||'Build Your Bundle') %>
             <p class="te4-panel-desc" style="margin-top:.25rem">Button always links to <code>/bundle-builder</code></p>
+            <div class="te4-field" style="margin-top:.5rem;padding-top:.75rem;border-top:1px solid var(--te-border)">
+              <label>Visible on</label>
+              <select name="bundle_teaser.show_on" class="te4-select">
+                <option value="all"     <%=(btsec.show_on||'all')==='all'    ?'selected':''%>>All devices</option>
+                <option value="desktop" <%=btsec.show_on==='desktop'         ?'selected':''%>>Desktop only</option>
+                <option value="mobile"  <%=btsec.show_on==='mobile'          ?'selected':''%>>Mobile only</option>
+              </select>
+            </div>
           </div>
 
           <!-- ── FEATURED PRODUCTS ──────────────────────────── -->
@@ -808,6 +850,14 @@ function teArrayLinks(prefix,listId,tplId,items){
               <%- teField('text','featured_section.cta_text','CTA label',fsec.cta_text) %>
               <%- teField('url', 'featured_section.cta_url', 'CTA URL',  fsec.cta_url) %>
             </div>
+            <div class="te4-field" style="margin-top:.5rem;padding-top:.75rem;border-top:1px solid var(--te-border)">
+              <label>Visible on</label>
+              <select name="featured_section.show_on" class="te4-select">
+                <option value="all"     <%=(fsec.show_on||'all')==='all'    ?'selected':''%>>All devices</option>
+                <option value="desktop" <%=fsec.show_on==='desktop'         ?'selected':''%>>Desktop only</option>
+                <option value="mobile"  <%=fsec.show_on==='mobile'          ?'selected':''%>>Mobile only</option>
+              </select>
+            </div>
           </div>
 
           <!-- ── FEATURED MODELS ───────────────────────────────── -->
@@ -835,6 +885,14 @@ function teArrayLinks(prefix,listId,tplId,items){
             <div class="te4-row2">
               <%- teField('text','featured_models.cta_text','CTA label',fmsec.cta_text||'See All Our Models') %>
               <%- teField('url', 'featured_models.cta_url', 'CTA URL',  fmsec.cta_url||'/collections/vanity-models') %>
+            </div>
+            <div class="te4-field" style="margin-top:.5rem;padding-top:.75rem;border-top:1px solid var(--te-border)">
+              <label>Visible on</label>
+              <select name="featured_models.show_on" class="te4-select">
+                <option value="all"     <%=(fmsec.show_on||'all')==='all'    ?'selected':''%>>All devices</option>
+                <option value="desktop" <%=fmsec.show_on==='desktop'         ?'selected':''%>>Desktop only</option>
+                <option value="mobile"  <%=fmsec.show_on==='mobile'          ?'selected':''%>>Mobile only</option>
+              </select>
             </div>
           </div>
 
@@ -1009,6 +1067,14 @@ function teArrayLinks(prefix,listId,tplId,items){
               </div>
             </template>
             <% } %>
+            <div class="te4-field" style="margin-top:.5rem;padding-top:.75rem;border-top:1px solid var(--te-border)">
+              <label>Visible on</label>
+              <select name="<%= pk %>.show_on" class="te4-select">
+                <option value="all"     <%=(d.show_on||'all')==='all'    ?'selected':''%>>All devices</option>
+                <option value="desktop" <%=d.show_on==='desktop'         ?'selected':''%>>Desktop only</option>
+                <option value="mobile"  <%=d.show_on==='mobile'          ?'selected':''%>>Mobile only</option>
+              </select>
+            </div>
 
           </div><!-- /panel-<%= pk %> -->
           <% }); /* end duplicatable panel loop */ %>
@@ -1032,6 +1098,14 @@ function teArrayLinks(prefix,listId,tplId,items){
             <%- teField('text','newsletter.disclaimer','Disclaimer text',newsec.disclaimer) %>
             <div class="te4-section-label">Background</div>
             <%- teImage('newsletter.bg_image','newsletter.bg_alt',newsec.bg_image,newsec.bg_alt,'Background image (optional)') %>
+            <div class="te4-field" style="margin-top:.5rem;padding-top:.75rem;border-top:1px solid var(--te-border)">
+              <label>Visible on</label>
+              <select name="newsletter.show_on" class="te4-select">
+                <option value="all"     <%=(newsec.show_on||'all')==='all'    ?'selected':''%>>All devices</option>
+                <option value="desktop" <%=newsec.show_on==='desktop'         ?'selected':''%>>Desktop only</option>
+                <option value="mobile"  <%=newsec.show_on==='mobile'          ?'selected':''%>>Mobile only</option>
+              </select>
+            </div>
           </div>
 
           <!-- ── CART DRAWER ────────────────────────────────── -->
