@@ -418,6 +418,58 @@
 
 
 /* ══════════════════════════════════════════════════════════════════
+   22. HEADER — reduce nav padding on narrow phones
+   The default 40px side padding is designed for desktop. On phones
+   with Display Zoom enabled, the effective viewport shrinks and the
+   logo + padding can push the hamburger button off-screen.
+   At ≤480px drop to 12px so the logo and hamburger always fit.
+   ══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 480px) {
+  .site-nav {
+    padding: 0 12px;
+    gap: 14px;
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   23. BUNDLE TEASER — stack cards vertically on mobile
+   The .bt-cards-row uses flex-wrap which causes the inline .bt-plus
+   separators to end up mid-row when cards wrap, creating stagger.
+   At ≤600px force column layout; hide inline pluses and use ::after
+   pseudo-element to show a centered "+" below each card except last.
+   ══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 600px) {
+  .bt-cards-row {
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+  .bt-step-card {
+    width: 100%;
+    max-width: 320px;
+    flex: none;
+  }
+  /* Hide inline plus separators — replaced by ::after on each card */
+  .bt-plus {
+    display: none;
+  }
+  /* Show centered "+" connector below each card except the last */
+  .bt-step-card:not(:last-of-type)::after {
+    content: '+';
+    display: block;
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--color-navy, #182840);
+    text-align: center;
+    padding: .5rem 0;
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
    14. BUNDLE BUILDER STEP CARD MODEL SECTION — tiny phones
    The model section card flips to single column at 820px already.
    On 360px phones the image + text can still feel cramped.
