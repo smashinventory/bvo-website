@@ -632,8 +632,12 @@ function teArrayLinks(prefix,listId,tplId,items){
           <div class="te4-panel" id="panel-hero">
             <% const h=t.hero||{}; %>
 
-            <div class="te4-section-label">Background Image</div>
-            <%- teImage('hero.image_url','hero.image_alt',h.image_url,h.image_alt,'Hero Image') %>
+            <div class="te4-section-label">Background Image <small style="opacity:.6;font-weight:400">(desktop)</small></div>
+            <%- teImage('hero.image_url','hero.image_alt',h.image_url,h.image_alt,'Hero Image — Desktop') %>
+
+            <div class="te4-section-label">Mobile Image <small style="opacity:.6;font-weight:400">(optional — shown instead of desktop image on phones &amp; tablets)</small></div>
+            <%- teImage('hero.mobile_image_url','hero.mobile_image_alt',h.mobile_image_url,h.mobile_image_alt,'Hero Image — Mobile') %>
+            <div class="te4-hint" style="margin-bottom:.75rem">Leave blank to use the desktop image on all devices. Upload a portrait-cropped version for a better mobile experience.</div>
 
             <div class="te4-section-label">Background Video <small style="opacity:.6;font-weight:400">(optional — plays over the image)</small></div>
             <%- teVideoField('hero.video_url',h.video_url) %>

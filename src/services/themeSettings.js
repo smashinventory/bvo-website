@@ -113,6 +113,8 @@ const DEFAULTS = {
     image_alt: 'Premium bathroom vanity',
     video_url: '',        // YouTube URL or direct .mp4 URL — autoplay muted loop background
     video_on_mobile: true, // false = hide video on ≤860px; poster image shows instead
+    mobile_image_url: '',  // separate image shown on ≤860px instead of desktop image
+    mobile_image_alt: '',
     // Layout & sizing
     layout: 'split',       // 'split' (text|image side-by-side) | 'bg' (image behind text)
     text_col_pct: 45,      // split layout: text column width %; image gets the remainder

@@ -518,3 +518,44 @@
     object-fit: cover !important;
   }
 }
+
+
+/* ══════════════════════════════════════════════════════════════════
+   20. HERO — separate mobile image
+   .hero-img-mobile is always hidden on desktop.
+   When .hero--has-mobile-img is present on the section:
+     - .hero-img-desktop is hidden on mobile (≤860px)
+     - .hero-img-mobile is shown and fills the hero-image container
+   Poster (.hero-poster) base styles ensure the desktop image always
+   fills the container correctly regardless of whether a video exists.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* Desktop image — full-cover fill in all states */
+.hero-poster {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Mobile image — hidden by default (desktop sees nothing) */
+.hero-img-mobile {
+  display: none;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@media (max-width: 860px) {
+  /* Swap: hide desktop image, show mobile image */
+  .hero--has-mobile-img .hero-img-desktop {
+    display: none !important;
+  }
+  .hero--has-mobile-img .hero-img-mobile {
+    display: block !important;
+  }
+}

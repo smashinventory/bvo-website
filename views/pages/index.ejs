@@ -125,7 +125,7 @@ _DEFAULT_ORDER.forEach(function(k) {
   else if (+hero.max_height_px > 0)  _heroStyle += 'max-height:'+hero.max_height_px+'px;';
   var _ctaAlign = _heroAlign==='center'?'justify-content:center':_heroAlign==='right'?'justify-content:flex-end':'';
 %>
-<section class="hero hero--<%= _heroLayout %><%= hero.video_on_mobile === false ? ' hero--no-mobile-video' : '' %>" data-section="hero" data-section-label="Hero Banner" aria-label="Hero" style="<%= _heroStyle %>">
+<section class="hero hero--<%= _heroLayout %><%= hero.video_on_mobile === false ? ' hero--no-mobile-video' : '' %><%= hero.mobile_image_url ? ' hero--has-mobile-img' : '' %>" data-section="hero" data-section-label="Hero Banner" aria-label="Hero" style="<%= _heroStyle %>">
   <div class="hero-content" style="text-align:<%= _heroAlign %>">
     <p class="hero-eyebrow" style="<%= _heroESize %>"><%= hero.eyebrow || 'Curated for Your Bathroom Renovation' %></p>
     <<%- _heroTag %> class="hero-h1" style="<%= _heroHSize %>"><%= hero.heading_line1 || 'Premium Vanities.' %></<%- _heroTag %>>
@@ -135,15 +135,30 @@ _DEFAULT_ORDER.forEach(function(k) {
     <p class="hero-sub2" style="<%= _heroS2Size %>"><%= hero.sub2_text || 'James Martin · Kohler · Moen · Delta and more' %></p>
     <div class="hero-ctas" style="<%= _ctaAlign %>">
       <a href="<%= hero.cta1_url || '/collections/bathroom-vanities' %>" class="btn btn-navy"><%= hero.cta1_text || 'Shop Vanities' %></a>
+      <% if (hero.cta2_text || hero.cta2_url) { %>
+      <a href="<%= hero.cta2_url || '/collections/sale' %>" class="btn btn-sage"><%= hero.cta2_text || 'View Sale' %></a>
+      <% } %>
     </div>
   </div>
   <div class="hero-image">
     <div class="hero-overlay" aria-hidden="true"></div>
+    <%/* Desktop image — always rendered with hero-poster class for consistent mobile CSS targeting.
+        Gets hero-img-desktop class only when a separate mobile image is set, so CSS can swap them. */%>
+    <% if (hero.image_url) { %>
+    <img class="hero-poster<%= hero.mobile_image_url ? ' hero-img-desktop' : '' %>"
+         src="<%= hero.image_url %>"
+         alt="<%= hero.image_alt || 'Hero image' %>"
+         loading="eager">
+    <% } %>
+    <%/* Mobile image — hidden on desktop, swaps in at ≤860px when set */%>
+    <% if (hero.mobile_image_url) { %>
+    <img class="hero-img-mobile"
+         src="<%= hero.mobile_image_url %>"
+         alt="<%= hero.mobile_image_alt || hero.image_alt || 'Hero image' %>"
+         loading="eager">
+    <% } %>
+    <%/* Video — only when video_url is set */%>
     <% if (hero.video_url) { %>
-      <%/* Poster image shown first — indexed by search engines, displays before video loads */%>
-      <% if (hero.image_url) { %>
-      <img class="hero-poster" src="<%= hero.image_url %>" alt="<%= hero.image_alt || 'Hero image' %>" loading="eager">
-      <% } %>
       <% if (_isYT(hero.video_url)) { var _ytVid = _ytId(hero.video_url); %>
         <% if (_ytVid) { %>
         <div class="hero-video-wrap">
@@ -159,15 +174,13 @@ _DEFAULT_ORDER.forEach(function(k) {
         <source src="<%= hero.video_url %>" type="video/mp4">
       </video>
       <% } %>
-    <% } else if (hero.image_url) { %>
-      <img src="<%= hero.image_url %>" alt="<%= hero.image_alt || 'Hero image' %>" style="width:100%;height:100%;object-fit:cover;display:block;">
-    <% } else { %>
+    <% } %>
+    <% if (!hero.image_url && !hero.mobile_image_url && !hero.video_url) { %>
     <div class="hero-img-placeholder" aria-hidden="true">
       <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
       <span>Hero image</span>
     </div>
     <% } %>
-    <a href="<%= hero.cta2_url || '/collections/sale' %>" class="btn btn-sage hero-sale-btn"><%= hero.cta2_text || 'View Sale' %></a>
   </div>
 </section>
 
