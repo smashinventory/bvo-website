@@ -866,7 +866,30 @@ function teArrayLinks(prefix,listId,tplId,items){
             <%- teField('text','bundle_teaser.eyebrow','Eyebrow',btsec.eyebrow||'James Martin Vanities') %>
             <%- teField('text','bundle_teaser.heading','Heading',btsec.heading||'Build Your Dream Bathroom') %>
             <%- teField('textarea','bundle_teaser.subtitle','Subtitle / body',btsec.subtitle) %>
-            <div class="te4-section-label">Button</div>
+            <div class="te4-section-label" style="margin-top:1.25rem">Step cards</div>
+            <p class="te4-hint" style="margin-bottom:8px">Name and short description for each bundle step icon.</p>
+            <div class="te4-row2">
+              <%- teField('text','bundle_teaser.step1_name','Step 1 name',btsec.step1_name||'Cabinet') %>
+              <%- teField('text','bundle_teaser.step1_desc','Step 1 description',btsec.step1_desc||'Choose your base') %>
+            </div>
+            <div class="te4-row2">
+              <%- teField('text','bundle_teaser.step2_name','Step 2 name',btsec.step2_name||'Top') %>
+              <%- teField('text','bundle_teaser.step2_desc','Step 2 description',btsec.step2_desc||'Match your countertop') %>
+            </div>
+            <div class="te4-row2">
+              <%- teField('text','bundle_teaser.step3_name','Step 3 name',btsec.step3_name||'Mirror') %>
+              <%- teField('text','bundle_teaser.step3_desc','Step 3 description',btsec.step3_desc||'1 or 2 for double vanities') %>
+            </div>
+            <div class="te4-row2">
+              <%- teField('text','bundle_teaser.step4_name','Step 4 name',btsec.step4_name||'Faucet') %>
+              <%- teField('text','bundle_teaser.step4_desc','Step 4 description',btsec.step4_desc||'1 or 2 for double vanities') %>
+            </div>
+            <div class="te4-section-label" style="margin-top:1.25rem">Discount badges</div>
+            <%- teField('text','bundle_teaser.badge1','Badge 1',btsec.badge1||'Vanity + Top = 5% Off') %>
+            <%- teField('text','bundle_teaser.badge2','Badge 2 (highlighted)',btsec.badge2||'+ Mirror (or pair) = 10% Off') %>
+            <%- teField('text','bundle_teaser.badge3','Badge 3',btsec.badge3||'+ Faucet (or pair) = 15% Off') %>
+            <%- teField('textarea','bundle_teaser.pair_note','Pair note',btsec.pair_note||'Mirrors & faucets can be added as a matched pair for double vanities — a pair still counts as one bundle step.') %>
+            <div class="te4-section-label" style="margin-top:1.25rem">Button</div>
             <%- teField('text','bundle_teaser.cta_text','CTA label',btsec.cta_text||'Build Your Bundle') %>
             <p class="te4-panel-desc" style="margin-top:.25rem">Button always links to <code>/bundle-builder</code></p>
             <div class="te4-field" style="margin-top:.5rem;padding-top:.75rem;border-top:1px solid var(--te-border)">

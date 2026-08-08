@@ -790,8 +790,8 @@ _DEFAULT_ORDER.forEach(function(k) {
           <rect x="33" y="42" width="7" height="4" rx="1"/>
         </svg>
       </div>
-      <p class="bt-step-name">Cabinet</p>
-      <p class="bt-step-desc">Choose your base</p>
+      <p class="bt-step-name"><%= bt_.step1_name || 'Cabinet' %></p>
+      <p class="bt-step-desc"><%= bt_.step1_desc || 'Choose your base' %></p>
     </div>
 
     <span class="bt-plus" aria-hidden="true">+</span>
@@ -807,8 +807,8 @@ _DEFAULT_ORDER.forEach(function(k) {
           <rect x="8" y="16" width="36" height="18" rx="1"/>
         </svg>
       </div>
-      <p class="bt-step-name">Top</p>
-      <p class="bt-step-desc">Match your countertop</p>
+      <p class="bt-step-name"><%= bt_.step2_name || 'Top' %></p>
+      <p class="bt-step-desc"><%= bt_.step2_desc || 'Match your countertop' %></p>
     </div>
 
     <span class="bt-plus" aria-hidden="true">+</span>
@@ -823,8 +823,8 @@ _DEFAULT_ORDER.forEach(function(k) {
           <line x1="20" y1="30" x2="28" y2="40" stroke-width="2.5"/>
         </svg>
       </div>
-      <p class="bt-step-name">Mirror</p>
-      <p class="bt-step-desc">1 or 2 for double vanities</p>
+      <p class="bt-step-name"><%= bt_.step3_name || 'Mirror' %></p>
+      <p class="bt-step-desc"><%= bt_.step3_desc || '1 or 2 for double vanities' %></p>
     </div>
 
     <span class="bt-plus" aria-hidden="true">+</span>
@@ -844,18 +844,18 @@ _DEFAULT_ORDER.forEach(function(k) {
           <path d="M40 8 C47 8 50 12 49 18"/>
         </svg>
       </div>
-      <p class="bt-step-name">Faucet</p>
-      <p class="bt-step-desc">1 or 2 for double vanities</p>
+      <p class="bt-step-name"><%= bt_.step4_name || 'Faucet' %></p>
+      <p class="bt-step-desc"><%= bt_.step4_desc || '1 or 2 for double vanities' %></p>
     </div>
 
   </div>
 
   <div class="bt-badge-strip">
-    <span class="bt-badge">Vanity + Top = 5% Off</span>
-    <span class="bt-badge bt-badge--active">+ Mirror (or pair) = 10% Off</span>
-    <span class="bt-badge">+ Faucet (or pair) = 15% Off</span>
+    <span class="bt-badge"><%= bt_.badge1 || 'Vanity + Top = 5% Off' %></span>
+    <span class="bt-badge bt-badge--active"><%= bt_.badge2 || '+ Mirror (or pair) = 10% Off' %></span>
+    <span class="bt-badge"><%= bt_.badge3 || '+ Faucet (or pair) = 15% Off' %></span>
   </div>
-  <p class="bt-pair-note">Mirrors &amp; faucets can be added as a matched pair for double vanities — a pair still counts as one bundle step.</p>
+  <p class="bt-pair-note"><%= bt_.pair_note || 'Mirrors & faucets can be added as a matched pair for double vanities — a pair still counts as one bundle step.' %></p>
 
   <div class="bt-cta-wrap">
     <a href="/bundle-builder" class="btn btn-navy"><%= bt_.cta_text || 'Build Your Bundle' %></a>

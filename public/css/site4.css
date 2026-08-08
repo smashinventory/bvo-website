@@ -462,7 +462,18 @@
 
 
 /* ══════════════════════════════════════════════════════════════════
-   23. HEADER — reduce nav padding on narrow phones
+   23. CATEGORY GRID — 1 column below 500px
+   site.css collapses to 1 col at ≤480px but text clips at 2 cols on
+   phones in the 480–500px range. Widen the breakpoint to 500px.
+   ══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 500px) {
+  .category-grid { grid-template-columns: 1fr !important; }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   25. HEADER — reduce nav padding on narrow phones
    The default 40px side padding is designed for desktop. On phones
    with Display Zoom enabled, the effective viewport shrinks and the
    logo + padding can push the hamburger button off-screen.
@@ -496,19 +507,13 @@
     max-width: 320px;
     flex: none;
   }
-  /* Hide inline plus separators — replaced by ::after on each card */
+  /* .bt-plus elements sit between cards in DOM order — show as centered block */
   .bt-plus {
-    display: none;
-  }
-  /* Show centered "+" connector below each card except the last */
-  .bt-step-card:not(:last-of-type)::after {
-    content: '+';
     display: block;
-    font-size: 1.5rem;
-    font-weight: 800;
-    color: var(--color-navy, #182840);
     text-align: center;
-    padding: .5rem 0;
+    padding: .25rem 0;
+    line-height: 1;
+    flex-shrink: 0;
   }
 }
 

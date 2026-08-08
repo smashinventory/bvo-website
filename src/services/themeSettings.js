@@ -159,6 +159,20 @@ const DEFAULTS = {
     heading: 'Build Your Dream Bathroom',
     subtitle: 'Mix and match cabinets, tops, and mirrors from the James Martin collection — and save up to 15% when you bundle.',
     cta_text: 'Build Your Bundle',
+    // Step card text — editable in Theme Editor > Bundle Builder Teaser
+    step1_name: 'Cabinet',
+    step1_desc: 'Choose your base',
+    step2_name: 'Top',
+    step2_desc: 'Match your countertop',
+    step3_name: 'Mirror',
+    step3_desc: '1 or 2 for double vanities',
+    step4_name: 'Faucet',
+    step4_desc: '1 or 2 for double vanities',
+    // Discount badge text
+    badge1: 'Vanity + Top = 5% Off',
+    badge2: '+ Mirror (or pair) = 10% Off',
+    badge3: '+ Faucet (or pair) = 15% Off',
+    pair_note: 'Mirrors & faucets can be added as a matched pair for double vanities — a pair still counts as one bundle step.',
   },
   featured_section: {
     enabled: true,
