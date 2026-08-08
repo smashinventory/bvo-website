@@ -385,9 +385,15 @@
     padding-top:    40px;
     padding-bottom: 32px;
   }
-  /* Tighten newsletter form CTA */
+  /* Stack newsletter: input on top, button below — prevents button overflow */
+  .newsletter-input-wrap {
+    flex-direction: column;
+  }
+  .newsletter-input,
+  .newsletter-btn,
   .newsletter-form .btn {
     width: 100%;
+    flex-shrink: 1;
   }
 }
 
