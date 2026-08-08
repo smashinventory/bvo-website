@@ -472,3 +472,49 @@
     padding: .5rem 0;
   }
 }
+
+
+/* ══════════════════════════════════════════════════════════════════
+   18. SECTION VISIBILITY — managed via Theme Editor
+   .sec--desktop-only : hidden on mobile  (≤860px)
+   .sec--mobile-only  : hidden on desktop (>860px)
+   These classes are applied by index.ejs based on each section's
+   show_on setting ('all' | 'desktop' | 'mobile').
+   ══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 860px) {
+  .sec--desktop-only { display: none !important; }
+}
+@media (min-width: 861px) {
+  .sec--mobile-only  { display: none !important; }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   19. HERO VIDEO — mobile suppress
+   When admin sets "Play video on mobile" = OFF the section gets
+   class hero--no-mobile-video. On ≤860px we hide the video and
+   expose the poster image so it fills the hero as a still.
+   The poster already loads eagerly and is positioned absolutely
+   inside .hero-image — no JS or extra markup needed.
+   ══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 860px) {
+  /* Hide the video container (YouTube iframe wrap) */
+  .hero--no-mobile-video .hero-video-wrap {
+    display: none !important;
+  }
+  /* Hide MP4 video player */
+  .hero--no-mobile-video .hero-video-player {
+    display: none !important;
+  }
+  /* Ensure poster fills the hero-image area on mobile */
+  .hero--no-mobile-video .hero-poster {
+    display: block !important;
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+  }
+}
