@@ -559,3 +559,32 @@
     display: block !important;
   }
 }
+
+
+/* ══════════════════════════════════════════════════════════════════
+   21. HERO TEXT COLORS — CSS custom property overrides
+   Theme Editor emits --hero-eyebrow, --hero-h1, --hero-h2, --hero-sub
+   and --hero-mobile-align on the section element when set.
+   Fallback chain: custom value → global brand token → hardcoded safe.
+   Desktop rules give brand-token defaults for hero text elements.
+   Mobile rules (later in cascade) beat §8 hardcoded !important rules
+   because same specificity + later position wins among !important decls.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* Desktop: apply CSS vars with brand-token fallbacks */
+.hero-eyebrow { color: var(--hero-eyebrow, var(--color-sage,    #5A7A5A)); }
+.hero-h1      { color: var(--hero-h1,      var(--color-navy,    #182840)); }
+.hero-h2      { color: var(--hero-h2,      var(--color-amber,   #B8862A)); }
+.hero-sub,
+.hero-sub2    { color: var(--hero-sub,     var(--color-navy,    #182840)); }
+
+/* Mobile full-bleed: use CSS vars with white/light fallbacks */
+@media (max-width: 860px) {
+  .hero { text-align: var(--hero-mobile-align, center) !important; }
+  .hero--split .hero-eyebrow { color: var(--hero-eyebrow, var(--color-sage,  #5A7A5A))     !important; }
+  .hero--split .hero-h1      { color: var(--hero-h1,      #fff)                            !important; }
+  .hero--split .hero-h2      { color: var(--hero-h2,      var(--color-amber, #B8862A))     !important; }
+  .hero--split .hero-sub     { color: var(--hero-sub,     rgba(255,255,255,.85))            !important; }
+  .hero--split .hero-sub2    { color: var(--hero-sub,     rgba(255,255,255,.6))             !important; }
+  .hero--split .hero-rule    { background: var(--hero-eyebrow, var(--color-sage, #5A7A5A)) !important; }
+}

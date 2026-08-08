@@ -123,6 +123,12 @@ _DEFAULT_ORDER.forEach(function(k) {
   if (+hero.min_height_px > 0)       _heroStyle += 'min-height:'+hero.min_height_px+'px;';
   if (+hero.max_height_px === 0)     _heroStyle += 'max-height:none;';
   else if (+hero.max_height_px > 0)  _heroStyle += 'max-height:'+hero.max_height_px+'px;';
+  /* Per-section text color CSS custom properties */
+  if (hero.eyebrow_color)    _heroStyle += '--hero-eyebrow:'+hero.eyebrow_color+';';
+  if (hero.heading_color)    _heroStyle += '--hero-h1:'+hero.heading_color+';';
+  if (hero.h2_color)         _heroStyle += '--hero-h2:'+hero.h2_color+';';
+  if (hero.subtext_color)    _heroStyle += '--hero-sub:'+hero.subtext_color+';';
+  if (hero.text_align_mobile && hero.text_align_mobile !== 'center') _heroStyle += '--hero-mobile-align:'+hero.text_align_mobile+';';
   var _ctaAlign = _heroAlign==='center'?'justify-content:center':_heroAlign==='right'?'justify-content:flex-end':'';
 %>
 <section class="hero hero--<%= _heroLayout %><%= hero.video_on_mobile === false ? ' hero--no-mobile-video' : '' %><%= hero.mobile_image_url ? ' hero--has-mobile-img' : '' %>" data-section="hero" data-section-label="Hero Banner" aria-label="Hero" style="<%= _heroStyle %>">

@@ -115,6 +115,12 @@ const DEFAULTS = {
     video_on_mobile: true, // false = hide video on ≤860px; poster image shows instead
     mobile_image_url: '',  // separate image shown on ≤860px instead of desktop image
     mobile_image_alt: '',
+    // Text & Colors — CSS custom props emitted on section element
+    eyebrow_color:      '',   // '' = CSS default (sage)
+    heading_color:      '',   // '' = CSS default (white on mobile, navy on desktop)
+    h2_color:           '',   // '' = CSS default (amber)
+    subtext_color:      '',   // '' = CSS default
+    text_align_mobile:  'center',  // center | left | right
     // Layout & sizing
     layout: 'split',       // 'split' (text|image side-by-side) | 'bg' (image behind text)
     text_col_pct: 45,      // split layout: text column width %; image gets the remainder

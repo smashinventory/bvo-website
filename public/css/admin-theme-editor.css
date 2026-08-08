@@ -633,6 +633,30 @@ details[open] > .te4-accord-head { color: var(--color-navy,#182840); }
   min-width: 0;
 }
 
+/* ── Brand color swatches (teColorBrand helper) ────────────── */
+.te4-brand-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 6px;
+}
+.te4-bs {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  transition: transform .1s, outline-color .1s;
+}
+.te4-bs:hover { transform: scale(1.18); }
+.te4-bs-on {
+  outline: 2px solid var(--color-navy, #182840);
+  outline-offset: 2px;
+}
+
 /* ── Image block ─────────────────────────────────────────── */
 .te4-image-block {
   border: 1.5px solid #E2E4E9;
