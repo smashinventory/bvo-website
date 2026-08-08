@@ -669,6 +669,53 @@
 
 
 /* ══════════════════════════════════════════════════════════════════
+   27. BUTTON HOVER & ACTIVE CONTRAST
+   :active states are not explicitly set in site.css, so browser
+   defaults apply on press/tap and can make text hard to read.
+   Explicitly lock text colour for every .btn variant in both
+   :hover and :active, and suppress all interaction cues on
+   bt-badge spans (informational-only — not clickable).
+   ══════════════════════════════════════════════════════════════════ */
+
+/* Lock white text on navy background for both interaction states */
+.btn-navy:hover,
+.btn-navy:active {
+  background: #0e1e38 !important;
+  color: #fff !important;
+}
+
+/* Outline: navy fill, white text — must override inline color on dark sections */
+.btn-outline:hover,
+.btn-outline:active {
+  background: var(--navy, #182840) !important;
+  color: #fff !important;
+  border-color: var(--navy, #182840) !important;
+}
+
+/* Sage button — ensure text stays white when darkened */
+.btn-sage:hover,
+.btn-sage:active {
+  background: var(--sage-deep, #486854) !important;
+  color: #fff !important;
+}
+
+/* Amber button — filter dims but text must stay white */
+.btn-amber:hover,
+.btn-amber:active {
+  filter: brightness(.88);
+  color: #fff !important;
+}
+
+/* bt-badge spans are display-only — prevent any hover/tap state */
+.bt-badge {
+  -webkit-tap-highlight-color: transparent;
+  cursor: default;
+  user-select: none;
+  pointer-events: none;
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
    21. HERO TEXT COLORS — CSS custom property overrides
    Theme Editor emits --hero-eyebrow, --hero-h1, --hero-h2, --hero-sub
    and --hero-mobile-align on the section element when set.
