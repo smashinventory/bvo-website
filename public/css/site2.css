@@ -1364,41 +1364,57 @@
 }
 .hero-video-player.is-ready { opacity: 1; }
 
-/* ── Hero Split Layout — contain video (white letterbox) ─────────── */
-/* In split mode the video column should show the full 16:9 frame     */
-/* with white bars top/bottom or left/right rather than cropping.      */
-.hero--split .hero-image {
-  background: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* ── Hero Background Video — full-bleed cover (Option 2, 2026-08-09) ──
+   When hero layout auto-switches to bg because a video is set, the video
+   fills the full hero width with object-fit:cover. Text overlays on top
+   with a left-anchored gradient for legibility. No letterboxing.
+   ─────────────────────────────────────────────────────────────────────── */
+
+/* Ensure bg-video hero has a meaningful minimum height */
+.hero--bg {
+  min-height: 70vh;
 }
-/* 16:9 box that sizes itself to the available space without cropping */
-.hero--split .hero-video-wrap {
-  position: relative;
-  inset: auto;
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  max-height: 100%;
-  overflow: hidden;
+
+/* Left-anchored gradient overlay — darkest where text sits (left/center),
+   fades to semi-transparent on the right so video detail shows through.
+   Applied on top of the flat color overlay already in hero--bg.          */
+.hero--bg .hero-overlay {
+  background: linear-gradient(
+    105deg,
+    rgba(0,0,0,0.55) 0%,
+    rgba(0,0,0,0.40) 45%,
+    rgba(0,0,0,0.15) 100%
+  );
+  /* Override the flat color approach — gradient gives more depth */
+  background-color: transparent !important;
+  opacity: 1 !important;
 }
-/* Cancel the cover trick — iframe fills the 16:9 box exactly */
-.hero--split .hero-video-iframe {
+
+/* Video covers the full hero area cleanly — no bars, no cropping artifacts */
+.hero--bg .hero-video-player {
+  object-fit: cover;
+  object-position: center center;
+}
+
+/* YouTube iframe cover trick — already set globally, confirm no overrides */
+.hero--bg .hero-video-wrap {
   position: absolute;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  min-width: 0; min-height: 0;
-  transform: none;
+  inset: 0;
 }
-/* MP4 player — contain so bars show rather than crop */
-.hero--split .hero-video-player {
-  object-fit: contain;
-  background: #fff;
+.hero--bg .hero-video-iframe {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 177.78vh;
+  height: 100%;
+  min-width: 100%;
+  min-height: 56.25vw;
+  transform: translate(-50%, -50%);
 }
-/* Poster image — contain for split mode */
-.hero--split .hero-poster {
-  object-fit: contain;
-  background: #fff;
+
+/* Poster image in bg mode — cover, not contain */
+.hero--bg .hero-poster {
+  object-fit: cover;
+  object-position: center center;
 }
 
 /* ── Video + Text Section (Rule 11) ─────────────────────────────── */

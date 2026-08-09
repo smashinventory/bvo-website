@@ -112,6 +112,8 @@ _DEFAULT_ORDER.forEach(function(k) {
   var _heroS2Size = (+hero.sub2_size > 0 && hero.sub2_size != 14) ? 'font-size:'+hero.sub2_size+'px;' : '';
   var _heroBSize  = (+hero.badge_size > 0 && hero.badge_size != 10) ? 'font-size:'+hero.badge_size+'px;' : '';
   var _heroLayout = hero.layout || 'split';
+  // Auto-switch to bg layout when video is present in split mode — Option 2 (2026-08-09)
+  if (hero.video_url && _heroLayout === 'split') _heroLayout = 'bg';
   var _textPct    = parseInt(hero.text_col_pct) || 45;
   var _imgPct     = 100 - _textPct;
   var _ovColor    = hero.overlay_color || '#0f1f35';
