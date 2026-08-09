@@ -754,6 +754,13 @@ function teArrayLinks(prefix,listId,tplId,items){
                 <div class="te4-hint">0 = centered · negative = raise · positive = lower</div>
               </div>
             </div>
+            <div class="te4-row2">
+              <div class="te4-field compact">
+                <label>Left position <span class="te4-slider-unit">%</span></label>
+                <input type="number" name="hero.content_h_offset" value="<%=h.content_h_offset!==undefined?h.content_h_offset:5%>" min="0" max="60" step="1" placeholder="5">
+                <div class="te4-hint">% from left edge · 5 = default · 30 = near center</div>
+              </div>
+            </div>
             <%- teToggle('hero.text_shadow','Text shadow on headings',h.text_shadow!==false) %>
 
             <div class="te4-section-label">Eyebrow</div>

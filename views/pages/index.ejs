@@ -141,6 +141,7 @@ _DEFAULT_ORDER.forEach(function(k) {
   if (+hero.content_box_radius  >= 0) _heroStyle += '--content-box-radius:'+hero.content_box_radius+'px;';
   if (+hero.content_max_width   > 0)  _heroStyle += '--content-max-w:'+hero.content_max_width+'px;';
   if (hero.content_v_offset !== undefined && hero.content_v_offset !== '') _heroStyle += '--content-v-offset:'+hero.content_v_offset+'%;';
+  if (hero.content_h_offset !== undefined && hero.content_h_offset !== '') _heroStyle += '--content-h-offset:'+hero.content_h_offset+'%;';
   var _ctaAlign = _heroAlign==='center'?'justify-content:center':_heroAlign==='right'?'justify-content:flex-end':'';
 %>
 <section class="hero hero--<%= _heroLayout %><%= hero.video_on_mobile === false ? ' hero--no-mobile-video' : '' %><%= hero.mobile_image_url ? ' hero--has-mobile-img' : '' %><%= hero.text_shadow !== false ? ' hero--text-shadow' : '' %>" data-section="hero" data-section-label="Hero Banner" aria-label="Hero" style="<%= _heroStyle %>">
@@ -184,7 +185,7 @@ _DEFAULT_ORDER.forEach(function(k) {
         <div class="hero-video-wrap">
           <%/* data-src instead of src — JS injects after window.load so YouTube never blocks FCP */%>
           <iframe class="hero-video-iframe" data-hero-video="yt"
-            data-src="https://www.youtube-nocookie.com/embed/<%= _ytVid %>?autoplay=1&mute=1&loop=1&controls=0&playlist=<%= _ytVid %>&rel=0&showinfo=0&modestbranding=1&playsinline=1"
+            data-src="https://www.youtube-nocookie.com/embed/<%= _ytVid %>?autoplay=1&mute=1&loop=1&controls=0&playlist=<%= _ytVid %>&rel=0&showinfo=0&modestbranding=1&playsinline=1&cc_load_policy=0&iv_load_policy=3&fs=0&disablekb=1"
             allow="autoplay; encrypted-media; picture-in-picture" frameborder="0" aria-hidden="true" tabindex="-1" title="Hero background video">
           </iframe>
         </div>

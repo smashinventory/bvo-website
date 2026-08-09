@@ -897,7 +897,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  padding: 0 5%;
+  padding: 0 5% 0 var(--content-h-offset, 5%);
 }
 .hero--bg .hero-image {
   grid-row: 1;
