@@ -895,7 +895,8 @@
   position: relative;
   z-index: 2;
   display: flex;
-  align-items: center;
+  flex-direction: row;       /* override site.css column — makes align-items vertical, padding-left work */
+  align-items: center;       /* vertical center in the grid cell */
   justify-content: flex-start;
   padding: 0 5% 0 var(--content-h-offset, 5%);
 }
