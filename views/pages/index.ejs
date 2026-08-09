@@ -207,50 +207,78 @@ _DEFAULT_ORDER.forEach(function(k) {
 
 <!-- ── MOBILE HERO (phone-only ≤480px) ──────────────────────────── -->
 <%
-  var _hm        = S.hero_mobile || {};
-  var _hmEnabled = (_hm.enabled !== false);
-  var _hmStyle   = '';
-  var _hmCtaAl   = '';
-  if (_hmEnabled) {
-    var _hmAlign  = _hm.text_align || 'center';
-    var _hmOvClr  = _hm.overlay_color || '#000000';
-    var _hmOvOp   = (_hm.overlay_opacity !== undefined) ? (+_hm.overlay_opacity / 100).toFixed(2) : '0.40';
-    var _hmVPos   = _hm.text_position === 'top' ? 'flex-start'
-                  : _hm.text_position === 'center' ? 'center' : 'flex-end';
-    var _hmBoxClr = _hm.content_box_color || '#000000';
-    var _hmBoxOp  = (_hm.content_box_opacity !== undefined) ? _hm.content_box_opacity : 45;
+  var _hm       = S.hero_mobile || {};
+  var _hmEna    = (_hm.enabled !== false);
+  var _hmLayout = _hm.layout || 'bg';
+  var _hmTag    = _safeTag(_hm.heading_level, 'h1');
+  var _hmAlign  = _hm.text_align || 'center';
+  var _hmHSize  = _hm.heading_size  ? 'font-size:'+_hm.heading_size+'px;'  : '';
+  var _hmSSize  = _hm.subtext_size  ? 'font-size:'+_hm.subtext_size+'px;'  : '';
+  var _hmH2Size = (+_hm.h2_size  > 0) ? 'font-size:'+_hm.h2_size+'px;'  : '';
+  var _hmESize  = (+_hm.eyebrow_size > 0 && _hm.eyebrow_size != 11) ? 'font-size:'+_hm.eyebrow_size+'px;' : '';
+  var _hmS2Size = (+_hm.sub2_size > 0 && _hm.sub2_size != 14) ? 'font-size:'+_hm.sub2_size+'px;' : '';
+  var _hmBdSize = (+_hm.badge_size > 0 && _hm.badge_size != 10) ? 'font-size:'+_hm.badge_size+'px;' : '';
+  var _hmStyle  = '';
+  var _hmCtaAl  = '';
+  if (_hmEna) {
+    var _hmOvClr  = _hm.overlay_color || '#0f1f35';
+    var _hmOvOp   = (_hm.overlay_opacity !== undefined) ? (+_hm.overlay_opacity / 100).toFixed(2) : '0.55';
+    _hmStyle = '--ov-clr:'+_hmOvClr+';--ov-op:'+_hmOvOp+';';
+    if (_hmLayout === 'split') {
+      var _hmTxtPct = parseInt(_hm.text_col_pct) || 50;
+      _hmStyle += 'grid-template-columns:'+_hmTxtPct+'% '+(100-_hmTxtPct)+'%;';
+    }
+    if (+_hm.height_vh > 0)           _hmStyle += 'height:'+_hm.height_vh+'vh;';
+    if (+_hm.min_height_px > 0)       _hmStyle += 'min-height:'+_hm.min_height_px+'px;';
+    if (+_hm.max_height_px === 0)     _hmStyle += 'max-height:none;';
+    else if (+_hm.max_height_px > 0)  _hmStyle += 'max-height:'+_hm.max_height_px+'px;';
+    if (_hm.eyebrow_color)  _hmStyle += '--hero-eyebrow:'+_hm.eyebrow_color+';';
+    if (_hm.heading_color)  _hmStyle += '--hero-h1:'+_hm.heading_color+';';
+    if (_hm.h2_color)       _hmStyle += '--hero-h2:'+_hm.h2_color+';';
+    if (_hm.subtext_color)  _hmStyle += '--hero-sub:'+_hm.subtext_color+';';
+    if (_hm.sub2_color)     _hmStyle += '--hero-sub2:'+_hm.sub2_color+';';
+    var _hmBoxClr = _hm.content_box_color || '#0f1f35';
+    var _hmBoxOp  = (_hm.content_box_opacity !== undefined) ? _hm.content_box_opacity : 60;
     var _hmBoxHx  = String(_hmBoxClr).match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i);
-    _hmStyle = '--ov-clr:'+_hmOvClr+';--ov-op:'+_hmOvOp+';--hm-vpos:'+_hmVPos+';';
     if (_hmBoxHx) _hmStyle += '--content-box-bg:rgba('+parseInt(_hmBoxHx[1],16)+','+parseInt(_hmBoxHx[2],16)+','+parseInt(_hmBoxHx[3],16)+','+(_hmBoxOp/100).toFixed(2)+');';
-    if (+(_hm.min_height_px) > 0) _hmStyle += 'min-height:'+_hm.min_height_px+'px;';
-    _hmCtaAl = _hmAlign === 'center' ? 'justify-content:center' : _hmAlign === 'right' ? 'justify-content:flex-end' : '';
+    if (+_hm.content_box_padding > 0)  _hmStyle += '--content-box-pad:'+_hm.content_box_padding+'px;';
+    if (+_hm.content_box_radius  >= 0) _hmStyle += '--content-box-radius:'+_hm.content_box_radius+'px;';
+    if (+_hm.content_max_width   > 0)  _hmStyle += '--content-max-w:'+_hm.content_max_width+'px;';
+    if (_hm.content_v_offset !== undefined && _hm.content_v_offset !== '') _hmStyle += '--content-v-offset:'+_hm.content_v_offset+'%;';
+    if (_hm.content_h_offset !== undefined && _hm.content_h_offset !== '') _hmStyle += '--content-h-offset:'+_hm.content_h_offset+'%;';
+    _hmCtaAl = _hmAlign==='center'?'justify-content:center':_hmAlign==='right'?'justify-content:flex-end':'';
   }
-  /* Text falls back to desktop hero when blank */
-  var _hmImg    = _hm.image_url      || hero.image_url      || '';
-  var _hmAlt    = _hm.image_alt      || hero.image_alt      || 'Hero';
-  var _hmEye    = _hm.eyebrow        || hero.eyebrow        || '';
-  var _hmH1     = _hm.heading_line1  || hero.heading_line1  || 'Premium Vanities.';
-  var _hmH2     = _hm.heading_line2  || hero.heading_line2  || 'Outlet Prices.';
-  var _hmSub    = _hm.subtext        || hero.subtext        || '';
-  var _hmSub2   = _hm.sub2_text      || hero.sub2_text      || '';
-  var _hmC1Txt  = _hm.cta1_text      || hero.cta1_text      || 'Shop Vanities';
-  var _hmC1Url  = _hm.cta1_url       || hero.cta1_url       || '/collections/bathroom-vanities';
-  var _hmC2Txt  = _hm.cta2_text      || hero.cta2_text      || '';
-  var _hmC2Url  = _hm.cta2_url       || hero.cta2_url       || '';
+  /* Text/CTAs fall back to desktop hero when blank */
+  var _hmImg   = _hm.image_url     || hero.image_url     || '';
+  var _hmAlt   = _hm.image_alt     || hero.image_alt     || 'Hero';
+  var _hmVid   = _hm.video_url     || '';
+  if (_hmVid && _hmLayout === 'split') _hmLayout = 'bg';
+  var _hmEye   = _hm.eyebrow       || hero.eyebrow       || '';
+  var _hmH1    = _hm.heading_line1  || hero.heading_line1 || 'Premium Vanities.';
+  var _hmH2    = _hm.heading_line2  || hero.heading_line2 || 'Outlet Prices.';
+  var _hmSub   = _hm.subtext        || hero.subtext       || '';
+  var _hmSub2  = _hm.sub2_text      || hero.sub2_text     || '';
+  var _hmBadge = _hm.badge_text     || '';
+  var _hmC1T   = _hm.cta1_text      || hero.cta1_text     || 'Shop Vanities';
+  var _hmC1U   = _hm.cta1_url       || hero.cta1_url      || '/collections/bathroom-vanities';
+  var _hmC2T   = _hm.cta2_text      || hero.cta2_text     || '';
+  var _hmC2U   = _hm.cta2_url       || hero.cta2_url      || '';
+  var _hmShad  = (_hm.text_shadow !== false);
 %>
-<% if (_hmEnabled) { %>
-<section class="hero hero--bg hero--mobile-version" data-section="hero_mobile" data-section-label="Hero (Mobile)" aria-label="Hero" style="<%= _hmStyle %>">
-  <div class="hero-content" style="text-align:<%= _hm.text_align||'center' %>">
+<% if (_hmEna) { %>
+<section class="hero hero--<%= _hmLayout %> hero--mobile-version<%= _hmShad ? ' hero--text-shadow' : '' %>" data-section="hero_mobile" data-section-label="Hero (Mobile)" aria-label="Hero" style="<%= _hmStyle %>">
+  <div class="hero-content" style="text-align:<%= _hmAlign %>">
     <div class="hero-content-box">
-      <% if (_hmEye) { %><p class="hero-eyebrow"><%= _hmEye %></p><% } %>
-      <h1 class="hero-h1"><%= _hmH1 %></h1>
-      <p class="hero-h2"><%= _hmH2 %></p>
+      <% if (_hmEye) { %><p class="hero-eyebrow" style="<%= _hmESize %>"><%= _hmEye %></p><% } %>
+      <<%- _hmTag %> class="hero-h1" style="<%= _hmHSize %>"><%= _hmH1 %></<%- _hmTag %>>
+      <p class="hero-h2" style="<%= _hmH2Size %>"><%= _hmH2 %></p>
       <div class="hero-rule" aria-hidden="true"></div>
-      <% if (_hmSub) { %><p class="hero-sub"><%= _hmSub %></p><% } %>
-      <% if (_hmSub2) { %><p class="hero-sub2"><%= _hmSub2 %></p><% } %>
+      <% if (_hmSub) { %><p class="hero-sub" style="<%= _hmSSize %>"><%= _hmSub %></p><% } %>
+      <% if (_hmSub2) { %><p class="hero-sub2" style="<%= _hmS2Size %>"><%= _hmSub2 %></p><% } %>
+      <% if (_hmBadge) { %><span class="hero-badge" style="<%= _hmBdSize %>"><%= _hmBadge %></span><% } %>
       <div class="hero-ctas" style="<%= _hmCtaAl %>">
-        <a href="<%= _hmC1Url %>" class="btn btn-navy"><%= _hmC1Txt %></a>
-        <% if (_hmC2Txt) { %><a href="<%= _hmC2Url %>" class="btn btn-sage"><%= _hmC2Txt %></a><% } %>
+        <a href="<%= _hmC1U %>" class="btn btn-navy"><%= _hmC1T %></a>
+        <% if (_hmC2T) { %><a href="<%= _hmC2U %>" class="btn btn-sage"><%= _hmC2T %></a><% } %>
       </div>
     </div>
   </div>
@@ -263,6 +291,22 @@ _DEFAULT_ORDER.forEach(function(k) {
       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
       <span>Upload mobile hero image</span>
     </div>
+    <% } %>
+    <% if (_hmVid) { %>
+      <% if (_isYT(_hmVid)) { var _hmYtId = _ytId(_hmVid); %>
+        <% if (_hmYtId) { %>
+        <div class="hero-video-wrap">
+          <iframe class="hero-video-iframe" data-hero-video="yt"
+            data-src="https://www.youtube-nocookie.com/embed/<%= _hmYtId %>?autoplay=1&mute=1&loop=1&controls=0&playlist=<%= _hmYtId %>&rel=0&showinfo=0&modestbranding=1&playsinline=1&cc_load_policy=0&iv_load_policy=3&fs=0&disablekb=1"
+            allow="autoplay; encrypted-media; picture-in-picture" frameborder="0" aria-hidden="true" tabindex="-1" title="Hero background video">
+          </iframe>
+        </div>
+        <% } %>
+      <% } else { %>
+      <video class="hero-video-player" data-hero-video="mp4" autoplay muted loop playsinline preload="metadata">
+        <source src="<%= _hmVid %>" type="video/mp4">
+      </video>
+      <% } %>
     <% } %>
   </div>
 </section>

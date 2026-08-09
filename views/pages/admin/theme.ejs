@@ -835,61 +835,139 @@ function teArrayLinks(prefix,listId,tplId,items){
           <div class="te4-panel" id="panel-hero_mobile">
             <% const hm2=t.hero_mobile||{}; %>
             <div class="te4-hint" style="margin-bottom:.75rem;padding:.6rem .75rem;background:rgba(99,102,241,.08);border-radius:4px;border-left:3px solid #6366f1">
-              <strong>Phone-only hero</strong> — shown on screens ≤480px. The desktop Hero Banner above is hidden on phones. Leave text fields blank to inherit from the desktop hero automatically.
+              <strong>Phone-only hero</strong> — shown on screens ≤480px. The desktop Hero Banner is hidden on phones. Leave text/button fields blank to inherit from the desktop hero automatically.
             </div>
             <%- teToggle('hero_mobile.enabled','Show mobile hero section',hm2.enabled!==false) %>
 
-            <div class="te4-section-label">Background Image</div>
+            <div class="te4-section-label">Background Image <small style="opacity:.6;font-weight:400">(portrait-oriented recommended)</small></div>
             <%- teImage('hero_mobile.image_url','hero_mobile.image_alt',hm2.image_url,hm2.image_alt,'Mobile Hero Image') %>
-            <div class="te4-hint" style="margin-bottom:.75rem">Portrait-oriented photo recommended (taller than wide). Leave blank to use the desktop hero image.</div>
+            <div class="te4-hint" style="margin-bottom:.75rem">Leave blank to use the desktop hero image.</div>
+
+            <div class="te4-section-label">Background Video <small style="opacity:.6;font-weight:400">(optional)</small></div>
+            <%- teVideoField('hero_mobile.video_url',hm2.video_url) %>
+            <div class="te4-hint" style="margin-bottom:.75rem">Paste a YouTube or .mp4 URL. Leave blank for image only. Video autoplay on iOS requires muted + playsinline (already set).</div>
+
+            <div class="te4-section-label">Layout</div>
+            <div class="te4-field">
+              <label>Layout mode</label>
+              <select name="hero_mobile.layout" class="te4-select">
+                <option value="bg"    <%=(hm2.layout||'bg')==='bg'   ?'selected':''%>>Background — image behind text (recommended for mobile)</option>
+                <option value="split" <%=hm2.layout==='split'         ?'selected':''%>>Split — text beside image</option>
+              </select>
+            </div>
+            <%- teAlignment('hero_mobile.text_align',hm2.text_align||'center') %>
+
+            <div class="te4-section-label">Height</div>
+            <div class="te4-field">
+              <label>Height</label>
+              <div class="te4-slider-wrap">
+                <input type="range" class="te4-slider" name="hero_mobile.height_vh" min="0" max="100" step="1" value="<%=hm2.height_vh||0%>">
+                <input type="number" class="te4-slider-num" min="0" max="100" step="1" value="<%=hm2.height_vh||0%>">
+                <span class="te4-slider-unit">vh</span>
+              </div>
+              <div class="te4-hint">0 = auto height (recommended)</div>
+            </div>
+            <div class="te4-row2">
+              <div class="te4-field compact">
+                <label>Min height <span class="te4-slider-unit">px</span></label>
+                <input type="number" name="hero_mobile.min_height_px" value="<%=hm2.min_height_px!==undefined?hm2.min_height_px:500%>" min="0" step="10" placeholder="500">
+              </div>
+              <div class="te4-field compact">
+                <label>Max height <span class="te4-slider-unit">px</span></label>
+                <input type="number" name="hero_mobile.max_height_px" value="<%=hm2.max_height_px!==undefined?hm2.max_height_px:0%>" min="0" step="10" placeholder="0 = no cap">
+                <div class="te4-hint">0 = no cap</div>
+              </div>
+            </div>
 
             <div class="te4-section-label">Overlay</div>
             <div class="te4-row2">
-              <%- teColor('hero_mobile.overlay_color','Overlay color',hm2.overlay_color||'#000000') %>
-              <div class="te4-field"><label>Overlay opacity</label><div class="te4-slider-wrap"><input type="range" class="te4-slider" name="hero_mobile.overlay_opacity" min="0" max="85" step="5" value="<%=hm2.overlay_opacity!==undefined?hm2.overlay_opacity:40%>"><input type="number" class="te4-slider-num" min="0" max="85" step="5" value="<%=hm2.overlay_opacity!==undefined?hm2.overlay_opacity:40%>"><span class="te4-slider-unit">%</span></div></div>
+              <%- teColor('hero_mobile.overlay_color','Overlay color',hm2.overlay_color||'#0f1f35') %>
+              <div class="te4-field"><label>Overlay opacity</label><div class="te4-slider-wrap"><input type="range" class="te4-slider" name="hero_mobile.overlay_opacity" min="0" max="90" step="5" value="<%=hm2.overlay_opacity!==undefined?hm2.overlay_opacity:55%>"><input type="number" class="te4-slider-num" min="0" max="90" step="5" value="<%=hm2.overlay_opacity!==undefined?hm2.overlay_opacity:55%>"><span class="te4-slider-unit">%</span></div></div>
             </div>
 
-            <div class="te4-section-label">Content Box <small style="opacity:.6;font-weight:400">(always full-width on mobile)</small></div>
+            <div class="te4-section-label">Content Box <small style="opacity:.6;font-weight:400">(panel behind text)</small></div>
             <div class="te4-row2">
-              <%- teColor('hero_mobile.content_box_color','Box color',hm2.content_box_color||'#000000') %>
-              <div class="te4-field"><label>Box opacity</label><div class="te4-slider-wrap"><input type="range" class="te4-slider" name="hero_mobile.content_box_opacity" min="0" max="100" step="5" value="<%=hm2.content_box_opacity!==undefined?hm2.content_box_opacity:45%>"><input type="number" class="te4-slider-num" min="0" max="100" step="5" value="<%=hm2.content_box_opacity!==undefined?hm2.content_box_opacity:45%>"><span class="te4-slider-unit">%</span></div></div>
+              <%- teColor('hero_mobile.content_box_color','Box color',hm2.content_box_color||'#0f1f35') %>
+              <div class="te4-field"><label>Box opacity</label><div class="te4-slider-wrap"><input type="range" class="te4-slider" name="hero_mobile.content_box_opacity" min="0" max="100" step="5" value="<%=hm2.content_box_opacity!==undefined?hm2.content_box_opacity:60%>"><input type="number" class="te4-slider-num" min="0" max="100" step="5" value="<%=hm2.content_box_opacity!==undefined?hm2.content_box_opacity:60%>"><span class="te4-slider-unit">%</span></div></div>
             </div>
-
-            <div class="te4-section-label">Text Position &amp; Alignment</div>
             <div class="te4-row2">
               <div class="te4-field compact">
-                <label>Vertical position</label>
-                <select name="hero_mobile.text_position" class="te4-select">
-                  <option value="bottom" <%=(hm2.text_position||'bottom')==='bottom'?'selected':''%>>Bottom (recommended)</option>
-                  <option value="center" <%=hm2.text_position==='center'?'selected':''%>>Center</option>
-                  <option value="top"    <%=hm2.text_position==='top'   ?'selected':''%>>Top</option>
-                </select>
+                <label>Max width <span class="te4-slider-unit">px</span></label>
+                <input type="number" name="hero_mobile.content_max_width" value="<%=hm2.content_max_width!==undefined?hm2.content_max_width:600%>" min="200" max="1200" step="10" placeholder="600">
+                <div class="te4-hint">Controls line length</div>
               </div>
-              <%- teAlignment('hero_mobile.text_align',hm2.text_align||'center') %>
+              <div class="te4-field compact">
+                <label>Padding <span class="te4-slider-unit">px</span></label>
+                <input type="number" name="hero_mobile.content_box_padding" value="<%=hm2.content_box_padding!==undefined?hm2.content_box_padding:28%>" min="0" max="100" step="4" placeholder="28">
+              </div>
+            </div>
+            <div class="te4-row2">
+              <div class="te4-field compact">
+                <label>Corner radius <span class="te4-slider-unit">px</span></label>
+                <input type="number" name="hero_mobile.content_box_radius" value="<%=hm2.content_box_radius!==undefined?hm2.content_box_radius:0%>" min="0" max="60" step="2" placeholder="0">
+              </div>
+              <div class="te4-field compact">
+                <label>Vertical offset <span class="te4-slider-unit">%</span></label>
+                <input type="number" name="hero_mobile.content_v_offset" value="<%=hm2.content_v_offset!==undefined?hm2.content_v_offset:0%>" min="-50" max="50" step="1" placeholder="0">
+                <div class="te4-hint">0 = centered · negative = raise · positive = lower</div>
+              </div>
+            </div>
+            <div class="te4-row2">
+              <div class="te4-field compact">
+                <label>Left position <span class="te4-slider-unit">%</span></label>
+                <input type="number" name="hero_mobile.content_h_offset" value="<%=hm2.content_h_offset!==undefined?hm2.content_h_offset:0%>" min="0" max="60" step="1" placeholder="0">
+                <div class="te4-hint">% from left edge · 0 = flush · 30 = near center</div>
+              </div>
+            </div>
+            <%- teToggle('hero_mobile.text_shadow','Text shadow on headings',hm2.text_shadow!==false) %>
+
+            <div class="te4-section-label">Eyebrow</div>
+            <div class="te4-row2">
+              <%- teField('text','hero_mobile.eyebrow','Eyebrow text (blank = desktop)',hm2.eyebrow||'') %>
+              <%- teTextSize('hero_mobile.eyebrow_size',hm2.eyebrow_size||11,'Size',8,24) %>
             </div>
 
-            <div class="te4-section-label">Text <small style="opacity:.6;font-weight:400">(blank = inherit desktop hero)</small></div>
-            <%- teField('text','hero_mobile.eyebrow','Eyebrow',hm2.eyebrow||'') %>
-            <%- teField('text','hero_mobile.heading_line1','Heading Line 1',hm2.heading_line1||'') %>
-            <%- teField('text','hero_mobile.heading_line2','Heading Line 2',hm2.heading_line2||'') %>
-            <%- teField('textarea','hero_mobile.subtext','Subtext',hm2.subtext||'') %>
-            <%- teField('text','hero_mobile.sub2_text','Brand list line',hm2.sub2_text||'') %>
+            <div class="te4-section-label">Heading Line 1</div>
+            <div class="te4-row2">
+              <%- teHeadingLevel('hero_mobile.heading_level',hm2.heading_level||'h1') %>
+              <%- teTextSize('hero_mobile.heading_size',hm2.heading_size||32,'Size',16,90) %>
+            </div>
+            <%- teField('text','hero_mobile.heading_line1','Text (blank = desktop)',hm2.heading_line1||'') %>
+
+            <div class="te4-section-label">Heading Line 2 <span style="color:var(--color-amber,#B8862A);font-weight:400">(amber accent)</span></div>
+            <%- teTextSize('hero_mobile.h2_size',hm2.h2_size||28,'Size',16,90) %>
+            <%- teField('text','hero_mobile.heading_line2','Text (blank = desktop)',hm2.heading_line2||'') %>
+
+            <div class="te4-section-label">Subtext</div>
+            <%- teTextSize('hero_mobile.subtext_size',hm2.subtext_size||16,'Size',10,32) %>
+            <%- teField('textarea','hero_mobile.subtext','Text (blank = desktop)',hm2.subtext||'') %>
+
+            <div class="te4-section-label">Brand list line</div>
+            <%- teTextSize('hero_mobile.sub2_size',hm2.sub2_size||14,'Size',8,24) %>
+            <%- teField('text','hero_mobile.sub2_text','Text (blank = desktop)',hm2.sub2_text||'') %>
+
+            <div class="te4-section-label">Badge</div>
+            <div class="te4-row2">
+              <%- teField('text','hero_mobile.badge_text','Badge text',hm2.badge_text||'') %>
+              <%- teTextSize('hero_mobile.badge_size',hm2.badge_size||10,'Size',6,18) %>
+            </div>
 
             <div class="te4-section-label">Buttons <small style="opacity:.6;font-weight:400">(blank = inherit desktop hero)</small></div>
-            <div class="te4-row2">
-              <%- teField('text','hero_mobile.cta1_text','Button 1 label',hm2.cta1_text||'',true) %>
-              <%- teField('url','hero_mobile.cta1_url','Button 1 URL',hm2.cta1_url||'',true) %>
-            </div>
-            <div class="te4-row2">
-              <%- teField('text','hero_mobile.cta2_text','Button 2 label',hm2.cta2_text||'',true) %>
-              <%- teField('url','hero_mobile.cta2_url','Button 2 URL',hm2.cta2_url||'',true) %>
-            </div>
+            <div class="te4-row2"><%- teField('text','hero_mobile.cta1_text','Button 1 label',hm2.cta1_text||'') %><%- teField('url','hero_mobile.cta1_url','Button 1 URL',hm2.cta1_url||'') %></div>
+            <div class="te4-row2"><%- teField('text','hero_mobile.cta2_text','Button 2 label',hm2.cta2_text||'') %><%- teField('url','hero_mobile.cta2_url','Button 2 URL',hm2.cta2_url||'') %></div>
 
-            <div class="te4-section-label">Height</div>
-            <div class="te4-field compact">
-              <label>Min height <span class="te4-slider-unit">px</span></label>
-              <input type="number" name="hero_mobile.min_height_px" value="<%=hm2.min_height_px!==undefined?hm2.min_height_px:500%>" min="300" max="900" step="10" placeholder="500">
-              <div class="te4-hint">Recommended 480–600px for phones</div>
+            <div class="te4-section-label" style="margin-top:1.25rem">Text &amp; Colors</div>
+            <p class="te4-hint" style="margin-bottom:8px">Leave blank to use brand defaults. Light text (white/whisper) works best on dark overlay backgrounds.</p>
+            <div class="te4-row2">
+              <%- teColorBrand('hero_mobile.eyebrow_color','Eyebrow',hm2.eyebrow_color||'') %>
+              <%- teColorBrand('hero_mobile.heading_color','Heading (Line 1)',hm2.heading_color||'') %>
+            </div>
+            <div class="te4-row2">
+              <%- teColorBrand('hero_mobile.h2_color','Heading (Line 2)',hm2.h2_color||'') %>
+              <%- teColorBrand('hero_mobile.subtext_color','Subtext',hm2.subtext_color||'') %>
+            </div>
+            <div class="te4-row2">
+              <%- teColorBrand('hero_mobile.sub2_color','Brand list line',hm2.sub2_color||'') %>
             </div>
           </div>
 

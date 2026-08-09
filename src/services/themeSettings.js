@@ -147,26 +147,53 @@ const DEFAULTS = {
     // Background image — blank falls back to desktop hero image
     image_url:           '',
     image_alt:           '',
-    // Overlay
-    overlay_color:       '#000000',
-    overlay_opacity:     40,
-    // Text position: 'top' | 'center' | 'bottom'
-    text_position:       'bottom',
+    // Background video (optional)
+    video_url:           '',
+    // Layout
+    layout:              'bg',
+    text_col_pct:        50,
     text_align:          'center',
-    // Content box (always full-width on mobile)
-    content_box_color:   '#000000',
-    content_box_opacity: 45,
-    // Text — blank = inherit from desktop hero
+    // Height
+    height_vh:           0,
+    min_height_px:       500,
+    max_height_px:       0,
+    // Overlay
+    overlay_color:       '#0f1f35',
+    overlay_opacity:     55,
+    // Content box
+    content_box_color:   '#0f1f35',
+    content_box_opacity: 60,
+    content_box_padding: 28,
+    content_box_radius:  0,
+    content_max_width:   600,
+    content_v_offset:    0,
+    content_h_offset:    0,
+    // Text
+    text_shadow:         true,
     eyebrow:             '',
+    eyebrow_size:        11,
+    heading_level:       'h1',
+    heading_size:        32,
     heading_line1:       '',
     heading_line2:       '',
+    h2_size:             28,
     subtext:             '',
+    subtext_size:        16,
     sub2_text:           '',
+    sub2_size:           14,
+    badge_text:          '',
+    badge_size:          10,
+    // Text colors — blank = brand defaults
+    eyebrow_color:       '',
+    heading_color:       '',
+    h2_color:            '',
+    subtext_color:       '',
+    sub2_color:          '',
     // CTAs — blank = inherit from desktop hero
-    cta1_text: '',  cta1_url: '',
-    cta2_text: '',  cta2_url: '',
-    // Height
-    min_height_px: 500,
+    cta1_text:           '',
+    cta1_url:            '',
+    cta2_text:           '',
+    cta2_url:            '',
   },
   brand_logos: {
     enabled: true,
