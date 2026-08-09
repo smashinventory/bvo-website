@@ -894,8 +894,11 @@
   grid-column: 1;
   position: relative;
   z-index: 2;
-  justify-content: center;
-  padding: 60px 10%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 5%;
+  margin-top: var(--content-v-offset, -5%);
 }
 .hero--bg .hero-image {
   grid-row: 1;
@@ -1383,19 +1386,14 @@
    at a comfortable reading width instead of spanning the full video.
    Vertical position controlled via --content-v-offset (negative = up).
    ──────────────────────────────────────────────────────────────────── */
-.hero--bg .hero-content {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  padding: 0 5%;
-  margin-top: var(--content-v-offset, -5%);
-}
 .hero-content-box {
   /* Applied in all layouts — only visible styling in bg mode (below) */
   max-width: var(--content-max-w, 520px);
   width: 100%;
 }
 .hero--bg .hero-content-box {
+  position: relative;
+  isolation: isolate;
   background: var(--content-box-bg, rgba(15,31,53,0.6));
   border-radius: var(--content-box-radius, 6px);
   padding: var(--content-box-pad, 36px);
