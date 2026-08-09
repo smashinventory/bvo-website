@@ -726,6 +726,36 @@ function teArrayLinks(prefix,listId,tplId,items){
               <div class="te4-field"><label>Overlay opacity</label><div class="te4-slider-wrap"><input type="range" class="te4-slider" name="hero.overlay_opacity" min="0" max="90" step="5" value="<%=h.overlay_opacity!==undefined?h.overlay_opacity:55%>"><input type="number" class="te4-slider-num" min="0" max="90" step="5" value="<%=h.overlay_opacity!==undefined?h.overlay_opacity:55%>"><span class="te4-slider-unit">%</span></div></div>
             </div>
 
+            <div class="te4-section-label">Content Box <small style="opacity:.6;font-weight:400">(background layout — panel behind text)</small></div>
+            <div class="te4-hint" style="margin-bottom:6px">A semi-transparent panel constrains the text to a readable width. Only visible in Background layout mode.</div>
+            <div class="te4-row2">
+              <%- teColor('hero.content_box_color','Box color',h.content_box_color||'#0f1f35') %>
+              <div class="te4-field"><label>Box opacity</label><div class="te4-slider-wrap"><input type="range" class="te4-slider" name="hero.content_box_opacity" min="0" max="100" step="5" value="<%=h.content_box_opacity!==undefined?h.content_box_opacity:60%>"><input type="number" class="te4-slider-num" min="0" max="100" step="5" value="<%=h.content_box_opacity!==undefined?h.content_box_opacity:60%>"><span class="te4-slider-unit">%</span></div></div>
+            </div>
+            <div class="te4-row2">
+              <div class="te4-field compact">
+                <label>Max width <span class="te4-slider-unit">px</span></label>
+                <input type="number" name="hero.content_max_width" value="<%=h.content_max_width!==undefined?h.content_max_width:520%>" min="200" max="1200" step="10" placeholder="520">
+                <div class="te4-hint">Controls line length — text wraps inside the box</div>
+              </div>
+              <div class="te4-field compact">
+                <label>Padding <span class="te4-slider-unit">px</span></label>
+                <input type="number" name="hero.content_box_padding" value="<%=h.content_box_padding!==undefined?h.content_box_padding:36%>" min="0" max="100" step="4" placeholder="36">
+              </div>
+            </div>
+            <div class="te4-row2">
+              <div class="te4-field compact">
+                <label>Corner radius <span class="te4-slider-unit">px</span></label>
+                <input type="number" name="hero.content_box_radius" value="<%=h.content_box_radius!==undefined?h.content_box_radius:6%>" min="0" max="60" step="2" placeholder="6">
+              </div>
+              <div class="te4-field compact">
+                <label>Vertical offset <span class="te4-slider-unit">%</span></label>
+                <input type="number" name="hero.content_v_offset" value="<%=h.content_v_offset!==undefined?h.content_v_offset:-5%>" min="-30" max="30" step="1" placeholder="-5">
+                <div class="te4-hint">Negative = raise above center</div>
+              </div>
+            </div>
+            <%- teToggle('hero.text_shadow','Text shadow on headings',h.text_shadow!==false) %>
+
             <div class="te4-section-label">Eyebrow</div>
             <div class="te4-row2">
               <%- teField('text','hero.eyebrow','Eyebrow text',h.eyebrow) %>

@@ -131,21 +131,32 @@ _DEFAULT_ORDER.forEach(function(k) {
   if (hero.h2_color)         _heroStyle += '--hero-h2:'+hero.h2_color+';';
   if (hero.subtext_color)    _heroStyle += '--hero-sub:'+hero.subtext_color+';';
   if (hero.text_align_mobile && hero.text_align_mobile !== 'center') _heroStyle += '--hero-mobile-align:'+hero.text_align_mobile+';';
+  /* Content box CSS vars (bg-video layout) */
+  var _boxColor = hero.content_box_color || '#0f1f35';
+  var _boxOp    = hero.content_box_opacity !== undefined ? hero.content_box_opacity : 60;
+  var _boxHex   = _boxColor.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i);
+  if (_boxHex) _heroStyle += '--content-box-bg:rgba('+parseInt(_boxHex[1],16)+','+parseInt(_boxHex[2],16)+','+parseInt(_boxHex[3],16)+','+(_boxOp/100).toFixed(2)+');';
+  if (+hero.content_box_padding > 0)  _heroStyle += '--content-box-pad:'+hero.content_box_padding+'px;';
+  if (+hero.content_box_radius  >= 0) _heroStyle += '--content-box-radius:'+hero.content_box_radius+'px;';
+  if (+hero.content_max_width   > 0)  _heroStyle += '--content-max-w:'+hero.content_max_width+'px;';
+  if (hero.content_v_offset !== undefined && hero.content_v_offset !== '') _heroStyle += '--content-v-offset:'+hero.content_v_offset+'%;';
   var _ctaAlign = _heroAlign==='center'?'justify-content:center':_heroAlign==='right'?'justify-content:flex-end':'';
 %>
-<section class="hero hero--<%= _heroLayout %><%= hero.video_on_mobile === false ? ' hero--no-mobile-video' : '' %><%= hero.mobile_image_url ? ' hero--has-mobile-img' : '' %>" data-section="hero" data-section-label="Hero Banner" aria-label="Hero" style="<%= _heroStyle %>">
+<section class="hero hero--<%= _heroLayout %><%= hero.video_on_mobile === false ? ' hero--no-mobile-video' : '' %><%= hero.mobile_image_url ? ' hero--has-mobile-img' : '' %><%= hero.text_shadow !== false ? ' hero--text-shadow' : '' %>" data-section="hero" data-section-label="Hero Banner" aria-label="Hero" style="<%= _heroStyle %>">
   <div class="hero-content" style="text-align:<%= _heroAlign %>">
-    <p class="hero-eyebrow" style="<%= _heroESize %>"><%= hero.eyebrow || 'Curated for Your Bathroom Renovation' %></p>
-    <<%- _heroTag %> class="hero-h1" style="<%= _heroHSize %>"><%= hero.heading_line1 || 'Premium Vanities.' %></<%- _heroTag %>>
-    <p class="hero-h2" style="<%= _heroH2Size %>"><%= hero.heading_line2 || 'Outlet Prices.' %></p>
-    <div class="hero-rule" aria-hidden="true"></div>
-    <p class="hero-sub" style="<%= _heroSSize %>"><%= hero.subtext || 'Top brands, delivered free to your door.' %></p>
-    <p class="hero-sub2" style="<%= _heroS2Size %>"><%= hero.sub2_text || 'James Martin · Kohler · Moen · Delta and more' %></p>
-    <div class="hero-ctas" style="<%= _ctaAlign %>">
-      <a href="<%= hero.cta1_url || '/collections/bathroom-vanities' %>" class="btn btn-navy"><%= hero.cta1_text || 'Shop Vanities' %></a>
-      <% if (hero.cta2_text || hero.cta2_url) { %>
-      <a href="<%= hero.cta2_url || '/collections/sale' %>" class="btn btn-sage"><%= hero.cta2_text || 'View Sale' %></a>
-      <% } %>
+    <div class="hero-content-box">
+      <p class="hero-eyebrow" style="<%= _heroESize %>"><%= hero.eyebrow || 'Curated for Your Bathroom Renovation' %></p>
+      <<%- _heroTag %> class="hero-h1" style="<%= _heroHSize %>"><%= hero.heading_line1 || 'Premium Vanities.' %></<%- _heroTag %>>
+      <p class="hero-h2" style="<%= _heroH2Size %>"><%= hero.heading_line2 || 'Outlet Prices.' %></p>
+      <div class="hero-rule" aria-hidden="true"></div>
+      <p class="hero-sub" style="<%= _heroSSize %>"><%= hero.subtext || 'Top brands, delivered free to your door.' %></p>
+      <p class="hero-sub2" style="<%= _heroS2Size %>"><%= hero.sub2_text || 'James Martin · Kohler · Moen · Delta and more' %></p>
+      <div class="hero-ctas" style="<%= _ctaAlign %>">
+        <a href="<%= hero.cta1_url || '/collections/bathroom-vanities' %>" class="btn btn-navy"><%= hero.cta1_text || 'Shop Vanities' %></a>
+        <% if (hero.cta2_text || hero.cta2_url) { %>
+        <a href="<%= hero.cta2_url || '/collections/sale' %>" class="btn btn-sage"><%= hero.cta2_text || 'View Sale' %></a>
+        <% } %>
+      </div>
     </div>
   </div>
   <div class="hero-image">

@@ -132,6 +132,14 @@ const DEFAULTS = {
     h2_size: 0,
     sub2_size: 14,
     badge_size: 10,
+    // Content box (bg-video layout) — semi-transparent panel behind text
+    content_box_color:   '#0f1f35', // box background color (hex)
+    content_box_opacity: 60,         // box opacity 0–100%
+    content_box_padding: 36,         // px padding inside box
+    content_box_radius:  6,          // px border radius
+    content_max_width:   520,        // px max-width of text box
+    content_v_offset:    -5,         // % vertical offset from center (negative = up)
+    text_shadow:         true,       // drop shadow behind heading text
   },
   brand_logos: {
     enabled: true,

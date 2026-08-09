@@ -1378,6 +1378,40 @@
 
 /* Overlay: uses CSS vars set by theme editor (--ov-clr, --ov-op) — do not override here */
 
+/* ── Hero content box (bg layout) ───────────────────────────────────
+   Semi-transparent panel behind text. Width-constrained so text wraps
+   at a comfortable reading width instead of spanning the full video.
+   Vertical position controlled via --content-v-offset (negative = up).
+   ──────────────────────────────────────────────────────────────────── */
+.hero--bg .hero-content {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 5%;
+  margin-top: var(--content-v-offset, -5%);
+}
+.hero-content-box {
+  /* Applied in all layouts — only visible styling in bg mode (below) */
+  max-width: var(--content-max-w, 520px);
+  width: 100%;
+}
+.hero--bg .hero-content-box {
+  background: var(--content-box-bg, rgba(15,31,53,0.6));
+  border-radius: var(--content-box-radius, 6px);
+  padding: var(--content-box-pad, 36px);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+/* ── Text shadow (when hero--text-shadow class present) ─────────── */
+.hero--text-shadow .hero-eyebrow,
+.hero--text-shadow .hero-h1,
+.hero--text-shadow .hero-h2,
+.hero--text-shadow .hero-sub,
+.hero--text-shadow .hero-sub2 {
+  text-shadow: 0 2px 10px rgba(0,0,0,0.55);
+}
+
 /* Video covers the full hero area cleanly — no bars, no cropping artifacts */
 .hero--bg .hero-video-player {
   object-fit: cover;
