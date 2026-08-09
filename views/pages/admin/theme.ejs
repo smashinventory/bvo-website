@@ -26,7 +26,7 @@ const THEME_SECS = [
   { key:'global',  label:'Global Settings' },
 ];
 // Static (non-duplicatable) section keys — order matters for the default layout
-const _STATIC_KEYS = ['scrolling_ticker','hero','brand_logos','categories_section','bundle_teaser','featured_section','featured_models','image_with_text','video_text','before_after','trust_band','parallax','testimonials','newsletter'];
+const _STATIC_KEYS = ['scrolling_ticker','hero','hero_mobile','brand_logos','categories_section','bundle_teaser','featured_section','featured_models','image_with_text','video_text','before_after','trust_band','parallax','testimonials','newsletter'];
 const _DUPL_BASES  = new Set(['image_with_text','before_after','video_text','trust_band','parallax','testimonials']);
 
 // Build ALL_TEMPLATE_KEYS: static keys + any _N copies present in the saved order
@@ -45,6 +45,7 @@ savedOrder.forEach(function(k) {
 const TEMPLATE_META = {
   scrolling_ticker:   { label:'Announcement Bar',     desc:'Scrolling promo ticker at page top' },
   hero:               { label:'Hero Banner',           desc:'Full-width hero with CTAs' },
+  hero_mobile:        { label:'Hero (Mobile)',          desc:'Phone-only hero — shown on screens ≤480px' },
   brand_logos:        { label:'Brand Logos',           desc:'Scrolling brand marquee' },
   categories_section: { label:'Category Grid',         desc:'Shop-by-category cards' },
   bundle_teaser:      { label:'Bundle Builder Teaser', desc:'James Martin bundle promo — links to /bundle-builder' },
@@ -827,6 +828,68 @@ function teArrayLinks(prefix,listId,tplId,items){
                 <option value="desktop" <%=h.show_on==='desktop'         ?'selected':''%>>Desktop only</option>
                 <option value="mobile"  <%=h.show_on==='mobile'          ?'selected':''%>>Mobile only</option>
               </select>
+            </div>
+          </div>
+
+          <!-- ── HERO (MOBILE) ──────────────────────────────── -->
+          <div class="te4-panel" id="panel-hero_mobile">
+            <% const hm2=t.hero_mobile||{}; %>
+            <div class="te4-hint" style="margin-bottom:.75rem;padding:.6rem .75rem;background:rgba(99,102,241,.08);border-radius:4px;border-left:3px solid #6366f1">
+              <strong>Phone-only hero</strong> — shown on screens ≤480px. The desktop Hero Banner above is hidden on phones. Leave text fields blank to inherit from the desktop hero automatically.
+            </div>
+            <%- teToggle('hero_mobile.enabled','Show mobile hero section',hm2.enabled!==false) %>
+
+            <div class="te4-section-label">Background Image</div>
+            <%- teImage('hero_mobile.image_url','hero_mobile.image_alt',hm2.image_url,hm2.image_alt,'Mobile Hero Image') %>
+            <div class="te4-hint" style="margin-bottom:.75rem">Portrait-oriented photo recommended (taller than wide). Leave blank to use the desktop hero image.</div>
+
+            <div class="te4-section-label">Overlay</div>
+            <div class="te4-row2">
+              <%- teColor('hero_mobile.overlay_color','Overlay color',hm2.overlay_color||'#000000') %>
+              <div class="te4-field"><label>Overlay opacity</label><div class="te4-slider-wrap"><input type="range" class="te4-slider" name="hero_mobile.overlay_opacity" min="0" max="85" step="5" value="<%=hm2.overlay_opacity!==undefined?hm2.overlay_opacity:40%>"><input type="number" class="te4-slider-num" min="0" max="85" step="5" value="<%=hm2.overlay_opacity!==undefined?hm2.overlay_opacity:40%>"><span class="te4-slider-unit">%</span></div></div>
+            </div>
+
+            <div class="te4-section-label">Content Box <small style="opacity:.6;font-weight:400">(always full-width on mobile)</small></div>
+            <div class="te4-row2">
+              <%- teColor('hero_mobile.content_box_color','Box color',hm2.content_box_color||'#000000') %>
+              <div class="te4-field"><label>Box opacity</label><div class="te4-slider-wrap"><input type="range" class="te4-slider" name="hero_mobile.content_box_opacity" min="0" max="100" step="5" value="<%=hm2.content_box_opacity!==undefined?hm2.content_box_opacity:45%>"><input type="number" class="te4-slider-num" min="0" max="100" step="5" value="<%=hm2.content_box_opacity!==undefined?hm2.content_box_opacity:45%>"><span class="te4-slider-unit">%</span></div></div>
+            </div>
+
+            <div class="te4-section-label">Text Position &amp; Alignment</div>
+            <div class="te4-row2">
+              <div class="te4-field compact">
+                <label>Vertical position</label>
+                <select name="hero_mobile.text_position" class="te4-select">
+                  <option value="bottom" <%=(hm2.text_position||'bottom')==='bottom'?'selected':''%>>Bottom (recommended)</option>
+                  <option value="center" <%=hm2.text_position==='center'?'selected':''%>>Center</option>
+                  <option value="top"    <%=hm2.text_position==='top'   ?'selected':''%>>Top</option>
+                </select>
+              </div>
+              <%- teAlignment('hero_mobile.text_align',hm2.text_align||'center') %>
+            </div>
+
+            <div class="te4-section-label">Text <small style="opacity:.6;font-weight:400">(blank = inherit desktop hero)</small></div>
+            <%- teField('text','hero_mobile.eyebrow','Eyebrow',hm2.eyebrow||'') %>
+            <%- teField('text','hero_mobile.heading_line1','Heading Line 1',hm2.heading_line1||'') %>
+            <%- teField('text','hero_mobile.heading_line2','Heading Line 2',hm2.heading_line2||'') %>
+            <%- teField('textarea','hero_mobile.subtext','Subtext',hm2.subtext||'') %>
+            <%- teField('text','hero_mobile.sub2_text','Brand list line',hm2.sub2_text||'') %>
+
+            <div class="te4-section-label">Buttons <small style="opacity:.6;font-weight:400">(blank = inherit desktop hero)</small></div>
+            <div class="te4-row2">
+              <%- teField('text','hero_mobile.cta1_text','Button 1 label',hm2.cta1_text||'',true) %>
+              <%- teField('url','hero_mobile.cta1_url','Button 1 URL',hm2.cta1_url||'',true) %>
+            </div>
+            <div class="te4-row2">
+              <%- teField('text','hero_mobile.cta2_text','Button 2 label',hm2.cta2_text||'',true) %>
+              <%- teField('url','hero_mobile.cta2_url','Button 2 URL',hm2.cta2_url||'',true) %>
+            </div>
+
+            <div class="te4-section-label">Height</div>
+            <div class="te4-field compact">
+              <label>Min height <span class="te4-slider-unit">px</span></label>
+              <input type="number" name="hero_mobile.min_height_px" value="<%=hm2.min_height_px!==undefined?hm2.min_height_px:500%>" min="300" max="900" step="10" placeholder="500">
+              <div class="te4-hint">Recommended 480–600px for phones</div>
             </div>
           </div>
 

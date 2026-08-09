@@ -142,6 +142,32 @@ const DEFAULTS = {
     content_h_offset:    5,          // % left padding / horizontal position of text box
     text_shadow:         true,       // drop shadow behind heading text
   },
+  hero_mobile: {
+    enabled:             true,
+    // Background image — blank falls back to desktop hero image
+    image_url:           '',
+    image_alt:           '',
+    // Overlay
+    overlay_color:       '#000000',
+    overlay_opacity:     40,
+    // Text position: 'top' | 'center' | 'bottom'
+    text_position:       'bottom',
+    text_align:          'center',
+    // Content box (always full-width on mobile)
+    content_box_color:   '#000000',
+    content_box_opacity: 45,
+    // Text — blank = inherit from desktop hero
+    eyebrow:             '',
+    heading_line1:       '',
+    heading_line2:       '',
+    subtext:             '',
+    sub2_text:           '',
+    // CTAs — blank = inherit from desktop hero
+    cta1_text: '',  cta1_url: '',
+    cta2_text: '',  cta2_url: '',
+    // Height
+    min_height_px: 500,
+  },
   brand_logos: {
     enabled: true,
     show_on: 'all',
@@ -347,7 +373,7 @@ const DEFAULTS = {
     items: [],
   },
   homepage_section_order: [
-    'scrolling_ticker','hero','brand_logos','categories_section','bundle_teaser',
+    'scrolling_ticker','hero','hero_mobile','brand_logos','categories_section','bundle_teaser',
     'featured_section','image_with_text','video_text','before_after',
     'trust_band','parallax','testimonials','newsletter',
   ],

@@ -1412,6 +1412,41 @@
   text-shadow: 0 2px 10px rgba(0,0,0,0.55);
 }
 
+/* ── Hero: Desktop vs Phone visibility (480px breakpoint) ───────────
+   hero--desktop-version → hidden on phones (≤480px)
+   hero--mobile-version  → hidden on tablets & desktop (≥481px)
+   Best-practice phone breakpoint: 480px covers all modern smartphones
+   in portrait (iPhone up to 430px, Android up to ~480px).
+   ──────────────────────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .hero--desktop-version { display: none !important; }
+}
+@media (min-width: 481px) {
+  .hero--mobile-version  { display: none !important; }
+}
+
+/* ── Mobile hero layout ──────────────────────────────────────────────
+   Full-bleed image with text anchored to top/center/bottom.
+   Content box is always full-width on mobile (no side gaps).
+   ──────────────────────────────────────────────────────────────────── */
+.hero--mobile-version.hero--bg .hero-content {
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: var(--hm-vpos, flex-end) !important;
+  padding: 0 !important;
+}
+.hero--mobile-version.hero--bg .hero-content-box {
+  width: 100% !important;
+  max-width: 100% !important;
+  border-radius: 0 !important;
+  /* No translateY offset — text position controlled by flexbox justify-content */
+  transform: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  padding: 24px 20px 40px !important;
+  background: var(--content-box-bg, rgba(0,0,0,0.45)) !important;
+}
+
 /* Video covers the full hero area cleanly — no bars, no cropping artifacts */
 .hero--bg .hero-video-player {
   object-fit: cover;
