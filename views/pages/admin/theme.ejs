@@ -750,8 +750,8 @@ function teArrayLinks(prefix,listId,tplId,items){
               </div>
               <div class="te4-field compact">
                 <label>Vertical offset <span class="te4-slider-unit">%</span></label>
-                <input type="number" name="hero.content_v_offset" value="<%=h.content_v_offset!==undefined?h.content_v_offset:-5%>" min="-30" max="30" step="1" placeholder="-5">
-                <div class="te4-hint">Negative = raise above center</div>
+                <input type="number" name="hero.content_v_offset" value="<%=h.content_v_offset!==undefined?h.content_v_offset:0%>" min="-50" max="50" step="1" placeholder="0">
+                <div class="te4-hint">0 = centered · negative = raise · positive = lower</div>
               </div>
             </div>
             <%- teToggle('hero.text_shadow','Text shadow on headings',h.text_shadow!==false) %>
@@ -800,6 +800,9 @@ function teArrayLinks(prefix,listId,tplId,items){
             <div class="te4-row2">
               <%- teColorBrand('hero.h2_color','Heading (Line 2)',h.h2_color||'') %>
               <%- teColorBrand('hero.subtext_color','Subtext',h.subtext_color||'') %>
+            </div>
+            <div class="te4-row2">
+              <%- teColorBrand('hero.sub2_color','Brand list line',h.sub2_color||'') %>
             </div>
             <div class="te4-field">
               <label>Mobile text alignment</label>

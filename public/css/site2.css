@@ -898,7 +898,6 @@
   align-items: center;
   justify-content: flex-start;
   padding: 0 5%;
-  margin-top: var(--content-v-offset, -5%);
 }
 .hero--bg .hero-image {
   grid-row: 1;
@@ -1399,6 +1398,8 @@
   padding: var(--content-box-pad, 36px);
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
+  /* Vertical offset: % is relative to the box's own height. 0=center, negative=raise */
+  transform: translateY(var(--content-v-offset, 0%));
 }
 
 /* ── Text shadow (when hero--text-shadow class present) ─────────── */

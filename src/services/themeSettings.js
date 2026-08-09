@@ -138,7 +138,7 @@ const DEFAULTS = {
     content_box_padding: 36,         // px padding inside box
     content_box_radius:  6,          // px border radius
     content_max_width:   520,        // px max-width of text box
-    content_v_offset:    -5,         // % vertical offset from center (negative = up)
+    content_v_offset:    0,          // % vertical offset from center (negative = raise, positive = lower)
     text_shadow:         true,       // drop shadow behind heading text
   },
   brand_logos: {
