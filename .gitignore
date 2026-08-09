@@ -10,3 +10,7 @@ dist/
 
 # Runtime-editable settings — saved by the admin UI; must NOT be overwritten by git pull
 data/theme_settings.json
+
+# Operational scratchpad — rollback docs and one-off push scripts
+ROLLBACK_*.md
+git_push_*.sh
