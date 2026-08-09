@@ -927,13 +927,14 @@
   left: 1.75rem;
   z-index: 3;
 }
-/* Text colours for bg layout (image behind → need contrast) */
-.hero--bg .hero-eyebrow { color: rgba(255,255,255,.8); }
-.hero--bg .hero-h1      { color: #fff; }
-.hero--bg .hero-h2      { color: var(--amber, #B8862A); }
+/* Text colours for bg layout — respect theme editor CSS vars when set,
+   fall back to legible-on-dark defaults only when the var is not defined */
+.hero--bg .hero-eyebrow { color: var(--hero-eyebrow, rgba(255,255,255,.8)); }
+.hero--bg .hero-h1      { color: var(--hero-h1, #fff); }
+.hero--bg .hero-h2      { color: var(--hero-h2, var(--amber, #B8862A)); }
 .hero--bg .hero-rule    { background: var(--sage, #5A7A5A); }
-.hero--bg .hero-sub     { color: rgba(255,255,255,.85); }
-.hero--bg .hero-sub2    { color: rgba(255,255,255,.65); }
+.hero--bg .hero-sub     { color: var(--hero-sub, rgba(255,255,255,.85)); }
+.hero--bg .hero-sub2    { color: var(--hero-sub2, rgba(255,255,255,.65)); }
 
 /* Category grid column counts */
 .category-grid-cols-2 { grid-template-columns: repeat(2, 1fr) !important; }
@@ -1375,20 +1376,7 @@
   min-height: 70vh;
 }
 
-/* Left-anchored gradient overlay — darkest where text sits (left/center),
-   fades to semi-transparent on the right so video detail shows through.
-   Applied on top of the flat color overlay already in hero--bg.          */
-.hero--bg .hero-overlay {
-  background: linear-gradient(
-    105deg,
-    rgba(0,0,0,0.55) 0%,
-    rgba(0,0,0,0.40) 45%,
-    rgba(0,0,0,0.15) 100%
-  );
-  /* Override the flat color approach — gradient gives more depth */
-  background-color: transparent !important;
-  opacity: 1 !important;
-}
+/* Overlay: uses CSS vars set by theme editor (--ov-clr, --ov-op) — do not override here */
 
 /* Video covers the full hero area cleanly — no bars, no cropping artifacts */
 .hero--bg .hero-video-player {
