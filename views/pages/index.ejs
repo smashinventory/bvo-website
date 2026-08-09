@@ -42,7 +42,7 @@ function _salsifyImg(url, w, h) {
   return url.replace('/image/upload/', '/image/upload/w_' + w + ',h_' + h + ',c_fill,f_auto,q_auto/');
 }
 
-const _DEFAULT_ORDER = ['scrolling_ticker','hero','brand_logos','categories_section','bundle_teaser',
+const _DEFAULT_ORDER = ['scrolling_ticker','hero','hero_mobile','brand_logos','categories_section','bundle_teaser',
   'featured_section','featured_models','inspiration','image_with_text','video_text','before_after','trust_band','parallax','testimonials','newsletter'];
 const _STATIC_SET  = new Set(_DEFAULT_ORDER);
 const _DUPL_BASES  = new Set(['image_with_text','before_after','video_text','trust_band','parallax','testimonials']);
@@ -207,7 +207,7 @@ _DEFAULT_ORDER.forEach(function(k) {
 
 <!-- ── MOBILE HERO (phone-only ≤480px) ──────────────────────────── -->
 <%
-  var _hm        = t.hero_mobile || {};
+  var _hm        = S.hero_mobile || {};
   var _hmEnabled = (_hm.enabled !== false);
   var _hmStyle   = '';
   var _hmCtaAl   = '';
