@@ -11,11 +11,11 @@ const VANITY_CAT_ID  = 1;
 const CABINET_TYPES  = ['Single Sink Cabinet Only', 'Double Sink Cabinet Only'];
 const WITH_TOP_TYPES = ['Single Sink Vanity With Top', 'Double Sink Vanity With Top'];
 
-/* ── Stone material extractor (mirrors bundleController) ────────── */
-function _extractTopMaterial(name) {
-  const m = (name || '').match(/,\s*\d+(?:\.\d+)?\s*CM\s+(.+?)\s+w\//i);
-  return m ? m[1].trim() : '';
-}
+/* ── Round width to nearest inch for bucketing ───────────────────
+   Cabinet Only and With Top variants for the same nominal size can
+   have slightly different width_in values (e.g. 47.9 vs 48.0).
+   Rounding prevents duplicate size chips.                          */
+const _rw = v => Math.round(parseFloat(v.width_in || 0));
 
 /* ── Color family lookup map (built once at module load) ────────── */
 const COLOR_FAMILY_MAP = {};
@@ -42,12 +42,10 @@ exports.show = async (req, res, next) => {
     }
 
     // Determine which parallel queries to run
-    const isSuggestMirrors = !!(product.model && product.category_id === VANITY_CAT_ID);
-
-    // Variant selector is available for vanity products that have width + color data
+    const isSuggestMirrors    = !!(product.model && product.category_id === VANITY_CAT_ID);
     const isVanityWithVariants = isSuggestMirrors && !!product.width_in && !!product.color_family;
 
-    // Related products + documents + videos + suggested mirrors + all model variants (parallel)
+    // All queries run in parallel
     const [related, docRows, videoRows, suggestedMirrors, allVariants] = await Promise.all([
       product.category_id
         ? Product.findRelated(product.category_id, product.id, 4)
@@ -60,6 +58,7 @@ exports.show = async (req, res, next) => {
         'SELECT url, title FROM product_videos WHERE product_id = ? ORDER BY sort_order ASC, id ASC',
         [product.id]
       ).then(([rows]) => rows).catch(() => []),
+      // Same-model mirrors for the "Complete the Look" strip
       isSuggestMirrors
         ? bvoPool.query(`
             SELECT p.id, p.slug, p.name, p.price, p.compare_price,
@@ -93,59 +92,52 @@ exports.show = async (req, res, next) => {
     // ── Build variant selector config ──────────────────────────────
     let variantConfig = null;
     if (isVanityWithVariants && allVariants.length > 0) {
-      const { width_in: w, color_family: cf, product_type: pt, slug: currentSlug } = product;
-      const isCabinetOnly    = CABINET_TYPES.includes(pt);
-      const currentMaterial  = isCabinetOnly ? null : _extractTopMaterial(product.name);
+      const { color_family: cf, product_type: pt, slug: currentSlug } = product;
+      const isCabinetOnly = CABINET_TYPES.includes(pt);
+      const productRW     = _rw(product);
 
-      // Enrich With Top variants with stone_material
-      const enriched = allVariants.map(v => ({
-        ...v,
-        stone_material: WITH_TOP_TYPES.includes(v.product_type) ? _extractTopMaterial(v.name) : null,
-      }));
+      // Pre-compute rounded width on every variant (avoids re-parsing repeatedly)
+      const enriched = allVariants.map(v => ({ ...v, _rw: _rw(v) }));
 
-      // ── Size chips: unique widths for same model + same color ──
-      const sameColor  = enriched.filter(v => v.color_family === cf);
-      const uniqueWidths = [...new Set(sameColor.map(v => v.width_in))].sort((a, b) => a - b);
+      // ── Size chips: unique rounded widths at same color ──────────
+      const sameColor    = enriched.filter(v => v.color_family === cf);
+      const uniqueWidths = [...new Set(sameColor.map(v => v._rw))].sort((a, b) => a - b);
 
       const sizeChips = uniqueWidths.map(ww => {
-        const at = sameColor.filter(v => Math.abs(v.width_in - ww) < 0.1);
-        // Prefer: same stone material (With Top), then Cabinet Only, then any
-        let best = null;
-        if (!isCabinetOnly && currentMaterial) {
-          best = at.find(v => WITH_TOP_TYPES.includes(v.product_type) && v.stone_material === currentMaterial);
-        }
-        if (!best) best = at.find(v => CABINET_TYPES.includes(v.product_type));
+        const at = sameColor.filter(v => v._rw === ww);
+        // Prefer Cabinet Only at each size so the chip lands on the base product
+        let best = at.find(v => CABINET_TYPES.includes(v.product_type));
         if (!best) best = at[0];
-        return best ? { width_in: ww, slug: best.slug, isSelected: Math.abs(ww - w) < 0.1 } : null;
+        return best ? { width_in: ww, slug: best.slug, isSelected: ww === productRW } : null;
       }).filter(Boolean);
 
-      // ── Color swatches: unique colors for same model + same width ──
-      const sameWidth = enriched.filter(v => Math.abs(v.width_in - w) < 0.1 && v.color_family);
+      // ── Color swatches: unique colors at same rounded width ──────
+      const sameWidth    = enriched.filter(v => v._rw === productRW && v.color_family);
       const uniqueColors = [...new Set(sameWidth.map(v => v.color_family))].sort();
 
       const colorSwatches = uniqueColors.map(c => {
         const at = sameWidth.filter(v => v.color_family === c);
-        let best = null;
-        if (!isCabinetOnly && currentMaterial) {
-          best = at.find(v => WITH_TOP_TYPES.includes(v.product_type) && v.stone_material === currentMaterial);
-        }
-        if (!best) best = at.find(v => CABINET_TYPES.includes(v.product_type));
+        // Prefer Cabinet Only so the swatch lands on the base product
+        let best = at.find(v => CABINET_TYPES.includes(v.product_type));
         if (!best) best = at[0];
         return best ? { color_family: c, slug: best.slug, isSelected: c === cf } : null;
       }).filter(Boolean);
 
-      // ── Stone top tiles: With Top variants at current size + color ──
+      // ── Stone top tiles: all With Top variants at current size+color
+      //   Each tile shows the full product name so shoppers can
+      //   distinguish combos that share the same stone material
+      //   (e.g. "w/ charging station" vs without).
       const stoneTops = enriched
         .filter(v =>
-          Math.abs(v.width_in - w) < 0.1 &&
+          v._rw === productRW &&
           v.color_family === cf &&
           WITH_TOP_TYPES.includes(v.product_type)
         )
         .map(v => ({ ...v, isSelected: v.slug === currentSlug }));
 
-      // ── Cabinet Only for "No Top" tile ──
+      // ── Cabinet Only for "No Top" tile ───────────────────────────
       const cabinetOnly = enriched.find(v =>
-        Math.abs(v.width_in - w) < 0.1 &&
+        v._rw === productRW &&
         v.color_family === cf &&
         CABINET_TYPES.includes(v.product_type)
       );
@@ -154,11 +146,10 @@ exports.show = async (req, res, next) => {
         sizeChips,
         colorSwatches,
         stoneTops,
-        cabinetOnlySlug:    cabinetOnly ? cabinetOnly.slug : null,
+        cabinetOnlySlug: cabinetOnly ? cabinetOnly.slug : null,
         isCabinetOnly,
-        currentStoneMaterial: currentMaterial || null,
-        hasStoneOptions:    stoneTops.length > 0,
-        colorFamilyMap:     COLOR_FAMILY_MAP,
+        hasStoneOptions: stoneTops.length > 0,
+        colorFamilyMap:  COLOR_FAMILY_MAP,
       };
     }
 
@@ -171,7 +162,6 @@ exports.show = async (req, res, next) => {
     const siteUrl     = process.env.SITE_URL || 'https://bathroomvanitiesoutlet.com';
     const canonicalUrl = `${siteUrl}/products/${product.slug}`;
 
-    // Check if logged-in customer has this product saved
     const isFavorited = req.session.customerId
       ? (await Customer.getFavoriteIds(req.session.customerId)).has(product.id)
       : false;

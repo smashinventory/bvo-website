@@ -319,7 +319,9 @@
     </div>
     <% } %>
 
-    <%/* Card 2 — Stone Top Option */%>
+    <%/* Card 2 — Stone Top Option (text tiles — full product name shown
+         so shoppers can distinguish combos sharing the same stone,
+         e.g. "w/ charging station" vs without)                     */%>
     <% if (_vc.hasStoneOptions) { %>
     <div class="pdp-vc-card">
       <h4 class="pdp-vc-heading">Stone Top Option</h4>
@@ -335,12 +337,12 @@
         </a>
         <% } %>
 
-        <%/* One tile per stone material */%>
+        <%/* One tile per With Top combo — full name displayed */%>
         <% _vc.stoneTops.forEach(function(top) { %>
         <a href="/products/<%= top.slug %>"
            class="pdp-stone-tile<%= top.isSelected ? ' is-selected' : '' %>"
            aria-current="<%= top.isSelected ? 'page' : 'false' %>">
-          <span class="pdst-name"><%= top.stone_material || top.name %></span>
+          <span class="pdst-name"><%= top.name %></span>
         </a>
         <% }); %>
 
