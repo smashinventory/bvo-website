@@ -54,7 +54,11 @@ function applyProductSeoDefaults(d) {
 
 /** product_type → GMC taxonomy path (approved mapping, July 2026) */
 const GMC_CATEGORY_MAP = {
-  'vanity cabinet':   'Home & Garden > Bathroom > Bathroom Fixtures > Bathroom Vanities',
+  'vanity cabinet':                'Home & Garden > Bathroom > Bathroom Fixtures > Bathroom Vanities',
+  'single sink vanity with top':   'Home & Garden > Bathroom > Bathroom Fixtures > Bathroom Vanities',
+  'double sink vanity with top':   'Home & Garden > Bathroom > Bathroom Fixtures > Bathroom Vanities',
+  'single sink cabinet only':      'Home & Garden > Bathroom > Bathroom Fixtures > Bathroom Vanities',
+  'double sink cabinet only':      'Home & Garden > Bathroom > Bathroom Fixtures > Bathroom Vanities',
   'linen cabinet':    'Home & Garden > Furniture > Cabinets & Storage',
   'medicine cabinet': 'Home & Garden > Bathroom > Bathroom Fixtures > Bathroom Mirrors',
   'mirror':           'Home & Garden > Bathroom > Bathroom Fixtures > Bathroom Mirrors',
