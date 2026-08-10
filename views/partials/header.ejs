@@ -30,6 +30,25 @@
       var _logoAlt  = _navCfg.logo_alt    || ((S.global || {}).site_name || 'BathroomVanitiesOutlet.com') + ' logo';
     %>
     <a href="/" class="nav-logo-link" aria-label="<%= (S.global || {}).site_name || 'BathroomVanitiesOutlet.com' %> — Home">
+      <%
+        /* Use WebP if the logo is the default square PNG — fall back to original for custom logos */
+        var _logoWebp = (_logoSrc === '/images/logos/BVOLOGOSQ_512.png')
+          ? '/images/logos/BVOLOGOSQ_512.webp'
+          : null;
+      %>
+      <% if (_logoWebp) { %>
+      <picture>
+        <source srcset="<%= _logoWebp %>" type="image/webp">
+        <img
+          class="nav-logo"
+          src="<%= _logoSrc %>"
+          alt="<%= _logoAlt %>"
+          width="<%= _logoW %>"
+          height="<%= _logoH %>"
+          loading="eager"
+        >
+      </picture>
+      <% } else { %>
       <img
         class="nav-logo"
         src="<%= _logoSrc %>"
@@ -38,6 +57,7 @@
         height="<%= _logoH %>"
         loading="eager"
       >
+      <% } %>
     </a>
 
     <!-- Brand name -->
