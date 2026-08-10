@@ -126,12 +126,19 @@ exports.add = async (req, res) => {
   recalc(cart);
   req.session.cart = cart;
 
-  // AJAX check — if fetch/XHR, return JSON; otherwise redirect
-  if (req.headers['x-requested-with'] === 'XMLHttpRequest' ||
-      req.headers.accept?.includes('application/json')) {
-    return res.json({ ok: true, count: cart.count, subtotal: cart.subtotal });
-  }
-  res.redirect('/cart');
+  // Explicitly save session before responding. express-session with
+  // saveUninitialized:false doesn't flush to MySQL until after the response
+  // is sent. On the very first visit (no session in MySQL yet) the bundle
+  // builder's sequential fetches + immediate redirect race against the async
+  // INSERT — GET /cart arrives before the write completes and sees an empty cart.
+  // session.save() blocks the response until MySQL confirms the write.
+  const isAjax = req.headers['x-requested-with'] === 'XMLHttpRequest' ||
+                 req.headers.accept?.includes('application/json');
+  req.session.save(err => {
+    if (err) console.error('[cart/add] session save error:', err.message);
+    if (isAjax) return res.json({ ok: true, count: cart.count, subtotal: cart.subtotal });
+    res.redirect('/cart');
+  });
 };
 
 /* ── POST /cart/update ──────────────────────────────────────────── */
@@ -153,7 +160,10 @@ exports.update = (req, res) => {
 
   recalc(cart);
   req.session.cart = cart;
-  res.redirect('/cart');
+  req.session.save(err => {
+    if (err) console.error('[cart/update] session save error:', err.message);
+    res.redirect('/cart');
+  });
 };
 
 /* ── POST /cart/remove ──────────────────────────────────────────── */
@@ -165,5 +175,8 @@ exports.remove = (req, res) => {
   if (removed?.bundle_discount_pct > 0) stripBundleGroup(cart, removed.bundle_id);
   recalc(cart);
   req.session.cart = cart;
-  res.redirect('/cart');
+  req.session.save(err => {
+    if (err) console.error('[cart/remove] session save error:', err.message);
+    res.redirect('/cart');
+  });
 };
