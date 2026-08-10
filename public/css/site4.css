@@ -38,3 +38,7 @@
   color: var(--navy);
   opacity: 0.8;
 }
+
+/* Fix: .mobile-menu ul rule overrides [hidden] — force hidden to win */
+.mobile-sub-list[hidden] { display: none !important; }
+.mobile-sub-list { display: flex; flex-direction: column; gap: 10px; padding: 6px 0 6px 16px; margin: 0; list-style: none; }
