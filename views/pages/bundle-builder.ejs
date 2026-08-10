@@ -391,15 +391,56 @@
     return SIZE_BUCKETS.find(function(b) { return w >= b.min && w <= b.max; }) || null;
   }
 
-  /* Unique sorted buckets for all SKUs in a model (used for size chips) */
+  /* Derive 'S' (Single) or 'D' (Double) from a product_type string, or null if unknown */
+  function sinkKeyFromProductType(pt) {
+    if (!pt) return null;
+    if (pt.indexOf('Single') !== -1) return 'S';
+    if (pt.indexOf('Double') !== -1) return 'D';
+    return null;
+  }
+
+  /* Unique sorted size chip objects for a model.
+   * When a size bucket has BOTH Single and Double SKUs, emits two chips:
+   *   { label: '60S', min, max, sink: 'S' } and { label: '60D', min, max, sink: 'D' }
+   * When only one sink config exists at a size, emits a plain chip:
+   *   { label: '60',  min, max, sink: null }
+   * All other steps (mirror, faucet) have no product_type distinction — plain chips always. */
   function modelBuckets(model) {
+    if (!model) return [];
+    var skus = model.skus || [];
+
+    /* First pass: per-bucket, record which sink keys are present */
+    var bktSinkPresent = {}; /* { '60': { S: true, D: true } } */
+    skus.forEach(function(s) {
+      var b = getBucket(s.width_in);
+      if (!b) return;
+      var sk = sinkKeyFromProductType(s.product_type);
+      if (!bktSinkPresent[b.label]) bktSinkPresent[b.label] = {};
+      bktSinkPresent[b.label][sk || 'none'] = true;
+    });
+
+    /* Second pass: emit chip objects, deduplicating by chip label */
     var seen = {};
     var out  = [];
-    (model ? model.skus : []).forEach(function(s) {
+    skus.forEach(function(s) {
       var b = getBucket(s.width_in);
-      if (b && !seen[b.label]) { seen[b.label] = true; out.push(b); }
+      if (!b) return;
+      var sk = sinkKeyFromProductType(s.product_type);
+      var hasBoth = bktSinkPresent[b.label] &&
+                    bktSinkPresent[b.label]['S'] &&
+                    bktSinkPresent[b.label]['D'];
+      /* Only split into S/D chips when both configs exist AND we have a known sink key */
+      var chipLabel = (hasBoth && sk) ? (b.label + sk) : b.label;
+      var chipSink  = (hasBoth && sk) ? sk : null;
+      if (!seen[chipLabel]) {
+        seen[chipLabel] = true;
+        out.push({ label: chipLabel, min: b.min, max: b.max, sink: chipSink });
+      }
     });
-    out.sort(function(a, b) { return a.min - b.min; });
+    out.sort(function(a, b) {
+      if (a.min !== b.min) return a.min - b.min;
+      return (a.sink || '').localeCompare(b.sink || '');
+    });
     return out;
   }
 
@@ -466,7 +507,14 @@
     if (bkt) {
       var f = skus.filter(function(s) {
         var w = parseFloat(s.width_in);
-        return w >= bkt.min && w <= bkt.max;
+        if (w < bkt.min || w > bkt.max) return false;
+        /* When the chip has a sink key (e.g. 'S' or 'D'), also filter by
+           single/double config so '60S' and '60D' show distinct products. */
+        if (bkt.sink) {
+          var sk = sinkKeyFromProductType(s.product_type);
+          return sk === bkt.sink;
+        }
+        return true;
       });
       if (f.length) return f;
     }
@@ -631,18 +679,23 @@
     renderPriceBlock(step, displaySku);
 
     /* Size chips (cabinet + mirror only — tops are width-locked).
-       Uses SIZE_BUCKETS nominal labels (e.g. "36") — same method as
-       the collection page and megamenu. No inch mark in visible text (Rule 13). */
+       Uses modelBuckets() chip objects — may include S/D variants (e.g. "60S", "60D")
+       when both Single and Double Sink configs exist for a size.
+       No inch mark in visible text (Rule 13). */
     if (step !== 'top') {
-      var buckets  = modelBuckets(model);
+      var buckets   = modelBuckets(model);
       var activeLbl = gSize[step] ? gSize[step].label : null;
       var sizesEl   = el('bb-sizes-' + step);
       if (sizesEl) {
         sizesEl.innerHTML = buckets.map(function(b) {
+          /* aria-label: "60S inch" → "60 inch Single sink"; plain "36 inch" unchanged */
+          var ariaLabel = b.sink === 'S' ? (b.min + ' inch Single sink')
+                        : b.sink === 'D' ? (b.min + ' inch Double sink')
+                        : (b.label + ' inch');
           return '<button class="model-card-size-btn' + (activeLbl === b.label ? ' is-active' : '') + '"'
-            + ' type="button" data-step="' + step + '" data-bucket="' + esc(b.label) + '"'
-            + ' aria-label="' + b.label + ' inch" title="' + b.label + ' inch">'
-            + b.label + '</button>';
+            + ' type="button" data-step="' + esc(step) + '" data-bucket="' + esc(b.label) + '"'
+            + ' aria-label="' + ariaLabel + '" title="' + ariaLabel + '">'
+            + esc(b.label) + '</button>';
         }).join('');
       }
     }
@@ -714,12 +767,15 @@
   }
 
   /* ── Size chip ────────────────────────────────────────────────── */
-  function pickSize(step, bucketLabel) {
-    /* Look up the bucket object by its label (e.g. "36").
+  function pickSize(step, chipLabel) {
+    /* Look up the chip object by its label (e.g. "36", "60S", "60D").
+       Chip comes from modelBuckets() — may carry a sink key for S/D disambiguation.
        Toggle: clicking the already-active chip de-selects it. */
-    var bucket = SIZE_BUCKETS.find(function(b) { return b.label === bucketLabel; });
-    if (!bucket) return;
-    gSize[step]  = (gSize[step] && gSize[step].label === bucketLabel) ? null : bucket;
+    var models = getModels(step);
+    var model  = models[gIdx[step]] || null;
+    var chip   = modelBuckets(model).find(function(c) { return c.label === chipLabel; });
+    if (!chip) return;
+    gSize[step]  = (gSize[step] && gSize[step].label === chipLabel) ? null : chip;
     gColor[step] = null;
     renderViewer(step);
   }

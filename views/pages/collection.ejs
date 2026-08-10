@@ -475,7 +475,11 @@
           <div class="size-chips">
             <% availableSizes.forEach(function(sz) {
                  var isActive = (typeof activeSizes !== 'undefined') && activeSizes.indexOf(String(sz)) !== -1;
-                 var chipLabel = sz === '20-' ? '20 & under' : sz === '84+' ? '84 & over' : sz + ' Inches';
+                 var chipLabel = sz === '20-'       ? '20 & under'
+                               : sz === '84+'       ? '84 & over'
+                               : sz.endsWith('S')   ? sz + ' (Single)'
+                               : sz.endsWith('D')   ? sz + ' (Double)'
+                               : sz + ' Inches';
             %>
             <label class="size-chip<%= isActive ? ' is-active' : '' %>">
               <input type="checkbox" name="size_in" value="<%= sz %>"

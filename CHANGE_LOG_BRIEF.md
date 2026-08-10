@@ -3,6 +3,44 @@
 
 ---
 
+## S/D Size Chips — Single/Double Sink Disambiguation
+**Date:** 2026-08-10
+
+### Problem
+Sizes like 60" that have both a Single Sink and a Double Sink configuration collapsed to a single "60" chip. Shoppers had no way to filter by sink count from the size selector alone.
+
+### Solution — dynamic S/D detection (no hardcoding)
+At both the collection sidebar and the bundle builder, code now detects at render time whether a size bucket has BOTH Single and Double Sink products. When both exist: "60S"/"60D" chips appear. When only one config exists: plain "60" chip (no change). This automatically extends to 72" or any other size that gains a second config.
+
+### Files changed
+
+**`src/controllers/bundleController.js`**
+- Added `p.product_type` to `getCabinets()` SELECT so the client receives the sink config per cabinet SKU.
+
+**`views/pages/bundle-builder.ejs`**
+- Added `sinkKeyFromProductType(pt)` helper — returns `'S'`, `'D'`, or `null`.
+- Rewrote `modelBuckets()` — two-pass algorithm: pass 1 detects which buckets have both S+D; pass 2 emits `{ label: '60S', min, max, sink: 'S' }` style chip objects (or plain `{ label: '60', sink: null }` when only one config exists).
+- Updated `getSizeFilteredSkus()` — when chip has `sink`, also filters SKUs by `product_type` (Single/Double).
+- Updated `pickSize(step, chipLabel)` — now looks up chip from `modelBuckets(currentModel)` instead of global `SIZE_BUCKETS`, so it finds the S/D-aware chip object.
+- Updated size chip rendering — `aria-label` describes "60 inch Single sink" / "60 inch Double sink"; escaped all dynamic attributes.
+
+**`src/controllers/collectionsController.js`**
+- Added `p.model` to `mgOptRows` query.
+- Built `mgBktSinkPresent` (category-level bucket→sink presence) and `mgModelSinkMap` (per-model bucket→sink presence).
+- `mgAvailSizes` now emits `'60S'` + `'60D'` when both configs exist for a bucket, plain `'60'` otherwise.
+- Post-query size filter now parses S/D suffix from active chip labels and uses `mgModelSinkMap` to match models that have the right sink config at that size.
+
+**`views/pages/collection.ejs`**
+- `chipLabel` for sidebar size chips now renders `"60S (Single)"` and `"60D (Double)"` for S/D chips; all other labels unchanged.
+
+### Rollback
+- Revert `bundleController.js` — remove `p.product_type` from getCabinets() SELECT
+- Revert `bundle-builder.ejs` — restore original `modelBuckets()`, `getSizeFilteredSkus()`, `pickSize()`
+- Revert `collectionsController.js` — restore mgOptRows query and mgAvailSizes computation
+- Revert `collection.ejs` — restore single-line chipLabel logic
+
+---
+
 ## Bundle Builder — First-Add-to-Cart Bug Fix
 **Date:** 2026-08-10
 

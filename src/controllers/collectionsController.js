@@ -153,17 +153,49 @@ exports.show = async (req, res, next) => {
       // Filter option universe — all active products that have a model assigned.
       // No width_in constraint here so all colors (including gray products that
       // may lack a width) appear in the color filter options.
-      // product_type included so the Configuration sidebar filter can list available types.
+      // product_type + model included so we can detect Single/Double Sink configs per size bucket.
       const [mgOptRows] = await bvoPool.query(`
-        SELECT DISTINCT p.width_in AS size_in, p.brand, p.color, p.color_family, p.product_type
+        SELECT DISTINCT p.model, p.width_in AS size_in, p.brand, p.color, p.color_family, p.product_type
         FROM products p
         WHERE p.is_active = 1 AND p.model IS NOT NULL AND p.category_id = ?
       `, [mgProductCatId]);
-      // Size buckets only count products that have a valid width_in
-      const mgRawWidths     = [...new Set(mgOptRows.map(r => r.size_in).filter(v => v != null && v > 0))];
-      const mgAvailSizes    = SIZE_BUCKETS
-        .filter(b => mgRawWidths.some(w => w >= b.min && w <= b.max))
-        .map(b => b.label);
+
+      // ── S/D size chip detection ───────────────────────────────────────────
+      // For each size bucket, check whether BOTH Single Sink AND Double Sink
+      // products exist. When both exist, emit "60S" and "60D" chips instead of
+      // a single "60" chip so shoppers can filter by sink configuration.
+      // Per-model map is also built here for use in the post-query size filter.
+      const mgBktSinkPresent  = {}; // { '60': { S: true, D: true } }
+      const mgModelSinkMap    = {}; // { modelName: { '60': { S: true, D: true } } }
+      mgOptRows.forEach(r => {
+        if (!r.size_in || r.size_in <= 0) return;
+        const bkt = SIZE_BUCKETS.find(b => r.size_in >= b.min && r.size_in <= b.max);
+        if (!bkt) return;
+        const pt   = r.product_type || '';
+        const sink = pt.includes('Single') ? 'S' : pt.includes('Double') ? 'D' : null;
+        // Global (category-level) presence
+        if (!mgBktSinkPresent[bkt.label]) mgBktSinkPresent[bkt.label] = {};
+        mgBktSinkPresent[bkt.label][sink || 'none'] = true;
+        // Per-model presence (used when filtering mgModels by S/D chip)
+        if (r.model) {
+          if (!mgModelSinkMap[r.model])           mgModelSinkMap[r.model] = {};
+          if (!mgModelSinkMap[r.model][bkt.label]) mgModelSinkMap[r.model][bkt.label] = {};
+          mgModelSinkMap[r.model][bkt.label][sink || 'none'] = true;
+        }
+      });
+
+      // Emit chip labels: "60S" + "60D" when both configs exist, plain "60" otherwise.
+      const mgAvailSizes = [];
+      SIZE_BUCKETS.forEach(bkt => {
+        const sinks = mgBktSinkPresent[bkt.label];
+        if (!sinks) return; // no products in this bucket
+        if (sinks['S'] && sinks['D']) {
+          mgAvailSizes.push(bkt.label + 'S');
+          mgAvailSizes.push(bkt.label + 'D');
+        } else {
+          mgAvailSizes.push(bkt.label);
+        }
+      });
       const mgAllBrands          = [...new Set(mgOptRows.map(r => r.brand).filter(Boolean))].sort();
       const mgAvailFinishes      = [...new Set(mgOptRows.map(r => r.color).filter(Boolean))].sort();
       // color_family keys directly — used as primary visibility signal so families
@@ -422,12 +454,26 @@ exports.show = async (req, res, next) => {
 
       // Size bucket filter — post-query because sizes live per-product not per-model
       // Rule 10: compare against SIZE_BUCKETS ranges, not raw widths (±2" approximation)
+      // Handles plain labels ("60") and S/D chip labels ("60S", "60D").
       if (mgActiveSizes.length) {
-        const activeBuckets = SIZE_BUCKETS.filter(b => mgActiveSizes.includes(b.label));
+        // Parse each chip label into { bucketLabel, sink }
+        const parsedChips = mgActiveSizes.map(chip => {
+          if (chip.endsWith('S')) return { bucketLabel: chip.slice(0, -1), sink: 'S' };
+          if (chip.endsWith('D')) return { bucketLabel: chip.slice(0, -1), sink: 'D' };
+          return { bucketLabel: chip, sink: null };
+        });
         mgModels = mgModels.filter(m =>
-          activeBuckets.some(bucket =>
-            m.sizes.some(ms => ms >= bucket.min && ms <= bucket.max)
-          )
+          parsedChips.some(({ bucketLabel, sink }) => {
+            const bucket = SIZE_BUCKETS.find(b => b.label === bucketLabel);
+            if (!bucket) return false;
+            // Must have the right width in sizes_csv
+            if (!m.sizes.some(ms => ms >= bucket.min && ms <= bucket.max)) return false;
+            // If no sink filter, width match is sufficient
+            if (!sink) return true;
+            // Check per-model sink map so "60S" only matches models with Single Sink 60"
+            const sinkMap = mgModelSinkMap[m.model];
+            return sinkMap && sinkMap[bucketLabel] && sinkMap[bucketLabel][sink];
+          })
         );
       }
 

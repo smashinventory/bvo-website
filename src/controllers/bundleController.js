@@ -69,7 +69,7 @@ async function getCabinets() {
   const [rows] = await bvoPool.execute(`
     SELECT
       p.id, p.slug, p.name, p.model, p.price, p.compare_price,
-      p.width_in, p.color, p.color_family,
+      p.width_in, p.color, p.color_family, p.product_type,
       ${IMG_SQL},
       ${CHIP_SQL}
     FROM products p
