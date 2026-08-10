@@ -85,8 +85,8 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   <link rel="stylesheet" href="/css/site.css?v=6">
   <!-- Extended styles (blocking — carousel/card styles must be present before JS sizeCards() runs) -->
   <link rel="stylesheet" href="/css/site2.css?v=48">
-  <!-- site3.css: Trust signals, checkout, CMS pages, blog, inspiration guides (split when site2 hit 80KB CDN limit — Rule 11) -->
-  <link rel="stylesheet" href="/css/site3.css?v=16">
+  <!-- site3.css: Trust signals, checkout, CMS pages, blog, inspiration guides -->
+  <!-- Loaded conditionally per-page via <%- style %> slot — not global (perf: saves 37KB blocking CSS on homepage/collections/products) -->
   <!-- site4.css: Responsive polish & mobile optimization — targeted fixes for all pages (Rule 11) -->
   <link rel="stylesheet" href="/css/site4.css?v=16">
 

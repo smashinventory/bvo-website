@@ -1,5 +1,5 @@
 # BVO Change Log Brief
-*Last updated: 2026-08-05*
+*Last updated: 2026-08-10*
 
 ---
 
@@ -1331,5 +1331,95 @@ CLOVER_ENV=production
 Remove `app.use('/checkout', ...)` from server.js, delete the 5 new files, revert cart.ejs, cartController.js, product.ejs to their previous versions, remove the new CSS block from site2.css, and remove the `google_reviews_*` keys from themeSettings.js defaults.
 
 ---
+
+---
+
+## SEO & Site Speed Improvement Sprint — Lighthouse 11-Point Scope
+**Date:** 2026-08-10
+**Source:** Lighthouse / SEO reviewer report, 11 flagged issues
+
+### What was done (10 of 11 items)
+
+**Issue #1 · Cache TTLs — `public/.htaccess` (new file)**
+- **Problem:** Node.js server.js sets `Cache-Control: public, max-age=604800` for all static assets, but Hostinger's LiteSpeed layer was stripping/overriding those headers. Lighthouse reported "None" for all CSS and JS files (~69 KiB savings left on table).
+- **Fix:** Created `public/.htaccess` with `mod_expires` and `mod_headers` directives. LiteSpeed reads `.htaccess` directly and will honor the cache rules at the proxy layer. 1-year cache on all CSS, JS, images, and fonts. Gzip compression block also added.
+- **To undo:** Delete `public/.htaccess`.
+
+**Issue #2 · Image delivery — WebP logo**
+- **Problem:** Logo file `BVOLOGOSQ_512.png` (19 KB, 512×512) served at ~90–158px display size.
+- **Fix:** Added `BVOLOGOSQ_512.webp` (3 KB) to `public/images/logos/`. Updated `views/partials/header.ejs` to use a `<picture>` element — WebP for modern browsers, PNG fallback for older ones. Logic is conditional: only swaps to WebP when the default logo is in use; custom admin-uploaded logos are passed through unchanged.
+- **To undo:** Revert `header.ejs` logo block to the original `<img>` tag. Delete `BVOLOGOSQ_512.webp`.
+
+**Issue #3 · Network dependency chain** — Already handled via existing preconnect + async font load pattern. No change needed.
+
+**Issue #4 · Unused preconnect to `i.ytimg.com`** — Not present in source code. Injected at runtime by GTM. Fix is a GTM container change (remove the YouTube tracking tag adding it), not a code change.
+
+**Issue #5 · Font display** — Current `display=optional` is already better than `display=swap` for Core Web Vitals CLS. Lighthouse recommendation rejected — no change.
+
+**Issue #7 · DOM size (926 elements)** — Reduction requires redesigning mega menu and carousels. Not worth the risk at this stage. Deferred.
+
+**Issue #8 · Minify CSS (~20 KiB savings)**
+- **Problem:** All 5 CSS files (brand, site, site2, site3, site4) were unminified development-style source.
+- **Fix:** Ran `clean-css` (level 2) across all 5 files. Result: **259 KB → 152 KB (102 KB saved)**. Bumped versions: brand.css v3, site.css v6, site2.css v48, site3.css v16, site4.css v15.
+- **To undo:** Restore CSS files from git. Revert version numbers in `views/layouts/main.ejs`.
+
+**Issue #9 · Minify JavaScript (~3 KiB savings)**
+- **Problem:** `site.js` was unminified (40 KB).
+- **Fix:** Ran `terser` with mangle + compress. Result: **40 KB → 19 KB (21 KB saved)**. Bumped to site.js v6.
+- **To undo:** Restore `public/js/site.js` from git. Revert `?v=6` to `?v=5` in `main.ejs`.
+
+**Issue #10 · Reduce unused CSS** — PurgeCSS too risky without a proper build pipeline and safelist (dynamic EJS class names would be stripped). Deferred.
+
+**Issue #11 · `iwt-img` missing width/height (CLS)**
+- **Problem:** `views/pages/index.ejs` line 704 — `.iwt-img` had no `width`/`height` attributes, causing layout shift as images load.
+- **Fix:** Added `width="380" height="285"` (4:3 ratio matching CSS `max-width: 380px`). Browser uses these as intrinsic aspect ratio to reserve space; CSS still controls actual displayed size.
+- **To undo:** Remove `width="380" height="285"` from that `<img>` tag.
+
+**Mobile accordion (bonus — not in original Lighthouse scope)**
+- **Problem:** Mobile drawer listed all "Bathroom Vanities" sub-items flat (type links, color families, 9 style links), making the drawer a long unstructured scroll.
+- **Fix:** Restructured mobile drawer in `header.ejs` — top-level "Bathroom Vanities" link now has a ▼ toggle button; sub-items are wrapped in a `<ul class="mobile-sub-list" hidden>` that expands/collapses on tap. Added accordion CSS to `site4.css` (v16). Toggle JS is a small inline `<script nonce>` at the bottom of `header.ejs`.
+- **CSS bug fix:** `.mobile-menu ul { display: flex }` in site.css was overriding the `[hidden]` attribute on `.mobile-sub-list`. Added `.mobile-sub-list[hidden] { display: none !important }` to site4.css.
+- **To undo:** Revert `header.ejs` mobile drawer block to original flat structure. Remove accordion CSS from bottom of `site4.css`. Revert site4.css to v15 in `main.ejs`.
+
+---
+
+## SEO Sprint — Issue #6: Conditional site3.css Loading (render-blocking CSS)
+**Date:** 2026-08-10
+**Status:** IN PROGRESS
+
+### Problem
+Five CSS files are loaded synchronously in `<head>` on every page, blocking render for ~3,420ms per Lighthouse. After minification the total is 152 KB across 5 files. `site3.css` (37 KB) contains styles for checkout, blog, CMS pages, inspiration guides, and lookbook — none of which are needed on the homepage, collection pages, or product pages (the highest-traffic SEO-critical pages).
+
+### What is changing
+
+**`views/layouts/main.ejs`**
+- Remove the global `<link rel="stylesheet" href="/css/site3.css?v=16">` from `<head>`.
+- Reduces blocking CSS from 5 files (152 KB) to 4 files (115 KB) on all pages that don't inject site3.css themselves.
+
+**Pages that DO need site3.css — each gets it injected via their `<%- style %>` slot:**
+- `views/pages/checkout.ejs` — checkout layout, payment logos, trust bar
+- `views/pages/checkout-success.ejs` — confirmation page styles
+- `views/pages/checkout-cancel.ejs` — cancel page styles
+- `views/pages/cart.ejs` — cart trust/payment styles
+- `views/pages/blog-list.ejs` — blog card styles
+- `views/pages/blog-post.ejs` — blog post layout
+- `views/pages/inspiration-hub.ejs` — inspiration card grid
+- `views/pages/inspiration-guide.ejs` — guide hero, reading meta, product showcase
+- `views/pages/lookbook.ejs` — lookbook gallery
+- Any CMS `views/pages/page.ejs` — static CMS page styles
+
+**Pages that do NOT get site3.css (and gain the performance benefit):**
+- `views/pages/index.ejs` (homepage) ← most important for SEO
+- `views/pages/collection.ejs` (category/collection pages)
+- `views/pages/collections.ejs` (all-collections hub)
+- `views/pages/product.ejs` (product detail pages)
+- `views/pages/bundle-builder.ejs`
+- `views/pages/account/*.ejs`
+- All admin pages (already excluded from public Lighthouse tests)
+
+### How to reverse (complete rollback)
+1. In `views/layouts/main.ejs`, add back: `<link rel="stylesheet" href="/css/site3.css?v=16">` in the CSS block (after site2.css, before site4.css).
+2. Remove the `<% style %>` site3.css injection lines from each of the 10 page templates listed above.
+3. No server-side, database, or controller changes are involved — this is purely template changes.
 
 *End of brief*
