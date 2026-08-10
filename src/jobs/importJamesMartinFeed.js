@@ -304,14 +304,15 @@ async function replaceBullets(conn, productId, bullets) {
   }
 }
 
-async function replaceImages(conn, productId, images) {
+async function replaceImages(conn, productId, images, productName) {
   const validImages = images.filter(i => i.url && i.url.startsWith('http'));
   if (!validImages.length) return;
   await conn.query('DELETE FROM product_images WHERE product_id = ?', [productId]);
+  const altText = (productName || '').replace(/<[^>]*>/g, '').trim() || null;
   for (const img of validImages) {
     await conn.query(
-      'INSERT INTO product_images (product_id, url, sort_order, is_primary) VALUES (?, ?, ?, ?)',
-      [productId, img.url, img.sort_order, img.sort_order === 0 ? 1 : 0]
+      'INSERT INTO product_images (product_id, url, sort_order, is_primary, alt_text) VALUES (?, ?, ?, ?, ?)',
+      [productId, img.url, img.sort_order, img.sort_order === 0 ? 1 : 0, altText]
     );
   }
 }
@@ -873,7 +874,7 @@ async function importFromWorkbook(wb, opts = {}) {
           const url = clean(row[`Images_${i}`]);
           if (url) images.push({ url, sort_order: i });
         }
-        await replaceImages(conn, productId, images);
+        await replaceImages(conn, productId, images, productData.name);
 
         // ── Shipping boxes ────────────────────────────────────────────
         const boxMap = {};
