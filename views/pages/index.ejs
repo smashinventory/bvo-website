@@ -168,14 +168,14 @@ _DEFAULT_ORDER.forEach(function(k) {
     <% if (hero.image_url) { %>
     <img class="hero-poster<%= hero.mobile_image_url ? ' hero-img-desktop' : '' %>"
          src="<%= hero.image_url %>"
-         alt="<%= hero.image_alt || 'Hero image' %>"
+         alt="<%= hero.image_alt || (S.global || {}).site_name || 'Bathroom Vanities Outlet - Quality Bath Vanity Cabinets and More' %>"
          loading="eager">
     <% } %>
     <%/* Mobile image — hidden on desktop, swaps in at ≤860px when set */%>
     <% if (hero.mobile_image_url) { %>
     <img class="hero-img-mobile"
          src="<%= hero.mobile_image_url %>"
-         alt="<%= hero.mobile_image_alt || hero.image_alt || 'Hero image' %>"
+         alt="<%= hero.mobile_image_alt || hero.image_alt || (S.global || {}).site_name || 'Bathroom Vanities Outlet - Quality Bath Vanity Cabinets and More' %>"
          loading="eager">
     <% } %>
     <%/* Video — only when video_url is set */%>
