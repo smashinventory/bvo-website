@@ -703,17 +703,25 @@
         <div class="adm-card">
           <h2 class="adm-card-title">SEO</h2>
           <div class="adm-form-group">
-            <label for="meta_title">Meta Title</label>
+            <label for="meta_title">
+              Meta Title
+              <button type="button" id="meta_title_reset" class="bvo-reset-btn" title="Re-fill from product name">↺ Reset</button>
+            </label>
             <input type="text" id="meta_title" name="meta_title"
-              value="<%= product?.meta_title || '' %>" placeholder="Defaults to product name" maxlength="255">
-            <span class="adm-form-hint"><span id="metaTitleCount">0</span> / 60 chars recommended</span>
+              value="<%= product?.meta_title || '' %>" placeholder="Auto-filled from product name" maxlength="255">
+            <span class="adm-form-hint"><span id="metaTitleCount">0</span> / 60 chars · <span id="metaTitleStatus"></span></span>
           </div>
           <div class="adm-form-group">
-            <label for="meta_desc">Meta Description</label>
+            <label for="meta_desc">
+              Meta Description
+              <button type="button" id="meta_desc_reset" class="bvo-reset-btn" title="Re-fill from short description">↺ Reset</button>
+            </label>
             <textarea id="meta_desc" name="meta_desc" rows="3" maxlength="500"
-              placeholder="Defaults to short description"><%= product?.meta_desc || '' %></textarea>
-            <span class="adm-form-hint"><span id="metaDescCount">0</span> / 160 chars recommended</span>
+              placeholder="Auto-filled from short description"><%= product?.meta_desc || '' %></textarea>
+            <span class="adm-form-hint"><span id="metaDescCount">0</span> / 160 chars</span>
           </div>
+          <!-- SERP Preview -->
+          <div class="bvo-serp-preview" id="productSerpPreview"></div>
         </div>
 
         <!-- ── Data Source (read-only) ───────────────────────── -->
@@ -880,6 +888,7 @@
   <% } %>
 </div>
 
+<script nonce="<%= cspNonce %>" src="/js/admin-seo.js"></script>
 <script nonce="<%= cspNonce %>">
 (function() {
   // Auto-slug from name
@@ -891,16 +900,22 @@
     }
   });
 
-  // SEO char counters
-  const metaTitle = document.getElementById('meta_title');
-  const metaDesc  = document.getElementById('meta_desc');
-  const mtCount   = document.getElementById('metaTitleCount');
-  const mdCount   = document.getElementById('metaDescCount');
-  function updateCount(input, el) {
-    if (input && el) { el.textContent = input.value.length; input.addEventListener('input', () => el.textContent = input.value.length); }
+  // SEO auto-fill, char counters, SERP preview
+  if (window.BvoSeo) {
+    // Auto-fill meta_title from product name; meta_desc from short_desc (truncated)
+    BvoSeo.autoFill('name', 'meta_title', function(v) { return v; });
+    BvoSeo.autoFill('short_desc', 'meta_desc', function(v) { return BvoSeo.trunc(v, 125, '…'); });
+    // Color-coded char counters (warn at 60, err at 70 for title; warn at 160, err at 200 for desc)
+    BvoSeo.counter('meta_title', 'metaTitleCount', 60, 70);
+    BvoSeo.counter('meta_desc',  'metaDescCount',  160, 200);
+    // Live SERP preview
+    BvoSeo.serpPreview({
+      containerId:  'productSerpPreview',
+      titleId:      'meta_title',
+      descId:       'meta_desc',
+      urlPath:      '<% if (!isNew && product && product.slug) { %>/products/<%= product.slug %><% } else { %>/products/...<% } %>',
+    });
   }
-  updateCount(metaTitle, mtCount);
-  updateCount(metaDesc,  mdCount);
 
   // Dynamic spec rows
   const specsList  = document.getElementById('specs-list');

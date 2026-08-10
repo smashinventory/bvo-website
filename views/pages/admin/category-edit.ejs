@@ -163,9 +163,12 @@ const formAction = isNew ? '/admin/categories' : `/admin/categories/${cat.id}`;
         <h3 class="ce-card-title">SEO &amp; Meta</h3>
 
         <div class="ce-field">
-          <label class="ce-label" for="catMetaTitle">Meta Title</label>
+          <label class="ce-label" for="catMetaTitle">
+            Meta Title
+            <button type="button" id="catMetaTitle_reset" class="bvo-reset-btn" title="Re-fill from category name">↺ Reset</button>
+          </label>
           <input type="text" id="catMetaTitle" name="meta_title" class="ce-input"
-                 value="<%= cat.meta_title || '' %>" placeholder="Leave blank to use category name"
+                 value="<%= cat.meta_title || '' %>" placeholder="Auto-filled from category name"
                  maxlength="160" oninput="updateMetaCount(this,'metaTitleCount')">
           <div class="ce-meta-row">
             <p class="ce-field-hint">Appears in browser tab and search results.</p>
@@ -174,9 +177,12 @@ const formAction = isNew ? '/admin/categories' : `/admin/categories/${cat.id}`;
         </div>
 
         <div class="ce-field">
-          <label class="ce-label" for="catMetaDesc">Meta Description</label>
+          <label class="ce-label" for="catMetaDesc">
+            Meta Description
+            <button type="button" id="catMetaDesc_reset" class="bvo-reset-btn" title="Re-fill from category description">↺ Reset</button>
+          </label>
           <textarea id="catMetaDesc" name="meta_desc" class="ce-textarea" rows="3"
-                    placeholder="Short description for search engines…" maxlength="320"
+                    placeholder="Auto-filled from category description" maxlength="320"
                     oninput="updateMetaCount(this,'metaDescCount')"><%= cat.meta_desc || '' %></textarea>
           <div class="ce-meta-row">
             <p class="ce-field-hint">Recommended: 120–160 characters.</p>
@@ -184,13 +190,8 @@ const formAction = isNew ? '/admin/categories' : `/admin/categories/${cat.id}`;
           </div>
         </div>
 
-        <% if (!isNew && cat.slug) { %>
-        <div class="ce-seo-preview">
-          <p class="ce-seo-title" id="seoPreviewTitle"><%= cat.meta_title || cat.name || 'Page Title' %></p>
-          <p class="ce-seo-url">bathroomvanitiesoutlet.com/collections/<%= cat.slug %></p>
-          <p class="ce-seo-desc" id="seoPreviewDesc"><%= cat.meta_desc || cat.description || 'Page description will appear here.' %></p>
-        </div>
-        <% } %>
+        <!-- SERP Preview (BvoSeo-powered) -->
+        <div class="bvo-serp-preview" id="catSerpPreview"></div>
       </div>
 
     </div><!-- /.ce-main -->
@@ -314,6 +315,7 @@ const formAction = isNew ? '/admin/categories' : `/admin/categories/${cat.id}`;
 .adm-btn--danger:hover  { background:#fff5f5 }
 </style>
 
+<script nonce="<%= cspNonce %>" src="/js/admin-seo.js"></script>
 <script nonce="<%= cspNonce %>">
 /* ── Category image upload (AJAX) ────────────────────────────────
    The upload input lives inside catEditForm, so we can't use a nested
@@ -428,30 +430,31 @@ document.getElementById('catSlug')?.addEventListener('input', function () {
 /* ── Character counters ── */
 function updateMetaCount(el, countId) {
   var span = document.getElementById(countId);
-  if (span) span.textContent = el.value.length + '/' + el.maxLength;
+  if (!span) return;
+  var n = el.value.length;
+  span.textContent = n + '/' + el.maxLength;
+  // Color coding
+  span.className = span.className.replace(/\bseo-\w+/g, '').trim();
+  if      (n > 200) span.classList.add('seo-err');
+  else if (n > 160) span.classList.add('seo-warn');
+  else if (n > 0)   span.classList.add('seo-ok');
 }
 
-/* ── SEO preview live update ── */
+/* ── SEO auto-fill + SERP preview (BvoSeo) ── */
 (function () {
-  var titleInput   = document.getElementById('catMetaTitle');
-  var descTextarea = document.getElementById('catMetaDesc');
-  var previewTitle = document.getElementById('seoPreviewTitle');
-  var previewDesc  = document.getElementById('seoPreviewDesc');
-  var nameInput    = document.getElementById('catName');
+  if (!window.BvoSeo) return;
 
-  function updatePreview() {
-    if (previewTitle) {
-      previewTitle.textContent = (titleInput && titleInput.value.trim())
-        ? titleInput.value.trim()
-        : (nameInput && nameInput.value.trim()) || 'Page Title';
-    }
-    if (previewDesc && descTextarea) {
-      previewDesc.textContent = descTextarea.value.trim() || 'Page description will appear here.';
-    }
-  }
+  // Auto-fill meta title from category name
+  BvoSeo.autoFill('catName', 'catMetaTitle', function (v) { return v; });
+  // Auto-fill meta desc from category description (truncated)
+  BvoSeo.autoFill('catDesc', 'catMetaDesc', function (v) { return BvoSeo.trunc(v, 125, '…'); });
 
-  if (titleInput)   titleInput.addEventListener('input', updatePreview);
-  if (descTextarea) descTextarea.addEventListener('input', updatePreview);
-  if (nameInput)    nameInput.addEventListener('input', updatePreview);
+  // Live SERP preview
+  BvoSeo.serpPreview({
+    containerId: 'catSerpPreview',
+    titleId:     'catMetaTitle',
+    descId:      'catMetaDesc',
+    urlPath:     '<% if (!isNew && cat.slug) { %>/collections/<%= cat.slug %><% } else { %>/collections/...<% } %>',
+  });
 })();
 </script>

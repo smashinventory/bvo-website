@@ -486,10 +486,17 @@ function teArrayLinks(prefix,listId,tplId,items){
                 <svg class="te4-accord-arrow" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
               </summary>
               <div class="te4-accord-body">
+                <div class="te4-section-label">Search (Google)</div>
                 <%- teField('text','seo.home_title','Homepage Title',seo.home_title) %>
                 <%- teField('textarea','seo.home_description','Meta Description',seo.home_description) %>
+                <div class="te4-section-label" style="margin-top:.75rem">Social Sharing (Open Graph)</div>
+                <%- teField('text','seo.og_title','OG Title',seo.og_title) %>
+                <p style="font-size:.74rem;color:var(--te4-muted,#888);margin:-.4rem 0 .6rem">Leave blank to use Homepage Title above.</p>
+                <%- teField('textarea','seo.og_description','OG Description',seo.og_description) %>
+                <p style="font-size:.74rem;color:var(--te4-muted,#888);margin:-.4rem 0 .6rem">Leave blank to use Meta Description above.</p>
                 <%- teImageField('seo.og_image','OG / Share Image',seo.og_image) %>
                 <%- teField('text','seo.og_image_alt','OG Image Alt Text',seo.og_image_alt) %>
+                <div class="te4-section-label" style="margin-top:.75rem">Analytics</div>
                 <%- teField('text','seo.google_analytics_id','Google Analytics ID',seo.google_analytics_id) %>
               </div>
             </details>

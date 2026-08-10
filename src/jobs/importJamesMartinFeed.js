@@ -1,5 +1,7 @@
 'use strict';
 
+const { applyProductSeoDefaults, applyGmcDefaults } = require('../utils/seoDefaults');
+
 /**
  * James Martin Etail Feed — core importer
  * ────────────────────────────────────────
@@ -190,7 +192,11 @@ async function upsertProduct(conn, data) {
       ships_ltl, freight_class, harmonized_code, total_ship_weight_lbs,
       prop65, release_date, status,
       model, color, color_family, width_in,
-      is_active, is_new, is_featured
+      is_active, is_new, is_featured,
+      meta_title, meta_desc,
+      google_product_category, google_condition, identifier_exists, mpn,
+      shipping_label,
+      custom_label_0, custom_label_1, custom_label_2, custom_label_3, custom_label_4
     ) VALUES (
       :sku, :slug, :vendor_sku, :name, :brand, :price, :compare_price,
       :long_desc, :product_type, :component_role, :vendor_group_id,
@@ -199,7 +205,11 @@ async function upsertProduct(conn, data) {
       :ships_ltl, :freight_class, :harmonized_code, :total_ship_weight_lbs,
       :prop65, :release_date, :status,
       :model, :color, :color_family, :width_in,
-      :is_active, :is_new, :is_featured
+      :is_active, :is_new, :is_featured,
+      :meta_title, :meta_desc,
+      :google_product_category, :google_condition, :identifier_exists, :mpn,
+      :shipping_label,
+      :custom_label_0, :custom_label_1, :custom_label_2, :custom_label_3, :custom_label_4
     )
     ON DUPLICATE KEY UPDATE
       vendor_sku            = VALUES(vendor_sku),
@@ -229,6 +239,20 @@ async function upsertProduct(conn, data) {
       color_family          = VALUES(color_family),
       width_in              = VALUES(width_in),
       is_active             = VALUES(is_active),
+      -- SEO: COALESCE preserves any admin-set value; fills NULL rows with auto-generated default
+      meta_title            = COALESCE(meta_title, VALUES(meta_title)),
+      meta_desc             = COALESCE(meta_desc,  VALUES(meta_desc)),
+      -- GMC: COALESCE preserves admin overrides; identifier_exists always recalculated
+      google_product_category = COALESCE(google_product_category, VALUES(google_product_category)),
+      google_condition        = COALESCE(google_condition, VALUES(google_condition)),
+      identifier_exists       = VALUES(identifier_exists),
+      mpn                     = COALESCE(mpn, VALUES(mpn)),
+      shipping_label          = COALESCE(shipping_label, VALUES(shipping_label)),
+      custom_label_0          = COALESCE(custom_label_0, VALUES(custom_label_0)),
+      custom_label_1          = COALESCE(custom_label_1, VALUES(custom_label_1)),
+      custom_label_2          = COALESCE(custom_label_2, VALUES(custom_label_2)),
+      custom_label_3          = COALESCE(custom_label_3, VALUES(custom_label_3)),
+      custom_label_4          = COALESCE(custom_label_4, VALUES(custom_label_4)),
       updated_at            = CURRENT_TIMESTAMP
   `, data);
   const [[row]] = await conn.query('SELECT id FROM products WHERE sku = ?', [data.sku]);
@@ -768,6 +792,12 @@ async function importFromWorkbook(wb, opts = {}) {
           is_new:                0,
           is_featured:           0,
         };
+
+        // Apply server-side SEO + GMC defaults (mirrors browser auto-fill rule):
+        // fills empty fields only; never overwrites existing values.
+        // identifier_exists is always recalculated from resolved upc/mpn.
+        applyProductSeoDefaults(productData);
+        applyGmcDefaults(productData);
 
         if (dry) {
           imported++;

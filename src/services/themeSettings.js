@@ -29,6 +29,8 @@ const DEFAULTS = {
     home_description:    'Shop premium bathroom vanities, mirrors, faucets and accessories at outlet prices. Free shipping on every order.',
     og_image:            '/images/og-default.jpg',
     og_image_alt:        'BathroomVanitiesOutlet.com — Premium Bathroom Vanities at Outlet Prices',
+    og_title:            '',
+    og_description:      '',
     google_analytics_id: '',
   },
   global: {

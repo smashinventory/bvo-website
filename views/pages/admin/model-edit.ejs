@@ -164,10 +164,11 @@ const prefillModel = typeof query !== 'undefined' && query && query.model ? quer
           <label class="me-label" for="meMetaTitle">
             Meta Title
             <span class="me-label-hint">browser tab / search result title</span>
+            <button type="button" id="meMetaTitle_reset" class="bvo-reset-btn" title="Re-fill from model name">↺ Reset</button>
           </label>
           <input type="text" id="meMetaTitle" name="meta_title" class="me-input"
                  value="<%= mg.meta_title || '' %>" maxlength="70"
-                 placeholder="Brittany Vanity Collection | BathroomVanitiesOutlet.com"
+                 placeholder="Auto-filled from model name"
                  oninput="meCharCount(this,'meMetaTitleCount',70)">
           <div class="me-char-count" id="meMetaTitleCount"><%= (mg.meta_title||'').length %>/70</div>
         </div>
@@ -175,16 +176,20 @@ const prefillModel = typeof query !== 'undefined' && query && query.model ? quer
         <div class="me-field">
           <label class="me-label" for="meMetaDesc">
             Meta Description
-            <span class="me-label-hint">search snippet — 120–160 chars ideal</span>
+            <span class="me-label-hint">120–160 chars ideal</span>
+            <button type="button" id="meMetaDesc_reset" class="bvo-reset-btn" title="Re-fill from description">↺ Reset</button>
           </label>
           <textarea id="meMetaDesc" name="meta_description" class="me-textarea"
                     rows="3" maxlength="200"
-                    placeholder="Shop the Brittany collection — premium bathroom vanities in 6 finishes. Free shipping. Outlet prices."
+                    placeholder="Auto-filled from description"
                     oninput="meCharCount(this,'meMetaDescCount',160)"><%= mg.meta_description || '' %></textarea>
           <div class="me-char-count" id="meMetaDescCount"><%= (mg.meta_description||'').length %>/160</div>
         </div>
 
-        <div class="me-field">
+        <!-- SERP Preview -->
+        <div class="bvo-serp-preview" id="modelSerpPreview"></div>
+
+        <div class="me-field" style="margin-top:.75rem">
           <label class="me-label" for="meOgImage">
             OG / Share Image URL
             <span class="me-label-hint">1200×630 px recommended</span>
@@ -266,10 +271,13 @@ const prefillModel = typeof query !== 'undefined' && query && query.model ? quer
         <% } %>
 
         <div class="me-field" style="margin-top:.75rem">
-          <label class="me-label" for="meImageAlt">Image Alt Text</label>
+          <label class="me-label" for="meImageAlt">
+            Image Alt Text
+            <button type="button" id="meImageAlt_reset" class="bvo-reset-btn" title="Re-fill from model name">↺ Reset</button>
+          </label>
           <input type="text" id="meImageAlt" name="image_alt" class="me-input"
                  value="<%= mg.image_alt || '' %>"
-                 placeholder="Brittany bathroom vanity in white">
+                 placeholder="Auto-filled from model name">
         </div>
       </div>
 
@@ -293,29 +301,106 @@ const prefillModel = typeof query !== 'undefined' && query && query.model ? quer
 
 </form>
 
+<script nonce="<%= cspNonce %>" src="/js/admin-seo.js"></script>
 <script nonce="<%= cspNonce %>">
 (function() {
 
   /* ── Character counters ──────────────────────────────────── */
   window.meCharCount = function(el, counterId, max) {
-    const n = el.value.length;
-    const counter = document.getElementById(counterId);
+    var n = el.value.length;
+    var counter = document.getElementById(counterId);
     if (!counter) return;
     counter.textContent = n + '/' + max;
-    counter.className = 'me-char-count' + (n > max ? ' over' : '');
+    // Keep existing n/max format + add color classes
+    counter.className = 'me-char-count' + (n > max ? ' over seo-err' : n > max * .86 ? ' seo-warn' : n > 0 ? ' seo-ok' : '');
   };
   // Init on load
   document.querySelectorAll('textarea[maxlength], input[maxlength]').forEach(function(el) {
-    const id    = el.id;
-    const max   = parseInt(el.getAttribute('maxlength'));
+    var id  = el.id;
+    var max = parseInt(el.getAttribute('maxlength'));
     if (!id || !max) return;
-    const counterMap = {
+    var counterMap = {
       'meDesc':       'meDescCount',
       'meMetaTitle':  'meMetaTitleCount',
       'meMetaDesc':   'meMetaDescCount',
     };
     if (counterMap[id]) meCharCount(el, counterMap[id], max);
   });
+
+  /* ── SEO auto-fill + SERP preview ────────────────────────── */
+  if (window.BvoSeo) {
+    // Source of model name: editable input/select on new, read-only hidden on edit
+    var modelNameEl = document.getElementById('meModelName');
+    var modelNameVal = modelNameEl ? modelNameEl.value : <%- JSON.stringify(mg.model_name || '') %>;
+
+    // Helper: get current model name string
+    function getModelName() {
+      return modelNameEl ? modelNameEl.value.trim() : modelNameVal;
+    }
+
+    // Auto-fill meta_title from model name
+    if (modelNameEl) {
+      BvoSeo.autoFill('meModelName', 'meMetaTitle', function(v) { return v; });
+    }
+    // Auto-fill meta_desc from description field
+    BvoSeo.autoFill('meDesc', 'meMetaDesc', function(v) { return BvoSeo.trunc(v, 125, '…'); });
+    // Auto-fill image alt from model name
+    if (modelNameEl) {
+      BvoSeo.autoFill('meModelName', 'meImageAlt', function(v) {
+        return v ? v + ' bathroom vanity collection' : '';
+      });
+    }
+
+    // One-time page-load fill + reset wiring for edit pages
+    // (model name is locked to a hidden field — autoFill() can't reach it,
+    //  so we handle initial fill and reset buttons manually here)
+    (function() {
+      var mn = getModelName();
+      if (!mn) return;
+
+      function fillFromModel(el, value) {
+        if (!el || el.value.trim()) return; // Rule 1: don't overwrite existing
+        el.value = value;
+        el.dispatchEvent(new Event('input'));
+      }
+
+      var mtEl  = document.getElementById('meMetaTitle');
+      var altEl = document.getElementById('meImageAlt');
+      var altVal = mn + ' bathroom vanity collection';
+
+      fillFromModel(mtEl,  mn);
+      fillFromModel(altEl, altVal);
+
+      // Wire ↺ Reset buttons for these locked-source fields
+      var mtReset = document.getElementById('meMetaTitle_reset');
+      if (mtReset && mtEl) {
+        mtReset.addEventListener('click', function(e) {
+          e.preventDefault();
+          delete mtEl.dataset.manual;
+          mtEl.value = mn;
+          mtEl.dispatchEvent(new Event('input'));
+          mtEl.focus();
+        });
+      }
+      var altReset = document.getElementById('meImageAlt_reset');
+      if (altReset && altEl) {
+        altReset.addEventListener('click', function(e) {
+          e.preventDefault();
+          delete altEl.dataset.manual;
+          altEl.value = altVal;
+          altEl.dispatchEvent(new Event('input'));
+          altEl.focus();
+        });
+      }
+    })();
+
+    // SERP preview
+    BvoSeo.serpPreview({
+      containerId: 'modelSerpPreview',
+      titleId:     'meMetaTitle',
+      descId:      'meMetaDesc',
+    });
+  }
 
 <% if (!isNew) { %>
   /* ── Image upload AJAX ───────────────────────────────────── */

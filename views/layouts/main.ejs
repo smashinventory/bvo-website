@@ -33,6 +33,8 @@ const _pageTitle = typeof pageTitle !== 'undefined' && pageTitle
 const _metaDesc  = typeof metaDesc !== 'undefined' && metaDesc
                  ? metaDesc : (_seo.home_description || '');
 const _ogImg     = _seo.og_image || '/images/og-default.jpg';
+const _ogTitle   = (typeof ogTitle !== 'undefined' && ogTitle) ? ogTitle : (_seo.og_title || _pageTitle);
+const _ogDesc    = (typeof ogDesc  !== 'undefined' && ogDesc)  ? ogDesc  : (_seo.og_description || _metaDesc);
 const _siteName  = (settings && settings.global) ? (settings.global.site_name || 'BathroomVanitiesOutlet.com') : 'BathroomVanitiesOutlet.com';
 %>
 <!DOCTYPE html>
@@ -61,8 +63,8 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   <link rel="apple-touch-icon" href="/images/logos/BVOLOGOSQ_512.png">
 
   <!-- Open Graph -->
-  <meta property="og:title"       content="<%= _pageTitle %>">
-  <meta property="og:description" content="<%= _metaDesc %>">
+  <meta property="og:title"       content="<%= _ogTitle %>">
+  <meta property="og:description" content="<%= _ogDesc %>">
   <meta property="og:image"       content="<%= _ogImg %>">
   <meta property="og:image:alt"   content="<%= _seo.og_image_alt || _pageTitle %>">
   <meta property="og:type"        content="<% if (typeof product !== 'undefined' && product) { %>product<% } else { %>website<% } %>">
@@ -84,7 +86,7 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   <!-- Extended styles (blocking — carousel/card styles must be present before JS sizeCards() runs) -->
   <link rel="stylesheet" href="/css/site2.css?v=47">
   <!-- site3.css: Trust signals, checkout, CMS pages, blog, inspiration guides (split when site2 hit 80KB CDN limit — Rule 11) -->
-  <link rel="stylesheet" href="/css/site3.css?v=14">
+  <link rel="stylesheet" href="/css/site3.css?v=15">
   <!-- site4.css: Responsive polish & mobile optimization — targeted fixes for all pages (Rule 11) -->
   <link rel="stylesheet" href="/css/site4.css?v=13">
 

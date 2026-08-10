@@ -12,6 +12,7 @@ const { normalize: normalizeColor } = require('../config/colorFamilies');
 const path           = require('path');
 const fs             = require('fs');
 const multer         = require('multer');
+const { applyProductSeoDefaults, applyGmcDefaults } = require('../utils/seoDefaults');
 
 /* ── Allowed-extension whitelists ────────────────────────────── */
 const ALLOWED_IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp']);
@@ -1311,7 +1312,7 @@ function _extractProductFields(body) {
   const num = (v) => { const n = parseFloat(v); return (!isNaN(n) && v !== '' && v != null) ? n : null; };
   const int = (v) => { const n = parseInt(v);   return (!isNaN(n) && v !== '' && v != null) ? n : null; };
 
-  return {
+  const d = {
     // ── Basic
     name,
     slug,
@@ -1390,6 +1391,8 @@ function _extractProductFields(body) {
     color_family:             (body.color_family              || '').trim() || normalizeColor((body.color || '').trim()) || null,
     specs,
   };
+  applyProductSeoDefaults(d);
+  return applyGmcDefaults(d);
 }
 
 /* ── Private helpers ─────────────────────────────────────────────── */

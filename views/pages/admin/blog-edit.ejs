@@ -148,13 +148,23 @@
         <div class="be-card">
           <h2>SEO &amp; Meta</h2>
           <div class="be-field">
-            <label for="bl-mt">Meta Title</label>
-            <input type="text" id="bl-mt" name="meta_title" value="<%- _p.meta_title || '' %>" placeholder="Post Title | BathroomVanitiesOutlet.com" maxlength="255">
+            <label for="bl-mt">
+              Meta Title
+              <button type="button" id="bl-mt_reset" class="bvo-reset-btn" title="Re-fill from post title">↺ Reset</button>
+            </label>
+            <input type="text" id="bl-mt" name="meta_title" value="<%- _p.meta_title || '' %>" placeholder="Auto-filled from post title" maxlength="255">
+            <div class="be-hint"><span id="blMtCount">0</span> / 60 chars recommended</div>
           </div>
           <div class="be-field">
-            <label for="bl-md">Meta Description</label>
-            <textarea id="bl-md" name="meta_desc" rows="3" placeholder="Brief description for search engines…" maxlength="500"><%- _p.meta_desc || '' %></textarea>
+            <label for="bl-md">
+              Meta Description
+              <button type="button" id="bl-md_reset" class="bvo-reset-btn" title="Re-fill from excerpt">↺ Reset</button>
+            </label>
+            <textarea id="bl-md" name="meta_desc" rows="3" placeholder="Auto-filled from excerpt" maxlength="500"><%- _p.meta_desc || '' %></textarea>
+            <div class="be-hint"><span id="blMdCount">0</span> / 160 chars recommended</div>
           </div>
+          <!-- SERP Preview -->
+          <div class="bvo-serp-preview" id="blogSerpPreview"></div>
         </div>
 
         <% if (!isNew) { %>
@@ -176,6 +186,7 @@
 </div>
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.snow.min.css">
+<script nonce="<%= cspNonce %>" src="/js/admin-seo.js"></script>
 <script nonce="<%= cspNonce %>">
 (function() {
   var s = document.createElement('script');
@@ -220,5 +231,19 @@ function updateImgPreview(url) {
   var img = document.getElementById('fi-preview');
   if (url) { img.src = url; img.style.display = 'block'; }
   else      { img.style.display = 'none'; }
+}
+
+/* ── BvoSeo: auto-fill + counters + SERP preview ── */
+if (window.BvoSeo) {
+  BvoSeo.autoFill('bl-title',   'bl-mt', function(v) { return v; });
+  BvoSeo.autoFill('bl-excerpt', 'bl-md', function(v) { return BvoSeo.trunc(v, 125, '…'); });
+  BvoSeo.counter('bl-mt', 'blMtCount', 60, 70);
+  BvoSeo.counter('bl-md', 'blMdCount', 160, 200);
+  BvoSeo.serpPreview({
+    containerId: 'blogSerpPreview',
+    titleId:     'bl-mt',
+    descId:      'bl-md',
+    urlPath:     '<% if (!isNew && _p.slug) { %>/blog/<%= _p.slug %><% } else { %>/blog/...<% } %>',
+  });
 }
 </script>
