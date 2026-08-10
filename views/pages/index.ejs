@@ -701,7 +701,7 @@ _DEFAULT_ORDER.forEach(function(k) {
     <div class="<%= _iwtGridCls %>">
       <div class="iwt-image-col"<%= !_iwtIsOverlay ? ' style="flex:0 0 '+_iwtImgW+'; max-width:'+_iwtImgW+'"' : '' %>>
         <% if (_d.image_url) { %>
-        <img src="<%= _d.image_url %>" alt="<%= _d.image_alt || '' %>" loading="lazy" class="iwt-img">
+        <img src="<%= _d.image_url %>" alt="<%= _d.image_alt || '' %>" loading="lazy" class="iwt-img" width="380" height="285">
         <% } %>
       </div>
       <div class="iwt-text-col" style="text-align:<%= _iwtIsOverlay ? 'center' : _iwtTextAlign %>">

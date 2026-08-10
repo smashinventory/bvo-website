@@ -192,28 +192,40 @@
   <div id="mobile-menu" class="mobile-menu" aria-hidden="true">
     <ul role="list">
       <% (nav.links || []).forEach(link => { %>
-      <li><a href="<%= link.url %>"<%= link.highlight ? ' class="nav-link-sale"' : '' %>><%= link.label %></a></li>
       <% if (link.megaMenu) { %>
-      <%/* Type links — editable in admin mega menu editor */%>
-      <% ((nav.vanities_mega || {}).links || []).forEach(function(sl) { %>
-      <li class="mobile-sub"><a href="<%= sl.url %>"><%= sl.label %></a></li>
-      <% }) %>
-      <%/* Promo card target — editable in admin */%>
-      <li class="mobile-sub"><a href="<%= ((nav.vanities_mega || {}).promo || {}).url || '/collections/vanity-models' %>">Browse All Collections</a></li>
-      <%/* Dynamic color families — same source as desktop mega menu */%>
-      <% (typeof megaMenuColorFamilies !== 'undefined' ? megaMenuColorFamilies : []).forEach(function(fam) { %>
-      <li class="mobile-sub"><a href="/collections/bathroom-vanities?color_family=<%= fam.key %>"><%= fam.label %> Vanities</a></li>
-      <% }) %>
-      <%/* Style links — mirrors desktop mega menu Style column */%>
-      <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Traditional">Traditional</a></li>
-      <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Transitional">Transitional</a></li>
-      <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Modern">Modern</a></li>
-      <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Farmhouse">Farmhouse</a></li>
-      <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Mid-Century+Modern">Mid-Century Modern</a></li>
-      <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Industrial">Industrial</a></li>
-      <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Coastal">Coastal</a></li>
-      <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Scandinavian">Scandinavian</a></li>
-      <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=European+%2F+Old+World">European / Old World</a></li>
+      <%/* Accordion parent — toggle reveals sub-items */%>
+      <li class="mobile-mega-parent">
+        <div class="mobile-mega-header">
+          <a href="<%= link.url %>"><%= link.label %></a>
+          <button class="mobile-sub-toggle" aria-expanded="false" aria-label="Expand <%= link.label %> submenu">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+        </div>
+        <ul class="mobile-sub-list" hidden role="list">
+          <%/* Type links — editable in admin mega menu editor */%>
+          <% ((nav.vanities_mega || {}).links || []).forEach(function(sl) { %>
+          <li class="mobile-sub"><a href="<%= sl.url %>"><%= sl.label %></a></li>
+          <% }) %>
+          <%/* Promo card target — editable in admin */%>
+          <li class="mobile-sub"><a href="<%= ((nav.vanities_mega || {}).promo || {}).url || '/collections/vanity-models' %>">Browse All Collections</a></li>
+          <%/* Dynamic color families — same source as desktop mega menu */%>
+          <% (typeof megaMenuColorFamilies !== 'undefined' ? megaMenuColorFamilies : []).forEach(function(fam) { %>
+          <li class="mobile-sub"><a href="/collections/bathroom-vanities?color_family=<%= fam.key %>"><%= fam.label %> Vanities</a></li>
+          <% }) %>
+          <%/* Style links — mirrors desktop mega menu Style column */%>
+          <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Traditional">Traditional</a></li>
+          <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Transitional">Transitional</a></li>
+          <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Modern">Modern</a></li>
+          <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Farmhouse">Farmhouse</a></li>
+          <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Mid-Century+Modern">Mid-Century Modern</a></li>
+          <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Industrial">Industrial</a></li>
+          <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Coastal">Coastal</a></li>
+          <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Scandinavian">Scandinavian</a></li>
+          <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=European+%2F+Old+World">European / Old World</a></li>
+        </ul>
+      </li>
+      <% } else { %>
+      <li><a href="<%= link.url %>"<%= link.highlight ? ' class="nav-link-sale"' : '' %>><%= link.label %></a></li>
       <% } %>
       <% }) %>
       <li><a href="/account">My Account</a></li>
@@ -221,5 +233,27 @@
       <li><a href="/cart">Cart (<%= cart.count %>)</a></li>
     </ul>
   </div>
+
+  <!-- Mobile accordion toggle — runs after drawer HTML is in DOM -->
+  <script nonce="<%= cspNonce %>">
+  (function() {
+    function initMobileAccordion() {
+      document.querySelectorAll('.mobile-sub-toggle').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var expanded = btn.getAttribute('aria-expanded') === 'true';
+          btn.setAttribute('aria-expanded', String(!expanded));
+          var list = btn.closest('.mobile-mega-parent').querySelector('.mobile-sub-list');
+          if (list) list.hidden = expanded;
+          btn.classList.toggle('is-open', !expanded);
+        });
+      });
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initMobileAccordion);
+    } else {
+      initMobileAccordion();
+    }
+  })();
+  </script>
 
 </header>

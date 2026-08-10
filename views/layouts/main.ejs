@@ -80,15 +80,15 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
 
   <!-- Brand CSS tokens (blocking — 3 KiB, provides CSS vars needed by site.css) -->
   <!-- Bump ?v= any time CSS changes to bust Hostinger CDN cache (Rule 11) -->
-  <link rel="stylesheet" href="/css/brand.css?v=2">
+  <link rel="stylesheet" href="/css/brand.css?v=3">
   <!-- Main site CSS (blocking) -->
-  <link rel="stylesheet" href="/css/site.css?v=5">
+  <link rel="stylesheet" href="/css/site.css?v=6">
   <!-- Extended styles (blocking — carousel/card styles must be present before JS sizeCards() runs) -->
-  <link rel="stylesheet" href="/css/site2.css?v=47">
+  <link rel="stylesheet" href="/css/site2.css?v=48">
   <!-- site3.css: Trust signals, checkout, CMS pages, blog, inspiration guides (split when site2 hit 80KB CDN limit — Rule 11) -->
-  <link rel="stylesheet" href="/css/site3.css?v=15">
+  <link rel="stylesheet" href="/css/site3.css?v=16">
   <!-- site4.css: Responsive polish & mobile optimization — targeted fixes for all pages (Rule 11) -->
-  <link rel="stylesheet" href="/css/site4.css?v=13">
+  <link rel="stylesheet" href="/css/site4.css?v=15">
 
   <!-- Design tokens: CSS var aliases resolved before external CSS (prevents cascade gaps) -->
   <style>
@@ -188,7 +188,7 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   </script>
 
   <!-- Site JS -->
-  <script nonce="<%= cspNonce %>" src="/js/site.js?v=5"></script>
+  <script nonce="<%= cspNonce %>" src="/js/site.js?v=6"></script>
 
   <!-- Page-level scripts -->
   <%- script %>
