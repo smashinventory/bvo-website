@@ -205,7 +205,15 @@ app.use((req, res, next) => {
   res.locals.gtmId      = process.env.GTM_ID      || '';
   res.locals.tidioKey   = process.env.TIDIO_PUBLIC_KEY || '';
   res.locals.gmcId      = process.env.GMC_MERCHANT_ID  || '';
-  res.locals.cart       = req.session.cart || { items: [], count: 0 };
+  // Initialise cart on every page request so the session is "touched" (modified)
+  // and express-session writes it to MySQL + sends the session cookie immediately.
+  // Without this, saveUninitialized:false delays the cookie until /cart is visited,
+  // which means the CSRF token embedded in any page (e.g. /bundle-builder) is tied
+  // to a session ID the browser never receives — causing the first POST to fail with
+  // a CSRF mismatch because the /cart/add request has no cookie and therefore a
+  // different session ID than the one that generated the CSRF token in the page.
+  if (!req.session.cart) req.session.cart = { items: [], count: 0, subtotal: 0 };
+  res.locals.cart       = req.session.cart;
   res.locals.pageTitle  = 'BathroomVanitiesOutlet.com';
   res.locals.metaDesc   = 'Premium bathroom vanities, mirrors, faucets and accessories at outlet prices. Free shipping on all orders.';
   // SEO defaults — controllers override these as needed

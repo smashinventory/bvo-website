@@ -3,6 +3,39 @@
 
 ---
 
+## Bundle Builder — First-Add-to-Cart Bug Fix
+**Date:** 2026-08-10
+
+### Root cause
+`saveUninitialized: false` in express-session means that on a first visit with no session cookie (e.g., after clearing cache + cookies), the session is created in memory but **the cookie is not sent** and the session is not written to MySQL — because nothing modified the session during the page request.
+
+The CSRF token embedded in the page is derived from `_makeCsrf(req.sessionID)`. When the bundle builder then calls `POST /cart/add`, the browser has no session cookie, so express-session generates a **brand-new session ID**. The CSRF check computes `_makeCsrf(new-id)`, which does not match the `_makeCsrf(old-id)` token in the page → **403 CSRF mismatch**.
+
+The `addToCart` function never checked `response.ok` on the fetch calls, so the 403 silently resolved, the reduce chain completed, and `window.location.href = '/cart'` fired — landing on an empty cart with no error shown.
+
+The second attempt worked because the browser visiting `/cart` caused `getCart()` to initialize `req.session.cart`, which **modified the session** → session saved to MySQL → cookie set. On the next bundle-builder visit the cookie was present, session IDs matched, and CSRF passed.
+
+### Fix 1 — `src/server.js` (root cause)
+Changed the global template middleware that sets `res.locals.cart` to also **initialize the cart on every page request**. This ensures the session is modified (and thus saved + cookie sent) on the very first page visit — not just when /cart is viewed.
+
+```js
+// Before:
+res.locals.cart = req.session.cart || { items: [], count: 0 };
+
+// After:
+if (!req.session.cart) req.session.cart = { items: [], count: 0, subtotal: 0 };
+res.locals.cart = req.session.cart;
+```
+
+### Fix 2 — `views/pages/bundle-builder.ejs` (defensive)
+Added `response.ok` checking to each fetch call in the `addToCart` reduce chain. HTTP 4xx/5xx responses now throw an error, which propagates to the `.catch()` block and shows an alert with the server's error message instead of silently redirecting to an empty cart.
+
+### To undo
+- **Fix 1:** Revert the two-line change in `src/server.js` back to `res.locals.cart = req.session.cart || { items: [], count: 0 };`
+- **Fix 2:** Remove the `.then(resp => { if (!resp.ok) ... })` wrapper from the fetch call in `bundle-builder.ejs addToCart`
+
+---
+
 ## Security Hardening Sprint — LOW fixes + Autocomplete sweep
 **Date:** 2026-08-05
 **Audit source:** `BVO_SECURITY_AUDIT.md` (LOW-1, LOW-2, LOW-4, LOW-5, LOW-7, LOW-8, LOW-9)

@@ -993,14 +993,24 @@
         fd.append('bundle_discount_pct', disc);
         fd.append('bundle_id',           bundleId);
         fd.append('qty', '1');
-        return fetch('/cart/add', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded' }, body: fd });
+        return fetch('/cart/add', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded' }, body: fd })
+          .then(function(resp) {
+            // fetch() only rejects on network failure — HTTP 4xx/5xx resolve normally.
+            // Explicitly check resp.ok so CSRF errors, product-not-found, and DB
+            // failures all surface as an alert instead of silently landing on empty cart.
+            if (!resp.ok) {
+              return resp.json().catch(function() { return {}; }).then(function(data) {
+                throw new Error(data.error || ('Server error ' + resp.status));
+              });
+            }
+          });
       });
     }, Promise.resolve())
       .then(function() { window.location.href = '/cart'; })
-      .catch(function() {
+      .catch(function(err) {
         btn.disabled    = false;
         btn.textContent = 'Add Bundle to Cart';
-        alert('Something went wrong. Please try again.');
+        alert('Something went wrong. Please try again.' + (err && err.message ? ' (' + err.message + ')' : ''));
       });
   }
 
