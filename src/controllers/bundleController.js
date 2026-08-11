@@ -100,10 +100,14 @@ async function getTops() {
     SELECT
       p.id, p.slug, p.name, p.model, p.price, p.compare_price,
       p.width_in, p.color, p.color_family,
+      CAST(pav_sink.value_num AS UNSIGNED) AS sink_count,
       ${IMG_SQL},
       ${CHIP_SQL}
     FROM products p
     INNER JOIN categories c ON c.id = p.category_id
+    LEFT JOIN product_attribute_values pav_sink
+      ON  pav_sink.product_id = p.id
+      AND pav_sink.attr_key   = 'sink_count'
     WHERE p.brand          = ?
       AND c.slug           = 'bathroom-vanity-tops'
       AND p.product_type   = 'Stone Top'

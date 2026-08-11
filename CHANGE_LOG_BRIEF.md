@@ -3,6 +3,36 @@
 
 ---
 
+## Bundle Builder — Stone Top Sink-Count Auto-Filter
+**Date:** 2026-08-10
+
+### Problem
+When a user selected a 60S (single-sink) or 60D (double-sink) cabinet in Step 1, Step 2 showed all 60" stone tops — both single and double sink variants. The user had no way to distinguish which top matched their cabinet, and the wrong top could be added to the bundle.
+
+### Solution — automatic, no user input required
+Once a cabinet is selected, `activeTops()` now reads the cabinet's `product_type` to determine its sink config (S or D), then filters the top list to only show tops with the matching `sink_count` attribute. No new UI chips needed — the filter is fully automatic.
+
+### Files changed
+
+**`src/controllers/bundleController.js`** — `getTops()`
+- Added `LEFT JOIN product_attribute_values pav_sink ON pav_sink.product_id = p.id AND pav_sink.attr_key = 'sink_count'` to the query.
+- Added `CAST(pav_sink.value_num AS UNSIGNED) AS sink_count` to SELECT so each top row carries its sink count (1 or 2).
+- No new bind parameters; CHIP_SQL's `JM_BRAND` parameter order is preserved.
+
+**`views/pages/bundle-builder.ejs`** — `activeTops()`
+- After the width-bucket filter, added a second pass: reads `sinkKeyFromProductType(state.cabinet.product_type)` → target `sink_count` (1 for S, 2 for D).
+- Tops with `sink_count == null` (no DB attribute) are included as a safe fallback.
+- Updated the function's comment block to describe both filters.
+
+### Data source
+`product_attribute_values` table, `attr_key = 'sink_count'`, `value_num = 1` (single) or `value_num = 2` (double) — already populated for all JM stone tops.
+
+### Rollback
+- `bundleController.js` — remove LEFT JOIN + `sink_count` from SELECT in `getTops()`
+- `bundle-builder.ejs` — remove the `cabSink`/`targetSinkCount` block from `activeTops()`
+
+---
+
 ## S/D Size Chips — Single/Double Sink Disambiguation
 **Date:** 2026-08-10
 

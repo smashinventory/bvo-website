@@ -477,8 +477,12 @@
      Stone/composite tops have no meaningful color variants — each is a
      distinct material (Carrara White Marble, White Zeus Quartz, etc.).
      Flattening to individual SKUs lets the user arrow through all options.
-     Width bucket filter applied once a cabinet is selected (range match,
-     not exact equality, to handle minor dimension variations). */
+     Two automatic filters applied once a cabinet is selected:
+       1. Width bucket filter (range match, not exact equality).
+       2. Sink-count filter: if cabinet is Single ('S') → sink_count = 1;
+          if Double ('D') → sink_count = 2.  Tops with no sink_count data
+          are included as a safe fallback.  No user chip needed — the top
+          sink config is fully determined by the cabinet choice. */
   function activeTops() {
     var allSkus = [];
     TOP_MODELS.forEach(function(m) { allSkus = allSkus.concat(m.skus); });
@@ -491,6 +495,21 @@
           return w >= cabBkt.min && w <= cabBkt.max;
         });
       }
+    }
+
+    /* Auto-filter by sink count based on the selected cabinet's product_type.
+       sinkKeyFromProductType returns 'S' for single-sink, 'D' for double,
+       null for anything without a clear config (mirrors, faucets, etc.).
+       Tops missing sink_count data are kept as a safe fallback. */
+    var cabSink = sinkKeyFromProductType(
+      state.cabinet ? state.cabinet.product_type : null
+    );
+    if (cabSink) {
+      var targetSinkCount = (cabSink === 'S') ? 1 : 2;
+      allSkus = allSkus.filter(function(s) {
+        if (s.sink_count == null) return true; // no data → include as fallback
+        return s.sink_count == targetSinkCount;
+      });
     }
 
     // Each SKU becomes its own model entry — no color grouping for tops
