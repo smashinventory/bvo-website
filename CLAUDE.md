@@ -77,8 +77,8 @@ Size chips and color swatches are **identical on ALL card types**:
 | CSS (all new rules go here) | `public/css/site2.css` (then rebuild bundle — see Rule 5) |
 | CSS bundle | `public/css/site-bundle.css` (generated — do not edit directly) |
 | CSS cache bust link | `views/layouts/main.ejs` (bump `site-bundle.css?v=N`) |
-| Current CSS versions | site-bundle.css v4 (contains brand v3 + site v6 + site2 v50 + site4 v16), site3.css v16 |
-| Current JS version | site.js v7 |
+| Current CSS versions | site-bundle.css v5 (contains brand v3 + site v6 + site2 v51 + site4 v16), site3.css v16 |
+| Current JS version | site.js v8 |
 | rflposSync CAT_MAP | `src/services/rflposSync.js` lines 50-53 — maps to `bathroom-vanities` NOT `vanities` |
 
 ## Known Pending Issues (as of 2026-07-31)

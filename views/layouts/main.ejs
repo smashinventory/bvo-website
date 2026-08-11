@@ -83,7 +83,7 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
        SOURCE FILES: public/css/brand.css, site.css, site2.css, site4.css (edit these, then rebuild).
        REBUILD: cat brand.css site.css site2.css site4.css > site-bundle.css (in public/css/).
        Bump ?v= any time any source CSS changes to bust Hostinger CDN cache (CLAUDE.md Rule 5). -->
-  <link rel="stylesheet" href="/css/site-bundle.css?v=4">
+  <link rel="stylesheet" href="/css/site-bundle.css?v=5">
   <!-- site3.css: Trust signals, checkout, CMS pages, blog, inspiration guides -->
   <!-- Loaded conditionally per-page via <%- style %> slot — not global (perf: saves 37KB blocking CSS on homepage/collections/products) -->
 
@@ -185,10 +185,15 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   </script>
 
   <!-- Site JS -->
-  <script nonce="<%= cspNonce %>" src="/js/site.js?v=7"></script>
+  <script nonce="<%= cspNonce %>" src="/js/site.js?v=8"></script>
 
   <!-- Page-level scripts -->
   <%- script %>
+
+  <!-- Scroll to top -->
+  <button id="scrollTopBtn" class="scroll-top-btn" aria-label="Back to top">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="18 15 12 9 6 15"/></svg>
+  </button>
 
   <!-- Tidio Live Chat -->
   <% if (typeof tidioKey !== 'undefined' && tidioKey) { %>
