@@ -498,6 +498,15 @@ function teArrayLinks(prefix,listId,tplId,items){
                 <%- teField('text','seo.og_image_alt','OG Image Alt Text',seo.og_image_alt) %>
                 <div class="te4-section-label" style="margin-top:.75rem">Analytics</div>
                 <%- teField('text','seo.google_analytics_id','Google Analytics ID',seo.google_analytics_id) %>
+
+                <div class="te4-section-label" style="margin-top:.75rem">Social Accounts</div>
+                <p style="font-size:.74rem;color:var(--te4-muted,#888);margin:-.2rem 0 .6rem">Paste your full profile URL for each platform you use. Icons only appear on product &amp; inspiration pages when a URL is set.</p>
+                <% var _soc = t.social || {}; %>
+                <%- teField('url','social.facebook_url','Facebook URL',_soc.facebook_url||'') %>
+                <%- teField('url','social.instagram_url','Instagram URL',_soc.instagram_url||'') %>
+                <%- teField('url','social.twitter_url','X / Twitter URL',_soc.twitter_url||'') %>
+                <%- teField('url','social.pinterest_url','Pinterest URL',_soc.pinterest_url||'') %>
+                <%- teField('url','social.linkedin_url','LinkedIn URL',_soc.linkedin_url||'') %>
               </div>
             </details>
 

@@ -416,6 +416,13 @@ const DEFAULTS = {
     empty_cta_text: 'Start Shopping',
     empty_cta_url: '/collections/bathroom-vanities',
   },
+  social: {
+    facebook_url:  '',   // e.g. https://facebook.com/YourPage
+    instagram_url: '',   // e.g. https://instagram.com/yourhandle
+    twitter_url:   '',   // e.g. https://x.com/yourhandle
+    pinterest_url: '',   // e.g. https://pinterest.com/yourprofile
+    linkedin_url:  '',   // e.g. https://linkedin.com/company/yourcompany
+  },
   footer: {
     brand_desc: 'Premium vanities, mirrors, faucets & accessories — at prices that make sense. Free shipping on every order.',
     copyright_name: 'BathroomVanitiesOutlet.com',
