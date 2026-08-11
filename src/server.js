@@ -146,26 +146,28 @@ app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 // ── Static assets ────────────────────────────────────────────────
 // Serve uploaded images and documents from the persistent upload directory.
 // On production this may be outside public/ (set via UPLOADS_IMG_PATH).
+// Upload images have no version strings in their URLs, so 30 days limits
+// stale-image exposure if a product photo is replaced.
 app.use('/docs/uploads', express.static(uploadDir, {
-  maxAge: '7d',
+  maxAge: '30d',
   setHeaders(res) {
-    res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
+    res.setHeader('Cache-Control', 'public, max-age=2592000, stale-while-revalidate=86400');
   },
 }));
 app.use('/images/uploads', express.static(uploadDir, {
-  maxAge: '7d',
+  maxAge: '30d',
   setHeaders(res) {
-    res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
+    res.setHeader('Cache-Control', 'public, max-age=2592000, stale-while-revalidate=86400');
   },
 }));
 
 app.use(express.static(path.join(__dirname, '..', 'public'), {
-  maxAge: '7d',
+  // All public assets are versioned via ?v= query string — 1 year is safe.
+  // Express explicitly sets this header so LiteSpeed/Hostinger CDN honours it
+  // even if it would otherwise override the .htaccess Expires rules.
+  maxAge: '1y',
   setHeaders(res) {
-    // All public assets are versioned via ?v= query string — safe to cache long-term.
-    // Unconditional (no extension check) so the header is always sent, even if a
-    // proxy/LiteSpeed strips the maxAge-derived header from the send module.
-    res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, stale-while-revalidate=86400');
   },
 }));
 
