@@ -78,17 +78,14 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   <link rel="preload" href="<%- _gfUrl %>" as="style" onload="this.onload=null;this.rel='stylesheet'">
   <noscript><link href="<%- _gfUrl %>" rel="stylesheet"></noscript>
 
-  <!-- Brand CSS tokens (blocking — 3 KiB, provides CSS vars needed by site.css) -->
-  <!-- Bump ?v= any time CSS changes to bust Hostinger CDN cache (Rule 11) -->
-  <link rel="stylesheet" href="/css/brand.css?v=3">
-  <!-- Main site CSS (blocking) -->
-  <link rel="stylesheet" href="/css/site.css?v=6">
-  <!-- Extended styles (blocking — carousel/card styles must be present before JS sizeCards() runs) -->
-  <link rel="stylesheet" href="/css/site2.css?v=48">
+  <!-- CSS bundle: brand.css + site.css + site2.css + site4.css concatenated into one file.
+       One blocking request instead of four — eliminates 3 extra HTTP round trips on critical path.
+       SOURCE FILES: public/css/brand.css, site.css, site2.css, site4.css (edit these, then rebuild).
+       REBUILD: cat brand.css site.css site2.css site4.css > site-bundle.css (in public/css/).
+       Bump ?v= any time any source CSS changes to bust Hostinger CDN cache (CLAUDE.md Rule 5). -->
+  <link rel="stylesheet" href="/css/site-bundle.css?v=1">
   <!-- site3.css: Trust signals, checkout, CMS pages, blog, inspiration guides -->
   <!-- Loaded conditionally per-page via <%- style %> slot — not global (perf: saves 37KB blocking CSS on homepage/collections/products) -->
-  <!-- site4.css: Responsive polish & mobile optimization — targeted fixes for all pages (Rule 11) -->
-  <link rel="stylesheet" href="/css/site4.css?v=16">
 
   <!-- Design tokens: CSS var aliases resolved before external CSS (prevents cascade gaps) -->
   <style>

@@ -12,7 +12,11 @@
 2. **Never assume what the user wants.** Ask. Do not infer intent from prior sessions or partial context.
 3. **Always provide git push commands** in a copyable code block. Never push silently.
 4. **Scope discipline** — only touch files required by the current task. Do not "improve" adjacent code while fixing something else.
-5. **Bump `?v=N`** on `/css/site2.css` in `views/layouts/main.ejs` every time any CSS changes. Hostinger CDN caches aggressively. Current version: `v48`.
+5. **CSS bundle workflow** — CSS is now served as a single bundle. Rules:
+   - Edit source files: `public/css/brand.css`, `site.css`, `site2.css`, `site4.css`
+   - After any edit, rebuild the bundle: `cd "BVO Node.js/public/css" && cat brand.css site.css site2.css site4.css > site-bundle.css`
+   - Bump `?v=N` on `site-bundle.css` in `views/layouts/main.ejs` to bust Hostinger CDN cache. Current version: `v1`.
+   - `site3.css` is NOT in the bundle — it loads per-page via the `<%- style %>` slot. Current version: `v16`.
 
 ---
 
@@ -70,9 +74,10 @@ Size chips and color swatches are **identical on ALL card types**:
 | Collections controller | `src/controllers/collectionsController.js` |
 | Home controller | `src/controllers/homeController.js` |
 | Category model (findBySlug) | `src/models/Category.js` |
-| CSS (all new rules go here) | `public/css/site2.css` |
-| CSS cache bust link | `views/layouts/main.ejs` (bump `?v=N`) |
-| Current CSS versions | brand.css v3, site.css v6, site2.css v48, site3.css v16, site4.css v16 |
+| CSS (all new rules go here) | `public/css/site2.css` (then rebuild bundle — see Rule 5) |
+| CSS bundle | `public/css/site-bundle.css` (generated — do not edit directly) |
+| CSS cache bust link | `views/layouts/main.ejs` (bump `site-bundle.css?v=N`) |
+| Current CSS versions | site-bundle.css v1 (contains brand v3 + site v6 + site2 v48 + site4 v16), site3.css v16 |
 | Current JS version | site.js v6 |
 | rflposSync CAT_MAP | `src/services/rflposSync.js` lines 50-53 — maps to `bathroom-vanities` NOT `vanities` |
 
