@@ -39,6 +39,15 @@ const uploadDir = process.env.UPLOADS_IMG_PATH
   || path.join(__dirname, '..', 'public', 'images', 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
+// ── Ensure JM Feed directory exists ──────────────────────────────
+// Lives in public_html so the JM FTP account can drop files there.
+// Outside the git repo — gets wiped on deployments — recreate on every startup.
+const JM_FEED_DIR    = process.env.JM_FEED_DIR
+  || '/home/u222311468/domains/slategrey-falcon-350174.hostingersite.com/public_html/JM_Feed';
+const JM_ARCHIVE_DIR = path.join(JM_FEED_DIR, 'archive');
+if (!fs.existsSync(JM_FEED_DIR))    fs.mkdirSync(JM_FEED_DIR,    { recursive: true });
+if (!fs.existsSync(JM_ARCHIVE_DIR)) fs.mkdirSync(JM_ARCHIVE_DIR, { recursive: true });
+
 // ── CSP nonce — generated per request, must run before helmet ────
 // res.locals.cspNonce is available in all EJS templates as <%= cspNonce %>
 app.use((req, res, next) => {
