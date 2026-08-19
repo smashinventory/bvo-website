@@ -901,7 +901,13 @@
         var _pSizes       = (product.model && typeof modelSizeMap !== 'undefined' && modelSizeMap[product.model])
                               ? modelSizeMap[product.model] : null;
         var _pQtyRaw      = parseInt(product.qty_on_hand || 0, 10);
-        var _pQtyDisplay  = Math.min(_pQtyRaw, 4);
+        var _pQtyDisplay  = _pQtyRaw <= 3  ? _pQtyRaw
+                          : _pQtyRaw <= 6  ? 4
+                          : _pQtyRaw <= 9  ? 5
+                          : _pQtyRaw <= 12 ? 6
+                          : _pQtyRaw <= 15 ? 7
+                          : _pQtyRaw <= 20 ? 8
+                          : 9;
       %>
       <article class="product-card<%= product.hover_image ? ' has-hover-img' : '' %><%= _pQtyRaw === 0 ? ' product-card--no-stock' : '' %>">
         <a href="/products/<%= product.slug %>" class="product-img-link" aria-label="<%= product.name %>">
