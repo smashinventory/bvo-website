@@ -368,6 +368,17 @@ async function replaceComponents(conn, sku, components) {
   }
 }
 
+async function upsertInventory(conn, productId, qtyOnHand) {
+  if (qtyOnHand === null) return;
+  await conn.query(`
+    INSERT INTO inventory (product_id, qty_on_hand, last_synced_at)
+    VALUES (?, ?, NOW())
+    ON DUPLICATE KEY UPDATE
+      qty_on_hand    = VALUES(qty_on_hand),
+      last_synced_at = NOW()
+  `, [productId, qtyOnHand]);
+}
+
 async function replaceAccessories(conn, sku, accessories) {
   await conn.query('DELETE FROM product_accessories WHERE product_sku = ?', [sku]);
   for (const a of accessories) {
@@ -931,6 +942,15 @@ async function importFromWorkbook(wb, opts = {}) {
           { component_sku: clean(row['Component 2 Reference SKU']), component_role: 'component', seq: 2 },
         ].filter(c => c.component_sku);
         await replaceComponents(conn, sku, components);
+
+        // ── Inventory ─────────────────────────────────────────────────
+        const rawInv = row['Total Inventory'];
+        const totalInventory = cleanNum(rawInv);
+        // TEMP DIAG — remove after confirmed working
+        if (imported < 3) {
+          console.log(`[INV DIAG] SKU=${sku} raw=${JSON.stringify(rawInv)} type=${typeof rawInv} cleaned=${totalInventory}`);
+        }
+        await upsertInventory(conn, productId, totalInventory);
 
         // ── Accessories ───────────────────────────────────────────────
         const accRaw     = clean(row['Optional Accessories (Part numbers that would be good accessories for this product)']);
