@@ -120,7 +120,7 @@ function buildDocument(row) {
   const attrs  = row._attrs || {};
   const onSale = !!(row.compare_price && row.compare_price > row.price);
   const weight = (row.is_featured ? 10 : 0) + (row.is_new ? 5 : 0)
-               + Math.min(row.qty_on_hand || 0, 10);
+               + Math.min(row.qty_on_hand || 0, 9);
 
   return {
     id:                String(row.id), // Typesense requires string IDs
