@@ -7,6 +7,9 @@ const ctrl          = require('../controllers/adminController');
 const pagesCtrl     = require('../controllers/pagesController');
 const blogCtrl      = require('../controllers/blogController');
 const menusCtrl     = require('../controllers/menusController');
+const ordersCtrl    = require('../controllers/ordersController');
+const returnsCtrl   = require('../controllers/returnsController');
+const emailTplCtrl  = require('../controllers/emailTemplatesController');
 const { requireAdmin } = require('../middleware/adminAuth');
 
 /* ── Strict rate limit on admin login — 10 attempts / 15 min ── */
@@ -81,8 +84,31 @@ router.post('/models/:id/image/ajax', ctrl.modelImageAjaxMiddleware, ctrl.modelS
 router.post('/models/:id/image/remove',                        ctrl.modelRemoveImage);
 
 /* ── Orders ─────────────────────────────────────────────────── */
-router.get ('/orders',            ctrl.orderList);
-router.post('/orders/:id/status', ctrl.orderUpdateStatus);
+router.get ('/orders',                              ordersCtrl.list);
+router.get ('/orders/shipments',                    ordersCtrl.shipmentsView);
+router.get ('/orders/reports',                      ordersCtrl.reportsView);
+router.get ('/orders/:id',                          ordersCtrl.detail);
+router.post('/orders/:id/status',                   ordersCtrl.updateStatus);
+router.post('/orders/:id/vendor-order',             ordersCtrl.sendVendorOrder);
+router.post('/orders/:id/vendor-confirm',           ordersCtrl.confirmVendorOrder);
+router.post('/orders/:id/shipping/quote',           ordersCtrl.getShippingQuotes);
+router.post('/orders/:id/shipping/book',            ordersCtrl.bookShipment);
+router.post('/orders/:id/notes',                    ordersCtrl.addNote);
+router.post('/orders/:id/documents',  ordersCtrl.documentUploadMiddleware, ordersCtrl.uploadDocument);
+router.post('/orders/:orderId/returns',             returnsCtrl.openReturn);
+
+/* ── Returns ─────────────────────────────────────────────────── */
+router.get ('/returns',              returnsCtrl.list);
+router.post('/returns/:id/approve',  returnsCtrl.approve);
+router.post('/returns/:id/deny',     returnsCtrl.deny);
+router.post('/returns/:id/receive',  returnsCtrl.receive);
+router.post('/returns/:id/resolve',  returnsCtrl.resolve);
+
+/* ── Email Templates ─────────────────────────────────────────── */
+router.get ('/settings/email-templates',           emailTplCtrl.list);
+router.get ('/settings/email-templates/:id/edit',  emailTplCtrl.editForm);
+router.post('/settings/email-templates/:id/toggle',emailTplCtrl.toggle);
+router.post('/settings/email-templates/:id',       emailTplCtrl.save);
 
 /* ── Pages (CMS) ─────────────────────────────────────────────── */
 router.get ('/pages',                      pagesCtrl.adminList);

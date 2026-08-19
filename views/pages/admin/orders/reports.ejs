@@ -1,0 +1,165 @@
+<%- layout('layouts/admin') %>
+
+<div class="admin-page-header">
+  <div>
+    <a href="/admin/orders" class="admin-back-link">← Orders</a>
+    <h1 class="admin-page-title">Operations Reports</h1>
+  </div>
+  <form method="GET" action="/admin/orders/reports" style="display:flex;gap:8px;align-items:center">
+    <label style="font-size:13px;color:var(--text-muted)">Period:</label>
+    <select name="period" class="admin-select admin-select--sm" onchange="this.form.submit()">
+      <option value="7"  <%= period==='7'  ? 'selected':'' %>>Last 7 days</option>
+      <option value="30" <%= period==='30' ? 'selected':'' %>>Last 30 days</option>
+      <option value="60" <%= period==='60' ? 'selected':'' %>>Last 60 days</option>
+      <option value="90" <%= period==='90' ? 'selected':'' %>>Last 90 days</option>
+    </select>
+  </form>
+</div>
+
+<!-- Fulfillment KPIs -->
+<h2 class="report-section-title">Fulfillment</h2>
+<div class="kpi-grid">
+  <div class="kpi-card">
+    <div class="kpi-label">Total Orders</div>
+    <div class="kpi-value"><%= kpis.total_orders %></div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Total Revenue</div>
+    <div class="kpi-value">$<%= parseFloat(kpis.total_revenue || 0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) %></div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Avg Order Value</div>
+    <div class="kpi-value">$<%= parseFloat(kpis.avg_order_value || 0).toFixed(2) %></div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Delivered Orders</div>
+    <div class="kpi-value"><%= kpis.delivered_orders %></div>
+    <div class="kpi-sub"><%= kpis.total_orders > 0 ? Math.round(kpis.delivered_orders / kpis.total_orders * 100) : 0 %>% of total</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Avg Hours to Ship</div>
+    <div class="kpi-value">
+      <% const hrs = parseFloat(kpis.avg_hours_to_ship || 0); %>
+      <%= hrs > 0 ? (hrs >= 24 ? Math.round(hrs/24) + ' days' : Math.round(hrs) + ' hrs') : '—' %>
+    </div>
+    <div class="kpi-sub">Order → tracking booked</div>
+  </div>
+  <div class="kpi-card kpi-card--<%= kpis.cancelled_orders > 0 ? 'warn' : 'ok' %>">
+    <div class="kpi-label">Cancelled / Refunded</div>
+    <div class="kpi-value"><%= kpis.cancelled_orders %> / <%= kpis.refunded_orders %></div>
+  </div>
+</div>
+
+<!-- Vendor KPIs -->
+<h2 class="report-section-title">Vendor — James Martin</h2>
+<div class="kpi-grid">
+  <div class="kpi-card">
+    <div class="kpi-label">POs Sent</div>
+    <div class="kpi-value"><%= vendorKpis.pos_sent || 0 %></div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">POs Confirmed</div>
+    <div class="kpi-value"><%= vendorKpis.pos_confirmed || 0 %></div>
+    <div class="kpi-sub"><%= vendorKpis.pos_sent > 0 ? Math.round((vendorKpis.pos_confirmed||0) / vendorKpis.pos_sent * 100) : 0 %>% confirmation rate</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Avg Confirm Time</div>
+    <div class="kpi-value">
+      <% const ch = parseFloat(vendorKpis.avg_confirm_hours || 0); %>
+      <%= ch > 0 ? (ch >= 24 ? Math.round(ch/24) + ' days' : Math.round(ch) + ' hrs') : '—' %>
+    </div>
+    <div class="kpi-sub">PO sent → confirmed</div>
+  </div>
+</div>
+
+<!-- Returns KPIs -->
+<h2 class="report-section-title">Returns</h2>
+<div class="kpi-grid">
+  <div class="kpi-card">
+    <div class="kpi-label">Total Returns</div>
+    <div class="kpi-value"><%= returnStats.total_returns || 0 %></div>
+    <div class="kpi-sub">
+      <%= kpis.total_orders > 0 ? parseFloat((returnStats.total_returns||0) / kpis.total_orders * 100).toFixed(1) : 0 %>% return rate
+    </div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Full Refunds</div>
+    <div class="kpi-value"><%= returnStats.full_refunds || 0 %></div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Replacements</div>
+    <div class="kpi-value"><%= returnStats.replacements || 0 %></div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Total Refunded</div>
+    <div class="kpi-value">$<%= parseFloat(returnStats.total_refunded || 0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) %></div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Avg Resolution Time</div>
+    <div class="kpi-value">
+      <% const rh = parseFloat(returnStats.avg_hours_to_resolve || 0); %>
+      <%= rh > 0 ? (rh >= 24 ? Math.round(rh/24) + ' days' : Math.round(rh) + ' hrs') : '—' %>
+    </div>
+  </div>
+</div>
+
+<!-- Returns by Reason -->
+<% if (returnsByReason.length > 0) { %>
+<div class="admin-card" style="margin-top:8px;max-width:480px">
+  <h3 class="admin-card-title">Returns by Reason</h3>
+  <% returnsByReason.forEach(r => { %>
+    <div class="reason-bar">
+      <span class="reason-label"><%= r.reason.replace(/_/g,' ') %></span>
+      <div class="reason-track">
+        <div class="reason-fill" style="width:<%= Math.round(r.cnt / returnStats.total_returns * 100) %>%"></div>
+      </div>
+      <span class="reason-count"><%= r.cnt %></span>
+    </div>
+  <% }) %>
+</div>
+<% } %>
+
+<!-- Revenue by Day Chart -->
+<div class="admin-card" style="margin-top:24px">
+  <h3 class="admin-card-title">Revenue — Last <%= period %> Days</h3>
+  <canvas id="revenueChart" height="80"></canvas>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const rawData = <%- revenueByDay %>;
+const labels  = rawData.map(d => d.day);
+const revenues = rawData.map(d => parseFloat(d.revenue));
+const orders   = rawData.map(d => d.orders);
+
+new Chart(document.getElementById('revenueChart'), {
+  type: 'bar',
+  data: {
+    labels,
+    datasets: [{
+      label: 'Revenue ($)',
+      data: revenues,
+      backgroundColor: 'rgba(99,179,136,0.6)',
+      borderColor: 'rgba(99,179,136,1)',
+      borderWidth: 1,
+      yAxisID: 'y',
+    },{
+      label: 'Orders',
+      data: orders,
+      type: 'line',
+      borderColor: 'rgba(66,133,244,0.8)',
+      backgroundColor: 'transparent',
+      pointRadius: 3,
+      yAxisID: 'y1',
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: 'top' } },
+    scales: {
+      y:  { type:'linear', position:'left',  title:{ display:true, text:'Revenue ($)' } },
+      y1: { type:'linear', position:'right', title:{ display:true, text:'Orders' }, grid:{ drawOnChartArea:false } },
+    }
+  }
+});
+</script>

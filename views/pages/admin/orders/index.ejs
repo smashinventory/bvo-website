@@ -1,0 +1,108 @@
+<%- layout('layouts/admin') %>
+
+<div class="admin-page-header">
+  <h1 class="admin-page-title">Orders</h1>
+  <div class="admin-header-actions">
+    <a href="/admin/orders/shipments" class="admin-btn admin-btn--ghost">🚚 Shipments Tracker</a>
+    <a href="/admin/orders/reports"   class="admin-btn admin-btn--ghost">📊 Reports</a>
+  </div>
+</div>
+
+<!-- RAG Summary Bar -->
+<div class="rag-summary">
+  <div class="rag-badge rag-badge--red">
+    <span class="rag-dot rag-dot--red"></span>
+    <strong><%= ragCounts.red %></strong> Need Attention
+  </div>
+  <div class="rag-badge rag-badge--yellow">
+    <span class="rag-dot rag-dot--yellow"></span>
+    <strong><%= ragCounts.yellow %></strong> Watch
+  </div>
+  <div class="rag-badge rag-badge--green">
+    <span class="rag-dot rag-dot--green"></span>
+    <strong><%= ragCounts.green %></strong> On Track
+  </div>
+</div>
+
+<!-- Filters -->
+<form method="GET" action="/admin/orders" class="admin-filter-bar">
+  <input type="text" name="search" value="<%= search %>" placeholder="Search order #, customer, email…" class="admin-input admin-input--search">
+  <select name="status" class="admin-select">
+    <option value="">All Statuses</option>
+    <% ['pending','confirmed','processing','shipped','delivered','cancelled','refunded'].forEach(s => { %>
+      <option value="<%= s %>" <%= status === s ? 'selected' : '' %>><%= s.charAt(0).toUpperCase() + s.slice(1) %></option>
+    <% }) %>
+  </select>
+  <button type="submit" class="admin-btn admin-btn--primary">Filter</button>
+  <% if (status || search) { %>
+    <a href="/admin/orders" class="admin-btn admin-btn--ghost">Clear</a>
+  <% } %>
+</form>
+
+<!-- Orders Table -->
+<div class="admin-table-wrap">
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th style="width:28px"></th>
+        <th>Order</th>
+        <th>Customer</th>
+        <th>Total</th>
+        <th>Status</th>
+        <th>Vendor PO</th>
+        <th>Shipment</th>
+        <th>Date</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if (orders.length === 0) { %>
+        <tr><td colspan="9" class="admin-table-empty">No orders found.</td></tr>
+      <% } %>
+      <% orders.forEach(o => { %>
+        <tr class="order-row order-row--<%= o.rag %>">
+          <td><span class="rag-dot rag-dot--<%= o.rag %>" title="<%= o.rag === 'red' ? 'Needs attention' : o.rag === 'yellow' ? 'Watch' : 'On track' %>"></span></td>
+          <td><a href="/admin/orders/<%= o.id %>" class="admin-link"><strong><%= o.order_number %></strong></a></td>
+          <td><%= o.customer_name || '—' %></td>
+          <td>$<%= parseFloat(o.total || 0).toFixed(2) %></td>
+          <td><span class="order-status order-status--<%= o.status %>"><%= o.status %></span></td>
+          <td>
+            <% if (!o.vpo_status) { %>
+              <span class="rag-pill rag-pill--red">Not Sent</span>
+            <% } else if (o.vpo_status === 'sent') { %>
+              <span class="rag-pill rag-pill--yellow">Awaiting Confirm</span>
+            <% } else if (o.vpo_status === 'confirmed') { %>
+              <span class="rag-pill rag-pill--green">Confirmed</span>
+            <% } else { %>
+              <span class="rag-pill rag-pill--yellow"><%= o.vpo_status %></span>
+            <% } %>
+          </td>
+          <td>
+            <% if (!o.ship_status) { %>
+              <span class="rag-pill rag-pill--grey">—</span>
+            <% } else if (o.ship_status === 'delivered') { %>
+              <span class="rag-pill rag-pill--green">Delivered</span>
+            <% } else if (o.ship_status === 'exception') { %>
+              <span class="rag-pill rag-pill--red">Exception</span>
+            <% } else { %>
+              <span class="rag-pill rag-pill--yellow"><%= o.ship_status.replace('_',' ') %></span>
+            <% } %>
+          </td>
+          <td class="admin-table-muted"><%= new Date(o.created_at).toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) %></td>
+          <td><a href="/admin/orders/<%= o.id %>" class="admin-btn admin-btn--xs">View</a></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+
+<!-- Pagination -->
+<% if (pages > 1) { %>
+  <div class="admin-pagination">
+    <% for (let i = 1; i <= pages; i++) { %>
+      <a href="/admin/orders?page=<%= i %><%= status ? '&status='+status : '' %><%= search ? '&search='+encodeURIComponent(search) : '' %>"
+         class="admin-page-btn <%= i === page ? 'active' : '' %>"><%= i %></a>
+    <% } %>
+  </div>
+<% } %>
+<p class="admin-table-count"><%= total %> order<%= total !== 1 ? 's' : '' %> total</p>

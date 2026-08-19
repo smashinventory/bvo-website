@@ -1,0 +1,55 @@
+<%- layout('layouts/admin') %>
+
+<div class="admin-page-header">
+  <h1 class="admin-page-title">Email Templates</h1>
+</div>
+
+<% if (flash) { %><div class="admin-flash admin-flash--success"><%= flash %></div><% } %>
+
+<p style="color:var(--text-muted);margin:0 0 20px;font-size:14px">
+  These templates are sent automatically based on order events. Edit subject and body — use
+  <code>{{variable_name}}</code> placeholders (shown in each template's editor).
+</p>
+
+<div class="admin-table-wrap">
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>Template</th>
+        <th>Trigger</th>
+        <th>Subject</th>
+        <th>Active</th>
+        <th>Last Updated</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% templates.forEach(t => { %>
+        <tr>
+          <td><strong><%= t.label %></strong></td>
+          <td><code style="font-size:12px;background:var(--surface-alt);padding:2px 6px;border-radius:4px"><%= t.trigger_key %></code></td>
+          <td class="admin-table-muted" style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><%= t.subject %></td>
+          <td>
+            <button class="toggle-btn <%= t.is_active ? 'toggle-btn--on' : 'toggle-btn--off' %>"
+                    onclick="toggleTemplate(<%= t.id %>, this)">
+              <%= t.is_active ? 'Active' : 'Off' %>
+            </button>
+          </td>
+          <td class="admin-table-muted"><%= new Date(t.updated_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) %></td>
+          <td><a href="/admin/settings/email-templates/<%= t.id %>/edit" class="admin-btn admin-btn--ghost admin-btn--sm">Edit</a></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+
+<script>
+async function toggleTemplate(id, btn) {
+  const r = await fetch(`/admin/settings/email-templates/${id}/toggle`, { method:'POST' });
+  const d = await r.json();
+  if (d.ok) {
+    btn.textContent = d.is_active ? 'Active' : 'Off';
+    btn.className = d.is_active ? 'toggle-btn toggle-btn--on' : 'toggle-btn toggle-btn--off';
+  }
+}
+</script>

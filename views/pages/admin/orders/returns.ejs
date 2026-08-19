@@ -1,0 +1,100 @@
+<%- layout('layouts/admin') %>
+
+<div class="admin-page-header">
+  <h1 class="admin-page-title">Returns Queue</h1>
+</div>
+
+<div class="rag-summary">
+  <div class="rag-badge rag-badge--red"><span class="rag-dot rag-dot--red"></span><strong><%= ragCounts.red %></strong> Urgent</div>
+  <div class="rag-badge rag-badge--yellow"><span class="rag-dot rag-dot--yellow"></span><strong><%= ragCounts.yellow %></strong> In Progress</div>
+  <div class="rag-badge rag-badge--green"><span class="rag-dot rag-dot--green"></span><strong><%= ragCounts.green %></strong> Resolved</div>
+</div>
+
+<form method="GET" action="/admin/returns" class="admin-filter-bar">
+  <select name="status" class="admin-select">
+    <option value="">All Statuses</option>
+    <% ['requested','approved','in_transit','received','inspected','resolved','denied'].forEach(s => { %>
+      <option value="<%= s %>" <%= status === s ? 'selected' : '' %>><%= s.charAt(0).toUpperCase() + s.slice(1) %></option>
+    <% }) %>
+  </select>
+  <button type="submit" class="admin-btn admin-btn--primary">Filter</button>
+  <% if (status) { %><a href="/admin/returns" class="admin-btn admin-btn--ghost">Clear</a><% } %>
+</form>
+
+<div class="admin-table-wrap">
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th style="width:28px"></th>
+        <th>Return #</th>
+        <th>Order</th>
+        <th>Customer</th>
+        <th>Reason</th>
+        <th>Status</th>
+        <th>Requested</th>
+        <th>Resolution</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if (returns.length === 0) { %>
+        <tr><td colspan="9" class="admin-table-empty">No returns found.</td></tr>
+      <% } %>
+      <% returns.forEach(r => { %>
+        <tr class="order-row order-row--<%= r.rag %>">
+          <td><span class="rag-dot rag-dot--<%= r.rag %>"></span></td>
+          <td><strong><%= r.return_number %></strong></td>
+          <td><a href="/admin/orders/<%= r.order_id %>" class="admin-link"><%= r.order_number %></a></td>
+          <td><%= r.customer_name || '—' %></td>
+          <td><%= r.reason.replace(/_/g,' ') %></td>
+          <td><span class="rag-pill rag-pill--<%= r.status === 'resolved' || r.status === 'denied' ? 'green' : r.rag %>"><%= r.status %></span></td>
+          <td class="admin-table-muted"><%= new Date(r.requested_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) %></td>
+          <td><%= r.resolution ? r.resolution.replace(/_/g,' ') : '—' %></td>
+          <td>
+            <div style="display:flex;gap:4px">
+              <% if (r.status === 'requested') { %>
+                <button class="admin-btn admin-btn--success admin-btn--xs" onclick="approveReturn(<%= r.id %>)">Approve</button>
+                <button class="admin-btn admin-btn--danger admin-btn--xs"  onclick="denyReturn(<%= r.id %>)">Deny</button>
+              <% } else if (r.status === 'approved' || r.status === 'in_transit') { %>
+                <button class="admin-btn admin-btn--primary admin-btn--xs" onclick="receiveReturn(<%= r.id %>)">Received</button>
+              <% } else if (r.status === 'received' || r.status === 'inspected') { %>
+                <button class="admin-btn admin-btn--primary admin-btn--xs" onclick="resolveReturn(<%= r.id %>)">Resolve</button>
+              <% } %>
+              <a href="/admin/orders/<%= r.order_id %>" class="admin-btn admin-btn--ghost admin-btn--xs">Order</a>
+            </div>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+
+<script>
+async function approveReturn(id) {
+  const notes = prompt('Admin notes (optional):') || '';
+  const r = await fetch(`/admin/returns/${id}/approve`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ admin_notes: notes }) });
+  const d = await r.json();
+  if (d.ok) { alert('Approved — RA#: ' + d.ra_number); location.reload(); } else alert('Error: ' + d.error);
+}
+async function denyReturn(id) {
+  const notes = prompt('Reason for denial:') || '';
+  const r = await fetch(`/admin/returns/${id}/deny`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ admin_notes: notes }) });
+  const d = await r.json();
+  if (d.ok) location.reload(); else alert('Error: ' + d.error);
+}
+async function receiveReturn(id) {
+  const c = prompt('Condition:\ngood | minor_damage | major_damage | missing_parts');
+  if (!c) return;
+  const r = await fetch(`/admin/returns/${id}/receive`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ condition_on_receipt: c }) });
+  const d = await r.json();
+  if (d.ok) location.reload(); else alert('Error: ' + d.error);
+}
+async function resolveReturn(id) {
+  const res = prompt('Resolution:\nfull_refund | partial_refund | replacement | denied');
+  if (!res) return;
+  const amt = ['full_refund','partial_refund'].includes(res) ? prompt('Refund amount ($):') : null;
+  const r = await fetch(`/admin/returns/${id}/resolve`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ resolution: res, refund_amount: amt }) });
+  const d = await r.json();
+  if (d.ok) { alert('Resolved. Customer notified.'); location.reload(); } else alert('Error: ' + d.error);
+}
+</script>

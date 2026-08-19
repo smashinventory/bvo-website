@@ -1,0 +1,62 @@
+<%- layout('layouts/admin') %>
+
+<div class="admin-page-header">
+  <div>
+    <a href="/admin/orders" class="admin-back-link">← Orders</a>
+    <h1 class="admin-page-title">Shipments Tracker</h1>
+  </div>
+</div>
+
+<div class="admin-table-wrap">
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th style="width:28px"></th>
+        <th>Order</th>
+        <th>Customer</th>
+        <th>Carrier</th>
+        <th>Tracking</th>
+        <th>Status</th>
+        <th>Est. Delivery</th>
+        <th>Last Scan</th>
+        <th>Freight</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if (shipments.length === 0) { %>
+        <tr><td colspan="9" class="admin-table-empty">No active shipments.</td></tr>
+      <% } %>
+      <% shipments.forEach(s => { %>
+        <tr class="order-row order-row--<%= s.rag %>">
+          <td><span class="rag-dot rag-dot--<%= s.rag %>"></span></td>
+          <td><a href="/admin/orders/<%= s.order_id %>" class="admin-link"><strong><%= s.order_number %></strong></a></td>
+          <td><%= s.customer_name || '—' %></td>
+          <td><%= s.carrier || '—' %></td>
+          <td>
+            <% if (s.tracking_number) { %>
+              <a href="https://wwex.com/track/<%= s.tracking_number %>" target="_blank" class="admin-link"><%= s.tracking_number %></a>
+            <% } else { %>—<% } %>
+          </td>
+          <td><span class="rag-pill rag-pill--<%= s.status === 'exception' ? 'red' : 'yellow' %>"><%= s.status.replace(/_/g,' ') %></span></td>
+          <td>
+            <% if (s.estimated_delivery) { %>
+              <%
+                const eta = new Date(s.estimated_delivery);
+                const now = new Date();
+                const overdue = eta < now;
+              %>
+              <span style="<%= overdue ? 'color:var(--red);font-weight:600' : '' %>">
+                <%= eta.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) %>
+                <% if (overdue) { %> ⚠️<% } %>
+              </span>
+            <% } else { %>—<% } %>
+          </td>
+          <td class="admin-table-muted">
+            <%= s.last_tracking_scan ? new Date(s.last_tracking_scan).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '—' %>
+          </td>
+          <td><%= s.rate_charged ? '$'+parseFloat(s.rate_charged).toFixed(2) : '—' %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>

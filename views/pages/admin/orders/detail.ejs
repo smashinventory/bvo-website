@@ -1,0 +1,471 @@
+<%- layout('layouts/admin') %>
+
+<div class="admin-page-header">
+  <div>
+    <a href="/admin/orders" class="admin-back-link">← Orders</a>
+    <h1 class="admin-page-title">
+      <span class="rag-dot rag-dot--<%= rag %>"></span>
+      <%= order.order_number %>
+    </h1>
+  </div>
+  <div class="admin-header-actions">
+    <span class="order-status order-status--<%= order.status %>" style="font-size:14px"><%= order.status %></span>
+    <select id="statusSelect" class="admin-select admin-select--sm">
+      <% ['pending','confirmed','processing','shipped','delivered','cancelled','refunded'].forEach(s => { %>
+        <option value="<%= s %>" <%= order.status === s ? 'selected' : '' %>><%= s.charAt(0).toUpperCase() + s.slice(1) %></option>
+      <% }) %>
+    </select>
+    <button id="saveStatusBtn" class="admin-btn admin-btn--primary admin-btn--sm">Save Status</button>
+  </div>
+</div>
+
+<div class="order-detail-grid">
+
+  <!-- LEFT COLUMN: Customer + Items -->
+  <div class="order-detail-left">
+
+    <!-- Customer Info -->
+    <div class="admin-card">
+      <h3 class="admin-card-title">Customer</h3>
+      <p><strong><%= order.customer_name %></strong></p>
+      <% if (order.customer_email) { %><p><a href="mailto:<%= order.customer_email %>"><%= order.customer_email %></a></p><% } %>
+      <% if (order.customer_phone) { %><p><%= order.customer_phone %></p><% } %>
+    </div>
+
+    <!-- Shipping Address -->
+    <div class="admin-card">
+      <h3 class="admin-card-title">Ship To</h3>
+      <p>
+        <%= order.ship_first_name %> <%= order.ship_last_name %><br>
+        <%= order.ship_address1 %><% if (order.ship_address2) { %><br><%= order.ship_address2 %><% } %><br>
+        <%= order.ship_city %>, <%= order.ship_state %> <%= order.ship_zip %>
+      </p>
+    </div>
+
+    <!-- Order Items -->
+    <div class="admin-card">
+      <h3 class="admin-card-title">Items Ordered</h3>
+      <table class="admin-table admin-table--compact">
+        <thead><tr><th>SKU</th><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>
+        <tbody>
+          <% items.forEach(item => { %>
+            <tr>
+              <td class="admin-table-muted"><%= item.sku %></td>
+              <td>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <% if (item.thumb) { %><img src="<%= item.thumb %>" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:4px"><% } %>
+                  <% if (item.product_slug) { %><a href="/products/<%= item.product_slug %>" target="_blank" class="admin-link"><%= item.name %></a><% } else { %><%= item.name %><% } %>
+                </div>
+              </td>
+              <td><%= item.qty %></td>
+              <td>$<%= parseFloat(item.unit_price).toFixed(2) %></td>
+              <td><strong>$<%= parseFloat(item.line_total).toFixed(2) %></strong></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+      <div class="order-totals">
+        <div class="order-total-row"><span>Subtotal</span><span>$<%= parseFloat(order.subtotal).toFixed(2) %></span></div>
+        <% if (order.shipping_cost > 0) { %><div class="order-total-row"><span>Shipping</span><span>$<%= parseFloat(order.shipping_cost).toFixed(2) %></span></div><% } %>
+        <% if (order.tax > 0) { %><div class="order-total-row"><span>Tax</span><span>$<%= parseFloat(order.tax).toFixed(2) %></span></div><% } %>
+        <% if (order.discount > 0) { %><div class="order-total-row order-total-row--discount"><span>Discount</span><span>−$<%= parseFloat(order.discount).toFixed(2) %></span></div><% } %>
+        <div class="order-total-row order-total-row--grand"><span><strong>Total</strong></span><span><strong>$<%= parseFloat(order.total).toFixed(2) %></strong></span></div>
+      </div>
+    </div>
+
+    <!-- Open Return (if any) -->
+    <% const openReturn = returns.find(r => !['resolved','denied'].includes(r.status)); %>
+    <% if (openReturn) { %>
+      <div class="admin-card admin-card--alert">
+        <h3 class="admin-card-title">⚠️ Open Return — <%= openReturn.return_number %></h3>
+        <p><strong>Reason:</strong> <%= openReturn.reason.replace(/_/g,' ') %></p>
+        <p><strong>Status:</strong> <%= openReturn.status %></p>
+        <% if (openReturn.customer_notes) { %><p><strong>Customer notes:</strong> <%= openReturn.customer_notes %></p><% } %>
+        <% if (openReturn.ra_number) { %><p><strong>RA#:</strong> <%= openReturn.ra_number %></p><% } %>
+        <div class="return-actions" style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+          <% if (openReturn.status === 'requested') { %>
+            <button class="admin-btn admin-btn--success admin-btn--sm" onclick="approveReturn(<%= openReturn.id %>)">Approve + Issue RA</button>
+            <button class="admin-btn admin-btn--danger admin-btn--sm" onclick="denyReturn(<%= openReturn.id %>)">Deny</button>
+          <% } %>
+          <% if (openReturn.status === 'approved' || openReturn.status === 'in_transit') { %>
+            <button class="admin-btn admin-btn--primary admin-btn--sm" onclick="receiveReturn(<%= openReturn.id %>)">Mark Received</button>
+          <% } %>
+          <% if (openReturn.status === 'received' || openReturn.status === 'inspected') { %>
+            <button class="admin-btn admin-btn--primary admin-btn--sm" onclick="resolveReturn(<%= openReturn.id %>)">Resolve</button>
+          <% } %>
+        </div>
+      </div>
+    <% } %>
+
+  </div>
+
+  <!-- RIGHT COLUMN: Vendor PO + Shipment + Events -->
+  <div class="order-detail-right">
+
+    <!-- Vendor Order Panel -->
+    <div class="admin-card">
+      <h3 class="admin-card-title">
+        <% if (!vendorPo) { %>
+          <span class="rag-dot rag-dot--red"></span>
+        <% } else if (vendorPo.status === 'confirmed') { %>
+          <span class="rag-dot rag-dot--green"></span>
+        <% } else { %>
+          <span class="rag-dot rag-dot--yellow"></span>
+        <% } %>
+        Vendor Order — James Martin
+      </h3>
+
+      <% if (!vendorPo) { %>
+        <p class="admin-card-hint">No PO sent yet.</p>
+        <button class="admin-btn admin-btn--primary" id="sendPoBtn">Send Order to JM</button>
+      <% } else { %>
+        <div class="detail-meta">
+          <div class="detail-meta-row"><span>Status</span><span class="rag-pill rag-pill--<%= vendorPo.status === 'confirmed' ? 'green' : 'yellow' %>"><%= vendorPo.status %></span></div>
+          <div class="detail-meta-row"><span>PO#</span><span><%= vendorPo.po_number || '—' %></span></div>
+          <div class="detail-meta-row"><span>Sent</span><span><%= vendorPo.sent_at ? new Date(vendorPo.sent_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '—' %></span></div>
+          <div class="detail-meta-row"><span>Confirmation#</span><span><%= vendorPo.confirmation_number || '—' %></span></div>
+          <div class="detail-meta-row"><span>Est. Ship</span><span><%= vendorPo.expected_ship_date || '—' %></span></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+          <button class="admin-btn admin-btn--ghost admin-btn--sm" id="sendPoBtn">Resend PO</button>
+          <% if (vendorPo.status !== 'confirmed') { %>
+            <button class="admin-btn admin-btn--success admin-btn--sm" onclick="showConfirmPoModal()">Log Confirmation</button>
+          <% } %>
+        </div>
+      <% } %>
+    </div>
+
+    <!-- Shipment Panel -->
+    <div class="admin-card">
+      <h3 class="admin-card-title">
+        <% if (!shipment) { %>
+          <span class="rag-dot rag-dot--grey"></span>
+        <% } else if (shipment.status === 'delivered') { %>
+          <span class="rag-dot rag-dot--green"></span>
+        <% } else if (shipment.status === 'exception') { %>
+          <span class="rag-dot rag-dot--red"></span>
+        <% } else { %>
+          <span class="rag-dot rag-dot--yellow"></span>
+        <% } %>
+        Shipment (WWEX)
+        <% if (wwexMode === 'stub') { %><span class="admin-badge admin-badge--warn">Stub Mode</span><% } %>
+      </h3>
+
+      <% if (!shipment || shipment.status === 'quote_pending') { %>
+        <p class="admin-card-hint">No shipment booked yet.</p>
+        <div class="shipping-options" style="margin-bottom:12px">
+          <label class="admin-checkbox-label"><input type="checkbox" id="chkResidential" checked> Residential delivery</label>
+          <label class="admin-checkbox-label"><input type="checkbox" id="chkLiftgate" checked> Liftgate required</label>
+          <label class="admin-checkbox-label"><input type="checkbox" id="chkAppointment"> Appointment delivery</label>
+        </div>
+        <button class="admin-btn admin-btn--primary" id="getQuotesBtn">Get WWEX Quotes</button>
+        <div id="quotesResult" class="quotes-result" style="display:none;margin-top:12px"></div>
+      <% } else { %>
+        <div class="detail-meta">
+          <div class="detail-meta-row"><span>Status</span><span class="rag-pill rag-pill--<%= shipment.status === 'delivered' ? 'green' : shipment.status === 'exception' ? 'red' : 'yellow' %>"><%= shipment.status.replace(/_/g,' ') %></span></div>
+          <div class="detail-meta-row"><span>Carrier</span><span><%= shipment.carrier || '—' %></span></div>
+          <div class="detail-meta-row"><span>Tracking#</span>
+            <span>
+              <% if (shipment.tracking_number) { %>
+                <a href="https://wwex.com/track/<%= shipment.tracking_number %>" target="_blank" class="admin-link"><%= shipment.tracking_number %></a>
+              <% } else { %>—<% } %>
+            </span>
+          </div>
+          <div class="detail-meta-row"><span>BOL#</span><span><%= shipment.bol_number || '—' %></span></div>
+          <div class="detail-meta-row"><span>Est. Delivery</span><span><%= shipment.estimated_delivery ? new Date(shipment.estimated_delivery).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) : '—' %></span></div>
+          <div class="detail-meta-row"><span>Freight Cost</span><span><%= shipment.rate_charged ? '$'+parseFloat(shipment.rate_charged).toFixed(2) : '—' %></span></div>
+        </div>
+        <% if (shipment.bol_url) { %>
+          <a href="<%= shipment.bol_url %>" target="_blank" class="admin-btn admin-btn--ghost admin-btn--sm" style="margin-top:12px">Download BOL</a>
+        <% } %>
+      <% } %>
+    </div>
+
+    <!-- Documents -->
+    <div class="admin-card">
+      <h3 class="admin-card-title">Documents</h3>
+      <% if (documents.length === 0) { %>
+        <p class="admin-card-hint">No documents uploaded.</p>
+      <% } else { %>
+        <ul class="doc-list">
+          <% documents.forEach(doc => { %>
+            <li class="doc-list-item">
+              <a href="<%= doc.file_url %>" target="_blank" class="admin-link">📄 <%= doc.label || doc.doc_type %></a>
+              <span class="admin-table-muted"><%= new Date(doc.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}) %></span>
+            </li>
+          <% }) %>
+        </ul>
+      <% } %>
+      <form id="docUploadForm" style="margin-top:12px">
+        <select name="doc_type" class="admin-select admin-select--sm">
+          <option value="bol">BOL</option>
+          <option value="invoice">Invoice</option>
+          <option value="return_label">Return Label</option>
+          <option value="damage_photo">Damage Photo</option>
+          <option value="other">Other</option>
+        </select>
+        <input type="text" name="label" placeholder="Label (optional)" class="admin-input admin-input--sm">
+        <input type="file" name="doc_file" class="admin-input admin-input--sm" required>
+        <button type="submit" class="admin-btn admin-btn--ghost admin-btn--sm">Upload</button>
+      </form>
+    </div>
+
+    <!-- Add Note -->
+    <div class="admin-card">
+      <h3 class="admin-card-title">Add Note</h3>
+      <textarea id="noteText" class="admin-textarea" rows="3" placeholder="Internal note (visible to admin only)…"></textarea>
+      <button class="admin-btn admin-btn--ghost admin-btn--sm" style="margin-top:8px" onclick="addNote()">Save Note</button>
+    </div>
+
+    <!-- Open Return Button -->
+    <div class="admin-card">
+      <h3 class="admin-card-title">Returns</h3>
+      <% if (returns.length === 0) { %>
+        <p class="admin-card-hint">No returns on this order.</p>
+      <% } else { %>
+        <ul style="margin:0 0 12px;padding:0;list-style:none">
+          <% returns.forEach(r => { %>
+            <li style="padding:6px 0;border-bottom:1px solid var(--border)">
+              <strong><%= r.return_number %></strong> — <%= r.status %> — <%= r.reason.replace(/_/g,' ') %>
+              <% if (r.resolved_at) { %><span class="rag-pill rag-pill--green" style="margin-left:8px">Resolved</span><% } %>
+            </li>
+          <% }) %>
+        </ul>
+      <% } %>
+      <button class="admin-btn admin-btn--ghost admin-btn--sm" onclick="openReturnModal()">+ Open Return</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- Event Timeline -->
+<div class="admin-card" style="margin-top:24px">
+  <h3 class="admin-card-title">Order Timeline</h3>
+  <% if (events.length === 0) { %>
+    <p class="admin-card-hint">No events yet.</p>
+  <% } else { %>
+    <ul class="event-timeline">
+      <% events.forEach(ev => { %>
+        <li class="event-timeline-item">
+          <span class="event-dot"></span>
+          <div class="event-content">
+            <div class="event-header">
+              <strong><%= ev.event_type.replace(/_/g,' ') %></strong>
+              <% if (ev.from_status && ev.to_status) { %>
+                <span class="event-transition"><%= ev.from_status %> → <%= ev.to_status %></span>
+              <% } %>
+              <span class="event-actor"><%= ev.actor %></span>
+            </div>
+            <% if (ev.notes) { %><p class="event-notes"><%= ev.notes %></p><% } %>
+            <span class="event-time"><%= new Date(ev.created_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) %></span>
+          </div>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+</div>
+
+<!-- Modals -->
+<div id="confirmPoModal" class="modal-overlay" style="display:none">
+  <div class="modal-box">
+    <h3>Log Vendor Confirmation</h3>
+    <label class="admin-label">Confirmation Number</label>
+    <input type="text" id="confirmPoNum" class="admin-input" placeholder="JM confirmation #">
+    <label class="admin-label">Expected Ship Date</label>
+    <input type="date" id="confirmPoDate" class="admin-input">
+    <div class="modal-actions">
+      <button class="admin-btn admin-btn--primary" onclick="saveVendorConfirm()">Save</button>
+      <button class="admin-btn admin-btn--ghost" onclick="closeModal('confirmPoModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="returnModal" class="modal-overlay" style="display:none">
+  <div class="modal-box">
+    <h3>Open Return</h3>
+    <label class="admin-label">Reason</label>
+    <select id="returnReason" class="admin-select">
+      <option value="damaged">Damaged in Transit</option>
+      <option value="defective">Defective / Malfunction</option>
+      <option value="wrong_item">Wrong Item Received</option>
+      <option value="changed_mind">Changed Mind</option>
+      <option value="not_as_described">Not as Described</option>
+      <option value="other">Other</option>
+    </select>
+    <label class="admin-label">Customer Notes</label>
+    <textarea id="returnNotes" class="admin-textarea" rows="3" placeholder="Describe the issue…"></textarea>
+    <div class="modal-actions">
+      <button class="admin-btn admin-btn--primary" onclick="submitOpenReturn()">Open Return</button>
+      <button class="admin-btn admin-btn--ghost" onclick="closeModal('returnModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const ORDER_ID = '<%= order.id %>';
+
+// Status
+document.getElementById('saveStatusBtn').addEventListener('click', async () => {
+  const status = document.getElementById('statusSelect').value;
+  const r = await fetch(`/admin/orders/${ORDER_ID}/status`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ status })
+  });
+  const d = await r.json();
+  if (d.ok) location.reload();
+  else alert('Error: ' + d.error);
+});
+
+// Send Vendor PO
+document.getElementById('sendPoBtn')?.addEventListener('click', async () => {
+  if (!confirm('Send purchase order email to James Martin?')) return;
+  const btn = document.getElementById('sendPoBtn');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  const r = await fetch(`/admin/orders/${ORDER_ID}/vendor-order`, { method:'POST' });
+  const d = await r.json();
+  if (d.ok) { alert(d.message); location.reload(); }
+  else { alert('Error: ' + d.error); btn.disabled = false; btn.textContent = 'Send Order to JM'; }
+});
+
+// Confirm PO modal
+function showConfirmPoModal() { document.getElementById('confirmPoModal').style.display='flex'; }
+async function saveVendorConfirm() {
+  const r = await fetch(`/admin/orders/${ORDER_ID}/vendor-confirm`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      confirmation_number: document.getElementById('confirmPoNum').value,
+      expected_ship_date:  document.getElementById('confirmPoDate').value,
+    })
+  });
+  const d = await r.json();
+  if (d.ok) location.reload(); else alert('Error: ' + d.error);
+}
+
+// WWEX Quotes
+document.getElementById('getQuotesBtn')?.addEventListener('click', async () => {
+  const btn = document.getElementById('getQuotesBtn');
+  btn.disabled = true; btn.textContent = 'Fetching quotes…';
+  const r = await fetch(`/admin/orders/${ORDER_ID}/shipping/quote`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      residential: document.getElementById('chkResidential')?.checked !== false ? 'true' : 'false',
+      liftgate:    document.getElementById('chkLiftgate')?.checked !== false ? 'true' : 'false',
+      appointment: document.getElementById('chkAppointment')?.checked ? 'true' : 'false',
+    })
+  });
+  const d = await r.json();
+  btn.disabled = false; btn.textContent = 'Get WWEX Quotes';
+  const el = document.getElementById('quotesResult');
+  el.style.display='block';
+  if (!d.ok) { el.innerHTML=`<p style="color:var(--red)">${d.error}</p>`; return; }
+  el.innerHTML = `
+    ${d.stub ? '<p class="admin-badge admin-badge--warn" style="margin-bottom:8px">Stub rates — connect WWEX credentials to get live quotes</p>' : ''}
+    <table class="admin-table admin-table--compact">
+      <thead><tr><th>Carrier</th><th>Service</th><th>Transit</th><th>Est. Delivery</th><th>Rate</th><th></th></tr></thead>
+      <tbody>
+        ${d.rates.map(rate => `
+          <tr>
+            <td>${rate.carrier}</td>
+            <td>${rate.serviceLevel}</td>
+            <td>${rate.transitDays} days</td>
+            <td>${rate.estimatedDelivery}</td>
+            <td><strong>$${parseFloat(rate.totalCharge).toFixed(2)}</strong></td>
+            <td><button class="admin-btn admin-btn--primary admin-btn--xs"
+              onclick="bookRate('${rate.rateId}','${rate.carrier}','${rate.serviceLevel}','${rate.shipType}','${rate.totalCharge}','${rate.estimatedDelivery}')">Book</button></td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+});
+
+async function bookRate(rateId, carrier, serviceLevel, shipType, amount, estDelivery) {
+  if (!confirm(`Book shipment with ${carrier} for $${parseFloat(amount).toFixed(2)}?`)) return;
+  const r = await fetch(`/admin/orders/${ORDER_ID}/shipping/book`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ rate_id:rateId, carrier, service_level:serviceLevel, ship_type:shipType, rate_amount:amount, estimated_delivery:estDelivery })
+  });
+  const d = await r.json();
+  if (d.ok) { alert(`Booked! Tracking: ${d.tracking_number}`); location.reload(); }
+  else alert('Booking error: ' + d.error);
+}
+
+// Add Note
+async function addNote() {
+  const notes = document.getElementById('noteText').value.trim();
+  if (!notes) return;
+  const r = await fetch(`/admin/orders/${ORDER_ID}/notes`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ notes })
+  });
+  const d = await r.json();
+  if (d.ok) location.reload(); else alert('Error: ' + d.error);
+}
+
+// Document upload
+document.getElementById('docUploadForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const r  = await fetch(`/admin/orders/${ORDER_ID}/documents`, { method:'POST', body: fd });
+  const d  = await r.json();
+  if (d.ok) location.reload(); else alert('Upload error: ' + d.error);
+});
+
+// Return modal
+function openReturnModal() { document.getElementById('returnModal').style.display='flex'; }
+async function submitOpenReturn() {
+  const r = await fetch(`/admin/orders/${ORDER_ID}/returns`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      reason:         document.getElementById('returnReason').value,
+      customer_notes: document.getElementById('returnNotes').value,
+    })
+  });
+  const d = await r.json();
+  if (d.ok) location.reload(); else alert('Error: ' + d.error);
+}
+
+// Return actions
+async function approveReturn(id) {
+  const notes = prompt('Admin notes (optional):') || '';
+  const r = await fetch(`/admin/returns/${id}/approve`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ admin_notes: notes })
+  });
+  const d = await r.json();
+  if (d.ok) { alert('Return approved — RA#: ' + d.ra_number + '. Customer notified.'); location.reload(); }
+  else alert('Error: ' + d.error);
+}
+async function denyReturn(id) {
+  const notes = prompt('Reason for denial:') || '';
+  const r = await fetch(`/admin/returns/${id}/deny`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ admin_notes: notes })
+  });
+  const d = await r.json();
+  if (d.ok) location.reload(); else alert('Error: ' + d.error);
+}
+async function receiveReturn(id) {
+  const condition = prompt('Condition on receipt:\n1. good\n2. minor_damage\n3. major_damage\n4. missing_parts\n\nEnter condition:');
+  if (!condition) return;
+  const r = await fetch(`/admin/returns/${id}/receive`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ condition_on_receipt: condition })
+  });
+  const d = await r.json();
+  if (d.ok) location.reload(); else alert('Error: ' + d.error);
+}
+async function resolveReturn(id) {
+  const resolution = prompt('Resolution:\n1. full_refund\n2. partial_refund\n3. replacement\n4. denied\n\nEnter resolution:');
+  if (!resolution) return;
+  const refund = ['full_refund','partial_refund'].includes(resolution) ? prompt('Refund amount ($):') : null;
+  const r = await fetch(`/admin/returns/${id}/resolve`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ resolution, refund_amount: refund })
+  });
+  const d = await r.json();
+  if (d.ok) { alert('Return resolved. Customer notified.'); location.reload(); }
+  else alert('Error: ' + d.error);
+}
+
+function closeModal(id) { document.getElementById(id).style.display='none'; }
+document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click', e => { if(e.target===m) m.style.display='none'; }));
+</script>
