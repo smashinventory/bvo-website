@@ -1,5 +1,10 @@
 'use strict';
 
+// Load .env from the git repo — must run before any other require
+require('dotenv').config({
+  path: '/home/u222311468/domains/slategrey-falcon-350174.hostingersite.com/nodejs/.env',
+});
+
 /**
  * syncJMFeed.js — Daily JM Feed Auto-Importer
  * ─────────────────────────────────────────────
@@ -25,8 +30,8 @@ const XLSX = require('xlsx');
 const { importFromWorkbook } = require('./importJamesMartinFeed');
 
 // ── Paths ─────────────────────────────────────────────────────────────
-const FEED_DIR    = path.resolve(__dirname, '../../../public_html/JM_Feed');
-const ARCHIVE_DIR = path.join(FEED_DIR, 'archive');
+const FEED_DIR    = '/home/u222311468/domains/slategrey-falcon-350174.hostingersite.com/public_html/JM_Feed';
+const ARCHIVE_DIR = '/home/u222311468/domains/slategrey-falcon-350174.hostingersite.com/public_html/JM_Feed/archive';
 
 // ── Logging ───────────────────────────────────────────────────────────
 const log = msg => console.log(`[${new Date().toISOString()}] ${msg}`);
