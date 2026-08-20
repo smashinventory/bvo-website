@@ -24,6 +24,15 @@ const path        = require('path');
 const fs          = require('fs');
 const multer      = require('multer');
 
+const LAYOUT = { layout: 'layouts/admin' };
+
+function safeQuery(sql, params = []) {
+  return bvoPool.query(sql, params).then(([rows]) => rows).catch(() => []);
+}
+function safeQueryOne(sql, params = []) {
+  return bvoPool.query(sql, params).then(([rows]) => rows[0] || null).catch(() => null);
+}
+
 /* ── Document upload (BOLs, invoices, damage photos) ─────────── */
 const _docStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -95,7 +104,7 @@ function genReturnNumber() {
 /* ═══════════════════════════════════════════════════════════════
    ORDERS LIST — RAG Dashboard
    ═══════════════════════════════════════════════════════════════ */
-exports.list = async (req, res) => {
+exports.list = async (req, res, next) => {
   try {
     const page    = Math.max(1, parseInt(req.query.page) || 1);
     const limit   = 25;
@@ -112,12 +121,12 @@ exports.list = async (req, res) => {
       params.push(s, s, s);
     }
 
-    const [[{ total }]] = await bvoPool.query(
-      `SELECT COUNT(*) AS total FROM orders o
-       LEFT JOIN customers c ON c.id = o.customer_id ${where}`, params
+    const countRow = await safeQueryOne(
+      `SELECT COUNT(*) AS total FROM orders o LEFT JOIN customers c ON c.id = o.customer_id ${where}`, params
     );
+    const total = countRow ? countRow.total : 0;
 
-    const [orders] = await bvoPool.query(
+    const orders = await safeQuery(
       `SELECT o.id, o.order_number, o.status, o.total, o.created_at, o.shipped_at, o.delivered_at,
               COALESCE(CONCAT(c.first_name,' ',c.last_name), o.guest_email) AS customer_name,
               vpo.status AS vpo_status, vpo.sent_at AS vpo_sent_at, vpo.confirmed_at AS vpo_confirmed_at,
@@ -133,7 +142,6 @@ exports.list = async (req, res) => {
       [...params, limit, offset]
     );
 
-    // Attach RAG status to each order
     orders.forEach(o => {
       const vpo      = o.vpo_status ? { status: o.vpo_status, sent_at: o.vpo_sent_at, confirmed_at: o.vpo_confirmed_at } : null;
       const shipment = o.ship_status ? { status: o.ship_status, estimated_delivery: o.estimated_delivery, last_tracking_scan: o.last_tracking_scan } : null;
@@ -145,8 +153,10 @@ exports.list = async (req, res) => {
     orders.forEach(o => ragCounts[o.rag]++);
 
     res.render('pages/admin/orders/index', {
+      ...LAYOUT,
       activePage: 'orders',
       pageTitle:  'Orders',
+      flash:      null,
       orders,
       total,
       page,
@@ -156,16 +166,13 @@ exports.list = async (req, res) => {
       search,
       ragCounts,
     });
-  } catch (err) {
-    console.error('[ordersController.list]', err);
-    res.status(500).render('pages/error', { pageTitle: 'Error', message: 'Could not load orders.' });
-  }
+  } catch (err) { next(err); }
 };
 
 /* ═══════════════════════════════════════════════════════════════
    ORDER DETAIL
    ═══════════════════════════════════════════════════════════════ */
-exports.detail = async (req, res) => {
+exports.detail = async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
     const [[order]] = await bvoPool.query(
@@ -217,10 +224,7 @@ exports.detail = async (req, res) => {
       rag,
       wwexMode:   wwex.apiMode,
     });
-  } catch (err) {
-    console.error('[ordersController.detail]', err);
-    res.status(500).render('pages/error', { pageTitle: 'Error', message: 'Could not load order.' });
-  }
+  } catch (err) { next(err); }
 };
 
 /* ═══════════════════════════════════════════════════════════════
@@ -526,9 +530,9 @@ exports.uploadDocument = async (req, res) => {
 /* ═══════════════════════════════════════════════════════════════
    SHIPMENTS TRACKER VIEW
    ═══════════════════════════════════════════════════════════════ */
-exports.shipmentsView = async (req, res) => {
+exports.shipmentsView = async (req, res, next) => {
   try {
-    const [shipments] = await bvoPool.query(
+    const shipments = await safeQuery(
       `SELECT s.*, o.order_number, o.id AS order_id,
               COALESCE(CONCAT(c.first_name,' ',c.last_name), o.guest_email) AS customer_name
        FROM shipments s
@@ -549,25 +553,24 @@ exports.shipmentsView = async (req, res) => {
     });
 
     res.render('pages/admin/orders/shipments', {
+      ...LAYOUT,
       activePage: 'orders',
       pageTitle:  'Shipments Tracker',
+      flash:      null,
       shipments,
     });
-  } catch (err) {
-    console.error('[ordersController.shipmentsView]', err);
-    res.status(500).render('pages/error', { pageTitle: 'Error', message: 'Could not load shipments.' });
-  }
+  } catch (err) { next(err); }
 };
 
 /* ═══════════════════════════════════════════════════════════════
    KPI REPORTS VIEW
    ═══════════════════════════════════════════════════════════════ */
-exports.reportsView = async (req, res) => {
+exports.reportsView = async (req, res, next) => {
   try {
     const period = req.query.period || '30';
     const days   = parseInt(period) || 30;
 
-    const [rows] = await bvoPool.query(
+    const kpis = await safeQueryOne(
       `SELECT
          COUNT(*)                                                    AS total_orders,
          COALESCE(SUM(total),0)                                      AS total_revenue,
@@ -579,10 +582,9 @@ exports.reportsView = async (req, res) => {
              THEN TIMESTAMPDIFF(HOUR, created_at, shipped_at) END)  AS avg_hours_to_ship
        FROM orders
        WHERE created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`, [days]
-    );
-    const kpis = rows[0];
+    ) || {};
 
-    const [[returnStats]] = await bvoPool.query(
+    const returnStats = await safeQueryOne(
       `SELECT
          COUNT(*)                                                              AS total_returns,
          COUNT(CASE WHEN resolution='full_refund'    THEN 1 END)              AS full_refunds,
@@ -593,16 +595,16 @@ exports.reportsView = async (req, res) => {
              THEN TIMESTAMPDIFF(HOUR, requested_at, resolved_at) END)         AS avg_hours_to_resolve
        FROM order_returns
        WHERE requested_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`, [days]
-    );
+    ) || {};
 
-    const [revenueByDay] = await bvoPool.query(
+    const revenueByDay = await safeQuery(
       `SELECT DATE(created_at) AS day, COUNT(*) AS orders, COALESCE(SUM(total),0) AS revenue
        FROM orders
        WHERE created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
        GROUP BY DATE(created_at) ORDER BY day ASC`, [days]
     );
 
-    const [[vendorKpis]] = await bvoPool.query(
+    const vendorKpis = await safeQueryOne(
       `SELECT
          COUNT(*)                                                              AS pos_sent,
          COUNT(CASE WHEN status='confirmed' THEN 1 END)                       AS pos_confirmed,
@@ -610,16 +612,18 @@ exports.reportsView = async (req, res) => {
              THEN TIMESTAMPDIFF(HOUR, sent_at, confirmed_at) END)             AS avg_confirm_hours
        FROM vendor_purchase_orders
        WHERE sent_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`, [days]
-    );
+    ) || {};
 
-    const [returnsByReason] = await bvoPool.query(
+    const returnsByReason = await safeQuery(
       `SELECT reason, COUNT(*) AS cnt FROM order_returns
        WHERE requested_at >= DATE_SUB(NOW(), INTERVAL ? DAY) GROUP BY reason`, [days]
     );
 
     res.render('pages/admin/orders/reports', {
+      ...LAYOUT,
       activePage:     'orders',
       pageTitle:      'Operations Reports',
+      flash:          null,
       period,
       kpis,
       returnStats,
@@ -627,8 +631,5 @@ exports.reportsView = async (req, res) => {
       vendorKpis,
       returnsByReason,
     });
-  } catch (err) {
-    console.error('[ordersController.reportsView]', err);
-    res.status(500).render('pages/error', { pageTitle: 'Error', message: 'Could not load reports.' });
-  }
+  } catch (err) { next(err); }
 };

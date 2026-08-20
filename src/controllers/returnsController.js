@@ -17,6 +17,12 @@
 const { bvoPool } = require('../config/database');
 const brevo       = require('../services/brevoService');
 
+const LAYOUT = { layout: 'layouts/admin' };
+
+function safeQuery(sql, params = []) {
+  return bvoPool.query(sql, params).then(([rows]) => rows).catch(() => []);
+}
+
 /* ── Helpers ──────────────────────────────────────────────────── */
 function genReturnNumber() {
   const d = new Date();
@@ -43,14 +49,14 @@ function computeRag(ret) {
 /* ═══════════════════════════════════════════════════════════════
    RETURNS QUEUE
    ═══════════════════════════════════════════════════════════════ */
-exports.list = async (req, res) => {
+exports.list = async (req, res, next) => {
   try {
     const status = req.query.status || '';
     let where = 'WHERE 1=1';
     const params = [];
     if (status) { where += ' AND r.status = ?'; params.push(status); }
 
-    const [returns] = await bvoPool.query(
+    const returns = await safeQuery(
       `SELECT r.*, o.order_number, o.id AS order_id,
               COALESCE(CONCAT(c.first_name,' ',c.last_name), o.guest_email) AS customer_name
        FROM order_returns r
@@ -65,16 +71,15 @@ exports.list = async (req, res) => {
     returns.forEach(r => ragCounts[r.rag]++);
 
     res.render('pages/admin/orders/returns', {
+      ...LAYOUT,
       activePage: 'returns',
       pageTitle:  'Returns Queue',
+      flash:      null,
       returns,
       status,
       ragCounts,
     });
-  } catch (err) {
-    console.error('[returnsController.list]', err);
-    res.status(500).render('pages/error', { pageTitle: 'Error', message: 'Could not load returns.' });
-  }
+  } catch (err) { next(err); }
 };
 
 /* ═══════════════════════════════════════════════════════════════
