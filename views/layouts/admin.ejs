@@ -27,36 +27,37 @@
       align-items: center;
       justify-content: space-between;
       width: 100%;
-      padding: 9px 12px 9px 14px;
+      padding: 10px 12px;          /* exact match to .admin-nav-item */
       background: none;
       border: none;
-      border-radius: 6px;
+      border-radius: 7px;          /* exact match to .admin-nav-item */
       cursor: pointer;
       font-family: inherit;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-muted, #7a8190);
-      letter-spacing: .03em;
-      text-transform: uppercase;
-      transition: background .15s, color .15s;
+      font-size: .82rem;           /* exact match */
+      font-weight: 700;            /* exact match */
+      letter-spacing: .04em;       /* exact match */
+      text-transform: uppercase;   /* exact match */
+      color: rgba(255,255,255,.65); /* exact match */
+      text-align: left;
+      transition: background var(--transition-fast), color var(--transition-fast);
     }
-    .nav-group-btn:hover { background: var(--sidebar-hover, rgba(255,255,255,.06)); color: var(--text-base, #e2e8f0); }
-    .nav-group.open .nav-group-btn { color: var(--text-base, #e2e8f0); }
+    .nav-group-btn:hover { background: rgba(255,255,255,.08); color: #fff; }
+    .nav-group.open .nav-group-btn { color: #fff; }
 
     .nav-group-left {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 10px;                   /* exact match to .admin-nav-item gap */
     }
 
     .nav-chevron {
-      width: 14px;
-      height: 14px;
+      width: 13px;
+      height: 13px;
       flex-shrink: 0;
       transition: transform .22s ease;
-      opacity: .55;
+      opacity: .5;
     }
-    .nav-group.open .nav-chevron { transform: rotate(180deg); opacity: .9; }
+    .nav-group.open .nav-chevron { transform: rotate(180deg); opacity: .85; }
 
     .nav-group-items {
       overflow: hidden;
@@ -65,13 +66,9 @@
     }
     .nav-group.open .nav-group-items { max-height: 500px; }
 
+    /* Child items indented past the group header icon */
     .admin-nav-item--child {
       padding-left: 38px !important;
-      font-size: 13px;
-    }
-    .admin-nav-item--child .admin-nav-icon {
-      width: 15px;
-      height: 15px;
     }
 
     .nav-coming-soon {
@@ -79,23 +76,19 @@
       align-items: center;
       gap: 8px;
       padding: 8px 12px 8px 38px;
-      font-size: 13px;
-      color: var(--text-muted, #7a8190);
-      opacity: .55;
+      font-size: .78rem;
+      font-weight: 600;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,.3);
       cursor: default;
     }
 
     .admin-nav-disabled {
-      opacity: .4;
+      opacity: .35;
       pointer-events: none;
       cursor: default;
     }
-    /* Give active group btn a subtle left border accent */
-    .nav-group.open .nav-group-btn {
-      border-left: 2px solid var(--accent, #c9a84c);
-      padding-left: 12px;
-    }
-    .nav-group-btn { border-left: 2px solid transparent; }
   </style>
 </head>
 <body class="admin-body">
@@ -127,7 +120,7 @@
           <button class="nav-group-btn" type="button">
             <span class="nav-group-left">
               <svg viewBox="0 0 24 24" class="admin-nav-icon" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-              <span>Product Management</span>
+              <span>Product MGT</span>
             </span>
             <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
@@ -160,7 +153,7 @@
           <button class="nav-group-btn" type="button">
             <span class="nav-group-left">
               <svg viewBox="0 0 24 24" class="admin-nav-icon"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-              <span>Order Management</span>
+              <span>Order MGT</span>
             </span>
             <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
@@ -193,7 +186,7 @@
           <button class="nav-group-btn" type="button">
             <span class="nav-group-left">
               <svg viewBox="0 0 24 24" class="admin-nav-icon" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-              <span>Website Management</span>
+              <span>Website MGT</span>
             </span>
             <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
@@ -226,7 +219,7 @@
           <button class="nav-group-btn" type="button">
             <span class="nav-group-left">
               <svg viewBox="0 0 24 24" class="admin-nav-icon" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-              <span>Marketing & Analytics</span>
+              <span>Marketing & ANAL</span>
             </span>
             <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
@@ -243,7 +236,7 @@
           <button class="nav-group-btn" type="button">
             <span class="nav-group-left">
               <svg viewBox="0 0 24 24" class="admin-nav-icon" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-              <span>Financial & Accounting</span>
+              <span>Financial & ACTG</span>
             </span>
             <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
