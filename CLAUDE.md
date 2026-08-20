@@ -20,6 +20,33 @@
 
 ---
 
+## ⛔ EJS LAYOUT RULE — NEVER VIOLATE
+
+**Admin templates must NOT call `<%- layout('layouts/admin') %>`.** The layout is set by the controller via `...LAYOUT` spread into `res.render()`. Calling `layout()` inside the template overwrites the express-ejs-layouts injected function with the string `'layouts/admin'`, causing `TypeError: layout is not a function` at runtime.
+
+**Correct pattern — controller:**
+```js
+const LAYOUT = { layout: 'layouts/admin' };
+res.render('pages/admin/some/view', { ...LAYOUT, activePage: 'x', pageTitle: 'X', flash: null, ...data });
+```
+
+**Correct pattern — template:**
+```ejs
+<%# NO layout() call here — layout is set by the controller %>
+<div class="admin-page-header">
+  ...
+</div>
+```
+
+**Wrong (breaks everything):**
+```ejs
+<%- layout('layouts/admin') %>   ← DELETE THIS LINE
+```
+
+This applies to ALL admin templates. Public templates use the default `layouts/main` set in `server.js` — also no `layout()` call needed.
+
+---
+
 ## ⛔ PERMANENT DESIGN RULES
 
 ### Rule 13 — Size Chips & Color Swatches (Universal)
