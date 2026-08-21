@@ -51,6 +51,9 @@ function executeCtrl(ctrl) {
  * @param {string} p.billZip
  * @returns {{ ok, transactionId, authCode, cardBrand, last4, avsCode, cvvCode, afdsCode }}
  */
+/**
+ * Extra param: p.customerIp — passed to AFDS for IP-based filters
+ */
 exports.authOnly = async (p) => {
   try {
     const merchantAuth = new APIContracts.MerchantAuthenticationType();
@@ -80,6 +83,7 @@ exports.authOnly = async (p) => {
     customer.setEmail((p.email || '').slice(0, 255));
 
     const txReq = new APIContracts.TransactionRequestType();
+    if (p.customerIp) txReq.setCustomerIP(p.customerIp);
     txReq.setTransactionType(
       APIContracts.TransactionTypeEnum.AUTHONLYTRANSACTION
     );

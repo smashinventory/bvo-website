@@ -110,6 +110,7 @@ exports.process = async (req, res) => {
     billCity:    (bill_city  || '').trim(),
     billState:   (bill_state || '').trim(),
     billZip:     (bill_zip   || '').trim(),
+    customerIp:  customerIp || undefined,
   });
 
   if (!authResult.ok) {
