@@ -1,5 +1,69 @@
-<%- layout('layouts/admin') %>
+<%
+/* ── Computed vars ───────────────────────────────────────────── */
+const noteEvents = events.filter(e => e.event_type === 'note_added');
 
+/* ── Build fraud checklist ───────────────────────────────────── */
+const checks = [];
+
+if (order.payment_avs_code) {
+  const avsGood = ['Y','X'].includes(order.payment_avs_code);
+  const avsMid  = ['A','Z','W'].includes(order.payment_avs_code);
+  checks.push({
+    icon:  avsGood ? 'ok' : avsMid ? 'info' : 'warn',
+    label: avsGood  ? 'Billing address matches card on file'
+         : avsMid   ? 'Billing address partially matched card on file'
+                    : 'Billing address did NOT match card on file',
+  });
+} else if (order.payment_status) {
+  checks.push({ icon: 'info', label: 'Billing address verification not available' });
+}
+
+if (order.payment_cvv_code) {
+  checks.push({
+    icon:  order.payment_cvv_code === 'M' ? 'ok' : order.payment_cvv_code === 'N' ? 'warn' : 'info',
+    label: order.payment_cvv_code === 'M' ? 'Card security code (CVV) matched'
+         : order.payment_cvv_code === 'N' ? 'Card security code (CVV) did not match'
+                                          : 'Card security code (CVV) was not verified',
+  });
+} else if (order.payment_status) {
+  checks.push({ icon: 'info', label: 'Card security code (CVV) not available' });
+}
+
+if (order.payment_afds_code) {
+  const held = ['252','253'].includes(String(order.payment_afds_code));
+  checks.push({
+    icon:  held ? 'warn' : 'ok',
+    label: held ? 'Transaction was held by fraud filter for review'
+                : 'Transaction cleared all fraud filters',
+  });
+}
+
+const orderAmt = parseFloat(order.total || 0);
+checks.push({
+  icon:  orderAmt > 5000 ? 'info' : 'ok',
+  label: orderAmt > 5000
+    ? `High-value order ($${orderAmt.toFixed(2)}) — verify before capturing`
+    : `Order amount within normal range ($${orderAmt.toFixed(2)})`,
+});
+
+if (order.customer_ip) {
+  checks.push({ icon: 'info', label: `Order placed from IP ${order.customer_ip}` });
+}
+
+const hasWarn  = checks.some(c => c.icon === 'warn');
+const infoOnly = !hasWarn && checks.some(c => c.icon === 'info');
+const riskPct   = hasWarn ? 90 : infoOnly ? 45 : 18;
+const riskColor = hasWarn ? 'var(--red)' : infoOnly ? '#F59E0B' : 'var(--green)';
+const riskLabel = hasWarn ? 'High' : infoOnly ? 'Medium' : 'Low';
+const riskPill  = hasWarn ? 'red'  : infoOnly ? 'yellow' : 'green';
+
+/* ── Payment status helpers ──────────────────────────────────── */
+const isAuthOnly    = order.payment_status === 'auth_only';
+const isCaptured    = order.payment_status === 'captured';
+const hasPayment    = !!order.payment_transaction_id;
+%>
+
+<!-- Page Header -->
 <div class="admin-page-header">
   <div>
     <a href="/admin/orders" class="admin-back-link">← Orders</a>
@@ -16,64 +80,39 @@
       <% }) %>
     </select>
     <button id="saveStatusBtn" class="admin-btn admin-btn--primary admin-btn--sm">Save Status</button>
+    <% if (isAuthOnly) { %>
+    <button class="admin-btn admin-btn--success admin-btn--sm" onclick="doCapture()">
+      💳 Capture $<%= parseFloat(order.total).toFixed(2) %>
+    </button>
+    <% } %>
   </div>
 </div>
 
-<div class="order-detail-grid">
+<!-- Two-column grid -->
+<div style="display:grid;grid-template-columns:1fr 360px;gap:20px;align-items:start">
 
-  <!-- LEFT COLUMN: Customer + Items -->
-  <div class="order-detail-left">
+  <!-- ── LEFT COLUMN ─────────────────────────────────────────── -->
+  <div>
 
-    <!-- Customer Info -->
-    <div class="admin-card">
-      <h3 class="admin-card-title">Customer</h3>
-      <p><strong><%= order.customer_name %></strong></p>
-      <% if (order.customer_email) { %><p><a href="mailto:<%= order.customer_email %>"><%= order.customer_email %></a></p><% } %>
-      <% if (order.customer_phone) { %><p><%= order.customer_phone %></p><% } %>
-    </div>
-
-    <!-- Shipping Address -->
-    <div class="admin-card">
-      <h3 class="admin-card-title">Ship To</h3>
-      <p>
-        <%= order.ship_first_name %> <%= order.ship_last_name %><br>
-        <%= order.ship_address1 %><% if (order.ship_address2) { %><br><%= order.ship_address2 %><% } %><br>
-        <%= order.ship_city %>, <%= order.ship_state %> <%= order.ship_zip %>
-      </p>
-    </div>
-
-    <!-- Payment -->
-    <% if (order.payment_brand || order.payment_last4) { %>
-    <div class="admin-card">
-      <h3 class="admin-card-title">Payment</h3>
-      <div style="display:flex;align-items:center;gap:10px">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" style="flex-shrink:0;opacity:.7"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-        <span style="font-size:14px">
-          <%= order.payment_brand %> &nbsp;····&nbsp;<%= order.payment_last4 %>
-        </span>
-      </div>
-    </div>
-    <% } %>
-
-    <!-- Order Items -->
+    <!-- Items + Totals -->
     <div class="admin-card">
       <h3 class="admin-card-title">Items Ordered</h3>
       <table class="admin-table admin-table--compact">
         <thead><tr><th>SKU</th><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>
         <tbody>
           <% items.forEach(item => { %>
-            <tr>
-              <td class="admin-table-muted"><%= item.sku %></td>
-              <td>
-                <div style="display:flex;align-items:center;gap:8px">
-                  <% if (item.thumb) { %><img src="<%= item.thumb %>" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:4px"><% } %>
-                  <% if (item.product_slug) { %><a href="/products/<%= item.product_slug %>" target="_blank" class="admin-link"><%= item.name %></a><% } else { %><%= item.name %><% } %>
-                </div>
-              </td>
-              <td><%= item.qty %></td>
-              <td>$<%= parseFloat(item.unit_price).toFixed(2) %></td>
-              <td><strong>$<%= parseFloat(item.line_total).toFixed(2) %></strong></td>
-            </tr>
+          <tr>
+            <td class="admin-table-muted"><%= item.sku %></td>
+            <td>
+              <div style="display:flex;align-items:center;gap:8px">
+                <% if (item.thumb) { %><img src="<%= item.thumb %>" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:4px"><% } %>
+                <% if (item.product_slug) { %><a href="/products/<%= item.product_slug %>" target="_blank" class="admin-link"><%= item.name %></a><% } else { %><%= item.name %><% } %>
+              </div>
+            </td>
+            <td><%= item.qty %></td>
+            <td>$<%= parseFloat(item.unit_price).toFixed(2) %></td>
+            <td><strong>$<%= parseFloat(item.line_total).toFixed(2) %></strong></td>
+          </tr>
           <% }) %>
         </tbody>
       </table>
@@ -86,48 +125,51 @@
       </div>
     </div>
 
-    <!-- Open Return (if any) -->
-    <% const openReturn = returns.find(r => !['resolved','denied'].includes(r.status)); %>
-    <% if (openReturn) { %>
-      <div class="admin-card admin-card--alert">
-        <h3 class="admin-card-title">⚠️ Open Return — <%= openReturn.return_number %></h3>
-        <p><strong>Reason:</strong> <%= openReturn.reason.replace(/_/g,' ') %></p>
-        <p><strong>Status:</strong> <%= openReturn.status %></p>
-        <% if (openReturn.customer_notes) { %><p><strong>Customer notes:</strong> <%= openReturn.customer_notes %></p><% } %>
-        <% if (openReturn.ra_number) { %><p><strong>RA#:</strong> <%= openReturn.ra_number %></p><% } %>
-        <div class="return-actions" style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-          <% if (openReturn.status === 'requested') { %>
-            <button class="admin-btn admin-btn--success admin-btn--sm" onclick="approveReturn(<%= openReturn.id %>)">Approve + Issue RA</button>
-            <button class="admin-btn admin-btn--danger admin-btn--sm" onclick="denyReturn(<%= openReturn.id %>)">Deny</button>
-          <% } %>
-          <% if (openReturn.status === 'approved' || openReturn.status === 'in_transit') { %>
-            <button class="admin-btn admin-btn--primary admin-btn--sm" onclick="receiveReturn(<%= openReturn.id %>)">Mark Received</button>
-          <% } %>
-          <% if (openReturn.status === 'received' || openReturn.status === 'inspected') { %>
-            <button class="admin-btn admin-btn--primary admin-btn--sm" onclick="resolveReturn(<%= openReturn.id %>)">Resolve</button>
-          <% } %>
-        </div>
+    <!-- Payment card (with capture button) -->
+    <% if (hasPayment) { %>
+    <div class="admin-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h3 class="admin-card-title" style="margin:0">Payment</h3>
+        <% if (isAuthOnly) { %>
+        <button class="admin-btn admin-btn--success admin-btn--sm" onclick="doCapture()">
+          Capture $<%= parseFloat(order.total).toFixed(2) %>
+        </button>
+        <% } else if (isCaptured) { %>
+        <span class="rag-pill rag-pill--green">Captured</span>
+        <% } %>
       </div>
+      <div class="detail-meta">
+        <% if (isAuthOnly) { %>
+        <div class="detail-meta-row">
+          <span>Status</span>
+          <span style="color:#F59E0B;font-weight:600">⏳ Auth Hold — pending capture</span>
+        </div>
+        <% } %>
+        <% if (order.payment_brand || order.payment_last4) { %>
+        <div class="detail-meta-row">
+          <span>Card</span>
+          <span><%= order.payment_brand || '' %> ····<%= order.payment_last4 || '' %></span>
+        </div>
+        <% } %>
+        <div class="detail-meta-row"><span>Transaction ID</span><span style="font-family:monospace;font-size:12px"><%= order.payment_transaction_id %></span></div>
+        <% if (order.payment_auth_code) { %><div class="detail-meta-row"><span>Auth Code</span><span style="font-family:monospace"><%= order.payment_auth_code %></span></div><% } %>
+        <% if (order.payment_avs_code) { %><div class="detail-meta-row"><span>AVS</span><span><%= order.payment_avs_code %></span></div><% } %>
+        <% if (order.payment_cvv_code) { %><div class="detail-meta-row"><span>CVV</span><span><%= order.payment_cvv_code %></span></div><% } %>
+      </div>
+      <% if (isAuthOnly) { %>
+      <p style="margin:10px 0 0;font-size:12px;color:var(--text-muted)">Funds are reserved on the customer's card. Capture when ready to fulfill.</p>
+      <% } %>
+    </div>
     <% } %>
 
-  </div>
-
-  <!-- RIGHT COLUMN: Vendor PO + Shipment + Events -->
-  <div class="order-detail-right">
-
-    <!-- Vendor Order Panel -->
+    <!-- Vendor PO -->
     <div class="admin-card">
       <h3 class="admin-card-title">
-        <% if (!vendorPo) { %>
-          <span class="rag-dot rag-dot--red"></span>
-        <% } else if (vendorPo.status === 'confirmed') { %>
-          <span class="rag-dot rag-dot--green"></span>
-        <% } else { %>
-          <span class="rag-dot rag-dot--yellow"></span>
-        <% } %>
+        <% if (!vendorPo) { %><span class="rag-dot rag-dot--red"></span>
+        <% } else if (vendorPo.status === 'confirmed') { %><span class="rag-dot rag-dot--green"></span>
+        <% } else { %><span class="rag-dot rag-dot--yellow"></span><% } %>
         Vendor Order — James Martin
       </h3>
-
       <% if (!vendorPo) { %>
         <p class="admin-card-hint">No PO sent yet.</p>
         <button class="admin-btn admin-btn--primary" id="sendPoBtn">Send Order to JM</button>
@@ -142,28 +184,22 @@
         <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
           <button class="admin-btn admin-btn--ghost admin-btn--sm" id="sendPoBtn">Resend PO</button>
           <% if (vendorPo.status !== 'confirmed') { %>
-            <button class="admin-btn admin-btn--success admin-btn--sm" onclick="showConfirmPoModal()">Log Confirmation</button>
+          <button class="admin-btn admin-btn--success admin-btn--sm" onclick="showConfirmPoModal()">Log Confirmation</button>
           <% } %>
         </div>
       <% } %>
     </div>
 
-    <!-- Shipment Panel -->
+    <!-- Shipment -->
     <div class="admin-card">
       <h3 class="admin-card-title">
-        <% if (!shipment) { %>
-          <span class="rag-dot rag-dot--grey"></span>
-        <% } else if (shipment.status === 'delivered') { %>
-          <span class="rag-dot rag-dot--green"></span>
-        <% } else if (shipment.status === 'exception') { %>
-          <span class="rag-dot rag-dot--red"></span>
-        <% } else { %>
-          <span class="rag-dot rag-dot--yellow"></span>
-        <% } %>
+        <% if (!shipment) { %><span class="rag-dot rag-dot--grey"></span>
+        <% } else if (shipment.status === 'delivered') { %><span class="rag-dot rag-dot--green"></span>
+        <% } else if (shipment.status === 'exception') { %><span class="rag-dot rag-dot--red"></span>
+        <% } else { %><span class="rag-dot rag-dot--yellow"></span><% } %>
         Shipment (WWEX)
         <% if (wwexMode === 'stub') { %><span class="admin-badge admin-badge--warn">Stub Mode</span><% } %>
       </h3>
-
       <% if (!shipment || shipment.status === 'quote_pending') { %>
         <p class="admin-card-hint">No shipment booked yet.</p>
         <div class="shipping-options" style="margin-bottom:12px">
@@ -177,19 +213,15 @@
         <div class="detail-meta">
           <div class="detail-meta-row"><span>Status</span><span class="rag-pill rag-pill--<%= shipment.status === 'delivered' ? 'green' : shipment.status === 'exception' ? 'red' : 'yellow' %>"><%= shipment.status.replace(/_/g,' ') %></span></div>
           <div class="detail-meta-row"><span>Carrier</span><span><%= shipment.carrier || '—' %></span></div>
-          <div class="detail-meta-row"><span>Tracking#</span>
-            <span>
-              <% if (shipment.tracking_number) { %>
-                <a href="https://wwex.com/track/<%= shipment.tracking_number %>" target="_blank" class="admin-link"><%= shipment.tracking_number %></a>
-              <% } else { %>—<% } %>
-            </span>
-          </div>
+          <div class="detail-meta-row"><span>Tracking#</span><span>
+            <% if (shipment.tracking_number) { %><a href="https://wwex.com/track/<%= shipment.tracking_number %>" target="_blank" class="admin-link"><%= shipment.tracking_number %></a><% } else { %>—<% } %>
+          </span></div>
           <div class="detail-meta-row"><span>BOL#</span><span><%= shipment.bol_number || '—' %></span></div>
           <div class="detail-meta-row"><span>Est. Delivery</span><span><%= shipment.estimated_delivery ? new Date(shipment.estimated_delivery).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) : '—' %></span></div>
           <div class="detail-meta-row"><span>Freight Cost</span><span><%= shipment.rate_charged ? '$'+parseFloat(shipment.rate_charged).toFixed(2) : '—' %></span></div>
         </div>
         <% if (shipment.bol_url) { %>
-          <a href="<%= shipment.bol_url %>" target="_blank" class="admin-btn admin-btn--ghost admin-btn--sm" style="margin-top:12px">Download BOL</a>
+        <a href="<%= shipment.bol_url %>" target="_blank" class="admin-btn admin-btn--ghost admin-btn--sm" style="margin-top:12px">Download BOL</a>
         <% } %>
       <% } %>
     </div>
@@ -202,10 +234,10 @@
       <% } else { %>
         <ul class="doc-list">
           <% documents.forEach(doc => { %>
-            <li class="doc-list-item">
-              <a href="<%= doc.file_url %>" target="_blank" class="admin-link">📄 <%= doc.label || doc.doc_type %></a>
-              <span class="admin-table-muted"><%= new Date(doc.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}) %></span>
-            </li>
+          <li class="doc-list-item">
+            <a href="<%= doc.file_url %>" target="_blank" class="admin-link">📄 <%= doc.label || doc.doc_type %></a>
+            <span class="admin-table-muted"><%= new Date(doc.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}) %></span>
+          </li>
           <% }) %>
         </ul>
       <% } %>
@@ -223,58 +255,194 @@
       </form>
     </div>
 
-    <!-- Add Note -->
+  </div><!-- /left column -->
+
+  <!-- ── RIGHT COLUMN ────────────────────────────────────────── -->
+  <div>
+
+    <!-- Notes -->
     <div class="admin-card">
-      <h3 class="admin-card-title">Add Note</h3>
+      <h3 class="admin-card-title">Notes</h3>
+      <% if (noteEvents.length > 0) { %>
+      <ul style="margin:0 0 12px;padding:0;list-style:none">
+        <% noteEvents.forEach(ev => { %>
+        <li style="padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
+          <p style="margin:0 0 4px"><%= ev.notes %></p>
+          <span class="admin-table-muted"><%= ev.actor %> · <%= new Date(ev.created_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) %></span>
+        </li>
+        <% }) %>
+      </ul>
+      <% } else { %>
+      <p class="admin-card-hint">No notes yet.</p>
+      <% } %>
       <textarea id="noteText" class="admin-textarea" rows="3" placeholder="Internal note (visible to admin only)…"></textarea>
       <button class="admin-btn admin-btn--ghost admin-btn--sm" style="margin-top:8px" onclick="addNote()">Save Note</button>
     </div>
 
-    <!-- Open Return Button -->
+    <!-- Customer -->
+    <div class="admin-card">
+      <h3 class="admin-card-title">Customer</h3>
+      <div class="detail-meta">
+        <div class="detail-meta-row"><span>Name</span><span><strong><%= order.customer_name %></strong></span></div>
+        <% if (order.customer_email || order.guest_email) { %>
+        <div class="detail-meta-row"><span>Email</span><span><a href="mailto:<%= order.customer_email || order.guest_email %>" class="admin-link"><%= order.customer_email || order.guest_email %></a></span></div>
+        <% } %>
+        <% if (order.customer_phone) { %>
+        <div class="detail-meta-row"><span>Phone</span><span><%= order.customer_phone %></span></div>
+        <% } %>
+      </div>
+
+      <% if (order.ship_address1 || order.ship_city) { %>
+      <h4 style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 6px">Shipping Address</h4>
+      <p style="margin:0;font-size:13px;line-height:1.6">
+        <%= order.ship_first_name %> <%= order.ship_last_name %><br>
+        <%= order.ship_address1 %>
+        <% if (order.ship_address2) { %><br><%= order.ship_address2 %><% } %><br>
+        <%= order.ship_city %>, <%= order.ship_state %> <%= order.ship_zip %>
+      </p>
+      <% } %>
+
+      <% if (order.bill_address1) { %>
+      <h4 style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 6px">Billing Address</h4>
+      <p style="margin:0;font-size:13px;line-height:1.6">
+        <%= order.bill_address1 %><br>
+        <%= order.bill_city %>, <%= order.bill_state %> <%= order.bill_zip %>
+      </p>
+      <% } %>
+    </div>
+
+    <!-- Order Risk -->
+    <div class="admin-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h3 class="admin-card-title" style="margin:0">Order Risk</h3>
+        <span class="rag-pill rag-pill--<%= riskPill %>"><%= riskLabel %></span>
+      </div>
+      <div style="height:6px;border-radius:3px;background:var(--border);overflow:hidden;margin-bottom:6px">
+        <div style="height:100%;border-radius:3px;width:<%= riskPct %>%;background:<%= riskColor %>"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-bottom:12px">
+        <span>Low</span><span>Medium</span><span>High</span>
+      </div>
+      <% if (checks.length > 0) { %>
+      <ul style="margin:0;padding:0;list-style:none">
+        <% checks.forEach(function(c) {
+          var isOk   = c.icon === 'ok';
+          var isWarn = c.icon === 'warn';
+          var iconColor = isOk ? 'var(--green)' : isWarn ? 'var(--red)' : 'var(--text-muted)';
+        %>
+        <li style="display:flex;align-items:flex-start;gap:8px;padding:5px 0;font-size:12px;border-bottom:1px solid var(--border)">
+          <% if (isOk) { %>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--green)" stroke-width="2.5" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/></svg>
+          <% } else if (isWarn) { %>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--red)" stroke-width="2.5" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r=".5" fill="var(--red)"/></svg>
+          <% } else { %>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--text-muted)" stroke-width="2" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r=".5" fill="var(--text-muted)"/></svg>
+          <% } %>
+          <span style="color:<%= isWarn ? 'var(--text)' : 'var(--text-muted)' %>;font-weight:<%= isWarn ? '500' : '400' %>"><%= c.label %></span>
+        </li>
+        <% }); %>
+      </ul>
+      <% } else { %>
+      <p class="admin-card-hint">No payment data to analyze.</p>
+      <% } %>
+      <% if (hasWarn) { %>
+      <p style="margin:10px 0 0;font-size:12px;color:var(--red);font-weight:500">⚠️ Review carefully before capturing payment.</p>
+      <% } %>
+    </div>
+
+    <!-- Returns -->
     <div class="admin-card">
       <h3 class="admin-card-title">Returns</h3>
+      <% const openReturn = returns.find(r => !['resolved','denied'].includes(r.status)); %>
+      <% if (openReturn) { %>
+      <div style="background:var(--bg-warn,#FEF3C7);border:1px solid #FDE68A;border-radius:6px;padding:10px;margin-bottom:12px;font-size:13px">
+        <strong><%= openReturn.return_number %></strong> — <%= openReturn.status %> — <%= openReturn.reason.replace(/_/g,' ') %>
+        <% if (openReturn.customer_notes) { %><p style="margin:4px 0 0;color:var(--text-muted)"><%= openReturn.customer_notes %></p><% } %>
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+          <% if (openReturn.status === 'requested') { %>
+          <button class="admin-btn admin-btn--success admin-btn--sm" onclick="approveReturn(<%= openReturn.id %>)">Approve + RA</button>
+          <button class="admin-btn admin-btn--danger admin-btn--sm" onclick="denyReturn(<%= openReturn.id %>)">Deny</button>
+          <% } %>
+          <% if (['approved','in_transit'].includes(openReturn.status)) { %>
+          <button class="admin-btn admin-btn--primary admin-btn--sm" onclick="receiveReturn(<%= openReturn.id %>)">Mark Received</button>
+          <% } %>
+          <% if (['received','inspected'].includes(openReturn.status)) { %>
+          <button class="admin-btn admin-btn--primary admin-btn--sm" onclick="resolveReturn(<%= openReturn.id %>)">Resolve</button>
+          <% } %>
+        </div>
+      </div>
+      <% } %>
       <% if (returns.length === 0) { %>
-        <p class="admin-card-hint">No returns on this order.</p>
-      <% } else { %>
-        <ul style="margin:0 0 12px;padding:0;list-style:none">
-          <% returns.forEach(r => { %>
-            <li style="padding:6px 0;border-bottom:1px solid var(--border)">
-              <strong><%= r.return_number %></strong> — <%= r.status %> — <%= r.reason.replace(/_/g,' ') %>
-              <% if (r.resolved_at) { %><span class="rag-pill rag-pill--green" style="margin-left:8px">Resolved</span><% } %>
-            </li>
-          <% }) %>
-        </ul>
+      <p class="admin-card-hint">No returns on this order.</p>
+      <% } else if (!openReturn) { %>
+      <ul style="margin:0 0 12px;padding:0;list-style:none">
+        <% returns.forEach(r => { %>
+        <li style="padding:5px 0;border-bottom:1px solid var(--border);font-size:13px">
+          <strong><%= r.return_number %></strong> — <%= r.reason.replace(/_/g,' ') %>
+          <span class="rag-pill rag-pill--<%= r.status === 'resolved' ? 'green' : 'yellow' %>" style="margin-left:6px"><%= r.status %></span>
+        </li>
+        <% }) %>
+      </ul>
       <% } %>
       <button class="admin-btn admin-btn--ghost admin-btn--sm" onclick="openReturnModal()">+ Open Return</button>
     </div>
 
-  </div>
-</div>
+    <!-- Conversion Summary -->
+    <% if (order.order_source || order.order_referrer || order.order_utm_campaign) { %>
+    <div class="admin-card">
+      <h3 class="admin-card-title">Conversion Summary</h3>
+      <div class="detail-meta">
+        <% if (order.order_source) { %>
+        <div class="detail-meta-row"><span>Source</span><span><%= order.order_source %></span></div>
+        <% } %>
+        <% if (order.order_utm_campaign) { %>
+        <div class="detail-meta-row"><span>Campaign</span><span><%= order.order_utm_campaign %></span></div>
+        <% } %>
+        <% if (order.order_utm_medium) { %>
+        <div class="detail-meta-row"><span>Medium</span><span><%= order.order_utm_medium %></span></div>
+        <% } %>
+        <% if (order.order_utm_source) { %>
+        <div class="detail-meta-row"><span>UTM Source</span><span><%= order.order_utm_source %></span></div>
+        <% } %>
+        <% if (order.order_referrer) { %>
+        <div class="detail-meta-row"><span>Referrer</span>
+          <span style="font-size:11px;word-break:break-all;max-width:190px"><%= (order.order_referrer||'').slice(0,80) %><%= (order.order_referrer||'').length > 80 ? '…' : '' %></span>
+        </div>
+        <% } %>
+        <% if (order.customer_ip) { %>
+        <div class="detail-meta-row"><span>IP Address</span><span style="font-family:monospace;font-size:12px"><%= order.customer_ip %></span></div>
+        <% } %>
+      </div>
+    </div>
+    <% } %>
 
-<!-- Event Timeline -->
-<div class="admin-card" style="margin-top:24px">
+  </div><!-- /right column -->
+</div><!-- /grid -->
+
+<!-- Timeline (full width) -->
+<div class="admin-card" style="margin-top:20px">
   <h3 class="admin-card-title">Order Timeline</h3>
   <% if (events.length === 0) { %>
-    <p class="admin-card-hint">No events yet.</p>
+  <p class="admin-card-hint">No events yet.</p>
   <% } else { %>
-    <ul class="event-timeline">
-      <% events.forEach(ev => { %>
-        <li class="event-timeline-item">
-          <span class="event-dot"></span>
-          <div class="event-content">
-            <div class="event-header">
-              <strong><%= ev.event_type.replace(/_/g,' ') %></strong>
-              <% if (ev.from_status && ev.to_status) { %>
-                <span class="event-transition"><%= ev.from_status %> → <%= ev.to_status %></span>
-              <% } %>
-              <span class="event-actor"><%= ev.actor %></span>
-            </div>
-            <% if (ev.notes) { %><p class="event-notes"><%= ev.notes %></p><% } %>
-            <span class="event-time"><%= new Date(ev.created_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) %></span>
-          </div>
-        </li>
-      <% }) %>
-    </ul>
+  <ul class="event-timeline">
+    <% events.forEach(ev => { %>
+    <li class="event-timeline-item">
+      <span class="event-dot"></span>
+      <div class="event-content">
+        <div class="event-header">
+          <strong><%= ev.event_type.replace(/_/g,' ') %></strong>
+          <% if (ev.from_status && ev.to_status) { %>
+          <span class="event-transition"><%= ev.from_status %> → <%= ev.to_status %></span>
+          <% } %>
+          <span class="event-actor"><%= ev.actor %></span>
+        </div>
+        <% if (ev.notes) { %><p class="event-notes"><%= ev.notes %></p><% } %>
+        <span class="event-time"><%= new Date(ev.created_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) %></span>
+      </div>
+    </li>
+    <% }) %>
+  </ul>
   <% } %>
 </div>
 
@@ -317,7 +485,7 @@
 <script>
 const ORDER_ID = '<%= order.id %>';
 
-// Status
+/* ── Status ── */
 document.getElementById('saveStatusBtn').addEventListener('click', async () => {
   const status = document.getElementById('statusSelect').value;
   const r = await fetch(`/admin/orders/${ORDER_ID}/status`, {
@@ -325,11 +493,19 @@ document.getElementById('saveStatusBtn').addEventListener('click', async () => {
     body: JSON.stringify({ status })
   });
   const d = await r.json();
-  if (d.ok) location.reload();
-  else alert('Error: ' + d.error);
+  if (d.ok) location.reload(); else alert('Error: ' + d.error);
 });
 
-// Send Vendor PO
+/* ── Capture Payment ── */
+async function doCapture() {
+  if (!confirm('Capture payment now? This will charge the customer\'s card immediately.')) return;
+  const r = await fetch(`/admin/orders/${ORDER_ID}/capture`, { method:'POST' });
+  const d = await r.json();
+  if (d.ok) { alert(d.message); location.reload(); }
+  else alert('Capture error: ' + d.error);
+}
+
+/* ── Vendor PO ── */
 document.getElementById('sendPoBtn')?.addEventListener('click', async () => {
   if (!confirm('Send purchase order email to James Martin?')) return;
   const btn = document.getElementById('sendPoBtn');
@@ -340,7 +516,6 @@ document.getElementById('sendPoBtn')?.addEventListener('click', async () => {
   else { alert('Error: ' + d.error); btn.disabled = false; btn.textContent = 'Send Order to JM'; }
 });
 
-// Confirm PO modal
 function showConfirmPoModal() { document.getElementById('confirmPoModal').style.display='flex'; }
 async function saveVendorConfirm() {
   const r = await fetch(`/admin/orders/${ORDER_ID}/vendor-confirm`, {
@@ -354,7 +529,7 @@ async function saveVendorConfirm() {
   if (d.ok) location.reload(); else alert('Error: ' + d.error);
 }
 
-// WWEX Quotes
+/* ── WWEX Quotes ── */
 document.getElementById('getQuotesBtn')?.addEventListener('click', async () => {
   const btn = document.getElementById('getQuotesBtn');
   btn.disabled = true; btn.textContent = 'Fetching quotes…';
@@ -362,7 +537,7 @@ document.getElementById('getQuotesBtn')?.addEventListener('click', async () => {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({
       residential: document.getElementById('chkResidential')?.checked !== false ? 'true' : 'false',
-      liftgate:    document.getElementById('chkLiftgate')?.checked !== false ? 'true' : 'false',
+      liftgate:    document.getElementById('chkLiftgate')?.checked    !== false ? 'true' : 'false',
       appointment: document.getElementById('chkAppointment')?.checked ? 'true' : 'false',
     })
   });
@@ -372,7 +547,7 @@ document.getElementById('getQuotesBtn')?.addEventListener('click', async () => {
   el.style.display='block';
   if (!d.ok) { el.innerHTML=`<p style="color:var(--red)">${d.error}</p>`; return; }
   el.innerHTML = `
-    ${d.stub ? '<p class="admin-badge admin-badge--warn" style="margin-bottom:8px">Stub rates — connect WWEX credentials to get live quotes</p>' : ''}
+    ${d.stub ? '<p class="admin-badge admin-badge--warn" style="margin-bottom:8px">Stub rates — connect WWEX credentials for live quotes</p>' : ''}
     <table class="admin-table admin-table--compact">
       <thead><tr><th>Carrier</th><th>Service</th><th>Transit</th><th>Est. Delivery</th><th>Rate</th><th></th></tr></thead>
       <tbody>
@@ -401,7 +576,7 @@ async function bookRate(rateId, carrier, serviceLevel, shipType, amount, estDeli
   else alert('Booking error: ' + d.error);
 }
 
-// Add Note
+/* ── Add Note ── */
 async function addNote() {
   const notes = document.getElementById('noteText').value.trim();
   if (!notes) return;
@@ -413,7 +588,7 @@ async function addNote() {
   if (d.ok) location.reload(); else alert('Error: ' + d.error);
 }
 
-// Document upload
+/* ── Document upload ── */
 document.getElementById('docUploadForm')?.addEventListener('submit', async (e) => {
   e.preventDefault();
   const fd = new FormData(e.target);
@@ -422,7 +597,7 @@ document.getElementById('docUploadForm')?.addEventListener('submit', async (e) =
   if (d.ok) location.reload(); else alert('Upload error: ' + d.error);
 });
 
-// Return modal
+/* ── Returns ── */
 function openReturnModal() { document.getElementById('returnModal').style.display='flex'; }
 async function submitOpenReturn() {
   const r = await fetch(`/admin/orders/${ORDER_ID}/returns`, {
@@ -435,8 +610,6 @@ async function submitOpenReturn() {
   const d = await r.json();
   if (d.ok) location.reload(); else alert('Error: ' + d.error);
 }
-
-// Return actions
 async function approveReturn(id) {
   const notes = prompt('Admin notes (optional):') || '';
   const r = await fetch(`/admin/returns/${id}/approve`, {

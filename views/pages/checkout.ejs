@@ -17,24 +17,36 @@
 
   <div class="checkout-layout">
 
-    <!-- ── Left: Contact + order items ──────────────────────────── -->
+    <!-- ── Left: Contact + Billing + Card ────────────────────────── -->
     <div class="checkout-form-section">
 
-      <!-- Contact info -->
-      <div class="checkout-card">
-        <h2 class="checkout-card-title">Contact Information</h2>
-        <p class="checkout-card-sub">Your name and email are sent to Clover for your payment receipt. All billing, shipping, and card details are securely collected on the next page.</p>
+      <form action="/checkout" method="POST" id="checkout-form" class="checkout-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
-        <form action="/checkout" method="POST" id="checkout-form" class="checkout-form">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <!-- Hidden nonce fields (populated by Accept.js) -->
+        <input type="hidden" name="dataDescriptor" id="dataDescriptor">
+        <input type="hidden" name="dataValue"      id="dataValue">
+
+        <!-- Hidden conversion tracking fields -->
+        <input type="hidden" name="order_source"   id="order_source">
+        <input type="hidden" name="order_referrer" id="order_referrer">
+        <input type="hidden" name="utm_campaign"   id="utm_campaign">
+        <input type="hidden" name="utm_medium"     id="utm_medium">
+        <input type="hidden" name="utm_source"     id="utm_source">
+
+        <!-- Contact Information -->
+        <div class="checkout-card">
+          <h2 class="checkout-card-title">Contact Information</h2>
           <div class="checkout-field-row">
             <div class="checkout-field">
-              <label for="co-first">First Name</label>
-              <input type="text" id="co-first" name="first_name" placeholder="First name" autocomplete="given-name">
+              <label for="co-first">First Name <span class="req">*</span></label>
+              <input type="text" id="co-first" name="first_name" placeholder="First name"
+                     autocomplete="given-name" required>
             </div>
             <div class="checkout-field">
-              <label for="co-last">Last Name</label>
-              <input type="text" id="co-last" name="last_name" placeholder="Last name" autocomplete="family-name">
+              <label for="co-last">Last Name <span class="req">*</span></label>
+              <input type="text" id="co-last" name="last_name" placeholder="Last name"
+                     autocomplete="family-name" required>
             </div>
           </div>
           <div class="checkout-field">
@@ -48,11 +60,99 @@
             <input type="tel" id="co-phone" name="phone" placeholder="(555) 000-0000"
                    autocomplete="tel">
           </div>
+        </div>
 
-          <!-- Hidden button — actual submit is the big amber button at bottom -->
-          <button type="submit" style="display:none" aria-hidden="true">submit</button>
-        </form>
-      </div>
+        <!-- Billing Address (for AVS fraud protection) -->
+        <div class="checkout-card">
+          <h2 class="checkout-card-title">Billing Address</h2>
+          <p class="checkout-card-sub">Used for card verification. Your order ships to the address you provide after checkout.</p>
+          <div class="checkout-field">
+            <label for="bill-address1">Street Address <span class="req">*</span></label>
+            <input type="text" id="bill-address1" name="bill_address1" placeholder="123 Main St"
+                   autocomplete="billing street-address" required>
+          </div>
+          <div class="checkout-field-row">
+            <div class="checkout-field" style="flex:2">
+              <label for="bill-city">City <span class="req">*</span></label>
+              <input type="text" id="bill-city" name="bill_city" placeholder="City"
+                     autocomplete="billing address-level2" required>
+            </div>
+            <div class="checkout-field" style="flex:1">
+              <label for="bill-state">State <span class="req">*</span></label>
+              <select id="bill-state" name="bill_state" autocomplete="billing address-level1" required
+                      class="checkout-select">
+                <option value="">— State —</option>
+                <% [['AL','Alabama'],['AK','Alaska'],['AZ','Arizona'],['AR','Arkansas'],['CA','California'],
+                    ['CO','Colorado'],['CT','Connecticut'],['DE','Delaware'],['FL','Florida'],['GA','Georgia'],
+                    ['HI','Hawaii'],['ID','Idaho'],['IL','Illinois'],['IN','Indiana'],['IA','Iowa'],
+                    ['KS','Kansas'],['KY','Kentucky'],['LA','Louisiana'],['ME','Maine'],['MD','Maryland'],
+                    ['MA','Massachusetts'],['MI','Michigan'],['MN','Minnesota'],['MS','Mississippi'],['MO','Missouri'],
+                    ['MT','Montana'],['NE','Nebraska'],['NV','Nevada'],['NH','New Hampshire'],['NJ','New Jersey'],
+                    ['NM','New Mexico'],['NY','New York'],['NC','North Carolina'],['ND','North Dakota'],['OH','Ohio'],
+                    ['OK','Oklahoma'],['OR','Oregon'],['PA','Pennsylvania'],['RI','Rhode Island'],['SC','South Carolina'],
+                    ['SD','South Dakota'],['TN','Tennessee'],['TX','Texas'],['UT','Utah'],['VT','Vermont'],
+                    ['VA','Virginia'],['WA','Washington'],['WV','West Virginia'],['WI','Wisconsin'],['WY','Wyoming']
+                   ].forEach(([abbr, name]) => { %>
+                  <option value="<%= abbr %>"><%= name %></option>
+                <% }); %>
+              </select>
+            </div>
+            <div class="checkout-field" style="flex:1">
+              <label for="bill-zip">ZIP <span class="req">*</span></label>
+              <input type="text" id="bill-zip" name="bill_zip" placeholder="00000"
+                     autocomplete="billing postal-code" maxlength="10" required>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card Details (card fields have NO name — never submitted to server) -->
+        <div class="checkout-card">
+          <h2 class="checkout-card-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" aria-hidden="true" style="vertical-align:middle;margin-right:6px">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+            Card Details
+          </h2>
+          <p class="checkout-card-sub">Your card number is encrypted in your browser and never sent to our servers.</p>
+
+          <div class="checkout-field">
+            <label for="cardNumber">Card Number <span class="req">*</span></label>
+            <!-- NO name attribute — PCI requirement -->
+            <input type="text" id="cardNumber" placeholder="1234 5678 9012 3456"
+                   autocomplete="cc-number" maxlength="19" inputmode="numeric">
+          </div>
+          <div class="checkout-field-row">
+            <div class="checkout-field">
+              <label for="expMonth">Expiry Month <span class="req">*</span></label>
+              <select id="expMonth" autocomplete="cc-exp-month" class="checkout-select">
+                <option value="">MM</option>
+                <% for (let m = 1; m <= 12; m++) { %>
+                  <option value="<%= String(m).padStart(2,'0') %>"><%= String(m).padStart(2,'0') %></option>
+                <% } %>
+              </select>
+            </div>
+            <div class="checkout-field">
+              <label for="expYear">Expiry Year <span class="req">*</span></label>
+              <select id="expYear" autocomplete="cc-exp-year" class="checkout-select">
+                <option value="">YYYY</option>
+                <% for (let y = new Date().getFullYear(); y <= new Date().getFullYear() + 10; y++) { %>
+                  <option value="<%= y %>"><%= y %></option>
+                <% } %>
+              </select>
+            </div>
+            <div class="checkout-field">
+              <label for="cardCode">CVV <span class="req">*</span></label>
+              <!-- NO name attribute -->
+              <input type="text" id="cardCode" placeholder="123"
+                     autocomplete="cc-csc" maxlength="4" inputmode="numeric">
+            </div>
+          </div>
+
+          <div id="payment-error" style="display:none;color:var(--red);margin-top:8px;font-size:14px"></div>
+        </div>
+
+      </form><!-- /checkout-form -->
 
       <!-- Order items -->
       <div class="checkout-card checkout-items-card">
@@ -97,13 +197,14 @@
 
         <p class="co-sum-note">Taxes calculated at next step</p>
 
-        <button type="submit" form="checkout-form" class="btn btn-amber checkout-submit-btn">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="margin-right:6px;vertical-align:middle">
+        <button type="button" id="payBtn" class="btn btn-amber checkout-submit-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" aria-hidden="true" style="margin-right:6px;vertical-align:middle">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
           </svg>
-          Proceed to Payment
+          Place Order
         </button>
-        <p class="co-sum-redirect-note">You'll be redirected to our secure payment partner to enter card details.</p>
+        <p class="co-sum-redirect-note">Payment is encrypted and processed securely by Authorize.net.</p>
 
         <!-- Trust row -->
         <div class="cart-trust-row" style="margin-top:1rem">
@@ -145,21 +246,9 @@
             <text x="30" y="16" text-anchor="middle" fill="#fff" font-size="7" font-weight="600" font-family="Arial,sans-serif" letter-spacing=".8">AMERICAN</text>
             <text x="30" y="27" text-anchor="middle" fill="#fff" font-size="9" font-weight="800" font-family="Arial,sans-serif" letter-spacing=".5">EXPRESS</text>
           </svg>
-          <svg class="pay-logo" viewBox="0 0 60 38" role="img" aria-label="PayPal">
+          <svg class="pay-logo" viewBox="0 0 60 38" role="img" aria-label="Discover">
             <rect width="60" height="38" rx="4" fill="#fff" stroke="#ddd" stroke-width=".5"/>
-            <text x="30" y="24" text-anchor="middle" font-size="12" font-weight="800" font-style="italic" font-family="Arial,sans-serif">
-              <tspan fill="#003087">Pay</tspan><tspan fill="#009CDE">Pal</tspan>
-            </text>
-          </svg>
-          <svg class="pay-logo" viewBox="0 0 60 38" role="img" aria-label="Apple Pay">
-            <rect width="60" height="38" rx="4" fill="#000"/>
-            <text x="30" y="24" text-anchor="middle" fill="#fff" font-size="11" font-weight="500" font-family="-apple-system,Arial,sans-serif">&#xf8ff; Pay</text>
-          </svg>
-          <svg class="pay-logo" viewBox="0 0 60 38" role="img" aria-label="Google Pay">
-            <rect width="60" height="38" rx="4" fill="#fff" stroke="#ddd" stroke-width=".5"/>
-            <text x="30" y="24" text-anchor="middle" font-size="12" font-weight="500" font-family="Arial,sans-serif">
-              <tspan fill="#4285F4">G</tspan><tspan fill="#757575">Pay</tspan>
-            </text>
+            <text x="30" y="24" text-anchor="middle" fill="#F76F20" font-size="11" font-weight="700" font-family="Arial,sans-serif">DISCOVER</text>
           </svg>
         </div>
 
@@ -168,3 +257,91 @@
 
   </div><!-- /checkout-layout -->
 </div>
+
+<!-- Accept.js (Authorize.net card tokenizer) -->
+<script src="<%= aNetScriptUrl %>" nonce="<%= cspNonce %>"></script>
+
+<script nonce="<%= cspNonce %>">
+/* ── Capture UTM params + referrer for conversion tracking ── */
+(function () {
+  var p   = new URLSearchParams(window.location.search);
+  var set = function (id, val) { var el = document.getElementById(id); if (el && val) el.value = val; };
+  set('utm_campaign',   p.get('utm_campaign'));
+  set('utm_medium',     p.get('utm_medium'));
+  set('utm_source',     p.get('utm_source'));
+  set('order_referrer', document.referrer || '');
+  var src = p.get('utm_source') ||
+    (document.referrer ? (function(){ try { return new URL(document.referrer).hostname; } catch(e) { return document.referrer; } })() : 'direct');
+  set('order_source', src);
+})();
+
+/* ── Card number auto-format with spaces ── */
+document.getElementById('cardNumber').addEventListener('input', function () {
+  var v = this.value.replace(/\D/g, '').slice(0, 16);
+  this.value = v.replace(/(.{4})/g, '$1 ').trim();
+});
+
+/* ── Accept.js tokenization ── */
+var authData = {
+  clientKey:   '<%= aNetPublicKey %>',
+  apiLoginID:  '<%= aNetApiLoginId %>',
+};
+
+function showPayError(msg) {
+  var el = document.getElementById('payment-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+  document.getElementById('payBtn').disabled = false;
+  document.getElementById('payBtn').textContent = 'Place Order';
+}
+
+function responseHandler(resp) {
+  if (resp.messages.resultCode === 'Error') {
+    var msg = resp.messages.message.map(function(m) { return m.text; }).join(' ');
+    showPayError(msg);
+    return;
+  }
+  document.getElementById('dataDescriptor').value = resp.opaqueData.dataDescriptor;
+  document.getElementById('dataValue').value      = resp.opaqueData.dataValue;
+  document.getElementById('checkout-form').submit();
+}
+
+function sendPaymentData() {
+  /* Validate required fields before calling Accept.js */
+  var form = document.getElementById('checkout-form');
+  if (!form.checkValidity()) {
+    form.reportValidity();
+    return;
+  }
+  var cardNum  = document.getElementById('cardNumber').value.replace(/\s/g,'');
+  var expMonth = document.getElementById('expMonth').value;
+  var expYear  = document.getElementById('expYear').value;
+  var cardCode = document.getElementById('cardCode').value;
+  var billZip  = document.getElementById('bill-zip').value;
+  var firstName = document.getElementById('co-first').value.trim();
+  var lastName  = document.getElementById('co-last').value.trim();
+
+  if (!cardNum || !expMonth || !expYear || !cardCode) {
+    showPayError('Please fill in all card fields.');
+    return;
+  }
+
+  document.getElementById('payment-error').style.display = 'none';
+  var btn = document.getElementById('payBtn');
+  btn.disabled = true;
+  btn.textContent = 'Processing…';
+
+  var cardData = {
+    cardNumber:  cardNum,
+    month:       expMonth,
+    year:        expYear,
+    cardCode:    cardCode,
+    zip:         billZip,
+    fullName:    firstName + ' ' + lastName,
+  };
+
+  Accept.dispatchData({ authData: authData, cardData: cardData }, responseHandler);
+}
+
+document.getElementById('payBtn').addEventListener('click', sendPaymentData);
+</script>

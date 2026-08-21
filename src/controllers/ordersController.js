@@ -17,9 +17,10 @@
  *   POST /admin/orders/:id/documents      — upload doc (BOL, invoice, etc.)
  */
 
-const { bvoPool } = require('../config/database');
-const brevo       = require('../services/brevoService');
-const wwex        = require('../services/wwexService');
+const { bvoPool }    = require('../config/database');
+const brevo          = require('../services/brevoService');
+const wwex           = require('../services/wwexService');
+const authorizeNet   = require('../services/authorizeNetService');
 const path        = require('path');
 const fs          = require('fs');
 const multer      = require('multer');
@@ -212,6 +213,7 @@ exports.detail = async (req, res, next) => {
     const rag = computeRag(order, vendorPo, shipment, openReturn);
 
     res.render('pages/admin/orders/detail', {
+      ...LAYOUT,
       activePage: 'orders',
       pageTitle:  `Order ${order.order_number}`,
       order,
@@ -502,6 +504,51 @@ exports.addNote = async (req, res) => {
   } catch (err) {
     console.error('[ordersController.addNote]', err);
     return res.status(500).json({ ok: false, error: 'Server error' });
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════
+   CAPTURE PAYMENT (Prior Auth → Capture)
+   ═══════════════════════════════════════════════════════════════ */
+exports.capturePayment = async (req, res) => {
+  const conn = await bvoPool.getConnection();
+  try {
+    const id = parseInt(req.params.id);
+    const [[order]] = await conn.query(
+      'SELECT id, total, payment_transaction_id, payment_status FROM orders WHERE id = ?', [id]
+    );
+    if (!order) return res.status(404).json({ ok: false, error: 'Order not found' });
+    if (order.payment_status !== 'auth_only') {
+      return res.status(400).json({ ok: false, error: `Payment status is '${order.payment_status}' — can only capture 'auth_only' transactions` });
+    }
+    if (!order.payment_transaction_id) {
+      return res.status(400).json({ ok: false, error: 'No transaction ID on record' });
+    }
+
+    const result = await authorizeNet.captureTransaction(
+      order.payment_transaction_id,
+      order.total
+    );
+
+    if (!result.ok) {
+      return res.status(502).json({ ok: false, error: result.error });
+    }
+
+    await conn.query(
+      'UPDATE orders SET payment_status = ? WHERE id = ?',
+      ['captured', id]
+    );
+    await logEvent(conn, id, 'payment_captured', 'auth_only', 'captured',
+      req.session?.adminUser || 'admin',
+      `Captured $${parseFloat(order.total).toFixed(2)} — TxID: ${order.payment_transaction_id}`
+    );
+
+    return res.json({ ok: true, message: `$${parseFloat(order.total).toFixed(2)} captured successfully` });
+  } catch (err) {
+    console.error('[ordersController.capturePayment]', err);
+    return res.status(500).json({ ok: false, error: 'Server error during capture' });
+  } finally {
+    conn.release();
   }
 };
 

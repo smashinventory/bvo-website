@@ -42,8 +42,8 @@ const log = msg => console.log(`[${new Date().toISOString()}] ${msg}`);
 
   // 1. Find xlsx files (skip archive subfolder)
   if (!fs.existsSync(FEED_DIR)) {
-    log(`ERROR: Feed directory not found: ${FEED_DIR}`);
-    process.exit(1);
+    fs.mkdirSync(FEED_DIR, { recursive: true });
+    log(`Created feed directory: ${FEED_DIR}`);
   }
 
   const files = fs.readdirSync(FEED_DIR).filter(f =>
