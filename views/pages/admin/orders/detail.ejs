@@ -50,6 +50,32 @@ if (order.customer_ip) {
   checks.push({ icon: 'info', label: `Order placed from IP ${order.customer_ip}` });
 }
 
+/* ── FraudLabs Pro checks ────────────────────────────────────── */
+if (order.fraudlabs_status) {
+  const flIcon = order.fraudlabs_status === 'REJECT' ? 'warn'
+               : order.fraudlabs_status === 'REVIEW' ? 'warn'
+               : 'ok';
+  const scoreStr = order.fraudlabs_score != null ? ` (Score: ${order.fraudlabs_score}/100)` : '';
+  checks.push({
+    icon:  flIcon,
+    label: `FraudLabs: ${order.fraudlabs_status}${scoreStr}`,
+  });
+}
+if (order.fraudlabs_email_risk != null && order.fraudlabs_email_risk > 40) {
+  checks.push({
+    icon:  order.fraudlabs_email_risk > 65 ? 'warn' : 'info',
+    label: `Email risk score: ${order.fraudlabs_email_risk}/100`,
+  });
+}
+if (order.fraudlabs_ip_vpn || order.fraudlabs_ip_tor || order.fraudlabs_ip_proxy) {
+  const flags = [
+    order.fraudlabs_ip_vpn   && 'VPN',
+    order.fraudlabs_ip_tor   && 'Tor',
+    order.fraudlabs_ip_proxy && 'Proxy',
+  ].filter(Boolean).join(' / ');
+  checks.push({ icon: 'warn', label: `IP anonymizer detected: ${flags}` });
+}
+
 const hasWarn  = checks.some(c => c.icon === 'warn');
 const infoOnly = !hasWarn && checks.some(c => c.icon === 'info');
 const riskPct   = hasWarn ? 90 : infoOnly ? 45 : 18;
@@ -498,7 +524,28 @@ document.getElementById('saveStatusBtn').addEventListener('click', async () => {
 
 /* ── Capture Payment ── */
 async function doCapture() {
-  if (!confirm('Capture payment now? This will charge the customer\'s card immediately.')) return;
+  const note = prompt(
+    'Add a verification note before capturing (required):\n\n' +
+    'Examples:\n' +
+    '• Called customer, verified identity and out-of-state delivery\n' +
+    '• AVS mismatch — confirmed billing address by phone\n' +
+    '• Reviewed and approved — shipping to construction site\n\n' +
+    'Note:'
+  );
+  if (note === null) return; // cancelled
+  if (!note.trim()) {
+    alert('A note is required before capturing payment. Please describe your verification.');
+    return;
+  }
+  // Save note first
+  const nr = await fetch(`/admin/orders/${ORDER_ID}/notes`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ notes: `[Pre-capture review] ${note.trim()}` })
+  });
+  const nd = await nr.json();
+  if (!nd.ok) { alert('Failed to save note: ' + nd.error); return; }
+
+  // Then capture
   const r = await fetch(`/admin/orders/${ORDER_ID}/capture`, { method:'POST' });
   const d = await r.json();
   if (d.ok) { alert(d.message); location.reload(); }

@@ -21,6 +21,7 @@
 
 const { bvoPool }    = require('../config/database');
 const authorizeNet   = require('../services/authorizeNetService');
+const fraudLabs      = require('../services/fraudLabsService');
 
 /* ── Helpers ────────────────────────────────────────────────────── */
 
@@ -97,6 +98,27 @@ exports.process = async (req, res) => {
   // Server-side total (never trust client)
   const total = calcTotal(cart.items);
 
+  // ── FraudLabs Pro screening ──────────────────────────────────────
+  const fraudResult = await fraudLabs.screenOrder({
+    ip:          customerIp,
+    email:       email.trim(),
+    billAddress1: (bill_address1 || '').trim(),
+    billCity:    (bill_city     || '').trim(),
+    billState:   (bill_state    || '').trim(),
+    billZip:     (bill_zip      || '').trim(),
+    amount:      total,
+    quantity:    cart.items.reduce((n, i) => n + (i.qty || 1), 0),
+  });
+
+  // Hard REJECT — do not authorize; never reveal the reason to the customer
+  if (fraudResult.ok && fraudResult.fraudStatus === 'REJECT') {
+    console.warn('[checkout] FraudLabs REJECT — ip:', customerIp,
+      'email:', email.trim(), 'score:', fraudResult.fraudScore);
+    req.session.checkoutError =
+      'We were unable to process your order. Please contact us if you believe this is an error.';
+    return res.redirect('/checkout');
+  }
+
   // Auth-Only transaction
   const authResult = await authorizeNet.authOnly({
     dataDescriptor,
@@ -133,8 +155,11 @@ exports.process = async (req, res) => {
           payment_avs_code, payment_cvv_code, payment_afds_code,
           payment_brand, payment_last4,
           customer_ip, order_source, order_referrer,
-          order_utm_campaign, order_utm_medium, order_utm_source)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          order_utm_campaign, order_utm_medium, order_utm_source,
+          fraudlabs_score, fraudlabs_status,
+          fraudlabs_ip_vpn, fraudlabs_ip_tor, fraudlabs_ip_proxy,
+          fraudlabs_email_risk)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         'PENDING',
         req.session.customer?.id || null,
@@ -162,6 +187,12 @@ exports.process = async (req, res) => {
         utmCampaign,
         utmMedium,
         utmSource,
+        fraudResult.ok ? fraudResult.fraudScore              : null,
+        fraudResult.ok ? fraudResult.fraudStatus             : null,
+        fraudResult.ok ? (fraudResult.ipVpn   ? 1 : 0)      : null,
+        fraudResult.ok ? (fraudResult.ipTor   ? 1 : 0)      : null,
+        fraudResult.ok ? (fraudResult.ipProxy ? 1 : 0)      : null,
+        fraudResult.ok ? fraudResult.emailRisk               : null,
       ]
     );
 
