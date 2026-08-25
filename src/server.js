@@ -9,8 +9,8 @@ if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32) {
   process.exit(1);
 }
 if (!process.env.ADMIN_USER || !process.env.ADMIN_PW_B64) {
-  // Warn but don't crash — admin login will safely return false if hash is missing.
-  console.warn('[WARN] ADMIN_USER or ADMIN_PW_B64 not set — admin login will be disabled');
+  // Warn but don't crash — admin login returns false if credentials are missing.
+  console.warn('[WARN] ADMIN_USER or ADMIN_PW_B64 not set — admin login will be disabled. Set both in Hostinger hPanel env vars.');
 }
 
 const express        = require('express');

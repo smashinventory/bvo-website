@@ -183,11 +183,10 @@ exports.loginPage = (req, res) => {
 exports.login = async (req, res) => {
   const { username, password } = req.body;
   const validUser = process.env.ADMIN_USER;
-  // Hash is stored in config/admin.hash as base64 to avoid env-var $ interpolation issues.
-  // Decode it back to the raw bcrypt hash string before comparing.
-  const _hashFile = path.join(__dirname, '../../config/admin.hash');
-  const passHash  = fs.existsSync(_hashFile)
-    ? Buffer.from(fs.readFileSync(_hashFile, 'utf8').trim(), 'base64').toString()
+  // ADMIN_PW_B64: bcrypt hash stored as base64 to survive shell $ interpolation in env vars.
+  // Decode back to the raw bcrypt hash string before comparing.
+  const passHash  = process.env.ADMIN_PW_B64
+    ? Buffer.from(process.env.ADMIN_PW_B64, 'base64').toString()
     : '';
 
   // Timing-safe username comparison — prevents timing-based enumeration.
