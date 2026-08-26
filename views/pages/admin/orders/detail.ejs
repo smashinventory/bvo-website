@@ -89,25 +89,25 @@ const isCaptured    = order.payment_status === 'captured';
 const hasPayment    = !!order.payment_transaction_id;
 %>
 
-<!-- Page Header -->
-<div class="admin-page-header">
-  <div>
-    <a href="/admin/orders" class="admin-back-link">← Orders</a>
-    <h1 class="admin-page-title">
+<!-- ══ Toolbar ══════════════════════════════════════════════════════ -->
+<div class="adm-toolbar" style="flex-wrap:wrap">
+  <div class="adm-back-wrap">
+    <a href="/admin/orders" class="adm-back-link">← Orders</a>
+    <h1 class="adm-toolbar-title" style="display:flex;align-items:center;gap:8px">
       <span class="rag-dot rag-dot--<%= rag %>"></span>
       <%= order.order_number %>
     </h1>
   </div>
-  <div class="admin-header-actions">
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <span class="order-status order-status--<%= order.status %>" style="font-size:14px"><%= order.status %></span>
-    <select id="statusSelect" class="admin-select admin-select--sm">
+    <select id="statusSelect" class="adm-search-select">
       <% ['pending','confirmed','processing','shipped','delivered','cancelled','refunded'].forEach(s => { %>
         <option value="<%= s %>" <%= order.status === s ? 'selected' : '' %>><%= s.charAt(0).toUpperCase() + s.slice(1) %></option>
       <% }) %>
     </select>
-    <button id="saveStatusBtn" class="admin-btn admin-btn--primary admin-btn--sm">Save Status</button>
+    <button id="saveStatusBtn" class="btn btn-primary btn-sm">Save Status</button>
     <% if (isAuthOnly) { %>
-    <button class="admin-btn admin-btn--success admin-btn--sm" onclick="doCapture()">
+    <button class="btn btn-sage btn-sm" onclick="doCapture()">
       💳 Capture $<%= parseFloat(order.total).toFixed(2) %>
     </button>
     <% } %>
@@ -123,16 +123,16 @@ const hasPayment    = !!order.payment_transaction_id;
     <!-- Items + Totals -->
     <div class="admin-card">
       <h3 class="admin-card-title">Items Ordered</h3>
-      <table class="admin-table admin-table--compact">
+      <table class="adm-table">
         <thead><tr><th>SKU</th><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>
         <tbody>
           <% items.forEach(item => { %>
           <tr>
-            <td class="admin-table-muted"><%= item.sku %></td>
+            <td class="adm-meta"><%= item.sku %></td>
             <td>
               <div style="display:flex;align-items:center;gap:8px">
                 <% if (item.thumb) { %><img src="<%= item.thumb %>" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:4px"><% } %>
-                <% if (item.product_slug) { %><a href="/products/<%= item.product_slug %>" target="_blank" class="admin-link"><%= item.name %></a><% } else { %><%= item.name %><% } %>
+                <% if (item.product_slug) { %><a href="/products/<%= item.product_slug %>" target="_blank" style="color:var(--color-navy);font-weight:600"><%= item.name %></a><% } else { %><%= item.name %><% } %>
               </div>
             </td>
             <td><%= item.qty %></td>
@@ -157,7 +157,7 @@ const hasPayment    = !!order.payment_transaction_id;
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <h3 class="admin-card-title" style="margin:0">Payment</h3>
         <% if (isAuthOnly) { %>
-        <button class="admin-btn admin-btn--success admin-btn--sm" onclick="doCapture()">
+        <button class="btn btn-sage btn-sm" onclick="doCapture()">
           Capture $<%= parseFloat(order.total).toFixed(2) %>
         </button>
         <% } else if (isCaptured) { %>
@@ -198,7 +198,7 @@ const hasPayment    = !!order.payment_transaction_id;
       </h3>
       <% if (!vendorPo) { %>
         <p class="admin-card-hint">No PO sent yet.</p>
-        <button class="admin-btn admin-btn--primary" id="sendPoBtn">Send Order to JM</button>
+        <button class="btn btn-primary" id="sendPoBtn">Send Order to JM</button>
       <% } else { %>
         <div class="detail-meta">
           <div class="detail-meta-row"><span>Status</span><span class="rag-pill rag-pill--<%= vendorPo.status === 'confirmed' ? 'green' : 'yellow' %>"><%= vendorPo.status %></span></div>
@@ -208,9 +208,9 @@ const hasPayment    = !!order.payment_transaction_id;
           <div class="detail-meta-row"><span>Est. Ship</span><span><%= vendorPo.expected_ship_date || '—' %></span></div>
         </div>
         <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
-          <button class="admin-btn admin-btn--ghost admin-btn--sm" id="sendPoBtn">Resend PO</button>
+          <button class="btn btn-outline btn-sm" id="sendPoBtn">Resend PO</button>
           <% if (vendorPo.status !== 'confirmed') { %>
-          <button class="admin-btn admin-btn--success admin-btn--sm" onclick="showConfirmPoModal()">Log Confirmation</button>
+          <button class="btn btn-sage btn-sm" onclick="showConfirmPoModal()">Log Confirmation</button>
           <% } %>
         </div>
       <% } %>
@@ -233,21 +233,21 @@ const hasPayment    = !!order.payment_transaction_id;
           <label class="admin-checkbox-label"><input type="checkbox" id="chkLiftgate" checked> Liftgate required</label>
           <label class="admin-checkbox-label"><input type="checkbox" id="chkAppointment"> Appointment delivery</label>
         </div>
-        <button class="admin-btn admin-btn--primary" id="getQuotesBtn">Get WWEX Quotes</button>
+        <button class="btn btn-primary" id="getQuotesBtn">Get WWEX Quotes</button>
         <div id="quotesResult" class="quotes-result" style="display:none;margin-top:12px"></div>
       <% } else { %>
         <div class="detail-meta">
           <div class="detail-meta-row"><span>Status</span><span class="rag-pill rag-pill--<%= shipment.status === 'delivered' ? 'green' : shipment.status === 'exception' ? 'red' : 'yellow' %>"><%= shipment.status.replace(/_/g,' ') %></span></div>
           <div class="detail-meta-row"><span>Carrier</span><span><%= shipment.carrier || '—' %></span></div>
           <div class="detail-meta-row"><span>Tracking#</span><span>
-            <% if (shipment.tracking_number) { %><a href="https://wwex.com/track/<%= shipment.tracking_number %>" target="_blank" class="admin-link"><%= shipment.tracking_number %></a><% } else { %>—<% } %>
+            <% if (shipment.tracking_number) { %><a href="https://wwex.com/track/<%= shipment.tracking_number %>" target="_blank" style="color:var(--color-amber)"><%= shipment.tracking_number %></a><% } else { %>—<% } %>
           </span></div>
           <div class="detail-meta-row"><span>BOL#</span><span><%= shipment.bol_number || '—' %></span></div>
           <div class="detail-meta-row"><span>Est. Delivery</span><span><%= shipment.estimated_delivery ? new Date(shipment.estimated_delivery).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) : '—' %></span></div>
           <div class="detail-meta-row"><span>Freight Cost</span><span><%= shipment.rate_charged ? '$'+parseFloat(shipment.rate_charged).toFixed(2) : '—' %></span></div>
         </div>
         <% if (shipment.bol_url) { %>
-        <a href="<%= shipment.bol_url %>" target="_blank" class="admin-btn admin-btn--ghost admin-btn--sm" style="margin-top:12px">Download BOL</a>
+        <a href="<%= shipment.bol_url %>" target="_blank" class="btn btn-outline btn-sm" style="margin-top:12px">Download BOL</a>
         <% } %>
       <% } %>
     </div>
@@ -261,23 +261,23 @@ const hasPayment    = !!order.payment_transaction_id;
         <ul class="doc-list">
           <% documents.forEach(doc => { %>
           <li class="doc-list-item">
-            <a href="<%= doc.file_url %>" target="_blank" class="admin-link">📄 <%= doc.label || doc.doc_type %></a>
-            <span class="admin-table-muted"><%= new Date(doc.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}) %></span>
+            <a href="<%= doc.file_url %>" target="_blank" style="color:var(--color-navy);font-weight:600">📄 <%= doc.label || doc.doc_type %></a>
+            <span class="adm-meta"><%= new Date(doc.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}) %></span>
           </li>
           <% }) %>
         </ul>
       <% } %>
-      <form id="docUploadForm" style="margin-top:12px">
-        <select name="doc_type" class="admin-select admin-select--sm">
+      <form id="docUploadForm" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+        <select name="doc_type" class="adm-search-select" style="font-size:.82rem;padding:.38rem .75rem">
           <option value="bol">BOL</option>
           <option value="invoice">Invoice</option>
           <option value="return_label">Return Label</option>
           <option value="damage_photo">Damage Photo</option>
           <option value="other">Other</option>
         </select>
-        <input type="text" name="label" placeholder="Label (optional)" class="admin-input admin-input--sm">
-        <input type="file" name="doc_file" class="admin-input admin-input--sm" required>
-        <button type="submit" class="admin-btn admin-btn--ghost admin-btn--sm">Upload</button>
+        <input type="text" name="label" placeholder="Label (optional)" style="border:1.5px solid var(--border-input,#d0d5dd);border-radius:6px;padding:.38rem .75rem;font-size:.82rem;outline:0">
+        <input type="file" name="doc_file" required style="font-size:.82rem">
+        <button type="submit" class="btn btn-outline btn-sm">Upload</button>
       </form>
     </div>
 
@@ -294,15 +294,15 @@ const hasPayment    = !!order.payment_transaction_id;
         <% noteEvents.forEach(ev => { %>
         <li style="padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
           <p style="margin:0 0 4px"><%= ev.notes %></p>
-          <span class="admin-table-muted"><%= ev.actor %> · <%= new Date(ev.created_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) %></span>
+          <span class="adm-meta"><%= ev.actor %> · <%= new Date(ev.created_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) %></span>
         </li>
         <% }) %>
       </ul>
       <% } else { %>
       <p class="admin-card-hint">No notes yet.</p>
       <% } %>
-      <textarea id="noteText" class="admin-textarea" rows="3" placeholder="Internal note (visible to admin only)…"></textarea>
-      <button class="admin-btn admin-btn--ghost admin-btn--sm" style="margin-top:8px" onclick="addNote()">Save Note</button>
+      <textarea id="noteText" rows="3" placeholder="Internal note (visible to admin only)…" style="width:100%;border:1.5px solid var(--border-input,#d0d5dd);border-radius:6px;padding:.5rem .75rem;font-family:var(--font-sans);font-size:.85rem;resize:vertical;outline:0"></textarea>
+      <button class="btn btn-outline btn-sm" style="margin-top:8px" onclick="addNote()">Save Note</button>
     </div>
 
     <!-- Customer -->
@@ -311,7 +311,7 @@ const hasPayment    = !!order.payment_transaction_id;
       <div class="detail-meta">
         <div class="detail-meta-row"><span>Name</span><span><strong><%= order.customer_name %></strong></span></div>
         <% if (order.customer_email || order.guest_email) { %>
-        <div class="detail-meta-row"><span>Email</span><span><a href="mailto:<%= order.customer_email || order.guest_email %>" class="admin-link"><%= order.customer_email || order.guest_email %></a></span></div>
+        <div class="detail-meta-row"><span>Email</span><span><a href="mailto:<%= order.customer_email || order.guest_email %>" style="color:var(--color-amber)"><%= order.customer_email || order.guest_email %></a></span></div>
         <% } %>
         <% if (order.customer_phone) { %>
         <div class="detail-meta-row"><span>Phone</span><span><%= order.customer_phone %></span></div>
@@ -386,14 +386,14 @@ const hasPayment    = !!order.payment_transaction_id;
         <% if (openReturn.customer_notes) { %><p style="margin:4px 0 0;color:var(--text-muted)"><%= openReturn.customer_notes %></p><% } %>
         <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
           <% if (openReturn.status === 'requested') { %>
-          <button class="admin-btn admin-btn--success admin-btn--sm" onclick="approveReturn(<%= openReturn.id %>)">Approve + RA</button>
-          <button class="admin-btn admin-btn--danger admin-btn--sm" onclick="denyReturn(<%= openReturn.id %>)">Deny</button>
+          <button class="btn btn-sage btn-sm" onclick="approveReturn(<%= openReturn.id %>)">Approve + RA</button>
+          <button class="btn btn-outline btn-sm" style="color:#c53030;border-color:#c53030" onclick="denyReturn(<%= openReturn.id %>)">Deny</button>
           <% } %>
           <% if (['approved','in_transit'].includes(openReturn.status)) { %>
-          <button class="admin-btn admin-btn--primary admin-btn--sm" onclick="receiveReturn(<%= openReturn.id %>)">Mark Received</button>
+          <button class="btn btn-primary btn-sm" onclick="receiveReturn(<%= openReturn.id %>)">Mark Received</button>
           <% } %>
           <% if (['received','inspected'].includes(openReturn.status)) { %>
-          <button class="admin-btn admin-btn--primary admin-btn--sm" onclick="resolveReturn(<%= openReturn.id %>)">Resolve</button>
+          <button class="btn btn-primary btn-sm" onclick="resolveReturn(<%= openReturn.id %>)">Resolve</button>
           <% } %>
         </div>
       </div>
@@ -410,7 +410,7 @@ const hasPayment    = !!order.payment_transaction_id;
         <% }) %>
       </ul>
       <% } %>
-      <button class="admin-btn admin-btn--ghost admin-btn--sm" onclick="openReturnModal()">+ Open Return</button>
+      <button class="btn btn-outline btn-sm" onclick="openReturnModal()">+ Open Return</button>
     </div>
 
     <!-- Conversion Summary -->
@@ -476,13 +476,13 @@ const hasPayment    = !!order.payment_transaction_id;
 <div id="confirmPoModal" class="modal-overlay" style="display:none">
   <div class="modal-box">
     <h3>Log Vendor Confirmation</h3>
-    <label class="admin-label">Confirmation Number</label>
-    <input type="text" id="confirmPoNum" class="admin-input" placeholder="JM confirmation #">
-    <label class="admin-label">Expected Ship Date</label>
-    <input type="date" id="confirmPoDate" class="admin-input">
+    <label style="display:block;font-size:.78rem;font-weight:700;margin:10px 0 4px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Confirmation Number</label>
+    <input type="text" id="confirmPoNum" placeholder="JM confirmation #" style="width:100%;border:1.5px solid var(--border-input,#d0d5dd);border-radius:6px;padding:.5rem .75rem;font-size:.9rem;outline:0;margin-bottom:8px">
+    <label style="display:block;font-size:.78rem;font-weight:700;margin:10px 0 4px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Expected Ship Date</label>
+    <input type="date" id="confirmPoDate" style="width:100%;border:1.5px solid var(--border-input,#d0d5dd);border-radius:6px;padding:.5rem .75rem;font-size:.9rem;outline:0;margin-bottom:8px">
     <div class="modal-actions">
-      <button class="admin-btn admin-btn--primary" onclick="saveVendorConfirm()">Save</button>
-      <button class="admin-btn admin-btn--ghost" onclick="closeModal('confirmPoModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveVendorConfirm()">Save</button>
+      <button class="btn btn-outline" onclick="closeModal('confirmPoModal')">Cancel</button>
     </div>
   </div>
 </div>
@@ -490,8 +490,8 @@ const hasPayment    = !!order.payment_transaction_id;
 <div id="returnModal" class="modal-overlay" style="display:none">
   <div class="modal-box">
     <h3>Open Return</h3>
-    <label class="admin-label">Reason</label>
-    <select id="returnReason" class="admin-select">
+    <label style="display:block;font-size:.78rem;font-weight:700;margin:10px 0 4px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Reason</label>
+    <select id="returnReason" class="adm-search-select" style="width:100%;margin-bottom:8px">
       <option value="damaged">Damaged in Transit</option>
       <option value="defective">Defective / Malfunction</option>
       <option value="wrong_item">Wrong Item Received</option>
@@ -499,11 +499,11 @@ const hasPayment    = !!order.payment_transaction_id;
       <option value="not_as_described">Not as Described</option>
       <option value="other">Other</option>
     </select>
-    <label class="admin-label">Customer Notes</label>
-    <textarea id="returnNotes" class="admin-textarea" rows="3" placeholder="Describe the issue…"></textarea>
+    <label style="display:block;font-size:.78rem;font-weight:700;margin:10px 0 4px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Customer Notes</label>
+    <textarea id="returnNotes" rows="3" placeholder="Describe the issue…" style="width:100%;border:1.5px solid var(--border-input,#d0d5dd);border-radius:6px;padding:.5rem .75rem;font-family:var(--font-sans);font-size:.85rem;resize:vertical;outline:0;margin-bottom:8px"></textarea>
     <div class="modal-actions">
-      <button class="admin-btn admin-btn--primary" onclick="submitOpenReturn()">Open Return</button>
-      <button class="admin-btn admin-btn--ghost" onclick="closeModal('returnModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitOpenReturn()">Open Return</button>
+      <button class="btn btn-outline" onclick="closeModal('returnModal')">Cancel</button>
     </div>
   </div>
 </div>
@@ -594,8 +594,8 @@ document.getElementById('getQuotesBtn')?.addEventListener('click', async () => {
   el.style.display='block';
   if (!d.ok) { el.innerHTML=`<p style="color:var(--red)">${d.error}</p>`; return; }
   el.innerHTML = `
-    ${d.stub ? '<p class="admin-badge admin-badge--warn" style="margin-bottom:8px">Stub rates — connect WWEX credentials for live quotes</p>' : ''}
-    <table class="admin-table admin-table--compact">
+    ${d.stub ? '<p style="font-size:.75rem;background:#FEF3C7;color:#92400e;padding:5px 10px;border-radius:5px;margin-bottom:8px">Stub rates — connect WWEX credentials for live quotes</p>' : ''}
+    <table class="adm-table">
       <thead><tr><th>Carrier</th><th>Service</th><th>Transit</th><th>Est. Delivery</th><th>Rate</th><th></th></tr></thead>
       <tbody>
         ${d.rates.map(rate => `
@@ -605,7 +605,7 @@ document.getElementById('getQuotesBtn')?.addEventListener('click', async () => {
             <td>${rate.transitDays} days</td>
             <td>${rate.estimatedDelivery}</td>
             <td><strong>$${parseFloat(rate.totalCharge).toFixed(2)}</strong></td>
-            <td><button class="admin-btn admin-btn--primary admin-btn--xs"
+            <td><button class="btn btn-primary btn-sm"
               onclick="bookRate('${rate.rateId}','${rate.carrier}','${rate.serviceLevel}','${rate.shipType}','${rate.totalCharge}','${rate.estimatedDelivery}')">Book</button></td>
           </tr>`).join('')}
       </tbody>

@@ -1,12 +1,14 @@
-<div class="admin-page-header">
-  <div>
-    <a href="/admin/orders" class="admin-back-link">← Orders</a>
-    <h1 class="admin-page-title">Shipments Tracker</h1>
+<!-- ══ Toolbar ══════════════════════════════════════════════════════ -->
+<div class="adm-toolbar">
+  <div class="adm-back-wrap">
+    <a href="/admin/orders" class="adm-back-link">← Orders</a>
+    <span class="adm-toolbar-title">Shipments Tracker</span>
   </div>
 </div>
 
-<div class="admin-table-wrap">
-  <table class="admin-table">
+<!-- Shipments Table -->
+<div class="adm-table-wrap">
+  <table class="adm-table">
     <thead>
       <tr>
         <th style="width:28px"></th>
@@ -22,17 +24,17 @@
     </thead>
     <tbody>
       <% if (shipments.length === 0) { %>
-        <tr><td colspan="9" class="admin-table-empty">No active shipments.</td></tr>
+        <tr><td colspan="9" class="adm-empty" style="border-radius:0">No active shipments.</td></tr>
       <% } %>
       <% shipments.forEach(s => { %>
         <tr class="order-row order-row--<%= s.rag %>">
           <td><span class="rag-dot rag-dot--<%= s.rag %>"></span></td>
-          <td><a href="/admin/orders/<%= s.order_id %>" class="admin-link"><strong><%= s.order_number %></strong></a></td>
+          <td><a href="/admin/orders/<%= s.order_id %>" style="font-weight:700;color:var(--color-navy)"><%= s.order_number %></a></td>
           <td><%= s.customer_name || '—' %></td>
           <td><%= s.carrier || '—' %></td>
           <td>
             <% if (s.tracking_number) { %>
-              <a href="https://wwex.com/track/<%= s.tracking_number %>" target="_blank" class="admin-link"><%= s.tracking_number %></a>
+              <a href="https://wwex.com/track/<%= s.tracking_number %>" target="_blank" style="color:var(--color-amber)"><%= s.tracking_number %></a>
             <% } else { %>—<% } %>
           </td>
           <td><span class="rag-pill rag-pill--<%= s.status === 'exception' ? 'red' : 'yellow' %>"><%= s.status.replace(/_/g,' ') %></span></td>
@@ -43,16 +45,16 @@
                 const now = new Date();
                 const overdue = eta < now;
               %>
-              <span style="<%= overdue ? 'color:var(--red);font-weight:600' : '' %>">
+              <span style="<%= overdue ? 'color:var(--red,#c53030);font-weight:600' : '' %>">
                 <%= eta.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) %>
                 <% if (overdue) { %> ⚠️<% } %>
               </span>
             <% } else { %>—<% } %>
           </td>
-          <td class="admin-table-muted">
+          <td class="adm-meta">
             <%= s.last_tracking_scan ? new Date(s.last_tracking_scan).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '—' %>
           </td>
-          <td><%= s.rate_charged ? '$'+parseFloat(s.rate_charged).toFixed(2) : '—' %></td>
+          <td style="font-weight:600"><%= s.rate_charged ? '$'+parseFloat(s.rate_charged).toFixed(2) : '—' %></td>
         </tr>
       <% }) %>
     </tbody>

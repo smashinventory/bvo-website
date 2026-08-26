@@ -1,11 +1,13 @@
-<div class="admin-page-header">
-  <div>
-    <a href="/admin/orders" class="admin-back-link">← Orders</a>
-    <h1 class="admin-page-title">Operations Reports</h1>
+<!-- ══ Toolbar ══════════════════════════════════════════════════════ -->
+<div class="adm-toolbar">
+  <div class="adm-back-wrap">
+    <a href="/admin/orders" class="adm-back-link">← Orders</a>
+    <span class="adm-toolbar-title">Operations Reports</span>
   </div>
-  <form method="GET" action="/admin/orders/reports" style="display:flex;gap:8px;align-items:center">
-    <label style="font-size:13px;color:var(--text-muted)">Period:</label>
-    <select name="period" class="admin-select admin-select--sm" onchange="this.form.submit()">
+
+  <form method="GET" action="/admin/orders/reports" style="display:flex;gap:8px;align-items:center;margin-left:auto">
+    <label style="font-size:.8rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)">Period</label>
+    <select name="period" class="adm-search-select" onchange="this.form.submit()">
       <option value="7"  <%= period==='7'  ? 'selected':'' %>>Last 7 days</option>
       <option value="30" <%= period==='30' ? 'selected':'' %>>Last 30 days</option>
       <option value="60" <%= period==='60' ? 'selected':'' %>>Last 60 days</option>

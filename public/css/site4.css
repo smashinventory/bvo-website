@@ -246,3 +246,24 @@
 /* ── Back link ───────────────────────────────────────────────── */
 .admin-back-link { font-size: 13px; color: var(--text-muted,#718096); text-decoration: none; display: block; margin-bottom: 4px; }
 .admin-back-link:hover { color: var(--primary,#2b6cb0); }
+
+/* ── Shared admin component additions (orders UI lift) ──────── */
+.btn-primary              { background: var(--color-navy,#1a2e4a); color: #fff; }
+.btn-primary:hover        { background: #0e1e38; }
+.btn-sm                   { padding: .32rem .85rem !important; font-size: .74rem !important; }
+.adm-search-select {
+  border: 1.5px solid var(--border-input,#d0d5dd);
+  border-radius: 6px;
+  padding: .48rem .85rem;
+  font-family: var(--font-sans);
+  font-size: .9rem;
+  color: var(--color-navy,#1a2e4a);
+  background: var(--color-white,#fff);
+  outline: 0;
+  cursor: pointer;
+}
+.adm-search-select:focus  { border-color: var(--border-input-focus,#5a7a5a); }
+.adm-toolbar-title        { font-family: var(--font-serif); font-size: 1.25rem; color: var(--color-navy); font-weight: 700; white-space: nowrap; }
+.adm-back-wrap            { display: flex; flex-direction: column; gap: 2px; }
+.adm-back-link            { font-size: .8rem; color: var(--text-muted,#718096); }
+.adm-back-link:hover      { color: var(--color-navy); }
