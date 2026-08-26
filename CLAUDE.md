@@ -158,3 +158,120 @@ Products physically remain in `bathroom-vanities` (category_id=1). These are rou
 9. [ ] **Admin → Theme Editor → Navigation**: user must update live megamenu URLs manually (DB overrides defaults)
 10. [ ] **Re-import JM feed** OR run targeted SQL to fix remaining NULL product_type rows
 11. [ ] **Tops slug rename** — `vanity-tops` → `bathroom-vanity-tops`, Display Name → "Bathroom Vanity Tops". Code updated July 2026. DB UPDATE + DB name change required (see slug rename scripts).
+
+
+---
+
+## Admin UI Component Standard
+
+**Rule: every admin view must use the unified component system below. Never use `admin-btn`, `admin-table`, `admin-input`, `admin-select`, `admin-filter-bar`, `admin-page-header`, `admin-link`, `admin-textarea`, or `admin-label` — these are undefined/deprecated. Any new admin page that introduces one of these classes will break the visual consistency.**
+
+### Page structure
+
+```ejs
+<!-- Toolbar (always first, always adm-toolbar) -->
+<div class="adm-toolbar">
+  <!-- Option A: simple title -->
+  <span class="adm-toolbar-title">Page Title</span>
+
+  <!-- Option B: back link + title (detail/edit pages) -->
+  <div class="adm-back-wrap">
+    <a href="/admin/..." class="adm-back-link">← Section</a>
+    <span class="adm-toolbar-title">Page or Record Title</span>
+  </div>
+
+  <!-- Centre: search/filter form -->
+  <form class="adm-search-form" method="GET" action="...">
+    <input type="text" class="adm-search-input" name="q" placeholder="Search…">
+    <select class="adm-search-select" name="status">...</select>
+    <button class="btn btn-primary" type="submit">Search</button>
+    <a href="..." class="btn btn-outline">Clear</a>
+  </form>
+
+  <!-- Right: action buttons -->
+  <div style="display:flex;gap:8px;flex-shrink:0">
+    <a href="..." class="btn btn-outline">Secondary</a>
+    <a href="..." class="btn btn-primary">+ Add New</a>
+  </div>
+</div>
+```
+
+### Buttons
+
+| Use | Class |
+|-----|-------|
+| Primary CTA (save, filter, confirm) | `btn btn-primary` |
+| Secondary / ghost | `btn btn-outline` |
+| Success / approve (green) | `btn btn-sage` |
+| Danger / deny (red) | `btn btn-outline` + `style="color:#c53030;border-color:#c53030"` |
+| Small inline (table rows) | add `btn-sm` modifier: `btn btn-primary btn-sm` |
+
+### Tables
+
+```ejs
+<div class="adm-table-wrap">
+  <table class="adm-table">
+    <thead><tr><th>Col</th>…</tr></thead>
+    <tbody>
+      <% if (rows.length === 0) { %>
+        <tr><td colspan="N" class="adm-empty" style="border-radius:0">No records found.</td></tr>
+      <% } %>
+      <% rows.forEach(r => { %>
+        <tr>
+          <td class="adm-meta">muted text</td>
+          <td>normal cell</td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+<p class="adm-count">N records total</p>
+```
+
+### Pagination
+
+```ejs
+<div style="display:flex;gap:6px;margin-top:16px;flex-wrap:wrap">
+  <% for (let i = 1; i <= pages; i++) { %>
+    <a href="?page=<%= i %>" class="adm-page-btn <%= i === page ? 'active' : '' %>"><%= i %></a>
+  <% } %>
+</div>
+```
+
+### Form fields
+
+```ejs
+<label class="adm-label">Field Name</label>
+<input  type="text"  class="adm-input"    placeholder="…">
+<select              class="adm-search-select">…</select>
+<textarea            class="adm-textarea" rows="5"></textarea>
+```
+
+### Cards (side panels, detail sections)
+
+```ejs
+<!-- admin-card and admin-card-title are defined and correct — keep using them -->
+<div class="admin-card">
+  <h3 class="admin-card-title">Section Title</h3>
+  …content…
+</div>
+```
+
+### Links inside tables / cards
+
+Do not use `admin-link`. Use inline style:
+- Table row primary link: `style="font-weight:700;color:var(--color-navy)"`
+- External/tracking link: `style="color:var(--color-amber)"`
+- Email link: `style="color:var(--color-amber)"`
+
+### CSS location
+
+All admin component CSS lives in **`public/css/site4.css`** (not the minified bundle). Add new admin component classes there only. site4.css is loaded via a separate `<link>` in `layouts/main.ejs` and is **not** minified — edit the source directly.
+
+### KPI / reports pages
+
+`kpi-grid`, `kpi-card`, `kpi-card--warn`, `kpi-card--ok`, `kpi-label`, `kpi-value`, `kpi-sub`, `report-section-title`, `reason-bar`, `reason-fill`, `reason-label`, `reason-track`, `reason-count` are all defined in site4.css. Use them as-is.
+
+### RAG status system
+
+`rag-summary`, `rag-badge`, `rag-dot`, `rag-pill`, `order-row`, `order-status`, and their `--red/--yellow/--green/--grey` variants are defined in site4.css. Use them as-is.

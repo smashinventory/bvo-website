@@ -1,7 +1,8 @@
 <%- layout('layouts/admin') %>
 
-<div class="admin-page-header">
-  <h1 class="admin-page-title">Email Templates</h1>
+<!-- ══ Toolbar ══════════════════════════════════════════════════════ -->
+<div class="adm-toolbar">
+  <span class="adm-toolbar-title">Email Templates</span>
 </div>
 
 <% if (flash) { %><div class="admin-flash admin-flash--success"><%= flash %></div><% } %>
@@ -11,8 +12,8 @@
   <code>{{variable_name}}</code> placeholders (shown in each template's editor).
 </p>
 
-<div class="admin-table-wrap">
-  <table class="admin-table">
+<div class="adm-table-wrap">
+  <table class="adm-table">
     <thead>
       <tr>
         <th>Template</th>
@@ -27,16 +28,16 @@
       <% templates.forEach(t => { %>
         <tr>
           <td><strong><%= t.label %></strong></td>
-          <td><code style="font-size:12px;background:var(--surface-alt);padding:2px 6px;border-radius:4px"><%= t.trigger_key %></code></td>
-          <td class="admin-table-muted" style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><%= t.subject %></td>
+          <td><code style="font-size:12px;background:var(--color-whisper,#f5f5f3);padding:2px 6px;border-radius:4px"><%= t.trigger_key %></code></td>
+          <td class="adm-meta" style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><%= t.subject %></td>
           <td>
             <button class="toggle-btn <%= t.is_active ? 'toggle-btn--on' : 'toggle-btn--off' %>"
                     onclick="toggleTemplate(<%= t.id %>, this)">
               <%= t.is_active ? 'Active' : 'Off' %>
             </button>
           </td>
-          <td class="admin-table-muted"><%= new Date(t.updated_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) %></td>
-          <td><a href="/admin/settings/email-templates/<%= t.id %>/edit" class="admin-btn admin-btn--ghost admin-btn--sm">Edit</a></td>
+          <td class="adm-meta"><%= new Date(t.updated_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) %></td>
+          <td><a href="/admin/settings/email-templates/<%= t.id %>/edit" class="btn btn-outline btn-sm">Edit</a></td>
         </tr>
       <% }) %>
     </tbody>

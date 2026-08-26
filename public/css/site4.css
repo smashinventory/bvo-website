@@ -267,3 +267,28 @@
 .adm-back-wrap            { display: flex; flex-direction: column; gap: 2px; }
 .adm-back-link            { font-size: .8rem; color: var(--text-muted,#718096); }
 .adm-back-link:hover      { color: var(--color-navy); }
+
+/* ── Admin form components ──────────────────────────────────── */
+.adm-label {
+  display: block;
+  font-size: .78rem;
+  font-weight: 700;
+  margin: 12px 0 4px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--text-muted, #718096);
+}
+.adm-label:first-child { margin-top: 0; }
+.adm-input, .adm-textarea {
+  width: 100%;
+  border: 1.5px solid var(--border-input, #d0d5dd);
+  border-radius: 6px;
+  padding: .5rem .85rem;
+  font-family: var(--font-sans);
+  font-size: .9rem;
+  color: var(--color-navy, #1a2e4a);
+  background: var(--color-white, #fff);
+  outline: 0;
+}
+.adm-input:focus, .adm-textarea:focus { border-color: var(--border-input-focus, #5a7a5a); }
+.adm-textarea { resize: vertical; line-height: 1.55; }

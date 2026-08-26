@@ -1,11 +1,12 @@
 <%- layout('layouts/admin') %>
 
-<div class="admin-page-header">
-  <div>
-    <a href="/admin/settings/email-templates" class="admin-back-link">← Email Templates</a>
-    <h1 class="admin-page-title"><%= pageTitle %></h1>
+<!-- ══ Toolbar ══════════════════════════════════════════════════════ -->
+<div class="adm-toolbar">
+  <div class="adm-back-wrap">
+    <a href="/admin/settings/email-templates" class="adm-back-link">← Email Templates</a>
+    <span class="adm-toolbar-title"><%= pageTitle %></span>
   </div>
-  <button id="saveBtn" class="admin-btn admin-btn--primary">Save Template</button>
+  <button id="saveBtn" class="btn btn-primary">Save Template</button>
 </div>
 
 <div class="tpl-edit-grid">
@@ -13,19 +14,19 @@
   <!-- Editor -->
   <div class="tpl-edit-main">
     <div class="admin-card">
-      <label class="admin-label">Subject Line</label>
-      <input type="text" id="tplSubject" class="admin-input" value="<%= tpl.subject %>" placeholder="Email subject…">
+      <label class="adm-label">Subject Line</label>
+      <input type="text" id="tplSubject" class="adm-input" value="<%= tpl.subject %>" placeholder="Email subject…">
 
-      <label class="admin-label" style="margin-top:16px">Email Body (HTML)</label>
+      <label class="adm-label">Email Body (HTML)</label>
       <p style="font-size:12px;color:var(--text-muted);margin:0 0 8px">Use <code>{{variable_name}}</code> placeholders. Basic HTML supported.</p>
-      <textarea id="tplBody" class="admin-textarea tpl-body-editor" rows="20"><%= tpl.body_html %></textarea>
+      <textarea id="tplBody" class="adm-textarea tpl-body-editor" rows="20"><%= tpl.body_html %></textarea>
     </div>
 
     <!-- Preview -->
     <div class="admin-card" style="margin-top:16px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <h3 class="admin-card-title" style="margin:0">Preview</h3>
-        <button class="admin-btn admin-btn--ghost admin-btn--sm" onclick="refreshPreview()">Refresh Preview</button>
+        <button class="btn btn-outline btn-sm" onclick="refreshPreview()">Refresh Preview</button>
       </div>
       <div class="tpl-preview-subject">
         <strong>Subject:</strong> <span id="previewSubject"><%= preview.subject %></span>
@@ -59,7 +60,7 @@
   </div>
 </div>
 
-<div id="saveMsg" style="display:none;position:fixed;bottom:24px;right:24px;background:var(--green,#3a8a5c);color:#fff;padding:12px 20px;border-radius:8px;font-size:14px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,.2)">
+<div id="saveMsg" style="display:none;position:fixed;bottom:24px;right:24px;background:var(--color-sage,#5a7a5a);color:#fff;padding:12px 20px;border-radius:8px;font-size:14px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,.2)">
   ✓ Template saved
 </div>
 
@@ -77,7 +78,6 @@ function refreshPreview() {
   document.getElementById('previewFrame').srcdoc = substituteVars(body);
 }
 
-// Auto-refresh preview on input (debounced)
 let _debounce;
 ['tplSubject','tplBody'].forEach(id => {
   document.getElementById(id).addEventListener('input', () => {
@@ -86,7 +86,6 @@ let _debounce;
   });
 });
 
-// Save
 document.getElementById('saveBtn').addEventListener('click', async () => {
   const btn = document.getElementById('saveBtn');
   btn.disabled = true; btn.textContent = 'Saving…';
@@ -109,7 +108,6 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
   }
 });
 
-// Copy variable
 function copyVar(text) {
   navigator.clipboard.writeText(text + '}}').then(() => {
     const items = document.querySelectorAll('.var-item');
