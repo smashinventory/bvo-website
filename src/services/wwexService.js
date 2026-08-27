@@ -2,227 +2,323 @@
 
 /**
  * wwexService.js
- * Worldwide Express (WWEX) shipping API abstraction.
+ * Worldwide Express (WWEX) SpeedShip V4 API client.
  *
- * Supports two API modes — detected automatically from env vars:
- *   NEW API  (post-June 2023): WWEX_CLIENT_ID + WWEX_CLIENT_SECRET
- *   LEGACY API:                WWEX_ACCOUNT_NUMBER + WWEX_USERNAME + WWEX_PASSWORD + WWEX_AUTH_KEY
+ * Auth:  POST https://auth.{env}-wwex.com/oauth/token  (client_credentials)
+ * Flows: POST https://speedship.{env}-wwex.com/svc/{flowName}
+ *
+ * Required .env vars (add to server — never in chat):
+ *   WWEX_CLIENT_ID       — from WWEX (may differ per product type; use LTL creds if one pair)
+ *   WWEX_CLIENT_SECRET   — from WWEX
+ *   WWEX_SP_CLIENT_ID    — optional: separate SMALLPACK client_id (falls back to WWEX_CLIENT_ID)
+ *   WWEX_SP_CLIENT_SECRET— optional: separate SMALLPACK client_secret
+ *   WWEX_ENV             — 'staging' (default) | 'production'
  *
  * When credentials are absent, all methods return realistic stub responses
- * so the admin UI and controllers work fully before credentials arrive.
+ * so the admin UI works before credentials are wired.
  *
- * Methods:
- *   getRates(payload)          → array of rate options
- *   bookShipment(rateId, data) → { shipmentId, trackingNumber, bolNumber, bolUrl }
- *   getTracking(trackingNumber)→ { status, events[], estimatedDelivery }
- *   getBOL(shipmentId)         → { bolUrl }
+ * Flows implemented:
+ *   shopFlow             — rate shop (get carrier quotes)
+ *   quoteOrderFlow       — book shipment (uses IDs from shopFlow response)
+ *   schedulePickupFlow   — schedule UPS pickup (SMALLPACK)
+ *   searchShipmentsFlow  — track by BOL# or PRO#
+ *   integratedCancelFlow — cancel booked shipment
+ *   documentDownloadFlow — download BOL, POD, etc.
+ *   addressValidationFlow— validate/normalize an address
  */
 
 const axios = require('axios');
 
-/* ── Env-based mode detection ─────────────────────────────────── */
-const MODE = process.env.WWEX_CLIENT_ID ? 'new'
-           : process.env.WWEX_AUTH_KEY   ? 'legacy'
-           : 'stub';
+/* ── Environment ──────────────────────────────────────────────── */
+const WWEX_ENV = process.env.WWEX_ENV === 'production' ? 'production' : 'staging';
 
-const NEW_BASE    = 'https://api.wwex.com';        // confirmed from WWEX developer docs
-const LEGACY_BASE = 'https://api.wwex.com/legacy'; // placeholder — update when rep confirms
+const AUTH_BASE = WWEX_ENV === 'production'
+  ? 'https://auth.wwex.com'
+  : 'https://auth.staging-wwex.com';
 
-/* ── Token cache (new API only) ───────────────────────────────── */
-let _tokenCache = null;
-let _tokenExpiry = 0;
+const API_BASE = WWEX_ENV === 'production'
+  ? 'https://speedship.wwex.com/svc'
+  : 'https://speedship.staging-wwex.com/svc';
 
-async function getNewApiToken() {
-  if (_tokenCache && Date.now() < _tokenExpiry) return _tokenCache;
-  const res = await axios.post(`${NEW_BASE}/oauth/token`, {
-    grant_type:    'client_credentials',
-    client_id:     process.env.WWEX_CLIENT_ID,
-    client_secret: process.env.WWEX_CLIENT_SECRET,
-  }, { timeout: 10000 });
-  _tokenCache  = res.data.access_token;
-  _tokenExpiry = Date.now() + (res.data.expires_in - 60) * 1000;
-  return _tokenCache;
-}
+const AUDIENCE = WWEX_ENV === 'production' ? 'wwex-apig' : 'staging-wwex-apig';
 
-/* ── Stub responses (used when credentials not yet present) ───── */
-const STUB_RATES = [
-  {
-    rateId:        'STUB-LTL-001',
-    carrier:       'Estes Express (via WWEX)',
-    serviceLevel:  'LTL Standard',
-    shipType:      'ltl',
-    transitDays:   5,
-    estimatedDelivery: _addDays(new Date(), 7).toISOString().split('T')[0],
-    totalCharge:   189.50,
-    currency:      'USD',
-    stub:          true,
-  },
-  {
-    rateId:        'STUB-LTL-002',
-    carrier:       'XPO Logistics (via WWEX)',
-    serviceLevel:  'LTL Economy',
-    shipType:      'ltl',
-    transitDays:   7,
-    estimatedDelivery: _addDays(new Date(), 9).toISOString().split('T')[0],
-    totalCharge:   154.00,
-    currency:      'USD',
-    stub:          true,
-  },
-  {
-    rateId:        'STUB-PKG-001',
-    carrier:       'UPS Ground (via WWEX)',
-    serviceLevel:  'Ground',
-    shipType:      'parcel',
-    transitDays:   4,
-    estimatedDelivery: _addDays(new Date(), 5).toISOString().split('T')[0],
-    totalCharge:   42.75,
-    currency:      'USD',
-    stub:          true,
-  },
-];
+/* ── Credential detection ─────────────────────────────────────── */
+const HAS_CREDS = !!(process.env.WWEX_CLIENT_ID && process.env.WWEX_CLIENT_SECRET);
 
-function _addDays(date, days) {
-  const d = new Date(date);
-  d.setDate(d.getDate() + days);
-  return d;
-}
+// LTL credentials (primary)
+const LTL_CLIENT_ID     = process.env.WWEX_CLIENT_ID;
+const LTL_CLIENT_SECRET = process.env.WWEX_CLIENT_SECRET;
 
-/* ═══════════════════════════════════════════════════════════════
-   PUBLIC API
-   ═══════════════════════════════════════════════════════════════ */
+// SMALLPACK credentials — falls back to LTL creds if not separately provided
+const SP_CLIENT_ID     = process.env.WWEX_SP_CLIENT_ID     || LTL_CLIENT_ID;
+const SP_CLIENT_SECRET = process.env.WWEX_SP_CLIENT_SECRET || LTL_CLIENT_SECRET;
 
-/**
- * Get shipping rate quotes.
- * payload: {
- *   originZip, destZip, destCity, destState,
- *   residential, liftgate, appointment,
- *   items: [{ weight, length, width, height, freightClass? }]
- * }
- */
-exports.getRates = async (payload) => {
-  if (MODE === 'stub') {
-    console.log('[wwex] STUB mode — returning sample rates');
-    return { ok: true, rates: STUB_RATES, stub: true };
-  }
-
-  try {
-    if (MODE === 'new') {
-      const token = await getNewApiToken();
-      const res = await axios.post(`${NEW_BASE}/v1/rates`, payload, {
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        timeout: 15000,
-      });
-      return { ok: true, rates: res.data.rates || res.data };
-    }
-
-    // Legacy mode
-    const res = await axios.post(`${LEGACY_BASE}/rates`, payload, {
-      auth: { username: process.env.WWEX_USERNAME, password: process.env.WWEX_PASSWORD },
-      headers: {
-        'X-Auth-Key':        process.env.WWEX_AUTH_KEY,
-        'X-Account-Number':  process.env.WWEX_ACCOUNT_NUMBER,
-        'Content-Type':      'application/json',
-      },
-      timeout: 15000,
-    });
-    return { ok: true, rates: res.data.rates || res.data };
-  } catch (err) {
-    console.error('[wwex] getRates error:', err.response?.data || err.message);
-    return { ok: false, error: err.response?.data || err.message };
-  }
+/* ── Token cache (separate per product type) ──────────────────── */
+const _tokens = {
+  LTL:       { token: null, expiry: 0, clientId: LTL_CLIENT_ID, clientSecret: LTL_CLIENT_SECRET },
+  SMALLPACK: { token: null, expiry: 0, clientId: SP_CLIENT_ID,  clientSecret: SP_CLIENT_SECRET  },
 };
 
-/**
- * Book a shipment using a rate ID returned from getRates.
- * Returns tracking number, BOL number, and BOL URL.
- */
-exports.bookShipment = async (rateId, shipmentData) => {
-  if (MODE === 'stub') {
-    const stubId  = `STUB-SHIP-${Date.now()}`;
-    const stubBOL = `BOL-${Date.now()}`;
-    console.log('[wwex] STUB mode — returning mock booking');
-    return {
-      ok:             true,
-      shipmentId:     stubId,
-      trackingNumber: `1Z999AA1${Math.floor(Math.random() * 1e9)}`,
-      bolNumber:      stubBOL,
-      bolUrl:         null,
-      stub:           true,
-    };
-  }
+async function getToken(productType = 'LTL') {
+  const cache = _tokens[productType] || _tokens.LTL;
+  if (cache.token && Date.now() < cache.expiry) return cache.token;
 
-  try {
-    if (MODE === 'new') {
-      const token = await getNewApiToken();
-      const res = await axios.post(`${NEW_BASE}/v1/shipments`, { rateId, ...shipmentData }, {
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        timeout: 20000,
-      });
-      const d = res.data;
-      return {
-        ok:             true,
-        shipmentId:     d.shipmentId,
-        trackingNumber: d.trackingNumber,
-        bolNumber:      d.bolNumber,
-        bolUrl:         d.bolUrl || null,
-      };
-    }
+  const res = await axios.post(
+    `${AUTH_BASE}/oauth/token`,
+    new URLSearchParams({
+      grant_type:    'client_credentials',
+      client_id:     cache.clientId,
+      client_secret: cache.clientSecret,
+      audience:      AUDIENCE,
+    }).toString(),
+    { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 10000 }
+  );
 
-    // Legacy mode
-    const res = await axios.post(`${LEGACY_BASE}/shipments`, { rateId, ...shipmentData }, {
-      auth: { username: process.env.WWEX_USERNAME, password: process.env.WWEX_PASSWORD },
+  cache.token  = res.data.access_token;
+  cache.expiry = Date.now() + (res.data.expires_in - 60) * 1000;
+  return cache.token;
+}
+
+/* ── HTTP helper ──────────────────────────────────────────────── */
+async function call(flowName, body, productType = 'LTL') {
+  const token = await getToken(productType);
+  const res = await axios.post(
+    `${API_BASE}/${flowName}`,
+    body,
+    {
       headers: {
-        'X-Auth-Key':       process.env.WWEX_AUTH_KEY,
-        'X-Account-Number': process.env.WWEX_ACCOUNT_NUMBER,
-        'Content-Type':     'application/json',
+        Authorization:  `Bearer ${token}`,
+        'Content-Type': 'application/json',
       },
       timeout: 20000,
-    });
-    const d = res.data;
-    return { ok: true, shipmentId: d.shipmentId, trackingNumber: d.trackingNumber, bolNumber: d.bolNumber, bolUrl: d.bolUrl || null };
+    }
+  );
+  return res.data;
+}
+
+/* ── Stub helpers ─────────────────────────────────────────────── */
+function _addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+
+const STUB_RATES_LTL = [
+  { offerId: 'STUB-LTL-001', carrier: 'Estes Express', serviceLevel: 'LTL Standard', transitDays: 5,
+    estimatedDelivery: _addDays(new Date(),7).toISOString().split('T')[0], totalCharge: 324.50, currency: 'USD', stub: true },
+  { offerId: 'STUB-LTL-002', carrier: 'Southeastern Freight Lines', serviceLevel: 'LTL Standard', transitDays: 4,
+    estimatedDelivery: _addDays(new Date(),6).toISOString().split('T')[0], totalCharge: 289.00, currency: 'USD', stub: true },
+  { offerId: 'STUB-LTL-003', carrier: 'XPO Logistics', serviceLevel: 'LTL Economy', transitDays: 7,
+    estimatedDelivery: _addDays(new Date(),9).toISOString().split('T')[0], totalCharge: 241.75, currency: 'USD', stub: true },
+];
+
+const STUB_RATES_SP = [
+  { offerId: 'STUB-SP-001', carrier: 'UPS', serviceLevel: 'UPS Ground', service: 'GND', transitDays: 4,
+    estimatedDelivery: _addDays(new Date(),5).toISOString().split('T')[0], totalCharge: 38.50, currency: 'USD', stub: true },
+  { offerId: 'STUB-SP-002', carrier: 'UPS', serviceLevel: 'UPS 2nd Day Air', service: '2DA', transitDays: 2,
+    estimatedDelivery: _addDays(new Date(),3).toISOString().split('T')[0], totalCharge: 89.25, currency: 'USD', stub: true },
+];
+
+/* ═══════════════════════════════════════════════════════════════
+   shopFlow — rate shop
+   Returns { ok, productTransactionId, rates[] } where each rate has offerId.
+   productType: 'LTL' | 'SMALLPACK'
+   ═══════════════════════════════════════════════════════════════ */
+exports.shopFlow = async (payload, productType = 'LTL') => {
+  if (!HAS_CREDS) {
+    const rates = productType === 'SMALLPACK' ? STUB_RATES_SP : STUB_RATES_LTL;
+    return { ok: true, productTransactionId: `STUB-TXN-${Date.now()}`, rates, stub: true };
+  }
+  try {
+    const data = await call('shopFlow', { request: payload }, productType);
+    // Extract offers from response
+    const resp = data.response || data;
+    const offers = (resp.offerList || resp.offers || []).map(o => ({
+      offerId:          o.offerId,
+      carrier:          o.carrierName || o.carrier,
+      serviceLevel:     o.serviceLevel || o.serviceDescription,
+      service:          o.service,
+      transitDays:      o.transitDays,
+      estimatedDelivery:o.estimatedDelivery,
+      totalCharge:      Number(o.totalCharge?.value || o.totalCharge || 0),
+      currency:         o.totalCharge?.currency || 'USD',
+    }));
+    return { ok: true, productTransactionId: resp.productTransactionId, rates: offers };
   } catch (err) {
-    console.error('[wwex] bookShipment error:', err.response?.data || err.message);
+    console.error('[wwex] shopFlow error:', err.response?.data || err.message);
     return { ok: false, error: err.response?.data || err.message };
   }
 };
 
-/**
- * Poll tracking status for a shipment.
- */
-exports.getTracking = async (trackingNumber) => {
-  if (MODE === 'stub') {
+/* ═══════════════════════════════════════════════════════════════
+   quoteOrderFlow — book shipment
+   Requires productTransactionId + offerId from shopFlow.
+   Returns { ok, bolNumber, proNumber, bolUrl, productTransactionId }
+   ═══════════════════════════════════════════════════════════════ */
+exports.quoteOrderFlow = async (payload, productType = 'LTL') => {
+  if (!HAS_CREDS) {
+    const bol = `BOL-${Date.now()}`;
+    return { ok: true, bolNumber: bol, proNumber: null, bolUrl: null,
+             productTransactionId: payload.shipmentProductTransactionId, stub: true };
+  }
+  try {
+    const data = await call('quoteOrderFlow', { request: payload }, productType);
+    const resp = data.response || data;
     return {
-      ok:     true,
-      status: 'in_transit',
-      events: [
-        { timestamp: new Date().toISOString(), location: 'Charlotte, NC', description: 'In transit to destination' },
-        { timestamp: new Date(Date.now() - 86400000).toISOString(), location: 'Atlanta, GA', description: 'Departed facility' },
-      ],
-      estimatedDelivery: _addDays(new Date(), 3).toISOString().split('T')[0],
-      stub: true,
+      ok:                   true,
+      bolNumber:            resp.bolNumber  || resp.bol,
+      proNumber:            resp.proNumber  || resp.pro || null,
+      bolUrl:               resp.bolUrl     || null,
+      productTransactionId: resp.productTransactionId || payload.shipmentProductTransactionId,
+      trackingUrl:          resp.trackingUrl || null,
+    };
+  } catch (err) {
+    console.error('[wwex] quoteOrderFlow error:', err.response?.data || err.message);
+    return { ok: false, error: err.response?.data || err.message };
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════
+   schedulePickupFlow — schedule UPS pickup (SMALLPACK only)
+   ═══════════════════════════════════════════════════════════════ */
+exports.schedulePickupFlow = async (payload) => {
+  if (!HAS_CREDS) {
+    return { ok: true, confirmationNumber: `PICKUP-${Date.now()}`, stub: true };
+  }
+  try {
+    const data = await call('schedulePickupFlow', { request: payload }, 'SMALLPACK');
+    const resp = data.response || data;
+    return { ok: true, confirmationNumber: resp.confirmationNumber || resp.pickupConfirmationCode };
+  } catch (err) {
+    console.error('[wwex] schedulePickupFlow error:', err.response?.data || err.message);
+    return { ok: false, error: err.response?.data || err.message };
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════
+   searchShipmentsFlow — track by BOL or PRO
+   type: 'BOL' | 'PRO'
+   Returns { ok, shipments[] }
+   ═══════════════════════════════════════════════════════════════ */
+exports.searchShipmentsFlow = async (trackingNumbers, type = 'BOL', productType = 'LTL') => {
+  if (!HAS_CREDS) {
+    return {
+      ok: true, stub: true,
+      shipments: trackingNumbers.map(n => ({
+        trackingNumber: n, type,
+        status: 'IN_TRANSIT', carrier: 'Estes Express',
+        estimatedDelivery: _addDays(new Date(), 2).toISOString().split('T')[0],
+        events: [{ timestamp: new Date().toISOString(), location: 'Charlotte, NC', description: 'In transit' }],
+        trackingUrl: null,
+      })),
     };
   }
-
   try {
-    if (MODE === 'new') {
-      const token = await getNewApiToken();
-      const res = await axios.get(`${NEW_BASE}/v1/tracking/${encodeURIComponent(trackingNumber)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-        timeout: 10000,
-      });
-      return { ok: true, ...res.data };
-    }
-
-    const res = await axios.get(`${LEGACY_BASE}/tracking/${encodeURIComponent(trackingNumber)}`, {
-      auth: { username: process.env.WWEX_USERNAME, password: process.env.WWEX_PASSWORD },
-      headers: { 'X-Auth-Key': process.env.WWEX_AUTH_KEY, 'X-Account-Number': process.env.WWEX_ACCOUNT_NUMBER },
-      timeout: 10000,
-    });
-    return { ok: true, ...res.data };
+    const data = await call('searchShipmentsFlow', {
+      request: { trackingInfoList: trackingNumbers, type }
+    }, productType);
+    const resp = data.response || data;
+    const shipments = (resp.shipmentList || resp.shipments || [resp]).map(s => ({
+      trackingNumber:    s.bolNumber || s.proNumber || s.trackingNumber,
+      bol:               s.bolNumber,
+      pro:               s.proNumber,
+      status:            s.status || s.shipmentStatus,
+      carrier:           s.carrierName || s.carrier,
+      estimatedDelivery: s.estimatedDeliveryDate || s.estimatedDelivery,
+      deliveredDate:     s.deliveredDate,
+      events:            s.trackingEventList || s.events || [],
+      trackingUrl:       s.trackingUrl || null,
+    }));
+    return { ok: true, shipments };
   } catch (err) {
-    console.error('[wwex] getTracking error:', err.response?.data || err.message);
+    console.error('[wwex] searchShipmentsFlow error:', err.response?.data || err.message);
     return { ok: false, error: err.response?.data || err.message };
   }
 };
 
-exports.apiMode = MODE;
+/* ═══════════════════════════════════════════════════════════════
+   integratedCancelFlow — void/cancel a booked shipment
+   productTransactionIds: string[]
+   ═══════════════════════════════════════════════════════════════ */
+exports.integratedCancelFlow = async (productTransactionIds, productType = 'LTL') => {
+  if (!HAS_CREDS) {
+    return { ok: true, cancelled: productTransactionIds, stub: true };
+  }
+  try {
+    const data = await call('integratedCancelFlow', {
+      request: { cancelRQList: productTransactionIds.map(id => ({ productTransactionId: id })) }
+    }, productType);
+    const resp = data.response || data;
+    return { ok: true, result: resp };
+  } catch (err) {
+    console.error('[wwex] integratedCancelFlow error:', err.response?.data || err.message);
+    return { ok: false, error: err.response?.data || err.message };
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════
+   documentDownloadFlow — fetch BOL, POD, etc.
+   docType: 'BILL_OF_LADING' | 'PROOF_OF_DELIVERY' | 'PACKING_LIST' | etc.
+   Returns { ok, base64, contentType } — caller streams to browser
+   ═══════════════════════════════════════════════════════════════ */
+exports.documentDownloadFlow = async (productTransactionId, docType = 'BILL_OF_LADING', productType = 'LTL') => {
+  if (!HAS_CREDS) {
+    return { ok: false, stub: true, error: 'Stub mode — no real document available' };
+  }
+  try {
+    const data = await call('documentDownloadFlow', {
+      request: {
+        downloadMode:    'SINGLE',
+        docTypes:        [docType],
+        transactionType: productType,
+        referenceMap:    { PRODUCT_TRANSACTION_ID: productTransactionId },
+      }
+    }, productType);
+    const resp = data.response || data;
+    return {
+      ok:          true,
+      base64:      resp.document || resp.base64Document || resp.content,
+      contentType: resp.contentType || 'application/pdf',
+    };
+  } catch (err) {
+    console.error('[wwex] documentDownloadFlow error:', err.response?.data || err.message);
+    return { ok: false, error: err.response?.data || err.message };
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════
+   addressValidationFlow — validate and normalize an address
+   ═══════════════════════════════════════════════════════════════ */
+exports.addressValidationFlow = async (address, productType = 'LTL') => {
+  if (!HAS_CREDS) {
+    return { ok: true, valid: true, normalized: address, residential: false, stub: true };
+  }
+  try {
+    const data = await call('addressValidationFlow', {
+      request: {
+        productType,
+        addressList: [{
+          addressLine1: address.addressLine1 || address.address1 || '',
+          addressLine2: address.addressLine2 || address.address2 || '',
+          city:         address.city   || address.locality || '',
+          stateProvince:address.state  || address.region   || '',
+          postalCode:   address.zip    || address.postalCode || '',
+          country:      address.country || 'US',
+          companyName:  address.company || '',
+          phone:        address.phone   || '',
+          contactName:  address.name    || '',
+        }],
+      }
+    }, productType);
+    const resp   = data.response || data;
+    const result = (resp.addressList || [resp])[0] || {};
+    return {
+      ok:          true,
+      valid:       result.isValid !== false,
+      residential: result.isResidential || false,
+      normalized:  result.normalizedAddress || result,
+    };
+  } catch (err) {
+    console.error('[wwex] addressValidationFlow error:', err.response?.data || err.message);
+    return { ok: false, error: err.response?.data || err.message };
+  }
+};
+
+exports.apiMode = HAS_CREDS ? `SpeedShip V4 (${WWEX_ENV})` : 'stub';
+exports.WWEX_ENV = WWEX_ENV;

@@ -495,16 +495,39 @@ async function newArrivalsDrilldown(req, res) {
 
 /* ─────────────────────────────────────────────────────────────────────
    FINANCIALS — MAP revenue proxy, velocity by dimension & date
-   NOTE: "revenue" = drawdown_units × MAP_price.  This is the minimum
-   demand at MAP pricing; actual retail outcomes vary.
-   Group-dedup applied to aggregate KPIs.  Per-SKU rows are SKU-level.
+   NOTE: "revenue" = drawdown_units × MAP_price.  Minimum demand estimate.
+
+   METHODOLOGY — CONSERVATIVE (worst-case) deduplication:
+     Purpose: marketing spend planning & content product selection.
+     We cannot validate against JM's actual order data, so we apply the
+     most conservative assumption to avoid chasing inflated signals.
+
+     Observation: combo (Vanity) availability = min(cabinet qty, top qty)
+     in static snapshots (e.g. 650-V30-BKO=42, 650-V30-BKO-3CAR=42).
+     This suggests components may be coupled to combo allocation.
+
+     Conservative rule: for each (group_number, movement_date), treat
+     Cabinet and Top drawdown up to the combo count as attributable to
+     the combo — not additional standalone demand. Only the excess is
+     counted as genuine standalone revenue.
+
+       net_cabinet = GREATEST(0, cabinet_drawdown − combo_drawdown)
+       net_top     = GREATEST(0, top_drawdown     − combo_drawdown)
+       revenue     = (combo_u × combo_p)
+                   + (net_cabinet × cabinet_p)
+                   + (net_top × top_p)
+
+     This produces the FLOOR — actual demand ≥ this number.
+     If JM pools are truly independent (flat SUM) this understates; that
+     is acceptable. We prefer false-negative to false-positive when
+     selecting products to invest marketing spend behind.
 ───────────────────────────────────────────────────────────────────── */
 
 async function getFinancials(req, res) {
   try {
     // ── Date range (default: month-to-date) ─────────────────────────
     const today = new Date();
-    const y = today.getFullYear();
+    const y  = today.getFullYear();
     const mo = String(today.getMonth() + 1).padStart(2, '0');
     const defaultFrom = `${y}-${mo}-01`;
     const defaultTo   = today.toISOString().slice(0, 10);
@@ -512,13 +535,9 @@ async function getFinancials(req, res) {
     const toDate   = (req.query.to   || defaultTo).slice(0, 10);
     const scope    = req.query.scope === 'sync' ? 'sync' : 'all';
 
-    // ── Type filter ──────────────────────────────────────────────────
-    const FIN_TYPES = scope === 'sync'
-      ? ['Vanity', 'Cabinet', 'Top']
-      : ['Vanity', 'Cabinet', 'Top', 'Mirror', 'Linen Cabinet',
-         'Storage Cabinet', 'Backsplash', 'Bench', 'Shelf', 'Hutch',
-         'Drawer Unit', 'Console'];
-    const FIN_SQL = FIN_TYPES.map(() => '?').join(',');
+    // ── VCT = types subject to conservative dedup ────────────────────
+    const VCT     = ['Vanity', 'Cabinet', 'Top'];
+    const VCT_SQL = VCT.map(() => '?').join(',');
 
     // ── Latest valid snapshot (for MAP price lookup) ─────────────────
     const latestSnap = await safeQueryOne(
@@ -541,103 +560,190 @@ async function getFinancials(req, res) {
       });
     }
 
-    // ── Flat queries — no nested subqueries, LEFT JOIN for map_price ──
-    // LEFT JOIN so movement rows survive if snapshot for latestDate is missing.
-    // COALESCE(s.map_price, 0) guards against NULL map prices.
-    // GROUP BY uses expressions not aliases (MySQL strict-mode compatible).
-    const P = [latestDate, ...FIN_TYPES, fromDate, toDate];
-    const JN = `FROM jmv_daily_movement m
-                JOIN jmv_dimensions d ON d.sku = m.sku
-                LEFT JOIN jmv_snapshots s ON s.sku = m.sku AND s.snapshot_date = ?`;
-    const WH = `WHERE m.is_valid = 1
-                  AND d.product_type IN (${FIN_SQL})
-                  AND m.movement_date BETWEEN ? AND ?`;
+    // ── Inner pivot: one row per (group_number, movement_date) ───────
+    // Collapses VCT types into columns so the dedup formula can be applied.
+    const PIVOT = `
+      SELECT
+        d.group_number,
+        m.movement_date,
+        MAX(d.collection)   AS collection,
+        MAX(d.base_finish)  AS base_finish,
+        MAX(d.size_nominal) AS size_nominal,
+        MAX(CASE WHEN d.product_type = 'Vanity'  THEN m.demand_min  ELSE 0 END) AS combo_u,
+        MAX(CASE WHEN d.product_type = 'Cabinet' THEN m.demand_min  ELSE 0 END) AS cabinet_u,
+        MAX(CASE WHEN d.product_type = 'Top'     THEN m.demand_min  ELSE 0 END) AS top_u,
+        MAX(CASE WHEN d.product_type = 'Vanity'  THEN COALESCE(s.map_price,0) ELSE 0 END) AS combo_p,
+        MAX(CASE WHEN d.product_type = 'Cabinet' THEN COALESCE(s.map_price,0) ELSE 0 END) AS cabinet_p,
+        MAX(CASE WHEN d.product_type = 'Top'     THEN COALESCE(s.map_price,0) ELSE 0 END) AS top_p
+      FROM jmv_daily_movement m
+      JOIN jmv_dimensions d ON d.sku = m.sku
+      LEFT JOIN jmv_snapshots s ON s.sku = m.sku AND s.snapshot_date = ?
+      WHERE m.is_valid = 1
+        AND d.product_type IN (${VCT_SQL})
+        AND m.movement_date BETWEEN ? AND ?
+      GROUP BY d.group_number, m.movement_date
+    `;
+    const PP = [latestDate, ...VCT, fromDate, toDate];
 
-    const revenueKpi = await safeQueryOne(
-      `SELECT ROUND(SUM(m.demand_min * COALESCE(s.map_price,0)),0) AS map_revenue,
-              SUM(m.demand_min) AS qty_sold
-       ${JN} ${WH}`, P
+    // Conservative dedup expressions
+    const REV   = `(g.combo_u * g.combo_p) + (GREATEST(0, g.cabinet_u - g.combo_u) * g.cabinet_p) + (GREATEST(0, g.top_u - g.combo_u) * g.top_p)`;
+    const UNITS = `g.combo_u + GREATEST(0, g.cabinet_u - g.combo_u) + GREATEST(0, g.top_u - g.combo_u)`;
+
+    // ── VCT KPI totals ───────────────────────────────────────────────
+    const kpiVCT = await safeQueryOne(
+      `SELECT ROUND(SUM(${REV}),0) AS map_revenue, SUM(${UNITS}) AS qty_sold
+       FROM (${PIVOT}) g`, PP
     );
 
+    // ── Revenue by day ───────────────────────────────────────────────
     const revenueByDay = await safeQuery(
-      `SELECT DATE_FORMAT(m.movement_date,'%Y-%m-%d') AS date,
-              ROUND(SUM(m.demand_min * COALESCE(s.map_price,0)),0) AS revenue,
-              SUM(m.demand_min) AS units
-       ${JN} ${WH}
-       GROUP BY m.movement_date ORDER BY m.movement_date`, P
+      `SELECT DATE_FORMAT(g.movement_date,'%Y-%m-%d') AS date,
+              ROUND(SUM(${REV}),0) AS revenue,
+              SUM(${UNITS}) AS units
+       FROM (${PIVOT}) g
+       GROUP BY g.movement_date ORDER BY g.movement_date`, PP
     );
 
-    const top10Revenue = await safeQuery(
-      `SELECT m.sku, d.collection, d.product_type, d.base_finish, d.size_nominal,
-              SUM(m.demand_min) AS units,
-              MAX(COALESCE(s.map_price,0)) AS map_price,
-              ROUND(SUM(m.demand_min) * MAX(COALESCE(s.map_price,0)),0) AS revenue
-       ${JN} ${WH}
-       GROUP BY m.sku, d.collection, d.product_type, d.base_finish, d.size_nominal
-       ORDER BY revenue DESC LIMIT 10`, P
-    );
-
-    const revenueByCategory = await safeQuery(
-      `SELECT d.product_type AS label,
-              SUM(m.demand_min) AS units,
-              ROUND(SUM(m.demand_min * COALESCE(s.map_price,0)),0) AS revenue
-       ${JN} ${WH}
-       GROUP BY d.product_type ORDER BY revenue DESC`, P
-    );
-
-    const revenueByCollection = await safeQuery(
-      `SELECT COALESCE(d.collection,'(none)') AS label,
-              SUM(m.demand_min) AS units,
-              ROUND(SUM(m.demand_min * COALESCE(s.map_price,0)),0) AS revenue
-       ${JN} ${WH}
-       GROUP BY d.collection ORDER BY revenue DESC LIMIT 12`, P
-    );
-
-    const revenueByFinish = await safeQuery(
-      `SELECT COALESCE(d.base_finish,'(none)') AS label,
-              SUM(m.demand_min) AS units,
-              ROUND(SUM(m.demand_min * COALESCE(s.map_price,0)),0) AS revenue
-       ${JN} ${WH}
-       GROUP BY d.base_finish ORDER BY revenue DESC LIMIT 10`, P
-    );
-
-    // GROUP BY repeats expression — alias not reliable in MySQL strict mode
-    const comboVsIndividual = await safeQuery(
+    // ── Combo vs standalone breakdown ────────────────────────────────
+    const cviBrk = await safeQueryOne(
       `SELECT
-         CASE WHEN d.product_type = 'Vanity' THEN 'Combo (Vanity)'
-              ELSE d.product_type END AS label,
-         SUM(m.demand_min) AS units,
-         ROUND(SUM(m.demand_min * COALESCE(s.map_price,0)),0) AS revenue
-       ${JN} ${WH}
-       GROUP BY CASE WHEN d.product_type = 'Vanity' THEN 'Combo (Vanity)'
-                     ELSE d.product_type END
-       ORDER BY revenue DESC`, P
+         ROUND(SUM(g.combo_u * g.combo_p),0)                              AS combo_rev,
+         SUM(g.combo_u)                                                    AS combo_u,
+         ROUND(SUM(GREATEST(0, g.cabinet_u - g.combo_u) * g.cabinet_p),0) AS cabinet_rev,
+         SUM(GREATEST(0, g.cabinet_u - g.combo_u))                        AS cabinet_u,
+         ROUND(SUM(GREATEST(0, g.top_u - g.combo_u) * g.top_p),0)        AS top_rev,
+         SUM(GREATEST(0, g.top_u - g.combo_u))                            AS top_u
+       FROM (${PIVOT}) g`, PP
     );
 
-    // KPI card values for Combo / Individual
-    const comboRow   = comboVsIndividual.find(r => r.label === 'Combo (Vanity)') || { revenue: 0, units: 0 };
-    const indivRevenue = comboVsIndividual
-      .filter(r => r.label !== 'Combo (Vanity)')
-      .reduce((s, r) => s + Number(r.revenue), 0);
-    const indivUnits = comboVsIndividual
-      .filter(r => r.label !== 'Combo (Vanity)')
-      .reduce((s, r) => s + Number(r.units), 0);
+    // ── Revenue by collection ─────────────────────────────────────────
+    const revenueByCollection = await safeQuery(
+      `SELECT COALESCE(g.collection,'(none)') AS label,
+              ROUND(SUM(${REV}),0) AS revenue,
+              SUM(${UNITS}) AS units
+       FROM (${PIVOT}) g
+       GROUP BY g.collection ORDER BY revenue DESC LIMIT 12`, PP
+    );
+
+    // ── Revenue by finish ─────────────────────────────────────────────
+    const revenueByFinish = await safeQuery(
+      `SELECT COALESCE(g.base_finish,'(none)') AS label,
+              ROUND(SUM(${REV}),0) AS revenue,
+              SUM(${UNITS}) AS units
+       FROM (${PIVOT}) g
+       GROUP BY g.base_finish ORDER BY revenue DESC LIMIT 10`, PP
+    );
+
+    // ── Top 10 groups by revenue (conservative dedup) ─────────────────
+    const top10Revenue = await safeQuery(
+      `SELECT g.group_number,
+              MAX(g.collection)   AS collection,
+              MAX(g.base_finish)  AS base_finish,
+              MAX(g.size_nominal) AS size_nominal,
+              SUM(g.combo_u)                                AS combo_units,
+              SUM(GREATEST(0, g.cabinet_u - g.combo_u))    AS net_cabinet,
+              SUM(GREATEST(0, g.top_u     - g.combo_u))    AS net_top,
+              ROUND(SUM(${REV}),0)                          AS revenue,
+              SUM(${UNITS})                                 AS units
+       FROM (${PIVOT}) g
+       GROUP BY g.group_number
+       ORDER BY revenue DESC LIMIT 10`, PP
+    );
+
+    // ── By-category array ─────────────────────────────────────────────
+    const revenueByCategory = [
+      { label: 'Combo (Vanity)',       revenue: cviBrk?.combo_rev   || 0, units: cviBrk?.combo_u   || 0 },
+      { label: 'Cabinet (standalone)', revenue: cviBrk?.cabinet_rev || 0, units: cviBrk?.cabinet_u || 0 },
+      { label: 'Top (standalone)',     revenue: cviBrk?.top_rev     || 0, units: cviBrk?.top_u     || 0 },
+    ].filter(r => r.revenue > 0);
+
+    // ── "all" scope: add uncoupled types (Mirror, Linen Cabinet, etc.) ─
+    let extraRevenue = 0, extraUnits = 0;
+    const extraByCollection = [], extraByFinish = [], extraByCat = [];
+
+    const OTHER_TYPES = scope === 'all'
+      ? ['Mirror', 'Linen Cabinet', 'Storage Cabinet', 'Backsplash',
+         'Bench', 'Shelf', 'Hutch', 'Drawer Unit', 'Console']
+      : [];
+
+    if (OTHER_TYPES.length > 0) {
+      const OT_SQL = OTHER_TYPES.map(() => '?').join(',');
+      const OTP  = [latestDate, ...OTHER_TYPES, fromDate, toDate];
+      const OT_JN = `FROM jmv_daily_movement m
+                     JOIN jmv_dimensions d ON d.sku = m.sku
+                     LEFT JOIN jmv_snapshots s ON s.sku = m.sku AND s.snapshot_date = ?`;
+      const OT_WH = `WHERE m.is_valid = 1
+                       AND d.product_type IN (${OT_SQL})
+                       AND m.movement_date BETWEEN ? AND ?`;
+
+      const otKpi = await safeQueryOne(
+        `SELECT ROUND(SUM(m.demand_min * COALESCE(s.map_price,0)),0) AS rev,
+                SUM(m.demand_min) AS u ${OT_JN} ${OT_WH}`, OTP
+      );
+      extraRevenue = Number(otKpi?.rev || 0);
+      extraUnits   = Number(otKpi?.u   || 0);
+
+      const otColl = await safeQuery(
+        `SELECT COALESCE(d.collection,'(none)') AS label,
+                ROUND(SUM(m.demand_min * COALESCE(s.map_price,0)),0) AS revenue,
+                SUM(m.demand_min) AS units ${OT_JN} ${OT_WH}
+         GROUP BY d.collection ORDER BY revenue DESC LIMIT 12`, OTP
+      );
+      const otFin = await safeQuery(
+        `SELECT COALESCE(d.base_finish,'(none)') AS label,
+                ROUND(SUM(m.demand_min * COALESCE(s.map_price,0)),0) AS revenue,
+                SUM(m.demand_min) AS units ${OT_JN} ${OT_WH}
+         GROUP BY d.base_finish ORDER BY revenue DESC LIMIT 10`, OTP
+      );
+      const otCat = await safeQuery(
+        `SELECT d.product_type AS label,
+                ROUND(SUM(m.demand_min * COALESCE(s.map_price,0)),0) AS revenue,
+                SUM(m.demand_min) AS units ${OT_JN} ${OT_WH}
+         GROUP BY d.product_type ORDER BY revenue DESC`, OTP
+      );
+
+      otColl.forEach(r => extraByCollection.push(r));
+      otFin.forEach(r => extraByFinish.push(r));
+      otCat.forEach(r => extraByCat.push(r));
+    }
+
+    // ── Merge VCT + other-type collection/finish for "all" scope ─────
+    const mergeByLabel = (base, extra) => {
+      const map = {};
+      base.forEach(r => { map[r.label] = { label: r.label, revenue: Number(r.revenue), units: Number(r.units) }; });
+      extra.forEach(r => {
+        if (map[r.label]) { map[r.label].revenue += Number(r.revenue); map[r.label].units += Number(r.units); }
+        else map[r.label] = { label: r.label, revenue: Number(r.revenue), units: Number(r.units) };
+      });
+      return Object.values(map).sort((a, b) => b.revenue - a.revenue);
+    };
+
+    // ── Final KPI totals ─────────────────────────────────────────────
+    const mapRevenue   = Number(kpiVCT?.map_revenue || 0) + extraRevenue;
+    const qtySold      = Number(kpiVCT?.qty_sold    || 0) + extraUnits;
+    const comboRevenue = Number(cviBrk?.combo_rev   || 0);
+    const comboUnits   = Number(cviBrk?.combo_u     || 0);
+    const indivRevenue = Number(cviBrk?.cabinet_rev || 0) + Number(cviBrk?.top_rev || 0) + extraRevenue;
+    const indivUnits   = Number(cviBrk?.cabinet_u   || 0) + Number(cviBrk?.top_u   || 0) + extraUnits;
+
+    const comboVsIndividual = [
+      { label: 'Combo (Vanity)',       revenue: comboRevenue,                     units: comboUnits },
+      { label: 'Cabinet (standalone)', revenue: Number(cviBrk?.cabinet_rev || 0), units: Number(cviBrk?.cabinet_u || 0) },
+      { label: 'Top (standalone)',     revenue: Number(cviBrk?.top_rev     || 0), units: Number(cviBrk?.top_u     || 0) },
+      ...extraByCat,
+    ].filter(r => r.revenue > 0);
 
     res.render('pages/admin/marketing/jmv-financials', {
       ...LAYOUT,
       pageTitle: 'JMV Financials',
       fromDate, toDate, scope, latestDate,
-      mapRevenue:   revenueKpi?.map_revenue || 0,
-      qtySold:      revenueKpi?.qty_sold    || 0,
-      comboRevenue: comboRow.revenue,
-      comboUnits:   comboRow.units,
-      indivRevenue,
-      indivUnits,
+      mapRevenue, qtySold,
+      comboRevenue, comboUnits, indivRevenue, indivUnits,
       top10Revenue,
       revenueByDay:        JSON.stringify(revenueByDay),
-      revenueByCategory:   JSON.stringify(revenueByCategory),
-      revenueByCollection: JSON.stringify(revenueByCollection),
-      revenueByFinish:     JSON.stringify(revenueByFinish),
+      revenueByCategory:   JSON.stringify([...revenueByCategory, ...extraByCat]),
+      revenueByCollection: JSON.stringify(mergeByLabel(revenueByCollection, extraByCollection).slice(0, 12)),
+      revenueByFinish:     JSON.stringify(mergeByLabel(revenueByFinish, extraByFinish).slice(0, 10)),
       comboVsIndividual:   JSON.stringify(comboVsIndividual),
       style: '',
     });

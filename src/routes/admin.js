@@ -11,6 +11,7 @@ const ordersCtrl    = require('../controllers/ordersController');
 const returnsCtrl   = require('../controllers/returnsController');
 const emailTplCtrl  = require('../controllers/emailTemplatesController');
 const jmvCtrl       = require('../controllers/jmvReportsController');
+const shippingCtrl  = require('../controllers/shippingController');
 const { requireAdmin } = require('../middleware/adminAuth');
 
 /* ── Strict rate limit on admin login — 10 attempts / 15 min ── */
@@ -143,6 +144,16 @@ router.post('/marketing/jmv/run-rollup',     jmvCtrl.triggerRollup);
 router.get ('/marketing/jmv/stockout',       jmvCtrl.stockoutDrilldown);
 router.get ('/marketing/jmv/new-arrivals',   jmvCtrl.newArrivalsDrilldown);
 router.get ('/marketing/jmv/financials',     jmvCtrl.getFinancials);
+
+/* ── Shipping (WWEX SpeedShip) ────────────────────────────────── */
+router.get ('/shipping',                  shippingCtrl.index);
+router.get ('/shipping/create',           shippingCtrl.createForm);
+router.post('/shipping/rates',            shippingCtrl.getRates);
+router.post('/shipping/book',             shippingCtrl.bookShipment);
+router.post('/shipping/cancel',           shippingCtrl.cancelShipment);
+router.get ('/shipping/document',         shippingCtrl.getDocument);
+router.get ('/shipping/track/:bol',       shippingCtrl.trackShipment);
+router.post('/shipping/validate-address', shippingCtrl.validateAddress);
 
 /* ── Theme Editor ───────────────────────────────────────────── */
 router.get ('/theme',          ctrl.themeEditor);

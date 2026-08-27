@@ -1,0 +1,526 @@
+<%
+/* ═══════════════════════════════════════════════════════════════════
+   Admin — Create Shipment  (/admin/shipping/create)
+   3-step flow: 1) Addresses & items  2) Rate shop  3) Book & confirm
+   Supports LTL and SMALLPACK. Pre-fills from order if orderId passed.
+═══════════════════════════════════════════════════════════════════ */
+const pre = prefill || {};
+%>
+
+<!-- ══ Toolbar ══════════════════════════════════════════════════════ -->
+<div class="adm-toolbar">
+  <div class="adm-back-wrap">
+    <a href="/admin/shipping" class="adm-back-link">← Shipments</a>
+    <span class="adm-toolbar-title">New Shipment<%= orderId ? ' — Order #'+orderId : '' %></span>
+  </div>
+</div>
+
+<!-- ══ Step indicator ════════════════════════════════════════════════ -->
+<div class="ship-steps">
+  <div class="ship-step active" id="step-ind-1"><span class="ship-step-num">1</span> Addresses &amp; Cargo</div>
+  <div class="ship-step" id="step-ind-2"><span class="ship-step-num">2</span> Rate Shop</div>
+  <div class="ship-step" id="step-ind-3"><span class="ship-step-num">3</span> Confirm &amp; Book</div>
+</div>
+
+<!-- ═══ STEP 1: Addresses & Cargo ═══════════════════════════════════ -->
+<div id="step1" class="ship-panel">
+  <div class="ship-panel-grid">
+
+    <!-- Product type -->
+    <div class="admin-card ship-full-col">
+      <h3 class="admin-card-title">Shipment Type</h3>
+      <div style="display:flex;gap:12px">
+        <label class="ship-type-opt">
+          <input type="radio" name="productType" value="LTL" checked>
+          <span class="ship-type-label">
+            <strong>LTL Freight</strong>
+            <small>Vanities, tops, cabinets — pallet shipments</small>
+          </span>
+        </label>
+        <label class="ship-type-opt">
+          <input type="radio" name="productType" value="SMALLPACK">
+          <span class="ship-type-label">
+            <strong>Small Package (UPS)</strong>
+            <small>Accessories, samples, hardware</small>
+          </span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Origin -->
+    <div class="admin-card">
+      <h3 class="admin-card-title">Origin (Ship From)</h3>
+      <div class="adm-form-grid">
+        <div class="adm-field"><label>Company</label><input id="orig_company" type="text" class="adm-input" value="Bathroom Vanities Outlet"></div>
+        <div class="adm-field"><label>Phone</label><input id="orig_phone" type="text" class="adm-input" value="7706352030"></div>
+        <div class="adm-field adm-field--full"><label>Address</label><input id="orig_address1" type="text" class="adm-input" value="50 Ernest W Barrett Pkwy NW"></div>
+        <div class="adm-field"><label>City</label><input id="orig_city" type="text" class="adm-input" value="Marietta"></div>
+        <div class="adm-field"><label>State</label><input id="orig_state" type="text" class="adm-input" value="GA" maxlength="2" style="text-transform:uppercase"></div>
+        <div class="adm-field"><label>ZIP</label><input id="orig_zip" type="text" class="adm-input" value="30066"></div>
+        <input type="hidden" id="orig_country" value="US">
+      </div>
+    </div>
+
+    <!-- Destination -->
+    <div class="admin-card">
+      <h3 class="admin-card-title">Destination (Ship To)</h3>
+      <div class="adm-form-grid">
+        <div class="adm-field"><label>Company / Business</label><input id="dest_company" type="text" class="adm-input" value="<%= pre.company || '' %>"></div>
+        <div class="adm-field"><label>Contact Name</label><input id="dest_name" type="text" class="adm-input" value="<%= pre.name || '' %>"></div>
+        <div class="adm-field"><label>Phone</label><input id="dest_phone" type="text" class="adm-input" value="<%= pre.phone || '' %>"></div>
+        <div class="adm-field"><label>Email</label><input id="dest_email" type="text" class="adm-input" value="<%= pre.email || '' %>"></div>
+        <div class="adm-field adm-field--full"><label>Address</label><input id="dest_address1" type="text" class="adm-input" value="<%= pre.address1 || '' %>"></div>
+        <div class="adm-field"><label>City</label><input id="dest_city" type="text" class="adm-input" value="<%= pre.city || '' %>"></div>
+        <div class="adm-field"><label>State</label><input id="dest_state" type="text" class="adm-input" value="<%= pre.state || '' %>" maxlength="2" style="text-transform:uppercase"></div>
+        <div class="adm-field"><label>ZIP</label><input id="dest_zip" type="text" class="adm-input" value="<%= pre.zip || '' %>"></div>
+        <div class="adm-field"><label>Country</label><input id="dest_country" type="text" class="adm-input" value="US" maxlength="2" style="text-transform:uppercase"></div>
+        <div class="adm-field">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="checkbox" id="dest_residential"> Residential address
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cargo / Packages -->
+    <div class="admin-card ship-full-col">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <h3 class="admin-card-title" style="margin:0">Cargo / Packages</h3>
+        <button class="btn btn-sm btn-outline" onclick="addItem()">+ Add Item</button>
+      </div>
+      <div id="itemList"></div>
+    </div>
+
+    <!-- LTL Accessorials -->
+    <div class="admin-card" id="ltlOptions">
+      <h3 class="admin-card-title">LTL Accessorials</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <label class="ship-check"><input type="checkbox" id="acc_liftgatePickup"> Liftgate Pickup</label>
+        <label class="ship-check"><input type="checkbox" id="acc_liftgateDelivery" checked> Liftgate Delivery</label>
+        <label class="ship-check"><input type="checkbox" id="acc_appointment"> Appointment Required</label>
+        <label class="ship-check"><input type="checkbox" id="acc_insideDelivery"> Inside Delivery</label>
+      </div>
+    </div>
+
+    <!-- References -->
+    <div class="admin-card">
+      <h3 class="admin-card-title">References</h3>
+      <div class="adm-form-grid">
+        <div class="adm-field"><label>Reference 1</label><input id="ref1" type="text" class="adm-input" value="<%= pre.reference1 || '' %>" placeholder="Order # or PO #"></div>
+        <div class="adm-field"><label>Reference 2</label><input id="ref2" type="text" class="adm-input" placeholder="Optional"></div>
+      </div>
+    </div>
+
+  </div><!-- /ship-panel-grid -->
+
+  <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
+    <button class="btn btn-primary" onclick="goToRates()">Get Rates →</button>
+  </div>
+</div><!-- /step1 -->
+
+<!-- ═══ STEP 2: Rate Shop ══════════════════════════════════════════ -->
+<div id="step2" class="ship-panel" style="display:none">
+  <div class="admin-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <h3 class="admin-card-title" style="margin:0">Available Rates</h3>
+      <button class="btn btn-sm btn-outline" onclick="showStep(1)">← Edit Details</button>
+    </div>
+
+    <div id="rateLoading" style="text-align:center;padding:32px;color:#718096">
+      <div class="ship-spinner"></div>
+      <p style="margin-top:8px">Fetching carrier rates…</p>
+    </div>
+    <div id="rateError" style="display:none" class="adm-alert adm-alert--error"></div>
+    <div id="rateList" style="display:none"></div>
+  </div>
+</div>
+
+<!-- ═══ STEP 3: Confirm & Book ════════════════════════════════════ -->
+<div id="step3" class="ship-panel" style="display:none">
+  <div class="ship-panel-grid">
+
+    <div class="admin-card">
+      <h3 class="admin-card-title">Selected Rate</h3>
+      <div id="selectedRateDisplay"></div>
+    </div>
+
+    <div class="admin-card">
+      <h3 class="admin-card-title">Shipment Summary</h3>
+      <div id="shipSummary"></div>
+    </div>
+
+    <!-- UPS Pickup (SMALLPACK only) -->
+    <div class="admin-card" id="pickupSection" style="display:none">
+      <h3 class="admin-card-title">Schedule UPS Pickup</h3>
+      <div class="adm-form-grid">
+        <div class="adm-field">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="checkbox" id="schedulePickup" onchange="togglePickup(this.checked)"> Schedule a UPS pickup
+          </label>
+          <small style="color:#718096">Uncheck if dropping off at a UPS store or on daily route.</small>
+        </div>
+        <div id="pickupFields" style="display:none;grid-column:1/-1">
+          <div class="adm-form-grid">
+            <div class="adm-field"><label>Pickup Date</label><input id="pickupDate" type="date" class="adm-input"></div>
+            <div class="adm-field"><label>Ready Time</label><input id="pickupReady" type="time" class="adm-input" value="08:00"></div>
+            <div class="adm-field"><label>Close Time</label><input id="pickupClose" type="time" class="adm-input" value="17:00"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="display:flex;justify-content:space-between;margin-top:16px;gap:8px">
+    <button class="btn btn-outline" onclick="showStep(2)">← Back to Rates</button>
+    <button class="btn btn-primary" id="bookBtn" onclick="bookShipment()">Book Shipment</button>
+  </div>
+</div>
+
+<!-- ═══ SUCCESS ══════════════════════════════════════════════════ -->
+<div id="stepSuccess" class="ship-panel" style="display:none">
+  <div class="admin-card" style="text-align:center;padding:40px">
+    <div style="font-size:3rem;margin-bottom:12px">✅</div>
+    <h2 style="margin:0 0 8px">Shipment Booked</h2>
+    <div id="successDetails" style="color:#4a5568;margin-bottom:24px"></div>
+    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+      <a id="bolLink" href="#" target="_blank" class="btn btn-primary" style="display:none">Download BOL</a>
+      <a href="/admin/shipping" class="btn btn-outline">Back to Shipments</a>
+      <a href="/admin/shipping/create" class="btn btn-outline">New Shipment</a>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ── State ────────────────────────────────────────────────────── */
+var _rates   = [];
+var _selected = null;
+var _txnId   = null;
+var _orderId = '<%= orderId || "" %>';
+
+/* ── Step navigation ──────────────────────────────────────────── */
+function showStep(n) {
+  [1,2,3,'Success'].forEach(function(s) {
+    var el = document.getElementById('step' + s);
+    if (el) el.style.display = 'none';
+    var ind = document.getElementById('step-ind-' + s);
+    if (ind) { ind.classList.remove('active','done'); if (s < n) ind.classList.add('done'); }
+  });
+  var el = document.getElementById('step' + n);
+  if (el) el.style.display = '';
+  var ind = document.getElementById('step-ind-' + n);
+  if (ind) ind.classList.add('active');
+}
+
+/* ── Items ────────────────────────────────────────────────────── */
+var _itemCount = 0;
+function addItem() {
+  _itemCount++;
+  var isLTL = getProductType() === 'LTL';
+  var html = '<div class="ship-item-row" id="item-' + _itemCount + '">'
+    + '<div class="ship-item-fields">'
+    + '<div class="adm-field"><label>Description</label><input type="text" class="adm-input item-desc" placeholder="e.g. Vanity"></div>'
+    + '<div class="adm-field"><label>Weight (lbs)</label><input type="number" class="adm-input item-weight" min="1"></div>'
+    + '<div class="adm-field"><label>Length (in)</label><input type="number" class="adm-input item-length" min="1"></div>'
+    + '<div class="adm-field"><label>Width (in)</label><input type="number" class="adm-input item-width" min="1"></div>'
+    + '<div class="adm-field"><label>Height (in)</label><input type="number" class="adm-input item-height" min="1"></div>'
+    + '<div class="adm-field"><label>Qty</label><input type="number" class="adm-input item-qty" value="1" min="1"></div>'
+    + (isLTL ? '<div class="adm-field"><label>Freight Class</label><select class="adm-input item-class"><option value="">Auto</option><option>50</option><option>55</option><option>60</option><option>65</option><option>70</option><option>77.5</option><option>85</option><option>92.5</option><option>100</option><option>110</option><option>125</option><option>150</option><option>175</option><option>200</option><option>250</option><option>300</option><option>400</option><option>500</option></select></div>' : '')
+    + '</div>'
+    + '<button class="ship-item-remove" onclick="removeItem(' + _itemCount + ')">✕</button>'
+    + '</div>';
+  document.getElementById('itemList').insertAdjacentHTML('beforeend', html);
+}
+function removeItem(n) {
+  var el = document.getElementById('item-' + n);
+  if (el) el.remove();
+}
+function getProductType() {
+  var sel = document.querySelector('input[name="productType"]:checked');
+  return sel ? sel.value : 'LTL';
+}
+function getItems() {
+  var rows = document.querySelectorAll('.ship-item-row');
+  return Array.from(rows).map(function(r) {
+    return {
+      description:  (r.querySelector('.item-desc')   || {}).value || '',
+      weight:       parseFloat((r.querySelector('.item-weight') || {}).value) || 0,
+      length:       parseFloat((r.querySelector('.item-length') || {}).value) || null,
+      width:        parseFloat((r.querySelector('.item-width')  || {}).value) || null,
+      height:       parseFloat((r.querySelector('.item-height') || {}).value) || null,
+      quantity:     parseInt((r.querySelector('.item-qty')    || {}).value)   || 1,
+      freightClass: (r.querySelector('.item-class') || {}).value || null,
+      huType:       'PLT',
+    };
+  });
+}
+
+/* ── LTL options visibility ───────────────────────────────────── */
+document.querySelectorAll('input[name="productType"]').forEach(function(r) {
+  r.addEventListener('change', function() {
+    document.getElementById('ltlOptions').style.display = r.value === 'LTL' ? '' : 'none';
+  });
+});
+
+/* ── Step 1 → 2: Get Rates ────────────────────────────────────── */
+function goToRates() {
+  var items = getItems();
+  if (!items.length) { alert('Add at least one cargo item.'); return; }
+  if (!document.getElementById('dest_zip').value) { alert('Destination ZIP is required.'); return; }
+
+  showStep(2);
+  document.getElementById('rateLoading').style.display = '';
+  document.getElementById('rateError').style.display   = 'none';
+  document.getElementById('rateList').style.display    = 'none';
+
+  var isResidential = document.getElementById('dest_residential').checked;
+  var productType   = getProductType();
+
+  var body = {
+    productType:     productType,
+    liftgatePickup:  document.getElementById('acc_liftgatePickup')   ? document.getElementById('acc_liftgatePickup').checked   : false,
+    liftgateDelivery:document.getElementById('acc_liftgateDelivery') ? document.getElementById('acc_liftgateDelivery').checked : false,
+    residential:     isResidential,
+    appointment:     document.getElementById('acc_appointment')  ? document.getElementById('acc_appointment').checked  : false,
+    insideDelivery:  document.getElementById('acc_insideDelivery')? document.getElementById('acc_insideDelivery').checked: false,
+    origin: {
+      company:  document.getElementById('orig_company').value,
+      address1: document.getElementById('orig_address1').value,
+      city:     document.getElementById('orig_city').value,
+      state:    document.getElementById('orig_state').value.toUpperCase(),
+      zip:      document.getElementById('orig_zip').value,
+      phone:    document.getElementById('orig_phone').value,
+      country:  'US',
+    },
+    destination: {
+      company:  document.getElementById('dest_company').value,
+      name:     document.getElementById('dest_name').value,
+      address1: document.getElementById('dest_address1').value,
+      city:     document.getElementById('dest_city').value,
+      state:    document.getElementById('dest_state').value.toUpperCase(),
+      zip:      document.getElementById('dest_zip').value,
+      phone:    document.getElementById('dest_phone').value,
+      email:    document.getElementById('dest_email').value,
+      country:  document.getElementById('dest_country').value.toUpperCase() || 'US',
+    },
+    items: items,
+  };
+
+  fetch('/admin/shipping/rates', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d) {
+    document.getElementById('rateLoading').style.display = 'none';
+    if (!d.ok || !d.rates || !d.rates.length) {
+      document.getElementById('rateError').style.display = '';
+      document.getElementById('rateError').textContent   = d.error || 'No rates returned. Check origin/destination details.';
+      return;
+    }
+    _rates = d.rates;
+    _txnId = d.productTransactionId;
+    renderRates(d.rates, d.stub);
+  })
+  .catch(function(e) {
+    document.getElementById('rateLoading').style.display = 'none';
+    document.getElementById('rateError').style.display   = '';
+    document.getElementById('rateError').textContent     = 'Request failed: ' + e.message;
+  });
+}
+
+function renderRates(rates, isStub) {
+  var html = '';
+  if (isStub) html += '<p style="font-size:.8rem;color:#975a16;margin:0 0 12px">⚠ Stub rates — connect WWEX credentials to get live pricing.</p>';
+  rates.forEach(function(r, i) {
+    html += '<div class="ship-rate-card" onclick="selectRate(' + i + ')" id="rate-card-' + i + '">'
+      + '<div class="ship-rate-carrier"><strong>' + (r.carrier||'—') + '</strong>'
+      + ' <span class="ship-rate-service">' + (r.serviceLevel||r.service||'') + '</span></div>'
+      + '<div class="ship-rate-meta">'
+      + (r.transitDays ? '<span>🕒 ' + r.transitDays + ' days transit</span>' : '')
+      + (r.estimatedDelivery ? '<span>📅 ' + r.estimatedDelivery + '</span>' : '')
+      + '</div>'
+      + '<div class="ship-rate-price">$' + Number(r.totalCharge||0).toLocaleString('en-US',{minimumFractionDigits:2}) + '</div>'
+      + '</div>';
+  });
+  document.getElementById('rateList').innerHTML = html;
+  document.getElementById('rateList').style.display = '';
+}
+
+function selectRate(i) {
+  document.querySelectorAll('.ship-rate-card').forEach(function(c) { c.classList.remove('selected'); });
+  document.getElementById('rate-card-' + i).classList.add('selected');
+  _selected = _rates[i];
+  buildConfirmStep();
+  showStep(3);
+}
+
+/* ── Step 3: Confirm ──────────────────────────────────────────── */
+function buildConfirmStep() {
+  var r   = _selected;
+  var pt  = getProductType();
+  document.getElementById('selectedRateDisplay').innerHTML =
+    '<table style="width:100%;font-size:.9rem;border-collapse:collapse">'
+    + '<tr><td style="color:#718096;padding:4px 0">Carrier</td><td style="font-weight:700">' + (r.carrier||'—') + '</td></tr>'
+    + '<tr><td style="color:#718096;padding:4px 0">Service</td><td>' + (r.serviceLevel||r.service||'—') + '</td></tr>'
+    + '<tr><td style="color:#718096;padding:4px 0">Transit</td><td>' + (r.transitDays ? r.transitDays+' days' : '—') + '</td></tr>'
+    + '<tr><td style="color:#718096;padding:4px 0">Est. Delivery</td><td>' + (r.estimatedDelivery||'—') + '</td></tr>'
+    + '<tr><td style="color:#718096;padding:4px 0;font-weight:700">Total Charge</td><td style="font-weight:700;color:#1a2e4a;font-size:1.2rem">$' + Number(r.totalCharge||0).toLocaleString('en-US',{minimumFractionDigits:2}) + '</td></tr>'
+    + '</table>';
+
+  document.getElementById('shipSummary').innerHTML =
+    '<table style="width:100%;font-size:.85rem;border-collapse:collapse">'
+    + '<tr><td style="color:#718096;padding:3px 0">From</td><td>' + document.getElementById('orig_city').value + ', ' + document.getElementById('orig_state').value.toUpperCase() + '</td></tr>'
+    + '<tr><td style="color:#718096;padding:3px 0">To</td><td>' + document.getElementById('dest_company').value + ' — ' + document.getElementById('dest_city').value + ', ' + document.getElementById('dest_state').value.toUpperCase() + ' ' + document.getElementById('dest_zip').value + '</td></tr>'
+    + '<tr><td style="color:#718096;padding:3px 0">Items</td><td>' + getItems().length + ' pkg(s)</td></tr>'
+    + '<tr><td style="color:#718096;padding:3px 0">Ref 1</td><td>' + (document.getElementById('ref1').value||'—') + '</td></tr>'
+    + '</table>';
+
+  // Show UPS pickup section only for SMALLPACK
+  document.getElementById('pickupSection').style.display = pt === 'SMALLPACK' ? '' : 'none';
+}
+
+function togglePickup(checked) {
+  document.getElementById('pickupFields').style.display = checked ? '' : 'none';
+}
+
+/* ── Book ─────────────────────────────────────────────────────── */
+function bookShipment() {
+  if (!_selected || !_txnId) { alert('Select a rate first.'); return; }
+  var btn = document.getElementById('bookBtn');
+  btn.disabled    = true;
+  btn.textContent = 'Booking…';
+
+  var pt   = getProductType();
+  var dest = {
+    addressLineList: [document.getElementById('dest_address1').value],
+    locality:        document.getElementById('dest_city').value,
+    region:          document.getElementById('dest_state').value.toUpperCase(),
+    postalCode:      document.getElementById('dest_zip').value,
+    countryCode:     document.getElementById('dest_country').value.toUpperCase() || 'US',
+    companyName:     document.getElementById('dest_company').value,
+    phone:           document.getElementById('dest_phone').value,
+    contactList: [{
+      firstName: '',
+      lastName:  document.getElementById('dest_name').value,
+      phone:     document.getElementById('dest_phone').value,
+      email:     document.getElementById('dest_email').value,
+    }],
+  };
+  var orig = {
+    addressLineList: [document.getElementById('orig_address1').value],
+    locality:        document.getElementById('orig_city').value,
+    region:          document.getElementById('orig_state').value.toUpperCase(),
+    postalCode:      document.getElementById('orig_zip').value,
+    countryCode:     'US',
+    companyName:     document.getElementById('orig_company').value,
+    phone:           document.getElementById('orig_phone').value,
+    contactList: [{ firstName: '', lastName: '', phone: document.getElementById('orig_phone').value }],
+  };
+
+  var schedPick  = document.getElementById('schedulePickup') && document.getElementById('schedulePickup').checked;
+  var pickupDate = document.getElementById('pickupDate') ? document.getElementById('pickupDate').value : '';
+
+  fetch('/admin/shipping/book', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      productType:          pt,
+      productTransactionId: _txnId,
+      offerId:              _selected.offerId,
+      carrier:              _selected.carrier,
+      serviceLevel:         _selected.serviceLevel || _selected.service,
+      totalCharge:          _selected.totalCharge,
+      orderId:              _orderId || null,
+      schedulePickup:       schedPick,
+      pickupDate:           pickupDate,
+      pickupReadyTime:      document.getElementById('pickupReady') ? document.getElementById('pickupReady').value + ':00' : '08:00:00',
+      pickupCloseTime:      document.getElementById('pickupClose') ? document.getElementById('pickupClose').value + ':00' : '17:00:00',
+      shipment: {
+        originAddress:      { address: orig },
+        destinationAddress: { address: dest },
+        referenceList: [
+          { type: 'Reference 1', value: document.getElementById('ref1').value || '', isPrintAsBarCode: false },
+          { type: 'Reference 2', value: document.getElementById('ref2').value || '', isPrintAsBarCode: false },
+        ].filter(function(r){ return r.value; }),
+      },
+    }),
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d) {
+    if (!d.ok) {
+      btn.disabled    = false;
+      btn.textContent = 'Book Shipment';
+      alert('Booking failed: ' + (d.error || 'Unknown error'));
+      return;
+    }
+    // Success
+    var details = '';
+    if (d.bolNumber) details += '<p><strong>BOL #:</strong> ' + d.bolNumber + '</p>';
+    if (d.proNumber) details += '<p><strong>PRO #:</strong> ' + d.proNumber + '</p>';
+    if (d.pickupConfirmation) details += '<p><strong>Pickup Confirmation:</strong> ' + d.pickupConfirmation + '</p>';
+    if (d.stub) details += '<p style="color:#975a16;font-size:.8rem">⚠ Stub booking — no actual shipment created.</p>';
+    document.getElementById('successDetails').innerHTML = details;
+    if (d.bolUrl) {
+      var link = document.getElementById('bolLink');
+      link.href = d.bolUrl;
+      link.style.display = '';
+    }
+    showStep('Success');
+  })
+  .catch(function(e) {
+    btn.disabled    = false;
+    btn.textContent = 'Book Shipment';
+    alert('Error: ' + e.message);
+  });
+}
+
+/* ── Init: add one item row ───────────────────────────────────── */
+addItem();
+</script>
+
+<style>
+.ship-steps { display:flex;gap:0;margin-bottom:24px;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0 }
+.ship-step  { flex:1;padding:12px 16px;font-size:.85rem;color:#718096;background:#f7fafc;cursor:default;display:flex;align-items:center;gap:8px }
+.ship-step.active { background:#1a2e4a;color:#fff;font-weight:700 }
+.ship-step.done   { background:#f0fff4;color:#276749 }
+.ship-step-num { width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;flex-shrink:0 }
+.ship-step.done .ship-step-num { background:#276749;color:#fff }
+
+.ship-panel-grid { display:grid;grid-template-columns:1fr 1fr;gap:16px }
+.ship-full-col   { grid-column:1/-1 }
+
+.ship-type-opt   { display:flex;align-items:flex-start;gap:8px;padding:12px;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;flex:1 }
+.ship-type-opt:has(input:checked) { border-color:#1a2e4a;background:#EBF8FF }
+.ship-type-label { display:flex;flex-direction:column;gap:2px }
+.ship-type-label strong { font-size:.9rem }
+.ship-type-label small  { font-size:.75rem;color:#718096 }
+
+.adm-form-grid { display:grid;grid-template-columns:1fr 1fr;gap:10px }
+.adm-field     { display:flex;flex-direction:column;gap:3px }
+.adm-field label { font-size:.78rem;font-weight:600;color:#4a5568 }
+.adm-field--full { grid-column:1/-1 }
+
+.ship-check { display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer }
+
+.ship-item-row    { display:flex;align-items:flex-start;gap:8px;padding:10px;background:#f7fafc;border:1px solid #e2e8f0;border-radius:6px;margin-bottom:8px }
+.ship-item-fields { display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;flex:1 }
+.ship-item-remove { background:none;border:none;color:#c53030;font-size:1rem;cursor:pointer;padding:0 4px;line-height:1;margin-top:20px }
+
+.ship-rate-card   { padding:14px 16px;border:2px solid #e2e8f0;border-radius:8px;margin-bottom:10px;cursor:pointer;transition:border-color .15s,box-shadow .15s;display:flex;align-items:center;justify-content:space-between;gap:12px }
+.ship-rate-card:hover   { border-color:#2b6cb0;box-shadow:0 0 0 3px rgba(43,108,176,.08) }
+.ship-rate-card.selected{ border-color:#1a2e4a;background:#EBF8FF }
+.ship-rate-carrier { font-size:.9rem }
+.ship-rate-service { font-size:.8rem;color:#718096 }
+.ship-rate-meta    { font-size:.8rem;color:#718096;display:flex;gap:12px;flex:1;justify-content:center }
+.ship-rate-price   { font-size:1.15rem;font-weight:700;color:#1a2e4a;white-space:nowrap }
+
+.ship-spinner { width:28px;height:28px;border:3px solid #e2e8f0;border-top-color:#1a2e4a;border-radius:50%;animation:spin .7s linear infinite;margin:0 auto }
+@keyframes spin { to { transform:rotate(360deg) } }
+
+@media(max-width:700px) {
+  .ship-panel-grid { grid-template-columns:1fr }
+  .ship-full-col   { grid-column:1 }
+}
+</style>

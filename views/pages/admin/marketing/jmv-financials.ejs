@@ -73,7 +73,7 @@ function fmtDollar(n) {
   <div class="kpi-card" style="border-top:3px solid #1a2e4a">
     <div class="kpi-label">MAP Revenue (min)</div>
     <div class="kpi-value" style="color:#1a2e4a"><%= fmtDollar(mapRevenue) %></div>
-    <div class="kpi-sub">Group-deduped · drawdown × MAP</div>
+    <div class="kpi-sub">Conservative floor · drawdown × MAP</div>
   </div>
 
   <div class="kpi-card" style="border-top:3px solid #2b6cb0">
@@ -83,11 +83,11 @@ function fmtDollar(n) {
   </div>
 
   <div class="kpi-card" style="border-top:3px solid #276749">
-    <div class="kpi-label">Top 10 SKU Revenue</div>
+    <div class="kpi-label">Top 10 Group Revenue</div>
     <div class="kpi-value" style="color:#276749">
       <%= fmtDollar(top10Revenue.reduce(function(s,r){ return s + Number(r.revenue||0); }, 0)) %>
     </div>
-    <div class="kpi-sub">SKU-level · see table below</div>
+    <div class="kpi-sub">Conservative floor · see table below</div>
   </div>
 
   <div class="kpi-card" style="border-top:3px solid #975a16">
@@ -110,7 +110,7 @@ function fmtDollar(n) {
 <div class="admin-card">
   <h3 class="admin-card-title">Daily MAP Revenue &amp; Units Depleted</h3>
   <p style="font-size:.8rem;color:var(--text-muted);margin:0 0 10px">
-    Bars = revenue ($, left axis) · Line = units (right axis) · Both group-deduped
+    Bars = revenue ($, left axis) · Line = units (right axis) · Conservative floor (dedup applied to Vanity/Cabinet/Top)
   </p>
   <canvas id="chartByDay" height="130"></canvas>
 </div>
@@ -158,11 +158,11 @@ function fmtDollar(n) {
 
 </div>
 
-<!-- ══ TOP 10 SKU TABLE ══════════════════════════════════════════════ -->
-<h2 class="report-section-title" style="margin-top:28px">Top 10 SKUs — MAP Revenue</h2>
+<!-- ══ TOP 10 GROUP TABLE ═════════════════════════════════════════════ -->
+<h2 class="report-section-title" style="margin-top:28px">Top 10 Groups — MAP Revenue (Conservative Floor)</h2>
 <p style="font-size:.8rem;color:var(--text-muted);margin:-4px 0 10px">
-  SKU-level (not group-deduped). Check Group # on the main dashboard to spot shared-component clusters.
-  Revenue = total depleted units × MAP price.
+  Conservative assumption: Cabinet and Top drawdown up to the combo count is attributed to the combo,
+  not standalone demand. Only the excess counts as standalone revenue. Actual demand ≥ these figures.
 </p>
 
 <% if (top10Revenue && top10Revenue.length > 0) { %>
@@ -170,26 +170,26 @@ function fmtDollar(n) {
   <table class="adm-table">
     <thead><tr>
       <th>#</th>
-      <th>SKU</th>
       <th>Collection</th>
-      <th>Type</th>
       <th>Finish</th>
       <th>Size</th>
-      <th>Units Depleted</th>
-      <th>MAP</th>
-      <th style="text-align:right">Revenue (min)</th>
+      <th style="text-align:right">Combo Units</th>
+      <th style="text-align:right">Cabinet-only</th>
+      <th style="text-align:right">Top-only</th>
+      <th style="text-align:right">Total Units</th>
+      <th style="text-align:right">Revenue (floor)</th>
     </tr></thead>
     <tbody>
     <% top10Revenue.forEach(function(r, i) { %>
       <tr>
         <td style="color:var(--text-muted)"><%= i+1 %></td>
-        <td><code style="font-size:.78rem"><%= r.sku %></code></td>
         <td><%= r.collection || '—' %></td>
-        <td><span class="jmv-type-chip jmv-type-chip--<%= (r.product_type||'').toLowerCase() %>"><%= r.product_type || '—' %></span></td>
         <td><%= r.base_finish || '—' %></td>
         <td><%= r.size_nominal ? r.size_nominal + '"' : '—' %></td>
-        <td style="font-weight:700"><%= Number(r.units||0).toLocaleString() %></td>
-        <td><%= r.map_price ? '$' + parseFloat(r.map_price).toLocaleString('en-US',{minimumFractionDigits:0}) : '—' %></td>
+        <td style="text-align:right"><%= Number(r.combo_units||0).toLocaleString() %></td>
+        <td style="text-align:right;color:#276749"><%= Number(r.net_cabinet||0).toLocaleString() %></td>
+        <td style="text-align:right;color:#975a16"><%= Number(r.net_top||0).toLocaleString() %></td>
+        <td style="text-align:right;font-weight:700"><%= Number(r.units||0).toLocaleString() %></td>
         <td style="font-weight:700;color:#1a2e4a;text-align:right"><%= fmtDollar(r.revenue) %></td>
       </tr>
     <% }); %>
@@ -202,7 +202,8 @@ function fmtDollar(n) {
 
 <p style="margin-top:16px;font-size:11px;color:#888;font-style:italic">
   Source: Depletion from James Martin warehouse — industry-wide demand, not RFL sales.
-  MAP Revenue is a minimum demand proxy; actual market outcomes vary.
+  Revenue figures are a conservative floor (dedup applied). Actual demand ≥ reported figures.
+  Intended for relative comparison and marketing prioritization, not absolute revenue forecasting.
 </p>
 
 <!-- ══ SCRIPTS ════════════════════════════════════════════════════════ -->

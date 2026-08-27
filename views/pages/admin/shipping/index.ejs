@@ -1,0 +1,226 @@
+<%
+/* ═══════════════════════════════════════════════════════════════════
+   Admin — Shipments List  (/admin/shipping)
+   Mirrors SpeedShip "Track" page. Shows all shipments with live status.
+═══════════════════════════════════════════════════════════════════ */
+const STATUS_COLOR = {
+  booked:     '#2b6cb0',
+  in_transit: '#975a16',
+  delivered:  '#276749',
+  voided:     '#c53030',
+  exception:  '#c53030',
+};
+function statusLabel(s) {
+  return { booked:'Booked', in_transit:'In Transit', delivered:'Delivered',
+           voided:'Voided', exception:'Exception' }[s] || s;
+}
+%>
+
+<!-- ══ Toolbar ══════════════════════════════════════════════════════ -->
+<div class="adm-toolbar">
+  <div class="adm-back-wrap">
+    <span class="adm-toolbar-title">Shipments</span>
+    <% if (typeof apiMode !== 'undefined' && apiMode.includes('stub')) { %>
+    <span style="font-size:.72rem;background:#FFF5F5;color:#c53030;border:1px solid #fed7d7;border-radius:10px;padding:2px 10px;margin-left:8px">Stub mode — add WWEX credentials to .env</span>
+    <% } %>
+  </div>
+  <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+    <a href="/admin/shipping/create" class="btn btn-sm btn-primary">+ New Shipment</a>
+  </div>
+</div>
+
+<% if (typeof error !== 'undefined' && error) { %>
+<div class="adm-alert adm-alert--error"><%= error %></div>
+<% } %>
+
+<!-- ══ Filters ══════════════════════════════════════════════════════ -->
+<div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
+  <input type="text" id="shipSearch" placeholder="Search BOL, PRO, customer…"
+         class="adm-search-input" style="width:260px" oninput="filterTable()">
+  <select id="shipStatus" class="adm-search-select" onchange="filterTable()">
+    <option value="">All Statuses</option>
+    <option value="booked">Booked</option>
+    <option value="in_transit">In Transit</option>
+    <option value="delivered">Delivered</option>
+    <option value="voided">Voided</option>
+  </select>
+  <select id="shipType" class="adm-search-select" onchange="filterTable()">
+    <option value="">All Types</option>
+    <option value="LTL">LTL</option>
+    <option value="SMALLPACK">Small Package</option>
+  </select>
+</div>
+
+<!-- ══ Shipments Table ══════════════════════════════════════════════ -->
+<% if (shipments && shipments.length > 0) { %>
+<div class="adm-table-wrap">
+  <table class="adm-table" id="shipTable">
+    <thead><tr>
+      <th>BOL / PRO</th>
+      <th>Customer</th>
+      <th>Destination</th>
+      <th>Carrier</th>
+      <th>Type</th>
+      <th>Ship Date</th>
+      <th>Est. Delivery</th>
+      <th style="text-align:right">Charge</th>
+      <th>Status</th>
+      <th>Actions</th>
+    </tr></thead>
+    <tbody id="shipTbody">
+    <% shipments.forEach(function(s) {
+         const color = STATUS_COLOR[s.status] || '#4a5568';
+         const bol   = s.bol_number || '—';
+         const pro   = s.pro_number || '—';
+    %>
+      <tr data-search="<%= [s.bol_number,s.pro_number,s.dest_company,s.dest_name,s.carrier].join(' ').toLowerCase() %>"
+          data-status="<%= s.status %>"
+          data-type="<%= s.product_type %>">
+        <td>
+          <div style="font-family:monospace;font-size:.8rem;font-weight:700"><%= bol %></div>
+          <% if (s.pro_number) { %><div style="font-family:monospace;font-size:.72rem;color:#718096">PRO: <%= pro %></div><% } %>
+        </td>
+        <td>
+          <div><%= s.dest_company || s.customer_name || '—' %></div>
+          <% if (s.dest_name) { %><div style="font-size:.8rem;color:#718096"><%= s.dest_name %></div><% } %>
+          <% if (s.order_id) { %><a href="/admin/orders/<%= s.order_id %>" style="font-size:.75rem;color:#2b6cb0">Order #<%= s.order_id %></a><% } %>
+        </td>
+        <td style="font-size:.85rem">
+          <%= s.dest_city || '' %><%= s.dest_state ? ', '+s.dest_state : '' %>
+          <% if (s.dest_zip) { %><div style="color:#718096;font-size:.75rem"><%= s.dest_zip %></div><% } %>
+        </td>
+        <td style="font-size:.85rem"><%= s.carrier || '—' %>
+          <% if (s.service_level) { %><div style="color:#718096;font-size:.75rem"><%= s.service_level %></div><% } %>
+        </td>
+        <td><span class="ship-type-chip ship-type-chip--<%= s.product_type.toLowerCase() %>"><%= s.product_type === 'SMALLPACK' ? 'Small Pack' : 'LTL' %></span></td>
+        <td style="font-size:.85rem"><%= s.created_at ? new Date(s.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—' %></td>
+        <td style="font-size:.85rem"><%= s.est_delivery ? new Date(s.est_delivery).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '—' %></td>
+        <td style="text-align:right;font-size:.85rem"><%= s.total_charge ? '$'+Number(s.total_charge).toLocaleString('en-US',{minimumFractionDigits:2}) : '—' %></td>
+        <td>
+          <span class="ship-status-badge" style="background:<%= color %>20;color:<%= color %>;border:1px solid <%= color %>40">
+            <%= statusLabel(s.status) %>
+          </span>
+          <div style="margin-top:4px">
+            <button class="btn-track-refresh" onclick="refreshTracking('<%= s.bol_number || s.pro_number %>','<%= s.id %>')" title="Refresh status" style="background:none;border:none;cursor:pointer;font-size:.75rem;color:#4a5568">↻ Refresh</button>
+          </div>
+        </td>
+        <td>
+          <div style="display:flex;gap:4px;flex-wrap:wrap">
+            <% if (s.bol_url) { %>
+            <a href="<%= s.bol_url %>" target="_blank" class="btn btn-xs">BOL</a>
+            <% } else if (s.product_transaction_id && !s.product_transaction_id.startsWith('STUB')) { %>
+            <a href="/admin/shipping/document?shipmentId=<%= s.id %>&docType=BILL_OF_LADING" target="_blank" class="btn btn-xs">BOL</a>
+            <% } %>
+            <% if (s.status === 'delivered') { %>
+            <a href="/admin/shipping/document?shipmentId=<%= s.id %>&docType=PROOF_OF_DELIVERY" target="_blank" class="btn btn-xs btn-outline">POD</a>
+            <% } %>
+            <% if (s.status === 'booked') { %>
+            <button class="btn btn-xs btn-danger" onclick="voidShipment(<%= s.id %>, '<%= s.product_type %>')">Void</button>
+            <% } %>
+          </div>
+        </td>
+      </tr>
+    <% }); %>
+    </tbody>
+  </table>
+</div>
+<p style="font-size:.75rem;color:#718096;margin-top:8px"><%= shipments.length %> shipment(s) shown</p>
+<% } else { %>
+<div class="adm-empty">
+  No shipments yet. <a href="/admin/shipping/create">Create your first shipment →</a>
+</div>
+<% } %>
+
+<!-- ══ Void Modal ════════════════════════════════════════════════════ -->
+<div id="voidModal" class="adm-modal-overlay" style="display:none" onclick="if(event.target===this)closeVoid()">
+  <div class="adm-modal" style="max-width:400px">
+    <h3 style="margin:0 0 12px">Void Shipment</h3>
+    <p style="margin:0 0 16px;color:#4a5568">This will cancel the shipment with the carrier. This action cannot be undone once the carrier processes it.</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-outline" onclick="closeVoid()">Cancel</button>
+      <button class="btn btn-danger" id="voidConfirmBtn">Void Shipment</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ── Filter ───────────────────────────────────────────────────── */
+function filterTable() {
+  const q      = document.getElementById('shipSearch').value.toLowerCase();
+  const status = document.getElementById('shipStatus').value;
+  const type   = document.getElementById('shipType').value;
+  document.querySelectorAll('#shipTbody tr').forEach(function(row) {
+    const matchQ = !q      || row.dataset.search.includes(q);
+    const matchS = !status || row.dataset.status === status;
+    const matchT = !type   || row.dataset.type   === type;
+    row.style.display = (matchQ && matchS && matchT) ? '' : 'none';
+  });
+}
+
+/* ── Refresh tracking ─────────────────────────────────────────── */
+function refreshTracking(bol, shipmentId) {
+  if (!bol || bol === '—') return;
+  const btn = event.target;
+  btn.textContent = '…';
+  fetch('/admin/shipping/track/' + encodeURIComponent(bol))
+    .then(function(r){ return r.json(); })
+    .then(function(d) {
+      if (d.ok && d.shipment) {
+        const status = d.shipment.status || '';
+        btn.textContent = '✓ ' + status;
+        setTimeout(function(){ btn.textContent = '↻ Refresh'; }, 3000);
+      } else {
+        btn.textContent = '↻ Refresh';
+      }
+    })
+    .catch(function(){ btn.textContent = '↻ Refresh'; });
+}
+
+/* ── Void ─────────────────────────────────────────────────────── */
+var _voidId, _voidType;
+function voidShipment(id, type) {
+  _voidId   = id;
+  _voidType = type;
+  document.getElementById('voidModal').style.display = 'flex';
+}
+function closeVoid() {
+  document.getElementById('voidModal').style.display = 'none';
+}
+document.getElementById('voidConfirmBtn').addEventListener('click', function() {
+  var btn = this;
+  btn.disabled = true;
+  btn.textContent = 'Voiding…';
+  fetch('/admin/shipping/cancel', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ shipmentId: _voidId, productType: _voidType }),
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d) {
+    if (d.ok) {
+      closeVoid();
+      window.location.reload();
+    } else {
+      btn.disabled    = false;
+      btn.textContent = 'Void Shipment';
+      alert('Error: ' + (d.error || 'Unknown error'));
+    }
+  })
+  .catch(function(e){
+    btn.disabled    = false;
+    btn.textContent = 'Void Shipment';
+    alert('Error: ' + e.message);
+  });
+});
+</script>
+
+<style>
+.ship-type-chip { display:inline-block;padding:2px 8px;border-radius:10px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em }
+.ship-type-chip--ltl       { background:#EBF8FF;color:#2b6cb0 }
+.ship-type-chip--smallpack { background:#F0FFF4;color:#276749 }
+.ship-status-badge { display:inline-block;padding:3px 8px;border-radius:10px;font-size:.72rem;font-weight:700 }
+.btn-xs  { padding:3px 8px;font-size:.72rem }
+.btn-danger { background:#c53030;color:#fff;border-color:#c53030 }
+.btn-danger:hover { background:#9b2c2c }
+.btn-outline { background:#fff;border:1px solid #cbd5e0;color:#4a5568 }
+</style>
