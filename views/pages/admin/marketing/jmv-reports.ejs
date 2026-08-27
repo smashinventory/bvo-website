@@ -72,37 +72,43 @@ const _fpAttach        = JSON.parse(fpAttach        || '[]');
 <div class="kpi-grid">
 
   <a href="/admin/marketing/jmv/stockout" class="kpi-card kpi-card--<%= stockoutCount > 0 ? 'warn' : 'ok' %>" style="text-decoration:none">
-    <div class="kpi-label">Stockouts (qty = 0)</div>
+    <div class="kpi-label">Stockouts (qty = 0) <span class="jmv-tip" data-tip="SKUs with zero units in the latest JM warehouse snapshot. These are fully depleted — JM cannot ship any orders for these items right now.">ℹ</span></div>
     <div class="kpi-value" style="<%= stockoutCount > 0 ? 'color:#c53030' : '' %>"><%= stockoutCount %></div>
     <div class="kpi-sub">Sync scope · click to drill down</div>
   </a>
 
   <div class="kpi-card kpi-card--<%= lowStockCount > 20 ? 'warn' : 'ok' %>">
-    <div class="kpi-label">Low Stock (qty 1–3)</div>
+    <div class="kpi-label">Low Stock (qty 1–3) <span class="jmv-tip" data-tip="SKUs with 1–3 units remaining in the latest snapshot. At current demand rates these are reorder candidates — consider flagging before they hit zero.">ℹ</span></div>
     <div class="kpi-value" style="<%= lowStockCount > 20 ? 'color:#c05621' : '' %>"><%= lowStockCount %></div>
     <div class="kpi-sub">Sync scope · reorder candidates</div>
   </div>
 
   <a href="/admin/marketing/jmv/new-arrivals" class="kpi-card" style="text-decoration:none">
-    <div class="kpi-label">New Arrivals</div>
+    <div class="kpi-label">New Arrivals <span class="jmv-tip" data-tip="SKUs that appear in today's snapshot but were absent from the earliest snapshot on record. These are newly introduced products at JM.">ℹ</span></div>
     <div class="kpi-value"><%= newArrivalsCount %></div>
     <div class="kpi-sub">vs earliest snapshot · click to view</div>
   </a>
 
   <div class="kpi-card kpi-card--<%= discontinuedCount > 0 ? 'warn' : 'ok' %>">
-    <div class="kpi-label">Discontinued Watch</div>
+    <div class="kpi-label">Discontinued Watch <span class="jmv-tip" data-tip="SKUs present in the earliest snapshot but missing from today's. JM may have discontinued these — pull from the site before customers order something JM can no longer supply.">ℹ</span></div>
     <div class="kpi-value" style="<%= discontinuedCount > 0 ? 'color:#c05621' : '' %>"><%= discontinuedCount %></div>
     <div class="kpi-sub">Pull from site before orders</div>
   </div>
 
   <div class="kpi-card">
-    <div class="kpi-label">MAP Changes</div>
+    <div class="kpi-label">Restock Events / Qty <span class="jmv-tip" data-tip="Count of days where a SKU's inventory increased (a restock shipment arrived at JM). Total Qty is the sum of minimum confirmed units received. Each SKU restocked on a given day counts as 1 event.">ℹ</span></div>
+    <div class="kpi-value" style="color:#276749"><%= restockEvents %> <span style="font-size:.65em;font-weight:500">events</span></div>
+    <div class="kpi-sub"><%= Number(restockQty).toLocaleString() %> units received (min) · <%= days %>d window</div>
+  </div>
+
+  <div class="kpi-card">
+    <div class="kpi-label">MAP Changes <span class="jmv-tip" data-tip="SKUs where the MAP price recorded in today's snapshot differs from the earliest snapshot. Review these to keep your BVO pricing in sync.">ℹ</span></div>
     <div class="kpi-value"><%= mapChangesCount %></div>
     <div class="kpi-sub">Since <%= earliestDate || '—' %></div>
   </div>
 
   <div class="kpi-card">
-    <div class="kpi-label">Data Window</div>
+    <div class="kpi-label">Data Window <span class="jmv-tip" data-tip="The number of valid daily snapshots collected so far. Demand averages and days-of-cover estimates become more reliable as this window grows beyond 30 days.">ℹ</span></div>
     <div class="kpi-value"><%= totalDays %> days</div>
     <div class="kpi-sub"><%= earliestDate || '—' %> → <%= latestDate || '—' %></div>
   </div>
@@ -110,30 +116,72 @@ const _fpAttach        = JSON.parse(fpAttach        || '[]');
 </div>
 
 <% if (daysOfCover.length > 0) { %>
-<!-- Days of cover strip — only items moving fast -->
+<%
+const _docSizes       = [...new Set(daysOfCover.map(r => r.size_nominal).filter(Boolean))].sort((a,b)=>a-b);
+const _docCollections = [...new Set(daysOfCover.map(r => r.collection).filter(Boolean))].sort();
+%>
+<!-- Days of Cover -->
 <div class="admin-card" style="margin-top:8px">
   <h3 class="admin-card-title">Days of Cover — Fastest Moving (sync scope)</h3>
-  <p style="font-size:.8rem;color:var(--text-muted);margin:0 0 10px">Current qty ÷ avg daily drawdown. Directional only at &lt;30 days of history.</p>
+  <p style="font-size:.8rem;color:var(--text-muted);margin:0 0 10px">
+    Current qty ÷ avg daily drawdown (zero-qty days excluded from avg to prevent dilution).
+    Directional only at &lt;30 days of history. Click any column header to sort.
+  </p>
+
+  <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+    <select id="doc-filter-size" class="adm-search-select">
+      <option value="">All sizes</option>
+      <% _docSizes.forEach(function(s){ %><option value="<%= s %>"><%= s %>"</option><% }); %>
+    </select>
+    <select id="doc-filter-collection" class="adm-search-select">
+      <option value="">All collections</option>
+      <% _docCollections.forEach(function(c){ %><option value="<%= c %>"><%= c %></option><% }); %>
+    </select>
+    <span id="doc-filter-count" style="font-size:.8rem;color:var(--text-muted)"></span>
+  </div>
+
   <div class="adm-table-wrap">
-    <table class="adm-table">
+    <table class="adm-table" id="jmv-doc-table">
       <thead><tr>
-        <th>SKU</th><th>Collection</th><th>Finish</th><th>Size</th><th>Type</th>
-        <th>Qty Now</th><th>Avg Daily Draw</th><th>Est Days Cover</th><th>MAP</th>
+        <th class="jmv-sort" data-tbl="doc" data-col="sku">SKU</th>
+        <th class="jmv-sort" data-tbl="doc" data-col="collection">Collection</th>
+        <th class="jmv-sort" data-tbl="doc" data-col="base_finish">Finish</th>
+        <th class="jmv-sort" data-tbl="doc" data-col="size_nominal">Size</th>
+        <th class="jmv-sort" data-tbl="doc" data-col="product_type">Type</th>
+        <th class="jmv-sort" data-tbl="doc" data-col="current_qty">Qty Now</th>
+        <th class="jmv-sort" data-tbl="doc" data-col="avg_daily">Avg Daily Draw</th>
+        <th class="jmv-sort jmv-sort--active" data-tbl="doc" data-col="days_cover">Est Days Cover ↑</th>
+        <th class="jmv-sort" data-tbl="doc" data-col="restock_events">Restock Events</th>
+        <th class="jmv-sort" data-tbl="doc" data-col="total_received">Total Received</th>
+        <th class="jmv-sort" data-tbl="doc" data-col="map_price">MAP</th>
       </tr></thead>
-      <tbody>
-      <% daysOfCover.forEach(r => { %>
-        <tr class="<%= r.days_cover <= 7 ? 'jmv-row--critical' : r.days_cover <= 14 ? 'jmv-row--warn' : '' %>">
+      <tbody id="jmv-doc-tbody">
+      <% daysOfCover.forEach(function(r) { %>
+        <tr class="<%= r.days_cover !== null && r.days_cover <= 7 ? 'jmv-row--critical' : r.days_cover !== null && r.days_cover <= 14 ? 'jmv-row--warn' : '' %>"
+            data-size="<%= r.size_nominal || '' %>"
+            data-collection="<%= (r.collection||'') %>"
+            data-sku="<%= r.sku %>"
+            data-base_finish="<%= (r.base_finish||'') %>"
+            data-product_type="<%= r.product_type || '' %>"
+            data-current_qty="<%= r.current_qty %>"
+            data-avg_daily="<%= parseFloat(r.avg_daily||0) %>"
+            data-days_cover="<%= r.days_cover !== null ? r.days_cover : 9999 %>"
+            data-restock_events="<%= r.restock_events || 0 %>"
+            data-total_received="<%= r.total_received || 0 %>"
+            data-map_price="<%= parseFloat(r.map_price||0) %>">
           <td><code style="font-size:.78rem"><%= r.sku %></code></td>
           <td><%= r.collection || '—' %></td>
           <td><%= r.base_finish || '—' %></td>
           <td><%= r.size_nominal ? r.size_nominal + '"' : '—' %></td>
           <td><%= r.product_type || '—' %></td>
           <td style="font-weight:700;color:<%= r.current_qty===0?'#c53030':r.current_qty<=3?'#c05621':'' %>"><%= r.current_qty %></td>
-          <td><%= parseFloat(r.avg_daily||0).toFixed(1) %></td>
+          <td><%= r.avg_daily ? parseFloat(r.avg_daily).toFixed(1) : '—' %></td>
           <td style="font-weight:700"><%= r.days_cover !== null ? r.days_cover : '—' %></td>
+          <td style="font-weight:700;color:<%= r.restock_events > 0 ? '#276749' : '' %>"><%= r.restock_events || 0 %></td>
+          <td><%= r.total_received > 0 ? r.total_received : '—' %></td>
           <td><%= r.map_price ? '$' + parseFloat(r.map_price).toLocaleString('en-US',{minimumFractionDigits:0}) : '—' %></td>
         </tr>
-      <% }) %>
+      <% }); %>
       </tbody>
     </table>
   </div>
@@ -499,6 +547,64 @@ filterInput?.addEventListener('input', applyFilter);
 filterType?.addEventListener('change', applyFilter);
 applyFilter();
 
+/* ── Days of Cover: filter ───────────────────────────────────────── */
+const docSizeFilter = document.getElementById('doc-filter-size');
+const docCollFilter = document.getElementById('doc-filter-collection');
+const docCountEl    = document.getElementById('doc-filter-count');
+const docTbody      = document.getElementById('jmv-doc-tbody');
+
+function applyDocFilter() {
+  if (!docTbody) return;
+  const sz   = docSizeFilter ? docSizeFilter.value : '';
+  const coll = docCollFilter ? docCollFilter.value : '';
+  let visible = 0;
+  docTbody.querySelectorAll('tr').forEach(function(tr) {
+    const matchSize = !sz   || String(tr.dataset.size)       === sz;
+    const matchColl = !coll || String(tr.dataset.collection) === coll;
+    tr.style.display = (matchSize && matchColl) ? '' : 'none';
+    if (matchSize && matchColl) visible++;
+  });
+  if (docCountEl) docCountEl.textContent = visible + ' rows';
+}
+if (docSizeFilter) docSizeFilter.addEventListener('change', applyDocFilter);
+if (docCollFilter) docCollFilter.addEventListener('change', applyDocFilter);
+applyDocFilter();
+
+/* ── Days of Cover: sort ─────────────────────────────────────────── */
+const docSortState = { col: 'days_cover', asc: true };
+const DOC_NUM_COLS = new Set(['size_nominal','current_qty','avg_daily','days_cover',
+                              'restock_events','total_received','map_price']);
+
+document.querySelectorAll('.jmv-sort[data-tbl="doc"]').forEach(function(th) {
+  th.addEventListener('click', function() {
+    const col = this.dataset.col;
+    const asc = (docSortState.col === col) ? !docSortState.asc : true;
+    docSortState.col = col;
+    docSortState.asc = asc;
+
+    document.querySelectorAll('.jmv-sort[data-tbl="doc"]').forEach(function(h) {
+      h.classList.remove('jmv-sort--active');
+      h.textContent = h.textContent.replace(/ [↑↓]$/, '');
+    });
+    this.classList.add('jmv-sort--active');
+    this.textContent += (asc ? ' ↑' : ' ↓');
+
+    if (!docTbody) return;
+    const rows = Array.from(docTbody.querySelectorAll('tr'));
+    rows.sort(function(a, b) {
+      if (DOC_NUM_COLS.has(col)) {
+        const av = parseFloat(a.dataset[col]) || 0;
+        const bv = parseFloat(b.dataset[col]) || 0;
+        return asc ? av - bv : bv - av;
+      }
+      const as = String(a.dataset[col] || '').toLowerCase();
+      const bs = String(b.dataset[col] || '').toLowerCase();
+      return asc ? as.localeCompare(bs) : bs.localeCompare(as);
+    });
+    rows.forEach(function(r) { docTbody.appendChild(r); });
+  });
+});
+
 /* ── Rollup trigger ──────────────────────────────────────────────── */
 document.getElementById('jmv-rollup-btn')?.addEventListener('click', async () => {
   const btn = document.getElementById('jmv-rollup-btn');
@@ -560,4 +666,28 @@ document.getElementById('jmv-rollup-btn')?.addEventListener('click', async () =>
 .kpi-card { display:block }
 a.kpi-card { cursor:pointer; transition:box-shadow .15s }
 a.kpi-card:hover { box-shadow:0 4px 12px rgba(0,0,0,.12) }
+
+/* ── KPI tooltips ──────────────────────────────────────────────────── */
+.jmv-tip {
+  display:inline-flex; align-items:center; justify-content:center;
+  width:14px; height:14px; border-radius:50%;
+  background:#e2e8f0; color:#4a5568; font-size:.62rem; font-weight:700;
+  cursor:default; position:relative; vertical-align:middle; margin-left:3px;
+  flex-shrink:0;
+}
+.jmv-tip::after {
+  content: attr(data-tip);
+  position:absolute; bottom:calc(100% + 7px); left:50%; transform:translateX(-50%);
+  width:220px; padding:8px 10px; border-radius:6px;
+  background:#1a2e4a; color:#fff; font-size:.74rem; font-weight:400;
+  line-height:1.45; white-space:normal; z-index:200;
+  box-shadow:0 4px 14px rgba(0,0,0,.22);
+  pointer-events:none; opacity:0; transition:opacity .15s;
+}
+.jmv-tip::before {
+  content:''; position:absolute; bottom:calc(100% + 3px); left:50%; transform:translateX(-50%);
+  border:5px solid transparent; border-top-color:#1a2e4a;
+  z-index:200; pointer-events:none; opacity:0; transition:opacity .15s;
+}
+.jmv-tip:hover::after, .jmv-tip:hover::before { opacity:1 }
 </style>

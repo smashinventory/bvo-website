@@ -313,23 +313,41 @@ async function dashboard(req, res) {
       [latestDate, ...SYNC_TYPES, cutoffStr]
     );
 
+    // ── Restock events in window (alert strip KPI) ────────────────────
+    const restockKpi = await safeQueryOne(
+      `SELECT COUNT(*) AS events, COALESCE(SUM(m.received_min), 0) AS total_qty
+       FROM jmv_daily_movement m
+       JOIN jmv_dimensions d USING (sku)
+       WHERE m.is_valid = 1
+         AND m.is_restock = 1
+         AND d.product_type IN (${SYNC_TYPES_SQL})
+         AND m.movement_date >= ?`,
+      [...SYNC_TYPES, cutoffStr]
+    );
+
     // ── Days of cover (sync scope, latest snapshot) ───────────────────
+    // AVG is computed ONLY over days with confirmed demand (demand_min > 0)
+    // via CASE WHEN — this freezes the average the moment a SKU hits 0 qty,
+    // so extended stockout periods do not dilute the true demand signal.
     const daysOfCover = await safeQuery(
       `SELECT s.sku, d.collection, d.base_finish, d.size_nominal, d.product_type,
               s.qty AS current_qty, s.map_price,
-              AVG(m.demand_min) AS avg_daily,
-              ROUND(s.qty / NULLIF(AVG(m.demand_min), 0), 1) AS days_cover
+              AVG(CASE WHEN m.demand_min > 0 THEN m.demand_min END) AS avg_daily,
+              ROUND(s.qty / NULLIF(AVG(CASE WHEN m.demand_min > 0 THEN m.demand_min END), 0), 1) AS days_cover,
+              SUM(m.is_restock) AS restock_events,
+              COALESCE(SUM(m.received_min), 0) AS total_received
        FROM jmv_snapshots s
        JOIN jmv_dimensions d USING (sku)
        JOIN jmv_daily_movement m USING (sku)
        WHERE s.snapshot_date = ?
-         AND m.is_valid = 1 AND m.demand_min > 0
+         AND m.is_valid = 1
          AND d.product_type IN (${SYNC_TYPES_SQL})
          AND m.movement_date >= ?
        GROUP BY s.sku, d.collection, d.base_finish, d.size_nominal,
                 d.product_type, s.qty, s.map_price
-       HAVING days_cover IS NOT NULL
-       ORDER BY days_cover ASC LIMIT 30`,
+       HAVING avg_daily IS NOT NULL OR restock_events > 0
+       ORDER BY days_cover ASC, restock_events DESC
+       LIMIT 200`,
       [latestDate, ...SYNC_TYPES, cutoffStr]
     );
 
@@ -349,6 +367,8 @@ async function dashboard(req, res) {
       newArrivalsCount:   newArrivalsCount?.cnt || 0,
       discontinuedCount:  discontinuedCount?.cnt || 0,
       mapChangesCount:    mapChangesCount?.cnt || 0,
+      restockEvents:      restockKpi?.events  || 0,
+      restockQty:         restockKpi?.total_qty || 0,
       // charts
       topCollections:  JSON.stringify(topCollections),
       topFinishes:     JSON.stringify(topFinishes),
@@ -382,6 +402,7 @@ async function dashboard(req, res) {
       topThemes: '[]', topVanityTypes: '[]', priceBandsFallback: '[]',
       heatmapFinishes: '[]', heatmapSizes: '[]', heatmapMatrix: '{}',
       topMirrors: '[]', fpAttach: '[]', restockCadence: [], daysOfCover: [], top50: [],
+      restockEvents: 0, restockQty: 0,
       style: '',
     });
   }
