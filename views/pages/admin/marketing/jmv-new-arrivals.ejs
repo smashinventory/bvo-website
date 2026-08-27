@@ -1,0 +1,50 @@
+<%- contentFor('title') %>JMV New Arrivals — Admin<% end %>
+<%- contentFor('body') %>
+<div class="adm-toolbar">
+  <div class="adm-toolbar__left">
+    <a href="/admin/marketing/jmv" class="adm-btn adm-btn--ghost">← Back to JMV Reports</a>
+  </div>
+  <div class="adm-toolbar__title">New Arrivals</div>
+</div>
+
+<div class="admin-card" style="margin:24px">
+  <div class="admin-card__header">SKUs Released in the Last 90 Days</div>
+  <div class="admin-card__body">
+    <% if (error) { %>
+      <p class="adm-empty"><%= error %></p>
+    <% } else if (!items || !items.length) { %>
+      <p class="adm-empty">No new arrivals found in this window.</p>
+    <% } else { %>
+    <table class="adm-table">
+      <thead>
+        <tr>
+          <th>SKU</th>
+          <th>Collection</th>
+          <th>Type</th>
+          <th>Size</th>
+          <th>Finish</th>
+          <th>Released</th>
+          <th>Qty on Hand</th>
+          <th>Total Demand</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% items.forEach(function(r) { %>
+        <tr>
+          <td><code><%= r.sku %></code></td>
+          <td><%= r.collection || '—' %></td>
+          <td><%= r.product_type || '—' %></td>
+          <td><%= r.size_nominal ? r.size_nominal + '"' : '—' %></td>
+          <td><%= r.base_finish || '—' %></td>
+          <td><%= r.released || '—' %></td>
+          <td><%= r.qty_end %></td>
+          <td><%= r.total_demand || 0 %></td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+    <p class="adm-note" style="margin-top:12px">Source: Depletion from James Martin warehouse — industry-wide demand, not RFL sales.</p>
+    <% } %>
+  </div>
+</div>
+<% end %>

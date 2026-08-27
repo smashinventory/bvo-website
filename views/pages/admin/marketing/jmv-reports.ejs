@@ -1,0 +1,563 @@
+<%
+/* ═══════════════════════════════════════════════════════════════════
+   JMV Demand Intelligence Dashboard
+   Source note (required on every chart): "Depletion from James Martin
+   warehouse — industry-wide demand, not RFL sales."
+   All aggregations: MAX per group_number, never SUM (coupling hazard).
+═══════════════════════════════════════════════════════════════════ */
+const _topCollections  = JSON.parse(topCollections  || '[]');
+const _topFinishes     = JSON.parse(topFinishes     || '[]');
+const _topSizes        = JSON.parse(topSizes        || '[]');
+const _topThemes       = JSON.parse(topThemes       || '[]');
+const _topVanityTypes  = JSON.parse(topVanityTypes  || '[]');
+const _priceBands      = JSON.parse(priceBandsFallback || '[]');
+const _heatmapFinishes = JSON.parse(heatmapFinishes || '[]');
+const _heatmapSizes    = JSON.parse(heatmapSizes    || '[]');
+const _heatmapMatrix   = JSON.parse(heatmapMatrix   || '{}');
+const _topMirrors      = JSON.parse(topMirrors      || '[]');
+const _fpAttach        = JSON.parse(fpAttach        || '[]');
+%>
+
+<!-- ══ Toolbar ══════════════════════════════════════════════════════ -->
+<div class="adm-toolbar">
+  <div class="adm-back-wrap">
+    <a href="/admin" class="adm-back-link">← Dashboard</a>
+    <span class="adm-toolbar-title">JMV Demand Intelligence</span>
+  </div>
+
+  <form method="GET" action="/admin/marketing/jmv" style="display:flex;gap:8px;align-items:center;margin-left:auto">
+    <label class="adm-label" style="margin:0">Window</label>
+    <select name="days" class="adm-search-select" onchange="this.form.submit()">
+      <option value="7"   <%= days===7   ? 'selected':'' %>>Last 7 days</option>
+      <option value="14"  <%= days===14  ? 'selected':'' %>>Last 14 days</option>
+      <option value="30"  <%= days===30  ? 'selected':'' %>>Last 30 days</option>
+      <option value="60"  <%= days===60  ? 'selected':'' %>>Last 60 days</option>
+      <option value="90"  <%= days===90  ? 'selected':'' %>>Last 90 days</option>
+    </select>
+    <select name="type" class="adm-search-select" onchange="this.form.submit()">
+      <option value="sync" <%= ptype==='sync' ? 'selected':'' %>>Vanity / Cabinet / Top</option>
+      <option value="all"  <%= ptype==='all'  ? 'selected':'' %>>Full Feed (all types)</option>
+    </select>
+  </form>
+
+  <button class="btn btn-outline" id="jmv-rollup-btn" style="margin-left:8px">
+    ↺ Run Rollup
+  </button>
+</div>
+
+<!-- Snapshot status bar -->
+<% if (latestDate) { %>
+<div style="display:flex;align-items:center;gap:16px;padding:6px 0 12px;font-size:.8rem;color:var(--text-muted)">
+  <span>Latest snapshot: <strong><%= latestDate %></strong></span>
+  <span>Valid days collected: <strong><%= totalDays %></strong></span>
+  <% if (!hasDims) { %>
+  <span style="color:#c05621;font-weight:700">⚠ Dimension table empty — run rollup with "Include dimensions" or import XLSX</span>
+  <% } %>
+  <span style="margin-left:auto;font-style:italic;color:var(--text-muted)">
+    Source: James Martin warehouse depletion — industry-wide demand, not RFL sales
+  </span>
+</div>
+<% } else { %>
+<div class="adm-empty" style="margin:24px 0">
+  No snapshot data yet. Run the rollup job to import snapshot CSV files from the server, or upload XLSX feeds to seed the dimension table.
+</div>
+<% } %>
+
+<% if (typeof error !== 'undefined' && error) { %>
+<div style="background:#FFF5F5;border:1px solid #FC8181;border-radius:6px;padding:12px 16px;margin-bottom:16px;color:#742a2a"><%= error %></div>
+<% } %>
+
+<!-- ══ ROW 1 — ALERT STRIP ══════════════════════════════════════════ -->
+<h2 class="report-section-title">Operational Alerts — <%= latestDate || 'no data' %></h2>
+<div class="kpi-grid">
+
+  <a href="/admin/marketing/jmv/stockout" class="kpi-card kpi-card--<%= stockoutCount > 0 ? 'warn' : 'ok' %>" style="text-decoration:none">
+    <div class="kpi-label">Stockouts (qty = 0)</div>
+    <div class="kpi-value" style="<%= stockoutCount > 0 ? 'color:#c53030' : '' %>"><%= stockoutCount %></div>
+    <div class="kpi-sub">Sync scope · click to drill down</div>
+  </a>
+
+  <div class="kpi-card kpi-card--<%= lowStockCount > 20 ? 'warn' : 'ok' %>">
+    <div class="kpi-label">Low Stock (qty 1–3)</div>
+    <div class="kpi-value" style="<%= lowStockCount > 20 ? 'color:#c05621' : '' %>"><%= lowStockCount %></div>
+    <div class="kpi-sub">Sync scope · reorder candidates</div>
+  </div>
+
+  <a href="/admin/marketing/jmv/new-arrivals" class="kpi-card" style="text-decoration:none">
+    <div class="kpi-label">New Arrivals</div>
+    <div class="kpi-value"><%= newArrivalsCount %></div>
+    <div class="kpi-sub">vs earliest snapshot · click to view</div>
+  </a>
+
+  <div class="kpi-card kpi-card--<%= discontinuedCount > 0 ? 'warn' : 'ok' %>">
+    <div class="kpi-label">Discontinued Watch</div>
+    <div class="kpi-value" style="<%= discontinuedCount > 0 ? 'color:#c05621' : '' %>"><%= discontinuedCount %></div>
+    <div class="kpi-sub">Pull from site before orders</div>
+  </div>
+
+  <div class="kpi-card">
+    <div class="kpi-label">MAP Changes</div>
+    <div class="kpi-value"><%= mapChangesCount %></div>
+    <div class="kpi-sub">Since <%= earliestDate || '—' %></div>
+  </div>
+
+  <div class="kpi-card">
+    <div class="kpi-label">Data Window</div>
+    <div class="kpi-value"><%= totalDays %> days</div>
+    <div class="kpi-sub"><%= earliestDate || '—' %> → <%= latestDate || '—' %></div>
+  </div>
+
+</div>
+
+<% if (daysOfCover.length > 0) { %>
+<!-- Days of cover strip — only items moving fast -->
+<div class="admin-card" style="margin-top:8px">
+  <h3 class="admin-card-title">Days of Cover — Fastest Moving (sync scope)</h3>
+  <p style="font-size:.8rem;color:var(--text-muted);margin:0 0 10px">Current qty ÷ avg daily drawdown. Directional only at &lt;30 days of history.</p>
+  <div class="adm-table-wrap">
+    <table class="adm-table">
+      <thead><tr>
+        <th>SKU</th><th>Collection</th><th>Finish</th><th>Size</th><th>Type</th>
+        <th>Qty Now</th><th>Avg Daily Draw</th><th>Est Days Cover</th><th>MAP</th>
+      </tr></thead>
+      <tbody>
+      <% daysOfCover.forEach(r => { %>
+        <tr class="<%= r.days_cover <= 7 ? 'jmv-row--critical' : r.days_cover <= 14 ? 'jmv-row--warn' : '' %>">
+          <td><code style="font-size:.78rem"><%= r.sku %></code></td>
+          <td><%= r.collection || '—' %></td>
+          <td><%= r.base_finish || '—' %></td>
+          <td><%= r.size_nominal ? r.size_nominal + '"' : '—' %></td>
+          <td><%= r.product_type || '—' %></td>
+          <td style="font-weight:700;color:<%= r.current_qty===0?'#c53030':r.current_qty<=3?'#c05621':'' %>"><%= r.current_qty %></td>
+          <td><%= parseFloat(r.avg_daily||0).toFixed(1) %></td>
+          <td style="font-weight:700"><%= r.days_cover !== null ? r.days_cover : '—' %></td>
+          <td><%= r.map_price ? '$' + parseFloat(r.map_price).toLocaleString('en-US',{minimumFractionDigits:0}) : '—' %></td>
+        </tr>
+      <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<% } %>
+
+<!-- ══ ROW 2 — HEADLINE MOVERS ══════════════════════════════════════ -->
+<h2 class="report-section-title" style="margin-top:28px">Headline Movers — Last <%= days %> Days</h2>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+
+  <!-- Top Collections -->
+  <div class="admin-card">
+    <h3 class="admin-card-title">Top Collections <span style="font-weight:400;font-size:.8rem;color:var(--text-muted)">(group-deduped)</span></h3>
+    <% if (_topCollections.length) { %>
+    <canvas id="chartCollections" height="260"></canvas>
+    <% } else { %>
+    <div class="adm-empty">No movement data yet for this window</div>
+    <% } %>
+  </div>
+
+  <!-- Size × Finish Heatmap -->
+  <div class="admin-card">
+    <h3 class="admin-card-title">Size × Base Finish — Observed Drawdown</h3>
+    <% if (_heatmapFinishes.length && _heatmapSizes.length) { %>
+    <div style="overflow-x:auto">
+      <table class="jmv-heatmap">
+        <thead>
+          <tr>
+            <th style="text-align:left;min-width:140px">Finish \ Size →</th>
+            <% _heatmapSizes.forEach(s => { %><th><%= s %>"</th><% }) %>
+          </tr>
+        </thead>
+        <tbody>
+        <% _heatmapFinishes.forEach(finish => { %>
+          <% const row = _heatmapMatrix[finish] || {}; %>
+          <% const maxInRow = Math.max(1, ...Object.values(row)); %>
+          <tr>
+            <td class="jmv-heatmap__label"><%= finish || '—' %></td>
+            <% _heatmapSizes.forEach(sz => { %>
+              <% const v = row[sz] || 0; %>
+              <% const pct = Math.round(v / maxInRow * 100); %>
+              <td class="jmv-heatmap__cell" style="--pct:<%= pct %>%;background:rgba(26,46,74,<%= (v/maxInRow*0.85).toFixed(2) %>);color:<%= pct>50?'#fff':'#1a2e4a' %>">
+                <%= v || '' %>
+              </td>
+            <% }) %>
+          </tr>
+        <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+    <div class="adm-empty">Heatmap available once dimension table is populated</div>
+    <% } %>
+  </div>
+
+</div>
+
+<!-- Top Mirrors -->
+<% if (_topMirrors.length) { %>
+<div class="admin-card" style="margin-top:12px">
+  <h3 class="admin-card-title">Top Moving Mirrors <span style="font-weight:400;font-size:.8rem;color:var(--text-muted)">— not in our catalog · "should we add?" view</span></h3>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+    <% _topMirrors.forEach((r,i) => { %>
+    <div style="background:#f7fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px 14px;font-size:.84rem">
+      <div style="font-weight:700;color:#1a2e4a"><%= r.collection %></div>
+      <div style="color:var(--text-muted);font-size:.76rem"><%= r.total_drawdown %> units · <%= r.group_count %> groups</div>
+    </div>
+    <% }) %>
+  </div>
+</div>
+<% } %>
+
+<!-- ══ ROW 3 — DIMENSION BREAKDOWNS ═════════════════════════════════ -->
+<h2 class="report-section-title" style="margin-top:28px">Dimension Breakdowns <span style="font-weight:400;font-size:.85rem;font-style:italic">— group-deduped, sync scope</span></h2>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+
+  <!-- Base Finishes -->
+  <div class="admin-card">
+    <h3 class="admin-card-title">Base Finishes</h3>
+    <% if (_topFinishes.length) { %>
+    <canvas id="chartFinishes" height="200"></canvas>
+    <% } else { %><div class="adm-empty">No data</div><% } %>
+  </div>
+
+  <!-- Sizes -->
+  <div class="admin-card">
+    <h3 class="admin-card-title">Sizes (in")</h3>
+    <% if (_topSizes.length) { %>
+    <canvas id="chartSizes" height="200"></canvas>
+    <% } else { %><div class="adm-empty">No data</div><% } %>
+  </div>
+
+  <!-- Themes -->
+  <div class="admin-card">
+    <h3 class="admin-card-title">Themes</h3>
+    <% if (_topThemes.length) { %>
+    <canvas id="chartThemes" height="200"></canvas>
+    <% } else { %><div class="adm-empty">No data</div><% } %>
+  </div>
+
+  <!-- Price Bands -->
+  <div class="admin-card">
+    <h3 class="admin-card-title">Price Band Velocity</h3>
+    <% if (_priceBands.length) { %>
+    <canvas id="chartPriceBands" height="200"></canvas>
+    <% } else { %><div class="adm-empty">No data</div><% } %>
+  </div>
+
+  <!-- Vanity Type -->
+  <div class="admin-card">
+    <h3 class="admin-card-title">Vanity Type</h3>
+    <% if (_topVanityTypes.length) { %>
+    <canvas id="chartVanityTypes" height="200"></canvas>
+    <% } else { %><div class="adm-empty">No data</div><% } %>
+  </div>
+
+  <!-- FreePower Attach -->
+  <div class="admin-card">
+    <h3 class="admin-card-title">FreePower Attach Rate</h3>
+    <% if (_fpAttach.length) { %>
+    <canvas id="chartFP" height="200"></canvas>
+    <% } else { %><div class="adm-empty">No data (only 366 FP-compatible SKUs in feed)</div><% } %>
+  </div>
+
+</div>
+
+<!-- Restock Cadence -->
+<% if (restockCadence.length > 0) { %>
+<div class="admin-card" style="margin-top:12px">
+  <h3 class="admin-card-title">Restock Cadence <span style="font-weight:400;font-size:.8rem;color:var(--text-muted)">— most-restocked SKUs (immune to coupling &amp; censoring biases)</span></h3>
+  <div class="adm-table-wrap">
+    <table class="adm-table">
+      <thead><tr>
+        <th>SKU</th><th>Collection</th><th>Finish</th><th>Size</th>
+        <th>Restock Events</th><th>Avg Batch (min)</th><th>Avg Batch (max)</th><th>Qty Now</th>
+      </tr></thead>
+      <tbody>
+      <% restockCadence.forEach(r => { %>
+        <tr>
+          <td><code style="font-size:.78rem"><%= r.sku %></code></td>
+          <td><%= r.collection || '—' %></td>
+          <td><%= r.base_finish || '—' %></td>
+          <td><%= r.size_nominal ? r.size_nominal+'"' : '—' %></td>
+          <td style="font-weight:700"><%= r.restock_count %></td>
+          <td><%= r.avg_batch_min ? Math.round(r.avg_batch_min) : '—' %></td>
+          <td><%= r.avg_batch_max ? Math.round(r.avg_batch_max) : '—' %></td>
+          <td><%= r.current_qty %></td>
+        </tr>
+      <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<% } %>
+
+<!-- ══ ROW 4 — TOP 50 SKU TABLE ══════════════════════════════════════ -->
+<h2 class="report-section-title" style="margin-top:28px">Top 50 SKUs — Observed Drawdown</h2>
+<p style="font-size:.8rem;color:var(--text-muted);margin:-4px 0 10px">
+  SKU-level (not group-deduped) — check Group # to identify shared-component clusters.
+  "Observed drawdown (minimum demand)" — demand on restock days is hidden.
+</p>
+
+<% if (top50.length > 0) { %>
+
+<!-- Filter bar -->
+<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+  <input type="text" id="jmv-filter-input" class="adm-search-select" placeholder="Filter SKU / collection / finish…" style="min-width:260px">
+  <select id="jmv-filter-type" class="adm-search-select">
+    <option value="">All types</option>
+    <option>Vanity</option><option>Cabinet</option><option>Top</option>
+  </select>
+  <span id="jmv-filter-count" style="font-size:.8rem;color:var(--text-muted)"></span>
+</div>
+
+<div class="adm-table-wrap">
+  <table class="adm-table" id="jmv-top50-table">
+    <thead><tr>
+      <th>#</th>
+      <th class="jmv-sort" data-col="sku">SKU</th>
+      <th class="jmv-sort" data-col="collection">Collection</th>
+      <th class="jmv-sort" data-col="base_finish">Finish</th>
+      <th class="jmv-sort" data-col="size_nominal">Size</th>
+      <th class="jmv-sort" data-col="product_type">Type</th>
+      <th class="jmv-sort" data-col="current_qty">Qty Now</th>
+      <th class="jmv-sort" data-col="map_price">MAP</th>
+      <th class="jmv-sort jmv-sort--active" data-col="total_drawdown">Drawdown ↓</th>
+      <th class="jmv-sort" data-col="restock_events">Restocks</th>
+      <th>Group #</th>
+    </tr></thead>
+    <tbody id="jmv-top50-tbody">
+    <% top50.forEach((r, i) => { %>
+      <tr data-sku="<%= r.sku %>"
+          data-collection="<%= (r.collection||'').toLowerCase() %>"
+          data-finish="<%= (r.base_finish||'').toLowerCase() %>"
+          data-type="<%= r.product_type||'' %>">
+        <td style="color:var(--text-muted)"><%= i+1 %></td>
+        <td><code style="font-size:.78rem"><%= r.sku %></code></td>
+        <td><%= r.collection || '—' %></td>
+        <td><%= r.base_finish || '—' %></td>
+        <td><%= r.size_nominal ? r.size_nominal+'"' : '—' %></td>
+        <td><span class="jmv-type-chip jmv-type-chip--<%= (r.product_type||'').toLowerCase() %>"><%= r.product_type || '—' %></span></td>
+        <td style="font-weight:700;color:<%= r.current_qty===0?'#c53030':r.current_qty<=3?'#c05621':'' %>"><%= r.current_qty %></td>
+        <td><%= r.map_price ? '$'+parseFloat(r.map_price).toLocaleString('en-US',{minimumFractionDigits:0}) : '—' %></td>
+        <td style="font-weight:700;color:#1a2e4a"><%= r.total_drawdown %></td>
+        <td><%= r.restock_events || 0 %></td>
+        <td style="font-size:.75rem;color:var(--text-muted)"><%= r.group_number || '—' %></td>
+      </tr>
+    <% }) %>
+    </tbody>
+  </table>
+</div>
+<% } else { %>
+<div class="adm-empty">No movement data for this window yet — run the rollup job or widen the date window.</div>
+<% } %>
+
+<!-- Snapshot history -->
+<% if (snapshotStatus.length > 0) { %>
+<div class="admin-card" style="margin-top:24px">
+  <h3 class="admin-card-title">Snapshot History</h3>
+  <div class="adm-table-wrap">
+    <table class="adm-table">
+      <thead><tr><th>Date</th><th>Row Count</th><th>Valid</th><th>Notes</th></tr></thead>
+      <tbody>
+      <% snapshotStatus.forEach(r => { %>
+        <tr>
+          <td><%= r.snapshot_date %></td>
+          <td><%= r.row_count.toLocaleString() %></td>
+          <td style="color:<%= r.is_valid ? '#276749':'#c53030' %>;font-weight:700"><%= r.is_valid ? '✓ Valid' : '✗ Invalid' %></td>
+          <td style="font-size:.78rem;color:var(--text-muted)"><%= r.notes || '—' %></td>
+        </tr>
+      <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<% } %>
+
+<!-- ══ SCRIPTS ════════════════════════════════════════════════════════ -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+/* ── Data ─────────────────────────────────────────────────────────── */
+const NAVY    = 'rgba(26,46,74,0.82)';
+const SAGE    = 'rgba(99,179,136,0.80)';
+const AMBER   = 'rgba(214,158,46,0.80)';
+const SLATE   = 'rgba(113,128,150,0.70)';
+const ROSE    = 'rgba(197,48,48,0.75)';
+const PALETTE = [NAVY,'rgba(43,108,176,.75)','rgba(44,122,123,.75)',SAGE,'rgba(106,153,78,.75)',
+                 AMBER,'rgba(214,132,46,.8)',ROSE,'rgba(154,48,82,.7)',SLATE];
+
+const topCollections = <%- topCollections %>;
+const topFinishes    = <%- topFinishes %>;
+const topSizes       = <%- topSizes %>;
+const topThemes      = <%- topThemes %>;
+const topVTypes      = <%- topVanityTypes %>;
+const priceBands     = <%- priceBandsFallback %>;
+const fpAttach       = <%- fpAttach %>;
+
+function makeBar(id, labels, data, colorFn) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  new Chart(el, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets:[{ data, backgroundColor: colorFn || PALETTE, borderRadius:4, borderSkipped:false }]
+    },
+    options:{
+      indexAxis:'y',
+      responsive:true,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{label: ctx => ' ' + ctx.parsed.x + ' units drawdown'}}
+      },
+      scales:{
+        x:{ grid:{color:'rgba(0,0,0,.05)'}, ticks:{font:{size:11}} },
+        y:{ ticks:{font:{size:11}, maxRotation:0} }
+      }
+    }
+  });
+}
+
+function makePie(id, labels, data) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  new Chart(el, {
+    type: 'doughnut',
+    data: { labels, datasets:[{ data, backgroundColor: PALETTE, borderWidth:2, borderColor:'#fff' }] },
+    options:{ responsive:true, plugins:{ legend:{ position:'right', labels:{ font:{size:11}, boxWidth:14 } } } }
+  });
+}
+
+if (topCollections.length) {
+  makeBar('chartCollections',
+    topCollections.map(r => r.collection || '—'),
+    topCollections.map(r => r.total_drawdown),
+    topCollections.map((_,i) => PALETTE[i % PALETTE.length])
+  );
+}
+if (topFinishes.length) {
+  makeBar('chartFinishes',
+    topFinishes.slice(0,10).map(r => r.base_finish || '—'),
+    topFinishes.slice(0,10).map(r => r.total_drawdown)
+  );
+}
+if (topSizes.length) {
+  makeBar('chartSizes',
+    topSizes.slice(0,10).map(r => (r.size||'?')+'"'),
+    topSizes.slice(0,10).map(r => r.total_drawdown),
+    PALETTE.map((_,i) => PALETTE[i % PALETTE.length])
+  );
+}
+if (topThemes.length) {
+  makePie('chartThemes',
+    topThemes.map(r => (r.theme||'Unknown').replace(/\(.*\)/,'').trim()),
+    topThemes.map(r => r.total_drawdown)
+  );
+}
+if (priceBands.length) {
+  makeBar('chartPriceBands',
+    priceBands.map(r => r.price_band),
+    priceBands.map(r => r.total_drawdown),
+    [SLATE,'rgba(43,108,176,.7)',NAVY,SAGE,AMBER,ROSE]
+  );
+}
+if (topVTypes.length) {
+  makePie('chartVanityTypes',
+    topVTypes.map(r => r.vanity_type || 'Unknown'),
+    topVTypes.map(r => r.total_drawdown)
+  );
+}
+if (fpAttach.length) {
+  makePie('chartFP',
+    fpAttach.map(r => r.fp),
+    fpAttach.map(r => r.total_drawdown)
+  );
+}
+
+/* ── Top-50 filter ───────────────────────────────────────────────── */
+const filterInput = document.getElementById('jmv-filter-input');
+const filterType  = document.getElementById('jmv-filter-type');
+const filterCount = document.getElementById('jmv-filter-count');
+const tbody       = document.getElementById('jmv-top50-tbody');
+
+function applyFilter() {
+  if (!tbody) return;
+  const q    = (filterInput?.value || '').toLowerCase();
+  const type = filterType?.value || '';
+  let visible = 0;
+  tbody.querySelectorAll('tr').forEach(tr => {
+    const sku    = (tr.dataset.sku        || '').toLowerCase();
+    const coll   = (tr.dataset.collection || '');
+    const finish = (tr.dataset.finish     || '');
+    const rtype  = (tr.dataset.type       || '');
+    const match  = (!q || sku.includes(q) || coll.includes(q) || finish.includes(q))
+                && (!type || rtype === type);
+    tr.style.display = match ? '' : 'none';
+    if (match) visible++;
+  });
+  if (filterCount) filterCount.textContent = visible + ' rows';
+}
+
+filterInput?.addEventListener('input', applyFilter);
+filterType?.addEventListener('change', applyFilter);
+applyFilter();
+
+/* ── Rollup trigger ──────────────────────────────────────────────── */
+document.getElementById('jmv-rollup-btn')?.addEventListener('click', async () => {
+  const btn = document.getElementById('jmv-rollup-btn');
+  btn.disabled = true; btn.textContent = 'Running…';
+  try {
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    const resp = await fetch('/admin/marketing/jmv/run-rollup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': csrf },
+      body: 'include_dimensions=0'
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      const summary = data.results.map(r =>
+        r.type === 'dimensions'
+          ? `Dimensions: ${r.upserted} upserted`
+          : r.error
+            ? `${r.date}: ERROR — ${r.error}`
+            : `${r.date}: ${r.inserted} rows, ${r.restocks} restocks${!r.isValid?' (INVALID)':''}`
+      ).join('\n');
+      alert('Rollup complete:\n\n' + summary + '\n\nReloading…');
+      location.reload();
+    } else {
+      alert('Rollup failed: ' + data.error);
+      btn.disabled = false; btn.textContent = '↺ Run Rollup';
+    }
+  } catch (e) {
+    alert('Network error: ' + e.message);
+    btn.disabled = false; btn.textContent = '↺ Run Rollup';
+  }
+});
+</script>
+
+<style>
+/* ── JMV dashboard component styles ───────────────────────────────── */
+.jmv-heatmap { border-collapse:collapse; font-size:.82rem; min-width:100% }
+.jmv-heatmap th { padding:5px 10px; text-align:center; font-size:.78rem;
+                  background:#f7fafc; border:1px solid #e2e8f0; white-space:nowrap }
+.jmv-heatmap__label { padding:5px 10px; font-weight:600; white-space:nowrap;
+                       border:1px solid #e2e8f0; background:#f7fafc; text-align:left }
+.jmv-heatmap__cell { padding:5px 8px; text-align:center; border:1px solid #e2e8f0;
+                      font-size:.8rem; font-weight:600; min-width:42px; transition:opacity .15s }
+.jmv-heatmap__cell:hover { opacity:.75 }
+
+.jmv-type-chip { display:inline-block; padding:2px 8px; border-radius:10px;
+                  font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em }
+.jmv-type-chip--vanity  { background:#EBF8FF; color:#2b6cb0 }
+.jmv-type-chip--cabinet { background:#F0FFF4; color:#276749 }
+.jmv-type-chip--top     { background:#FEFCBF; color:#975a16 }
+.jmv-type-chip--mirror  { background:#FAF5FF; color:#553c9a }
+
+.jmv-row--critical { background:#FFF5F5 }
+.jmv-row--warn     { background:#FFFAF0 }
+
+.jmv-sort { cursor:pointer; user-select:none }
+.jmv-sort:hover { background:rgba(26,46,74,.06) }
+.jmv-sort--active { color:#1a2e4a }
+
+.kpi-card { display:block }
+a.kpi-card { cursor:pointer; transition:box-shadow .15s }
+a.kpi-card:hover { box-shadow:0 4px 12px rgba(0,0,0,.12) }
+</style>

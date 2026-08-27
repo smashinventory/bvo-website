@@ -1,0 +1,49 @@
+<%- contentFor('title') %>JMV Stockout Risk — Admin<% end %>
+<%- contentFor('body') %>
+<div class="adm-toolbar">
+  <div class="adm-toolbar__left">
+    <a href="/admin/marketing/jmv" class="adm-btn adm-btn--ghost">← Back to JMV Reports</a>
+  </div>
+  <div class="adm-toolbar__title">Stockout Risk Detail</div>
+</div>
+
+<div class="admin-card" style="margin:24px">
+  <div class="admin-card__header">SKUs at Stockout Risk (≤ 7 days of cover)</div>
+  <div class="admin-card__body">
+    <% if (error) { %>
+      <p class="adm-empty"><%= error %></p>
+    <% } else if (!items || !items.length) { %>
+      <p class="adm-empty">No SKUs currently at stockout risk.</p>
+    <% } else { %>
+    <table class="adm-table">
+      <thead>
+        <tr>
+          <th>SKU</th>
+          <th>Collection</th>
+          <th>Size</th>
+          <th>Finish</th>
+          <th>Qty on Hand</th>
+          <th>Avg Daily Demand</th>
+          <th>Days of Cover</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% items.forEach(function(r) { %>
+        <tr>
+          <td><code><%= r.sku %></code></td>
+          <td><%= r.collection || '—' %></td>
+          <td><%= r.size_nominal ? r.size_nominal + '"' : '—' %></td>
+          <td><%= r.base_finish || '—' %></td>
+          <td><%= r.qty_end %></td>
+          <td><%= r.avg_daily ? parseFloat(r.avg_daily).toFixed(1) : '—' %></td>
+          <td class="<%= r.days_of_cover <= 3 ? 'text-danger' : 'text-warning' %>">
+            <%= r.days_of_cover !== null ? r.days_of_cover + 'd' : '—' %>
+          </td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+    <% } %>
+  </div>
+</div>
+<% end %>

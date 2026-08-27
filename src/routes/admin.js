@@ -10,6 +10,7 @@ const menusCtrl     = require('../controllers/menusController');
 const ordersCtrl    = require('../controllers/ordersController');
 const returnsCtrl   = require('../controllers/returnsController');
 const emailTplCtrl  = require('../controllers/emailTemplatesController');
+const jmvCtrl       = require('../controllers/jmvReportsController');
 const { requireAdmin } = require('../middleware/adminAuth');
 
 /* ── Strict rate limit on admin login — 10 attempts / 15 min ── */
@@ -135,6 +136,12 @@ router.post('/menus/:handle/items',                          menusCtrl.adminAddI
 router.post('/menus/:handle/items/:itemId/delete',           menusCtrl.adminDeleteItem);
 router.post('/menus/:handle/items/:itemId',                  menusCtrl.adminUpdateItem);
 router.post('/menus/:handle/reorder',                        menusCtrl.adminReorder);
+
+/* ── Marketing / JMV Demand Reports ─────────────────────────── */
+router.get ('/marketing/jmv',                jmvCtrl.dashboard);
+router.post('/marketing/jmv/run-rollup',     jmvCtrl.triggerRollup);
+router.get ('/marketing/jmv/stockout',       jmvCtrl.stockoutDrilldown);
+router.get ('/marketing/jmv/new-arrivals',   jmvCtrl.newArrivalsDrilldown);
 
 /* ── Theme Editor ───────────────────────────────────────────── */
 router.get ('/theme',          ctrl.themeEditor);
