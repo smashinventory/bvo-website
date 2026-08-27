@@ -5,15 +5,20 @@
     <a href="/admin/marketing/jmv" class="adm-btn adm-btn--ghost">← Back to JMV Reports</a>
   </div>
   <div class="adm-toolbar__title">New Arrivals</div>
+  <% if (earliest && latest) { %>
+  <div class="adm-toolbar__right" style="font-size:12px;color:#666">
+    SKUs present in <%= latest %> but not <%= earliest %>
+  </div>
+  <% } %>
 </div>
 
 <div class="admin-card" style="margin:24px">
-  <div class="admin-card__header">SKUs Released in the Last 90 Days</div>
+  <div class="admin-card__header">
+    <%= rows.length %> New SKU<%= rows.length !== 1 ? 's' : '' %> since <%= earliest || '—' %>
+  </div>
   <div class="admin-card__body">
-    <% if (error) { %>
-      <p class="adm-empty"><%= error %></p>
-    <% } else if (!items || !items.length) { %>
-      <p class="adm-empty">No new arrivals found in this window.</p>
+    <% if (!rows || !rows.length) { %>
+      <p class="adm-empty">No new arrivals detected in this window. More history needed as daily snapshots accumulate.</p>
     <% } else { %>
     <table class="adm-table">
       <thead>
@@ -23,27 +28,27 @@
           <th>Type</th>
           <th>Size</th>
           <th>Finish</th>
-          <th>Released</th>
           <th>Qty on Hand</th>
-          <th>Total Demand</th>
+          <th>MAP</th>
         </tr>
       </thead>
       <tbody>
-        <% items.forEach(function(r) { %>
+        <% rows.forEach(function(r) { %>
         <tr>
           <td><code><%= r.sku %></code></td>
           <td><%= r.collection || '—' %></td>
           <td><%= r.product_type || '—' %></td>
           <td><%= r.size_nominal ? r.size_nominal + '"' : '—' %></td>
           <td><%= r.base_finish || '—' %></td>
-          <td><%= r.released || '—' %></td>
-          <td><%= r.qty_end %></td>
-          <td><%= r.total_demand || 0 %></td>
+          <td><%= r.qty %></td>
+          <td><%= r.map_price ? '$' + parseFloat(r.map_price).toLocaleString('en-US',{minimumFractionDigits:0}) : '—' %></td>
         </tr>
         <% }); %>
       </tbody>
     </table>
-    <p class="adm-note" style="margin-top:12px">Source: Depletion from James Martin warehouse — industry-wide demand, not RFL sales.</p>
+    <p class="adm-note" style="margin-top:12px;font-size:11px;color:#888">
+      Source: Depletion from James Martin warehouse — industry-wide demand, not RFL sales.
+    </p>
     <% } %>
   </div>
 </div>

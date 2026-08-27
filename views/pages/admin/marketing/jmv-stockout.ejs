@@ -4,45 +4,52 @@
   <div class="adm-toolbar__left">
     <a href="/admin/marketing/jmv" class="adm-btn adm-btn--ghost">← Back to JMV Reports</a>
   </div>
-  <div class="adm-toolbar__title">Stockout Risk Detail</div>
+  <div class="adm-toolbar__title">Stockout Risk — SKUs with qty ≤ 3</div>
+  <% if (latestDate) { %>
+  <div class="adm-toolbar__right" style="font-size:12px;color:#666">Snapshot: <%= latestDate %></div>
+  <% } %>
 </div>
 
 <div class="admin-card" style="margin:24px">
-  <div class="admin-card__header">SKUs at Stockout Risk (≤ 7 days of cover)</div>
+  <div class="admin-card__header">
+    <%= rows.length %> SKU<%= rows.length !== 1 ? 's' : '' %> at Risk
+    <span style="font-size:12px;font-weight:400;color:#888;margin-left:8px">Sync scope: Vanity · Cabinet · Top</span>
+  </div>
   <div class="admin-card__body">
-    <% if (error) { %>
-      <p class="adm-empty"><%= error %></p>
-    <% } else if (!items || !items.length) { %>
-      <p class="adm-empty">No SKUs currently at stockout risk.</p>
+    <% if (!rows || !rows.length) { %>
+      <p class="adm-empty">No SKUs at stockout risk in the latest snapshot.</p>
     <% } else { %>
     <table class="adm-table">
       <thead>
         <tr>
           <th>SKU</th>
           <th>Collection</th>
+          <th>Type</th>
           <th>Size</th>
           <th>Finish</th>
           <th>Qty on Hand</th>
-          <th>Avg Daily Demand</th>
-          <th>Days of Cover</th>
+          <th>MAP</th>
         </tr>
       </thead>
       <tbody>
-        <% items.forEach(function(r) { %>
-        <tr>
+        <% rows.forEach(function(r) { %>
+        <tr class="<%= r.qty === 0 ? 'row--danger' : 'row--warning' %>">
           <td><code><%= r.sku %></code></td>
           <td><%= r.collection || '—' %></td>
+          <td><%= r.product_type || '—' %></td>
           <td><%= r.size_nominal ? r.size_nominal + '"' : '—' %></td>
           <td><%= r.base_finish || '—' %></td>
-          <td><%= r.qty_end %></td>
-          <td><%= r.avg_daily ? parseFloat(r.avg_daily).toFixed(1) : '—' %></td>
-          <td class="<%= r.days_of_cover <= 3 ? 'text-danger' : 'text-warning' %>">
-            <%= r.days_of_cover !== null ? r.days_of_cover + 'd' : '—' %>
+          <td style="font-weight:600;color:<%= r.qty === 0 ? '#c0392b' : '#e67e22' %>">
+            <%= r.qty %>
           </td>
+          <td><%= r.map_price ? '$' + parseFloat(r.map_price).toLocaleString('en-US',{minimumFractionDigits:0}) : '—' %></td>
         </tr>
         <% }); %>
       </tbody>
     </table>
+    <p class="adm-note" style="margin-top:12px;font-size:11px;color:#888">
+      Source: Depletion from James Martin warehouse — industry-wide demand, not RFL sales.
+    </p>
     <% } %>
   </div>
 </div>
