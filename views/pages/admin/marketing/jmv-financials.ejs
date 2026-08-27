@@ -1,0 +1,417 @@
+<%
+/* ═══════════════════════════════════════════════════════════════════
+   JMV Financials — MAP Revenue Proxy Dashboard
+   "Revenue" = observed drawdown × MAP price.  Minimum demand estimate.
+   Source note required: "Depletion from James Martin warehouse —
+   industry-wide demand, not RFL sales."
+   Aggregate KPIs: group-deduped (MAX per group_number per day).
+   Per-SKU table: SKU-level (shared-component risk acknowledged).
+═══════════════════════════════════════════════════════════════════ */
+const _byDay   = JSON.parse(revenueByDay        || '[]');
+const _byCat   = JSON.parse(revenueByCategory   || '[]');
+const _byColl  = JSON.parse(revenueByCollection || '[]');
+const _byFin   = JSON.parse(revenueByFinish     || '[]');
+const _byCombo = JSON.parse(comboVsIndividual   || '[]');
+
+function fmtDollar(n) {
+  return '$' + Number(n||0).toLocaleString('en-US', {minimumFractionDigits:0});
+}
+%>
+
+<!-- ══ Toolbar ══════════════════════════════════════════════════════ -->
+<div class="adm-toolbar">
+  <div class="adm-back-wrap">
+    <a href="/admin/marketing/jmv" class="adm-back-link">← JMV Reports</a>
+    <span class="adm-toolbar-title">JMV Financials</span>
+  </div>
+  <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <!-- Period quick-select -->
+    <div class="jmvf-period-btns">
+      <button class="jmvf-period-btn" onclick="setPeriod('mtd')">MTD</button>
+      <button class="jmvf-period-btn" onclick="setPeriod('7d')">7 days</button>
+      <button class="jmvf-period-btn" onclick="setPeriod('30d')">30 days</button>
+      <button class="jmvf-period-btn" onclick="setPeriod('90d')">90 days</button>
+    </div>
+    <!-- Custom date range -->
+    <form method="GET" action="/admin/marketing/jmv/financials"
+          style="display:flex;gap:6px;align-items:center">
+      <input type="date" name="from" value="<%= fromDate %>" class="adm-search-select" style="width:140px">
+      <span style="color:var(--text-muted);font-size:.8rem">→</span>
+      <input type="date" name="to"   value="<%= toDate   %>" class="adm-search-select" style="width:140px">
+      <input type="hidden" name="scope" value="<%= scope %>">
+      <button type="submit" class="btn btn-sm btn-primary">Apply</button>
+    </form>
+    <!-- Scope toggle -->
+    <form method="GET" action="/admin/marketing/jmv/financials">
+      <input type="hidden" name="from"  value="<%= fromDate %>">
+      <input type="hidden" name="to"    value="<%= toDate %>">
+      <select name="scope" class="adm-search-select" onchange="this.form.submit()">
+        <option value="all"  <%= scope==='all'  ? 'selected':'' %>>All types</option>
+        <option value="sync" <%= scope==='sync' ? 'selected':'' %>>Vanity / Cabinet / Top</option>
+      </select>
+    </form>
+  </div>
+</div>
+
+<!-- Snapshot note -->
+<div style="display:flex;align-items:center;gap:16px;padding:6px 0 12px;font-size:.8rem;color:var(--text-muted)">
+  <span>Showing: <strong><%= fromDate %></strong> → <strong><%= toDate %></strong></span>
+  <% if (latestDate) { %><span>MAP prices from snapshot: <strong><%= latestDate %></strong></span><% } %>
+  <span style="margin-left:auto;font-style:italic">
+    Revenue = drawdown units × MAP price (minimum estimate, industry-wide demand, not RFL sales)
+  </span>
+</div>
+
+<% if (typeof error !== 'undefined' && error) { %>
+<div style="background:#FFF5F5;border:1px solid #FC8181;border-radius:6px;padding:12px 16px;margin-bottom:16px;color:#742a2a"><%= error %></div>
+<% } %>
+
+<!-- ══ KPI CARDS ═════════════════════════════════════════════════════ -->
+<h2 class="report-section-title">Revenue Summary — MAP Price Proxy</h2>
+<div class="kpi-grid" style="grid-template-columns:repeat(5,1fr)">
+
+  <div class="kpi-card" style="border-top:3px solid #1a2e4a">
+    <div class="kpi-label">MAP Revenue (min)</div>
+    <div class="kpi-value" style="color:#1a2e4a"><%= fmtDollar(mapRevenue) %></div>
+    <div class="kpi-sub">Group-deduped · drawdown × MAP</div>
+  </div>
+
+  <div class="kpi-card" style="border-top:3px solid #2b6cb0">
+    <div class="kpi-label">Units Depleted (min)</div>
+    <div class="kpi-value" style="color:#2b6cb0"><%= Number(qtySold||0).toLocaleString() %></div>
+    <div class="kpi-sub">Observed drawdown · <%= scope === 'sync' ? 'Vanity/Cabinet/Top' : 'All types' %></div>
+  </div>
+
+  <div class="kpi-card" style="border-top:3px solid #276749">
+    <div class="kpi-label">Top 10 SKU Revenue</div>
+    <div class="kpi-value" style="color:#276749">
+      <%= fmtDollar(top10Revenue.reduce(function(s,r){ return s + Number(r.revenue||0); }, 0)) %>
+    </div>
+    <div class="kpi-sub">SKU-level · see table below</div>
+  </div>
+
+  <div class="kpi-card" style="border-top:3px solid #975a16">
+    <div class="kpi-label">Combo (Vanity) Revenue</div>
+    <div class="kpi-value" style="color:#975a16"><%= fmtDollar(comboRevenue) %></div>
+    <div class="kpi-sub"><%= Number(comboUnits||0).toLocaleString() %> units · cabinet + top sets</div>
+  </div>
+
+  <div class="kpi-card" style="border-top:3px solid #553c9a">
+    <div class="kpi-label">Individual SKU Revenue</div>
+    <div class="kpi-value" style="color:#553c9a"><%= fmtDollar(indivRevenue) %></div>
+    <div class="kpi-sub"><%= Number(indivUnits||0).toLocaleString() %> units · Cabinet / Top / Mirror / etc.</div>
+  </div>
+
+</div>
+
+<!-- ══ CHARTS ROW 1 — Revenue over Time ═════════════════════════════ -->
+<% if (_byDay.length > 0) { %>
+<h2 class="report-section-title" style="margin-top:28px">Revenue &amp; Units Over Time</h2>
+<div class="admin-card">
+  <h3 class="admin-card-title">Daily MAP Revenue &amp; Units Depleted</h3>
+  <p style="font-size:.8rem;color:var(--text-muted);margin:0 0 10px">
+    Bars = revenue ($, left axis) · Line = units (right axis) · Both group-deduped
+  </p>
+  <canvas id="chartByDay" height="130"></canvas>
+</div>
+<% } %>
+
+<!-- ══ CHARTS ROW 2 — Category + Collection ═════════════════════════ -->
+<h2 class="report-section-title" style="margin-top:28px">Revenue by Dimension</h2>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+
+  <div class="admin-card">
+    <h3 class="admin-card-title">By Category (Product Type)</h3>
+    <% if (_byCat.length) { %>
+    <canvas id="chartByCat" height="260"></canvas>
+    <% } else { %><div class="adm-empty">No data for this window</div><% } %>
+  </div>
+
+  <div class="admin-card">
+    <h3 class="admin-card-title">By Collection (Top 12 — Revenue)</h3>
+    <% if (_byColl.length) { %>
+    <canvas id="chartByColl" height="260"></canvas>
+    <% } else { %><div class="adm-empty">No data for this window</div><% } %>
+  </div>
+
+</div>
+
+<!-- ══ CHARTS ROW 3 — Finish + Combo ════════════════════════════════ -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px">
+
+  <div class="admin-card">
+    <h3 class="admin-card-title">By Color / Finish (Top 10)</h3>
+    <% if (_byFin.length) { %>
+    <canvas id="chartByFin" height="260"></canvas>
+    <% } else { %><div class="adm-empty">No data for this window</div><% } %>
+  </div>
+
+  <div class="admin-card">
+    <h3 class="admin-card-title">Combo vs Individual SKU</h3>
+    <p style="font-size:.8rem;color:var(--text-muted);margin:0 0 8px">
+      Combo = Vanity (cabinet + top unit) · Individual = Cabinet, Top, Mirror, etc.
+    </p>
+    <% if (_byCombo.length) { %>
+    <canvas id="chartByCombo" height="240"></canvas>
+    <% } else { %><div class="adm-empty">No data for this window</div><% } %>
+  </div>
+
+</div>
+
+<!-- ══ TOP 10 SKU TABLE ══════════════════════════════════════════════ -->
+<h2 class="report-section-title" style="margin-top:28px">Top 10 SKUs — MAP Revenue</h2>
+<p style="font-size:.8rem;color:var(--text-muted);margin:-4px 0 10px">
+  SKU-level (not group-deduped). Check Group # on the main dashboard to spot shared-component clusters.
+  Revenue = total depleted units × MAP price.
+</p>
+
+<% if (top10Revenue && top10Revenue.length > 0) { %>
+<div class="adm-table-wrap">
+  <table class="adm-table">
+    <thead><tr>
+      <th>#</th>
+      <th>SKU</th>
+      <th>Collection</th>
+      <th>Type</th>
+      <th>Finish</th>
+      <th>Size</th>
+      <th>Units Depleted</th>
+      <th>MAP</th>
+      <th style="text-align:right">Revenue (min)</th>
+    </tr></thead>
+    <tbody>
+    <% top10Revenue.forEach(function(r, i) { %>
+      <tr>
+        <td style="color:var(--text-muted)"><%= i+1 %></td>
+        <td><code style="font-size:.78rem"><%= r.sku %></code></td>
+        <td><%= r.collection || '—' %></td>
+        <td><span class="jmv-type-chip jmv-type-chip--<%= (r.product_type||'').toLowerCase() %>"><%= r.product_type || '—' %></span></td>
+        <td><%= r.base_finish || '—' %></td>
+        <td><%= r.size_nominal ? r.size_nominal + '"' : '—' %></td>
+        <td style="font-weight:700"><%= Number(r.units||0).toLocaleString() %></td>
+        <td><%= r.map_price ? '$' + parseFloat(r.map_price).toLocaleString('en-US',{minimumFractionDigits:0}) : '—' %></td>
+        <td style="font-weight:700;color:#1a2e4a;text-align:right"><%= fmtDollar(r.revenue) %></td>
+      </tr>
+    <% }); %>
+    </tbody>
+  </table>
+</div>
+<% } else { %>
+<div class="adm-empty">No movement data for this period — try widening the date range.</div>
+<% } %>
+
+<p style="margin-top:16px;font-size:11px;color:#888;font-style:italic">
+  Source: Depletion from James Martin warehouse — industry-wide demand, not RFL sales.
+  MAP Revenue is a minimum demand proxy; actual market outcomes vary.
+</p>
+
+<!-- ══ SCRIPTS ════════════════════════════════════════════════════════ -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+/* ── Data ─────────────────────────────────────────────────────────── */
+const byDay   = <%- revenueByDay        %>;
+const byCat   = <%- revenueByCategory   %>;
+const byColl  = <%- revenueByCollection %>;
+const byFin   = <%- revenueByFinish     %>;
+const byCombo = <%- comboVsIndividual   %>;
+
+const NAVY   = 'rgba(26,46,74,0.82)';
+const BLUE   = 'rgba(43,108,176,0.78)';
+const GREEN  = 'rgba(39,103,73,0.80)';
+const AMBER  = 'rgba(214,158,46,0.82)';
+const PURPLE = 'rgba(85,60,154,0.80)';
+const SAGE   = 'rgba(99,179,136,0.80)';
+const ROSE   = 'rgba(197,48,48,0.75)';
+const SLATE  = 'rgba(113,128,150,0.70)';
+const PALETTE = [NAVY,BLUE,GREEN,AMBER,PURPLE,SAGE,ROSE,SLATE,
+                 'rgba(106,153,78,.75)','rgba(154,48,82,.7)',
+                 'rgba(44,122,123,.75)','rgba(214,132,46,.8)'];
+
+function fmtK(n) {
+  n = Number(n) || 0;
+  return n >= 1000 ? '$' + (n/1000).toFixed(1) + 'k' : '$' + n;
+}
+
+/* ── Revenue by Day (combo bar + line) ────────────────────────────── */
+if (byDay.length) {
+  new Chart(document.getElementById('chartByDay'), {
+    data: {
+      labels: byDay.map(function(r){ return r.date; }),
+      datasets: [
+        {
+          type: 'bar',
+          label: 'Revenue ($)',
+          data:  byDay.map(function(r){ return r.revenue; }),
+          backgroundColor: NAVY,
+          borderRadius: 4,
+          yAxisID: 'yRev',
+          order: 2,
+        },
+        {
+          type: 'line',
+          label: 'Units',
+          data:  byDay.map(function(r){ return r.units; }),
+          borderColor: AMBER,
+          backgroundColor: 'transparent',
+          borderWidth: 2.5,
+          pointRadius: 4,
+          tension: 0.3,
+          yAxisID: 'yUnits',
+          order: 1,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 14 } },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) {
+              if (ctx.dataset.yAxisID === 'yRev') return ' $' + Number(ctx.parsed.y).toLocaleString();
+              return ' ' + ctx.parsed.y + ' units';
+            },
+          },
+        },
+      },
+      scales: {
+        yRev: {
+          type: 'linear', position: 'left',
+          ticks: { callback: fmtK, font: { size: 11 } },
+          grid: { color: 'rgba(0,0,0,.05)' },
+          title: { display: true, text: 'Revenue ($)', font: { size: 10 } },
+        },
+        yUnits: {
+          type: 'linear', position: 'right',
+          grid: { display: false },
+          ticks: { font: { size: 11 } },
+          title: { display: true, text: 'Units', font: { size: 10 } },
+        },
+        x: { ticks: { font: { size: 11 } } },
+      },
+    },
+  });
+}
+
+/* ── Helpers ──────────────────────────────────────────────────────── */
+function makeHBar(id, data, labelField) {
+  const el = document.getElementById(id);
+  if (!el || !data.length) return;
+  new Chart(el, {
+    type: 'bar',
+    data: {
+      labels: data.map(function(r){ return r[labelField] || '—'; }),
+      datasets: [{
+        data: data.map(function(r){ return r.revenue; }),
+        backgroundColor: PALETTE,
+        borderRadius: 4,
+        borderSkipped: false,
+      }],
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) {
+              const row = data[ctx.dataIndex];
+              return [
+                ' Revenue: $' + Number(ctx.parsed.x).toLocaleString(),
+                ' Units: ' + Number(row.units).toLocaleString(),
+              ];
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(0,0,0,.05)' },
+          ticks: { callback: fmtK, font: { size: 11 } },
+        },
+        y: { ticks: { font: { size: 11 } } },
+      },
+    },
+  });
+}
+
+function makePie(id, data, labelField) {
+  const el = document.getElementById(id);
+  if (!el || !data.length) return;
+  new Chart(el, {
+    type: 'doughnut',
+    data: {
+      labels: data.map(function(r){ return r[labelField] || '—'; }),
+      datasets: [{
+        data: data.map(function(r){ return r.revenue; }),
+        backgroundColor: PALETTE,
+        borderWidth: 2,
+        borderColor: '#fff',
+      }],
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'right', labels: { font: { size: 11 }, boxWidth: 14 } },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) {
+              const row = data[ctx.dataIndex];
+              const total = data.reduce(function(s,r){ return s + Number(r.revenue); }, 0);
+              const pct = total > 0 ? ((Number(row.revenue) / total) * 100).toFixed(1) : 0;
+              return [
+                ' $' + Number(ctx.parsed).toLocaleString() + ' (' + pct + '%)',
+                ' ' + Number(row.units).toLocaleString() + ' units',
+              ];
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
+makePie('chartByCat',   byCat,   'label');
+makeHBar('chartByColl', byColl,  'label');
+makeHBar('chartByFin',  byFin,   'label');
+makePie('chartByCombo', byCombo, 'label');
+
+/* ── Period quick-select ──────────────────────────────────────────── */
+function setPeriod(period) {
+  var today = new Date();
+  var toStr = today.toISOString().slice(0, 10);
+  var fromStr;
+  if (period === 'mtd') {
+    var y = today.getFullYear();
+    var m = String(today.getMonth() + 1).padStart(2, '0');
+    fromStr = y + '-' + m + '-01';
+  } else {
+    var days = period === '7d' ? 6 : period === '30d' ? 29 : 89;
+    var d = new Date(today);
+    d.setDate(d.getDate() - days);
+    fromStr = d.toISOString().slice(0, 10);
+  }
+  window.location.href = '/admin/marketing/jmv/financials?from=' + fromStr + '&to=' + toStr + '&scope=<%= scope %>';
+}
+</script>
+
+<style>
+/* ── Financials page ───────────────────────────────────────────────── */
+.jmvf-period-btns { display:flex; gap:4px }
+.jmvf-period-btn {
+  padding:4px 10px; border:1px solid #cbd5e0; border-radius:4px;
+  background:#fff; color:#4a5568; font-size:.8rem; cursor:pointer;
+  transition:background .15s, color .15s;
+}
+.jmvf-period-btn:hover { background:#1a2e4a; color:#fff; border-color:#1a2e4a }
+
+.jmv-type-chip { display:inline-block; padding:2px 8px; border-radius:10px;
+                  font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em }
+.jmv-type-chip--vanity  { background:#EBF8FF; color:#2b6cb0 }
+.jmv-type-chip--cabinet { background:#F0FFF4; color:#276749 }
+.jmv-type-chip--top     { background:#FEFCBF; color:#975a16 }
+.jmv-type-chip--mirror  { background:#FAF5FF; color:#553c9a }
+.jmv-type-chip--linen   { background:#FFF5F5; color:#c53030 }
+</style>

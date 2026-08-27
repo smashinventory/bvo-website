@@ -142,6 +142,7 @@ router.get ('/marketing/jmv',                jmvCtrl.dashboard);
 router.post('/marketing/jmv/run-rollup',     jmvCtrl.triggerRollup);
 router.get ('/marketing/jmv/stockout',       jmvCtrl.stockoutDrilldown);
 router.get ('/marketing/jmv/new-arrivals',   jmvCtrl.newArrivalsDrilldown);
+router.get ('/marketing/jmv/financials',     jmvCtrl.getFinancials);
 
 /* ── Theme Editor ───────────────────────────────────────────── */
 router.get ('/theme',          ctrl.themeEditor);

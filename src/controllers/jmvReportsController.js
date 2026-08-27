@@ -493,4 +493,222 @@ async function newArrivalsDrilldown(req, res) {
   }
 }
 
-module.exports = { dashboard, triggerRollup, stockoutDrilldown, newArrivalsDrilldown };
+/* ─────────────────────────────────────────────────────────────────────
+   FINANCIALS — MAP revenue proxy, velocity by dimension & date
+   NOTE: "revenue" = drawdown_units × MAP_price.  This is the minimum
+   demand at MAP pricing; actual retail outcomes vary.
+   Group-dedup applied to aggregate KPIs.  Per-SKU rows are SKU-level.
+───────────────────────────────────────────────────────────────────── */
+
+async function getFinancials(req, res) {
+  try {
+    // ── Date range (default: month-to-date) ─────────────────────────
+    const today = new Date();
+    const y = today.getFullYear();
+    const mo = String(today.getMonth() + 1).padStart(2, '0');
+    const defaultFrom = `${y}-${mo}-01`;
+    const defaultTo   = today.toISOString().slice(0, 10);
+    const fromDate = (req.query.from || defaultFrom).slice(0, 10);
+    const toDate   = (req.query.to   || defaultTo).slice(0, 10);
+    const scope    = req.query.scope === 'sync' ? 'sync' : 'all';
+
+    // ── Type filter ──────────────────────────────────────────────────
+    const FIN_TYPES = scope === 'sync'
+      ? ['Vanity', 'Cabinet', 'Top']
+      : ['Vanity', 'Cabinet', 'Top', 'Mirror', 'Linen Cabinet',
+         'Storage Cabinet', 'Backsplash', 'Bench', 'Shelf', 'Hutch',
+         'Drawer Unit', 'Console'];
+    const FIN_SQL = FIN_TYPES.map(() => '?').join(',');
+
+    // ── Latest valid snapshot (for MAP price lookup) ─────────────────
+    const latestSnap = await safeQueryOne(
+      `SELECT MAX(snapshot_date) AS d FROM jmv_snapshot_validity WHERE is_valid = 1`
+    );
+    const latestDate = latestSnap?.d || null;
+
+    if (!latestDate) {
+      return res.render('pages/admin/marketing/jmv-financials', {
+        ...LAYOUT, pageTitle: 'JMV Financials',
+        fromDate, toDate, scope, latestDate: null,
+        mapRevenue: 0, qtySold: 0,
+        comboRevenue: 0, comboUnits: 0, indivRevenue: 0, indivUnits: 0,
+        top10Revenue: [],
+        revenueByDay: '[]', revenueByCategory: '[]',
+        revenueByCollection: '[]', revenueByFinish: '[]',
+        comboVsIndividual: '[]',
+        error: 'No valid snapshot data yet — run the rollup job first.',
+        style: '',
+      });
+    }
+
+    // ── Inner subquery: MAX demand_min per (group, date) ────────────
+    // Eliminates shared-component double-counting for aggregate KPIs.
+    const innerSql = (latestDate, types, fromDate, toDate) => ({
+      sql: `
+        SELECT m.group_number, m.movement_date,
+               MAX(m.demand_min) AS demand_min,
+               MAX(s.map_price)  AS map_price
+        FROM jmv_daily_movement m
+        JOIN jmv_snapshots  s ON s.sku = m.sku AND s.snapshot_date = ?
+        JOIN jmv_dimensions d USING (sku)
+        WHERE m.is_valid = 1
+          AND d.product_type IN (${types.map(() => '?').join(',')})
+          AND m.movement_date BETWEEN ? AND ?
+        GROUP BY m.group_number, m.movement_date
+      `,
+      params: [latestDate, ...types, fromDate, toDate],
+    });
+
+    const inner = innerSql(latestDate, FIN_TYPES, fromDate, toDate);
+
+    // KPI totals (group-deduped)
+    const revenueKpi = await safeQueryOne(
+      `SELECT ROUND(SUM(g.demand_min * g.map_price),0) AS map_revenue,
+              SUM(g.demand_min) AS qty_sold
+       FROM (${inner.sql}) g`,
+      inner.params
+    );
+
+    // Revenue by day (group-deduped)
+    const revenueByDay = await safeQuery(
+      `SELECT g.movement_date AS date,
+              ROUND(SUM(g.demand_min * g.map_price),0) AS revenue,
+              SUM(g.demand_min) AS units
+       FROM (${inner.sql}) g
+       GROUP BY g.movement_date
+       ORDER BY g.movement_date`,
+      inner.params
+    );
+
+    // Top 10 SKUs by revenue — SKU-level (not group-deduped; coupling risk acknowledged)
+    const top10Revenue = await safeQuery(
+      `SELECT m.sku, d.collection, d.product_type, d.base_finish, d.size_nominal,
+              SUM(m.demand_min)                              AS units,
+              MAX(s.map_price)                               AS map_price,
+              ROUND(SUM(m.demand_min) * MAX(s.map_price),0) AS revenue
+       FROM jmv_daily_movement m
+       JOIN jmv_snapshots  s ON s.sku = m.sku AND s.snapshot_date = ?
+       JOIN jmv_dimensions d USING (sku)
+       WHERE m.is_valid = 1
+         AND d.product_type IN (${FIN_SQL})
+         AND m.movement_date BETWEEN ? AND ?
+       GROUP BY m.sku, d.collection, d.product_type, d.base_finish, d.size_nominal
+       ORDER BY revenue DESC
+       LIMIT 10`,
+      [latestDate, ...FIN_TYPES, fromDate, toDate]
+    );
+
+    // Revenue by category (product_type)
+    const revenueByCategory = await safeQuery(
+      `SELECT d.product_type AS label,
+              SUM(m.demand_min)                              AS units,
+              ROUND(SUM(m.demand_min * s.map_price),0)      AS revenue
+       FROM jmv_daily_movement m
+       JOIN jmv_snapshots  s ON s.sku = m.sku AND s.snapshot_date = ?
+       JOIN jmv_dimensions d USING (sku)
+       WHERE m.is_valid = 1
+         AND d.product_type IN (${FIN_SQL})
+         AND m.movement_date BETWEEN ? AND ?
+       GROUP BY d.product_type
+       ORDER BY revenue DESC`,
+      [latestDate, ...FIN_TYPES, fromDate, toDate]
+    );
+
+    // Revenue by collection (top 12)
+    const revenueByCollection = await safeQuery(
+      `SELECT COALESCE(d.collection,'(none)') AS label,
+              SUM(m.demand_min)                              AS units,
+              ROUND(SUM(m.demand_min * s.map_price),0)      AS revenue
+       FROM jmv_daily_movement m
+       JOIN jmv_snapshots  s ON s.sku = m.sku AND s.snapshot_date = ?
+       JOIN jmv_dimensions d USING (sku)
+       WHERE m.is_valid = 1
+         AND d.product_type IN (${FIN_SQL})
+         AND m.movement_date BETWEEN ? AND ?
+       GROUP BY d.collection
+       ORDER BY revenue DESC
+       LIMIT 12`,
+      [latestDate, ...FIN_TYPES, fromDate, toDate]
+    );
+
+    // Revenue by finish (top 10)
+    const revenueByFinish = await safeQuery(
+      `SELECT COALESCE(d.base_finish,'(none)') AS label,
+              SUM(m.demand_min)                              AS units,
+              ROUND(SUM(m.demand_min * s.map_price),0)      AS revenue
+       FROM jmv_daily_movement m
+       JOIN jmv_snapshots  s ON s.sku = m.sku AND s.snapshot_date = ?
+       JOIN jmv_dimensions d USING (sku)
+       WHERE m.is_valid = 1
+         AND d.product_type IN (${FIN_SQL})
+         AND m.movement_date BETWEEN ? AND ?
+       GROUP BY d.base_finish
+       ORDER BY revenue DESC
+       LIMIT 10`,
+      [latestDate, ...FIN_TYPES, fromDate, toDate]
+    );
+
+    // Combo (Vanity = cabinet+top unit) vs Individual SKU types
+    const comboVsIndividual = await safeQuery(
+      `SELECT
+         CASE WHEN d.product_type = 'Vanity' THEN 'Combo (Vanity)'
+              ELSE d.product_type END             AS label,
+         SUM(m.demand_min)                        AS units,
+         ROUND(SUM(m.demand_min * s.map_price),0) AS revenue
+       FROM jmv_daily_movement m
+       JOIN jmv_snapshots  s ON s.sku = m.sku AND s.snapshot_date = ?
+       JOIN jmv_dimensions d USING (sku)
+       WHERE m.is_valid = 1
+         AND d.product_type IN (${FIN_SQL})
+         AND m.movement_date BETWEEN ? AND ?
+       GROUP BY label
+       ORDER BY revenue DESC`,
+      [latestDate, ...FIN_TYPES, fromDate, toDate]
+    );
+
+    // KPI card values for Combo / Individual
+    const comboRow   = comboVsIndividual.find(r => r.label === 'Combo (Vanity)') || { revenue: 0, units: 0 };
+    const indivRevenue = comboVsIndividual
+      .filter(r => r.label !== 'Combo (Vanity)')
+      .reduce((s, r) => s + Number(r.revenue), 0);
+    const indivUnits = comboVsIndividual
+      .filter(r => r.label !== 'Combo (Vanity)')
+      .reduce((s, r) => s + Number(r.units), 0);
+
+    res.render('pages/admin/marketing/jmv-financials', {
+      ...LAYOUT,
+      pageTitle: 'JMV Financials',
+      fromDate, toDate, scope, latestDate,
+      mapRevenue:   revenueKpi?.map_revenue || 0,
+      qtySold:      revenueKpi?.qty_sold    || 0,
+      comboRevenue: comboRow.revenue,
+      comboUnits:   comboRow.units,
+      indivRevenue,
+      indivUnits,
+      top10Revenue,
+      revenueByDay:        JSON.stringify(revenueByDay),
+      revenueByCategory:   JSON.stringify(revenueByCategory),
+      revenueByCollection: JSON.stringify(revenueByCollection),
+      revenueByFinish:     JSON.stringify(revenueByFinish),
+      comboVsIndividual:   JSON.stringify(comboVsIndividual),
+      style: '',
+    });
+  } catch (err) {
+    console.error('[jmvReports] financials error:', err);
+    res.status(500).render('pages/admin/marketing/jmv-financials', {
+      ...LAYOUT,
+      pageTitle: 'JMV Financials',
+      error: 'Failed to load financials — ' + err.message,
+      fromDate: '', toDate: '', scope: 'all', latestDate: null,
+      mapRevenue: 0, qtySold: 0,
+      comboRevenue: 0, comboUnits: 0, indivRevenue: 0, indivUnits: 0,
+      top10Revenue: [],
+      revenueByDay: '[]', revenueByCategory: '[]',
+      revenueByCollection: '[]', revenueByFinish: '[]',
+      comboVsIndividual: '[]',
+      style: '',
+    });
+  }
+}
+
+module.exports = { dashboard, triggerRollup, stockoutDrilldown, newArrivalsDrilldown, getFinancials };
