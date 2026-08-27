@@ -1,5 +1,3 @@
-<%- contentFor('title') %>JMV Stockout Risk — Admin<% end %>
-<%- contentFor('body') %>
 <div class="adm-toolbar">
   <div class="adm-toolbar__left">
     <a href="/admin/marketing/jmv" class="adm-btn adm-btn--ghost">← Back to JMV Reports</a>
@@ -39,18 +37,15 @@
           <td><%= r.product_type || '—' %></td>
           <td><%= r.size_nominal ? r.size_nominal + '"' : '—' %></td>
           <td><%= r.base_finish || '—' %></td>
-          <td style="font-weight:600;color:<%= r.qty === 0 ? '#c0392b' : '#e67e22' %>">
-            <%= r.qty %>
-          </td>
+          <td style="font-weight:600;color:<%= r.qty === 0 ? '#c0392b' : '#e67e22' %>"><%= r.qty %></td>
           <td><%= r.map_price ? '$' + parseFloat(r.map_price).toLocaleString('en-US',{minimumFractionDigits:0}) : '—' %></td>
         </tr>
         <% }); %>
       </tbody>
     </table>
-    <p class="adm-note" style="margin-top:12px;font-size:11px;color:#888">
+    <p style="margin-top:12px;font-size:11px;color:#888">
       Source: Depletion from James Martin warehouse — industry-wide demand, not RFL sales.
     </p>
     <% } %>
   </div>
 </div>
-<% end %>
