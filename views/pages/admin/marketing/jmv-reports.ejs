@@ -143,7 +143,7 @@ const _docCollections = [...new Set(daysOfCover.map(r => r.collection).filter(Bo
     <span id="doc-filter-count" style="font-size:.8rem;color:var(--text-muted)"></span>
   </div>
 
-  <div class="adm-table-wrap">
+  <div class="adm-table-wrap jmv-scroll-wrap">
     <table class="adm-table" id="jmv-doc-table">
       <thead><tr>
         <th class="jmv-sort" data-tbl="doc" data-col="sku">SKU</th>
@@ -315,7 +315,7 @@ const _docCollections = [...new Set(daysOfCover.map(r => r.collection).filter(Bo
 <% if (restockCadence.length > 0) { %>
 <div class="admin-card" style="margin-top:12px">
   <h3 class="admin-card-title">Restock Cadence <span style="font-weight:400;font-size:.8rem;color:var(--text-muted)">— most-restocked SKUs (immune to coupling &amp; censoring biases)</span></h3>
-  <div class="adm-table-wrap">
+  <div class="adm-table-wrap jmv-scroll-wrap">
     <table class="adm-table">
       <thead><tr>
         <th>SKU</th><th>Collection</th><th>Finish</th><th>Size</th>
@@ -359,7 +359,7 @@ const _docCollections = [...new Set(daysOfCover.map(r => r.collection).filter(Bo
   <span id="jmv-filter-count" style="font-size:.8rem;color:var(--text-muted)"></span>
 </div>
 
-<div class="adm-table-wrap">
+<div class="adm-table-wrap jmv-scroll-wrap">
   <table class="adm-table" id="jmv-top50-table">
     <thead><tr>
       <th>#</th>
@@ -661,6 +661,21 @@ document.getElementById('jmv-rollup-btn')?.addEventListener('click', async () =>
 
 .jmv-row--critical { background:#FFF5F5 }
 .jmv-row--warn     { background:#FFFAF0 }
+
+/* ── Scrollable table wrapper (≈20 rows, sticky header) ─────────── */
+.jmv-scroll-wrap {
+  max-height: 800px;
+  overflow-y: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+.jmv-scroll-wrap .adm-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f7fafc;
+  box-shadow: 0 1px 0 #e2e8f0;
+}
 
 .jmv-sort { cursor:pointer; user-select:none }
 .jmv-sort:hover { background:rgba(26,46,74,.06) }
