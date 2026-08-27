@@ -541,129 +541,77 @@ async function getFinancials(req, res) {
       });
     }
 
-    // ── Inner subquery: MAX demand_min per (group, date) ────────────
-    // Eliminates shared-component double-counting for aggregate KPIs.
-    const innerSql = (latestDate, types, fromDate, toDate) => ({
-      sql: `
-        SELECT m.group_number, m.movement_date,
-               MAX(m.demand_min) AS demand_min,
-               MAX(s.map_price)  AS map_price
-        FROM jmv_daily_movement m
-        JOIN jmv_snapshots  s ON s.sku = m.sku AND s.snapshot_date = ?
-        JOIN jmv_dimensions d USING (sku)
-        WHERE m.is_valid = 1
-          AND d.product_type IN (${types.map(() => '?').join(',')})
-          AND m.movement_date BETWEEN ? AND ?
-        GROUP BY m.group_number, m.movement_date
-      `,
-      params: [latestDate, ...types, fromDate, toDate],
-    });
+    // ── Flat queries — no nested subqueries, LEFT JOIN for map_price ──
+    // LEFT JOIN so movement rows survive if snapshot for latestDate is missing.
+    // COALESCE(s.map_price, 0) guards against NULL map prices.
+    // GROUP BY uses expressions not aliases (MySQL strict-mode compatible).
+    const P = [latestDate, ...FIN_TYPES, fromDate, toDate];
+    const JN = `FROM jmv_daily_movement m
+                JOIN jmv_dimensions d ON d.sku = m.sku
+                LEFT JOIN jmv_snapshots s ON s.sku = m.sku AND s.snapshot_date = ?`;
+    const WH = `WHERE m.is_valid = 1
+                  AND d.product_type IN (${FIN_SQL})
+                  AND m.movement_date BETWEEN ? AND ?`;
 
-    const inner = innerSql(latestDate, FIN_TYPES, fromDate, toDate);
-
-    // KPI totals (group-deduped)
     const revenueKpi = await safeQueryOne(
-      `SELECT ROUND(SUM(g.demand_min * g.map_price),0) AS map_revenue,
-              SUM(g.demand_min) AS qty_sold
-       FROM (${inner.sql}) g`,
-      inner.params
+      `SELECT ROUND(SUM(m.demand_min * COALESCE(s.map_price,0)),0) AS map_revenue,
+              SUM(m.demand_min) AS qty_sold
+       ${JN} ${WH}`, P
     );
 
-    // Revenue by day (group-deduped)
     const revenueByDay = await safeQuery(
-      `SELECT g.movement_date AS date,
-              ROUND(SUM(g.demand_min * g.map_price),0) AS revenue,
-              SUM(g.demand_min) AS units
-       FROM (${inner.sql}) g
-       GROUP BY g.movement_date
-       ORDER BY g.movement_date`,
-      inner.params
+      `SELECT DATE_FORMAT(m.movement_date,'%Y-%m-%d') AS date,
+              ROUND(SUM(m.demand_min * COALESCE(s.map_price,0)),0) AS revenue,
+              SUM(m.demand_min) AS units
+       ${JN} ${WH}
+       GROUP BY m.movement_date ORDER BY m.movement_date`, P
     );
 
-    // Top 10 SKUs by revenue — SKU-level (not group-deduped; coupling risk acknowledged)
     const top10Revenue = await safeQuery(
       `SELECT m.sku, d.collection, d.product_type, d.base_finish, d.size_nominal,
-              SUM(m.demand_min)                              AS units,
-              MAX(s.map_price)                               AS map_price,
-              ROUND(SUM(m.demand_min) * MAX(s.map_price),0) AS revenue
-       FROM jmv_daily_movement m
-       JOIN jmv_snapshots  s ON s.sku = m.sku AND s.snapshot_date = ?
-       JOIN jmv_dimensions d USING (sku)
-       WHERE m.is_valid = 1
-         AND d.product_type IN (${FIN_SQL})
-         AND m.movement_date BETWEEN ? AND ?
+              SUM(m.demand_min) AS units,
+              MAX(COALESCE(s.map_price,0)) AS map_price,
+              ROUND(SUM(m.demand_min) * MAX(COALESCE(s.map_price,0)),0) AS revenue
+       ${JN} ${WH}
        GROUP BY m.sku, d.collection, d.product_type, d.base_finish, d.size_nominal
-       ORDER BY revenue DESC
-       LIMIT 10`,
-      [latestDate, ...FIN_TYPES, fromDate, toDate]
+       ORDER BY revenue DESC LIMIT 10`, P
     );
 
-    // Revenue by category (product_type)
     const revenueByCategory = await safeQuery(
       `SELECT d.product_type AS label,
-              SUM(m.demand_min)                              AS units,
-              ROUND(SUM(m.demand_min * s.map_price),0)      AS revenue
-       FROM jmv_daily_movement m
-       JOIN jmv_snapshots  s ON s.sku = m.sku AND s.snapshot_date = ?
-       JOIN jmv_dimensions d USING (sku)
-       WHERE m.is_valid = 1
-         AND d.product_type IN (${FIN_SQL})
-         AND m.movement_date BETWEEN ? AND ?
-       GROUP BY d.product_type
-       ORDER BY revenue DESC`,
-      [latestDate, ...FIN_TYPES, fromDate, toDate]
+              SUM(m.demand_min) AS units,
+              ROUND(SUM(m.demand_min * COALESCE(s.map_price,0)),0) AS revenue
+       ${JN} ${WH}
+       GROUP BY d.product_type ORDER BY revenue DESC`, P
     );
 
-    // Revenue by collection (top 12)
     const revenueByCollection = await safeQuery(
       `SELECT COALESCE(d.collection,'(none)') AS label,
-              SUM(m.demand_min)                              AS units,
-              ROUND(SUM(m.demand_min * s.map_price),0)      AS revenue
-       FROM jmv_daily_movement m
-       JOIN jmv_snapshots  s ON s.sku = m.sku AND s.snapshot_date = ?
-       JOIN jmv_dimensions d USING (sku)
-       WHERE m.is_valid = 1
-         AND d.product_type IN (${FIN_SQL})
-         AND m.movement_date BETWEEN ? AND ?
-       GROUP BY d.collection
-       ORDER BY revenue DESC
-       LIMIT 12`,
-      [latestDate, ...FIN_TYPES, fromDate, toDate]
+              SUM(m.demand_min) AS units,
+              ROUND(SUM(m.demand_min * COALESCE(s.map_price,0)),0) AS revenue
+       ${JN} ${WH}
+       GROUP BY d.collection ORDER BY revenue DESC LIMIT 12`, P
     );
 
-    // Revenue by finish (top 10)
     const revenueByFinish = await safeQuery(
       `SELECT COALESCE(d.base_finish,'(none)') AS label,
-              SUM(m.demand_min)                              AS units,
-              ROUND(SUM(m.demand_min * s.map_price),0)      AS revenue
-       FROM jmv_daily_movement m
-       JOIN jmv_snapshots  s ON s.sku = m.sku AND s.snapshot_date = ?
-       JOIN jmv_dimensions d USING (sku)
-       WHERE m.is_valid = 1
-         AND d.product_type IN (${FIN_SQL})
-         AND m.movement_date BETWEEN ? AND ?
-       GROUP BY d.base_finish
-       ORDER BY revenue DESC
-       LIMIT 10`,
-      [latestDate, ...FIN_TYPES, fromDate, toDate]
+              SUM(m.demand_min) AS units,
+              ROUND(SUM(m.demand_min * COALESCE(s.map_price,0)),0) AS revenue
+       ${JN} ${WH}
+       GROUP BY d.base_finish ORDER BY revenue DESC LIMIT 10`, P
     );
 
-    // Combo (Vanity = cabinet+top unit) vs Individual SKU types
+    // GROUP BY repeats expression — alias not reliable in MySQL strict mode
     const comboVsIndividual = await safeQuery(
       `SELECT
          CASE WHEN d.product_type = 'Vanity' THEN 'Combo (Vanity)'
-              ELSE d.product_type END             AS label,
-         SUM(m.demand_min)                        AS units,
-         ROUND(SUM(m.demand_min * s.map_price),0) AS revenue
-       FROM jmv_daily_movement m
-       JOIN jmv_snapshots  s ON s.sku = m.sku AND s.snapshot_date = ?
-       JOIN jmv_dimensions d USING (sku)
-       WHERE m.is_valid = 1
-         AND d.product_type IN (${FIN_SQL})
-         AND m.movement_date BETWEEN ? AND ?
-       GROUP BY label
-       ORDER BY revenue DESC`,
-      [latestDate, ...FIN_TYPES, fromDate, toDate]
+              ELSE d.product_type END AS label,
+         SUM(m.demand_min) AS units,
+         ROUND(SUM(m.demand_min * COALESCE(s.map_price,0)),0) AS revenue
+       ${JN} ${WH}
+       GROUP BY CASE WHEN d.product_type = 'Vanity' THEN 'Combo (Vanity)'
+                     ELSE d.product_type END
+       ORDER BY revenue DESC`, P
     );
 
     // KPI card values for Combo / Individual
