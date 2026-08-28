@@ -33,9 +33,8 @@ function safeQueryOne(sql, p = []) {
 async function index(req, res) {
   try {
     const shipments = await safeQuery(
-      `SELECT s.*, o.id AS order_id_ref, o.customer_name
+      `SELECT s.*
        FROM shipments s
-       LEFT JOIN orders o ON o.id = s.order_id
        ORDER BY s.created_at DESC LIMIT 200`
     );
     res.render('pages/admin/shipping/index', {
@@ -501,8 +500,7 @@ async function dashboard(req, res) {
     `);
 
     const [recent] = await bvoPool.query(`
-      SELECT s.*, o.customer_name FROM shipments s
-      LEFT JOIN orders o ON o.id = s.order_id
+      SELECT s.* FROM shipments s
       ORDER BY s.created_at DESC LIMIT 10
     `);
 
@@ -530,8 +528,7 @@ async function dashboard(req, res) {
 async function invoices(req, res) {
   try {
     const [shipments] = await bvoPool.query(`
-      SELECT s.*, o.customer_name FROM shipments s
-      LEFT JOIN orders o ON o.id = s.order_id
+      SELECT s.* FROM shipments s
       WHERE s.status != 'voided'
       ORDER BY s.created_at DESC LIMIT 500
     `);

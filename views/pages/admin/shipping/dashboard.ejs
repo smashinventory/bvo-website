@@ -1,0 +1,114 @@
+<%
+/* ═══════════════════════════════════════════════════════════════════
+   Admin — Shipping Dashboard  (/admin/shipping/dashboard)
+   KPI summary: counts by status, recent activity, spend by carrier.
+═══════════════════════════════════════════════════════════════════ */
+const stats   = locals.stats   || {};
+const byCarrier = locals.byCarrier || [];
+const recent  = locals.recent  || [];
+%>
+
+<!-- ══ Toolbar ══════════════════════════════════════════════════════ -->
+<div class="adm-toolbar">
+  <div class="adm-back-wrap">
+    <span class="adm-toolbar-title">Shipping Dashboard</span>
+    <% if (typeof apiMode !== 'undefined' && apiMode.includes('stub')) { %>
+    <span style="font-size:.72rem;background:#FFF5F5;color:#c53030;border:1px solid #fed7d7;border-radius:10px;padding:2px 10px;margin-left:8px">Stub mode</span>
+    <% } %>
+  </div>
+  <div style="margin-left:auto;display:flex;gap:8px">
+    <a href="/admin/shipping/track" class="btn btn-sm btn-outline">🔍 Track</a>
+    <a href="/admin/shipping/create" class="btn btn-sm btn-primary">+ New Shipment</a>
+  </div>
+</div>
+
+<!-- ══ KPI Cards ═════════════════════════════════════════════════════ -->
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;margin-bottom:24px">
+  <% var kpis = [
+    { label:'Total Shipments', value: stats.total || 0, color:'#2b6cb0' },
+    { label:'Booked',          value: stats.booked || 0, color:'#2b6cb0' },
+    { label:'In Transit',      value: stats.in_transit || 0, color:'#975a16' },
+    { label:'Delivered',       value: stats.delivered || 0, color:'#276749' },
+    { label:'Voided',          value: stats.voided || 0, color:'#c53030' },
+    { label:'Total Spend',     value: '$'+(Number(stats.total_spend||0)).toLocaleString('en-US',{minimumFractionDigits:2}), color:'#1a2e4a' },
+  ]; %>
+  <% kpis.forEach(function(k) { %>
+  <div class="admin-card" style="text-align:center;padding:16px 12px">
+    <div style="font-size:1.6rem;font-weight:700;color:<%= k.color %>"><%= k.value %></div>
+    <div style="font-size:.75rem;color:#718096;margin-top:4px"><%= k.label %></div>
+  </div>
+  <% }); %>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+
+  <!-- ══ Spend by Carrier ════════════════════════════════════════ -->
+  <div class="admin-card">
+    <h3 class="admin-card-title">Spend by Carrier (30 days)</h3>
+    <% if (byCarrier.length) { %>
+    <table class="adm-table" style="margin-top:8px">
+      <thead><tr><th>Carrier</th><th>Shipments</th><th style="text-align:right">Total Spend</th></tr></thead>
+      <tbody>
+      <% byCarrier.forEach(function(c) { %>
+        <tr>
+          <td><%= c.carrier || 'Unknown' %></td>
+          <td><%= c.count %></td>
+          <td style="text-align:right;font-weight:600">$<%= Number(c.spend||0).toLocaleString('en-US',{minimumFractionDigits:2}) %></td>
+        </tr>
+      <% }); %>
+      </tbody>
+    </table>
+    <% } else { %>
+    <p class="adm-empty-sm">No shipment data yet.</p>
+    <% } %>
+  </div>
+
+  <!-- ══ Recent Activity ═════════════════════════════════════════ -->
+  <div class="admin-card">
+    <h3 class="admin-card-title">Recent Shipments</h3>
+    <% if (recent.length) { %>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">
+    <% recent.forEach(function(s) {
+         var STATUS_COLOR = { booked:'#2b6cb0', in_transit:'#975a16', delivered:'#276749', voided:'#c53030', exception:'#c53030' };
+         var color = STATUS_COLOR[s.status] || '#4a5568';
+    %>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0f4f8">
+        <div>
+          <div style="font-family:monospace;font-size:.8rem;font-weight:700"><%= s.bol_number || s.pro_number || '—' %></div>
+          <div style="font-size:.75rem;color:#718096"><%= s.dest_company || s.dest_name || '—' %> · <%= s.dest_city || '' %><%= s.dest_state ? ', '+s.dest_state : '' %></div>
+        </div>
+        <div style="text-align:right">
+          <span style="background:<%=color%>20;color:<%=color%>;border:1px solid <%=color%>40;border-radius:10px;padding:2px 8px;font-size:.7rem;font-weight:700"><%= s.status %></span>
+          <div style="font-size:.72rem;color:#718096;margin-top:2px"><%= s.carrier || '' %></div>
+        </div>
+      </div>
+    <% }); %>
+    </div>
+    <a href="/admin/shipping" style="display:block;text-align:center;font-size:.8rem;color:#2b6cb0;margin-top:12px">View all shipments →</a>
+    <% } else { %>
+    <p class="adm-empty-sm">No shipments yet. <a href="/admin/shipping/create">Create one →</a></p>
+    <% } %>
+  </div>
+
+</div>
+
+<!-- ══ LTL vs Small Package split ══════════════════════════════════ -->
+<div class="admin-card" style="margin-top:16px">
+  <h3 class="admin-card-title">LTL vs Small Package — Last 30 Days</h3>
+  <div style="display:flex;gap:40px;padding:8px 0">
+    <div>
+      <div style="font-size:1.4rem;font-weight:700;color:#2b6cb0"><%= stats.ltl_count || 0 %></div>
+      <div style="font-size:.8rem;color:#718096">LTL Freight shipments</div>
+      <div style="font-size:.85rem;font-weight:600;color:#1a2e4a;margin-top:2px">$<%= Number(stats.ltl_spend||0).toLocaleString('en-US',{minimumFractionDigits:2}) %></div>
+    </div>
+    <div style="border-left:1px solid #e2e8f0;padding-left:40px">
+      <div style="font-size:1.4rem;font-weight:700;color:#276749"><%= stats.sp_count || 0 %></div>
+      <div style="font-size:.8rem;color:#718096">Small Package (UPS) shipments</div>
+      <div style="font-size:.85rem;font-weight:600;color:#1a2e4a;margin-top:2px">$<%= Number(stats.sp_spend||0).toLocaleString('en-US',{minimumFractionDigits:2}) %></div>
+    </div>
+  </div>
+</div>
+
+<style>
+.adm-empty-sm { font-size:.85rem;color:#718096;margin:12px 0 0 }
+</style>

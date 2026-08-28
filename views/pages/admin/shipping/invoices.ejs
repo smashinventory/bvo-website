@@ -1,0 +1,158 @@
+<%
+/* ═══════════════════════════════════════════════════════════════════
+   Admin — Shipping Invoices / Payments  (/admin/shipping/invoices)
+   Shows all booked shipments with charges, filterable by period.
+   Links to BOL/POD documents. Totals by carrier and period.
+═══════════════════════════════════════════════════════════════════ */
+const shipments = locals.shipments || [];
+const totals    = locals.totals    || {};
+%>
+
+<!-- ══ Toolbar ══════════════════════════════════════════════════════ -->
+<div class="adm-toolbar">
+  <div class="adm-back-wrap">
+    <a href="/admin/shipping" class="adm-back-link">← Shipments</a>
+    <span class="adm-toolbar-title">Shipping Invoices</span>
+  </div>
+</div>
+
+<!-- ══ Summary KPIs ══════════════════════════════════════════════════ -->
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;margin-bottom:20px">
+  <div class="admin-card" style="text-align:center;padding:14px 10px">
+    <div style="font-size:1.5rem;font-weight:700;color:#1a2e4a">$<%= Number(totals.total||0).toLocaleString('en-US',{minimumFractionDigits:2}) %></div>
+    <div style="font-size:.75rem;color:#718096;margin-top:4px">Total Charges</div>
+  </div>
+  <div class="admin-card" style="text-align:center;padding:14px 10px">
+    <div style="font-size:1.5rem;font-weight:700;color:#2b6cb0">$<%= Number(totals.ltl||0).toLocaleString('en-US',{minimumFractionDigits:2}) %></div>
+    <div style="font-size:.75rem;color:#718096;margin-top:4px">LTL Freight</div>
+  </div>
+  <div class="admin-card" style="text-align:center;padding:14px 10px">
+    <div style="font-size:1.5rem;font-weight:700;color:#276749">$<%= Number(totals.smallpack||0).toLocaleString('en-US',{minimumFractionDigits:2}) %></div>
+    <div style="font-size:.75rem;color:#718096;margin-top:4px">Small Package</div>
+  </div>
+  <div class="admin-card" style="text-align:center;padding:14px 10px">
+    <div style="font-size:1.5rem;font-weight:700;color:#4a5568"><%= shipments.length %></div>
+    <div style="font-size:.75rem;color:#718096;margin-top:4px">Shipments</div>
+  </div>
+</div>
+
+<!-- ══ Filters ═══════════════════════════════════════════════════════ -->
+<div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
+  <input type="text" id="invSearch" placeholder="Search BOL, carrier, customer…"
+         class="adm-search-input" style="width:240px" oninput="filterInv()">
+  <select id="invType" class="adm-search-select" onchange="filterInv()">
+    <option value="">All Types</option>
+    <option value="LTL">LTL</option>
+    <option value="SMALLPACK">Small Package</option>
+  </select>
+  <select id="invPeriod" class="adm-search-select" onchange="filterInv()">
+    <option value="">All Time</option>
+    <option value="30">Last 30 days</option>
+    <option value="60">Last 60 days</option>
+    <option value="90">Last 90 days</option>
+  </select>
+</div>
+
+<!-- ══ Invoice Table ══════════════════════════════════════════════════ -->
+<% if (shipments.length) { %>
+<div class="adm-table-wrap">
+  <table class="adm-table" id="invTable">
+    <thead><tr>
+      <th>BOL / PRO</th>
+      <th>Customer</th>
+      <th>Carrier</th>
+      <th>Type</th>
+      <th>Ship Date</th>
+      <th>Status</th>
+      <th style="text-align:right">Charge</th>
+      <th>Documents</th>
+    </tr></thead>
+    <tbody id="invTbody">
+    <% shipments.forEach(function(s) {
+         var STATUS_COLOR = { booked:'#2b6cb0', in_transit:'#975a16', delivered:'#276749', voided:'#c53030', exception:'#c53030' };
+         var color = STATUS_COLOR[s.status] || '#4a5568';
+         var age   = Math.floor((Date.now() - new Date(s.created_at)) / 86400000);
+    %>
+      <tr data-search="<%= [s.bol_number,s.pro_number,s.carrier,s.dest_company,s.dest_name].join(' ').toLowerCase() %>"
+          data-type="<%= s.product_type %>"
+          data-age="<%= age %>">
+        <td>
+          <div style="font-family:monospace;font-size:.8rem;font-weight:700"><%= s.bol_number || '—' %></div>
+          <% if (s.pro_number) { %><div style="font-family:monospace;font-size:.72rem;color:#718096">PRO: <%= s.pro_number %></div><% } %>
+        </td>
+        <td>
+          <div style="font-size:.85rem"><%= s.dest_company || s.customer_name || '—' %></div>
+          <% if (s.order_id) { %><a href="/admin/orders/<%= s.order_id %>" style="font-size:.75rem;color:#2b6cb0">Order #<%= s.order_id %></a><% } %>
+        </td>
+        <td style="font-size:.85rem">
+          <%= s.carrier || '—' %>
+          <% if (s.service_level) { %><div style="color:#718096;font-size:.72rem"><%= s.service_level %></div><% } %>
+        </td>
+        <td><span class="ship-type-chip ship-type-chip--<%= s.product_type.toLowerCase() %>"><%= s.product_type === 'SMALLPACK' ? 'Small Pack' : 'LTL' %></span></td>
+        <td style="font-size:.82rem"><%= s.created_at ? new Date(s.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—' %></td>
+        <td>
+          <span style="background:<%=color%>20;color:<%=color%>;border:1px solid <%=color%>40;border-radius:10px;padding:2px 8px;font-size:.72rem;font-weight:700"><%= s.status %></span>
+        </td>
+        <td style="text-align:right;font-weight:600;font-size:.9rem">
+          <%= s.total_charge ? '$'+Number(s.total_charge).toLocaleString('en-US',{minimumFractionDigits:2}) : '—' %>
+        </td>
+        <td>
+          <div style="display:flex;gap:4px;flex-wrap:wrap">
+            <% if (s.bol_url) { %>
+            <a href="<%= s.bol_url %>" target="_blank" class="btn btn-xs">BOL</a>
+            <% } else if (s.product_transaction_id && !s.product_transaction_id.startsWith('STUB')) { %>
+            <a href="/admin/shipping/document?shipmentId=<%= s.id %>&docType=BILL_OF_LADING" target="_blank" class="btn btn-xs">BOL</a>
+            <% } %>
+            <% if (s.status === 'delivered') { %>
+            <a href="/admin/shipping/document?shipmentId=<%= s.id %>&docType=PROOF_OF_DELIVERY" target="_blank" class="btn btn-xs btn-outline">POD</a>
+            <% } %>
+          </div>
+        </td>
+      </tr>
+    <% }); %>
+    </tbody>
+  </table>
+</div>
+
+<!-- ══ Running Total ═════════════════════════════════════════════════ -->
+<div id="invFooter" style="display:flex;justify-content:flex-end;font-size:.9rem;margin-top:10px;color:#4a5568">
+  <span id="invCount"><%= shipments.length %> shipment(s)</span>
+  <span style="margin:0 12px">·</span>
+  <span>Filtered total: <strong id="invTotal">$<%= Number(totals.total||0).toLocaleString('en-US',{minimumFractionDigits:2}) %></strong></span>
+</div>
+
+<% } else { %>
+<div class="adm-empty">No shipments found. <a href="/admin/shipping/create">Create your first shipment →</a></div>
+<% } %>
+
+<script>
+function filterInv() {
+  var q      = document.getElementById('invSearch').value.toLowerCase();
+  var type   = document.getElementById('invType').value;
+  var period = parseInt(document.getElementById('invPeriod').value) || 0;
+  var rows   = document.querySelectorAll('#invTbody tr');
+  var count  = 0; var total = 0;
+  rows.forEach(function(row) {
+    var matchQ = !q      || row.dataset.search.includes(q);
+    var matchT = !type   || row.dataset.type  === type;
+    var matchP = !period || parseInt(row.dataset.age) <= period;
+    var show   = matchQ && matchT && matchP;
+    row.style.display = show ? '' : 'none';
+    if (show) {
+      count++;
+      var charge = row.querySelector('td:nth-child(7)').textContent.replace(/[$,]/g,'');
+      total += parseFloat(charge) || 0;
+    }
+  });
+  document.getElementById('invCount').textContent = count + ' shipment(s)';
+  document.getElementById('invTotal').textContent = '$' + total.toLocaleString('en-US',{minimumFractionDigits:2});
+}
+</script>
+
+<style>
+.ship-type-chip { display:inline-block;padding:2px 8px;border-radius:10px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em }
+.ship-type-chip--ltl       { background:#EBF8FF;color:#2b6cb0 }
+.ship-type-chip--smallpack { background:#F0FFF4;color:#276749 }
+.btn-xs     { padding:3px 8px;font-size:.72rem }
+.btn-outline{ background:#fff;border:1px solid #cbd5e0;color:#4a5568 }
+</style>

@@ -1,0 +1,165 @@
+<%
+/* ═══════════════════════════════════════════════════════════════════
+   Admin — Track Shipment  (/admin/shipping/track)
+   Lookup by BOL or PRO number, shows full event timeline.
+═══════════════════════════════════════════════════════════════════ */
+%>
+
+<!-- ══ Toolbar ══════════════════════════════════════════════════════ -->
+<div class="adm-toolbar">
+  <div class="adm-back-wrap">
+    <a href="/admin/shipping" class="adm-back-link">← Shipments</a>
+    <span class="adm-toolbar-title">Track Shipment</span>
+  </div>
+</div>
+
+<!-- ══ Search ════════════════════════════════════════════════════════ -->
+<div class="admin-card" style="max-width:560px;margin-bottom:20px">
+  <h3 class="admin-card-title">Enter Tracking Number</h3>
+  <div style="display:flex;gap:8px;align-items:flex-end">
+    <div class="adm-field" style="flex:1">
+      <label>BOL or PRO Number</label>
+      <input id="trackInput" type="text" class="adm-input" placeholder="e.g. BOL-123456789"
+             value="<%= query || '' %>" onkeydown="if(event.key==='Enter')doTrack()">
+    </div>
+    <div class="adm-field">
+      <label>Number Type</label>
+      <select id="trackType" class="adm-input">
+        <option value="BOL" <%= (trackType||'BOL')==='BOL'?'selected':'' %>>BOL</option>
+        <option value="PRO" <%= (trackType||'')==='PRO'?'selected':'' %>>PRO</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" onclick="doTrack()" id="trackBtn">Track</button>
+  </div>
+</div>
+
+<!-- ══ Results ═══════════════════════════════════════════════════════ -->
+<div id="trackResult" style="display:none;max-width:720px">
+
+  <!-- Status header -->
+  <div class="admin-card" id="trackHeader"></div>
+
+  <!-- Event timeline -->
+  <div class="admin-card" id="trackTimeline" style="margin-top:16px"></div>
+
+</div>
+
+<div id="trackError" class="adm-alert adm-alert--error" style="display:none;max-width:560px"></div>
+<div id="trackLoading" style="display:none;padding:32px;text-align:center;color:#718096">
+  <div class="ship-spinner"></div>
+  <p style="margin-top:8px">Fetching tracking info…</p>
+</div>
+
+<% if (shipment) { %>
+<script>window._preloaded = <%- JSON.stringify(shipment) %>;</script>
+<% } %>
+
+<script>
+var _result = null;
+
+function doTrack() {
+  var num  = document.getElementById('trackInput').value.trim();
+  var type = document.getElementById('trackType').value;
+  if (!num) { alert('Enter a BOL or PRO number.'); return; }
+
+  document.getElementById('trackResult').style.display  = 'none';
+  document.getElementById('trackError').style.display   = 'none';
+  document.getElementById('trackLoading').style.display = '';
+  document.getElementById('trackBtn').disabled = true;
+
+  fetch('/admin/shipping/track/' + encodeURIComponent(num) + '?type=' + type)
+    .then(function(r){ return r.json(); })
+    .then(function(d) {
+      document.getElementById('trackLoading').style.display = 'none';
+      document.getElementById('trackBtn').disabled = false;
+      if (!d.ok || !d.shipment) {
+        document.getElementById('trackError').style.display = '';
+        document.getElementById('trackError').textContent = d.error || 'No tracking info found.';
+        return;
+      }
+      renderResult(d.shipment);
+    })
+    .catch(function(e) {
+      document.getElementById('trackLoading').style.display = 'none';
+      document.getElementById('trackBtn').disabled = false;
+      document.getElementById('trackError').style.display = '';
+      document.getElementById('trackError').textContent = 'Request failed: ' + e.message;
+    });
+}
+
+function renderResult(s) {
+  var STATUS_COLOR = {
+    'DELIVERED': '#276749', 'IN_TRANSIT': '#975a16', 'BOOKED': '#2b6cb0',
+    'EXCEPTION': '#c53030', 'VOIDED': '#c53030',
+  };
+  var status = (s.status || '').toUpperCase();
+  var color  = STATUS_COLOR[status] || '#4a5568';
+
+  // Header
+  document.getElementById('trackHeader').innerHTML =
+    '<div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">'
+    + '<div>'
+    +   '<div style="font-size:.75rem;color:#718096;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Tracking Number</div>'
+    +   '<div style="font-family:monospace;font-size:1.1rem;font-weight:700">' + (s.trackingNumber || s.bol || s.pro || '—') + '</div>'
+    +   (s.bol && s.pro ? '<div style="font-size:.8rem;color:#718096;margin-top:2px">PRO: ' + s.pro + '</div>' : '')
+    + '</div>'
+    + '<div style="text-align:right">'
+    +   '<span style="background:'+color+'20;color:'+color+';border:1px solid '+color+'40;border-radius:20px;padding:4px 14px;font-size:.85rem;font-weight:700">' + (s.status || '—') + '</span>'
+    +   (s.carrier ? '<div style="font-size:.8rem;color:#718096;margin-top:6px">' + s.carrier + '</div>' : '')
+    + '</div>'
+    + '</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:16px;padding-top:16px;border-top:1px solid #e2e8f0">'
+    + kv('Est. Delivery', s.estimatedDelivery || '—')
+    + kv('Delivered', s.deliveredDate || '—')
+    + kv('Tracking URL', s.trackingUrl ? '<a href="'+s.trackingUrl+'" target="_blank" style="color:#2b6cb0">View on carrier →</a>' : '—')
+    + '</div>';
+
+  // Timeline
+  var events = s.events || [];
+  var tl = '<h3 class="admin-card-title">Tracking Events</h3>';
+  if (!events.length) {
+    tl += '<p style="color:#718096;font-size:.85rem">No tracking events available yet.</p>';
+  } else {
+    tl += '<div class="track-timeline">';
+    events.forEach(function(e, i) {
+      tl += '<div class="track-event' + (i===0?' track-event--latest':'') + '">'
+        + '<div class="track-event-dot"></div>'
+        + '<div class="track-event-body">'
+        +   '<div class="track-event-desc">' + (e.description || e.status || '—') + '</div>'
+        +   '<div class="track-event-meta">'
+        +     (e.location ? '<span>📍 ' + e.location + '</span>' : '')
+        +     (e.timestamp ? '<span>🕐 ' + new Date(e.timestamp).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) + '</span>' : '')
+        +   '</div>'
+        + '</div></div>';
+    });
+    tl += '</div>';
+  }
+  document.getElementById('trackTimeline').innerHTML = tl;
+  document.getElementById('trackResult').style.display = '';
+}
+
+function kv(label, val) {
+  return '<div><div style="font-size:.72rem;color:#718096;font-weight:600;text-transform:uppercase;letter-spacing:.05em">' + label + '</div>'
+    + '<div style="font-size:.85rem;margin-top:2px">' + val + '</div></div>';
+}
+
+// Auto-run if pre-loaded from server-side query param
+<% if (query) { %>
+window.addEventListener('DOMContentLoaded', function() { doTrack(); });
+<% } %>
+if (typeof _preloaded !== 'undefined') renderResult(_preloaded);
+</script>
+
+<style>
+.adm-field label { font-size:.78rem;font-weight:600;color:#4a5568 }
+.adm-field { display:flex;flex-direction:column;gap:3px }
+.ship-spinner { width:28px;height:28px;border:3px solid #e2e8f0;border-top-color:#1a2e4a;border-radius:50%;animation:spin .7s linear infinite;margin:0 auto }
+@keyframes spin { to { transform:rotate(360deg) } }
+
+.track-timeline { position:relative;padding-left:20px;border-left:2px solid #e2e8f0 }
+.track-event { position:relative;padding:0 0 16px 16px }
+.track-event-dot { position:absolute;left:-9px;top:4px;width:14px;height:14px;border-radius:50%;background:#e2e8f0;border:2px solid #fff;box-shadow:0 0 0 2px #e2e8f0 }
+.track-event--latest .track-event-dot { background:#1a2e4a;box-shadow:0 0 0 2px #1a2e4a }
+.track-event-desc { font-size:.9rem;font-weight:600;color:#1a202c }
+.track-event-meta { display:flex;gap:12px;font-size:.78rem;color:#718096;margin-top:3px;flex-wrap:wrap }
+</style>
