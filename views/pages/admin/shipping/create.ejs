@@ -91,14 +91,128 @@ const pre = prefill || {};
       <div id="itemList"></div>
     </div>
 
-    <!-- LTL Accessorials -->
-    <div class="admin-card" id="ltlOptions">
-      <h3 class="admin-card-title">LTL Accessorials</h3>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <label class="ship-check"><input type="checkbox" id="acc_liftgatePickup"> Liftgate Pickup</label>
-        <label class="ship-check"><input type="checkbox" id="acc_liftgateDelivery" checked> Liftgate Delivery</label>
-        <label class="ship-check"><input type="checkbox" id="acc_appointment"> Appointment Required</label>
-        <label class="ship-check"><input type="checkbox" id="acc_insideDelivery"> Inside Delivery</label>
+    <!-- LTL Additional Services -->
+    <div class="admin-card ship-full-col" id="ltlOptions">
+      <h3 class="admin-card-title">LTL Additional Services</h3>
+
+      <div class="ship-acc-grid">
+
+        <!-- Insurance -->
+        <div class="ship-acc-section">
+          <div class="ship-acc-label">Insurance</div>
+          <label class="ship-check"><input type="radio" name="ltl_insure" value="no" checked> No — accept carrier limited liability</label>
+          <label class="ship-check" style="margin-top:4px"><input type="radio" name="ltl_insure" value="yes" onchange="toggleInsureVal(this.value)"> Yes — insure my shipment</label>
+          <div id="ltl_insure_val" style="display:none;margin-top:6px">
+            <div class="adm-field"><label>Declared Value ($)</label><input id="acc_declaredValue" type="number" class="adm-input" min="0" placeholder="0.00"></div>
+          </div>
+        </div>
+
+        <!-- Handling Charge -->
+        <div class="ship-acc-section">
+          <div class="ship-acc-label">Handling Charge</div>
+          <label class="ship-check"><input type="radio" name="ltl_handling" value="no" checked> No, thanks</label>
+          <label class="ship-check" style="margin-top:4px"><input type="radio" name="ltl_handling" value="yes"> Yes, add a handling charge</label>
+        </div>
+
+        <!-- Pickup Services -->
+        <div class="ship-acc-section">
+          <div class="ship-acc-label">Pickup Services</div>
+          <label class="ship-check"><input type="checkbox" id="acc_insidePickup"> Inside Pickup</label>
+          <label class="ship-check"><input type="checkbox" id="acc_liftgatePickup"> Liftgate Pickup</label>
+          <label class="ship-check"><input type="checkbox" id="acc_residentialPickup"> Residential Pickup</label>
+          <label class="ship-check"><input type="checkbox" id="acc_tradeshowPickup"> Tradeshow Pickup</label>
+          <label class="ship-check"><input type="checkbox" id="acc_constructionPickup"> Construction Site Pickup</label>
+          <label class="ship-check"><input type="checkbox" id="acc_dropAtTerminal"> Drop Shipment at Terminal</label>
+          <label class="ship-check"><input type="checkbox" id="acc_groceryPickup"> Grocery Consolidation Pickup</label>
+        </div>
+
+        <!-- Delivery Services -->
+        <div class="ship-acc-section">
+          <div class="ship-acc-label">Delivery Services</div>
+          <label class="ship-check"><input type="checkbox" id="acc_insideDelivery"> Inside Delivery</label>
+          <label class="ship-check"><input type="checkbox" id="acc_liftgateDelivery" checked> Liftgate Delivery</label>
+          <label class="ship-check"><input type="checkbox" id="acc_residentialDelivery"> Residential Delivery</label>
+          <label class="ship-check"><input type="checkbox" id="acc_tradeshowDelivery"> Tradeshow Delivery</label>
+          <label class="ship-check"><input type="checkbox" id="acc_groceryDelivery"> Grocery Consolidation Delivery</label>
+          <label class="ship-check"><input type="checkbox" id="acc_constructionDelivery"> Construction Site Delivery</label>
+          <label class="ship-check"><input type="checkbox" id="acc_notifyBeforeDelivery"> Notify Me Before Delivery</label>
+          <label class="ship-check"><input type="checkbox" id="acc_holdAtTerminal"> Hold Shipment at Terminal</label>
+          <label class="ship-check"><input type="checkbox" id="acc_appointment"> Appointment Delivery</label>
+        </div>
+
+        <!-- Shipment Services -->
+        <div class="ship-acc-section">
+          <div class="ship-acc-label">Shipment Services</div>
+          <label class="ship-check"><input type="checkbox" id="acc_sortAndSegregate"> Sort and Segregate</label>
+          <label class="ship-check"><input type="checkbox" id="acc_protectFromFreeze"> Protect from Freeze</label>
+        </div>
+
+        <!-- Billing Details -->
+        <div class="ship-acc-section">
+          <div class="ship-acc-label">Billing Details</div>
+          <div class="adm-field">
+            <select id="ltl_billing" class="adm-input">
+              <option value="BILL_SHIPPER">Bill My Account</option>
+              <option value="BILL_RECIPIENT">Bill Recipient</option>
+              <option value="BILL_THIRD_PARTY">Bill Third Party</option>
+            </select>
+          </div>
+        </div>
+
+      </div><!-- /ship-acc-grid -->
+    </div>
+
+    <!-- SMALLPACK Additional Services (hidden by default) -->
+    <div class="admin-card ship-full-col" id="spOptions" style="display:none">
+      <h3 class="admin-card-title">Additional Services</h3>
+      <div class="ship-acc-grid">
+
+        <!-- Insurance -->
+        <div class="ship-acc-section">
+          <div class="ship-acc-label">Insure Shipment</div>
+          <label class="ship-check"><input type="radio" name="sp_insure" value="no" checked> No — accept carrier limited liability</label>
+          <label class="ship-check" style="margin-top:4px"><input type="radio" name="sp_insure" value="yes" onchange="toggleSpInsureVal(this.value)"> Yes, insure my shipment</label>
+          <div id="sp_insure_val" style="display:none;margin-top:6px">
+            <div class="adm-field"><label>Declared Value ($)</label><input id="sp_declaredValue" type="number" class="adm-input" min="0" placeholder="0.00"></div>
+          </div>
+        </div>
+
+        <!-- UPS Services -->
+        <div class="ship-acc-section">
+          <div class="ship-acc-label">UPS Services</div>
+          <label class="ship-check"><input type="checkbox" id="sp_handlingCharge"> Handling Charge</label>
+          <label class="ship-check"><input type="checkbox" id="sp_carbonNeutral"> UPS Carbon Neutral</label>
+          <label class="ship-check"><input type="checkbox" id="sp_returnLabel"> Return Label</label>
+          <label class="ship-check"><input type="checkbox" id="sp_shipmentAlerts"> Shipment Alerts</label>
+          <label class="ship-check"><input type="checkbox" id="sp_upsNotifications"> UPS Notifications</label>
+          <label class="ship-check"><input type="checkbox" id="sp_senderReceipt"> Include Sender's Receipt</label>
+          <label class="ship-check"><input type="checkbox" id="sp_emailLabel"> Email Label</label>
+        </div>
+
+        <!-- Signature -->
+        <div class="ship-acc-section">
+          <div class="ship-acc-label">Signature Options</div>
+          <div class="adm-field">
+            <select id="sp_signature" class="adm-input">
+              <option value="">No Signature Option</option>
+              <option value="SIGNATURE_REQUIRED">Signature Required</option>
+              <option value="ADULT_SIGNATURE_REQUIRED">Adult Signature Required</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Billing -->
+        <div class="ship-acc-section">
+          <div class="ship-acc-label">Billing Details</div>
+          <div class="adm-field">
+            <select id="sp_billing" class="adm-input">
+              <option value="BILL_SHIPPER">Bill My Account</option>
+              <option value="BILL_RECIPIENT">Bill Recipient</option>
+              <option value="BILL_THIRD_PARTY">Bill Third Party</option>
+            </select>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -255,12 +369,24 @@ function getItems() {
   });
 }
 
-/* ── LTL options visibility ───────────────────────────────────── */
+/* ── Product type visibility ──────────────────────────────────── */
 document.querySelectorAll('input[name="productType"]').forEach(function(r) {
   r.addEventListener('change', function() {
-    document.getElementById('ltlOptions').style.display = r.value === 'LTL' ? '' : 'none';
+    var isLTL = r.value === 'LTL';
+    document.getElementById('ltlOptions').style.display = isLTL ? '' : 'none';
+    document.getElementById('spOptions').style.display  = isLTL ? 'none' : '';
   });
 });
+
+function toggleInsureVal(v) {
+  document.getElementById('ltl_insure_val').style.display = v === 'yes' ? '' : 'none';
+}
+function toggleSpInsureVal(v) {
+  document.getElementById('sp_insure_val').style.display = v === 'yes' ? '' : 'none';
+}
+function chk(id) { var el = document.getElementById(id); return el ? el.checked : false; }
+function val(id) { var el = document.getElementById(id); return el ? el.value : ''; }
+function rval(name) { var el = document.querySelector('input[name="'+name+'"]:checked'); return el ? el.value : ''; }
 
 /* ── Step 1 → 2: Get Rates ────────────────────────────────────── */
 function goToRates() {
@@ -278,11 +404,42 @@ function goToRates() {
 
   var body = {
     productType:     productType,
-    liftgatePickup:  document.getElementById('acc_liftgatePickup')   ? document.getElementById('acc_liftgatePickup').checked   : false,
-    liftgateDelivery:document.getElementById('acc_liftgateDelivery') ? document.getElementById('acc_liftgateDelivery').checked : false,
-    residential:     isResidential,
-    appointment:     document.getElementById('acc_appointment')  ? document.getElementById('acc_appointment').checked  : false,
-    insideDelivery:  document.getElementById('acc_insideDelivery')? document.getElementById('acc_insideDelivery').checked: false,
+    /* LTL accessorials */
+    insure:              rval('ltl_insure') === 'yes',
+    declaredValue:       parseFloat(val('acc_declaredValue')) || 0,
+    handlingCharge:      rval('ltl_handling') === 'yes',
+    insidePickup:        chk('acc_insidePickup'),
+    liftgatePickup:      chk('acc_liftgatePickup'),
+    residentialPickup:   chk('acc_residentialPickup'),
+    tradeshowPickup:     chk('acc_tradeshowPickup'),
+    constructionPickup:  chk('acc_constructionPickup'),
+    dropAtTerminal:      chk('acc_dropAtTerminal'),
+    groceryPickup:       chk('acc_groceryPickup'),
+    insideDelivery:      chk('acc_insideDelivery'),
+    liftgateDelivery:    chk('acc_liftgateDelivery'),
+    residentialDelivery: chk('acc_residentialDelivery'),
+    tradeshowDelivery:   chk('acc_tradeshowDelivery'),
+    groceryDelivery:     chk('acc_groceryDelivery'),
+    constructionDelivery:chk('acc_constructionDelivery'),
+    notifyBeforeDelivery:chk('acc_notifyBeforeDelivery'),
+    holdAtTerminal:      chk('acc_holdAtTerminal'),
+    appointment:         chk('acc_appointment'),
+    sortAndSegregate:    chk('acc_sortAndSegregate'),
+    protectFromFreeze:   chk('acc_protectFromFreeze'),
+    billingType:         val('ltl_billing') || 'BILL_SHIPPER',
+    /* SMALLPACK additional services */
+    sp_insure:           rval('sp_insure') === 'yes',
+    sp_declaredValue:    parseFloat(val('sp_declaredValue')) || 0,
+    sp_handlingCharge:   chk('sp_handlingCharge'),
+    sp_carbonNeutral:    chk('sp_carbonNeutral'),
+    sp_returnLabel:      chk('sp_returnLabel'),
+    sp_shipmentAlerts:   chk('sp_shipmentAlerts'),
+    sp_upsNotifications: chk('sp_upsNotifications'),
+    sp_senderReceipt:    chk('sp_senderReceipt'),
+    sp_emailLabel:       chk('sp_emailLabel'),
+    sp_signature:        val('sp_signature') || '',
+    sp_billingType:      val('sp_billing') || 'BILL_SHIPPER',
+    residential:         isResidential,
     origin: {
       company:  document.getElementById('orig_company').value,
       address1: document.getElementById('orig_address1').value,
@@ -518,6 +675,10 @@ addItem();
 
 .ship-spinner { width:28px;height:28px;border:3px solid #e2e8f0;border-top-color:#1a2e4a;border-radius:50%;animation:spin .7s linear infinite;margin:0 auto }
 @keyframes spin { to { transform:rotate(360deg) } }
+
+.ship-acc-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:20px;margin-top:8px }
+.ship-acc-section { display:flex;flex-direction:column;gap:5px }
+.ship-acc-label { font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#4a5568;margin-bottom:4px;border-bottom:1px solid #e2e8f0;padding-bottom:4px }
 
 @media(max-width:700px) {
   .ship-panel-grid { grid-template-columns:1fr }

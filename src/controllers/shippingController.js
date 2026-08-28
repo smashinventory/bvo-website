@@ -208,11 +208,31 @@ async function getRates(req, res) {
 
 function buildAccessorials(body) {
   const acc = [];
-  if (body.liftgatePickup)   acc.push({ code: 'LGP', description: 'Liftgate Pickup' });
-  if (body.liftgateDelivery) acc.push({ code: 'LGD', description: 'Liftgate Delivery' });
-  if (body.residential)      acc.push({ code: 'RES', description: 'Residential Delivery' });
-  if (body.appointment)      acc.push({ code: 'APT', description: 'Appointment Required' });
-  if (body.insideDelivery)   acc.push({ code: 'IND', description: 'Inside Delivery' });
+  // Pickup Services
+  if (body.insidePickup)        acc.push({ code: 'INP', description: 'Inside Pickup' });
+  if (body.liftgatePickup)      acc.push({ code: 'LGP', description: 'Liftgate Pickup' });
+  if (body.residentialPickup)   acc.push({ code: 'RSP', description: 'Residential Pickup' });
+  if (body.tradeshowPickup)     acc.push({ code: 'TSP', description: 'Tradeshow Pickup' });
+  if (body.constructionPickup)  acc.push({ code: 'COP', description: 'Construction Site Pickup' });
+  if (body.dropAtTerminal)      acc.push({ code: 'DAT', description: 'Drop Shipment at Terminal' });
+  if (body.groceryPickup)       acc.push({ code: 'GCP', description: 'Grocery Consolidation Pickup' });
+  // Delivery Services
+  if (body.insideDelivery)      acc.push({ code: 'IND', description: 'Inside Delivery' });
+  if (body.liftgateDelivery)    acc.push({ code: 'LGD', description: 'Liftgate Delivery' });
+  if (body.residentialDelivery || body.residential) acc.push({ code: 'RES', description: 'Residential Delivery' });
+  if (body.tradeshowDelivery)   acc.push({ code: 'TSD', description: 'Tradeshow Delivery' });
+  if (body.groceryDelivery)     acc.push({ code: 'GCD', description: 'Grocery Consolidation Delivery' });
+  if (body.constructionDelivery)acc.push({ code: 'COD', description: 'Construction Site Delivery' });
+  if (body.notifyBeforeDelivery)acc.push({ code: 'NBD', description: 'Notify Before Delivery' });
+  if (body.holdAtTerminal)      acc.push({ code: 'HAT', description: 'Hold Shipment at Terminal' });
+  if (body.appointment)         acc.push({ code: 'APT', description: 'Appointment Delivery' });
+  // Shipment Services
+  if (body.sortAndSegregate)    acc.push({ code: 'SAS', description: 'Sort and Segregate' });
+  if (body.protectFromFreeze)   acc.push({ code: 'PFF', description: 'Protect from Freeze' });
+  // Insurance
+  if (body.insure && body.declaredValue > 0) {
+    acc.push({ code: 'INS', description: 'Insurance', declaredValue: body.declaredValue });
+  }
   return acc;
 }
 
@@ -436,4 +456,113 @@ async function validateAddress(req, res) {
   }
 }
 
-module.exports = { index, createForm, getRates, bookShipment, cancelShipment, getDocument, trackShipment, validateAddress };
+/* ─────────────────────────────────────────────────────────────────
+   TRACK PAGE — GET /admin/shipping/track-search
+   Dedicated tracking UI (not the AJAX endpoint).
+───────────────────────────────────────────────────────────────────*/
+async function trackPage(req, res) {
+  const { q, type = 'BOL' } = req.query;
+  res.render('pages/admin/shipping/track', {
+    ...LAYOUT,
+    activePage: 'shipping-track',
+    pageTitle:  'Track Shipment',
+    query:      q || '',
+    trackType:  type,
+    shipment:   null,
+    apiMode:    wwex.apiMode,
+  });
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   DASHBOARD — GET /admin/shipping/dashboard
+───────────────────────────────────────────────────────────────────*/
+async function dashboard(req, res) {
+  try {
+    const [[stats]] = await bvoPool.query(`
+      SELECT
+        COUNT(*)                                                         AS total,
+        SUM(status='booked')                                            AS booked,
+        SUM(status='in_transit')                                        AS in_transit,
+        SUM(status='delivered')                                         AS delivered,
+        SUM(status='voided')                                            AS voided,
+        SUM(total_charge)                                               AS total_spend,
+        SUM(product_type='LTL')                                        AS ltl_count,
+        SUM(IF(product_type='LTL', total_charge, 0))                   AS ltl_spend,
+        SUM(product_type='SMALLPACK')                                   AS sp_count,
+        SUM(IF(product_type='SMALLPACK', total_charge, 0))             AS sp_spend
+      FROM shipments WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+    `);
+
+    const [byCarrier] = await bvoPool.query(`
+      SELECT carrier, COUNT(*) AS count, SUM(total_charge) AS spend
+      FROM shipments
+      WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) AND carrier IS NOT NULL
+      GROUP BY carrier ORDER BY spend DESC LIMIT 10
+    `);
+
+    const [recent] = await bvoPool.query(`
+      SELECT s.*, o.customer_name FROM shipments s
+      LEFT JOIN orders o ON o.id = s.order_id
+      ORDER BY s.created_at DESC LIMIT 10
+    `);
+
+    res.render('pages/admin/shipping/dashboard', {
+      ...LAYOUT,
+      activePage: 'shipping-dashboard',
+      pageTitle: 'Shipping Dashboard',
+      stats:     stats || {},
+      byCarrier,
+      recent,
+      apiMode:   wwex.apiMode,
+    });
+  } catch (err) {
+    console.error('[shipping] dashboard error:', err);
+    res.render('pages/admin/shipping/dashboard', {
+      ...LAYOUT, activePage: 'shipping-dashboard', pageTitle: 'Shipping Dashboard',
+      stats: {}, byCarrier: [], recent: [], apiMode: wwex.apiMode,
+    });
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   INVOICES — GET /admin/shipping/invoices
+───────────────────────────────────────────────────────────────────*/
+async function invoices(req, res) {
+  try {
+    const [shipments] = await bvoPool.query(`
+      SELECT s.*, o.customer_name FROM shipments s
+      LEFT JOIN orders o ON o.id = s.order_id
+      WHERE s.status != 'voided'
+      ORDER BY s.created_at DESC LIMIT 500
+    `);
+
+    const [[totals]] = await bvoPool.query(`
+      SELECT
+        SUM(total_charge)                                   AS total,
+        SUM(IF(product_type='LTL', total_charge, 0))       AS ltl,
+        SUM(IF(product_type='SMALLPACK', total_charge, 0)) AS smallpack
+      FROM shipments WHERE status != 'voided'
+    `);
+
+    res.render('pages/admin/shipping/invoices', {
+      ...LAYOUT,
+      activePage: 'shipping-invoices',
+      pageTitle: 'Shipping Invoices',
+      shipments,
+      totals: totals || {},
+      apiMode: wwex.apiMode,
+    });
+  } catch (err) {
+    console.error('[shipping] invoices error:', err);
+    res.render('pages/admin/shipping/invoices', {
+      ...LAYOUT, activePage: 'shipping-invoices', pageTitle: 'Shipping Invoices',
+      shipments: [], totals: {}, apiMode: wwex.apiMode,
+    });
+  }
+}
+
+module.exports = {
+  index, createForm, getRates, bookShipment, cancelShipment,
+  getDocument, trackShipment, trackPage, dashboard, invoices,
+  validateAddress,
+};

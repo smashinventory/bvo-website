@@ -147,6 +147,9 @@ router.get ('/marketing/jmv/financials',     jmvCtrl.getFinancials);
 
 /* ── Shipping (WWEX SpeedShip) ────────────────────────────────── */
 router.get ('/shipping',                  shippingCtrl.index);
+router.get ('/shipping/dashboard',        shippingCtrl.dashboard);
+router.get ('/shipping/track-search',     shippingCtrl.trackPage);
+router.get ('/shipping/invoices',         shippingCtrl.invoices);
 router.get ('/shipping/create',           shippingCtrl.createForm);
 router.post('/shipping/rates',            shippingCtrl.getRates);
 router.post('/shipping/book',             shippingCtrl.bookShipment);
