@@ -88,7 +88,14 @@
             <% } %>
           </td>
           <td class="adm-meta"><%= new Date(o.created_at).toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) %></td>
-          <td><a href="/admin/orders/<%= o.id %>" class="btn btn-outline btn-sm">View</a></td>
+          <td>
+            <div style="display:flex;gap:4px">
+              <a href="/admin/orders/<%= o.id %>" class="btn btn-outline btn-sm">View</a>
+              <% if (!['shipped','delivered','cancelled','refunded'].includes(o.status)) { %>
+              <a href="/admin/shipping/create?orderId=<%= o.id %>" class="btn btn-sm btn-ship" title="Create shipment for this order">Ship</a>
+              <% } %>
+            </div>
+          </td>
         </tr>
       <% }) %>
     </tbody>
@@ -105,3 +112,8 @@
   </div>
 <% } %>
 <p class="adm-count" style="margin-top:10px"><%= total %> order<%= total !== 1 ? 's' : '' %> total</p>
+
+<style>
+.btn-ship { background:#1a2e4a;color:#fff;border:1px solid #1a2e4a;border-radius:4px;padding:3px 10px;font-size:.78rem;font-weight:600;text-decoration:none;white-space:nowrap }
+.btn-ship:hover { background:#2b4a78;border-color:#2b4a78;color:#fff }
+</style>

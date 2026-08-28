@@ -59,38 +59,94 @@ async function index(req, res) {
 ───────────────────────────────────────────────────────────────────*/
 async function createForm(req, res) {
   const orderId = req.query.orderId || null;
-  let prefill = {};
+  let prefill      = {};
+  let prefillItems = [];
+  let orderMeta    = null;   // raw order row for the info banner
 
   if (orderId) {
+    // ── Order header ────────────────────────────────────────────
     const order = await safeQueryOne(
-      `SELECT o.*, oi.product_name, oi.quantity, oi.price
-       FROM orders o
-       LEFT JOIN order_items oi ON oi.order_id = o.id
-       WHERE o.id = ?
-       LIMIT 1`, [orderId]
+      `SELECT id, order_number, customer_name, email, phone,
+              shipping_address, shipping_city, shipping_state, shipping_zip,
+              billing_address,  billing_city,  billing_state,  billing_zip,
+              total, status
+       FROM orders WHERE id = ? LIMIT 1`, [orderId]
     );
+
     if (order) {
+      orderMeta = order;
       prefill = {
-        orderId:        order.id,
-        company:        order.customer_name || '',
-        name:           order.customer_name || '',
-        address1:       order.shipping_address || order.billing_address || '',
-        city:           order.shipping_city    || order.billing_city    || '',
-        state:          order.shipping_state   || order.billing_state   || '',
-        zip:            order.shipping_zip     || order.billing_zip     || '',
-        phone:          order.phone            || '',
-        email:          order.email            || '',
-        reference1:     `Order #${order.id}`,
+        orderId:    order.id,
+        orderNum:   order.order_number || `#${order.id}`,
+        company:    '',                           // usually residential — left blank so agent fills it
+        name:       order.customer_name || '',
+        address1:   order.shipping_address || order.billing_address || '',
+        city:       order.shipping_city    || order.billing_city    || '',
+        state:      order.shipping_state   || order.billing_state   || '',
+        zip:        order.shipping_zip     || order.billing_zip     || '',
+        phone:      order.phone            || '',
+        email:      order.email            || '',
+        reference1: `Order ${order.order_number || '#'+order.id}`,
       };
+
+      // ── Line items joined to products for dimensions ────────────
+      const items = await safeQuery(
+        `SELECT
+           oi.product_name,
+           oi.quantity,
+           oi.price,
+           p.sku,
+           p.vendor_sku,
+           p.upc,
+           p.width_in,
+           p.depth_in,
+           p.height_in,
+           p.weight_lbs,
+           p.total_ship_weight_lbs,
+           p.freight_class,
+           p.ships_ltl
+         FROM order_items oi
+         LEFT JOIN products p ON p.id = oi.product_id
+         WHERE oi.order_id = ?
+         ORDER BY oi.id ASC`, [orderId]
+      );
+
+      prefillItems = items.map(function(item) {
+        // Use total_ship_weight_lbs if available, else weight_lbs, times qty
+        const qty    = item.quantity || 1;
+        const weight = item.total_ship_weight_lbs
+                     ? Math.round(item.total_ship_weight_lbs * qty)
+                     : item.weight_lbs
+                     ? Math.round(item.weight_lbs * qty)
+                     : null;
+        return {
+          description:  item.product_name || item.sku || '',
+          sku:          item.vendor_sku || item.sku || item.upc || '',
+          weight:       weight,
+          length:       item.depth_in  ? Math.ceil(item.depth_in)  : null,
+          width:        item.width_in  ? Math.ceil(item.width_in)  : null,
+          height:       item.height_in ? Math.ceil(item.height_in) : null,
+          qty:          qty,
+          freightClass: item.freight_class || '',
+          shipsLTL:     item.ships_ltl     || false,
+        };
+      });
     }
   }
 
+  // ── Default ship type: LTL if any item has ships_ltl=true ────
+  const defaultType = prefillItems.some(function(i){ return i.shipsLTL; })
+    ? 'LTL' : 'LTL';   // always default LTL; SMALLPACK selected manually
+
   res.render('pages/admin/shipping/create', {
     ...LAYOUT,
-    pageTitle: 'Create Shipment',
+    pageTitle:    'Create Shipment',
     prefill,
-    apiMode: wwex.apiMode,
+    prefillItems,
+    orderMeta,
+    apiMode:      wwex.apiMode,
     orderId,
+    defaultType,
   });
 }
 
@@ -558,8 +614,34 @@ async function invoices(req, res) {
   }
 }
 
+/* ─────────────────────────────────────────────────────────────────
+   OPEN ORDERS — GET /admin/shipping/open-orders  (AJAX)
+   Returns orders that are shippable (not cancelled/shipped/delivered)
+   and don't already have an active (non-voided) shipment.
+───────────────────────────────────────────────────────────────────*/
+async function openOrders(req, res) {
+  try {
+    const rows = await safeQuery(`
+      SELECT o.id, o.order_number, o.customer_name, o.total, o.status,
+             o.shipping_address, o.created_at
+      FROM orders o
+      WHERE o.status NOT IN ('cancelled','shipped','delivered','refunded')
+        AND NOT EXISTS (
+          SELECT 1 FROM shipments s
+          WHERE s.order_id = o.id AND s.status != 'voided'
+        )
+      ORDER BY o.created_at DESC
+      LIMIT 200
+    `);
+    res.json({ ok: true, orders: rows });
+  } catch (err) {
+    console.error('[shipping] openOrders error:', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+}
+
 module.exports = {
   index, createForm, getRates, bookShipment, cancelShipment,
   getDocument, trackShipment, trackPage, dashboard, invoices,
-  validateAddress,
+  validateAddress, openOrders,
 };

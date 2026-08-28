@@ -157,6 +157,7 @@ router.post('/shipping/cancel',           shippingCtrl.cancelShipment);
 router.get ('/shipping/document',         shippingCtrl.getDocument);
 router.get ('/shipping/track/:bol',       shippingCtrl.trackShipment);
 router.post('/shipping/validate-address', shippingCtrl.validateAddress);
+router.get ('/shipping/open-orders',      shippingCtrl.openOrders);
 
 /* ── Theme Editor ───────────────────────────────────────────── */
 router.get ('/theme',          ctrl.themeEditor);

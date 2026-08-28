@@ -4,7 +4,9 @@
    3-step flow: 1) Addresses & items  2) Rate shop  3) Book & confirm
    Supports LTL and SMALLPACK. Pre-fills from order if orderId passed.
 ═══════════════════════════════════════════════════════════════════ */
-const pre = prefill || {};
+const pre   = prefill      || {};
+const items = prefillItems || [];
+const meta  = orderMeta    || null;
 %>
 
 <!-- ══ Toolbar ══════════════════════════════════════════════════════ -->
@@ -14,6 +16,30 @@ const pre = prefill || {};
     <span class="adm-toolbar-title">New Shipment<%= orderId ? ' — Order #'+orderId : '' %></span>
   </div>
 </div>
+
+<% if (meta) { %>
+<!-- ══ Order Info Banner ═════════════════════════════════════════════ -->
+<div class="ship-order-banner">
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <span style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#2b6cb0">Linked Order</span>
+    <a href="/admin/orders/<%= meta.id %>" style="font-weight:700;color:#1a2e4a"><%= pre.orderNum %></a>
+    <span style="color:#718096;font-size:.85rem"><%= meta.customer_name || '' %></span>
+    <% if (meta.email) { %><span style="color:#718096;font-size:.8rem">· <%= meta.email %></span><% } %>
+    <% if (meta.phone) { %><span style="color:#718096;font-size:.8rem">· <%= meta.phone %></span><% } %>
+    <span style="margin-left:auto;font-size:.8rem;color:#718096">$<%= parseFloat(meta.total||0).toFixed(2) %> · <span style="text-transform:capitalize"><%= meta.status %></span></span>
+  </div>
+  <% if (items.length) { %>
+  <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+    <% items.forEach(function(it){ %>
+    <span style="background:#EBF8FF;color:#2b6cb0;border-radius:4px;padding:2px 8px;font-size:.75rem">
+      <%= it.qty > 1 ? it.qty+'× ' : '' %><%= it.description %>
+      <% if (it.sku) { %><span style="opacity:.65">(<%= it.sku %>)</span><% } %>
+    </span>
+    <% }); %>
+  </div>
+  <% } %>
+</div>
+<% } %>
 
 <!-- ══ Step indicator ════════════════════════════════════════════════ -->
 <div class="ship-steps">
@@ -307,10 +333,22 @@ const pre = prefill || {};
 
 <script>
 /* ── State ────────────────────────────────────────────────────── */
-var _rates   = [];
+var _rates    = [];
 var _selected = null;
-var _txnId   = null;
-var _orderId = '<%= orderId || "" %>';
+var _txnId    = null;
+var _orderId  = '<%= orderId || "" %>';
+
+/* ── Prefill data from server ─────────────────────────────────── */
+var _prefillItems = <%- JSON.stringify(items) %>;
+
+/* ── Seed cargo rows on load ──────────────────────────────────── */
+window.addEventListener('DOMContentLoaded', function() {
+  if (_prefillItems && _prefillItems.length) {
+    _prefillItems.forEach(function(it) { addItem(it); });
+  } else {
+    addItem();   // always start with at least one blank row
+  }
+});
 
 /* ── Step navigation ──────────────────────────────────────────── */
 function showStep(n) {
@@ -328,20 +366,39 @@ function showStep(n) {
 
 /* ── Items ────────────────────────────────────────────────────── */
 var _itemCount = 0;
-function addItem() {
+var FREIGHT_CLASSES = ['50','55','60','65','70','77.5','85','92.5','100','110','125','150','175','200','250','300','400','500'];
+
+function addItem(d) {
+  // d is optional prefill data object: { description, sku, weight, length, width, height, qty, freightClass }
+  d = d || {};
   _itemCount++;
   var isLTL = getProductType() === 'LTL';
-  var html = '<div class="ship-item-row" id="item-' + _itemCount + '">'
+  var n = _itemCount;
+
+  // Build freight class options, pre-selecting if provided
+  var fcOptions = '<option value="">Auto</option>' + FREIGHT_CLASSES.map(function(fc) {
+    return '<option' + (String(d.freightClass) === fc ? ' selected' : '') + '>' + fc + '</option>';
+  }).join('');
+
+  // SKU badge if we have one
+  var skuBadge = d.sku
+    ? '<div style="font-size:.72rem;color:#718096;margin-top:2px">SKU: ' + d.sku + '</div>'
+    : '';
+
+  var html = '<div class="ship-item-row" id="item-' + n + '">'
     + '<div class="ship-item-fields">'
-    + '<div class="adm-field"><label>Description</label><input type="text" class="adm-input item-desc" placeholder="e.g. Vanity"></div>'
-    + '<div class="adm-field"><label>Weight (lbs)</label><input type="number" class="adm-input item-weight" min="1"></div>'
-    + '<div class="adm-field"><label>Length (in)</label><input type="number" class="adm-input item-length" min="1"></div>'
-    + '<div class="adm-field"><label>Width (in)</label><input type="number" class="adm-input item-width" min="1"></div>'
-    + '<div class="adm-field"><label>Height (in)</label><input type="number" class="adm-input item-height" min="1"></div>'
-    + '<div class="adm-field"><label>Qty</label><input type="number" class="adm-input item-qty" value="1" min="1"></div>'
-    + (isLTL ? '<div class="adm-field"><label>Freight Class</label><select class="adm-input item-class"><option value="">Auto</option><option>50</option><option>55</option><option>60</option><option>65</option><option>70</option><option>77.5</option><option>85</option><option>92.5</option><option>100</option><option>110</option><option>125</option><option>150</option><option>175</option><option>200</option><option>250</option><option>300</option><option>400</option><option>500</option></select></div>' : '')
+    + '<div class="adm-field" style="grid-column:1/-1">'
+    +   '<label>Description' + (d.sku ? ' <span style="font-size:.72rem;color:#718096;font-weight:400">(' + d.sku + ')</span>' : '') + '</label>'
+    +   '<input type="text" class="adm-input item-desc" placeholder="e.g. Vanity" value="' + (d.description || '') + '">'
     + '</div>'
-    + '<button class="ship-item-remove" onclick="removeItem(' + _itemCount + ')">✕</button>'
+    + '<div class="adm-field"><label>Weight (lbs)</label><input type="number" class="adm-input item-weight" min="1" value="' + (d.weight || '') + '" placeholder="lbs"></div>'
+    + '<div class="adm-field"><label>Length (in)</label><input type="number" class="adm-input item-length" min="1" value="' + (d.length || '') + '" placeholder="in"></div>'
+    + '<div class="adm-field"><label>Width (in)</label><input type="number" class="adm-input item-width" min="1" value="' + (d.width || '') + '" placeholder="in"></div>'
+    + '<div class="adm-field"><label>Height (in)</label><input type="number" class="adm-input item-height" min="1" value="' + (d.height || '') + '" placeholder="in"></div>'
+    + '<div class="adm-field"><label>Qty</label><input type="number" class="adm-input item-qty" value="' + (d.qty || 1) + '" min="1"></div>'
+    + (isLTL ? '<div class="adm-field"><label>Freight Class</label><select class="adm-input item-class">' + fcOptions + '</select></div>' : '')
+    + '</div>'
+    + '<button class="ship-item-remove" onclick="removeItem(' + n + ')" title="Remove item">✕</button>'
     + '</div>';
   document.getElementById('itemList').insertAdjacentHTML('beforeend', html);
 }
@@ -633,11 +690,10 @@ function bookShipment() {
   });
 }
 
-/* ── Init: add one item row ───────────────────────────────────── */
-addItem();
 </script>
 
 <style>
+.ship-order-banner { background:#EBF8FF;border:1px solid #bee3f8;border-radius:8px;padding:12px 16px;margin-bottom:16px }
 .ship-steps { display:flex;gap:0;margin-bottom:24px;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0 }
 .ship-step  { flex:1;padding:12px 16px;font-size:.85rem;color:#718096;background:#f7fafc;cursor:default;display:flex;align-items:center;gap:8px }
 .ship-step.active { background:#1a2e4a;color:#fff;font-weight:700 }
