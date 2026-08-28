@@ -92,9 +92,9 @@ async function createForm(req, res) {
       // ── Line items joined to products for dimensions ────────────
       const items = await safeQuery(
         `SELECT
-           oi.product_name,
-           oi.quantity,
-           oi.price,
+           oi.name  AS product_name,
+           oi.qty   AS quantity,
+           oi.unit_price AS price,
            p.sku,
            p.vendor_sku,
            p.upc,
