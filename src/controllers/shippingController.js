@@ -66,26 +66,33 @@ async function createForm(req, res) {
   if (orderId) {
     // ── Order header ────────────────────────────────────────────
     const order = await safeQueryOne(
-      `SELECT id, order_number, customer_name, email, phone,
-              shipping_address, shipping_city, shipping_state, shipping_zip,
-              billing_address,  billing_city,  billing_state,  billing_zip,
-              total, status
-       FROM orders WHERE id = ? LIMIT 1`, [orderId]
+      `SELECT o.id, o.order_number, o.status, o.total,
+              o.ship_first_name, o.ship_last_name,
+              o.ship_address1, o.ship_city, o.ship_state, o.ship_zip,
+              COALESCE(CONCAT(c.first_name,' ',c.last_name), o.guest_email) AS customer_name,
+              c.email AS email,
+              c.phone AS phone
+       FROM orders o
+       LEFT JOIN customers c ON c.id = o.customer_id
+       WHERE o.id = ? LIMIT 1`, [orderId]
     );
 
     if (order) {
       orderMeta = order;
+      const fullName = order.ship_first_name
+        ? [order.ship_first_name, order.ship_last_name].filter(Boolean).join(' ')
+        : order.customer_name || '';
       prefill = {
         orderId:    order.id,
         orderNum:   order.order_number || `#${order.id}`,
-        company:    '',                           // usually residential — left blank so agent fills it
-        name:       order.customer_name || '',
-        address1:   order.shipping_address || order.billing_address || '',
-        city:       order.shipping_city    || order.billing_city    || '',
-        state:      order.shipping_state   || order.billing_state   || '',
-        zip:        order.shipping_zip     || order.billing_zip     || '',
-        phone:      order.phone            || '',
-        email:      order.email            || '',
+        company:    '',
+        name:       fullName,
+        address1:   order.ship_address1 || '',
+        city:       order.ship_city     || '',
+        state:      order.ship_state    || '',
+        zip:        order.ship_zip      || '',
+        phone:      order.phone         || '',
+        email:      order.email         || '',
         reference1: `Order ${order.order_number || '#'+order.id}`,
       };
 
@@ -622,9 +629,10 @@ async function invoices(req, res) {
 async function openOrders(req, res) {
   try {
     const rows = await safeQuery(`
-      SELECT o.id, o.order_number, o.customer_name, o.total, o.status,
-             o.shipping_address, o.created_at
+      SELECT o.id, o.order_number, o.total, o.status, o.created_at,
+             COALESCE(CONCAT(c.first_name,' ',c.last_name), o.guest_email) AS customer_name
       FROM orders o
+      LEFT JOIN customers c ON c.id = o.customer_id
       WHERE o.status NOT IN ('cancelled','shipped','delivered','refunded')
         AND NOT EXISTS (
           SELECT 1 FROM shipments s
