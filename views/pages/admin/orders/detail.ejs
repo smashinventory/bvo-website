@@ -228,13 +228,14 @@ const hasPayment    = !!order.payment_transaction_id;
       </h3>
       <% if (!shipment || shipment.status === 'quote_pending') { %>
         <p class="admin-card-hint">No shipment booked yet.</p>
-        <div class="shipping-options" style="margin-bottom:12px">
-          <label class="admin-checkbox-label"><input type="checkbox" id="chkResidential" checked> Residential delivery</label>
-          <label class="admin-checkbox-label"><input type="checkbox" id="chkLiftgate" checked> Liftgate required</label>
-          <label class="admin-checkbox-label"><input type="checkbox" id="chkAppointment"> Appointment delivery</label>
-        </div>
-        <button class="btn btn-primary" id="getQuotesBtn">Get WWEX Quotes</button>
-        <div id="quotesResult" class="quotes-result" style="display:none;margin-top:12px"></div>
+        <a href="/admin/shipping/create?orderId=<%= order.id %>"
+           class="btn btn-primary"
+           style="display:inline-flex;align-items:center;gap:6px">
+          🚚 Ship This Order
+        </a>
+        <p style="margin-top:8px;font-size:.78rem;color:#718096">
+          Opens the WWEX shipping form pre-filled with this order's items, dimensions, and delivery address.
+        </p>
       <% } else { %>
         <div class="detail-meta">
           <div class="detail-meta-row"><span>Status</span><span class="rag-pill rag-pill--<%= shipment.status === 'delivered' ? 'green' : shipment.status === 'exception' ? 'red' : 'yellow' %>"><%= shipment.status.replace(/_/g,' ') %></span></div>
@@ -576,52 +577,7 @@ async function saveVendorConfirm() {
   if (d.ok) location.reload(); else alert('Error: ' + d.error);
 }
 
-/* ── WWEX Quotes ── */
-document.getElementById('getQuotesBtn')?.addEventListener('click', async () => {
-  const btn = document.getElementById('getQuotesBtn');
-  btn.disabled = true; btn.textContent = 'Fetching quotes…';
-  const r = await fetch(`/admin/orders/${ORDER_ID}/shipping/quote`, {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({
-      residential: document.getElementById('chkResidential')?.checked !== false ? 'true' : 'false',
-      liftgate:    document.getElementById('chkLiftgate')?.checked    !== false ? 'true' : 'false',
-      appointment: document.getElementById('chkAppointment')?.checked ? 'true' : 'false',
-    })
-  });
-  const d = await r.json();
-  btn.disabled = false; btn.textContent = 'Get WWEX Quotes';
-  const el = document.getElementById('quotesResult');
-  el.style.display='block';
-  if (!d.ok) { el.innerHTML=`<p style="color:var(--red)">${d.error}</p>`; return; }
-  el.innerHTML = `
-    ${d.stub ? '<p style="font-size:.75rem;background:#FEF3C7;color:#92400e;padding:5px 10px;border-radius:5px;margin-bottom:8px">Stub rates — connect WWEX credentials for live quotes</p>' : ''}
-    <table class="adm-table">
-      <thead><tr><th>Carrier</th><th>Service</th><th>Transit</th><th>Est. Delivery</th><th>Rate</th><th></th></tr></thead>
-      <tbody>
-        ${d.rates.map(rate => `
-          <tr>
-            <td>${rate.carrier}</td>
-            <td>${rate.serviceLevel}</td>
-            <td>${rate.transitDays} days</td>
-            <td>${rate.estimatedDelivery}</td>
-            <td><strong>$${parseFloat(rate.totalCharge).toFixed(2)}</strong></td>
-            <td><button class="btn btn-primary btn-sm"
-              onclick="bookRate('${rate.rateId}','${rate.carrier}','${rate.serviceLevel}','${rate.shipType}','${rate.totalCharge}','${rate.estimatedDelivery}')">Book</button></td>
-          </tr>`).join('')}
-      </tbody>
-    </table>`;
-});
-
-async function bookRate(rateId, carrier, serviceLevel, shipType, amount, estDelivery) {
-  if (!confirm(`Book shipment with ${carrier} for $${parseFloat(amount).toFixed(2)}?`)) return;
-  const r = await fetch(`/admin/orders/${ORDER_ID}/shipping/book`, {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ rate_id:rateId, carrier, service_level:serviceLevel, ship_type:shipType, rate_amount:amount, estimated_delivery:estDelivery })
-  });
-  const d = await r.json();
-  if (d.ok) { alert(`Booked! Tracking: ${d.tracking_number}`); location.reload(); }
-  else alert('Booking error: ' + d.error);
-}
+/* ── WWEX shipping: handled via /admin/shipping/create?orderId= ── */
 
 /* ── Add Note ── */
 async function addNote() {
