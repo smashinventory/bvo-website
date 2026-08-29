@@ -59,9 +59,9 @@ async function index(req, res) {
 ───────────────────────────────────────────────────────────────────*/
 async function createForm(req, res) {
   const orderId = req.query.orderId || null;
-  let prefill      = {};
-  let prefillItems = [];
-  let orderMeta    = null;   // raw order row for the info banner
+  let prefill              = {};
+  let prefillHandlingUnits = [];
+  let orderMeta            = null;   // raw order row for the info banner
 
   if (orderId) {
     // ── Order header ────────────────────────────────────────────
@@ -96,19 +96,15 @@ async function createForm(req, res) {
         reference1: `Order ${order.order_number || '#'+order.id}`,
       };
 
-      // ── Line items joined to products for dimensions ────────────
-      const items = await safeQuery(
+      // ── Line items with product IDs ──────────────────────────
+      const lineItems = await safeQuery(
         `SELECT
            oi.name  AS product_name,
            oi.qty   AS quantity,
-           oi.unit_price AS price,
+           p.id     AS product_id,
            p.sku,
            p.vendor_sku,
            p.upc,
-           p.width_in,
-           p.depth_in,
-           p.height_in,
-           p.weight_lbs,
            p.total_ship_weight_lbs,
            p.freight_class,
            p.ships_ltl
@@ -118,42 +114,83 @@ async function createForm(req, res) {
          ORDER BY oi.id ASC`, [orderId]
       );
 
-      prefillItems = items.map(function(item) {
-        // Use total_ship_weight_lbs if available, else weight_lbs, times qty
-        const qty    = item.quantity || 1;
-        const weight = item.total_ship_weight_lbs
-                     ? Math.round(item.total_ship_weight_lbs * qty)
-                     : item.weight_lbs
-                     ? Math.round(item.weight_lbs * qty)
-                     : null;
-        return {
-          description:  item.product_name || item.sku || '',
-          sku:          item.vendor_sku || item.sku || item.upc || '',
-          weight:       weight,
-          length:       item.depth_in  ? Math.ceil(item.depth_in)  : null,
-          width:        item.width_in  ? Math.ceil(item.width_in)  : null,
-          height:       item.height_in ? Math.ceil(item.height_in) : null,
-          qty:          qty,
-          freightClass: item.freight_class || '',
-          shipsLTL:     item.ships_ltl     || false,
-        };
-      });
+      // ── Build one Handling Unit per shipping box ──────────────
+      // Each row in product_shipping_boxes = one physical carton shipped
+      for (const item of lineItems) {
+        const sku  = item.vendor_sku || item.sku || item.upc || '';
+        const name = item.product_name || sku || '';
+        const qty  = item.quantity || 1;
+
+        if (item.product_id) {
+          const boxes = await safeQuery(
+            `SELECT component_type, box_number,
+                    ship_height_in, ship_width_in, ship_depth_in, gross_weight_lbs
+             FROM product_shipping_boxes
+             WHERE product_id = ?
+             ORDER BY component_type, box_number`, [item.product_id]
+          );
+
+          if (boxes.length) {
+            for (const box of boxes) {
+              prefillHandlingUnits.push({
+                huType:        'BOX',
+                count:         qty,
+                stackable:     false,
+                length:        box.ship_depth_in  ? Math.ceil(box.ship_depth_in)  : null,
+                width:         box.ship_width_in  ? Math.ceil(box.ship_width_in)  : null,
+                height:        box.ship_height_in ? Math.ceil(box.ship_height_in) : null,
+                grossWeight:   box.gross_weight_lbs ? Math.round(box.gross_weight_lbs) : null,
+                productName:   name,
+                sku:           sku,
+                componentType: box.component_type || '',
+                boxNumber:     box.box_number     || 1,
+                commodities: [{
+                  description:  name,
+                  nmfcCode:     '',
+                  freightClass: item.freight_class || '',
+                  pieces:       qty,
+                  pieceType:    'CTN',
+                  weight:       box.gross_weight_lbs ? Math.round(box.gross_weight_lbs) : null,
+                }],
+              });
+            }
+            continue;
+          }
+        }
+
+        // Fallback: no product linked or no shipping boxes — use product totals
+        prefillHandlingUnits.push({
+          huType:      'BOX',
+          count:       qty,
+          stackable:   false,
+          length:      null,
+          width:       null,
+          height:      null,
+          grossWeight: item.total_ship_weight_lbs ? Math.round(item.total_ship_weight_lbs * qty) : null,
+          productName: name,
+          sku:         sku,
+          commodities: [{
+            description:  name,
+            nmfcCode:     '',
+            freightClass: item.freight_class || '',
+            pieces:       qty,
+            pieceType:    'CTN',
+            weight:       item.total_ship_weight_lbs ? Math.round(item.total_ship_weight_lbs * qty) : null,
+          }],
+        });
+      }
     }
   }
 
-  // ── Default ship type: LTL if any item has ships_ltl=true ────
-  const defaultType = prefillItems.some(function(i){ return i.shipsLTL; })
-    ? 'LTL' : 'LTL';   // always default LTL; SMALLPACK selected manually
-
   res.render('pages/admin/shipping/create', {
     ...LAYOUT,
-    pageTitle:    'Create Shipment',
+    pageTitle:           'Create Shipment',
     prefill,
-    prefillItems,
+    prefillHandlingUnits,
     orderMeta,
-    apiMode:      wwex.apiMode,
+    apiMode:             wwex.apiMode,
     orderId,
-    defaultType,
+    defaultType:         'LTL',
   });
 }
 
@@ -163,7 +200,9 @@ async function createForm(req, res) {
 ───────────────────────────────────────────────────────────────────*/
 async function getRates(req, res) {
   try {
-    const { productType = 'LTL', origin, destination, items = [], service } = req.body;
+    const { productType = 'LTL', origin, destination, handlingUnits = [], items = [], service } = req.body;
+    // Support both new handlingUnits[] (two-layer) and legacy items[] (flat)
+    const hus = handlingUnits.length ? handlingUnits : items;
 
     let shopPayload;
 
@@ -186,7 +225,7 @@ async function getRates(req, res) {
               contactList: [{ firstName: '', lastName: destination.name || '', phone: destination.phone || '', email: destination.email || '', extension: null }],
             },
           },
-          handlingUnitList: (items || []).map(pkg => ({
+          handlingUnitList: hus.map(pkg => ({
             billedDimension: {
               length: { value: pkg.length || null, unit: 'in', dimensionType: 'NET' },
               width:  { value: pkg.width  || null, unit: 'in' },
@@ -194,10 +233,10 @@ async function getRates(req, res) {
             },
             packagingType:     '02',
             packagingTypeName: 'Custom',
-            quantity:          pkg.quantity || 1,
+            quantity:          pkg.count || pkg.quantity || 1,
             shippedItemList: [{
               additionalHandlingFeeFlag: false,
-              weight: { value: pkg.weight || 0, unit: 'lbs' },
+              weight: { value: pkg.grossWeight || pkg.weight || 0, unit: 'lbs' },
             }],
           })),
           originAddress: {
@@ -243,19 +282,32 @@ async function getRates(req, res) {
             },
           },
           accessorialList: buildAccessorials(req.body),
-          handlingUnitList: (items || []).map(item => ({
-            count:         item.quantity || 1,
-            type:          item.huType   || 'PLT',
-            weight:        { value: item.weight || 0, unit: 'lbs' },
-            dimension:     {
-              length: { value: item.length || null, unit: 'in' },
-              width:  { value: item.width  || null, unit: 'in' },
-              height: { value: item.height || null, unit: 'in' },
-            },
-            freightClass:  item.freightClass || null,
-            nmfcCode:      item.nmfcCode     || null,
-            description:   item.description  || '',
-          })),
+          handlingUnitList: hus.map(hu => {
+            // Pull first commodity for top-level LTL fields (class, NMFC, description)
+            const comm0 = (hu.commodities && hu.commodities[0]) || {};
+            return {
+              count:        hu.count     || hu.quantity || 1,
+              type:         hu.huType    || hu.type     || 'PLT',
+              stackable:    hu.stackable || false,
+              weight:       { value: hu.grossWeight || hu.weight || 0, unit: 'lbs' },
+              dimension:    {
+                length: { value: hu.length || null, unit: 'in' },
+                width:  { value: hu.width  || null, unit: 'in' },
+                height: { value: hu.height || null, unit: 'in' },
+              },
+              freightClass: comm0.freightClass || hu.freightClass || null,
+              nmfcCode:     comm0.nmfcCode     || hu.nmfcCode     || null,
+              description:  comm0.description  || hu.description  || '',
+              commodityList: (hu.commodities || []).map(c => ({
+                description:  c.description  || '',
+                nmfcCode:     c.nmfcCode     || null,
+                class:        c.freightClass || null,
+                pieces:       c.pieces       || 1,
+                pieceType:    c.pieceType    || 'CTN',
+                weight:       { value: c.weight || hu.grossWeight || 0, unit: 'lbs' },
+              })),
+            };
+          }),
         },
       };
     }

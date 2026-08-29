@@ -4,9 +4,9 @@
    3-step flow: 1) Addresses & items  2) Rate shop  3) Book & confirm
    Supports LTL and SMALLPACK. Pre-fills from order if orderId passed.
 ═══════════════════════════════════════════════════════════════════ */
-const pre   = prefill      || {};
-const items = prefillItems || [];
-const meta  = orderMeta    || null;
+const pre  = prefill             || {};
+const hus  = prefillHandlingUnits || [];
+const meta = orderMeta           || null;
 %>
 
 <!-- ══ Toolbar ══════════════════════════════════════════════════════ -->
@@ -28,14 +28,15 @@ const meta  = orderMeta    || null;
     <% if (meta.phone) { %><span style="color:#718096;font-size:.8rem">· <%= meta.phone %></span><% } %>
     <span style="margin-left:auto;font-size:.8rem;color:#718096">$<%= parseFloat(meta.total||0).toFixed(2) %> · <span style="text-transform:capitalize"><%= meta.status %></span></span>
   </div>
-  <% if (items.length) { %>
+  <% if (hus.length) { %>
   <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
-    <% items.forEach(function(it){ %>
+    <% /* Show one chip per unique product (dedupe by productName+sku) */ %>
+    <% const seen = {}; hus.forEach(function(hu){ const k = (hu.productName||'')+'|'+(hu.sku||''); if (!seen[k]) { seen[k]=true; %>
     <span style="background:#EBF8FF;color:#2b6cb0;border-radius:4px;padding:2px 8px;font-size:.75rem">
-      <%= it.qty > 1 ? it.qty+'× ' : '' %><%= it.description %>
-      <% if (it.sku) { %><span style="opacity:.65">(<%= it.sku %>)</span><% } %>
+      <%= hu.count > 1 ? hu.count+'× ' : '' %><%= hu.productName || '' %>
+      <% if (hu.sku) { %><span style="opacity:.65">(<%= hu.sku %>)</span><% } %>
     </span>
-    <% }); %>
+    <% } }); %>
   </div>
   <% } %>
 </div>
@@ -108,13 +109,13 @@ const meta  = orderMeta    || null;
       </div>
     </div>
 
-    <!-- Cargo / Packages -->
+    <!-- Handling Units -->
     <div class="admin-card ship-full-col">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-        <h3 class="admin-card-title" style="margin:0">Cargo / Packages</h3>
-        <button class="btn btn-sm btn-outline" onclick="addItem()">+ Add Item</button>
+        <h3 class="admin-card-title" style="margin:0">Handling Units &amp; Commodities</h3>
+        <button class="btn btn-sm btn-outline" onclick="addHandlingUnit()">+ Add Handling Unit</button>
       </div>
-      <div id="itemList"></div>
+      <div id="huList"></div>
     </div>
 
     <!-- LTL Additional Services -->
@@ -367,16 +368,19 @@ var _selected = null;
 var _txnId    = null;
 var _orderId  = '<%= orderId || "" %>';
 
-/* ── Prefill data from server ─────────────────────────────────── */
-var _prefillItems = <%- JSON.stringify(items) %>;
+/* ── Prefill Handling Units from server ───────────────────────── */
+var _prefillHUs = <%- JSON.stringify(prefillHandlingUnits || []) %>;
 
-/* ── Seed cargo rows on load ──────────────────────────────────── */
+/* ── Seed HU rows on load ─────────────────────────────────────── */
 window.addEventListener('DOMContentLoaded', function() {
-  if (_prefillItems && _prefillItems.length) {
-    _prefillItems.forEach(function(it) { addItem(it); });
+  if (_prefillHUs && _prefillHUs.length) {
+    _prefillHUs.forEach(function(hu) { addHandlingUnit(hu); });
   } else {
-    addItem();   // always start with at least one blank row
+    addHandlingUnit();
   }
+  document.getElementById('commodityModal').addEventListener('click', function(e) {
+    if (e.target === this) closeCommodityPicker();
+  });
 });
 
 /* ── Step navigation ──────────────────────────────────────────── */
@@ -393,69 +397,119 @@ function showStep(n) {
   if (ind) ind.classList.add('active');
 }
 
-/* ── Items ────────────────────────────────────────────────────── */
-var _itemCount = 0;
+/* ── Handling Units ───────────────────────────────────────────── */
+var _huCount = 0;
 var FREIGHT_CLASSES = ['50','55','60','65','70','77.5','85','92.5','100','110','125','150','175','200','250','300','400','500'];
+var HU_TYPES = [
+  { value:'BOX', label:'Box / Carton' },
+  { value:'PLT', label:'Pallet' },
+  { value:'CRT', label:'Crate' },
+  { value:'SKD', label:'Skid' },
+  { value:'BND', label:'Bundle' },
+];
+var PIECE_TYPES = [
+  { value:'CTN', label:'Carton' },
+  { value:'PLT', label:'Pallet' },
+  { value:'CRT', label:'Crate' },
+  { value:'SKD', label:'Skid' },
+  { value:'BND', label:'Bundle' },
+  { value:'PCS', label:'Pieces' },
+];
 
-function addItem(d) {
-  // d is optional prefill data object: { description, sku, weight, length, width, height, qty, freightClass }
+function addHandlingUnit(d) {
   d = d || {};
-  _itemCount++;
-  var isLTL = getProductType() === 'LTL';
-  var n = _itemCount;
+  _huCount++;
+  var n = _huCount;
 
-  // Build freight class options, pre-selecting if provided
-  var fcOptions = '<option value="">Auto</option>' + FREIGHT_CLASSES.map(function(fc) {
-    return '<option' + (String(d.freightClass) === fc ? ' selected' : '') + '>' + fc + '</option>';
+  var huTypeOpts = HU_TYPES.map(function(t) {
+    return '<option value="' + t.value + '"' + ((d.huType || 'BOX') === t.value ? ' selected' : '') + '>' + t.label + '</option>';
   }).join('');
 
-  // SKU badge if we have one
-  var skuBadge = d.sku
-    ? '<div style="font-size:.72rem;color:#718096;margin-top:2px">SKU: ' + d.sku + '</div>'
-    : '';
+  var label = d.productName
+    ? (d.productName + (d.componentType ? ' — ' + d.componentType : '') + (d.sku ? ' <span class="hu-sku-badge">(' + d.sku + ')</span>' : ''))
+    : ('Handling Unit #' + n);
 
-  var html = '<div class="ship-item-row" id="item-' + n + '">'
-    + '<div class="ship-item-fields">'
-    + '<div class="adm-field" style="grid-column:1/-1">'
-    +   '<label>Commodity' + (d.sku ? ' <span style="font-size:.72rem;color:#718096;font-weight:400">(' + d.sku + ')</span>' : '') + '</label>'
-    +   '<div style="display:flex;gap:4px">'
-    +   '<input type="text" class="adm-input item-desc" placeholder="e.g. Top, Sink or Bathroom Vanity" value="' + (d.description || '') + '" style="flex:1">'
-    +   '<button type="button" onclick="openCommodityPicker(' + n + ')" class="comm-search-btn" title="Browse saved commodities">&#128269;</button>'
+  var comms = (d.commodities && d.commodities.length) ? d.commodities : [{}];
+
+  var html = '<div class="ship-hu-row" id="hu-' + n + '">'
+    + '<div class="ship-hu-header">'
+    +   '<span class="ship-hu-label">' + label + '</span>'
+    +   '<button class="ship-item-remove" onclick="removeHU(' + n + ')" title="Remove">✕</button>'
+    + '</div>'
+    + '<div class="ship-hu-dims">'
+    +   '<div class="adm-field"><label>Type</label><select class="adm-input hu-type">' + huTypeOpts + '</select></div>'
+    +   '<div class="adm-field"><label>Count</label><input type="number" class="adm-input hu-count" min="1" value="' + (d.count || 1) + '"></div>'
+    +   '<div class="adm-field"><label>Stackable</label><select class="adm-input hu-stackable"><option value="N"' + (!d.stackable ? ' selected' : '') + '>No</option><option value="Y"' + (d.stackable ? ' selected' : '') + '>Yes</option></select></div>'
+    +   '<div class="adm-field"><label>Length (in)</label><input type="number" class="adm-input hu-length" min="1" value="' + (d.length || '') + '" placeholder="in"></div>'
+    +   '<div class="adm-field"><label>Width (in)</label><input type="number" class="adm-input hu-width" min="1" value="' + (d.width || '') + '" placeholder="in"></div>'
+    +   '<div class="adm-field"><label>Height (in)</label><input type="number" class="adm-input hu-height" min="1" value="' + (d.height || '') + '" placeholder="in"></div>'
+    +   '<div class="adm-field"><label>Gross Weight (lbs)</label><input type="number" class="adm-input hu-weight" min="1" value="' + (d.grossWeight || '') + '" placeholder="lbs"></div>'
+    + '</div>'
+    + '<div class="ship-hu-commodities">'
+    +   '<div class="ship-comm-header"><span class="ship-comm-title">Commodity</span></div>'
+    +   '<div class="ship-comm-list" id="comm-list-' + n + '">'
+    +   buildCommodityHTML(n, 1, comms[0])
     +   '</div>'
     + '</div>'
-    + '<div class="adm-field"><label>NMFC Code</label><input type="text" class="adm-input item-nmfc" placeholder="e.g. 159530-2" value="' + (d.nmfcCode || '') + '"></div>'
-    + '<div class="adm-field"><label>Weight (lbs)</label><input type="number" class="adm-input item-weight" min="1" value="' + (d.weight || '') + '" placeholder="lbs"></div>'
-    + '<div class="adm-field"><label>Length (in)</label><input type="number" class="adm-input item-length" min="1" value="' + (d.length || '') + '" placeholder="in"></div>'
-    + '<div class="adm-field"><label>Width (in)</label><input type="number" class="adm-input item-width" min="1" value="' + (d.width || '') + '" placeholder="in"></div>'
-    + '<div class="adm-field"><label>Height (in)</label><input type="number" class="adm-input item-height" min="1" value="' + (d.height || '') + '" placeholder="in"></div>'
-    + '<div class="adm-field"><label>Qty</label><input type="number" class="adm-input item-qty" value="' + (d.qty || 1) + '" min="1"></div>'
-    + (isLTL ? '<div class="adm-field"><label>Freight Class</label><select class="adm-input item-class">' + fcOptions + '</select></div>' : '')
-    + '</div>'
-    + '<button class="ship-item-remove" onclick="removeItem(' + n + ')" title="Remove item">✕</button>'
     + '</div>';
-  document.getElementById('itemList').insertAdjacentHTML('beforeend', html);
+
+  document.getElementById('huList').insertAdjacentHTML('beforeend', html);
 }
-function removeItem(n) {
-  var el = document.getElementById('item-' + n);
+
+function buildCommodityHTML(huN, commN, c) {
+  c = c || {};
+  var fcOpts = '<option value="">Auto</option>' + FREIGHT_CLASSES.map(function(fc) {
+    return '<option' + (String(c.freightClass) === fc ? ' selected' : '') + '>' + fc + '</option>';
+  }).join('');
+  var ptOpts = PIECE_TYPES.map(function(t) {
+    return '<option value="' + t.value + '"' + ((c.pieceType || 'CTN') === t.value ? ' selected' : '') + '>' + t.label + '</option>';
+  }).join('');
+  return '<div class="ship-comm-row" id="comm-' + huN + '-' + commN + '">'
+    + '<div class="adm-field" style="grid-column:span 3">'
+    +   '<label>Commodity</label>'
+    +   '<div style="display:flex;gap:4px">'
+    +   '<input type="text" class="adm-input comm-desc" placeholder="e.g. Top, Sink or Bathroom Vanity" value="' + (c.description || '') + '" style="flex:1">'
+    +   '<button type="button" onclick="openCommodityPicker(' + huN + ',' + commN + ')" class="comm-search-btn" title="Browse saved commodities">&#128269;</button>'
+    +   '</div>'
+    + '</div>'
+    + '<div class="adm-field"><label>NMFC Code</label><input type="text" class="adm-input comm-nmfc" placeholder="e.g. 159530-2" value="' + (c.nmfcCode || '') + '"></div>'
+    + '<div class="adm-field"><label>Class</label><select class="adm-input comm-class">' + fcOpts + '</select></div>'
+    + '<div class="adm-field"><label>Pieces</label><input type="number" class="adm-input comm-pieces" min="1" value="' + (c.pieces || 1) + '"></div>'
+    + '<div class="adm-field"><label>Piece Type</label><select class="adm-input comm-ptype">' + ptOpts + '</select></div>'
+    + '</div>';
+}
+
+function removeHU(n) {
+  var el = document.getElementById('hu-' + n);
   if (el) el.remove();
 }
+
 function getProductType() {
   var sel = document.querySelector('input[name="productType"]:checked');
   return sel ? sel.value : 'LTL';
 }
-function getItems() {
-  var rows = document.querySelectorAll('.ship-item-row');
-  return Array.from(rows).map(function(r) {
+
+function getHandlingUnits() {
+  return Array.from(document.querySelectorAll('.ship-hu-row')).map(function(hu) {
+    var commodities = Array.from(hu.querySelectorAll('.ship-comm-row')).map(function(cr) {
+      return {
+        description:  (cr.querySelector('.comm-desc')   || {}).value || '',
+        nmfcCode:     (cr.querySelector('.comm-nmfc')   || {}).value || null,
+        freightClass: (cr.querySelector('.comm-class')  || {}).value || null,
+        pieces:       parseInt((cr.querySelector('.comm-pieces') || {}).value)  || 1,
+        pieceType:    (cr.querySelector('.comm-ptype')  || {}).value || 'CTN',
+        weight:       parseFloat((hu.querySelector('.hu-weight') || {}).value)  || null,
+      };
+    });
     return {
-      description:  (r.querySelector('.item-desc')   || {}).value || '',
-      nmfcCode:     (r.querySelector('.item-nmfc')   || {}).value || null,
-      weight:       parseFloat((r.querySelector('.item-weight') || {}).value) || 0,
-      length:       parseFloat((r.querySelector('.item-length') || {}).value) || null,
-      width:        parseFloat((r.querySelector('.item-width')  || {}).value) || null,
-      height:       parseFloat((r.querySelector('.item-height') || {}).value) || null,
-      quantity:     parseInt((r.querySelector('.item-qty')    || {}).value)   || 1,
-      freightClass: (r.querySelector('.item-class') || {}).value || null,
-      huType:       'PLT',
+      huType:      (hu.querySelector('.hu-type')      || {}).value || 'BOX',
+      count:       parseInt((hu.querySelector('.hu-count')   || {}).value) || 1,
+      stackable:   (hu.querySelector('.hu-stackable') || {}).value === 'Y',
+      length:      parseFloat((hu.querySelector('.hu-length') || {}).value) || null,
+      width:       parseFloat((hu.querySelector('.hu-width')  || {}).value) || null,
+      height:      parseFloat((hu.querySelector('.hu-height') || {}).value) || null,
+      grossWeight: parseFloat((hu.querySelector('.hu-weight') || {}).value) || null,
+      commodities: commodities,
     };
   });
 }
@@ -481,8 +535,8 @@ function rval(name) { var el = document.querySelector('input[name="'+name+'"]:ch
 
 /* ── Step 1 → 2: Get Rates ────────────────────────────────────── */
 function goToRates() {
-  var items = getItems();
-  if (!items.length) { alert('Add at least one cargo item.'); return; }
+  var hus = getHandlingUnits();
+  if (!hus.length) { alert('Add at least one handling unit.'); return; }
   if (!document.getElementById('dest_zip').value) { alert('Destination ZIP is required.'); return; }
 
   showStep(2);
@@ -490,12 +544,10 @@ function goToRates() {
   document.getElementById('rateError').style.display   = 'none';
   document.getElementById('rateList').style.display    = 'none';
 
-  var isResidential = document.getElementById('dest_residential').checked;
-  var productType   = getProductType();
+  var productType = getProductType();
 
   var body = {
-    productType:     productType,
-    /* LTL accessorials */
+    productType: productType,
     insure:              rval('ltl_insure') === 'yes',
     declaredValue:       parseFloat(val('acc_declaredValue')) || 0,
     handlingCharge:      rval('ltl_handling') === 'yes',
@@ -518,7 +570,6 @@ function goToRates() {
     sortAndSegregate:    chk('acc_sortAndSegregate'),
     protectFromFreeze:   chk('acc_protectFromFreeze'),
     billingType:         val('ltl_billing') || 'BILL_SHIPPER',
-    /* SMALLPACK additional services */
     sp_insure:           rval('sp_insure') === 'yes',
     sp_declaredValue:    parseFloat(val('sp_declaredValue')) || 0,
     sp_handlingCharge:   chk('sp_handlingCharge'),
@@ -530,28 +581,28 @@ function goToRates() {
     sp_emailLabel:       chk('sp_emailLabel'),
     sp_signature:        val('sp_signature') || '',
     sp_billingType:      val('sp_billing') || 'BILL_SHIPPER',
-    residential:         isResidential,
+    residential: document.getElementById('dest_residential').checked,
     origin: {
-      company:  document.getElementById('orig_company').value,
-      address1: document.getElementById('orig_address1').value,
-      city:     document.getElementById('orig_city').value,
+      company:  val('orig_company'),
+      address1: val('orig_address1'),
+      city:     val('orig_city'),
       state:    document.getElementById('orig_state').value.toUpperCase(),
-      zip:      document.getElementById('orig_zip').value,
-      phone:    document.getElementById('orig_phone').value,
+      zip:      val('orig_zip'),
+      phone:    val('orig_phone'),
       country:  'US',
     },
     destination: {
-      company:  document.getElementById('dest_company').value,
-      name:     document.getElementById('dest_name').value,
-      address1: document.getElementById('dest_address1').value,
-      city:     document.getElementById('dest_city').value,
+      company:  val('dest_company'),
+      name:     val('dest_name'),
+      address1: val('dest_address1'),
+      city:     val('dest_city'),
       state:    document.getElementById('dest_state').value.toUpperCase(),
-      zip:      document.getElementById('dest_zip').value,
-      phone:    document.getElementById('dest_phone').value,
-      email:    document.getElementById('dest_email').value,
+      zip:      val('dest_zip'),
+      phone:    val('dest_phone'),
+      email:    val('dest_email'),
       country:  document.getElementById('dest_country').value.toUpperCase() || 'US',
     },
-    items: items,
+    handlingUnits: hus,
   };
 
   fetch('/admin/shipping/rates', {
@@ -578,13 +629,23 @@ function goToRates() {
   });
 }
 
+/* Safely stringify a field that might be an object (live WWEX API returns objects) */
+function strField(v) {
+  if (!v) return '';
+  if (typeof v === 'string') return v;
+  if (typeof v === 'object') return v.name || v.description || v.code || JSON.stringify(v);
+  return String(v);
+}
+
 function renderRates(rates, isStub) {
   var html = '';
   if (isStub) html += '<p style="font-size:.8rem;color:#975a16;margin:0 0 12px">⚠ Stub rates — connect WWEX credentials to get live pricing.</p>';
   rates.forEach(function(r, i) {
+    var carrier = strField(r.carrier) || '—';
+    var service = strField(r.serviceLevel) || strField(r.service) || '';
     html += '<div class="ship-rate-card" onclick="selectRate(' + i + ')" id="rate-card-' + i + '">'
-      + '<div class="ship-rate-carrier"><strong>' + (r.carrier||'—') + '</strong>'
-      + ' <span class="ship-rate-service">' + (r.serviceLevel||r.service||'') + '</span></div>'
+      + '<div class="ship-rate-carrier"><strong>' + carrier + '</strong>'
+      + ' <span class="ship-rate-service">' + service + '</span></div>'
       + '<div class="ship-rate-meta">'
       + (r.transitDays ? '<span>🕒 ' + r.transitDays + ' days transit</span>' : '')
       + (r.estimatedDelivery ? '<span>📅 ' + r.estimatedDelivery + '</span>' : '')
@@ -606,12 +667,12 @@ function selectRate(i) {
 
 /* ── Step 3: Confirm ──────────────────────────────────────────── */
 function buildConfirmStep() {
-  var r   = _selected;
-  var pt  = getProductType();
+  var r  = _selected;
+  var pt = getProductType();
   document.getElementById('selectedRateDisplay').innerHTML =
     '<table style="width:100%;font-size:.9rem;border-collapse:collapse">'
-    + '<tr><td style="color:#718096;padding:4px 0">Carrier</td><td style="font-weight:700">' + (r.carrier||'—') + '</td></tr>'
-    + '<tr><td style="color:#718096;padding:4px 0">Service</td><td>' + (r.serviceLevel||r.service||'—') + '</td></tr>'
+    + '<tr><td style="color:#718096;padding:4px 0">Carrier</td><td style="font-weight:700">' + (strField(r.carrier)||'—') + '</td></tr>'
+    + '<tr><td style="color:#718096;padding:4px 0">Service</td><td>' + (strField(r.serviceLevel)||strField(r.service)||'—') + '</td></tr>'
     + '<tr><td style="color:#718096;padding:4px 0">Transit</td><td>' + (r.transitDays ? r.transitDays+' days' : '—') + '</td></tr>'
     + '<tr><td style="color:#718096;padding:4px 0">Est. Delivery</td><td>' + (r.estimatedDelivery||'—') + '</td></tr>'
     + '<tr><td style="color:#718096;padding:4px 0;font-weight:700">Total Charge</td><td style="font-weight:700;color:#1a2e4a;font-size:1.2rem">$' + Number(r.totalCharge||0).toLocaleString('en-US',{minimumFractionDigits:2}) + '</td></tr>'
@@ -619,13 +680,12 @@ function buildConfirmStep() {
 
   document.getElementById('shipSummary').innerHTML =
     '<table style="width:100%;font-size:.85rem;border-collapse:collapse">'
-    + '<tr><td style="color:#718096;padding:3px 0">From</td><td>' + document.getElementById('orig_city').value + ', ' + document.getElementById('orig_state').value.toUpperCase() + '</td></tr>'
-    + '<tr><td style="color:#718096;padding:3px 0">To</td><td>' + document.getElementById('dest_company').value + ' — ' + document.getElementById('dest_city').value + ', ' + document.getElementById('dest_state').value.toUpperCase() + ' ' + document.getElementById('dest_zip').value + '</td></tr>'
-    + '<tr><td style="color:#718096;padding:3px 0">Items</td><td>' + getItems().length + ' pkg(s)</td></tr>'
-    + '<tr><td style="color:#718096;padding:3px 0">Ref 1</td><td>' + (document.getElementById('ref1').value||'—') + '</td></tr>'
+    + '<tr><td style="color:#718096;padding:3px 0">From</td><td>' + val('orig_city') + ', ' + document.getElementById('orig_state').value.toUpperCase() + '</td></tr>'
+    + '<tr><td style="color:#718096;padding:3px 0">To</td><td>' + val('dest_company') + ' — ' + val('dest_city') + ', ' + document.getElementById('dest_state').value.toUpperCase() + ' ' + val('dest_zip') + '</td></tr>'
+    + '<tr><td style="color:#718096;padding:3px 0">HUs</td><td>' + getHandlingUnits().length + ' handling unit(s)</td></tr>'
+    + '<tr><td style="color:#718096;padding:3px 0">Ref 1</td><td>' + (val('ref1')||'—') + '</td></tr>'
     + '</table>';
 
-  // Show UPS pickup section only for SMALLPACK
   document.getElementById('pickupSection').style.display = pt === 'SMALLPACK' ? '' : 'none';
 }
 
@@ -642,29 +702,24 @@ function bookShipment() {
 
   var pt   = getProductType();
   var dest = {
-    addressLineList: [document.getElementById('dest_address1').value],
-    locality:        document.getElementById('dest_city').value,
-    region:          document.getElementById('dest_state').value.toUpperCase(),
-    postalCode:      document.getElementById('dest_zip').value,
-    countryCode:     document.getElementById('dest_country').value.toUpperCase() || 'US',
-    companyName:     document.getElementById('dest_company').value,
-    phone:           document.getElementById('dest_phone').value,
-    contactList: [{
-      firstName: '',
-      lastName:  document.getElementById('dest_name').value,
-      phone:     document.getElementById('dest_phone').value,
-      email:     document.getElementById('dest_email').value,
-    }],
+    addressLineList: [val('dest_address1')],
+    locality:    val('dest_city'),
+    region:      document.getElementById('dest_state').value.toUpperCase(),
+    postalCode:  val('dest_zip'),
+    countryCode: document.getElementById('dest_country').value.toUpperCase() || 'US',
+    companyName: val('dest_company'),
+    phone:       val('dest_phone'),
+    contactList: [{ firstName:'', lastName:val('dest_name'), phone:val('dest_phone'), email:val('dest_email') }],
   };
   var orig = {
-    addressLineList: [document.getElementById('orig_address1').value],
-    locality:        document.getElementById('orig_city').value,
-    region:          document.getElementById('orig_state').value.toUpperCase(),
-    postalCode:      document.getElementById('orig_zip').value,
-    countryCode:     'US',
-    companyName:     document.getElementById('orig_company').value,
-    phone:           document.getElementById('orig_phone').value,
-    contactList: [{ firstName: '', lastName: '', phone: document.getElementById('orig_phone').value }],
+    addressLineList: [val('orig_address1')],
+    locality:    val('orig_city'),
+    region:      document.getElementById('orig_state').value.toUpperCase(),
+    postalCode:  val('orig_zip'),
+    countryCode: 'US',
+    companyName: val('orig_company'),
+    phone:       val('orig_phone'),
+    contactList: [{ firstName:'', lastName:'', phone:val('orig_phone') }],
   };
 
   var schedPick  = document.getElementById('schedulePickup') && document.getElementById('schedulePickup').checked;
@@ -677,8 +732,8 @@ function bookShipment() {
       productType:          pt,
       productTransactionId: _txnId,
       offerId:              _selected.offerId,
-      carrier:              _selected.carrier,
-      serviceLevel:         _selected.serviceLevel || _selected.service,
+      carrier:              strField(_selected.carrier),
+      serviceLevel:         strField(_selected.serviceLevel) || strField(_selected.service),
       totalCharge:          _selected.totalCharge,
       orderId:              _orderId || null,
       schedulePickup:       schedPick,
@@ -689,8 +744,8 @@ function bookShipment() {
         originAddress:      { address: orig },
         destinationAddress: { address: dest },
         referenceList: [
-          { type: 'Reference 1', value: document.getElementById('ref1').value || '', isPrintAsBarCode: false },
-          { type: 'Reference 2', value: document.getElementById('ref2').value || '', isPrintAsBarCode: false },
+          { type:'Reference 1', value:val('ref1'), isPrintAsBarCode:false },
+          { type:'Reference 2', value:val('ref2'), isPrintAsBarCode:false },
         ].filter(function(r){ return r.value; }),
       },
     }),
@@ -703,7 +758,6 @@ function bookShipment() {
       alert('Booking failed: ' + (d.error || 'Unknown error'));
       return;
     }
-    // Success
     var details = '';
     if (d.bolNumber) details += '<p><strong>BOL #:</strong> ' + d.bolNumber + '</p>';
     if (d.proNumber) details += '<p><strong>PRO #:</strong> ' + d.proNumber + '</p>';
@@ -726,17 +780,19 @@ function bookShipment() {
 
 /* ── Commodity Picker ─────────────────────────────────────────── */
 var COMMODITY_PRESETS = [
-  { name: 'Top, Sink or Bathroom Vanity W/O', nmfc: '159530-2', cls: '70'   },
-  { name: 'Top, Sink or Bathroom Vanity',     nmfc: '159530-1', cls: '92.5' },
-  { name: 'Bathtub PCF Less than 4',          nmfc: '158260',   cls: '300'  },
-  { name: 'Toilet (1 Unit)',                  nmfc: '158880-1', cls: '300'  },
-  { name: 'Toilets (More Than 1 Unit)',        nmfc: '158880-3', cls: '250'  },
+  { name:'Top, Sink or Bathroom Vanity W/O', nmfc:'159530-2', cls:'70'   },
+  { name:'Top, Sink or Bathroom Vanity',     nmfc:'159530-1', cls:'92.5' },
+  { name:'Bathtub PCF Less than 4',          nmfc:'158260',   cls:'300'  },
+  { name:'Toilet (1 Unit)',                  nmfc:'158880-1', cls:'300'  },
+  { name:'Toilets (More Than 1 Unit)',        nmfc:'158880-3', cls:'250'  },
 ];
-var _activeCommodityItem = null;
-var _filteredPresets     = [];
+var _activeHU   = null;
+var _activeComm = null;
+var _filteredPresets = [];
 
-function openCommodityPicker(itemNum) {
-  _activeCommodityItem = itemNum;
+function openCommodityPicker(huN, commN) {
+  _activeHU   = huN;
+  _activeComm = commN;
   document.getElementById('commoditySearch').value = '';
   renderCommodityList('');
   document.getElementById('commodityModal').style.display = 'flex';
@@ -744,7 +800,7 @@ function openCommodityPicker(itemNum) {
 }
 function closeCommodityPicker() {
   document.getElementById('commodityModal').style.display = 'none';
-  _activeCommodityItem = null;
+  _activeHU = _activeComm = null;
 }
 function filterCommodities() {
   renderCommodityList(document.getElementById('commoditySearch').value);
@@ -767,12 +823,12 @@ function renderCommodityList(q) {
 }
 function applyCommodity(i) {
   var preset = _filteredPresets[i];
-  if (!preset || _activeCommodityItem === null) return;
-  var row = document.getElementById('item-' + _activeCommodityItem);
-  if (!row) return;
-  var descEl = row.querySelector('.item-desc');
-  var nmfcEl = row.querySelector('.item-nmfc');
-  var clsEl  = row.querySelector('.item-class');
+  if (!preset || _activeHU === null) return;
+  var commRow = document.getElementById('comm-' + _activeHU + '-' + _activeComm);
+  if (!commRow) return;
+  var descEl = commRow.querySelector('.comm-desc');
+  var nmfcEl = commRow.querySelector('.comm-nmfc');
+  var clsEl  = commRow.querySelector('.comm-class');
   if (descEl) descEl.value = preset.name;
   if (nmfcEl) nmfcEl.value = preset.nmfc;
   if (clsEl) {
@@ -784,12 +840,6 @@ function applyCommodity(i) {
   }
   closeCommodityPicker();
 }
-// Close on backdrop click
-document.addEventListener('DOMContentLoaded', function() {
-  document.getElementById('commodityModal').addEventListener('click', function(e) {
-    if (e.target === this) closeCommodityPicker();
-  });
-});
 
 </script>
 
@@ -818,9 +868,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
 .ship-check { display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer }
 
+/* ── Legacy (kept for compat) ── */
 .ship-item-row    { display:flex;align-items:flex-start;gap:8px;padding:10px;background:#f7fafc;border:1px solid #e2e8f0;border-radius:6px;margin-bottom:8px }
 .ship-item-fields { display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;flex:1 }
-.ship-item-remove { background:none;border:none;color:#c53030;font-size:1rem;cursor:pointer;padding:0 4px;line-height:1;margin-top:20px }
+.ship-item-remove { background:none;border:none;color:#c53030;font-size:1rem;cursor:pointer;padding:0 4px;line-height:1 }
+
+/* ── Handling Unit rows ── */
+.ship-hu-row         { background:#f7fafc;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:12px;overflow:hidden }
+.ship-hu-header      { display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:#edf2f7;border-bottom:1px solid #e2e8f0 }
+.ship-hu-label       { font-weight:600;font-size:.85rem;color:#1a2e4a }
+.hu-sku-badge        { font-weight:400;color:#718096;font-size:.78rem }
+.ship-hu-dims        { display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;padding:10px 14px;border-bottom:1px solid #e2e8f0 }
+.ship-hu-commodities { padding:8px 14px 12px }
+.ship-comm-header    { margin-bottom:6px }
+.ship-comm-title     { font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#4a5568 }
+.ship-comm-row       { display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:8px 10px;background:#fff;border:1px solid #e2e8f0;border-radius:6px;margin-bottom:6px }
 
 .ship-rate-card   { padding:14px 16px;border:2px solid #e2e8f0;border-radius:8px;margin-bottom:10px;cursor:pointer;transition:border-color .15s,box-shadow .15s;display:flex;align-items:center;justify-content:space-between;gap:12px }
 .ship-rate-card:hover   { border-color:#2b6cb0;box-shadow:0 0 0 3px rgba(43,108,176,.08) }
