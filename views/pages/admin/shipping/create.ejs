@@ -331,6 +331,35 @@ const meta  = orderMeta    || null;
   </div>
 </div>
 
+<!-- ═══ Commodity Picker Modal ══════════════════════════════════ -->
+<div id="commodityModal" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.45);align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:10px;width:min(680px,95vw);max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between">
+      <strong style="font-size:1rem">My Commodities</strong>
+      <button onclick="closeCommodityPicker()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#718096;line-height:1">×</button>
+    </div>
+    <div style="padding:12px 20px;border-bottom:1px solid #e2e8f0">
+      <input id="commoditySearch" type="text" class="adm-input" placeholder="Search by name or NMFC…" oninput="filterCommodities()" style="width:100%;box-sizing:border-box">
+    </div>
+    <div style="overflow-y:auto;flex:1">
+      <table style="width:100%;border-collapse:collapse;font-size:.88rem">
+        <thead>
+          <tr style="background:#f7fafc">
+            <th style="text-align:left;padding:8px 16px;font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#4a5568">Name</th>
+            <th style="text-align:left;padding:8px 12px;font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#4a5568">Class</th>
+            <th style="text-align:left;padding:8px 12px;font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#4a5568">NMFC</th>
+            <th style="padding:8px 16px"></th>
+          </tr>
+        </thead>
+        <tbody id="commodityList"></tbody>
+      </table>
+    </div>
+    <div style="padding:10px 20px;border-top:1px solid #e2e8f0;font-size:.75rem;color:#718096">
+      Matches your saved commodities in WWEX SpeedShip. Select to auto-fill the cargo row.
+    </div>
+  </div>
+</div>
+
 <script>
 /* ── State ────────────────────────────────────────────────────── */
 var _rates    = [];
@@ -388,9 +417,13 @@ function addItem(d) {
   var html = '<div class="ship-item-row" id="item-' + n + '">'
     + '<div class="ship-item-fields">'
     + '<div class="adm-field" style="grid-column:1/-1">'
-    +   '<label>Description' + (d.sku ? ' <span style="font-size:.72rem;color:#718096;font-weight:400">(' + d.sku + ')</span>' : '') + '</label>'
-    +   '<input type="text" class="adm-input item-desc" placeholder="e.g. Vanity" value="' + (d.description || '') + '">'
+    +   '<label>Commodity' + (d.sku ? ' <span style="font-size:.72rem;color:#718096;font-weight:400">(' + d.sku + ')</span>' : '') + '</label>'
+    +   '<div style="display:flex;gap:4px">'
+    +   '<input type="text" class="adm-input item-desc" placeholder="e.g. Top, Sink or Bathroom Vanity" value="' + (d.description || '') + '" style="flex:1">'
+    +   '<button type="button" onclick="openCommodityPicker(' + n + ')" class="comm-search-btn" title="Browse saved commodities">&#128269;</button>'
+    +   '</div>'
     + '</div>'
+    + '<div class="adm-field"><label>NMFC Code</label><input type="text" class="adm-input item-nmfc" placeholder="e.g. 159530-2" value="' + (d.nmfcCode || '') + '"></div>'
     + '<div class="adm-field"><label>Weight (lbs)</label><input type="number" class="adm-input item-weight" min="1" value="' + (d.weight || '') + '" placeholder="lbs"></div>'
     + '<div class="adm-field"><label>Length (in)</label><input type="number" class="adm-input item-length" min="1" value="' + (d.length || '') + '" placeholder="in"></div>'
     + '<div class="adm-field"><label>Width (in)</label><input type="number" class="adm-input item-width" min="1" value="' + (d.width || '') + '" placeholder="in"></div>'
@@ -415,6 +448,7 @@ function getItems() {
   return Array.from(rows).map(function(r) {
     return {
       description:  (r.querySelector('.item-desc')   || {}).value || '',
+      nmfcCode:     (r.querySelector('.item-nmfc')   || {}).value || null,
       weight:       parseFloat((r.querySelector('.item-weight') || {}).value) || 0,
       length:       parseFloat((r.querySelector('.item-length') || {}).value) || null,
       width:        parseFloat((r.querySelector('.item-width')  || {}).value) || null,
@@ -690,6 +724,73 @@ function bookShipment() {
   });
 }
 
+/* ── Commodity Picker ─────────────────────────────────────────── */
+var COMMODITY_PRESETS = [
+  { name: 'Top, Sink or Bathroom Vanity W/O', nmfc: '159530-2', cls: '70'   },
+  { name: 'Top, Sink or Bathroom Vanity',     nmfc: '159530-1', cls: '92.5' },
+  { name: 'Bathtub PCF Less than 4',          nmfc: '158260',   cls: '300'  },
+  { name: 'Toilet (1 Unit)',                  nmfc: '158880-1', cls: '300'  },
+  { name: 'Toilets (More Than 1 Unit)',        nmfc: '158880-3', cls: '250'  },
+];
+var _activeCommodityItem = null;
+var _filteredPresets     = [];
+
+function openCommodityPicker(itemNum) {
+  _activeCommodityItem = itemNum;
+  document.getElementById('commoditySearch').value = '';
+  renderCommodityList('');
+  document.getElementById('commodityModal').style.display = 'flex';
+  setTimeout(function(){ document.getElementById('commoditySearch').focus(); }, 50);
+}
+function closeCommodityPicker() {
+  document.getElementById('commodityModal').style.display = 'none';
+  _activeCommodityItem = null;
+}
+function filterCommodities() {
+  renderCommodityList(document.getElementById('commoditySearch').value);
+}
+function renderCommodityList(q) {
+  _filteredPresets = COMMODITY_PRESETS.filter(function(p) {
+    var s = q.toLowerCase();
+    return !s || p.name.toLowerCase().indexOf(s) !== -1 || p.nmfc.indexOf(s) !== -1 || p.cls.indexOf(s) !== -1;
+  });
+  var html = _filteredPresets.map(function(p, i) {
+    return '<tr class="comm-row" onclick="applyCommodity(' + i + ')">'
+      + '<td class="comm-td">' + p.name + '</td>'
+      + '<td class="comm-td comm-td--num">' + p.cls + '</td>'
+      + '<td class="comm-td comm-td--num">' + p.nmfc + '</td>'
+      + '<td class="comm-td" style="text-align:right"><button type="button" class="btn btn-sm btn-outline" style="font-size:.75rem;pointer-events:none">Select</button></td>'
+      + '</tr>';
+  }).join('');
+  document.getElementById('commodityList').innerHTML = html
+    || '<tr><td colspan="4" style="text-align:center;color:#718096;padding:24px">No matches</td></tr>';
+}
+function applyCommodity(i) {
+  var preset = _filteredPresets[i];
+  if (!preset || _activeCommodityItem === null) return;
+  var row = document.getElementById('item-' + _activeCommodityItem);
+  if (!row) return;
+  var descEl = row.querySelector('.item-desc');
+  var nmfcEl = row.querySelector('.item-nmfc');
+  var clsEl  = row.querySelector('.item-class');
+  if (descEl) descEl.value = preset.name;
+  if (nmfcEl) nmfcEl.value = preset.nmfc;
+  if (clsEl) {
+    for (var j = 0; j < clsEl.options.length; j++) {
+      if (clsEl.options[j].value === preset.cls || clsEl.options[j].text === preset.cls) {
+        clsEl.selectedIndex = j; break;
+      }
+    }
+  }
+  closeCommodityPicker();
+}
+// Close on backdrop click
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('commodityModal').addEventListener('click', function(e) {
+    if (e.target === this) closeCommodityPicker();
+  });
+});
+
 </script>
 
 <style>
@@ -735,6 +836,14 @@ function bookShipment() {
 .ship-acc-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:20px;margin-top:8px }
 .ship-acc-section { display:flex;flex-direction:column;gap:5px }
 .ship-acc-label { font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#4a5568;margin-bottom:4px;border-bottom:1px solid #e2e8f0;padding-bottom:4px }
+
+.comm-search-btn { background:#f7fafc;border:1px solid #e2e8f0;border-radius:4px;padding:0 10px;font-size:1rem;cursor:pointer;height:38px;line-height:1;flex-shrink:0;transition:background .15s }
+.comm-search-btn:hover { background:#edf2f7 }
+.comm-row { cursor:pointer;border-bottom:1px solid #f0f4f8 }
+.comm-row:hover { background:#EBF8FF }
+.comm-td { padding:10px 12px;vertical-align:middle }
+.comm-td:first-child { padding-left:16px;font-weight:500 }
+.comm-td--num { color:#718096;font-size:.85rem;white-space:nowrap }
 
 @media(max-width:700px) {
   .ship-panel-grid { grid-template-columns:1fr }
