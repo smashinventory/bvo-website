@@ -129,20 +129,40 @@ exports.shopFlow = async (payload, productType = 'LTL') => {
     const data = await call('shopFlow', { request: payload }, productType);
     // Extract offers from response
     const resp = data.response || data;
-    const offers = (resp.offerList || resp.offers || []).map(o => ({
-      offerId:          o.offerId,
-      carrier:          o.carrierName || o.carrier,
-      serviceLevel:     o.serviceLevel || o.serviceDescription,
-      service:          o.service,
-      transitDays:      o.transitDays,
-      estimatedDelivery:o.estimatedDelivery,
-      totalCharge:      Number(o.totalCharge?.value || o.totalCharge || 0),
-      currency:         o.totalCharge?.currency || 'USD',
-    }));
+    const rawOffers = resp.offerList || resp.rateList || resp.quoteList || resp.offers || [];
+    if (!rawOffers.length) {
+      console.warn('[wwex] shopFlow: no offers in response keys:', Object.keys(resp));
+    }
+    const offers = rawOffers.map(o => {
+      // carrier / serviceLevel can be strings OR nested objects from some WWEX versions
+      const carrier     = typeof o.carrierName === 'string'     ? o.carrierName
+                        : o.carrierName?.name   || o.carrierName?.description
+                        || (typeof o.carrier === 'string' ? o.carrier : o.carrier?.name || o.carrier?.code || '')
+                        || '—';
+      const serviceLevel= typeof o.serviceLevel === 'string'    ? o.serviceLevel
+                        : o.serviceLevel?.name  || o.serviceLevel?.description
+                        || (typeof o.serviceDescription === 'string' ? o.serviceDescription : '')
+                        || '';
+      return {
+        offerId:          o.offerId          || o.quoteId || '',
+        carrier,
+        serviceLevel,
+        service:          o.service          || '',
+        transitDays:      o.transitDays      || o.estimatedTransitDays || null,
+        estimatedDelivery:o.estimatedDelivery|| o.estimatedDeliveryDate || null,
+        totalCharge:      Number(o.totalCharge?.value ?? o.totalCharge ?? 0),
+        currency:         o.totalCharge?.currency || 'USD',
+      };
+    });
     return { ok: true, productTransactionId: resp.productTransactionId, rates: offers };
   } catch (err) {
-    console.error('[wwex] shopFlow error:', err.response?.data || err.message);
-    return { ok: false, error: err.response?.data || err.message };
+    const errData = err.response?.data;
+    // Normalize to string — errData may be an object (WWEX validation error body)
+    const errMsg = errData
+      ? (typeof errData === 'string' ? errData : errData.message || errData.description || JSON.stringify(errData))
+      : err.message;
+    console.error('[wwex] shopFlow error:', errMsg, '| status:', err.response?.status);
+    return { ok: false, error: errMsg };
   }
 };
 

@@ -227,16 +227,16 @@ async function getRates(req, res) {
           },
           handlingUnitList: hus.map(pkg => ({
             billedDimension: {
-              length: { value: pkg.length || null, unit: 'in', dimensionType: 'NET' },
-              width:  { value: pkg.width  || null, unit: 'in' },
-              height: { value: pkg.height || null, unit: 'in' },
+              length: { value: pkg.length || null, unit: 'IN', dimensionType: 'NET' },
+              width:  { value: pkg.width  || null, unit: 'IN' },
+              height: { value: pkg.height || null, unit: 'IN' },
             },
             packagingType:     '02',
             packagingTypeName: 'Custom',
             quantity:          pkg.count || pkg.quantity || 1,
             shippedItemList: [{
               additionalHandlingFeeFlag: false,
-              weight: { value: pkg.grossWeight || pkg.weight || 0, unit: 'lbs' },
+              weight: { value: pkg.grossWeight || pkg.weight || 0, unit: 'LBS' },
             }],
           })),
           originAddress: {
@@ -289,11 +289,11 @@ async function getRates(req, res) {
               count:        hu.count     || hu.quantity || 1,
               type:         hu.huType    || hu.type     || 'PLT',
               stackable:    hu.stackable || false,
-              weight:       { value: hu.grossWeight || hu.weight || 0, unit: 'lbs' },
+              weight:       { value: hu.grossWeight || hu.weight || 0, unit: 'LBS' },
               dimension:    {
-                length: { value: hu.length || null, unit: 'in' },
-                width:  { value: hu.width  || null, unit: 'in' },
-                height: { value: hu.height || null, unit: 'in' },
+                length: { value: hu.length || null, unit: 'IN' },
+                width:  { value: hu.width  || null, unit: 'IN' },
+                height: { value: hu.height || null, unit: 'IN' },
               },
               freightClass: comm0.freightClass || hu.freightClass || null,
               nmfcCode:     comm0.nmfcCode     || hu.nmfcCode     || null,
@@ -304,7 +304,7 @@ async function getRates(req, res) {
                 class:        c.freightClass || null,
                 pieces:       c.pieces       || 1,
                 pieceType:    c.pieceType    || 'CTN',
-                weight:       { value: c.weight || hu.grossWeight || 0, unit: 'lbs' },
+                weight:       { value: c.weight || hu.grossWeight || 0, unit: 'LBS' },
               })),
             };
           }),

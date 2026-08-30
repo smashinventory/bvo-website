@@ -437,10 +437,11 @@ function addHandlingUnit(d) {
     +   '<button class="ship-item-remove" onclick="removeHU(' + n + ')" title="Remove">✕</button>'
     + '</div>'
     + '<div class="ship-hu-dims">'
-    +   '<div class="adm-field"><label>Type</label><select class="adm-input hu-type">' + huTypeOpts + '</select></div>'
+    +   '<div class="adm-field"><label>Type</label><select class="adm-input hu-type" onchange="togglePalletSize(this)">' + huTypeOpts + '</select></div>'
     +   '<div class="adm-field"><label>Count</label><input type="number" class="adm-input hu-count" min="1" value="' + (d.count || 1) + '"></div>'
     +   '<div class="adm-field"><label>Stackable</label><select class="adm-input hu-stackable"><option value="N"' + (!d.stackable ? ' selected' : '') + '>No</option><option value="Y"' + (d.stackable ? ' selected' : '') + '>Yes</option></select></div>'
-    +   '<div class="adm-field"><label>Length (in)</label><input type="number" class="adm-input hu-length" min="1" value="' + (d.length || '') + '" placeholder="in"></div>'
+    +   '<div class="adm-field hu-pallet-wrap" style="' + ((d.huType || 'BOX') === 'PLT' ? '' : 'display:none') + '"><label>Pallet Size</label><select class="adm-input hu-pallet-size" onchange="applyPalletSize(this)"><option value="">— pick a size —</option><option value="48x40">48 × 40</option><option value="24x24">24 × 24</option><option value="24x40">24 × 40</option><option value="36x36">36 × 36</option><option value="42x42">42 × 42</option><option value="48x42">48 × 42</option><option value="48x48">48 × 48</option><option value="58x41">58 × 41</option><option value="72x48">72 × 48</option><option value="96x48">96 × 48</option><option value="other">Other</option></select></div>'
+  +   '<div class="adm-field"><label>Length (in)</label><input type="number" class="adm-input hu-length" min="1" value="' + (d.length || '') + '" placeholder="in"></div>'
     +   '<div class="adm-field"><label>Width (in)</label><input type="number" class="adm-input hu-width" min="1" value="' + (d.width || '') + '" placeholder="in"></div>'
     +   '<div class="adm-field"><label>Height (in)</label><input type="number" class="adm-input hu-height" min="1" value="' + (d.height || '') + '" placeholder="in"></div>'
     +   '<div class="adm-field"><label>Gross Weight (lbs)</label><input type="number" class="adm-input hu-weight" min="1" value="' + (d.grossWeight || '') + '" placeholder="lbs"></div>'
@@ -529,6 +530,19 @@ function toggleInsureVal(v) {
 function toggleSpInsureVal(v) {
   document.getElementById('sp_insure_val').style.display = v === 'yes' ? '' : 'none';
 }
+function togglePalletSize(sel) {
+  var wrap = sel.closest('.ship-hu-dims').querySelector('.hu-pallet-wrap');
+  if (!wrap) return;
+  wrap.style.display = sel.value === 'PLT' ? '' : 'none';
+  if (sel.value !== 'PLT') { var ps = wrap.querySelector('.hu-pallet-size'); if (ps) ps.value = ''; }
+}
+function applyPalletSize(sel) {
+  if (!sel.value || sel.value === 'other') return;
+  var parts = sel.value.split('x');
+  var dims = sel.closest('.ship-hu-dims');
+  if (dims.querySelector('.hu-length')) dims.querySelector('.hu-length').value = parts[0] || '';
+  if (dims.querySelector('.hu-width'))  dims.querySelector('.hu-width').value  = parts[1] || '';
+}
 function chk(id) { var el = document.getElementById(id); return el ? el.checked : false; }
 function val(id) { var el = document.getElementById(id); return el ? el.value : ''; }
 function rval(name) { var el = document.querySelector('input[name="'+name+'"]:checked'); return el ? el.value : ''; }
@@ -615,7 +629,11 @@ function goToRates() {
     document.getElementById('rateLoading').style.display = 'none';
     if (!d.ok || !d.rates || !d.rates.length) {
       document.getElementById('rateError').style.display = '';
-      document.getElementById('rateError').textContent   = d.error || 'No rates returned. Check origin/destination details.';
+      // d.error may be an object (WWEX API error body) — normalize to string
+      var errMsg = d.error
+        ? (typeof d.error === 'string' ? d.error : d.error.message || d.error.description || JSON.stringify(d.error))
+        : 'No rates returned. Check origin/destination details.';
+      document.getElementById('rateError').textContent = errMsg;
       return;
     }
     _rates = d.rates;
