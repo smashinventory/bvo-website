@@ -84,6 +84,7 @@ const meta = orderMeta           || null;
         <div class="adm-field"><label>City</label><input id="orig_city" type="text" class="adm-input" value="Marietta"></div>
         <div class="adm-field"><label>State</label><input id="orig_state" type="text" class="adm-input" value="GA" maxlength="2" style="text-transform:uppercase"></div>
         <div class="adm-field"><label>ZIP</label><input id="orig_zip" type="text" class="adm-input" value="30066"></div>
+        <div class="adm-field"><label>Shipment Date</label><input id="shipmentDate" type="date" class="adm-input" value="<%= new Date().toISOString().split('T')[0] %>"></div>
         <input type="hidden" id="orig_country" value="US">
       </div>
     </div>
@@ -616,6 +617,7 @@ function goToRates() {
       email:    val('dest_email'),
       country:  document.getElementById('dest_country').value.toUpperCase() || 'US',
     },
+    shipmentDate: val('shipmentDate'),
     handlingUnits: hus,
   };
 

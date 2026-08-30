@@ -208,7 +208,9 @@ async function getRates(req, res) {
     const { productType = 'LTL', origin, destination, handlingUnits = [], items = [], service } = req.body;
     // Support both new handlingUnits[] (two-layer) and legacy items[] (flat)
     const hus = handlingUnits.length ? handlingUnits : items;
-    const shipmentDate = _wwexDate(new Date());
+    // Use client-supplied date (yyyy-MM-dd) or fall back to now
+    const rawDate = req.body.shipmentDate;
+    const shipmentDate = rawDate ? `${rawDate} 08:00:00` : _wwexDate(new Date());
 
     let shopPayload;
 
