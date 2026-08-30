@@ -207,7 +207,8 @@ const _docCollections = [...new Set(daysOfCover.map(r => r.collection).filter(Bo
 
   <!-- Size × Finish Heatmap -->
   <div class="admin-card">
-    <h3 class="admin-card-title">Size × Base Finish — Observed Drawdown</h3>
+    <h3 class="admin-card-title">Size × Base Finish — Observed Drawdown <span class="jmv-tip" data-tip="Each cell shows the group-deduped unit drawdown for that size + finish combination over the selected window. Darker = more units depleted at JM's warehouse. This is minimum estimated demand — actual demand ≥ shown figures.">ℹ</span></h3>
+    <p style="font-size:.78rem;color:var(--text-muted);margin:0 0 8px">Units depleted at JM warehouse · group-deduped · color intensity = relative velocity</p>
     <% if (_heatmapFinishes.length && _heatmapSizes.length) { %>
     <div style="overflow-x:auto">
       <table class="jmv-heatmap">
@@ -281,7 +282,7 @@ const _docCollections = [...new Set(daysOfCover.map(r => r.collection).filter(Bo
   <div class="admin-card">
     <h3 class="admin-card-title">Themes</h3>
     <% if (_topThemes.length) { %>
-    <canvas id="chartThemes" height="200"></canvas>
+    <div style="position:relative;height:200px"><canvas id="chartThemes"></canvas></div>
     <% } else { %><div class="adm-empty">No data</div><% } %>
   </div>
 
@@ -297,7 +298,7 @@ const _docCollections = [...new Set(daysOfCover.map(r => r.collection).filter(Bo
   <div class="admin-card">
     <h3 class="admin-card-title">Vanity Type</h3>
     <% if (_topVanityTypes.length) { %>
-    <canvas id="chartVanityTypes" height="200"></canvas>
+    <div style="position:relative;height:200px"><canvas id="chartVanityTypes"></canvas></div>
     <% } else { %><div class="adm-empty">No data</div><% } %>
   </div>
 
@@ -305,7 +306,7 @@ const _docCollections = [...new Set(daysOfCover.map(r => r.collection).filter(Bo
   <div class="admin-card">
     <h3 class="admin-card-title">FreePower Attach Rate</h3>
     <% if (_fpAttach.length) { %>
-    <canvas id="chartFP" height="200"></canvas>
+    <div style="position:relative;height:200px"><canvas id="chartFP"></canvas></div>
     <% } else { %><div class="adm-empty">No data (only 366 FP-compatible SKUs in feed)</div><% } %>
   </div>
 
@@ -472,7 +473,11 @@ function makePie(id, labels, data) {
   new Chart(el, {
     type: 'doughnut',
     data: { labels, datasets:[{ data, backgroundColor: PALETTE, borderWidth:2, borderColor:'#fff' }] },
-    options:{ responsive:true, plugins:{ legend:{ position:'right', labels:{ font:{size:11}, boxWidth:14 } } } }
+    options:{
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins:{ legend:{ position:'right', labels:{ font:{size:11}, boxWidth:14 } } }
+    }
   });
 }
 

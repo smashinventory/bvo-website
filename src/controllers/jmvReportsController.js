@@ -176,54 +176,39 @@ async function dashboard(req, res) {
     ) : [];
 
     // ── Price band velocity ───────────────────────────────────────────
-    const priceBands = hasDims ? await safeQuery(
-      `SELECT
-         CASE
-           WHEN d.map_price IS NULL     THEN 'Unknown'
-           WHEN d.map_price < 2000      THEN 'Under $2K'
-           WHEN d.map_price < 3000      THEN '$2K–$3K'
-           WHEN d.map_price < 4000      THEN '$3K–$4K'
-           WHEN d.map_price < 5000      THEN '$4K–$5K'
-           WHEN d.map_price < 7000      THEN '$5K–$7K'
-           ELSE '$7K+'
-         END AS price_band,
-         SUM(gd.grp_max) AS total_drawdown
-       FROM (${DEDUPED_INNER(`AND m.movement_date >= ?`)}) gd
-       JOIN jmv_dimensions d ON d.group_number = gd.group_number
-         AND d.sku = (SELECT sku FROM jmv_dimensions WHERE group_number = gd.group_number LIMIT 1)
-       GROUP BY price_band
-       ORDER BY total_drawdown DESC`,
-      [...SYNC_TYPES, cutoffStr]
-    ) : [];
+    // priceBands: one query — inner subquery LEFT JOINs snapshot so no groups
+    // are dropped even if a SKU is missing from the latest snapshot.
+    // MAX(snap.map_price) across all SKUs in the group on latestDate gives the
+    // representative price; groups with no snapshot row fall into 'Unknown'.
+    const priceBands = []; // replaced by priceBandsFallback below
 
-    // Simpler price band using latest snapshot MAP price
     const priceBandsFallback = hasDims ? await safeQuery(
       `SELECT
          CASE
-           WHEN s.map_price IS NULL THEN 'Unknown'
-           WHEN s.map_price < 2000  THEN 'Under $2K'
-           WHEN s.map_price < 3000  THEN '$2K–$3K'
-           WHEN s.map_price < 4000  THEN '$3K–$4K'
-           WHEN s.map_price < 5000  THEN '$4K–$5K'
-           WHEN s.map_price < 7000  THEN '$5K–$7K'
+           WHEN MAX(gd.grp_map) IS NULL THEN 'Unknown'
+           WHEN MAX(gd.grp_map) < 2000  THEN 'Under $2K'
+           WHEN MAX(gd.grp_map) < 3000  THEN '$2K–$3K'
+           WHEN MAX(gd.grp_map) < 4000  THEN '$3K–$4K'
+           WHEN MAX(gd.grp_map) < 5000  THEN '$4K–$5K'
+           WHEN MAX(gd.grp_map) < 7000  THEN '$5K–$7K'
            ELSE '$7K+'
          END AS price_band,
          SUM(gd.grp_max) AS total_drawdown
        FROM (
-         SELECT m.movement_date, d.group_number, MAX(m.demand_min) AS grp_max
+         SELECT m.movement_date, d.group_number,
+                MAX(m.demand_min)     AS grp_max,
+                MAX(s.map_price)      AS grp_map
          FROM jmv_daily_movement m
          JOIN jmv_dimensions d USING (sku)
+         LEFT JOIN jmv_snapshots s ON s.sku = m.sku AND s.snapshot_date = ?
          WHERE m.is_valid = 1 AND m.demand_min > 0
            AND d.product_type IN (${SYNC_TYPES_SQL})
            AND m.movement_date >= ?
          GROUP BY m.movement_date, d.group_number
        ) gd
-       JOIN jmv_snapshots s ON s.sku IN (
-         SELECT sku FROM jmv_dimensions WHERE group_number = gd.group_number LIMIT 1
-       ) AND s.snapshot_date = ?
        GROUP BY price_band
        ORDER BY total_drawdown DESC`,
-      [...SYNC_TYPES, cutoffStr, latestDate]
+      [latestDate, ...SYNC_TYPES, cutoffStr]
     ) : [];
 
     // ── Size × Finish heatmap (top 10 sizes × top 12 finishes) ───────
@@ -286,12 +271,32 @@ async function dashboard(req, res) {
     ) : [];
 
     // ── FreePower attach ──────────────────────────────────────────────
+    // IMPORTANT: do NOT use DEDUPED_INNER here — that query groups by freepower
+    // among other dimension fields, so a group with a Vanity SKU (fp=Y) and a
+    // Cabinet SKU (fp='') would produce TWO inner rows with the same grp_max,
+    // double-counting the Cabinet's demand into the Standard bucket.
+    //
+    // Instead: collapse to exactly one row per (movement_date, group_number),
+    // capturing MAX(demand_min) for dedup and a binary has_fp flag that is 1
+    // if ANY SKU in the group has a recognised FreePower attribute value.
     const fpAttach = hasDims ? await safeQuery(
       `SELECT
-         CASE WHEN gd.freepower IN ('Y','Yes','1','y','yes') THEN 'Yes – FreePower' ELSE 'Standard' END AS fp,
+         CASE WHEN MAX(gd.has_fp) = 1 THEN 'Yes – FreePower' ELSE 'Standard' END AS fp,
          SUM(gd.grp_max) AS total_drawdown
-       FROM (${DEDUPED_INNER(`AND m.movement_date >= ?`)}) gd
-       GROUP BY fp`,
+       FROM (
+         SELECT m.movement_date, d.group_number,
+                MAX(m.demand_min) AS grp_max,
+                MAX(CASE WHEN d.freepower IN ('Y','y','Yes','yes','YES','1','true','True') THEN 1 ELSE 0 END) AS has_fp
+         FROM jmv_daily_movement m
+         JOIN jmv_dimensions d ON d.sku = m.sku
+         WHERE m.is_valid = 1
+           AND m.demand_min > 0
+           AND d.product_type IN (${SYNC_TYPES_SQL})
+           AND m.movement_date >= ?
+         GROUP BY m.movement_date, d.group_number
+       ) gd
+       GROUP BY fp
+       ORDER BY total_drawdown DESC`,
       [...SYNC_TYPES, cutoffStr]
     ) : [];
 

@@ -123,14 +123,14 @@ function fmtDollar(n) {
   <div class="admin-card">
     <h3 class="admin-card-title">By Category (Product Type)</h3>
     <% if (_byCat.length) { %>
-    <canvas id="chartByCat" height="260"></canvas>
+    <div class="jmvf-chart-wrap" style="height:260px"><canvas id="chartByCat"></canvas></div>
     <% } else { %><div class="adm-empty">No data for this window</div><% } %>
   </div>
 
   <div class="admin-card">
     <h3 class="admin-card-title">By Collection (Top 12 — Revenue)</h3>
     <% if (_byColl.length) { %>
-    <canvas id="chartByColl" height="260"></canvas>
+    <div class="jmvf-chart-wrap" style="height:320px"><canvas id="chartByColl"></canvas></div>
     <% } else { %><div class="adm-empty">No data for this window</div><% } %>
   </div>
 
@@ -142,7 +142,7 @@ function fmtDollar(n) {
   <div class="admin-card">
     <h3 class="admin-card-title">By Color / Finish (Top 10)</h3>
     <% if (_byFin.length) { %>
-    <canvas id="chartByFin" height="260"></canvas>
+    <div class="jmvf-chart-wrap" style="height:280px"><canvas id="chartByFin"></canvas></div>
     <% } else { %><div class="adm-empty">No data for this window</div><% } %>
   </div>
 
@@ -152,7 +152,7 @@ function fmtDollar(n) {
       Combo = Vanity (cabinet + top unit) · Individual = Cabinet, Top, Mirror, etc.
     </p>
     <% if (_byCombo.length) { %>
-    <canvas id="chartByCombo" height="240"></canvas>
+    <div class="jmvf-chart-wrap" style="height:280px"><canvas id="chartByCombo"></canvas></div>
     <% } else { %><div class="adm-empty">No data for this window</div><% } %>
   </div>
 
@@ -313,6 +313,7 @@ function makeHBar(id, data, labelField) {
     options: {
       indexAxis: 'y',
       responsive: true,
+      maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
         tooltip: {
@@ -354,6 +355,7 @@ function makePie(id, data, labelField) {
     },
     options: {
       responsive: true,
+      maintainAspectRatio: false,
       plugins: {
         legend: { position: 'right', labels: { font: { size: 11 }, boxWidth: 14 } },
         tooltip: {
@@ -400,6 +402,10 @@ function setPeriod(period) {
 
 <style>
 /* ── Financials page ───────────────────────────────────────────────── */
+/* Fixed-height wrapper that lets Chart.js fill the box (maintainAspectRatio:false) */
+.jmvf-chart-wrap { position:relative; width:100% }
+.jmvf-chart-wrap canvas { position:absolute; inset:0 }
+
 .jmvf-period-btns { display:flex; gap:4px }
 .jmvf-period-btn {
   padding:4px 10px; border:1px solid #cbd5e0; border-radius:4px;
