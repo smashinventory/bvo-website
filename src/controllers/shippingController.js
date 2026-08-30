@@ -322,6 +322,12 @@ async function getRates(req, res) {
       };
     }
 
+    // Strip empty accessorialList — WWEX V4 rejects empty arrays on some endpoints
+    if (shopPayload.shipment && Array.isArray(shopPayload.shipment.accessorialList) && !shopPayload.shipment.accessorialList.length) {
+      delete shopPayload.shipment.accessorialList;
+    }
+
+    console.log('[shipping] shopFlow payload:', JSON.stringify(shopPayload, null, 2));
     const result = await wwex.shopFlow(shopPayload, productType);
     res.json(result);
   } catch (err) {

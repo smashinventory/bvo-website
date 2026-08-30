@@ -157,11 +157,16 @@ exports.shopFlow = async (payload, productType = 'LTL') => {
     return { ok: true, productTransactionId: resp.productTransactionId, rates: offers };
   } catch (err) {
     const errData = err.response?.data;
-    // Normalize to string — errData may be an object (WWEX validation error body)
+    // Log full error so we can debug validation failures
+    console.error('[wwex] shopFlow error | status:', err.response?.status);
+    console.error('[wwex] shopFlow full error body:', JSON.stringify(errData, null, 2));
+    // Normalize to human-readable string — check clientStatus.message first (WWEX V4 pattern)
     const errMsg = errData
-      ? (typeof errData === 'string' ? errData : errData.message || errData.description || JSON.stringify(errData))
+      ? (typeof errData === 'string' ? errData
+        : errData.clientStatus?.message || errData.message || errData.description
+          || (Array.isArray(errData.errors) ? errData.errors.map(e => e.message || JSON.stringify(e)).join('; ') : null)
+          || JSON.stringify(errData))
       : err.message;
-    console.error('[wwex] shopFlow error:', errMsg, '| status:', err.response?.status);
     return { ok: false, error: errMsg };
   }
 };
