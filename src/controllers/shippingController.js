@@ -198,11 +198,17 @@ async function createForm(req, res) {
    RATE SHOP — POST /admin/shipping/rates  (AJAX)
    Body: { productType, origin, destination, items[] }
 ───────────────────────────────────────────────────────────────────*/
+function _wwexDate(d) {
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
 async function getRates(req, res) {
   try {
     const { productType = 'LTL', origin, destination, handlingUnits = [], items = [], service } = req.body;
     // Support both new handlingUnits[] (two-layer) and legacy items[] (flat)
     const hus = handlingUnits.length ? handlingUnits : items;
+    const shipmentDate = _wwexDate(new Date());
 
     let shopPayload;
 
@@ -212,6 +218,7 @@ async function getRates(req, res) {
         returnSelectedServiceOnly: false,
         service: service || null,
         shipment: {
+          shipmentDate,
           adultSignatureRequiredFlag: false,
           destinationAddress: {
             address: {
@@ -258,6 +265,7 @@ async function getRates(req, res) {
       shopPayload = {
         productType: 'LTL',
         shipment: {
+          shipmentDate,
           originAddress: {
             address: {
               addressLineList: [origin.address1].filter(Boolean),
