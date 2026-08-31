@@ -268,6 +268,7 @@ async function getRates(req, res) {
         productType: 'LTL',
         shipment: {
           shipmentDate,
+          paymentTerms: 'PREPAID',
           originAddress: {
             address: {
               addressLineList: [origin.address1].filter(Boolean),
@@ -300,11 +301,13 @@ async function getRates(req, res) {
               type:         hu.huType    || hu.type     || 'PLT',
               stackable:    hu.stackable || false,
               weight:       { value: hu.grossWeight || hu.weight || 0, unit: 'LBS' },
-              dimension:    {
-                length: { value: hu.length || null, unit: 'IN' },
-                width:  { value: hu.width  || null, unit: 'IN' },
-                height: { value: hu.height || null, unit: 'IN' },
-              },
+              ...(hu.length && hu.width && hu.height ? {
+                dimension: {
+                  length: { value: hu.length, unit: 'IN' },
+                  width:  { value: hu.width,  unit: 'IN' },
+                  height: { value: hu.height, unit: 'IN' },
+                }
+              } : {}),
               freightClass: comm0.freightClass || hu.freightClass || null,
               nmfcCode:     comm0.nmfcCode     || hu.nmfcCode     || null,
               description:  comm0.description  || hu.description  || '',
