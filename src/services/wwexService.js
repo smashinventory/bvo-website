@@ -132,30 +132,53 @@ exports.shopFlow = async (payload, productType = 'LTL') => {
     if (!rawOffers.length) {
       console.warn('[wwex] shopFlow: no offers in response keys:', Object.keys(resp));
     }
-    // One entry per offer (Standard vs Guaranteed appear as separate offerList entries)
-    const offers = rawOffers.map(o => {
-      const carrier    = o.primaryVendor?.preferredName || o.primaryVendor?.scac || '—';
-      const prod       = o.offeredProductList?.[0] || {};
-      const tit        = prod.shopRQShipment?.timeInTransit || {};
-      // serviceLevel, transitDays, estimatedDeliveryDate all live in shopRQShipment.timeInTransit
-      const rawSvc     = tit.serviceLevel || '';
-      const serviceLevel = rawSvc
-        ? rawSvc.charAt(0).toUpperCase() + rawSvc.slice(1).toLowerCase()  // "STANDARD" → "Standard"
-        : 'Standard';
-      const transitDays  = tit.transitDays  ?? null;
-      const deliveryDate = tit.estimatedDeliveryDate || null;
-      // Per-product price confirmed as {unit, value} object
-      const price        = prod.offerPrice ?? o.totalOfferPrice;
-      return {
-        offerId:          o.offerId || '',
-        offeredProductId: prod.offeredProductId || null,
-        carrier,
-        serviceLevel,
-        transitDays,
-        estimatedDelivery: deliveryDate,
-        totalCharge:      typeof price === 'object' ? Number(price?.value ?? 0) : Number(price ?? 0),
-        currency:         (typeof price === 'object' ? price?.unit : null) || 'USD',
-      };
+    // Log offer structure so we can see how many products each offer contains
+    rawOffers.forEach((o, i) => {
+      const carrier = o.primaryVendor?.preferredName || o.primaryVendor?.scac || '—';
+      const prodCount = (o.offeredProductList || []).length;
+      const levels = (o.offeredProductList || []).map(
+        p => p.shopRQShipment?.timeInTransit?.serviceLevel || '?'
+      );
+      console.log(`[wwex] shopFlow offer[${i}] carrier=${carrier} products=${prodCount} levels=${levels.join(',')}`);
+    });
+
+    // flatMap over ALL products per offer so we never miss a Guaranteed variant
+    // (WWEX may put Standard + Guaranteed as separate products within one offer,
+    //  or as separate offers — flatMap handles both correctly)
+    const offers = rawOffers.flatMap(o => {
+      const carrier   = o.primaryVendor?.preferredName || o.primaryVendor?.scac || '—';
+      const products  = (o.offeredProductList || []);
+      // If no products array, fall back to one row using offer-level price
+      if (!products.length) {
+        return [{
+          offerId:          o.offerId || '',
+          offeredProductId: null,
+          carrier,
+          serviceLevel:     'Standard',
+          transitDays:      null,
+          estimatedDelivery: null,
+          totalCharge:      Number(o.totalOfferPrice?.value ?? o.totalOfferPrice ?? 0),
+          currency:         o.totalOfferPrice?.unit || 'USD',
+        }];
+      }
+      return products.map(prod => {
+        const tit      = prod.shopRQShipment?.timeInTransit || {};
+        const rawSvc   = tit.serviceLevel || '';
+        const serviceLevel = rawSvc
+          ? rawSvc.charAt(0).toUpperCase() + rawSvc.slice(1).toLowerCase()
+          : 'Standard';
+        const price    = prod.offerPrice ?? o.totalOfferPrice;
+        return {
+          offerId:          o.offerId || '',
+          offeredProductId: prod.offeredProductId || null,
+          carrier,
+          serviceLevel,
+          transitDays:      tit.transitDays  ?? null,
+          estimatedDelivery: tit.estimatedDeliveryDate || null,
+          totalCharge:      typeof price === 'object' ? Number(price?.value ?? 0) : Number(price ?? 0),
+          currency:         (typeof price === 'object' ? price?.unit : null) || 'USD',
+        };
+      });
     });
     return { ok: true, productTransactionId: rawOffers[0]?.productTransactionId, rates: offers };
   } catch (err) {
