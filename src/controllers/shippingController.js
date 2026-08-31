@@ -533,9 +533,10 @@ async function bookShipment(req, res) {
       offeredProductId  = null,
       shipment,
       orderId         = null,
-      carrier         = '',
-      serviceLevel    = '',
-      totalCharge     = 0,
+      carrier           = '',
+      serviceLevel      = '',
+      totalCharge       = 0,
+      estimatedDelivery = null,   // from the selected rate — stored as est_delivery
       schedulePickup  = false,
       pickupDate      = null,
       pickupReadyTime = '08:00:00',
@@ -668,13 +669,24 @@ async function bookShipment(req, res) {
     const orig = shipment?.originAddress?.address      || {};
 
     await safeQuery(
+      /* FIXED 2026-08-31 — three problems with this INSERT:
+         1. ship_date and est_delivery exist in the schema but were never
+            written, so both stayed NULL. The Shipments list rendered
+            created_at under its "Ship Date" header, which meant the column
+            always showed the BOOKING date and silently ignored the pickup
+            date the user actually chose.
+         2. origin_company was being fed addressLineList[0] — the street
+            address — instead of the company name. There is no
+            origin_address1 column, so the street simply is not stored
+            (origin is always our own warehouse). */
       `INSERT INTO shipments
          (order_id, product_transaction_id, offer_id, product_type, bol_number, pro_number,
           bol_url, carrier, service_level, total_charge, status,
+          ship_date, est_delivery,
           origin_company, origin_city, origin_state, origin_zip,
           dest_company, dest_name, dest_address1, dest_city, dest_state, dest_zip,
           dest_phone, dest_email, pickup_confirmation, created_at, updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, NOW(), NOW())`,
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, NOW(), NOW())`,
       [
         orderId || null,
         booked.productTransactionId || productTransactionId,
@@ -687,7 +699,9 @@ async function bookShipment(req, res) {
         serviceLevel,
         totalCharge,
         'booked',
-        (Array.isArray(orig.addressLineList) ? orig.addressLineList[0] : orig.addressLine1) || '',
+        pDate,                                    // ship_date — the real pickup date
+        estimatedDelivery || null,                // est_delivery — from the selected rate
+        orig.companyName || '',                   // was: street address (wrong column)
         orig.locality  || '',
         orig.region    || '',
         orig.postalCode|| '',

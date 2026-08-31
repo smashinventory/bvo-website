@@ -96,6 +96,28 @@ async function call(flowName, body, productType = 'LTL') {
   return res.data;
 }
 
+/* ── Error normalisation ──────────────────────────────────────────
+   WWEX returns errors as a JSON object, not a string. Passing that
+   object straight back to the browser produced "Error: [object Object]"
+   in the admin UI (seen on Void Shipment). Every flow must return a
+   human-readable STRING in `error`.
+
+   WWEX V4 puts the useful text in clientStatus.message; older/other
+   shapes use message, description, or an errors[] array.
+─────────────────────────────────────────────────────────────────── */
+function _errMsg(err) {
+  const d = err && err.response ? err.response.data : null;
+  if (!d) return (err && err.message) || 'Unknown error';
+  if (typeof d === 'string') return d;
+  return d.clientStatus?.message
+      || d.message
+      || d.description
+      || (Array.isArray(d.errors)
+            ? d.errors.map(e => e.message || e.description || JSON.stringify(e)).join('; ')
+            : null)
+      || JSON.stringify(d);
+}
+
 /* ── Stub helpers ─────────────────────────────────────────────── */
 function _addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
 
@@ -195,18 +217,10 @@ exports.shopFlow = async (payload, productType = 'LTL') => {
     console.log('[wwex] shopFlow using productTransactionId:', txnId);
     return { ok: true, productTransactionId: txnId, rates: offers };
   } catch (err) {
-    const errData = err.response?.data;
     // Log full error so we can debug validation failures
     console.error('[wwex] shopFlow error | status:', err.response?.status);
-    console.error('[wwex] shopFlow full error body:', JSON.stringify(errData, null, 2));
-    // Normalize to human-readable string — check clientStatus.message first (WWEX V4 pattern)
-    const errMsg = errData
-      ? (typeof errData === 'string' ? errData
-        : errData.clientStatus?.message || errData.message || errData.description
-          || (Array.isArray(errData.errors) ? errData.errors.map(e => e.message || JSON.stringify(e)).join('; ') : null)
-          || JSON.stringify(errData))
-      : err.message;
-    return { ok: false, error: errMsg };
+    console.error('[wwex] shopFlow full error body:', JSON.stringify(err.response?.data, null, 2));
+    return { ok: false, error: _errMsg(err) };
   }
 };
 
@@ -236,7 +250,7 @@ exports.quoteOrderFlow = async (payload, productType = 'LTL') => {
     };
   } catch (err) {
     console.error('[wwex] quoteOrderFlow error:', err.response?.data || err.message);
-    return { ok: false, error: err.response?.data || err.message };
+    return { ok: false, error: _errMsg(err) };
   }
 };
 
@@ -253,7 +267,7 @@ exports.schedulePickupFlow = async (payload) => {
     return { ok: true, confirmationNumber: resp.confirmationNumber || resp.pickupConfirmationCode };
   } catch (err) {
     console.error('[wwex] schedulePickupFlow error:', err.response?.data || err.message);
-    return { ok: false, error: err.response?.data || err.message };
+    return { ok: false, error: _errMsg(err) };
   }
 };
 
@@ -294,7 +308,7 @@ exports.searchShipmentsFlow = async (trackingNumbers, type = 'BOL', productType 
     return { ok: true, shipments };
   } catch (err) {
     console.error('[wwex] searchShipmentsFlow error:', err.response?.data || err.message);
-    return { ok: false, error: err.response?.data || err.message };
+    return { ok: false, error: _errMsg(err) };
   }
 };
 
@@ -313,8 +327,11 @@ exports.integratedCancelFlow = async (productTransactionIds, productType = 'LTL'
     const resp = data.response || data;
     return { ok: true, result: resp };
   } catch (err) {
-    console.error('[wwex] integratedCancelFlow error:', err.response?.data || err.message);
-    return { ok: false, error: err.response?.data || err.message };
+    // Full body logged so a void failure can be diagnosed from the server log
+    // rather than the (now normalised) one-line message alone.
+    console.error('[wwex] integratedCancelFlow error | status:', err.response?.status);
+    console.error('[wwex] integratedCancelFlow full error body:', JSON.stringify(err.response?.data, null, 2));
+    return { ok: false, error: _errMsg(err) };
   }
 };
 
@@ -344,7 +361,7 @@ exports.documentDownloadFlow = async (productTransactionId, docType = 'BILL_OF_L
     };
   } catch (err) {
     console.error('[wwex] documentDownloadFlow error:', err.response?.data || err.message);
-    return { ok: false, error: err.response?.data || err.message };
+    return { ok: false, error: _errMsg(err) };
   }
 };
 
@@ -382,7 +399,7 @@ exports.addressValidationFlow = async (address, productType = 'LTL') => {
     };
   } catch (err) {
     console.error('[wwex] addressValidationFlow error:', err.response?.data || err.message);
-    return { ok: false, error: err.response?.data || err.message };
+    return { ok: false, error: _errMsg(err) };
   }
 };
 

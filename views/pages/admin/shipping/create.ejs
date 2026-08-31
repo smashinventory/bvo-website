@@ -1194,6 +1194,7 @@ function bookShipment() {
       carrier:              strField(_selected.carrier),
       serviceLevel:         strField(_selected.serviceLevel) || strField(_selected.service),
       totalCharge:          _selected.totalCharge,
+      estimatedDelivery:    _selected.estimatedDelivery || null,
       orderId:              _orderId || null,
       schedulePickup:       schedPick,
       pickupDate:           pickupDate,

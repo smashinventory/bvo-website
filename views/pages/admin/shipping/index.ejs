@@ -116,7 +116,16 @@ function statusLabel(s) {
           <% if (s.service_level) { %><div style="color:#718096;font-size:.75rem"><%= s.service_level %></div><% } %>
         </td>
         <td><span class="ship-type-chip ship-type-chip--<%= s.product_type.toLowerCase() %>"><%= s.product_type === 'SMALLPACK' ? 'Small Pack' : 'LTL' %></span></td>
-        <td style="font-size:.85rem"><%= s.created_at ? new Date(s.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—' %></td>
+        <%# FIXED 2026-08-31 — this cell rendered created_at (the BOOKING timestamp)
+            under a "Ship Date" header, so the pickup date the user chose was never
+            shown. Now shows the real ship_date, with the booked-on date beneath it
+            so both are visible without adding a column. %>
+        <td style="font-size:.85rem">
+          <%= s.ship_date ? new Date(s.ship_date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—' %>
+          <% if (s.created_at) { %>
+          <div style="color:#718096;font-size:.72rem">booked <%= new Date(s.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}) %></div>
+          <% } %>
+        </td>
         <td style="font-size:.85rem"><%= s.est_delivery ? new Date(s.est_delivery).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '—' %></td>
         <td style="text-align:right;font-size:.85rem"><%= s.total_charge ? '$'+Number(s.total_charge).toLocaleString('en-US',{minimumFractionDigits:2}) : '—' %></td>
         <td>
@@ -226,7 +235,14 @@ document.getElementById('voidConfirmBtn').addEventListener('click', function() {
     } else {
       btn.disabled    = false;
       btn.textContent = 'Void Shipment';
-      alert('Error: ' + (d.error || 'Unknown error'));
+      // d.error may still be an object if it came from somewhere that bypasses
+      // wwexService's normaliser — never let "[object Object]" reach the user.
+      var msg = d.error;
+      if (msg && typeof msg === 'object') {
+        msg = msg.clientStatus && msg.clientStatus.message
+           || msg.message || msg.description || JSON.stringify(msg);
+      }
+      alert('Void failed: ' + (msg || 'Unknown error'));
     }
   })
   .catch(function(e){
