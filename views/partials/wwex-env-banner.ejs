@@ -1,0 +1,54 @@
+<%
+/* ═══════════════════════════════════════════════════════════════════
+   WWEX environment banner
+
+   Include at the top of any admin shipping page with an EJS raw-output
+   include tag pointing at partials/wwex-env-banner — see the top of
+   create.ejs, index.ejs or dashboard.ejs for the exact line.
+   (Deliberately not written out literally here: an EJS close tag inside
+   this comment would terminate the block early.)
+
+   Reads the `apiMode` local, which every shipping controller already
+   passes (wwex.apiMode === 'stub' | 'SpeedShip V4 (staging)' |
+   'SpeedShip V4 (production)').
+
+   WHY THIS EXISTS: staging and production looked identical in the UI.
+   A booking made in production dispatches a real carrier to a real
+   address and incurs a real charge — there was nothing on screen to
+   tell you which one you were in. Only the stub badge was rendered.
+═══════════════════════════════════════════════════════════════════ */
+const _mode = (typeof apiMode !== 'undefined' && apiMode) ? String(apiMode) : '';
+const _isStub = _mode.includes('stub');
+const _isProd = _mode.includes('production');
+const _isStg  = _mode.includes('staging');
+%>
+<% if (_isStub) { %>
+<div class="wwex-env wwex-env--stub">
+  <strong>STUB MODE</strong>
+  <span>No WWEX credentials in .env — rates and bookings are fake placeholder data.</span>
+</div>
+<% } else if (_isProd) { %>
+<div class="wwex-env wwex-env--prod">
+  <strong>&#9888; PRODUCTION</strong>
+  <span>Bookings are <strong>real</strong>. A carrier will be dispatched and your account will be charged.</span>
+</div>
+<% } else if (_isStg) { %>
+<div class="wwex-env wwex-env--staging">
+  <strong>STAGING</strong>
+  <span>Test environment — bookings are not real and no carrier is dispatched.</span>
+</div>
+<% } %>
+
+<style>
+/* Scoped here rather than site4.css: this partial is admin-shipping only,
+   and keeping the markup and styling together makes it self-contained. */
+.wwex-env {
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  border-radius:6px; padding:8px 14px; margin-bottom:12px;
+  font-size:.82rem; line-height:1.4;
+}
+.wwex-env strong { font-weight:700; letter-spacing:.04em; }
+.wwex-env--stub    { background:#FFF5F5; color:#c53030; border:1px solid #fed7d7; }
+.wwex-env--staging { background:#FFFAF0; color:#975a16; border:1px solid #fbd38d; }
+.wwex-env--prod    { background:#FFF5F5; color:#9b2c2c; border:2px solid #fc8181; }
+</style>

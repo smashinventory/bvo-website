@@ -362,6 +362,39 @@ Five things this brief previously stated that are **false**:
 | `contactList[].email` / `.extension` | quoteOrderFlow addresses | Supported here (not shown in shopFlow sample) |
 | `address.phone` | quoteOrderFlow addresses | Required, separate from `contactList[].phone` |
 
+### ✅ CONFIRMED BY A SUCCESSFUL LIVE BOOKING — 2026-08-31
+
+End-to-end booking works: rate shop → carrier select → confirm → **BOL returned**.
+First successful booking was ABF Freight System Inc, $257.47, order BVO-20260001.
+
+Two gates were hit on the way, in this order:
+
+1. `shipmentOfferId Expired or Not Valid` — caused by `productTransactionId`
+   being read from the wrong place. Fixed (commit `8010806`).
+2. `Destination Phone is required; exception: AppException` — **`address.phone`
+   is REQUIRED on BOTH origin and destination in quoteOrderFlow.** The shopFlow
+   sample does not mark it required, so this is easy to miss. Note this is the
+   address-level `phone`, which is separate from `contactList[].phone`. Both are
+   now validated at Step 1 and guarded server-side in `bookShipment()`.
+
+Reaching error 2 was the proof that error 1 was solved — the request got as far
+as WWEX field validation instead of dying at offer lookup.
+
+### ⚠️ STAGING vs PRODUCTION
+
+`WWEX_ENV` in the server `.env` decides which. `wwexService.js:33` defaults to
+**staging** unless the value is exactly `production`, so an absent line is safe.
+
+A booking made while `WWEX_ENV=production` is **real**: a carrier is dispatched
+to the origin address and the account is charged. Void via the Shipments list
+(runs `integratedCancelFlow`).
+
+The admin UI previously showed no difference between staging and production —
+only a stub badge. `views/partials/wwex-env-banner.ejs` now renders a coloured
+banner on the create, list and dashboard pages driven by `apiMode`. Every
+shipping controller already passes `apiMode`; add the include to any new
+shipping page.
+
 ### Documented constraints
 
 - `addressLineList` — up to **3** lines (BVO sends 1)

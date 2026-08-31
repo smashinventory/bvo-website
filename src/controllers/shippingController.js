@@ -608,6 +608,23 @@ async function bookShipment(req, res) {
       handlingSpecialInstructions: String(req.body.handlingInstructions || '').slice(0, 82),
     };
 
+    /* Guard: WWEX rejects the booking with "Destination Phone is required;
+       exception: AppException" when address.phone is blank. Fail here with a
+       clear message rather than spending a round trip to find out. Both
+       origin and destination phone are Required in quoteOrderFlow. */
+    if (!String(bookShipmentObj.destinationAddress.address.phone || '').replace(/\D/g, '')) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Destination Phone is required. Go back to Step 1 and add a phone number for the receiver — WWEX will not accept the booking without one.',
+      });
+    }
+    if (!String(bookShipmentObj.originAddress.address.phone || '').replace(/\D/g, '')) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Origin Phone is required. Go back to Step 1 and add a phone number for the shipper.',
+      });
+    }
+
     const bookPayload = {
       mode:                         'SAVE',
       shipmentProductTransactionId: productTransactionId,

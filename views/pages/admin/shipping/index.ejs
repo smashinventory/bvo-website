@@ -16,13 +16,12 @@ function statusLabel(s) {
 }
 %>
 
+<%- include('../../../partials/wwex-env-banner') %>
+
 <!-- ══ Toolbar ══════════════════════════════════════════════════════ -->
 <div class="adm-toolbar">
   <div class="adm-back-wrap">
     <span class="adm-toolbar-title">Shipments</span>
-    <% if (typeof apiMode !== 'undefined' && apiMode.includes('stub')) { %>
-    <span style="font-size:.72rem;background:#FFF5F5;color:#c53030;border:1px solid #fed7d7;border-radius:10px;padding:2px 10px;margin-left:8px">Stub mode — add WWEX credentials to .env</span>
-    <% } %>
   </div>
   <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
     <button class="btn btn-sm btn-primary" onclick="openOrderPicker()">+ New Shipment</button>

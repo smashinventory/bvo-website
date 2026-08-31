@@ -9,6 +9,8 @@ const hus  = prefillHandlingUnits || [];
 const meta = orderMeta           || null;
 %>
 
+<%- include('../../../partials/wwex-env-banner') %>
+
 <!-- ══ Toolbar ══════════════════════════════════════════════════════ -->
 <div class="adm-toolbar">
   <div class="adm-back-wrap">
@@ -79,7 +81,7 @@ const meta = orderMeta           || null;
       <h3 class="admin-card-title">Origin (Ship From)</h3>
       <div class="adm-form-grid">
         <div class="adm-field"><label>Company</label><input id="orig_company" type="text" class="adm-input" value="Bathroom Vanities Outlet"></div>
-        <div class="adm-field"><label>Phone</label><input id="orig_phone" type="text" class="adm-input" value="7706352030"></div>
+        <div class="adm-field"><label>Phone <span class="req-star">*</span></label><input id="orig_phone" type="text" class="adm-input" value="7706352030"></div>
         <div class="adm-field adm-field--full"><label>Address</label><input id="orig_address1" type="text" class="adm-input" value="50 Ernest W Barrett Pkwy NW"></div>
         <div class="adm-field"><label>City</label><input id="orig_city" type="text" class="adm-input" value="Marietta"></div>
         <div class="adm-field"><label>State</label><input id="orig_state" type="text" class="adm-input" value="GA" maxlength="2" style="text-transform:uppercase"></div>
@@ -109,7 +111,7 @@ const meta = orderMeta           || null;
       <div class="adm-form-grid">
         <div class="adm-field"><label>Company / Business</label><input id="dest_company" type="text" class="adm-input" value="<%= pre.company || '' %>"></div>
         <div class="adm-field"><label>Contact Name</label><input id="dest_name" type="text" class="adm-input" value="<%= pre.name || '' %>"></div>
-        <div class="adm-field"><label>Phone</label><input id="dest_phone" type="text" class="adm-input" value="<%= pre.phone || '' %>"></div>
+        <div class="adm-field"><label>Phone <span class="req-star">*</span></label><input id="dest_phone" type="text" class="adm-input" value="<%= pre.phone || '' %>" placeholder="Required by carrier"></div>
         <div class="adm-field"><label>Email</label><input id="dest_email" type="text" class="adm-input" value="<%= pre.email || '' %>"></div>
         <div class="adm-field adm-field--full"><label>Address</label><input id="dest_address1" type="text" class="adm-input" value="<%= pre.address1 || '' %>"></div>
         <div class="adm-field adm-field--full"><label>Address 2 <small style="color:#718096;font-weight:400">(optional)</small></label><input id="dest_address2" type="text" class="adm-input" value="<%= pre.address2 || '' %>" placeholder="Apt, suite, unit"></div>
@@ -470,6 +472,32 @@ var WWEX_PACK_TYPES = [
 var HU_TYPES    = WWEX_PACK_TYPES;
 var PIECE_TYPES = WWEX_PACK_TYPES;
 
+/* ═══════════════════════════════════════════════════════════════
+   BVO PICKUP SOP DEFAULTS
+   These pre-fill Step 3 (Confirm & Book) on every LTL shipment.
+   They are starting values only — staff can overwrite any of them
+   per shipment before booking.
+
+   >>> EDIT HERE to change the standing defaults. <<<
+
+   Character limits are enforced by WWEX and by maxlength on the
+   inputs: pickup 60, delivery 60, handling 82.
+═══════════════════════════════════════════════════════════════ */
+var SOP_READY_TIME = '11:30';   // 11:30 AM — earliest pickup
+var SOP_CLOSE_TIME = '16:00';   // 4:00 PM  — latest pickup
+var SOP_PICKUP_INSTRUCTIONS   = 'Store located on BACKSIDE of shopping strip BEHIND ROSS';
+var SOP_DELIVERY_INSTRUCTIONS = 'Call receiver 24 hours in advance with delivery window.';
+var SOP_HANDLING_INSTRUCTIONS = 'DO NOT STACK ON';
+
+/** Escape a string for safe use inside an HTML attribute value.
+ *  Step 3 is built by string concatenation, so any value containing a quote
+ *  would otherwise break out of the attribute. */
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 function addHandlingUnit(d) {
   d = d || {};
   _huCount++;
@@ -620,7 +648,7 @@ document.addEventListener('change', function(e) {
 function validateStep1() {
   var errors = [];
   // Clear previous highlights
-  ['dest_zip','dest_state','dest_city'].forEach(function(id) {
+  ['dest_zip','dest_state','dest_city','dest_phone','orig_phone'].forEach(function(id) {
     var el = document.getElementById(id); if (el) el.classList.remove('adm-error');
   });
   document.querySelectorAll('.comm-class, .hu-weight').forEach(function(el) {
@@ -637,6 +665,24 @@ function validateStep1() {
   if (!zip.trim())   { errors.push('Destination ZIP is required.');   if (zipEl)   zipEl.classList.add('adm-error'); }
   if (!state.trim()) { errors.push('Destination State is required.'); if (stateEl) stateEl.classList.add('adm-error'); }
   if (!city.trim())  { errors.push('Destination City is required.');  if (cityEl)  cityEl.classList.add('adm-error'); }
+
+  /* ADDED 2026-08-31 — WWEX rejects the BOOKING (not the rate shop) with
+     "Destination Phone is required" when address.phone is blank. Both origin
+     and destination phone are Required in quoteOrderFlow. Caught here at
+     Step 1 so the user isn't told about it only after picking a carrier and
+     filling in the whole confirm page. */
+  var dPhoneEl = document.getElementById('dest_phone');
+  var oPhoneEl = document.getElementById('orig_phone');
+  var dPhone   = (dPhoneEl || {}).value || '';
+  var oPhone   = (oPhoneEl || {}).value || '';
+  if (!dPhone.replace(/\D/g, '')) {
+    errors.push('Destination Phone is required — WWEX will reject the booking without it.');
+    if (dPhoneEl) dPhoneEl.classList.add('adm-error');
+  }
+  if (!oPhone.replace(/\D/g, '')) {
+    errors.push('Origin Phone is required — WWEX will reject the booking without it.');
+    if (oPhoneEl) oPhoneEl.classList.add('adm-error');
+  }
 
   /* CHANGED 2026-08-31 — Freight Class and Commodity Description are REQUIRED by
      WWEX (commodityClass / commodityDescription) on EVERY commodity, not just one.
@@ -1032,23 +1078,31 @@ function buildConfirmStep() {
   html += '<div style="margin-bottom:12px"><span style="font-size:.78rem;color:#718096">Ref 2: </span><span style="font-weight:600;font-size:.88rem">' + (val('ref2')||'—') + '</span></div>';
   // LTL always shows pickup date; SMALLPACK uses the checkbox section below
   if (pt === 'LTL') {
+    /* Pickup Date defaults to the Shipment Date chosen in Step 1, not today.
+       WWEX documents that quoteOrderFlow.pickupDate "should align with
+       shipmentDate from shopFlow" — rating one date and booking another can
+       change transit times and the quoted price. Falls back to today only if
+       Step 1 was somehow left blank. */
+    var sopDate = val('shipmentDate') || today;
     html += '<div class="adm-field" style="margin-bottom:6px"><label>Pickup Date</label>'
-      + '<input id="ltlPickupDate" type="date" class="adm-input" value="' + today + '"></div>';
+      + '<input id="ltlPickupDate" type="date" class="adm-input" value="' + sopDate + '"></div>';
     html += '<div class="adm-form-grid">';
     html += '<div class="adm-field"><label>Ready Time</label>'
-      + '<input id="ltlPickupReady" type="time" class="adm-input" value="08:00"></div>';
+      + '<input id="ltlPickupReady" type="time" class="adm-input" value="' + SOP_READY_TIME + '"></div>';
     html += '<div class="adm-field"><label>Close Time</label>'
-      + '<input id="ltlPickupClose" type="time" class="adm-input" value="17:00"></div>';
+      + '<input id="ltlPickupClose" type="time" class="adm-input" value="' + SOP_CLOSE_TIME + '"></div>';
     html += '</div>';
     /* ADDED 2026-08-31 — WWEX quoteOrderFlow accepts three free-text
        instruction fields. Character limits are enforced by the API, so
        maxlength matches exactly: pickup 60, delivery 60, handling 82. */
+    /* Pre-filled with the BVO standing note set (see SOP_* constants at the top
+       of this script). Staff can overwrite any of them per shipment. */
     html += '<div class="adm-field" style="margin-top:8px"><label>Pickup Instructions <small style="color:#718096;font-weight:400">(max 60)</small></label>'
-      + '<input id="ltlPickupInstr" type="text" maxlength="60" class="adm-input" placeholder="e.g. Dock 3, ask for warehouse"></div>';
+      + '<input id="ltlPickupInstr" type="text" maxlength="60" class="adm-input" value="' + esc(SOP_PICKUP_INSTRUCTIONS) + '"></div>';
     html += '<div class="adm-field" style="margin-top:6px"><label>Delivery Instructions <small style="color:#718096;font-weight:400">(max 60)</small></label>'
-      + '<input id="ltlDeliveryInstr" type="text" maxlength="60" class="adm-input" placeholder="e.g. Call 30 min before arrival"></div>';
+      + '<input id="ltlDeliveryInstr" type="text" maxlength="60" class="adm-input" value="' + esc(SOP_DELIVERY_INSTRUCTIONS) + '"></div>';
     html += '<div class="adm-field" style="margin-top:6px"><label>Handling Instructions <small style="color:#718096;font-weight:400">(max 82)</small></label>'
-      + '<input id="ltlHandlingInstr" type="text" maxlength="82" class="adm-input" placeholder="e.g. Do not stack. Fragile stone top."></div>';
+      + '<input id="ltlHandlingInstr" type="text" maxlength="82" class="adm-input" value="' + esc(SOP_HANDLING_INSTRUCTIONS) + '"></div>';
   }
   html += '</div>';
 
