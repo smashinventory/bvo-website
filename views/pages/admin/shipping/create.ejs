@@ -364,9 +364,10 @@ const meta = orderMeta           || null;
 
 <script>
 /* ── State ────────────────────────────────────────────────────── */
-var _rates    = [];
-var _selected = null;
-var _txnId    = null;
+var _rates        = [];
+var _selected     = null;
+var _txnId        = null;
+var _shopShipment = null;  // full LTL shipment from shopFlow — echoed back in quoteOrderFlow
 var _orderId  = '<%= orderId || "" %>';
 
 /* ── Prefill Handling Units from server ───────────────────────── */
@@ -652,8 +653,9 @@ function goToRates() {
       document.getElementById('rateError').textContent = errMsg;
       return;
     }
-    _rates = d.rates;
-    _txnId = d.productTransactionId;
+    _rates        = d.rates;
+    _txnId        = d.productTransactionId;
+    _shopShipment = d.shopShipment || null;
     renderRates(d.rates, d.stub);
   })
   .catch(function(e) {
@@ -800,34 +802,54 @@ function bookShipment() {
   btn.disabled    = true;
   btn.textContent = 'Booking…';
 
-  var pt   = getProductType();
-  var dest = {
-    addressLineList: [val('dest_address1')],
+  var pt        = getProductType();
+  var schedPick = document.getElementById('schedulePickup') && document.getElementById('schedulePickup').checked;
+  var pickupDate= document.getElementById('pickupDate') ? document.getElementById('pickupDate').value : '';
+
+  // Build confirmed addresses (non-empty addressLine filter guards against blanks)
+  var origAddr = {
+    addressLineList: [val('orig_address1')].filter(Boolean),
+    locality:    val('orig_city'),
+    region:      document.getElementById('orig_state').value.toUpperCase(),
+    postalCode:  val('orig_zip'),
+    countryCode: 'US',
+    companyName: val('orig_company') || 'Shipper',
+    phone:       val('orig_phone'),
+    contactList: [{
+      firstName:   val('orig_company') || 'Shipper',
+      lastName:    '',
+      phone:       val('orig_phone'),
+      contactType: 'SENDER',
+    }],
+  };
+  var destAddr = {
+    addressLineList: [val('dest_address1')].filter(Boolean),
     locality:    val('dest_city'),
     region:      document.getElementById('dest_state').value.toUpperCase(),
     postalCode:  val('dest_zip'),
     countryCode: document.getElementById('dest_country').value.toUpperCase() || 'US',
     companyName: val('dest_company') || val('dest_name') || 'Residential',
     phone:       val('dest_phone'),
-    contactList: [{ firstName:'', lastName:val('dest_name'), phone:val('dest_phone'), email:val('dest_email') }],
-  };
-  var orig = {
-    addressLineList: [val('orig_address1')],
-    locality:    val('orig_city'),
-    region:      document.getElementById('orig_state').value.toUpperCase(),
-    postalCode:  val('orig_zip'),
-    countryCode: 'US',
-    companyName: val('orig_company'),
-    phone:       val('orig_phone'),
-    contactList: [{ firstName:'', lastName:'', phone:val('orig_phone') }],
+    contactList: [{
+      firstName:   val('dest_name') || val('dest_company') || 'Consignee',
+      lastName:    '',
+      phone:       val('dest_phone'),
+      email:       val('dest_email'),
+      contactType: 'RECEIVER',
+    }],
   };
 
-  var schedPick  = document.getElementById('schedulePickup') && document.getElementById('schedulePickup').checked;
-  var pickupDate = document.getElementById('pickupDate') ? document.getElementById('pickupDate').value : '';
-
-  // Ensure contactType + non-empty name for booking (WWEX requires SENDER Contact Name)
-  orig.contactList = [{ firstName: val('orig_company') || 'Shipper', lastName:'', phone:val('orig_phone'), contactType:'SENDER' }];
-  dest.contactList = [{ firstName:'', lastName:val('dest_name'), phone:val('dest_phone'), email:val('dest_email'), contactType:'RECEIVER' }];
+  // Merge: start from the full LTL shipment that was rated (handlingUnitList, flags, weights,
+  // shipmentDate, etc.) and override the addresses + add references.
+  // This ensures quoteOrderFlow receives the exact same shipment data as shopFlow.
+  var shipment = Object.assign({}, _shopShipment || {}, {
+    originAddress:         { address: origAddr },
+    destinationAddress:    { address: destAddr },
+    shipmentReferenceList: [
+      { type: 'Reference 1', value: val('ref1') },
+      { type: 'Reference 2', value: val('ref2') },
+    ].filter(function(r) { return r.value; }),
+  });
 
   fetch('/admin/shipping/book', {
     method: 'POST',
@@ -835,7 +857,7 @@ function bookShipment() {
     body: JSON.stringify({
       productType:          pt,
       productTransactionId: _txnId,
-      offerId:              _selected.offerId,
+      offerId:              _selected.offeredProductId || _selected.offerId,
       carrier:              strField(_selected.carrier),
       serviceLevel:         strField(_selected.serviceLevel) || strField(_selected.service),
       totalCharge:          _selected.totalCharge,
@@ -844,14 +866,7 @@ function bookShipment() {
       pickupDate:           pickupDate,
       pickupReadyTime:      document.getElementById('pickupReady') ? document.getElementById('pickupReady').value + ':00' : '08:00:00',
       pickupCloseTime:      document.getElementById('pickupClose') ? document.getElementById('pickupClose').value + ':00' : '17:00:00',
-      shipment: {
-        originAddress:      { address: orig },
-        destinationAddress: { address: dest },
-        shipmentReferenceList: [
-          { type:'Reference 1', value:val('ref1') },
-          { type:'Reference 2', value:val('ref2') },
-        ].filter(function(r){ return r.value; }),
-      },
+      shipment:             shipment,
     }),
   })
   .then(function(r){ return r.json(); })
@@ -859,7 +874,9 @@ function bookShipment() {
     if (!d.ok) {
       btn.disabled    = false;
       btn.textContent = 'Book Shipment';
-      alert('Booking failed: ' + (d.error || 'Unknown error'));
+      var errMsg = typeof d.error === 'string' ? d.error
+        : (d.error && (d.error.clientStatus && d.error.clientStatus.message) || d.error && d.error.message || JSON.stringify(d.error));
+      alert('Booking failed: ' + (errMsg || 'Unknown error'));
       return;
     }
     var details = '';

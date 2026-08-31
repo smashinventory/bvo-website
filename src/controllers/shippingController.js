@@ -357,7 +357,9 @@ async function getRates(req, res) {
 
     console.log('[shipping] shopFlow payload:', JSON.stringify(shopPayload, null, 2));
     const result = await wwex.shopFlow(shopPayload, productType);
-    res.json(result);
+    // Return the original shipment object so the client can echo it back in quoteOrderFlow.
+    // WWEX requires the full shipment (handlingUnitList, freight flags, etc.) in the booking.
+    res.json({ ...result, shopShipment: shopPayload.shipment || null });
   } catch (err) {
     console.error('[shipping] getRates error:', err);
     res.status(500).json({ ok: false, error: err.message });
