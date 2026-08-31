@@ -745,6 +745,10 @@ function bookShipment() {
   var schedPick  = document.getElementById('schedulePickup') && document.getElementById('schedulePickup').checked;
   var pickupDate = document.getElementById('pickupDate') ? document.getElementById('pickupDate').value : '';
 
+  // Ensure contactType is present for booking (required by WWEX quoteOrderFlow)
+  orig.contactList = [{ firstName:'', lastName:'', phone:val('orig_phone'), contactType:'SENDER' }];
+  dest.contactList = [{ firstName:'', lastName:val('dest_name'), phone:val('dest_phone'), email:val('dest_email'), contactType:'RECEIVER' }];
+
   fetch('/admin/shipping/book', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -763,9 +767,9 @@ function bookShipment() {
       shipment: {
         originAddress:      { address: orig },
         destinationAddress: { address: dest },
-        referenceList: [
-          { type:'Reference 1', value:val('ref1'), isPrintAsBarCode:false },
-          { type:'Reference 2', value:val('ref2'), isPrintAsBarCode:false },
+        shipmentReferenceList: [
+          { type:'Reference 1', value:val('ref1') },
+          { type:'Reference 2', value:val('ref2') },
         ].filter(function(r){ return r.value; }),
       },
     }),

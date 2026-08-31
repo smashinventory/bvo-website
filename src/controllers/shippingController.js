@@ -420,9 +420,16 @@ async function bookShipment(req, res) {
     }
 
     // ── Book ────────────────────────────────────────────────────
+    // Default pickup date = today if not provided
+    const pDate = pickupDate || new Date().toISOString().split('T')[0];
     const bookPayload = {
+      mode:                         'SAVE',
       shipmentProductTransactionId: productTransactionId,
       shipmentOfferId:              offerId,
+      isSelfScheduled:              false,
+      pickupDate:                   `${pDate} 00:00:00`,
+      readyTime:                    pickupReadyTime,
+      closeTime:                    pickupCloseTime,
       shipment,
     };
 
