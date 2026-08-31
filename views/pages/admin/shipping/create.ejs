@@ -562,15 +562,15 @@ function validateStep1() {
   if (!zip.trim())   errors.push('Destination ZIP is required.');
   if (!state.trim()) errors.push('Destination State is required.');
   if (!city.trim())  errors.push('Destination City is required.');
-  // Check that at least one commodity has Class + Weight
-  var huEls = document.querySelectorAll('.hu-block');
+  // Check that at least one HU has a commodity Class selected AND a gross weight
+  var huEls = document.querySelectorAll('.ship-hu-row');
   var hasValidComm = false;
   huEls.forEach(function(hu) {
-    var classEl  = hu.querySelector('.comm-class');
-    var weightEl = hu.querySelector('.comm-weight');
+    var classEl  = hu.querySelector('.comm-class');   // freight class on commodity
+    var weightEl = hu.querySelector('.hu-weight');    // gross weight on the HU row
     if (classEl && classEl.value && weightEl && parseFloat(weightEl.value) > 0) hasValidComm = true;
   });
-  if (!hasValidComm) errors.push('At least one commodity must have Class and Weight filled.');
+  if (!hasValidComm) errors.push('At least one handling unit must have Freight Class and Gross Weight filled.');
   if (errors.length) { alert(errors.join('\n')); return false; }
   return true;
 }
