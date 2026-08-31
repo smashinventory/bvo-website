@@ -189,7 +189,11 @@ exports.shopFlow = async (payload, productType = 'LTL') => {
         };
       });
     });
-    return { ok: true, productTransactionId: rawOffers[0]?.productTransactionId, rates: offers };
+    // productTransactionId lives at the response root in WWEX V4.
+    // Fall back to per-offer field in case future API versions move it.
+    const txnId = resp.productTransactionId || rawOffers[0]?.productTransactionId || null;
+    console.log('[wwex] shopFlow using productTransactionId:', txnId);
+    return { ok: true, productTransactionId: txnId, rates: offers };
   } catch (err) {
     const errData = err.response?.data;
     // Log full error so we can debug validation failures

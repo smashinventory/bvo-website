@@ -290,43 +290,32 @@ const meta = orderMeta           || null;
 
 <!-- ═══ STEP 3: Confirm & Book ════════════════════════════════════ -->
 <div id="step3" class="ship-panel" style="display:none">
-  <div class="ship-panel-grid">
+  <!-- Filled by buildConfirmStep() -->
+  <div id="confirmBody"></div>
 
-    <div class="admin-card">
-      <h3 class="admin-card-title">Selected Rate</h3>
-      <div id="selectedRateDisplay"></div>
-    </div>
-
-    <div class="admin-card">
-      <h3 class="admin-card-title">Shipment Summary</h3>
-      <div id="shipSummary"></div>
-    </div>
-
-    <!-- UPS Pickup (SMALLPACK only) -->
-    <div class="admin-card" id="pickupSection" style="display:none">
-      <h3 class="admin-card-title">Schedule UPS Pickup</h3>
-      <div class="adm-form-grid">
-        <div class="adm-field">
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-            <input type="checkbox" id="schedulePickup" onchange="togglePickup(this.checked)"> Schedule a UPS pickup
-          </label>
-          <small style="color:#718096">Uncheck if dropping off at a UPS store or on daily route.</small>
-        </div>
-        <div id="pickupFields" style="display:none;grid-column:1/-1">
-          <div class="adm-form-grid">
-            <div class="adm-field"><label>Pickup Date</label><input id="pickupDate" type="date" class="adm-input"></div>
-            <div class="adm-field"><label>Ready Time</label><input id="pickupReady" type="time" class="adm-input" value="08:00"></div>
-            <div class="adm-field"><label>Close Time</label><input id="pickupClose" type="time" class="adm-input" value="17:00"></div>
-          </div>
+  <!-- UPS Pickup (SMALLPACK only) -->
+  <div class="admin-card" id="pickupSection" style="display:none;margin-top:12px">
+    <h3 class="admin-card-title">Schedule UPS Pickup</h3>
+    <div class="adm-form-grid">
+      <div class="adm-field">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" id="schedulePickup" onchange="togglePickup(this.checked)"> Schedule a UPS pickup
+        </label>
+        <small style="color:#718096">Uncheck if dropping off at a UPS store or on daily route.</small>
+      </div>
+      <div id="pickupFields" style="display:none;grid-column:1/-1">
+        <div class="adm-form-grid">
+          <div class="adm-field"><label>Pickup Date</label><input id="pickupDate" type="date" class="adm-input"></div>
+          <div class="adm-field"><label>Ready Time</label><input id="pickupReady" type="time" class="adm-input" value="08:00"></div>
+          <div class="adm-field"><label>Close Time</label><input id="pickupClose" type="time" class="adm-input" value="17:00"></div>
         </div>
       </div>
     </div>
-
   </div>
 
   <div style="display:flex;justify-content:space-between;margin-top:16px;gap:8px">
     <button class="btn btn-outline" onclick="showStep(2)">← Back to Rates</button>
-    <button class="btn btn-primary" id="bookBtn" onclick="bookShipment()">Book Shipment</button>
+    <button class="btn btn-primary" id="bookBtn" onclick="bookShipment()">Confirm &amp; Book Shipment</button>
   </div>
 </div>
 
@@ -554,23 +543,57 @@ function onResidentialChange(checked) {
 }
 
 /* ── Step 1 validation before GET QUOTE ──────────────────────── */
+// Clear adm-error on any input change
+document.addEventListener('input', function(e) {
+  if (e.target && e.target.classList && e.target.classList.contains('adm-error')) {
+    e.target.classList.remove('adm-error');
+  }
+});
+document.addEventListener('change', function(e) {
+  if (e.target && e.target.classList && e.target.classList.contains('adm-error')) {
+    e.target.classList.remove('adm-error');
+  }
+});
+
 function validateStep1() {
   var errors = [];
-  var zip   = (document.getElementById('dest_zip')   || {}).value || '';
-  var state = (document.getElementById('dest_state') || {}).value || '';
-  var city  = (document.getElementById('dest_city')  || {}).value || '';
-  if (!zip.trim())   errors.push('Destination ZIP is required.');
-  if (!state.trim()) errors.push('Destination State is required.');
-  if (!city.trim())  errors.push('Destination City is required.');
+  // Clear previous highlights
+  ['dest_zip','dest_state','dest_city'].forEach(function(id) {
+    var el = document.getElementById(id); if (el) el.classList.remove('adm-error');
+  });
+  document.querySelectorAll('.comm-class, .hu-weight').forEach(function(el) {
+    el.classList.remove('adm-error');
+  });
+
+  var zipEl   = document.getElementById('dest_zip');
+  var stateEl = document.getElementById('dest_state');
+  var cityEl  = document.getElementById('dest_city');
+  var zip   = (zipEl   || {}).value || '';
+  var state = (stateEl || {}).value || '';
+  var city  = (cityEl  || {}).value || '';
+
+  if (!zip.trim())   { errors.push('Destination ZIP is required.');   if (zipEl)   zipEl.classList.add('adm-error'); }
+  if (!state.trim()) { errors.push('Destination State is required.'); if (stateEl) stateEl.classList.add('adm-error'); }
+  if (!city.trim())  { errors.push('Destination City is required.');  if (cityEl)  cityEl.classList.add('adm-error'); }
+
   // Check that at least one HU has a commodity Class selected AND a gross weight
   var huEls = document.querySelectorAll('.ship-hu-row');
   var hasValidComm = false;
   huEls.forEach(function(hu) {
-    var classEl  = hu.querySelector('.comm-class');   // freight class on commodity
-    var weightEl = hu.querySelector('.hu-weight');    // gross weight on the HU row
+    var classEl  = hu.querySelector('.comm-class');
+    var weightEl = hu.querySelector('.hu-weight');
     if (classEl && classEl.value && weightEl && parseFloat(weightEl.value) > 0) hasValidComm = true;
   });
-  if (!hasValidComm) errors.push('At least one handling unit must have Freight Class and Gross Weight filled.');
+  if (!hasValidComm) {
+    errors.push('At least one handling unit must have Freight Class and Gross Weight filled.');
+    huEls.forEach(function(hu) {
+      var classEl  = hu.querySelector('.comm-class');
+      var weightEl = hu.querySelector('.hu-weight');
+      if (classEl  && !classEl.value)                      classEl.classList.add('adm-error');
+      if (weightEl && !(parseFloat(weightEl.value) > 0))   weightEl.classList.add('adm-error');
+    });
+  }
+
   if (errors.length) { alert(errors.join('\n')); return false; }
   return true;
 }
@@ -817,25 +840,127 @@ function selectRate(id) {
 
 /* ── Step 3: Confirm ──────────────────────────────────────────── */
 function buildConfirmStep() {
-  var r  = _selected;
-  var pt = getProductType();
-  document.getElementById('selectedRateDisplay').innerHTML =
-    '<table style="width:100%;font-size:.9rem;border-collapse:collapse">'
-    + '<tr><td style="color:#718096;padding:4px 0">Carrier</td><td style="font-weight:700">' + (strField(r.carrier)||'—') + '</td></tr>'
-    + '<tr><td style="color:#718096;padding:4px 0">Service</td><td>' + (strField(r.serviceLevel)||strField(r.service)||'—') + '</td></tr>'
-    + '<tr><td style="color:#718096;padding:4px 0">Transit</td><td>' + (r.transitDays ? r.transitDays+' days' : '—') + '</td></tr>'
-    + '<tr><td style="color:#718096;padding:4px 0">Est. Delivery</td><td>' + (r.estimatedDelivery||'—') + '</td></tr>'
-    + '<tr><td style="color:#718096;padding:4px 0;font-weight:700">Total Charge</td><td style="font-weight:700;color:#1a2e4a;font-size:1.2rem">$' + Number(r.totalCharge||0).toLocaleString('en-US',{minimumFractionDigits:2}) + '</td></tr>'
-    + '</table>';
+  var r    = _selected;
+  var pt   = getProductType();
+  var hus  = getHandlingUnits();
+  var HU_LABEL = { PLT:'Pallet', BOX:'Box', BAG:'Bag', DRM:'Drum', RLL:'Roll', SKD:'Skid', OTH:'Other' };
 
-  document.getElementById('shipSummary').innerHTML =
-    '<table style="width:100%;font-size:.85rem;border-collapse:collapse">'
-    + '<tr><td style="color:#718096;padding:3px 0">From</td><td>' + val('orig_city') + ', ' + document.getElementById('orig_state').value.toUpperCase() + '</td></tr>'
-    + '<tr><td style="color:#718096;padding:3px 0">To</td><td>' + val('dest_company') + ' — ' + val('dest_city') + ', ' + document.getElementById('dest_state').value.toUpperCase() + ' ' + val('dest_zip') + '</td></tr>'
-    + '<tr><td style="color:#718096;padding:3px 0">HUs</td><td>' + getHandlingUnits().length + ' handling unit(s)</td></tr>'
-    + '<tr><td style="color:#718096;padding:3px 0">Ref 1</td><td>' + (val('ref1')||'—') + '</td></tr>'
-    + '</table>';
+  // ── Carrier / rate header bar
+  var html = '<div style="background:#1a2e4a;color:#fff;border-radius:8px;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">'
+    + '<div>'
+    + '<div style="font-size:1.05rem;font-weight:700">' + (strField(r.carrier)||'Carrier') + '</div>'
+    + '<div style="opacity:.75;font-size:.85rem">' + (strField(r.serviceLevel)||strField(r.service)||'Standard') + '</div>'
+    + (r.transitDays ? '<div style="opacity:.6;font-size:.78rem;margin-top:2px">' + r.transitDays + ' business day' + (r.transitDays > 1 ? 's' : '') + (r.estimatedDelivery ? ' · Est. ' + r.estimatedDelivery : '') + '</div>' : '')
+    + '</div>'
+    + '<div style="text-align:right">'
+    + '<div style="font-size:1.9rem;font-weight:800">$' + Number(r.totalCharge||0).toLocaleString('en-US',{minimumFractionDigits:2}) + '</div>'
+    + '<div style="opacity:.6;font-size:.75rem">' + (pt === 'LTL' ? 'LTL Freight' : 'Small Package') + '</div>'
+    + '</div>'
+    + '</div>';
 
+  // ── Ship From / Ship To
+  function addrCard(label, name, addr1, city, state, zip, phone, email) {
+    var lines = [addr1, [city, state, zip].filter(Boolean).join(' ')].filter(Boolean);
+    return '<div class="admin-card">'
+      + '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#718096;margin-bottom:6px">' + label + '</div>'
+      + (name ? '<div style="font-weight:700;margin-bottom:3px;font-size:.92rem">' + name + '</div>' : '')
+      + '<div style="font-size:.85rem;color:#4a5568;line-height:1.7">' + lines.join('<br>') + '</div>'
+      + (phone ? '<div style="font-size:.82rem;color:#718096;margin-top:4px">📞 ' + phone + '</div>' : '')
+      + (email ? '<div style="font-size:.82rem;color:#718096">✉ ' + email + '</div>' : '')
+      + '</div>';
+  }
+  var oState = (document.getElementById('orig_state').value||'').toUpperCase();
+  var dState = (document.getElementById('dest_state').value||'').toUpperCase();
+  html += '<div class="ship-panel-grid" style="margin-bottom:14px">';
+  html += addrCard('Ship From', val('orig_company'), val('orig_address1'), val('orig_city'), oState, val('orig_zip'), val('orig_phone'), '');
+  html += addrCard('Ship To', val('dest_company')||val('dest_name'), val('dest_address1'), val('dest_city'), dState, val('dest_zip'), val('dest_phone'), val('dest_email'));
+  html += '</div>';
+
+  // ── Freight details
+  html += '<div class="admin-card" style="margin-bottom:14px">';
+  html += '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#718096;margin-bottom:8px">Freight Details</div>';
+  if (!hus.length) {
+    html += '<div style="color:#a0aec0;font-size:.85rem">No handling units found.</div>';
+  } else {
+    hus.forEach(function(hu, i) {
+      var dims = [hu.length, hu.width, hu.height].filter(Boolean).join(' × ');
+      html += '<div style="background:#f7fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px 14px;margin-bottom:8px">';
+      html += '<div style="font-weight:700;font-size:.88rem;margin-bottom:5px">'
+        + 'HU ' + (i+1) + ' — ' + (hu.count||1) + '× ' + (HU_LABEL[hu.huType]||hu.huType||'Unknown')
+        + (dims ? '  <span style="font-weight:400;color:#718096;font-size:.82rem">(' + dims + '")</span>' : '')
+        + '  <span style="font-weight:400;color:#4a5568;font-size:.82rem">' + (hu.grossWeight||'?') + ' lbs</span>'
+        + (hu.stackable ? '  <span style="font-size:.72rem;background:#EBF8FF;color:#2b6cb0;border-radius:3px;padding:1px 5px">stackable</span>' : '')
+        + '</div>';
+      if (hu.commodities && hu.commodities.length) {
+        hu.commodities.forEach(function(c) {
+          html += '<div style="font-size:.82rem;color:#4a5568;margin-left:10px;line-height:1.7">'
+            + '• ' + (c.description||'Commodity')
+            + (c.freightClass ? ' &nbsp;·&nbsp; Class ' + c.freightClass : '')
+            + (c.weight ? ' &nbsp;·&nbsp; ' + c.weight + ' lbs' : '')
+            + (c.nmfcCode ? ' &nbsp;·&nbsp; NMFC ' + c.nmfcCode : '')
+            + ' &nbsp;·&nbsp; ' + (c.pieces||1) + ' pc'
+            + '</div>';
+        });
+      }
+      html += '</div>';
+    });
+  }
+  html += '</div>';
+
+  // ── Services + References/Pickup side by side
+  var svcMap = [
+    ['acc_insidePickup','Inside Pickup'],['acc_liftgatePickup','Liftgate Pickup'],
+    ['acc_residentialPickup','Residential Pickup'],['acc_tradeshowPickup','Tradeshow Pickup'],
+    ['acc_constructionPickup','Construction Pickup'],['acc_dropAtTerminal','Drop at Terminal'],
+    ['acc_insideDelivery','Inside Delivery'],['acc_liftgateDelivery','Liftgate Delivery'],
+    ['acc_residentialDelivery','Residential Delivery'],['acc_tradeshowDelivery','Tradeshow Delivery'],
+    ['acc_appointment','Appointment'],['acc_notifyBeforeDelivery','Notify Before Delivery'],
+    ['acc_holdAtTerminal','Hold at Terminal'],['acc_sortAndSegregate','Sort & Segregate'],
+    ['acc_protectFromFreeze','Protect from Freeze'],
+  ];
+  var activeSvcs = svcMap.filter(function(s) { return chk(s[0]); });
+  var billing = val('ltl_billing') || 'BILL_SHIPPER';
+  var billingLabel = { BILL_SHIPPER:'Prepaid (Bill Shipper)', BILL_THIRD_PARTY:'Bill Third Party', BILL_COLLECT:'Collect' };
+
+  html += '<div class="ship-panel-grid">';
+
+  // Services card
+  html += '<div class="admin-card">';
+  html += '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#718096;margin-bottom:8px">Services &amp; Billing</div>';
+  if (activeSvcs.length) {
+    activeSvcs.forEach(function(s) {
+      html += '<div style="font-size:.85rem;color:#276749;margin-bottom:3px">✓ ' + s[1] + '</div>';
+    });
+  } else {
+    html += '<div style="font-size:.85rem;color:#a0aec0">No accessorials selected</div>';
+  }
+  html += '<div style="font-size:.82rem;color:#718096;margin-top:8px;border-top:1px solid #e2e8f0;padding-top:8px">Billing: ' + (billingLabel[billing]||billing) + '</div>';
+  html += '</div>';
+
+  // References + Pickup card
+  var today = new Date().toISOString().split('T')[0];
+  html += '<div class="admin-card">';
+  html += '<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#718096;margin-bottom:8px">References &amp; Pickup</div>';
+  html += '<div style="margin-bottom:5px"><span style="font-size:.78rem;color:#718096">Ref 1: </span><span style="font-weight:600;font-size:.88rem">' + (val('ref1')||'—') + '</span></div>';
+  html += '<div style="margin-bottom:12px"><span style="font-size:.78rem;color:#718096">Ref 2: </span><span style="font-weight:600;font-size:.88rem">' + (val('ref2')||'—') + '</span></div>';
+  // LTL always shows pickup date; SMALLPACK uses the checkbox section below
+  if (pt === 'LTL') {
+    html += '<div class="adm-field" style="margin-bottom:6px"><label>Pickup Date</label>'
+      + '<input id="ltlPickupDate" type="date" class="adm-input" value="' + today + '"></div>';
+    html += '<div class="adm-form-grid">';
+    html += '<div class="adm-field"><label>Ready Time</label>'
+      + '<input id="ltlPickupReady" type="time" class="adm-input" value="08:00"></div>';
+    html += '<div class="adm-field"><label>Close Time</label>'
+      + '<input id="ltlPickupClose" type="time" class="adm-input" value="17:00"></div>';
+    html += '</div>';
+  }
+  html += '</div>';
+
+  html += '</div>'; // /ship-panel-grid
+
+  document.getElementById('confirmBody').innerHTML = html;
+
+  // SMALLPACK-only pickup section
   document.getElementById('pickupSection').style.display = pt === 'SMALLPACK' ? '' : 'none';
 }
 
@@ -851,8 +976,14 @@ function bookShipment() {
   btn.textContent = 'Booking…';
 
   var pt        = getProductType();
-  var schedPick = document.getElementById('schedulePickup') && document.getElementById('schedulePickup').checked;
-  var pickupDate= document.getElementById('pickupDate') ? document.getElementById('pickupDate').value : '';
+  var isLtl     = (pt === 'LTL');
+  var schedPick = !isLtl && document.getElementById('schedulePickup') && document.getElementById('schedulePickup').checked;
+  // LTL uses dynamically created fields in Step 3 (#ltlPickupDate/Ready/Close).
+  // SMALLPACK uses the static #pickupDate/#pickupReady/#pickupClose fields.
+  var _pdId    = isLtl ? 'ltlPickupDate'  : 'pickupDate';
+  var _prId    = isLtl ? 'ltlPickupReady' : 'pickupReady';
+  var _pcId    = isLtl ? 'ltlPickupClose' : 'pickupClose';
+  var pickupDate = document.getElementById(_pdId) ? document.getElementById(_pdId).value : '';
 
   // Build confirmed addresses (non-empty addressLine filter guards against blanks)
   var origAddr = {
@@ -905,15 +1036,16 @@ function bookShipment() {
     body: JSON.stringify({
       productType:          pt,
       productTransactionId: _txnId,
-      offerId:              _selected.offeredProductId || _selected.offerId,
+      offerId:              _selected.offerId,              // carrier-level → shipmentOfferId
+      offeredProductId:     _selected.offeredProductId || null, // product-level → shipmentOfferedProductId
       carrier:              strField(_selected.carrier),
       serviceLevel:         strField(_selected.serviceLevel) || strField(_selected.service),
       totalCharge:          _selected.totalCharge,
       orderId:              _orderId || null,
       schedulePickup:       schedPick,
       pickupDate:           pickupDate,
-      pickupReadyTime:      document.getElementById('pickupReady') ? document.getElementById('pickupReady').value + ':00' : '08:00:00',
-      pickupCloseTime:      document.getElementById('pickupClose') ? document.getElementById('pickupClose').value + ':00' : '17:00:00',
+      pickupReadyTime:      document.getElementById(_prId) ? document.getElementById(_prId).value + ':00' : '08:00:00',
+      pickupCloseTime:      document.getElementById(_pcId) ? document.getElementById(_pcId).value + ':00' : '17:00:00',
       shipment:             shipment,
     }),
   })
@@ -1088,6 +1220,8 @@ function applyCommodity(i) {
 .comm-td { padding:10px 12px;vertical-align:middle }
 .comm-td:first-child { padding-left:16px;font-weight:500 }
 .comm-td--num { color:#718096;font-size:.85rem;white-space:nowrap }
+
+.adm-input.adm-error { border-color:#fc8181 !important;background:#fff5f5; }
 
 @media(max-width:700px) {
   .ship-panel-grid { grid-template-columns:1fr }
