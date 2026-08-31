@@ -434,9 +434,10 @@ function addHandlingUnit(d) {
   _huCount++;
   var n = _huCount;
 
-  var huTypeOpts = HU_TYPES.map(function(t) {
-    return '<option value="' + t.value + '"' + ((d.huType || 'PLT') === t.value ? ' selected' : '') + '>' + t.label + '</option>';
-  }).join('');
+  var huTypeOpts = '<option value="">— Select type —</option>'
+    + HU_TYPES.map(function(t) {
+        return '<option value="' + t.value + '"' + (d.huType === t.value ? ' selected' : '') + '>' + t.label + '</option>';
+      }).join('');
 
   var label = d.productName
     ? (d.productName + (d.componentType ? ' — ' + d.componentType : '') + (d.sku ? ' <span class="hu-sku-badge">(' + d.sku + ')</span>' : ''))
@@ -453,7 +454,7 @@ function addHandlingUnit(d) {
     +   '<div class="adm-field"><label>Type</label><select class="adm-input hu-type" onchange="togglePalletSize(this)">' + huTypeOpts + '</select></div>'
     +   '<div class="adm-field"><label>Count</label><input type="number" class="adm-input hu-count" min="1" value="' + (d.count || 1) + '"></div>'
     +   '<div class="adm-field"><label>Stackable</label><select class="adm-input hu-stackable"><option value="N"' + (!d.stackable ? ' selected' : '') + '>No</option><option value="Y"' + (d.stackable ? ' selected' : '') + '>Yes</option></select></div>'
-    +   '<div class="adm-field hu-pallet-wrap" style="' + ((d.huType || 'BOX') === 'PLT' ? '' : 'display:none') + '"><label>Pallet Size</label><select class="adm-input hu-pallet-size" onchange="applyPalletSize(this)"><option value="">— pick a size —</option><option value="48x40">48 × 40</option><option value="24x24">24 × 24</option><option value="24x40">24 × 40</option><option value="36x36">36 × 36</option><option value="42x42">42 × 42</option><option value="48x42">48 × 42</option><option value="48x48">48 × 48</option><option value="58x41">58 × 41</option><option value="72x48">72 × 48</option><option value="96x48">96 × 48</option><option value="other">Other</option></select></div>'
+    +   '<div class="adm-field hu-pallet-wrap" style="' + (d.huType === 'PLT' ? '' : 'display:none') + '"><label>Pallet Size</label><select class="adm-input hu-pallet-size" onchange="applyPalletSize(this)"><option value="">— pick a size —</option><option value="48x40">48 × 40</option><option value="24x24">24 × 24</option><option value="24x40">24 × 40</option><option value="36x36">36 × 36</option><option value="42x42">42 × 42</option><option value="48x42">48 × 42</option><option value="48x48">48 × 48</option><option value="58x41">58 × 41</option><option value="72x48">72 × 48</option><option value="96x48">96 × 48</option><option value="other">Other</option></select></div>'
   +   '<div class="adm-field"><label>Length (in)</label><input type="number" class="adm-input hu-length" min="1" value="' + (d.length || '') + '" placeholder="in"></div>'
     +   '<div class="adm-field"><label>Width (in)</label><input type="number" class="adm-input hu-width" min="1" value="' + (d.width || '') + '" placeholder="in"></div>'
     +   '<div class="adm-field"><label>Height (in)</label><input type="number" class="adm-input hu-height" min="1" value="' + (d.height || '') + '" placeholder="in"></div>'
