@@ -132,13 +132,10 @@ exports.shopFlow = async (payload, productType = 'LTL') => {
     if (!rawOffers.length) {
       console.warn('[wwex] shopFlow: no offers in response keys:', Object.keys(resp));
     }
-    // Log offeredProductList keys once to find transit/service fields
-    const prod0 = rawOffers[0]?.offeredProductList?.[0];
-    if (prod0) console.log('[wwex] offeredProductList[0] keys:', JSON.stringify(Object.keys(prod0)));
     const offers = rawOffers.map(o => {
       const carrier      = o.primaryVendor?.preferredName || o.primaryVendor?.scac || '—';
       const prod         = o.offeredProductList?.[0] || {};
-      const serviceLevel = prod.serviceLevel || prod.productName || prod.productType || '';
+      const serviceLevel = prod.productType || 'LTL';
       const transitDays  = prod.transitDays  || prod.estimatedTransitDays || null;
       const deliveryDate = prod.estimatedDeliveryDate || prod.estimatedDelivery || null;
       const price        = o.totalOfferPrice;
