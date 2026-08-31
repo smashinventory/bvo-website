@@ -187,14 +187,16 @@ exports.quoteOrderFlow = async (payload, productType = 'LTL') => {
   }
   try {
     const data = await call('quoteOrderFlow', { request: payload }, productType);
+    console.log('[wwex] quoteOrderFlow raw response:', JSON.stringify(data, null, 2));
     const resp = data.response || data;
     return {
       ok:                   true,
-      bolNumber:            resp.bolNumber  || resp.bol,
-      proNumber:            resp.proNumber  || resp.pro || null,
-      bolUrl:               resp.bolUrl     || null,
+      bolNumber:            resp.bolNumber  || resp.bol  || resp.billOfLadingNumber || null,
+      proNumber:            resp.proNumber  || resp.pro  || resp.proNbr             || null,
+      bolUrl:               resp.bolUrl     || resp.bolDocumentUrl                  || null,
       productTransactionId: resp.productTransactionId || payload.shipmentProductTransactionId,
       trackingUrl:          resp.trackingUrl || null,
+      _raw:                 resp,   // keep for one deploy so we can see field names
     };
   } catch (err) {
     console.error('[wwex] quoteOrderFlow error:', err.response?.data || err.message);

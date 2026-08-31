@@ -433,7 +433,9 @@ async function bookShipment(req, res) {
       shipment,
     };
 
+    console.log('[shipping] quoteOrderFlow payload:', JSON.stringify(bookPayload, null, 2));
     const booked = await wwex.quoteOrderFlow(bookPayload, productType);
+    console.log('[shipping] quoteOrderFlow result:', JSON.stringify(booked, null, 2));
     if (!booked.ok) return res.status(502).json(booked);
 
     // ── Schedule pickup (SMALLPACK only, if requested) ───────────
