@@ -20,11 +20,39 @@ const wwex        = require('../services/wwexService');
 
 const LAYOUT = { layout: 'layouts/admin', activePage: 'shipping' };
 
+/* ─────────────────────────────────────────────────────────────────
+   FIXED 2026-08-31 — these previously used `.catch(() => [])`, which
+   swallowed EVERY database error with no log and no signal.
+
+   That is how a booking succeeded at WWEX (BOL ATE34769194) while the
+   local INSERT failed on a missing column: the error vanished, execution
+   continued, and the UI reported "Shipment Booked". The shipment existed
+   at the carrier with no record in our system — no BOL stored, no way to
+   void or track it from the admin.
+
+   They still resolve rather than throw (many callers are read paths that
+   should degrade to an empty list), but nothing is silent any more.
+   For writes that MUST NOT fail silently, use mustQuery() below.
+───────────────────────────────────────────────────────────────────*/
 function safeQuery(sql, p = []) {
-  return bvoPool.query(sql, p).then(([r]) => r).catch(() => []);
+  return bvoPool.query(sql, p).then(([r]) => r).catch(err => {
+    console.error('[shipping] safeQuery FAILED:', err.code, err.sqlMessage || err.message);
+    console.error('[shipping]   sql:', String(sql).replace(/\s+/g, ' ').slice(0, 200));
+    return [];
+  });
 }
 function safeQueryOne(sql, p = []) {
-  return bvoPool.query(sql, p).then(([r]) => r[0] || null).catch(() => null);
+  return bvoPool.query(sql, p).then(([r]) => r[0] || null).catch(err => {
+    console.error('[shipping] safeQueryOne FAILED:', err.code, err.sqlMessage || err.message);
+    console.error('[shipping]   sql:', String(sql).replace(/\s+/g, ' ').slice(0, 200));
+    return null;
+  });
+}
+
+/** Like safeQuery but THROWS. Use for writes where losing the row is worse
+ *  than showing an error — e.g. recording a shipment we already booked. */
+function mustQuery(sql, p = []) {
+  return bvoPool.query(sql, p).then(([r]) => r);
 }
 
 /* ─────────────────────────────────────────────────────────────────
@@ -668,7 +696,13 @@ async function bookShipment(req, res) {
     const dest = shipment?.destinationAddress?.address || {};
     const orig = shipment?.originAddress?.address      || {};
 
-    await safeQuery(
+    /* mustQuery, NOT safeQuery. At this point WWEX has already booked the
+       shipment — the carrier has it. If we cannot record that locally we must
+       NOT report success, because the operator would have no BOL, no way to
+       void it, and no idea anything went wrong. The catch below surfaces the
+       BOL so the booking is recoverable by hand. */
+    try {
+    await mustQuery(
       /* FIXED 2026-08-31 — three problems with this INSERT:
          1. ship_date and est_delivery exist in the schema but were never
             written, so both stayed NULL. The Shipments list rendered
@@ -717,6 +751,27 @@ async function bookShipment(req, res) {
         pickupConfirmation || null,
       ]
     );
+    } catch (dbErr) {
+      /* The shipment IS booked at WWEX but we failed to record it. Report the
+         failure loudly and hand back every identifier needed to recover it by
+         hand, rather than returning ok:true over a lost row. */
+      console.error('[shipping] *** BOOKED AT WWEX BUT INSERT FAILED ***');
+      console.error('[shipping]   BOL:', booked.bolNumber, '| PRO:', booked.proNumber);
+      console.error('[shipping]   productTransactionId:', booked.productTransactionId || productTransactionId);
+      console.error('[shipping]   pickupTxnId:', booked.pickupTxnId);
+      console.error('[shipping]   db error:', dbErr.code, dbErr.sqlMessage || dbErr.message);
+      return res.status(500).json({
+        ok: false,
+        bookedAtCarrier: true,
+        bolNumber:   booked.bolNumber,
+        proNumber:   booked.proNumber,
+        error:
+          `The shipment WAS booked with the carrier (BOL ${booked.bolNumber || 'unknown'}), ` +
+          `but saving it to the database failed: ${dbErr.sqlMessage || dbErr.message}. ` +
+          `Record this BOL manually and void it in SpeedShip if it was not intended. ` +
+          `Do not re-book — that would create a second shipment.`,
+      });
+    }
 
     // Mark order as shipped if linked
     if (orderId) {
