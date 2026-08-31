@@ -268,7 +268,6 @@ async function getRates(req, res) {
         productType: 'LTL',
         shipment: {
           shipmentDate,
-          paymentTerms: 'PREPAID',
           originAddress: {
             address: {
               addressLineList: [origin.address1].filter(Boolean),
@@ -308,16 +307,13 @@ async function getRates(req, res) {
                   height: { value: hu.height, unit: 'IN' },
                 }
               } : {}),
-              freightClass: comm0.freightClass || hu.freightClass || null,
-              nmfcCode:     comm0.nmfcCode     || hu.nmfcCode     || null,
-              description:  comm0.description  || hu.description  || '',
               commodityList: (hu.commodities || []).map(c => ({
-                description:  c.description  || '',
-                nmfcCode:     c.nmfcCode     || null,
-                class:        c.freightClass || null,
-                pieces:       c.pieces       || 1,
-                pieceType:    c.pieceType    || 'CTN',
-                weight:       { value: c.weight || hu.grossWeight || 0, unit: 'LBS' },
+                description:    c.description  || comm0.description || '',
+                nmfcItemNumber: (c.nmfcCode    || hu.nmfcCode || '').split('-')[0] || null,
+                freightClass:   c.freightClass || hu.freightClass || null,
+                pieces:         c.pieces       || 1,
+                pieceType:      c.pieceType    || 'CTN',
+                weight:         { value: c.weight || hu.grossWeight || 0, unit: 'LBS' },
               })),
             };
           }),
