@@ -132,51 +132,33 @@ exports.shopFlow = async (payload, productType = 'LTL') => {
     if (!rawOffers.length) {
       console.warn('[wwex] shopFlow: no offers in response keys:', Object.keys(resp));
     }
-    // Diagnostic: log offeredProductList length + offerPrice shape per offer (remove once confirmed)
-    rawOffers.slice(0, 2).forEach((o, i) => {
-      const prods = o.offeredProductList || [];
-      console.log(`[wwex] offer[${i}] carrier=${o.primaryVendor?.preferredName} products=${prods.length}`);
-      prods.forEach((p, j) => console.log(`  prod[${j}] sku=${p.sku} offerPrice=${JSON.stringify(p.offerPrice)} transitDays=${p.transitDays}`));
-    });
+    // Diagnostic: find service level + transit days fields (remove once found)
+    if (rawOffers.length) {
+      const o0 = rawOffers[0];
+      console.log('[wwex] offer[0] keys:', JSON.stringify(Object.keys(o0)));
+      console.log('[wwex] offer[0] prod[0]:', JSON.stringify(o0.offeredProductList?.[0]));
+    }
 
-    // Each offer has one carrier; offeredProductList has one row per service level (Standard, Guaranteed, etc.)
-    const offers = rawOffers.flatMap(o => {
-      const carrier  = o.primaryVendor?.preferredName || o.primaryVendor?.scac || '—';
-      const products = o.offeredProductList || [];
-      // Fall back to offer-level price if no products
-      if (!products.length) {
-        const price = o.totalOfferPrice;
-        return [{
-          offerId:          o.offerId || '',
-          offeredProductId: null,
-          carrier,
-          serviceLevel:     'LTL',
-          transitDays:      null,
-          estimatedDelivery: null,
-          totalCharge:      typeof price === 'object' ? Number(price?.value ?? 0) : Number(price ?? 0),
-          currency:         (typeof price === 'object' ? price?.unit : null) || 'USD',
-        }];
-      }
-      return products.map(prod => {
-        // Derive human label from sku: "LTLG" → "Guaranteed", "LTL" → "Standard", etc.
-        const sku          = (prod.sku || '').toUpperCase();
-        const serviceLevel = sku.includes('G') ? 'Guaranteed' : 'Standard';
-        const transitDays  = prod.transitDays || prod.estimatedTransitDays || null;
-        const deliveryDate = prod.estimatedDeliveryDate || prod.estimatedDelivery || null;
-        // Per-product price preferred over offer-level total
-        const price        = prod.offerPrice ?? prod.traAppliedOfferPrice ?? o.totalOfferPrice;
-        return {
-          offerId:          o.offerId || '',
-          offeredProductId: prod.offeredProductId || null,
-          sku:              prod.sku || null,
-          carrier,
-          serviceLevel,
-          transitDays,
-          estimatedDelivery: deliveryDate,
-          totalCharge:      typeof price === 'object' ? Number(price?.value ?? 0) : Number(price ?? 0),
-          currency:         (typeof price === 'object' ? price?.unit : null) || 'USD',
-        };
-      });
+    // One entry per offer (Standard vs Guaranteed appear as separate offerList entries)
+    const offers = rawOffers.map(o => {
+      const carrier      = o.primaryVendor?.preferredName || o.primaryVendor?.scac || '—';
+      const prod         = o.offeredProductList?.[0] || {};
+      const transitDays  = prod.transitDays || prod.estimatedTransitDays || o.transitDays || null;
+      const deliveryDate = prod.estimatedDeliveryDate || prod.estimatedDelivery || o.estimatedDeliveryDate || null;
+      // Service level: to be determined from diagnostic — placeholder for now
+      const serviceLevel = prod.serviceLevel || prod.productName || o.serviceLevel || o.productName || 'Standard';
+      // Per-product price confirmed as {unit, value} object
+      const price        = prod.offerPrice ?? o.totalOfferPrice;
+      return {
+        offerId:          o.offerId || '',
+        offeredProductId: prod.offeredProductId || null,
+        carrier,
+        serviceLevel,
+        transitDays,
+        estimatedDelivery: deliveryDate,
+        totalCharge:      typeof price === 'object' ? Number(price?.value ?? 0) : Number(price ?? 0),
+        currency:         (typeof price === 'object' ? price?.unit : null) || 'USD',
+      };
     });
     return { ok: true, productTransactionId: rawOffers[0]?.productTransactionId, rates: offers };
   } catch (err) {
