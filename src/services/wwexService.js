@@ -127,7 +127,10 @@ exports.shopFlow = async (payload, productType = 'LTL') => {
   }
   try {
     const data = await call('shopFlow', { request: payload }, productType);
-    console.log('[wwex] shopFlow raw response:', JSON.stringify(data, null, 2).slice(0, 4000));
+    const resp0 = (data.response || data);
+    const offer0 = (resp0.offerList || [])[0];
+    if (offer0) console.log('[wwex] first offer keys:', JSON.stringify(Object.keys(offer0)));
+    if (offer0) console.log('[wwex] first offer sample:', JSON.stringify(offer0, null, 2).slice(0, 3000));
     // Extract offers from response
     const resp = data.response || data;
     const rawOffers = resp.offerList || resp.rateList || resp.quoteList || resp.offers || [];
