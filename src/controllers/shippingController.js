@@ -321,7 +321,7 @@ async function getRates(req, res) {
                 contactType: 'RECEIVER',
               }],
             },
-            locationType: null,
+            locationType: destination.locationType || null,
           },
           handlingUnitList: hus.map(hu => {
             const comm0    = (hu.commodities && hu.commodities[0]) || {};

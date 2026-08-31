@@ -103,9 +103,20 @@ const meta = orderMeta           || null;
         <div class="adm-field"><label>ZIP</label><input id="dest_zip" type="text" class="adm-input" value="<%= pre.zip || '' %>"></div>
         <div class="adm-field"><label>Country</label><input id="dest_country" type="text" class="adm-input" value="US" maxlength="2" style="text-transform:uppercase"></div>
         <div class="adm-field">
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-            <input type="checkbox" id="dest_residential"> Residential address
+          <label>Location Type</label>
+          <select id="dest_locationType" class="adm-input">
+            <option value="">Business (default)</option>
+            <option value="BUSINESS_WITH_DOCKS">Business with Dock</option>
+            <option value="BUSINESS_WITHOUT_DOCKS">Business without Dock</option>
+            <option value="RESIDENTIAL">Residential</option>
+            <option value="CONSTRUCTION_SITE">Construction Site</option>
+          </select>
+        </div>
+        <div class="adm-field">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:6px">
+            <input type="checkbox" id="dest_residential" onchange="onResidentialChange(this.checked)"> Residential address
           </label>
+          <small style="color:#718096;font-size:.75rem">Auto-sets Residential + Liftgate Delivery</small>
         </div>
       </div>
     </div>
@@ -529,6 +540,39 @@ document.querySelectorAll('input[name="productType"]').forEach(function(r) {
 function toggleInsureVal(v) {
   document.getElementById('ltl_insure_val').style.display = v === 'yes' ? '' : 'none';
 }
+
+/* ── Residential address sync ─────────────────────────────────── */
+function onResidentialChange(checked) {
+  // Auto-check Residential Delivery + Liftgate Delivery when address is residential
+  var rd = document.getElementById('acc_residentialDelivery');
+  var lg = document.getElementById('acc_liftgateDelivery');
+  var lt = document.getElementById('dest_locationType');
+  if (rd) rd.checked = checked;
+  if (lg && checked) lg.checked = true;  // liftgate on; don't uncheck if user had it set
+  if (lt) lt.value = checked ? 'RESIDENTIAL' : '';
+}
+
+/* ── Step 1 validation before GET QUOTE ──────────────────────── */
+function validateStep1() {
+  var errors = [];
+  var zip   = (document.getElementById('dest_zip')   || {}).value || '';
+  var state = (document.getElementById('dest_state') || {}).value || '';
+  var city  = (document.getElementById('dest_city')  || {}).value || '';
+  if (!zip.trim())   errors.push('Destination ZIP is required.');
+  if (!state.trim()) errors.push('Destination State is required.');
+  if (!city.trim())  errors.push('Destination City is required.');
+  // Check that at least one commodity has Class + Weight
+  var huEls = document.querySelectorAll('.hu-block');
+  var hasValidComm = false;
+  huEls.forEach(function(hu) {
+    var classEl  = hu.querySelector('.comm-class');
+    var weightEl = hu.querySelector('.comm-weight');
+    if (classEl && classEl.value && weightEl && parseFloat(weightEl.value) > 0) hasValidComm = true;
+  });
+  if (!hasValidComm) errors.push('At least one commodity must have Class and Weight filled.');
+  if (errors.length) { alert(errors.join('\n')); return false; }
+  return true;
+}
 function toggleSpInsureVal(v) {
   document.getElementById('sp_insure_val').style.display = v === 'yes' ? '' : 'none';
 }
@@ -551,6 +595,7 @@ function rval(name) { var el = document.querySelector('input[name="'+name+'"]:ch
 
 /* ── Step 1 → 2: Get Rates ────────────────────────────────────── */
 function goToRates() {
+  if (!validateStep1()) return;   // dest ZIP/state/city + commodity class+weight
   var hus = getHandlingUnits();
   if (!hus.length) { alert('Add at least one handling unit.'); return; }
   if (!document.getElementById('dest_zip').value) { alert('Destination ZIP is required.'); return; }
@@ -622,15 +667,16 @@ function goToRates() {
       country:  'US',
     },
     destination: {
-      company:  val('dest_company'),
-      name:     val('dest_name'),
-      address1: val('dest_address1'),
-      city:     val('dest_city'),
-      state:    document.getElementById('dest_state').value.toUpperCase(),
-      zip:      val('dest_zip'),
-      phone:    val('dest_phone'),
-      email:    val('dest_email'),
-      country:  document.getElementById('dest_country').value.toUpperCase() || 'US',
+      company:      val('dest_company'),
+      name:         val('dest_name'),
+      address1:     val('dest_address1'),
+      city:         val('dest_city'),
+      state:        document.getElementById('dest_state').value.toUpperCase(),
+      zip:          val('dest_zip'),
+      phone:        val('dest_phone'),
+      email:        val('dest_email'),
+      country:      document.getElementById('dest_country').value.toUpperCase() || 'US',
+      locationType: document.getElementById('dest_locationType').value || null,
     },
     shipmentDate: val('shipmentDate'),
     handlingUnits: hus,
