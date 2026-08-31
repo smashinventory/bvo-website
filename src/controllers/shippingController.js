@@ -263,11 +263,32 @@ async function getRates(req, res) {
         },
       };
     } else {
-      // LTL
+      // LTL — field names from official Postman collection
+      const b = req.body;
+      const totalHUWeight = hus.reduce((sum, hu) => sum + (Number(hu.grossWeight || hu.weight) || 0), 0);
+      const totalHUCount  = hus.reduce((sum, hu) => sum + (Number(hu.count || hu.quantity)     || 1), 0);
       shopPayload = {
         productType: 'LTL',
         shipment: {
           shipmentDate,
+          appointmentDeliveryFlag:      !!b.appointmentDelivery,
+          holdAtTerminalFlag:           !!b.dropAtTerminal,
+          insideDeliveryFlag:           !!b.insideDelivery,
+          insidePickupFlag:             !!b.insidePickup,
+          liftgateDeliveryFlag:         !!b.liftgateDelivery,
+          liftgatePickupFlag:           !!b.liftgatePickup,
+          residentialPickupFlag:        !!b.residentialPickup,
+          constructionSiteDeliveryFlag: !!b.constructionDelivery,
+          constructionSitePickupFlag:   !!b.constructionPickup,
+          notifyBeforeDeliveryFlag:     !!b.notifyBeforeDelivery,
+          protectionFromColdFlag:       !!b.protectionFromCold,
+          sortAndSegregateFlag:         false,
+          tradeshowDeliveryFlag:        !!b.tradeshowDelivery,
+          tradeshowDeliveryName:        b.tradeshowDeliveryName || '',
+          tradeshowPickupFlag:          !!b.tradeshowPickup,
+          tradeshowPickupName:          b.tradeshowPickupName   || '',
+          totalHandlingUnitCount: totalHUCount,
+          totalWeight: { value: totalHUWeight, unit: 'LB' },
           originAddress: {
             address: {
               addressLineList: [origin.address1].filter(Boolean),
@@ -275,9 +296,15 @@ async function getRates(req, res) {
               region:      origin.state,
               postalCode:  origin.zip,
               countryCode: origin.country || 'US',
-              companyName: origin.company || '',
-              phone:       origin.phone   || '',
+              ...(origin.company ? { companyName: origin.company } : {}),
+              contactList: [{
+                firstName:   '',
+                lastName:    origin.name  || '',
+                phone:       origin.phone || '',
+                contactType: 'SENDER',
+              }],
             },
+            locationType: null,
           },
           destinationAddress: {
             address: {
@@ -286,44 +313,46 @@ async function getRates(req, res) {
               region:      destination.state,
               postalCode:  destination.zip,
               countryCode: destination.country || 'US',
-              companyName: destination.company || '',
-              phone:       destination.phone   || '',
-              contactList: [{ firstName: '', lastName: destination.name || '', phone: destination.phone || '', email: destination.email || '' }],
+              ...(destination.company ? { companyName: destination.company } : {}),
+              contactList: [{
+                firstName:   '',
+                lastName:    destination.name  || '',
+                phone:       destination.phone || '',
+                contactType: 'RECEIVER',
+              }],
             },
+            locationType: null,
           },
-          accessorialList: buildAccessorials(req.body),
           handlingUnitList: hus.map(hu => {
-            // Pull first commodity for top-level LTL fields (class, NMFC, description)
-            const comm0 = (hu.commodities && hu.commodities[0]) || {};
+            const comm0    = (hu.commodities && hu.commodities[0]) || {};
+            const huWeight = Number(hu.grossWeight || hu.weight) || 0;
+            const items    = (hu.commodities && hu.commodities.length) ? hu.commodities : [comm0];
             return {
-              count:        hu.count     || hu.quantity || 1,
-              type:         hu.huType    || hu.type     || 'PLT',
-              stackable:    hu.stackable || false,
-              weight:       { value: hu.grossWeight || hu.weight || 0, unit: 'LBS' },
+              packagingType: hu.huType || hu.packagingType || 'PLT',
+              quantity:      Number(hu.count || hu.quantity) || 1,
+              isStackable:   !!(hu.stackable || hu.isStackable),
+              isMixedClass:  false,
+              weight: { value: huWeight, unit: 'LB' },
               ...(hu.length && hu.width && hu.height ? {
-                dimension: {
-                  length: { value: hu.length, unit: 'IN' },
-                  width:  { value: hu.width,  unit: 'IN' },
-                  height: { value: hu.height, unit: 'IN' },
-                }
+                billedDimension: {
+                  length: { value: String(hu.length), unit: 'in' },
+                  width:  { value: String(hu.width),  unit: 'in' },
+                  height: { value: String(hu.height), unit: 'in' },
+                  dimensionType: 'NET',
+                },
               } : {}),
-              commodityList: (hu.commodities || []).map(c => ({
-                description:    c.description  || comm0.description || '',
-                nmfcItemNumber: (c.nmfcCode    || hu.nmfcCode || '').split('-')[0] || null,
-                freightClass:   c.freightClass || hu.freightClass || null,
-                pieces:         c.pieces       || 1,
-                pieceType:      c.pieceType    || 'CTN',
-                weight:         { value: c.weight || hu.grossWeight || 0, unit: 'LBS' },
+              shippedItemList: items.map(c => ({
+                commodityClass:       c.freightClass || comm0.freightClass || '',
+                commodityDescription: c.description  || comm0.description  || '',
+                NMFCNbr:              ((c.nmfcCode || hu.nmfcCode || '').split('-')[0]) || null,
+                quantity:             String(c.pieces || 1),
+                isHazMat:             false,
+                weight: { value: Number(c.weight || huWeight) || 0, unit: 'LB' },
               })),
             };
           }),
         },
       };
-    }
-
-    // Strip empty accessorialList — WWEX V4 rejects empty arrays on some endpoints
-    if (shopPayload.shipment && Array.isArray(shopPayload.shipment.accessorialList) && !shopPayload.shipment.accessorialList.length) {
-      delete shopPayload.shipment.accessorialList;
     }
 
     console.log('[shipping] shopFlow payload:', JSON.stringify(shopPayload, null, 2));
