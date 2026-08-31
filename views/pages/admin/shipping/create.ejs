@@ -355,7 +355,7 @@ const meta = orderMeta           || null;
 
   <div style="display:flex;justify-content:space-between;margin-top:16px;gap:8px">
     <button class="btn btn-outline" onclick="showStep(2)">← Back to Rates</button>
-    <button class="btn btn-primary" id="bookBtn" onclick="bookShipment()">Confirm &amp; Book Shipment</button>
+    <button class="btn btn-primary" id="bookBtn" onclick="openNotifyPanel()">Confirm &amp; Book Shipment</button>
   </div>
 </div>
 
@@ -369,6 +369,27 @@ const meta = orderMeta           || null;
       <a id="bolLink" href="#" target="_blank" class="btn btn-primary" style="display:none">Download BOL</a>
       <a href="/admin/shipping" class="btn btn-outline">Back to Shipments</a>
       <a href="/admin/shipping/create" class="btn btn-outline">New Shipment</a>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Additional Services / Alerts Modal ═════════════════════════
+     Mirrors the "Additional Services" panel on SpeedShip's review page.
+     Opens on Confirm & Book; the booking fires from inside it, because
+     the alert preferences travel WITH the quoteOrderFlow request — there
+     is no endpoint to attach them to an already-booked shipment.
+══════════════════════════════════════════════════════════════════ -->
+<div id="notifyModal" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.45);align-items:center;justify-content:center"
+     onclick="if(event.target===this)closeNotifyPanel()">
+  <div style="background:#fff;border-radius:10px;width:min(520px,95vw);max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between">
+      <strong style="font-size:1rem">Additional Services</strong>
+      <button onclick="closeNotifyPanel()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#718096;line-height:1">×</button>
+    </div>
+    <div id="notifyBody" style="padding:18px 20px;overflow-y:auto;flex:1"></div>
+    <div style="padding:12px 20px;border-top:1px solid #e2e8f0;display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-outline" onclick="closeNotifyPanel()">Cancel</button>
+      <button class="btn btn-primary" id="notifyBookBtn" onclick="bookShipment()">Book Shipment</button>
     </div>
   </div>
 </div>
@@ -1119,9 +1140,82 @@ function togglePickup(checked) {
 }
 
 /* ── Book ─────────────────────────────────────────────────────── */
+/* ── Carrier notification options ──────────────────────────────────
+   WWEX sends these alerts itself, driven by `notificationGroups` on the
+   quoteOrderFlow request. Because they are part of the BOOKING request,
+   the choices must be made BEFORE the API call — there is no endpoint to
+   add notifications to an already-booked shipment. So this panel opens
+   on "Confirm & Book" and the booking fires when it is confirmed.
+
+   SOP default: the receiver gets the three progress alerts only.
+   BVO staff get nothing here — internal visibility comes from the
+   Shipping Dashboard, not carrier email.
+─────────────────────────────────────────────────────────────────── */
+var NOTIFY_ALERTS = [
+  { value:'shipment.shipment_in_transit',      label:'In transit',        on:true  },
+  { value:'shipment.shipment_out_for_delivery',label:'Out for delivery',  on:true  },
+  { value:'shipment.shipment_delivered',       label:'Delivered',         on:true  },
+  { value:'shipment.shipment_pickup_scheduled',label:'Pickup scheduled',  on:false },
+  { value:'shipment.shipment_booked',          label:'Booked',            on:false },
+  { value:'shipment.exception',                label:'Exception / delay', on:false },
+  { value:'shipment.shipment_voided',          label:'Voided',            on:false },
+];
+
+function openNotifyPanel() {
+  if (!_selected || !_txnId) { alert('Select a rate first.'); return; }
+  var email = val('dest_email');
+
+  var html = '<div style="margin-bottom:14px">'
+    + '<label class="adm-label">Send carrier tracking alerts to</label>'
+    + '<input id="notifyEmail" type="email" class="adm-input" value="' + esc(email) + '" placeholder="customer@example.com">'
+    + '<small style="color:#718096;font-size:.75rem">Leave blank to send no alerts. WWEX emails these directly to the receiver.</small>'
+    + '</div>'
+    + '<div class="adm-label" style="margin-bottom:6px">Alerts</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 14px">';
+  NOTIFY_ALERTS.forEach(function(a, i) {
+    html += '<label class="ship-check"><input type="checkbox" class="notify-alert" value="' + a.value + '"'
+         + (a.on ? ' checked' : '') + '> ' + a.label + '</label>';
+  });
+  html += '</div>';
+  if (!email) {
+    html += '<div class="adm-alert adm-alert--error" style="margin-top:10px;font-size:.82rem">'
+         + 'No receiver email on this order — alerts will not be sent unless you add one above.</div>';
+  }
+  /* SpeedShip's own panel also offers "Email BOL" and "Pallet Label". Neither
+     maps to a documented API field — their UI drives them through an
+     undocumented /svc/setAlertFlow endpoint. Shown here as disabled so the
+     parity gap is visible rather than silently missing. Enable once WWEX
+     support confirms the field names (see WWEX_SUPPORT_REQUEST.md). */
+  html += '<div style="margin-top:14px;padding-top:12px;border-top:1px solid #e2e8f0">'
+       +  '<label class="ship-check" style="color:#a0aec0"><input type="checkbox" disabled> Email BOL to receiver</label>'
+       +  '<label class="ship-check" style="color:#a0aec0"><input type="checkbox" disabled> Pallet Label</label>'
+       +  '<small style="color:#718096;font-size:.72rem;display:block;margin-top:4px">'
+       +  'Awaiting field names from WWEX. Both are available in the SpeedShip portal meanwhile.</small>'
+       +  '</div>';
+  document.getElementById('notifyBody').innerHTML = html;
+  document.getElementById('notifyModal').style.display = 'flex';
+}
+function closeNotifyPanel() {
+  document.getElementById('notifyModal').style.display = 'none';
+}
+/** Read the panel's choices into the shape quoteOrderFlow expects. */
+function getNotifyChoices() {
+  var email  = val('notifyEmail').trim();
+  var alerts = Array.prototype.slice
+    .call(document.querySelectorAll('.notify-alert:checked'))
+    .map(function(c) { return c.value; });
+  if (!email || !alerts.length) return null;
+  return { email: email, alerts: alerts };
+}
+
 function bookShipment() {
   if (!_selected || !_txnId) { alert('Select a rate first.'); return; }
-  var btn = document.getElementById('bookBtn');
+  // Read the alert choices before the panel closes.
+  var _notify = getNotifyChoices();
+  closeNotifyPanel();
+  // The panel's button is the one actually clicked; fall back to the Step 3
+  // button so this still works if bookShipment() is ever called directly.
+  var btn = document.getElementById('notifyBookBtn') || document.getElementById('bookBtn');
   btn.disabled    = true;
   btn.textContent = 'Booking…';
 
@@ -1206,6 +1300,8 @@ function bookShipment() {
       pickupInstructions:   val('ltlPickupInstr'),
       deliveryInstructions: val('ltlDeliveryInstr'),
       handlingInstructions: val('ltlHandlingInstr'),
+      // Carrier-sent tracking alerts. Null when no email or no alerts chosen.
+      notify:               _notify,
       shipment:             shipment,
     }),
   })

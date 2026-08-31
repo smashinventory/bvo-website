@@ -654,10 +654,37 @@ async function bookShipment(req, res) {
       });
     }
 
+    /* Carrier-sent tracking alerts. WWEX emails these itself — nothing is sent
+       from BVO. Per the /LTL/DOMESTIC/quoteOrderFlow sample, notificationGroups
+       carries an emailList and an alertTypeList, and notificationGroupId is the
+       shipment's productTransactionId. The docs also note that mode:'SAVE'
+       exists specifically to enable these notifications.
+
+       NOTE: SpeedShip's own web UI does NOT use this — it posts to an
+       undocumented /svc/setAlertFlow endpoint instead. notificationGroups is
+       the documented path, so it is what we use. If WWEX support confirms
+       setAlertFlow is required, only this block and the service call change;
+       the UI stays as-is. See WWEX_SUPPORT_REQUEST.md. */
+    const notify = req.body.notify;
+    const notificationGroups = (notify && notify.email && Array.isArray(notify.alerts) && notify.alerts.length)
+      ? [{
+          notificationSource: 'CUSTOM_SHIPMENT_PREFERENCE',
+          notificationGroupId: productTransactionId,
+          shipmentNotificationPreference: {
+            emailList:     [String(notify.email).trim()],
+            alertTypeList: notify.alerts,
+          },
+        }]
+      : null;
+    if (notificationGroups) {
+      console.log('[shipping] notificationGroups →', notify.email, notify.alerts.join(', '));
+    }
+
     const bookPayload = {
       mode:                         'SAVE',
       shipmentProductTransactionId: productTransactionId,
       shipmentOfferId:              offerId,
+      ...(notificationGroups ? { notificationGroups } : {}),
       isSelfScheduled:              false,
       pickupDate:                   `${pDate} 00:00:00`,
       readyTime:                    pickupReadyTime,
