@@ -679,39 +679,88 @@ function fmtDate(s) {
   var d = new Date(s + 'T12:00:00'); // noon to avoid timezone shift
   return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
 }
+/* _rateMap: id → rate object, populated by renderRates() */
+var _rateMap = {};
+
 function renderRates(rates, isStub) {
-  var html = '';
-  if (isStub) html += '<p style="font-size:.8rem;color:#975a16;margin:0 0 12px">⚠ Stub rates — connect WWEX credentials to get live pricing.</p>';
+  _rateMap = {};
+
+  /* Group by carrier (title-cased name) preserving sort order */
+  var grouped = {};
+  var order   = [];
   rates.forEach(function(r, i) {
-    var carrier  = titleCase(strField(r.carrier)) || '—';
-    var service  = strField(r.serviceLevel) || strField(r.service) || 'Standard';
-    var isGtd    = service.toLowerCase().indexOf('guarantee') !== -1;
-    var badgeCls = isGtd ? 'ship-rate-badge ship-rate-badge--gtd' : 'ship-rate-badge';
-    var transit  = r.transitDays ? r.transitDays + ' day' + (r.transitDays !== 1 ? 's' : '') : '';
-    var delivery = r.estimatedDelivery ? fmtDate(r.estimatedDelivery) : '';
-    html += '<div class="ship-rate-card" onclick="selectRate(' + i + ')" id="rate-card-' + i + '">'
-      + '<div class="ship-rate-left">'
-      +   '<div class="ship-rate-radio-dot"></div>'
-      +   '<div>'
-      +     '<div class="ship-rate-carrier-name">' + carrier + '</div>'
-      +     '<span class="' + badgeCls + '">' + service + '</span>'
-      +   '</div>'
-      + '</div>'
-      + '<div class="ship-rate-meta">'
-      +   (transit  ? '<span class="ship-rate-meta-item"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 12"/></svg> ' + transit + '</span>' : '')
-      +   (delivery ? '<span class="ship-rate-meta-item"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> ' + delivery + '</span>' : '')
-      + '</div>'
-      + '<div class="ship-rate-price">$' + Number(r.totalCharge||0).toLocaleString('en-US',{minimumFractionDigits:2}) + '</div>'
-      + '</div>';
+    var key = titleCase(strField(r.carrier)) || '—';
+    if (!grouped[key]) { grouped[key] = { name: key, std: null, gtd: null }; order.push(key); }
+    var id  = 'rate-' + i;
+    _rateMap[id] = r;
+    var svc = (strField(r.serviceLevel) || '').toLowerCase();
+    if (svc.indexOf('guarantee') !== -1) { grouped[key].gtd = id; }
+    else                                 { grouped[key].std = id; }
   });
+
+  var clockSvg = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 12"/></svg>';
+  var calSvg   = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
+
+  var html = '';
+  if (isStub) html += '<p style="font-size:.8rem;color:#975a16;margin:0 0 8px">⚠ Stub rates — connect WWEX credentials to get live pricing.</p>';
+
+  /* Header */
+  html += '<div class="ship-rate-hdr">'
+    + '<div class="ship-rate-col-name"></div>'
+    + '<div class="ship-rate-col-std">Standard</div>'
+    + '<div class="ship-rate-col-gtd">Guaranteed</div>'
+    + '</div>';
+
+  order.forEach(function(key) {
+    var g   = grouped[key];
+    var ref = _rateMap[g.std] || _rateMap[g.gtd];
+    var transit  = ref && ref.transitDays ? ref.transitDays + ' day' + (ref.transitDays !== 1 ? 's' : '') : '';
+    var delivery = ref && ref.estimatedDelivery ? fmtDate(ref.estimatedDelivery) : '';
+
+    html += '<div class="ship-rate-row">';
+
+    /* Carrier column */
+    html += '<div class="ship-rate-col-name">'
+      + '<div class="ship-rate-carrier-name">' + g.name + '</div>'
+      + '<div class="ship-rate-meta">'
+      + (transit  ? '<span class="ship-rate-meta-item">' + clockSvg + ' ' + transit  + '</span>' : '')
+      + (delivery ? '<span class="ship-rate-meta-item">' + calSvg   + ' ' + delivery + '</span>' : '')
+      + '</div></div>';
+
+    /* Standard column */
+    html += '<div class="ship-rate-col-std">';
+    if (g.std) {
+      var sp = Number((_rateMap[g.std].totalCharge)||0).toLocaleString('en-US',{minimumFractionDigits:2});
+      html += '<button class="ship-rate-btn" id="' + g.std + '" onclick="selectRate(\'' + g.std + '\')">'
+        + '$' + sp + '</button>';
+    } else {
+      html += '<span class="ship-rate-na">—</span>';
+    }
+    html += '</div>';
+
+    /* Guaranteed column */
+    html += '<div class="ship-rate-col-gtd">';
+    if (g.gtd) {
+      var gp = Number((_rateMap[g.gtd].totalCharge)||0).toLocaleString('en-US',{minimumFractionDigits:2});
+      html += '<button class="ship-rate-btn ship-rate-btn--gtd" id="' + g.gtd + '" onclick="selectRate(\'' + g.gtd + '\')">'
+        + '$' + gp + '</button>';
+    } else {
+      html += '<span class="ship-rate-na ship-rate-na--gtd">Not available</span>';
+    }
+    html += '</div>';
+
+    html += '</div>'; /* ship-rate-row */
+  });
+
   document.getElementById('rateList').innerHTML = html;
   document.getElementById('rateList').style.display = '';
 }
 
-function selectRate(i) {
-  document.querySelectorAll('.ship-rate-card').forEach(function(c) { c.classList.remove('selected'); });
-  document.getElementById('rate-card-' + i).classList.add('selected');
-  _selected = _rates[i];
+function selectRate(id) {
+  document.querySelectorAll('.ship-rate-btn').forEach(function(b) { b.classList.remove('selected'); });
+  var btn = document.getElementById(id);
+  if (btn) btn.classList.add('selected');
+  _selected = _rateMap[id];
   buildConfirmStep();
   showStep(3);
 }
@@ -939,18 +988,26 @@ function applyCommodity(i) {
 .ship-comm-title     { font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#4a5568 }
 .ship-comm-row       { display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:8px 10px;background:#fff;border:1px solid #e2e8f0;border-radius:6px;margin-bottom:6px }
 
-.ship-rate-card        { padding:14px 18px;border:2px solid #e2e8f0;border-radius:10px;margin-bottom:8px;cursor:pointer;transition:border-color .15s,box-shadow .15s,background .15s;display:flex;align-items:center;gap:16px }
-.ship-rate-card:hover  { border-color:#4299e1;box-shadow:0 0 0 3px rgba(66,153,225,.1) }
-.ship-rate-card.selected { border-color:#1a2e4a;background:#EBF8FF;box-shadow:0 0 0 3px rgba(26,46,74,.1) }
-.ship-rate-left        { display:flex;align-items:center;gap:12px;min-width:220px }
-.ship-rate-radio-dot   { width:18px;height:18px;border-radius:50%;border:2px solid #cbd5e0;flex-shrink:0;transition:border-color .15s,background .15s }
-.ship-rate-card.selected .ship-rate-radio-dot { border-color:#1a2e4a;background:#1a2e4a;box-shadow:inset 0 0 0 3px #EBF8FF }
-.ship-rate-carrier-name { font-size:.92rem;font-weight:700;color:#1a2e4a;line-height:1.2 }
-.ship-rate-badge        { display:inline-block;margin-top:3px;padding:2px 8px;border-radius:20px;font-size:.72rem;font-weight:600;background:#EDF2F7;color:#4A5568 }
-.ship-rate-badge--gtd   { background:#F0FFF4;color:#276749 }
-.ship-rate-meta         { flex:1;display:flex;gap:16px;justify-content:center;font-size:.82rem;color:#718096 }
-.ship-rate-meta-item    { display:flex;align-items:center;gap:4px }
-.ship-rate-price        { font-size:1.2rem;font-weight:800;color:#1a2e4a;white-space:nowrap;min-width:80px;text-align:right }
+/* Rate table — two-column layout (Standard | Guaranteed) */
+.ship-rate-hdr          { display:grid;grid-template-columns:1fr 130px 160px;align-items:center;padding:8px 12px;border-bottom:2px solid #e2e8f0;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#718096 }
+.ship-rate-hdr .ship-rate-col-std { text-align:center }
+.ship-rate-hdr .ship-rate-col-gtd { text-align:center;color:#276749 }
+.ship-rate-row          { display:grid;grid-template-columns:1fr 130px 160px;align-items:center;padding:10px 12px;border-bottom:1px solid #f0f4f8;transition:background .12s }
+.ship-rate-row:hover    { background:#f7fafc }
+.ship-rate-col-name     { min-width:0 }
+.ship-rate-col-std      { display:flex;justify-content:center }
+.ship-rate-col-gtd      { display:flex;justify-content:center;align-items:center }
+.ship-rate-carrier-name { font-size:.9rem;font-weight:700;color:#1a2e4a;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis }
+.ship-rate-meta         { display:flex;gap:12px;margin-top:3px;font-size:.78rem;color:#718096 }
+.ship-rate-meta-item    { display:flex;align-items:center;gap:3px }
+.ship-rate-btn          { padding:6px 14px;border:2px solid #cbd5e0;border-radius:6px;background:#fff;font-size:.95rem;font-weight:700;color:#1a2e4a;cursor:pointer;transition:border-color .12s,background .12s,box-shadow .12s;white-space:nowrap }
+.ship-rate-btn:hover    { border-color:#4299e1;background:#EBF8FF }
+.ship-rate-btn.selected { border-color:#1a2e4a;background:#1a2e4a;color:#fff;box-shadow:0 0 0 3px rgba(26,46,74,.15) }
+.ship-rate-btn--gtd     { border-color:#9ae6b4;color:#276749 }
+.ship-rate-btn--gtd:hover { border-color:#276749;background:#F0FFF4 }
+.ship-rate-btn--gtd.selected { border-color:#276749;background:#276749;color:#fff }
+.ship-rate-na           { font-size:.8rem;color:#a0aec0 }
+.ship-rate-na--gtd      { font-size:.75rem;color:#b2c9b2;font-style:italic }
 
 .ship-spinner { width:28px;height:28px;border:3px solid #e2e8f0;border-top-color:#1a2e4a;border-radius:50%;animation:spin .7s linear infinite;margin:0 auto }
 @keyframes spin { to { transform:rotate(360deg) } }
