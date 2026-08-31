@@ -127,42 +127,32 @@ exports.shopFlow = async (payload, productType = 'LTL') => {
   }
   try {
     const data = await call('shopFlow', { request: payload }, productType);
-    const resp0 = (data.response || data);
-    const offer0 = (resp0.offerList || [])[0];
-    if (offer0) {
-      console.log('[wwex] totalOfferPrice:', JSON.stringify(offer0.totalOfferPrice));
-      console.log('[wwex] totalOfferCost:', JSON.stringify(offer0.totalOfferCost));
-      console.log('[wwex] offeredProductList:', JSON.stringify(offer0.offeredProductList, null, 2).slice(0, 2000));
-      console.log('[wwex] resp.productTransactionId:', resp0.productTransactionId);
-    }
-    // Extract offers from response
     const resp = data.response || data;
     const rawOffers = resp.offerList || resp.rateList || resp.quoteList || resp.offers || [];
     if (!rawOffers.length) {
       console.warn('[wwex] shopFlow: no offers in response keys:', Object.keys(resp));
     }
+    // Log offeredProductList keys once to find transit/service fields
+    const prod0 = rawOffers[0]?.offeredProductList?.[0];
+    if (prod0) console.log('[wwex] offeredProductList[0] keys:', JSON.stringify(Object.keys(prod0)));
     const offers = rawOffers.map(o => {
-      // carrier / serviceLevel can be strings OR nested objects from some WWEX versions
-      const carrier     = typeof o.carrierName === 'string'     ? o.carrierName
-                        : o.carrierName?.name   || o.carrierName?.description
-                        || (typeof o.carrier === 'string' ? o.carrier : o.carrier?.name || o.carrier?.code || '')
-                        || '—';
-      const serviceLevel= typeof o.serviceLevel === 'string'    ? o.serviceLevel
-                        : o.serviceLevel?.name  || o.serviceLevel?.description
-                        || (typeof o.serviceDescription === 'string' ? o.serviceDescription : '')
-                        || '';
+      const carrier      = o.primaryVendor?.preferredName || o.primaryVendor?.scac || '—';
+      const prod         = o.offeredProductList?.[0] || {};
+      const serviceLevel = prod.serviceLevel || prod.productName || prod.productType || '';
+      const transitDays  = prod.transitDays  || prod.estimatedTransitDays || null;
+      const deliveryDate = prod.estimatedDeliveryDate || prod.estimatedDelivery || null;
+      const price        = o.totalOfferPrice;
       return {
-        offerId:          o.offerId          || o.quoteId || '',
+        offerId:          o.offerId || '',
         carrier,
         serviceLevel,
-        service:          o.service          || '',
-        transitDays:      o.transitDays      || o.estimatedTransitDays || null,
-        estimatedDelivery:o.estimatedDelivery|| o.estimatedDeliveryDate || null,
-        totalCharge:      Number(o.totalCharge?.value ?? o.totalCharge ?? 0),
-        currency:         o.totalCharge?.currency || 'USD',
+        transitDays,
+        estimatedDelivery: deliveryDate,
+        totalCharge:      typeof price === 'object' ? Number(price?.value ?? 0) : Number(price ?? 0),
+        currency:         (typeof price === 'object' ? price?.unit : null) || 'USD',
       };
     });
-    return { ok: true, productTransactionId: resp.productTransactionId, rates: offers };
+    return { ok: true, productTransactionId: rawOffers[0]?.productTransactionId, rates: offers };
   } catch (err) {
     const errData = err.response?.data;
     // Log full error so we can debug validation failures
