@@ -776,8 +776,8 @@ function bookShipment() {
   var schedPick  = document.getElementById('schedulePickup') && document.getElementById('schedulePickup').checked;
   var pickupDate = document.getElementById('pickupDate') ? document.getElementById('pickupDate').value : '';
 
-  // Ensure contactType is present for booking (required by WWEX quoteOrderFlow)
-  orig.contactList = [{ firstName:'', lastName:'', phone:val('orig_phone'), contactType:'SENDER' }];
+  // Ensure contactType + non-empty name for booking (WWEX requires SENDER Contact Name)
+  orig.contactList = [{ firstName: val('orig_company') || 'Shipper', lastName:'', phone:val('orig_phone'), contactType:'SENDER' }];
   dest.contactList = [{ firstName:'', lastName:val('dest_name'), phone:val('dest_phone'), email:val('dest_email'), contactType:'RECEIVER' }];
 
   fetch('/admin/shipping/book', {
