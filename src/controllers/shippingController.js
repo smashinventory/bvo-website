@@ -802,6 +802,22 @@ async function getDocument(req, res) {
     const doc = await wwex.documentDownloadFlow(row.product_transaction_id, docType, row.product_type);
     if (!doc.ok) return res.status(502).send(doc.error || 'Document unavailable');
 
+    /* FIXED 2026-08-31 — documentDownloadFlow can return ok:true with no
+       document body (the response key mapping is still unconfirmed). That
+       crashed here with "Buffer.from(undefined)" and produced a 500 with a
+       raw Node stack trace. Fail with a readable message instead. */
+    // WWEX may hand back a link rather than bytes — follow it if so.
+    if (!doc.base64 && doc.url) return res.redirect(doc.url);
+
+    if (!doc.base64) {
+      console.error('[shipping] documentDownloadFlow returned no document. keys:', Object.keys(doc));
+      return res.status(502).send(
+        `WWEX returned no ${docType} document for this shipment. ` +
+        `Download it from the SpeedShip portal instead. ` +
+        `(Server log has the raw response for diagnosis.)`
+      );
+    }
+
     const buf = Buffer.from(doc.base64, 'base64');
     res.set('Content-Type', doc.contentType || 'application/pdf');
     res.set('Content-Disposition', `inline; filename="${docType}-${shipmentId}.pdf"`);

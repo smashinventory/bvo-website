@@ -183,6 +183,10 @@ exports.shopFlow = async (payload, productType = 'LTL') => {
       if (!products.length) {
         return [{
           offerId:          o.offerId || '',
+          // Each offer carries its own productTransactionId. Send the one that
+          // belongs to the offer the user actually books rather than assuming
+          // offer[0]'s id is valid for every carrier in the session.
+          productTransactionId: o.productTransactionId || null,
           offeredProductId: null,
           carrier,
           serviceLevel:     'Standard',
@@ -201,6 +205,7 @@ exports.shopFlow = async (payload, productType = 'LTL') => {
         const price    = prod.offerPrice ?? o.totalOfferPrice;
         return {
           offerId:          o.offerId || '',
+          productTransactionId: o.productTransactionId || null,   // per-offer, see note above
           offeredProductId: prod.offeredProductId || null,
           carrier,
           serviceLevel,
@@ -211,10 +216,22 @@ exports.shopFlow = async (payload, productType = 'LTL') => {
         };
       });
     });
-    // productTransactionId lives at the response root in WWEX V4.
-    // Fall back to per-offer field in case future API versions move it.
-    const txnId = resp.productTransactionId || rawOffers[0]?.productTransactionId || null;
-    console.log('[wwex] shopFlow using productTransactionId:', txnId);
+    /* CORRECTED 2026-08-31 against a real response: productTransactionId is
+       PER-OFFER (offerList[n].productTransactionId), NOT at the response root.
+       resp.productTransactionId is always undefined — the root keys are
+       nonSMC3ScacList, scacList, manualShopFlow, cubicMinApplicable,
+       offerList, message.
+
+       This session-level value is kept only as a fallback for older clients.
+       Each rate row now carries its own productTransactionId and the booking
+       uses the one belonging to the selected offer. */
+    const txnId = rawOffers[0]?.productTransactionId || resp.productTransactionId || null;
+    console.log('[wwex] shopFlow fallback productTransactionId (offer[0]):', txnId);
+    const distinctTxn = [...new Set(rawOffers.map(o => o.productTransactionId).filter(Boolean))];
+    if (distinctTxn.length > 1) {
+      console.warn('[wwex] offers carry', distinctTxn.length,
+                   'DIFFERENT productTransactionIds — per-offer id is required, not optional.');
+    }
     return { ok: true, productTransactionId: txnId, rates: offers };
   } catch (err) {
     // Log full error so we can debug validation failures
@@ -240,37 +257,70 @@ exports.quoteOrderFlow = async (payload, productType = 'LTL') => {
     console.log('[wwex] quoteOrderFlow raw response:', JSON.stringify(data, null, 2));
     const resp = data.response || data;
 
-    /* pickupTxnId — REQUIRED to void an LTL shipment later.
-       WWEX rejects an LTL cancel that sends only the shipment
-       productTransactionId with:
-         "LTL does not support shipment only cancel; exception: AppException"
-       The /LTL/integratedCancelFlow sample sends TWO ids: the shipment
-       productTransactionId and the pickup transaction id from THIS response.
+    /* ─────────────────────────────────────────────────────────────
+       Response shape — VERIFIED against a real booking 2026-08-31.
+       Nothing here is guessed; every path below was read from an actual
+       quoteOrderFlow response (BOL ATE34769194, order BVO-20260002).
 
-       The exact response key is not documented in the collection (only
-       referenced in a comment as "pickupTxnId"), so we try the plausible
-       spellings and log the response keys to confirm on the next booking. */
-    const pickupTxnId = resp.pickupTxnId
-                     || resp.pickupTransactionId
-                     || resp.pickupProductTransactionId
-                     || resp.pickup?.productTransactionId
-                     || resp.pickup?.pickupTxnId
-                     || null;
-    console.log('[wwex] quoteOrderFlow resp keys:', Object.keys(resp));
-    console.log('[wwex] quoteOrderFlow pickupTxnId resolved to:', pickupTxnId);
+       The useful values are nested two responses deep. Earlier code looked
+       for resp.bolNumber / resp.proNumber / resp.pickupTxnId at the top
+       level — none of those keys exist, which is why BOL and PRO came back
+       null and the Shipments list showed "—".
+
+         resp.pickupOrderResponse.order.orderedItemList[0]
+              .pickupTxnId            ← REQUIRED to void an LTL shipment
+              .secondaryTxnIdList[]   ← PRO / PRN / BILL_OF_LADING / etc.
+
+         resp.shipmentOrderResponse.order
+              .orderId                ← the BOL number, e.g. "ATE34769194"
+              .quoteNumber            ← e.g. "Q14293357"
+              .combinedLabel          ← s3 filename of the merged PDF
+              .orderedItemList[0].documentList[]  ← BOL / QUOTE /
+                                        PACKING_LIST / PALLET_LABEL
+    ───────────────────────────────────────────────────────────────── */
+    const pickupItem   = resp.pickupOrderResponse?.order?.orderedItemList?.[0]   || {};
+    const shipOrder    = resp.shipmentOrderResponse?.order                        || {};
+    const shipItem     = shipOrder.orderedItemList?.[0]                           || {};
+
+    /** Pull a value out of a secondaryTxnIdList by its `type`. */
+    const _secondary = (list, type) =>
+      (list || []).find(x => x && x.type === type)?.value || null;
+
+    const pickupTxnId = pickupItem.pickupTxnId || null;
+
+    // BOL: shipmentOrderResponse.order.orderId is authoritative; the
+    // secondaryTxnIdList entries are a cross-check / fallback.
+    const bolNumber = shipOrder.orderId
+                   || _secondary(shipItem.secondaryTxnIdList,   'BILL_OF_LADING')
+                   || _secondary(pickupItem.secondaryTxnIdList, 'BILL_OF_LADING')
+                   || null;
+
+    // PRO comes back on the PICKUP order, not the shipment order.
+    const proNumber = _secondary(pickupItem.secondaryTxnIdList, 'PRO') || null;
+
+    console.log('[wwex] quoteOrderFlow parsed → BOL:', bolNumber,
+                '| PRO:', proNumber, '| pickupTxnId:', pickupTxnId);
     if (!pickupTxnId) {
-      console.warn('[wwex] NO pickupTxnId found — voiding this LTL shipment from BVO will fail. ' +
-                   'Check the raw response above for the correct key and add it to wwexService.quoteOrderFlow.');
+      console.warn('[wwex] NO pickupTxnId — voiding this LTL shipment from BVO will fail. ' +
+                   'Expected at response.pickupOrderResponse.order.orderedItemList[0].pickupTxnId');
     }
 
     return {
       ok:                   true,
       pickupTxnId,
-      bolNumber:            resp.bolNumber  || resp.bol  || resp.billOfLadingNumber || null,
-      proNumber:            resp.proNumber  || resp.pro  || resp.proNbr             || null,
-      bolUrl:               resp.bolUrl     || resp.bolDocumentUrl                  || null,
-      productTransactionId: resp.productTransactionId || payload.shipmentProductTransactionId,
-      trackingUrl:          resp.trackingUrl || null,
+      bolNumber,
+      proNumber,
+      // PRN — the carrier's pickup reference number, useful when calling them
+      pickupReferenceNumber: _secondary(pickupItem.secondaryTxnIdList, 'PRN'),
+      quoteNumber:          shipOrder.quoteNumber || null,
+      vendorId:             shipItem.vendorId     || null,
+      // Documents are returned as s3 filenames, not URLs — fetch them via
+      // documentDownloadFlow using the productTransactionId.
+      documentList:         shipItem.documentList || [],
+      combinedLabel:        shipOrder.combinedLabel || null,
+      bolUrl:               null,   // WWEX returns no direct URL; see documentDownloadFlow
+      productTransactionId: payload.shipmentProductTransactionId,
+      trackingUrl:          null,
       _raw:                 resp,   // keep for one deploy so we can see field names
     };
   } catch (err) {
@@ -379,9 +429,22 @@ exports.documentDownloadFlow = async (productTransactionId, docType = 'BILL_OF_L
       }
     }, productType);
     const resp = data.response || data;
+    /* The document body key is NOT yet confirmed against a real response.
+       quoteOrderFlow returns documents as `s3fileName` entries, so this flow
+       may return a URL or a signed link rather than base64. Log the shape so
+       the next attempt pins it down instead of guessing again. */
+    console.log('[wwex] documentDownloadFlow resp keys:', Object.keys(resp));
+    const base64 = resp.document || resp.base64Document || resp.content
+                || resp.documentList?.[0]?.document || null;
+    if (!base64) {
+      console.warn('[wwex] documentDownloadFlow: no document body found. Raw response:',
+                   JSON.stringify(resp, null, 2));
+    }
     return {
       ok:          true,
-      base64:      resp.document || resp.base64Document || resp.content,
+      base64,
+      // If WWEX returns a link instead of bytes, surface it so the caller can redirect.
+      url:         resp.url || resp.documentUrl || resp.s3Url || null,
       contentType: resp.contentType || 'application/pdf',
     };
   } catch (err) {

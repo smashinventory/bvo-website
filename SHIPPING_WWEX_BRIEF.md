@@ -50,15 +50,38 @@ Entry point: `/admin/shipping/create` (or `/admin/shipping/create?orderId=123` t
 
 ---
 
-## shopFlow Response Structure — CRITICAL
+## shopFlow Response Structure — VERIFIED 2026-08-31
 
-**The `productTransactionId` lives at the RESPONSE ROOT, not per-offer.**
+> ⚠️ **This section previously said `productTransactionId` is at the response
+> root. That was WRONG.** A real response proved it is **per-offer**. The
+> original code was right; the actual booking bug was elsewhere (see below).
+
+Real root keys, from a live response:
+`nonSMC3ScacList, scacList, manualShopFlow, cubicMinApplicable, offerList, message`
+
+**`resp.productTransactionId` is always `undefined`.**
 
 ```
-resp.productTransactionId          ← USE THIS (root level)
-resp.offerList[0].offerId          ← carrier-level offer ID → maps to shipmentOfferId in booking
-resp.offerList[0].offeredProductList[0].offeredProductId  ← product-level → maps to shipmentOfferedProductId
+resp.offerList[n].productTransactionId   ← PER-OFFER. Use the one belonging
+                                            to the offer the user books.
+resp.offerList[n].offerId                ← → shipmentOfferId
+resp.offerList[n].offeredProductList[0].offeredProductId
+resp.offerList[n].primaryVendor.preferredName    ← carrier display name
+resp.offerList[n].totalOfferPrice
 ```
+
+Each rate row returned to the client now carries its own
+`productTransactionId`, and the booking sends the selected offer's id rather
+than assuming `offer[0]`'s is valid for every carrier. A warning is logged if
+the offers ever carry differing ids.
+
+### What actually fixed the booking
+
+Not the productTransactionId change. The real causes were:
+1. **`quoteOrderFlow.shipment` was being sent as a full echo of the shopFlow
+   shipment** (handlingUnitList, freight flags, weights). The endpoint accepts
+   only addresses + references + instructions.
+2. **Missing `address.phone`** on origin and destination.
 
 **History of the root-cause bug (fixed 2026-08-31, commit `8010806`):**
 - `wwexService.js` was reading `rawOffers[0]?.productTransactionId` (undefined — doesn't exist per-offer)
@@ -394,6 +417,41 @@ only a stub badge. `views/partials/wwex-env-banner.ejs` now renders a coloured
 banner on the create, list and dashboard pages driven by `apiMode`. Every
 shipping controller already passes `apiMode`; add the include to any new
 shipping page.
+
+### quoteOrderFlow RESPONSE — verified paths (2026-08-31, BOL ATE34769194)
+
+Everything useful is nested two responses deep. There is no `resp.bolNumber`,
+`resp.proNumber`, or `resp.pickupTxnId` at the top level — looking for them
+there is why BOL and PRO came back null.
+
+```
+resp.pickupOrderResponse.order.orderedItemList[0]
+     .pickupTxnId                       ← REQUIRED to void an LTL shipment
+     .secondaryTxnIdList[]              ← objects of { source, type, value }
+         type 'PRO'                     ← the PRO number  (e.g. 139796118)
+         type 'PRN'                     ← carrier pickup reference (5724193)
+         type 'BILL_OF_LADING'          ← BOL (ATE34769194)
+         type 'CUSTOMER_REFERENCE'      ← WWEX customer number (W0002746112)
+
+resp.shipmentOrderResponse.order
+     .orderId                           ← the BOL number — authoritative
+     .quoteNumber                       ← e.g. Q14293357
+     .combinedLabel                     ← s3 filename of the merged PDF
+     .orderedItemList[0]
+         .vendorId                      ← carrier SCAC actually booked (SEFL)
+         .handlingUnitIdList[]
+         .documentList[]                ← { name, docType, docFormat, s3fileName }
+             BILL_OF_LADING / QUOTE / PACKING_LIST / PALLET_LABEL
+
+resp.freightBillDetails                 ← where the carrier bills
+resp.clientStatus.success               ← true on success (sits ABOVE `response`)
+```
+
+**Documents are `s3fileName` strings, not URLs or base64.** They must be
+retrieved through `documentDownloadFlow`. That flow's response shape is still
+unconfirmed — it returned `ok:true` with no body, which crashed `getDocument()`
+on `Buffer.from(undefined)`. Now guarded, and it logs the response keys so the
+mapping can be pinned on the next attempt.
 
 ### Documented constraints
 

@@ -1185,7 +1185,9 @@ function bookShipment() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       productType:          pt,
-      productTransactionId: _txnId,
+      // Prefer the productTransactionId belonging to the SELECTED offer.
+      // WWEX returns one per offer; _txnId is only a session-level fallback.
+      productTransactionId: _selected.productTransactionId || _txnId,
       offerId:              _selected.offerId,              // carrier-level → shipmentOfferId
       // Still sent so the server can record which service level (Standard vs
       // Guaranteed) was picked. NOT forwarded to WWEX — shipmentOfferedProductId
