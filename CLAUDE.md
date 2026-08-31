@@ -3,6 +3,7 @@
 > **READ THIS FIRST every session.** Also read:
 > - `/Users/user/Desktop/ShopPro Project/OnlineSmartPOS/BVO_AUDIT_BRIEF.md` — full rules & architecture
 > - `/Users/user/Desktop/ShopPro Project/OnlineSmartPOS/BVO Node.js/CHANGE_LOG_BRIEF.md` — recent changes
+> - `/Users/user/Desktop/ShopPro Project/OnlineSmartPOS/BVO Node.js/SHIPPING_WWEX_BRIEF.md` — **MANDATORY if touching shipping** (wwexService, shippingController, admin/shipping/)
 
 ---
 
@@ -15,7 +16,7 @@
 5. **CSS bundle workflow** — CSS is now served as a single bundle. Rules:
    - Edit source files: `public/css/brand.css`, `site.css`, `site2.css`, `site4.css`
    - After any edit, rebuild the bundle: `cd "BVO Node.js/public/css" && cat brand.css site.css site2.css site4.css > site-bundle.css`
-   - Bump `?v=N` on `site-bundle.css` in `views/layouts/main.ejs` to bust Hostinger CDN cache. Current version: `v1`.
+   - Bump `?v=N` on `site-bundle.css` in `views/layouts/main.ejs` to bust Hostinger CDN cache. Current version: `v5` (verified against `main.ejs` line 86 on 2026-08-31 — this is the single source of truth; if this line and the Architecture Quick Reference table ever disagree, `main.ejs` wins).
    - `site3.css` is NOT in the bundle — it loads per-page via the `<%- style %>` slot. Current version: `v16`.
 
 ---
@@ -108,11 +109,13 @@ Size chips and color swatches are **identical on ALL card types**:
 | Current JS version | site.js v9 |
 | rflposSync CAT_MAP | `src/services/rflposSync.js` lines 50-53 — maps to `bathroom-vanities` NOT `vanities` |
 
-## Known Pending Issues (as of 2026-07-31)
+## Known Pending Issues (as of 2026-08-31)
 
 - **rflposSync CAT_MAP** still maps vanity product types to slug `'vanities'` (retired). Must change to `'bathroom-vanities'`. See `src/services/rflposSync.js` lines 50–53.
 - **header.ejs mega menu size chips** — still render `"` inch mark in visible text (line 64). Separate fix needed.
 - **Task #12** — nested form bug on category-edit admin page. Committed as `e2840b6`, push verification pending.
+- **WWEX — Carrier-specific confirm rules (RL Carriers)** — SpeedShip shows a carrier-specific popup/acknowledgment when RL Carriers is selected. Our Step 3 confirm page is generic and does not implement these per-carrier requirements. User shared a screenshot in a prior session that was lost to session compaction. Must re-share screenshot before this can be implemented. See `SHIPPING_WWEX_BRIEF.md` → "Known Pending Issues" for full details. Do NOT guess at RL's requirements.
+- **WWEX — BOL number not yet tested live** — booking fixes were committed 2026-08-31 (commit `8010806`) but not yet tested against live WWEX API. After deploy + pm2 restart, rate-shop a real LTL shipment and check server logs per test steps in `SHIPPING_WWEX_BRIEF.md`.
 
 ### ✅ Resolved (no longer pending)
 - **vanity-models collection shows 0 results** — FIXED. `mgProductCatId` now resolved via `Category.findBySlug('bathroom-vanities')` in `collectionsController.js` lines 113–115. Not a pending issue.

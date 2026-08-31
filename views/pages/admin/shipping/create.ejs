@@ -84,7 +84,21 @@ const meta = orderMeta           || null;
         <div class="adm-field"><label>City</label><input id="orig_city" type="text" class="adm-input" value="Marietta"></div>
         <div class="adm-field"><label>State</label><input id="orig_state" type="text" class="adm-input" value="GA" maxlength="2" style="text-transform:uppercase"></div>
         <div class="adm-field"><label>ZIP</label><input id="orig_zip" type="text" class="adm-input" value="30066"></div>
+        <div class="adm-field adm-field--full"><label>Address 2 <small style="color:#718096;font-weight:400">(optional)</small></label><input id="orig_address2" type="text" class="adm-input" placeholder="Suite, dock, building"></div>
         <div class="adm-field"><label>Shipment Date</label><input id="shipmentDate" type="date" class="adm-input" value="<%= new Date().toISOString().split('T')[0] %>"></div>
+        <div class="adm-field">
+          <label>Pickup / Limited Access Location Type</label>
+          <%# ADDED 2026-08-31 — SpeedShip has a separate location type for pickup
+              and delivery. BVO previously had none for origin (hardcoded null). %>
+          <select id="orig_locationType" class="adm-input">
+            <option value="">Standard commercial (default)</option>
+            <option value="RESIDENTIAL">Residential</option>
+            <option value="LIMITED_ACCESS">Limited Access</option>
+            <option value="CONSTRUCTION">Construction Site</option>
+            <option value="DISTRIBUTION_CENTER">Distribution Center</option>
+            <option value="TRADESHOW">Tradeshow</option>
+          </select>
+        </div>
         <input type="hidden" id="orig_country" value="US">
       </div>
     </div>
@@ -98,18 +112,28 @@ const meta = orderMeta           || null;
         <div class="adm-field"><label>Phone</label><input id="dest_phone" type="text" class="adm-input" value="<%= pre.phone || '' %>"></div>
         <div class="adm-field"><label>Email</label><input id="dest_email" type="text" class="adm-input" value="<%= pre.email || '' %>"></div>
         <div class="adm-field adm-field--full"><label>Address</label><input id="dest_address1" type="text" class="adm-input" value="<%= pre.address1 || '' %>"></div>
+        <div class="adm-field adm-field--full"><label>Address 2 <small style="color:#718096;font-weight:400">(optional)</small></label><input id="dest_address2" type="text" class="adm-input" value="<%= pre.address2 || '' %>" placeholder="Apt, suite, unit"></div>
         <div class="adm-field"><label>City</label><input id="dest_city" type="text" class="adm-input" value="<%= pre.city || '' %>"></div>
         <div class="adm-field"><label>State</label><input id="dest_state" type="text" class="adm-input" value="<%= pre.state || '' %>" maxlength="2" style="text-transform:uppercase"></div>
         <div class="adm-field"><label>ZIP</label><input id="dest_zip" type="text" class="adm-input" value="<%= pre.zip || '' %>"></div>
         <div class="adm-field"><label>Country</label><input id="dest_country" type="text" class="adm-input" value="US" maxlength="2" style="text-transform:uppercase"></div>
         <div class="adm-field">
-          <label>Location Type</label>
+          <label>Delivery / Limited Access Location Type</label>
+          <%# CORRECTED 2026-08-31 — the previous options (BUSINESS_WITH_DOCKS,
+              BUSINESS_WITHOUT_DOCKS, CONSTRUCTION_SITE) were not valid WWEX
+              values and were silently ignored. Curated from the real enum:
+              COMMERCIAL, AIRPORT, CONTAINER_FREIGHT_STATION, CONSTRUCTION,
+              DISTRIBUTION_CENTER, PIER_PORT_WARF, LIMITED_ACCESS,
+              GOVERNMENT_FACILITY, SECURED_LOCATION, RESIDENTIAL, TRADESHOW.
+              This is also how residential DELIVERY is signalled — there is no
+              residentialDeliveryFlag in the API. %>
           <select id="dest_locationType" class="adm-input">
-            <option value="">Business (default)</option>
-            <option value="BUSINESS_WITH_DOCKS">Business with Dock</option>
-            <option value="BUSINESS_WITHOUT_DOCKS">Business without Dock</option>
+            <option value="">Standard commercial (default)</option>
             <option value="RESIDENTIAL">Residential</option>
-            <option value="CONSTRUCTION_SITE">Construction Site</option>
+            <option value="LIMITED_ACCESS">Limited Access</option>
+            <option value="CONSTRUCTION">Construction Site</option>
+            <option value="DISTRIBUTION_CENTER">Distribution Center</option>
+            <option value="TRADESHOW">Tradeshow</option>
           </select>
         </div>
         <div class="adm-field">
@@ -147,10 +171,24 @@ const meta = orderMeta           || null;
         </div>
 
         <!-- Handling Charge -->
+        <%# WWEX takes handlingCharge as { value, unit } where unit is
+            AMOUNT or PERCENT. Previously the Yes/No answer was collected
+            but no amount was ever asked for, and nothing was transmitted. %>
         <div class="ship-acc-section">
           <div class="ship-acc-label">Handling Charge</div>
-          <label class="ship-check"><input type="radio" name="ltl_handling" value="no" checked> No, thanks</label>
-          <label class="ship-check" style="margin-top:4px"><input type="radio" name="ltl_handling" value="yes"> Yes, add a handling charge</label>
+          <label class="ship-check"><input type="radio" name="ltl_handling" value="no" checked onchange="toggleHandlingVal(this.value)"> No, thanks</label>
+          <label class="ship-check" style="margin-top:4px"><input type="radio" name="ltl_handling" value="yes" onchange="toggleHandlingVal(this.value)"> Yes, add a handling charge</label>
+          <div id="ltl_handling_val" style="display:none;margin-top:6px">
+            <div class="adm-form-grid">
+              <div class="adm-field"><label>Amount</label><input id="acc_handlingChargeValue" type="number" class="adm-input" min="0" step="0.01" placeholder="0.00"></div>
+              <div class="adm-field"><label>Type</label>
+                <select id="acc_handlingChargeUnit" class="adm-input">
+                  <option value="AMOUNT">$ Flat amount</option>
+                  <option value="PERCENT">% Percent</option>
+                </select>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Pickup Services -->
@@ -402,21 +440,35 @@ function showStep(n) {
 /* ── Handling Units ───────────────────────────────────────────── */
 var _huCount = 0;
 var FREIGHT_CLASSES = ['50','55','60','65','70','77.5','85','92.5','100','110','125','150','175','200','250','300','400','500'];
-var HU_TYPES = [
-  { value:'BOX', label:'Box / Carton' },
-  { value:'PLT', label:'Pallet' },
-  { value:'CRT', label:'Crate' },
-  { value:'SKD', label:'Skid' },
-  { value:'BND', label:'Bundle' },
+/* WWEX packagingType / commodityType — the ONLY 19 accepted values.
+   Verified against SpeedshipAPI V4 Staging.postman_collection.json and the
+   live SpeedShip LTL form. Order matches SpeedShip's own dropdown.
+   CORRECTED 2026-08-31: the previous list had only 5 entries and used
+   invented codes (CRT, BND, CTN, PCS) that WWEX rejects. There is no 'OTH'. */
+var WWEX_PACK_TYPES = [
+  { value:'BAG',      label:'Bag' },
+  { value:'BALE',     label:'Bale' },
+  { value:'BOX',      label:'Box' },
+  { value:'BUNDLE',   label:'Bundle' },
+  { value:'CARTON',   label:'Carton' },
+  { value:'CASE',     label:'Case' },
+  { value:'CRATE',    label:'Crate' },
+  { value:'CYLINDER', label:'Cylinder' },
+  { value:'DRUM',     label:'Drum' },
+  { value:'PAIL',     label:'Pail' },
+  { value:'PLT',      label:'Pallet' },
+  { value:'PIECES',   label:'Pieces' },
+  { value:'REEL',     label:'Reel' },
+  { value:'ROLL',     label:'Roll' },
+  { value:'SKID',     label:'Skid' },
+  { value:'TANK',     label:'Tank' },
+  { value:'TOTE',     label:'Tote' },
+  { value:'TRAILER',  label:'Trailer' },
+  { value:'TUBE',     label:'Tube' },
 ];
-var PIECE_TYPES = [
-  { value:'CTN', label:'Carton' },
-  { value:'PLT', label:'Pallet' },
-  { value:'CRT', label:'Crate' },
-  { value:'SKD', label:'Skid' },
-  { value:'BND', label:'Bundle' },
-  { value:'PCS', label:'Pieces' },
-];
+// Handling Unit Type and Commodity Piece Type share the same enum in WWEX.
+var HU_TYPES    = WWEX_PACK_TYPES;
+var PIECE_TYPES = WWEX_PACK_TYPES;
 
 function addHandlingUnit(d) {
   d = d || {};
@@ -462,24 +514,29 @@ function addHandlingUnit(d) {
 
 function buildCommodityHTML(huN, commN, c) {
   c = c || {};
-  var fcOpts = '<option value="">Auto</option>' + FREIGHT_CLASSES.map(function(fc) {
+  // Freight Class is REQUIRED by WWEX (commodityClass). No "Auto" option —
+  // a blank class is rejected. validateStep1() blocks submission until set.
+  var fcOpts = '<option value="">— Select class —</option>' + FREIGHT_CLASSES.map(function(fc) {
     return '<option' + (String(c.freightClass) === fc ? ' selected' : '') + '>' + fc + '</option>';
   }).join('');
   var ptOpts = PIECE_TYPES.map(function(t) {
-    return '<option value="' + t.value + '"' + ((c.pieceType || 'CTN') === t.value ? ' selected' : '') + '>' + t.label + '</option>';
+    return '<option value="' + t.value + '"' + ((c.pieceType || 'CARTON') === t.value ? ' selected' : '') + '>' + t.label + '</option>';
   }).join('');
   return '<div class="ship-comm-row" id="comm-' + huN + '-' + commN + '">'
     + '<div class="adm-field" style="grid-column:span 3">'
-    +   '<label>Commodity</label>'
+    +   '<label>Commodity <span class="req-star">*</span></label>'
     +   '<div style="display:flex;gap:4px">'
     +   '<input type="text" class="adm-input comm-desc" placeholder="e.g. Top, Sink or Bathroom Vanity" value="' + (c.description || '') + '" style="flex:1">'
     +   '<button type="button" onclick="openCommodityPicker(' + huN + ',' + commN + ')" class="comm-search-btn" title="Browse saved commodities">&#128269;</button>'
     +   '</div>'
     + '</div>'
     + '<div class="adm-field"><label>NMFC Code</label><input type="text" class="adm-input comm-nmfc" placeholder="e.g. 159530-2" value="' + (c.nmfcCode || '') + '"></div>'
-    + '<div class="adm-field"><label>Class</label><select class="adm-input comm-class">' + fcOpts + '</select></div>'
+    + '<div class="adm-field"><label>Class <span class="req-star">*</span></label><select class="adm-input comm-class">' + fcOpts + '</select></div>'
+    + '<div class="adm-field"><label>Weight (lbs) <span class="req-star">*</span></label><input type="number" class="adm-input comm-weight" min="1" step="0.01" value="' + (c.weight || '') + '" placeholder="lbs"></div>'
     + '<div class="adm-field"><label>Pieces</label><input type="number" class="adm-input comm-pieces" min="1" value="' + (c.pieces || 1) + '"></div>'
     + '<div class="adm-field"><label>Piece Type</label><select class="adm-input comm-ptype">' + ptOpts + '</select></div>'
+    + '<div class="adm-field"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:20px">'
+    +   '<input type="checkbox" class="comm-hazmat"' + (c.isHazMat ? ' checked' : '') + '> Hazmat</label></div>'
     + '</div>';
 }
 
@@ -501,8 +558,13 @@ function getHandlingUnits() {
         nmfcCode:     (cr.querySelector('.comm-nmfc')   || {}).value || null,
         freightClass: (cr.querySelector('.comm-class')  || {}).value || null,
         pieces:       parseInt((cr.querySelector('.comm-pieces') || {}).value)  || 1,
-        pieceType:    (cr.querySelector('.comm-ptype')  || {}).value || 'CTN',
-        weight:       parseFloat((hu.querySelector('.hu-weight') || {}).value)  || null,
+        pieceType:    (cr.querySelector('.comm-ptype')  || {}).value || 'CARTON',
+        isHazMat:     !!(cr.querySelector('.comm-hazmat') || {}).checked,
+        // FIXED 2026-08-31: read this commodity's OWN weight. Previously every
+        // commodity inherited the parent handling unit's gross weight, so a
+        // 2-commodity pallet reported double its true weight to WWEX.
+        // When left blank the controller splits the HU weight evenly.
+        weight:       parseFloat((cr.querySelector('.comm-weight') || {}).value) || null,
       };
     });
     return {
@@ -576,29 +638,55 @@ function validateStep1() {
   if (!state.trim()) { errors.push('Destination State is required.'); if (stateEl) stateEl.classList.add('adm-error'); }
   if (!city.trim())  { errors.push('Destination City is required.');  if (cityEl)  cityEl.classList.add('adm-error'); }
 
-  // Check that at least one HU has a commodity Class selected AND a gross weight
+  /* CHANGED 2026-08-31 — Freight Class and Commodity Description are REQUIRED by
+     WWEX (commodityClass / commodityDescription) on EVERY commodity, not just one.
+     Previously only a single handling unit had to be valid, so a second commodity
+     with a blank class was sent through and WWEX rejected the whole rate request
+     with an unhelpful message. Every offending field is highlighted at once. */
   var huEls = document.querySelectorAll('.ship-hu-row');
-  var hasValidComm = false;
-  huEls.forEach(function(hu) {
-    var classEl  = hu.querySelector('.comm-class');
-    var weightEl = hu.querySelector('.hu-weight');
-    if (classEl && classEl.value && weightEl && parseFloat(weightEl.value) > 0) hasValidComm = true;
+  document.querySelectorAll('.comm-desc, .comm-weight').forEach(function(el) {
+    el.classList.remove('adm-error');
   });
-  if (!hasValidComm) {
-    errors.push('At least one handling unit must have Freight Class and Gross Weight filled.');
-    huEls.forEach(function(hu) {
-      var classEl  = hu.querySelector('.comm-class');
-      var weightEl = hu.querySelector('.hu-weight');
-      if (classEl  && !classEl.value)                      classEl.classList.add('adm-error');
-      if (weightEl && !(parseFloat(weightEl.value) > 0))   weightEl.classList.add('adm-error');
+
+  var missingRequired = false;
+  huEls.forEach(function(hu, hi) {
+    var weightEl = hu.querySelector('.hu-weight');
+    if (weightEl && !(parseFloat(weightEl.value) > 0)) {
+      weightEl.classList.add('adm-error');
+      missingRequired = true;
+    }
+    hu.querySelectorAll('.ship-comm-row').forEach(function(cr) {
+      var classEl = cr.querySelector('.comm-class');
+      var descEl  = cr.querySelector('.comm-desc');
+      if (classEl && !classEl.value) { classEl.classList.add('adm-error'); missingRequired = true; }
+      if (descEl  && !descEl.value.trim()) { descEl.classList.add('adm-error'); missingRequired = true; }
     });
+  });
+
+  if (missingRequired) {
+    // Put the requested headline first so it reads clearly in the alert.
+    errors.unshift('Please fill out all required fields.');
   }
 
-  if (errors.length) { alert(errors.join('\n')); return false; }
+  if (errors.length) {
+    // De-duplicate in case the headline collides with a specific message.
+    alert(errors.filter(function(e, i, a) { return a.indexOf(e) === i; }).join('\n'));
+    // Focus the first offending field so the user lands on it directly.
+    var firstBad = document.querySelector('.adm-error');
+    if (firstBad && firstBad.scrollIntoView) {
+      firstBad.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (firstBad.focus) firstBad.focus();
+    }
+    return false;
+  }
   return true;
 }
 function toggleSpInsureVal(v) {
   document.getElementById('sp_insure_val').style.display = v === 'yes' ? '' : 'none';
+}
+function toggleHandlingVal(v) {
+  var el = document.getElementById('ltl_handling_val');
+  if (el) el.style.display = v === 'yes' ? '' : 'none';
 }
 function togglePalletSize(sel) {
   var wrap = sel.closest('.ship-hu-dims').querySelector('.hu-pallet-wrap');
@@ -619,24 +707,14 @@ function rval(name) { var el = document.querySelector('input[name="'+name+'"]:ch
 
 /* ── Step 1 → 2: Get Rates ────────────────────────────────────── */
 function goToRates() {
-  if (!validateStep1()) return;   // dest ZIP/state/city + commodity class+weight
+  // Must have at least one handling unit before validating its contents.
   var hus = getHandlingUnits();
   if (!hus.length) { alert('Add at least one handling unit.'); return; }
-  if (!document.getElementById('dest_zip').value) { alert('Destination ZIP is required.'); return; }
-  // Validate commodity class — WWEX returns "invalid packagingType" for missing class
-  for (var hi = 0; hi < hus.length; hi++) {
-    var comms = hus[hi].commodities || [];
-    for (var ci = 0; ci < comms.length; ci++) {
-      if (!comms[ci].freightClass) {
-        alert('Please select a Freight Class for all commodities before getting rates.');
-        return;
-      }
-      if (!comms[ci].description) {
-        alert('Please enter a Description for all commodities before getting rates.');
-        return;
-      }
-    }
-  }
+  // validateStep1() now covers destination ZIP/state/city, handling-unit gross
+  // weight, and Freight Class + Description on EVERY commodity — including the
+  // "Please fill out all required fields." headline and field highlighting.
+  // The duplicated per-commodity loop that used to live here was removed.
+  if (!validateStep1()) return;
 
   showStep(2);
   document.getElementById('rateLoading').style.display = '';
@@ -650,6 +728,8 @@ function goToRates() {
     insure:              rval('ltl_insure') === 'yes',
     declaredValue:       parseFloat(val('acc_declaredValue')) || 0,
     handlingCharge:      rval('ltl_handling') === 'yes',
+    handlingChargeValue: parseFloat(val('acc_handlingChargeValue')) || 0,
+    handlingChargeUnit:  val('acc_handlingChargeUnit') || 'AMOUNT',
     insidePickup:        chk('acc_insidePickup'),
     liftgatePickup:      chk('acc_liftgatePickup'),
     residentialPickup:   chk('acc_residentialPickup'),
@@ -682,18 +762,21 @@ function goToRates() {
     sp_billingType:      val('sp_billing') || 'BILL_SHIPPER',
     residential: document.getElementById('dest_residential').checked,
     origin: {
-      company:  val('orig_company'),
-      address1: val('orig_address1'),
-      city:     val('orig_city'),
-      state:    document.getElementById('orig_state').value.toUpperCase(),
-      zip:      val('orig_zip'),
-      phone:    val('orig_phone'),
-      country:  'US',
+      company:      val('orig_company'),
+      address1:     val('orig_address1'),
+      address2:     val('orig_address2'),
+      city:         val('orig_city'),
+      state:        document.getElementById('orig_state').value.toUpperCase(),
+      zip:          val('orig_zip'),
+      phone:        val('orig_phone'),
+      country:      'US',
+      locationType: val('orig_locationType') || null,
     },
     destination: {
       company:      val('dest_company'),
       name:         val('dest_name'),
       address1:     val('dest_address1'),
+      address2:     val('dest_address2'),
       city:         val('dest_city'),
       state:        document.getElementById('dest_state').value.toUpperCase(),
       zip:          val('dest_zip'),
@@ -843,7 +926,11 @@ function buildConfirmStep() {
   var r    = _selected;
   var pt   = getProductType();
   var hus  = getHandlingUnits();
-  var HU_LABEL = { PLT:'Pallet', BOX:'Box', BAG:'Bag', DRM:'Drum', RLL:'Roll', SKD:'Skid', OTH:'Other' };
+  // Derive labels from the single WWEX enum so this can never drift out of sync
+  // with the dropdown again. (The old hardcoded map listed codes — DRM, RLL,
+  // OTH — that the dropdown never even offered.)
+  var HU_LABEL = {};
+  WWEX_PACK_TYPES.forEach(function(t) { HU_LABEL[t.value] = t.label; });
 
   // ── Carrier / rate header bar
   var html = '<div style="background:#1a2e4a;color:#fff;border-radius:8px;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">'
@@ -953,6 +1040,15 @@ function buildConfirmStep() {
     html += '<div class="adm-field"><label>Close Time</label>'
       + '<input id="ltlPickupClose" type="time" class="adm-input" value="17:00"></div>';
     html += '</div>';
+    /* ADDED 2026-08-31 — WWEX quoteOrderFlow accepts three free-text
+       instruction fields. Character limits are enforced by the API, so
+       maxlength matches exactly: pickup 60, delivery 60, handling 82. */
+    html += '<div class="adm-field" style="margin-top:8px"><label>Pickup Instructions <small style="color:#718096;font-weight:400">(max 60)</small></label>'
+      + '<input id="ltlPickupInstr" type="text" maxlength="60" class="adm-input" placeholder="e.g. Dock 3, ask for warehouse"></div>';
+    html += '<div class="adm-field" style="margin-top:6px"><label>Delivery Instructions <small style="color:#718096;font-weight:400">(max 60)</small></label>'
+      + '<input id="ltlDeliveryInstr" type="text" maxlength="60" class="adm-input" placeholder="e.g. Call 30 min before arrival"></div>';
+    html += '<div class="adm-field" style="margin-top:6px"><label>Handling Instructions <small style="color:#718096;font-weight:400">(max 82)</small></label>'
+      + '<input id="ltlHandlingInstr" type="text" maxlength="82" class="adm-input" placeholder="e.g. Do not stack. Fragile stone top."></div>';
   }
   html += '</div>';
 
@@ -1037,7 +1133,10 @@ function bookShipment() {
       productType:          pt,
       productTransactionId: _txnId,
       offerId:              _selected.offerId,              // carrier-level → shipmentOfferId
-      offeredProductId:     _selected.offeredProductId || null, // product-level → shipmentOfferedProductId
+      // Still sent so the server can record which service level (Standard vs
+      // Guaranteed) was picked. NOT forwarded to WWEX — shipmentOfferedProductId
+      // does not exist in the V4 API. See SHIPPING_WWEX_BRIEF.md.
+      offeredProductId:     _selected.offeredProductId || null,
       carrier:              strField(_selected.carrier),
       serviceLevel:         strField(_selected.serviceLevel) || strField(_selected.service),
       totalCharge:          _selected.totalCharge,
@@ -1046,6 +1145,10 @@ function bookShipment() {
       pickupDate:           pickupDate,
       pickupReadyTime:      document.getElementById(_prId) ? document.getElementById(_prId).value + ':00' : '08:00:00',
       pickupCloseTime:      document.getElementById(_pcId) ? document.getElementById(_pcId).value + ':00' : '17:00:00',
+      // Free-text instructions — passed straight through to quoteOrderFlow.
+      pickupInstructions:   val('ltlPickupInstr'),
+      deliveryInstructions: val('ltlDeliveryInstr'),
+      handlingInstructions: val('ltlHandlingInstr'),
       shipment:             shipment,
     }),
   })
@@ -1222,6 +1325,8 @@ function applyCommodity(i) {
 .comm-td--num { color:#718096;font-size:.85rem;white-space:nowrap }
 
 .adm-input.adm-error { border-color:#fc8181 !important;background:#fff5f5; }
+/* Required-field marker — WWEX rejects blank commodityClass/commodityDescription */
+.req-star { color:#c53030;font-weight:700;margin-left:1px; }
 
 @media(max-width:700px) {
   .ship-panel-grid { grid-template-columns:1fr }

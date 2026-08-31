@@ -149,7 +149,7 @@ async function createForm(req, res) {
                   nmfcCode:     '',
                   freightClass: item.freight_class || '',
                   pieces:       qty,
-                  pieceType:    'CTN',
+                  pieceType:    'CARTON',   // WWEX commodityType — 'CTN' is not a valid value
                   weight:       box.gross_weight_lbs ? Math.round(box.gross_weight_lbs) : null,
                 }],
               });
@@ -174,7 +174,7 @@ async function createForm(req, res) {
             nmfcCode:     '',
             freightClass: item.freight_class || '',
             pieces:       qty,
-            pieceType:    'CTN',
+            pieceType:    'CARTON',   // WWEX commodityType — 'CTN' is not a valid value
             weight:       item.total_ship_weight_lbs ? Math.round(item.total_ship_weight_lbs * qty) : null,
           }],
         });
@@ -201,6 +201,62 @@ async function createForm(req, res) {
 function _wwexDate(d) {
   const p = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   WWEX locationType — the ONLY accepted values.
+   Verified against SpeedshipAPI V4 Staging.postman_collection.json
+   (/LTL/DOMESTIC/shopFlow, originAddress.locationType comment).
+   'PIER_PORT_WARF' is spelled that way in the WWEX docs (sic).
+   Anything not in this list is rejected/ignored by WWEX, so we
+   whitelist rather than pass user input straight through.
+───────────────────────────────────────────────────────────────────*/
+const WWEX_LOCATION_TYPES = [
+  'COMMERCIAL', 'AIRPORT', 'CONTAINER_FREIGHT_STATION', 'CONSTRUCTION',
+  'DISTRIBUTION_CENTER', 'PIER_PORT_WARF', 'LIMITED_ACCESS',
+  'GOVERNMENT_FACILITY', 'SECURED_LOCATION', 'RESIDENTIAL', 'TRADESHOW',
+];
+
+/** Return a valid WWEX locationType or null. Never passes junk to the API. */
+function _locationType(v) {
+  if (!v) return null;
+  const up = String(v).toUpperCase().trim();
+  return WWEX_LOCATION_TYPES.includes(up) ? up : null;
+}
+
+/** WWEX supports up to 3 address lines. Build the list from whatever we have. */
+function _addressLines(a) {
+  return [a.address1, a.address2, a.address3].filter(Boolean).slice(0, 3);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   WWEX packagingType / commodityType — one shared enum (19 values).
+   Verified against the Postman collection. NOTE: there is no 'OTH'.
+   The legacy map translates BVO's old 3-letter codes, which were
+   invented before the enum was known, so existing saved data and
+   any cached form state keep working.
+───────────────────────────────────────────────────────────────────*/
+const WWEX_PACKAGING_TYPES = [
+  'BAG', 'BALE', 'BOX', 'BUNDLE', 'CARTON', 'CASE', 'CRATE', 'CYLINDER',
+  'DRUM', 'PAIL', 'PLT', 'PIECES', 'REEL', 'ROLL', 'SKID', 'TANK',
+  'TOTE', 'TRAILER', 'TUBE',
+];
+
+const _LEGACY_PACKAGING = {
+  DRM: 'DRUM',   // BVO legacy → WWEX
+  RLL: 'ROLL',
+  SKD: 'SKID',
+  OTH: 'PIECES', // 'Other' is not a WWEX value; PIECES is the closest generic
+  PALLET: 'PLT',
+  PIECE: 'PIECES',
+};
+
+/** Return a valid WWEX packaging/commodity type, defaulting when unrecognised. */
+function _packagingType(v, fallback = 'PLT') {
+  const up = String(v || '').toUpperCase().trim();
+  if (!up) return fallback;
+  if (WWEX_PACKAGING_TYPES.includes(up)) return up;
+  return _LEGACY_PACKAGING[up] || fallback;
 }
 
 async function getRates(req, res) {
@@ -267,71 +323,133 @@ async function getRates(req, res) {
       const b = req.body;
       const totalHUWeight = hus.reduce((sum, hu) => sum + (Number(hu.grossWeight || hu.weight) || 0), 0);
       const totalHUCount  = hus.reduce((sum, hu) => sum + (Number(hu.count || hu.quantity)     || 1), 0);
+      // Insurance — WWEX requires 4 co-dependent fields when insuring.
+      // Field names verified against SpeedshipAPI V4 Staging.postman_collection.json
+      // (/LTL/DOMESTIC/shopFlow). See SHIPPING_WWEX_BRIEF.md.
+      const insureOn  = !!b.insure && Number(b.declaredValue) > 0;
+      const insurance = insureOn ? {
+        insuranceRequestFlag:     true,
+        // 406 = Furniture & Large Items — correct category for vanities/cabinets.
+        // Other valid: 400 General Merchandise, 407 Stonework, 408 Fragile Items.
+        insuredCommodityCategory: b.insuredCategory || '406',
+        insuredItemConditions:    'NEW',
+        totalDeclaredValue:       { unit: 'USD', value: String(b.declaredValue) },
+        insuredMarksNumbers:      '',
+      } : { insuranceRequestFlag: false };
+
+      // Handling charge — { value, unit } where unit is AMOUNT or PERCENT.
+      const handlingCharge = (b.handlingCharge && Number(b.handlingChargeValue) > 0)
+        ? { handlingCharge: {
+              value: String(b.handlingChargeValue),
+              unit:  b.handlingChargeUnit === 'PERCENT' ? 'PERCENT' : 'AMOUNT',
+            } }
+        : {};
+
       shopPayload = {
         productType: 'LTL',
         shipment: {
           shipmentDate,
-          appointmentDeliveryFlag:      !!b.appointmentDelivery,
-          holdAtTerminalFlag:           !!b.dropAtTerminal,
+          appointmentDeliveryFlag:      !!b.appointment,
+          // FIXED 2026-08-31: these two were crossed. "Hold Shipment at Terminal"
+          // (a delivery service) is holdAtTerminalFlag; "Drop Shipment at Terminal"
+          // (a pickup service) is carrierTerminalPickupFlag. Previously
+          // holdAtTerminalFlag was fed by dropAtTerminal and acc_holdAtTerminal
+          // was ignored entirely.
+          holdAtTerminalFlag:           !!b.holdAtTerminal,
+          carrierTerminalPickupFlag:    !!b.dropAtTerminal,
           insideDeliveryFlag:           !!b.insideDelivery,
           insidePickupFlag:             !!b.insidePickup,
           liftgateDeliveryFlag:         !!b.liftgateDelivery,
           liftgatePickupFlag:           !!b.liftgatePickup,
           residentialPickupFlag:        !!b.residentialPickup,
+          // NOTE: there is NO residentialDeliveryFlag in the WWEX API.
+          // Residential DELIVERY is expressed as
+          // destinationAddress.locationType = 'RESIDENTIAL' (set below).
           constructionSiteDeliveryFlag: !!b.constructionDelivery,
           constructionSitePickupFlag:   !!b.constructionPickup,
           notifyBeforeDeliveryFlag:     !!b.notifyBeforeDelivery,
-          protectionFromColdFlag:       !!b.protectionFromCold,
-          sortAndSegregateFlag:         false,
+          // FIXED 2026-08-31: read b.protectFromFreeze (what create.ejs actually
+          // sends). Was reading b.protectionFromCold, which is never sent.
+          protectionFromColdFlag:       !!b.protectFromFreeze,
+          // FIXED 2026-08-31: was hardcoded false, ignoring the checkbox.
+          sortAndSegregateFlag:         !!b.sortAndSegregate,
           tradeshowDeliveryFlag:        !!b.tradeshowDelivery,
           tradeshowDeliveryName:        b.tradeshowDeliveryName || '',
           tradeshowPickupFlag:          !!b.tradeshowPickup,
           tradeshowPickupName:          b.tradeshowPickupName   || '',
+          marksNumbers:                 b.marksNumbers || '',
+          ...insurance,
+          ...handlingCharge,
           totalHandlingUnitCount: totalHUCount,
           totalWeight: { value: totalHUWeight, unit: 'LB' },
           originAddress: {
             address: {
-              addressLineList: [origin.address1].filter(Boolean),
+              addressLineList: _addressLines(origin),
               locality:    origin.city,
               region:      origin.state,
-              postalCode:  origin.zip,
+              postalCode:  String(origin.zip || '').trim().slice(0, 5),
               countryCode: origin.country || 'US',
               ...(origin.company ? { companyName: origin.company } : {}),
               contactList: [{
                 firstName:   '',
-                lastName:    origin.name  || '',
-                phone:       origin.phone || '',
+                lastName:    (origin.name  || '').slice(0, 35),
+                phone:       String(origin.phone || '').slice(0, 15),
                 contactType: 'SENDER',
               }],
             },
-            locationType: null,
+            // Pickup/Limited Access Location Type — SpeedShip exposes this
+            // separately from the delivery one. Whitelisted to the WWEX enum.
+            locationType: _locationType(origin.locationType),
           },
           destinationAddress: {
             address: {
-              addressLineList: [destination.address1].filter(Boolean),
+              addressLineList: _addressLines(destination),
               locality:    destination.city,
               region:      destination.state,
-              postalCode:  destination.zip,
+              postalCode:  String(destination.zip || '').trim().slice(0, 5),
               countryCode: destination.country || 'US',
               ...(destination.company ? { companyName: destination.company } : {}),
               contactList: [{
                 firstName:   '',
-                lastName:    destination.name  || '',
-                phone:       destination.phone || '',
+                lastName:    (destination.name  || '').slice(0, 35),
+                phone:       String(destination.phone || '').slice(0, 15),
                 contactType: 'RECEIVER',
               }],
             },
-            locationType: destination.locationType || null,
+            // Delivery/Limited Access Location Type. This is ALSO how residential
+            // delivery is signalled — there is no residentialDeliveryFlag in the API.
+            // If the user ticked "Residential", force RESIDENTIAL regardless of
+            // whatever else the dropdown holds.
+            locationType: (b.residential || b.residentialDelivery)
+              ? 'RESIDENTIAL'
+              : _locationType(destination.locationType),
           },
           handlingUnitList: hus.map(hu => {
             const comm0    = (hu.commodities && hu.commodities[0]) || {};
             const huWeight = Number(hu.grossWeight || hu.weight) || 0;
             const items    = (hu.commodities && hu.commodities.length) ? hu.commodities : [comm0];
+
+            // Per-commodity weight. WWEX requires a weight on every shippedItem.
+            // FIXED 2026-08-31: previously every commodity inherited the FULL handling
+            // unit weight, so a 2-commodity pallet reported 2× its true weight.
+            // Now: use the commodity's own weight when entered; otherwise split the
+            // handling-unit weight evenly so the items sum back to the HU weight.
+            const entered   = items.reduce((s, c) => s + (Number(c.weight) || 0), 0);
+            const missing   = items.filter(c => !(Number(c.weight) > 0)).length;
+            const perItemLB = missing > 0
+              ? Math.max(0, (huWeight - entered)) / missing
+              : 0;
+
+            // isMixedClass must be true when the HU carries more than one freight class.
+            const classes = [...new Set(
+              items.map(c => String(c.freightClass || comm0.freightClass || '')).filter(Boolean)
+            )];
+
             return {
-              packagingType: hu.huType || hu.packagingType || 'PLT',
+              packagingType: _packagingType(hu.huType || hu.packagingType),
               quantity:      Number(hu.count || hu.quantity) || 1,
               isStackable:   !!(hu.stackable || hu.isStackable),
-              isMixedClass:  false,
+              isMixedClass:  classes.length > 1,
               weight: { value: huWeight, unit: 'LB' },
               ...(hu.length && hu.width && hu.height ? {
                 billedDimension: {
@@ -344,10 +462,17 @@ async function getRates(req, res) {
               shippedItemList: items.map(c => ({
                 commodityClass:       c.freightClass || comm0.freightClass || '',
                 commodityDescription: c.description  || comm0.description  || '',
-                NMFCNbr:              ((c.nmfcCode || hu.nmfcCode || '').split('-')[0]) || null,
+                // Piece Type. WWEX calls this commodityType; same enum as packagingType.
+                commodityType:        _packagingType(c.pieceType, 'BOX'),
+                // NMFCNbr: base number only (strip the -NN suffix), max 10 chars.
+                NMFCNbr:              ((c.nmfcCode || hu.nmfcCode || '').split('-')[0] || '').slice(0, 10) || null,
                 quantity:             String(c.pieces || 1),
-                isHazMat:             false,
-                weight: { value: Number(c.weight || huWeight) || 0, unit: 'LB' },
+                isHazMat:             !!c.isHazMat,
+                hazMatItemInfo:       null,
+                weight: {
+                  value: Number(c.weight) > 0 ? Number(c.weight) : Number(perItemLB.toFixed(2)),
+                  unit:  'LB',
+                },
               })),
             };
           }),
@@ -366,35 +491,30 @@ async function getRates(req, res) {
   }
 }
 
-function buildAccessorials(body) {
-  const acc = [];
-  // Pickup Services
-  if (body.insidePickup)        acc.push({ code: 'INP', description: 'Inside Pickup' });
-  if (body.liftgatePickup)      acc.push({ code: 'LGP', description: 'Liftgate Pickup' });
-  if (body.residentialPickup)   acc.push({ code: 'RSP', description: 'Residential Pickup' });
-  if (body.tradeshowPickup)     acc.push({ code: 'TSP', description: 'Tradeshow Pickup' });
-  if (body.constructionPickup)  acc.push({ code: 'COP', description: 'Construction Site Pickup' });
-  if (body.dropAtTerminal)      acc.push({ code: 'DAT', description: 'Drop Shipment at Terminal' });
-  if (body.groceryPickup)       acc.push({ code: 'GCP', description: 'Grocery Consolidation Pickup' });
-  // Delivery Services
-  if (body.insideDelivery)      acc.push({ code: 'IND', description: 'Inside Delivery' });
-  if (body.liftgateDelivery)    acc.push({ code: 'LGD', description: 'Liftgate Delivery' });
-  if (body.residentialDelivery || body.residential) acc.push({ code: 'RES', description: 'Residential Delivery' });
-  if (body.tradeshowDelivery)   acc.push({ code: 'TSD', description: 'Tradeshow Delivery' });
-  if (body.groceryDelivery)     acc.push({ code: 'GCD', description: 'Grocery Consolidation Delivery' });
-  if (body.constructionDelivery)acc.push({ code: 'COD', description: 'Construction Site Delivery' });
-  if (body.notifyBeforeDelivery)acc.push({ code: 'NBD', description: 'Notify Before Delivery' });
-  if (body.holdAtTerminal)      acc.push({ code: 'HAT', description: 'Hold Shipment at Terminal' });
-  if (body.appointment)         acc.push({ code: 'APT', description: 'Appointment Delivery' });
-  // Shipment Services
-  if (body.sortAndSegregate)    acc.push({ code: 'SAS', description: 'Sort and Segregate' });
-  if (body.protectFromFreeze)   acc.push({ code: 'PFF', description: 'Protect from Freeze' });
-  // Insurance
-  if (body.insure && body.declaredValue > 0) {
-    acc.push({ code: 'INS', description: 'Insurance', declaredValue: body.declaredValue });
-  }
-  return acc;
-}
+/* ─────────────────────────────────────────────────────────────────
+   REMOVED 2026-08-31 — buildAccessorials()
+
+   This function built an array of { code, description } accessorial
+   objects (INP/LGP/RES/HAT/…). It was defined here but NEVER CALLED
+   from anywhere in the codebase, so every accessorial it mapped was
+   silently discarded.
+
+   It was also the wrong shape: WWEX SpeedShip V4 does not take an
+   accessorial code list. Each accessorial is an individual boolean
+   flag on `shipment` (liftgateDeliveryFlag, holdAtTerminalFlag, …),
+   and residential delivery is not a flag at all — it is
+   destinationAddress.locationType = 'RESIDENTIAL'.
+
+   All accessorials are now wired directly into the shopFlow payload
+   in getRates(). Do not reintroduce a code-list builder.
+
+   NOT SUPPORTED BY THE API (no field exists anywhere in the V4
+   Postman collection): Grocery Consolidation Pickup/Delivery, and
+   billing terms (Bill Shipper / Recipient / Third Party). The BVO
+   form still shows these for parity with the SpeedShip UI, but they
+   cannot be transmitted — billing is an account-level setting on the
+   WWEX side. Do not invent field names for them.
+───────────────────────────────────────────────────────────────────*/
 
 /* ─────────────────────────────────────────────────────────────────
    BOOK — POST /admin/shipping/book  (AJAX)
@@ -406,6 +526,11 @@ async function bookShipment(req, res) {
       productType = 'LTL',
       productTransactionId,
       offerId,
+      // Accepted from the client but INTENTIONALLY NOT SENT to WWEX — the field
+      // shipmentOfferedProductId does not exist in the V4 Postman collection.
+      // Kept in the signature so the client contract is unchanged; still stored
+      // on the shipments row for our own service-level record.
+      offeredProductId  = null,
       shipment,
       orderId         = null,
       carrier         = '',
@@ -424,6 +549,65 @@ async function bookShipment(req, res) {
     // ── Book ────────────────────────────────────────────────────
     // Default pickup date = today if not provided
     const pDate = pickupDate || new Date().toISOString().split('T')[0];
+
+    /* REWRITTEN 2026-08-31 — quoteOrderFlow.shipment is NOT a full echo of the
+       shopFlow shipment. Per the V4 Postman collection (/LTL/DOMESTIC/
+       quoteOrderFlow) it contains ONLY:
+         originAddress, destinationAddress, shipmentReferenceList,
+         pickupSpecialInstructions, deliverySpecialInstructions,
+         handlingSpecialInstructions
+       No handlingUnitList, no freight flags, no weights, no shipmentDate —
+       WWEX already has all of that against the productTransactionId from the
+       rate shop. Previously BVO echoed the entire shopFlow shipment here,
+       sending far more than the endpoint accepts.
+
+       Also removed: shipmentOfferedProductId. It does not appear anywhere in
+       the Postman collection. Only shipmentProductTransactionId + shipmentOfferId
+       are documented. See SHIPPING_WWEX_BRIEF.md corrections section. */
+
+    /** Reshape an address for quoteOrderFlow: address-level phone is REQUIRED
+     *  here (unlike shopFlow), and contacts carry email + extension. */
+    const _bookAddr = (a, contactType) => {
+      const addr    = (a && a.address) || {};
+      const contact = (addr.contactList && addr.contactList[0]) || {};
+      const phone   = String(contact.phone || addr.phone || '').slice(0, 15);
+      return {
+        address: {
+          addressLineList: (addr.addressLineList || []).filter(Boolean).slice(0, 3),
+          locality:    addr.locality    || '',
+          region:      addr.region      || '',
+          postalCode:  String(addr.postalCode || '').trim().slice(0, 5),
+          countryCode: addr.countryCode || 'US',
+          companyName: addr.companyName || '',
+          phone,                                   // Required at address level
+          contactList: [{
+            firstName:   (contact.firstName || '').slice(0, 35),
+            lastName:    (contact.lastName  || '').slice(0, 35),
+            phone,
+            contactType,
+            email:       contact.email     || '',
+            extension:   contact.extension || null,
+          }],
+        },
+      };
+    };
+
+    const bookShipmentObj = {
+      originAddress:      _bookAddr(shipment && shipment.originAddress,      'SENDER'),
+      destinationAddress: _bookAddr(shipment && shipment.destinationAddress, 'RECEIVER'),
+      // Up to 5 references supported; type and value each max 35 chars.
+      shipmentReferenceList: (shipment && shipment.shipmentReferenceList || [])
+        .filter(r => r && r.value)
+        .slice(0, 5)
+        .map(r => ({
+          type:  String(r.type  || '').slice(0, 35),
+          value: String(r.value || '').slice(0, 35),
+        })),
+      pickupSpecialInstructions:   String(req.body.pickupInstructions   || '').slice(0, 60),
+      deliverySpecialInstructions: String(req.body.deliveryInstructions || '').slice(0, 60),
+      handlingSpecialInstructions: String(req.body.handlingInstructions || '').slice(0, 82),
+    };
+
     const bookPayload = {
       mode:                         'SAVE',
       shipmentProductTransactionId: productTransactionId,
@@ -432,7 +616,8 @@ async function bookShipment(req, res) {
       pickupDate:                   `${pDate} 00:00:00`,
       readyTime:                    pickupReadyTime,
       closeTime:                    pickupCloseTime,
-      shipment,
+      ...(req.body.customerBolNum ? { customerBolNum: String(req.body.customerBolNum).slice(0, 35) } : {}),
+      shipment: bookShipmentObj,
     };
 
     console.log('[shipping] quoteOrderFlow payload:', JSON.stringify(bookPayload, null, 2));
