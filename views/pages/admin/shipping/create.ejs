@@ -702,6 +702,7 @@ function goToRates() {
     _rates        = d.rates;
     _txnId        = d.productTransactionId;
     _shopShipment = d.shopShipment || null;
+    _selected     = null;  // clear stale selection — offer IDs from prior rate shop are invalid for new txnId
     renderRates(d.rates, d.stub);
   })
   .catch(function(e) {

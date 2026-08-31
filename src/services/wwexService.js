@@ -128,9 +128,18 @@ exports.shopFlow = async (payload, productType = 'LTL') => {
   try {
     const data = await call('shopFlow', { request: payload }, productType);
     const resp = data.response || data;
+    // Diagnostic: log where productTransactionId lives (root vs per-offer)
+    console.log('[wwex] shopFlow resp keys:', Object.keys(resp));
+    console.log('[wwex] shopFlow resp.productTransactionId:', resp.productTransactionId);
     const rawOffers = resp.offerList || resp.rateList || resp.quoteList || resp.offers || [];
     if (!rawOffers.length) {
       console.warn('[wwex] shopFlow: no offers in response keys:', Object.keys(resp));
+    } else {
+      // Log offer[0] keys and its productTransactionId so we know where to pull it from
+      console.log('[wwex] shopFlow offer[0] keys:', Object.keys(rawOffers[0]));
+      console.log('[wwex] shopFlow offer[0].productTransactionId:', rawOffers[0]?.productTransactionId);
+      console.log('[wwex] shopFlow offer[0] offerId:', rawOffers[0]?.offerId,
+        '  offeredProductList[0].offeredProductId:', rawOffers[0]?.offeredProductList?.[0]?.offeredProductId);
     }
     // Log offer structure so we can see how many products each offer contains
     rawOffers.forEach((o, i) => {
