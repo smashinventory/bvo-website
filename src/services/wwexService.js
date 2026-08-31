@@ -132,21 +132,18 @@ exports.shopFlow = async (payload, productType = 'LTL') => {
     if (!rawOffers.length) {
       console.warn('[wwex] shopFlow: no offers in response keys:', Object.keys(resp));
     }
-    // Diagnostic: find service level + transit days fields (remove once found)
-    if (rawOffers.length) {
-      const o0 = rawOffers[0];
-      console.log('[wwex] offer[0] keys:', JSON.stringify(Object.keys(o0)));
-      console.log('[wwex] offer[0] prod[0]:', JSON.stringify(o0.offeredProductList?.[0]));
-    }
-
     // One entry per offer (Standard vs Guaranteed appear as separate offerList entries)
     const offers = rawOffers.map(o => {
-      const carrier      = o.primaryVendor?.preferredName || o.primaryVendor?.scac || '—';
-      const prod         = o.offeredProductList?.[0] || {};
-      const transitDays  = prod.transitDays || prod.estimatedTransitDays || o.transitDays || null;
-      const deliveryDate = prod.estimatedDeliveryDate || prod.estimatedDelivery || o.estimatedDeliveryDate || null;
-      // Service level: to be determined from diagnostic — placeholder for now
-      const serviceLevel = prod.serviceLevel || prod.productName || o.serviceLevel || o.productName || 'Standard';
+      const carrier    = o.primaryVendor?.preferredName || o.primaryVendor?.scac || '—';
+      const prod       = o.offeredProductList?.[0] || {};
+      const tit        = prod.shopRQShipment?.timeInTransit || {};
+      // serviceLevel, transitDays, estimatedDeliveryDate all live in shopRQShipment.timeInTransit
+      const rawSvc     = tit.serviceLevel || '';
+      const serviceLevel = rawSvc
+        ? rawSvc.charAt(0).toUpperCase() + rawSvc.slice(1).toLowerCase()  // "STANDARD" → "Standard"
+        : 'Standard';
+      const transitDays  = tit.transitDays  ?? null;
+      const deliveryDate = tit.estimatedDeliveryDate || null;
       // Per-product price confirmed as {unit, value} object
       const price        = prod.offerPrice ?? o.totalOfferPrice;
       return {
