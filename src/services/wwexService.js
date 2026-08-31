@@ -127,6 +127,7 @@ exports.shopFlow = async (payload, productType = 'LTL') => {
   }
   try {
     const data = await call('shopFlow', { request: payload }, productType);
+    console.log('[wwex] shopFlow raw response:', JSON.stringify(data, null, 2).slice(0, 4000));
     // Extract offers from response
     const resp = data.response || data;
     const rawOffers = resp.offerList || resp.rateList || resp.quoteList || resp.offers || [];
