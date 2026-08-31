@@ -129,8 +129,12 @@ exports.shopFlow = async (payload, productType = 'LTL') => {
     const data = await call('shopFlow', { request: payload }, productType);
     const resp0 = (data.response || data);
     const offer0 = (resp0.offerList || [])[0];
-    if (offer0) console.log('[wwex] first offer keys:', JSON.stringify(Object.keys(offer0)));
-    if (offer0) console.log('[wwex] first offer sample:', JSON.stringify(offer0, null, 2).slice(0, 3000));
+    if (offer0) {
+      console.log('[wwex] totalOfferPrice:', JSON.stringify(offer0.totalOfferPrice));
+      console.log('[wwex] totalOfferCost:', JSON.stringify(offer0.totalOfferCost));
+      console.log('[wwex] offeredProductList:', JSON.stringify(offer0.offeredProductList, null, 2).slice(0, 2000));
+      console.log('[wwex] resp.productTransactionId:', resp0.productTransactionId);
+    }
     // Extract offers from response
     const resp = data.response || data;
     const rawOffers = resp.offerList || resp.rateList || resp.quoteList || resp.offers || [];
