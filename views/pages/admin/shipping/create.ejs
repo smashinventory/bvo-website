@@ -758,7 +758,7 @@ function bookShipment() {
     region:      document.getElementById('dest_state').value.toUpperCase(),
     postalCode:  val('dest_zip'),
     countryCode: document.getElementById('dest_country').value.toUpperCase() || 'US',
-    companyName: val('dest_company'),
+    companyName: val('dest_company') || val('dest_name') || 'Residential',
     phone:       val('dest_phone'),
     contactList: [{ firstName:'', lastName:val('dest_name'), phone:val('dest_phone'), email:val('dest_email') }],
   };
