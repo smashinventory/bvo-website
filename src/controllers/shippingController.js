@@ -133,7 +133,7 @@ async function createForm(req, res) {
           if (boxes.length) {
             for (const box of boxes) {
               prefillHandlingUnits.push({
-                huType:        'BOX',
+                huType:        'PLT',
                 count:         qty,
                 stackable:     false,
                 length:        box.ship_depth_in  ? Math.ceil(box.ship_depth_in)  : null,
@@ -160,7 +160,7 @@ async function createForm(req, res) {
 
         // Fallback: no product linked or no shipping boxes — use product totals
         prefillHandlingUnits.push({
-          huType:      'BOX',
+          huType:      'PLT',
           count:       qty,
           stackable:   false,
           length:      null,

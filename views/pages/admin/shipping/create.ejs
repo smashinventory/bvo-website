@@ -423,7 +423,7 @@ function addHandlingUnit(d) {
   var n = _huCount;
 
   var huTypeOpts = HU_TYPES.map(function(t) {
-    return '<option value="' + t.value + '"' + ((d.huType || 'BOX') === t.value ? ' selected' : '') + '>' + t.label + '</option>';
+    return '<option value="' + t.value + '"' + ((d.huType || 'PLT') === t.value ? ' selected' : '') + '>' + t.label + '</option>';
   }).join('');
 
   var label = d.productName
@@ -553,6 +553,20 @@ function goToRates() {
   var hus = getHandlingUnits();
   if (!hus.length) { alert('Add at least one handling unit.'); return; }
   if (!document.getElementById('dest_zip').value) { alert('Destination ZIP is required.'); return; }
+  // Validate commodity class — WWEX returns "invalid packagingType" for missing class
+  for (var hi = 0; hi < hus.length; hi++) {
+    var comms = hus[hi].commodities || [];
+    for (var ci = 0; ci < comms.length; ci++) {
+      if (!comms[ci].freightClass) {
+        alert('Please select a Freight Class for all commodities before getting rates.');
+        return;
+      }
+      if (!comms[ci].description) {
+        alert('Please enter a Description for all commodities before getting rates.');
+        return;
+      }
+    }
+  }
 
   showStep(2);
   document.getElementById('rateLoading').style.display = '';
