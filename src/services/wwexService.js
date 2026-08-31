@@ -239,8 +239,33 @@ exports.quoteOrderFlow = async (payload, productType = 'LTL') => {
     const data = await call('quoteOrderFlow', { request: payload }, productType);
     console.log('[wwex] quoteOrderFlow raw response:', JSON.stringify(data, null, 2));
     const resp = data.response || data;
+
+    /* pickupTxnId — REQUIRED to void an LTL shipment later.
+       WWEX rejects an LTL cancel that sends only the shipment
+       productTransactionId with:
+         "LTL does not support shipment only cancel; exception: AppException"
+       The /LTL/integratedCancelFlow sample sends TWO ids: the shipment
+       productTransactionId and the pickup transaction id from THIS response.
+
+       The exact response key is not documented in the collection (only
+       referenced in a comment as "pickupTxnId"), so we try the plausible
+       spellings and log the response keys to confirm on the next booking. */
+    const pickupTxnId = resp.pickupTxnId
+                     || resp.pickupTransactionId
+                     || resp.pickupProductTransactionId
+                     || resp.pickup?.productTransactionId
+                     || resp.pickup?.pickupTxnId
+                     || null;
+    console.log('[wwex] quoteOrderFlow resp keys:', Object.keys(resp));
+    console.log('[wwex] quoteOrderFlow pickupTxnId resolved to:', pickupTxnId);
+    if (!pickupTxnId) {
+      console.warn('[wwex] NO pickupTxnId found — voiding this LTL shipment from BVO will fail. ' +
+                   'Check the raw response above for the correct key and add it to wwexService.quoteOrderFlow.');
+    }
+
     return {
       ok:                   true,
+      pickupTxnId,
       bolNumber:            resp.bolNumber  || resp.bol  || resp.billOfLadingNumber || null,
       proNumber:            resp.proNumber  || resp.pro  || resp.proNbr             || null,
       bolUrl:               resp.bolUrl     || resp.bolDocumentUrl                  || null,

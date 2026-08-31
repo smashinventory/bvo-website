@@ -682,11 +682,11 @@ async function bookShipment(req, res) {
       `INSERT INTO shipments
          (order_id, product_transaction_id, offer_id, product_type, bol_number, pro_number,
           bol_url, carrier, service_level, total_charge, status,
-          ship_date, est_delivery,
+          ship_date, est_delivery, pickup_txn_id,
           origin_company, origin_city, origin_state, origin_zip,
           dest_company, dest_name, dest_address1, dest_city, dest_state, dest_zip,
           dest_phone, dest_email, pickup_confirmation, created_at, updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, NOW(), NOW())`,
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, NOW(), NOW())`,
       [
         orderId || null,
         booked.productTransactionId || productTransactionId,
@@ -701,6 +701,7 @@ async function bookShipment(req, res) {
         'booked',
         pDate,                                    // ship_date — the real pickup date
         estimatedDelivery || null,                // est_delivery — from the selected rate
+        booked.pickupTxnId || null,               // pickup_txn_id — REQUIRED to void an LTL shipment
         orig.companyName || '',                   // was: street address (wrong column)
         orig.locality  || '',
         orig.region    || '',
@@ -741,14 +742,34 @@ async function cancelShipment(req, res) {
     const { shipmentId, productType = 'LTL' } = req.body;
     if (!shipmentId) return res.status(400).json({ ok: false, error: 'shipmentId required' });
 
-    // Look up productTransactionId from DB
+    /* LTL requires cancelling BOTH the shipment AND its associated pickup.
+       Sending only the shipment id returns:
+         "LTL does not support shipment only cancel; exception: AppException"
+       Per /LTL/integratedCancelFlow in the V4 Postman collection, cancelRQList
+       takes two entries: the shipment productTransactionId, and the pickup
+       transaction id captured from the quoteOrderFlow response at booking time. */
     const row = await safeQueryOne(
-      `SELECT product_transaction_id FROM shipments WHERE id = ?`, [shipmentId]
+      `SELECT product_transaction_id, pickup_txn_id, product_type
+         FROM shipments WHERE id = ?`, [shipmentId]
     );
     const txnId = row?.product_transaction_id;
     if (!txnId) return res.status(404).json({ ok: false, error: 'Shipment not found' });
 
-    const result = await wwex.integratedCancelFlow([txnId], productType);
+    const pType  = row.product_type || productType;
+    const txnIds = [txnId];
+    if (row.pickup_txn_id) txnIds.push(row.pickup_txn_id);
+
+    if (pType === 'LTL' && !row.pickup_txn_id) {
+      return res.status(409).json({
+        ok: false,
+        error: 'This shipment was booked before the pickup transaction ID was recorded, '
+             + 'so it cannot be voided from here — WWEX rejects an LTL cancel that does not '
+             + 'also cancel the pickup. Void it directly in the SpeedShip portal instead.',
+      });
+    }
+
+    console.log('[shipping] integratedCancelFlow ids:', txnIds, 'productType:', pType);
+    const result = await wwex.integratedCancelFlow(txnIds, pType);
     if (!result.ok) return res.status(502).json(result);
 
     await safeQuery(
