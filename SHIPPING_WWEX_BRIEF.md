@@ -485,6 +485,28 @@ Customer Number: W0002746112
 it. By the time a user clicks, it is dead. Always stream `fileContent` from
 the server instead — which is what `getDocument()` now does.
 
+### ⚠️ PHONE NUMBERS MUST BE DIGITS ONLY
+
+WWEX rejects formatted numbers with:
+
+```
+Invalid Origin/Destination phone; exception: AppException
+```
+
+`(404) 555-0349` and `404-555-0349` are both rejected. Only `4045550349`
+is accepted.
+
+This is separate from the *missing* phone error (`Destination Phone is
+required`) and easy to confuse with it. Both origin and destination are
+affected, on both `shopFlow` and `quoteOrderFlow`.
+
+`_phone()` in `shippingController.js` handles it: strips to digits, drops a
+leading US country code (`14045550349` → `4045550349`), returns `''` below 10
+digits so the required-phone guards fire with a clear message, and caps at
+the documented 15-character limit. **Every outbound phone goes through it.**
+Form prefill deliberately does not — the admin should see the number as the
+customer entered it.
+
 ### Documented constraints
 
 - `addressLineList` — up to **3** lines (BVO sends 1)

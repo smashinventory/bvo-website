@@ -705,12 +705,25 @@ function validateStep1() {
   var oPhoneEl = document.getElementById('orig_phone');
   var dPhone   = (dPhoneEl || {}).value || '';
   var oPhone   = (oPhoneEl || {}).value || '';
-  if (!dPhone.replace(/\D/g, '')) {
-    errors.push('Destination Phone is required — WWEX will reject the booking without it.');
+  /* Must be a full 10-digit number, not merely non-empty. WWEX rejects
+     anything shorter with "Invalid Origin/Destination phone". Formatting
+     is fine here — the server strips it to digits before sending. */
+  function _digits(s) {
+    var d = String(s || '').replace(/\D/g, '');
+    if (d.length === 11 && d.charAt(0) === '1') d = d.slice(1);
+    return d;
+  }
+  var dDigits = _digits(dPhone), oDigits = _digits(oPhone);
+  if (dDigits.length < 10) {
+    errors.push(dDigits.length
+      ? 'Destination Phone looks incomplete — WWEX needs a full 10-digit number.'
+      : 'Destination Phone is required — WWEX will reject the booking without it.');
     if (dPhoneEl) dPhoneEl.classList.add('adm-error');
   }
-  if (!oPhone.replace(/\D/g, '')) {
-    errors.push('Origin Phone is required — WWEX will reject the booking without it.');
+  if (oDigits.length < 10) {
+    errors.push(oDigits.length
+      ? 'Origin Phone looks incomplete — WWEX needs a full 10-digit number.'
+      : 'Origin Phone is required — WWEX will reject the booking without it.');
     if (oPhoneEl) oPhoneEl.classList.add('adm-error');
   }
 

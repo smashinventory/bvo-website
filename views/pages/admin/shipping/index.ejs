@@ -152,6 +152,12 @@ function statusLabel(s) {
             <% if (s.status === 'delivered') { %>
             <a href="/admin/shipping/document?shipmentId=<%= s.id %>&docType=PROOF_OF_DELIVERY" target="_blank" class="btn btn-xs btn-outline">POD</a>
             <% } %>
+            <%# Internal distribution of shipping paperwork to our own stores,
+                sent by BVO via Brevo. WWEX has no API to email a BOL. %>
+            <% if (s.product_transaction_id && !s.product_transaction_id.startsWith('STUB')) { %>
+            <button class="btn btn-xs btn-outline"
+                    onclick="openEmailDocs(<%= s.id %>, '<%= (s.bol_number || s.id).toString().replace(/'/g, "\\'") %>')">Email</button>
+            <% } %>
             <% if (s.status === 'booked') { %>
             <button class="btn btn-xs btn-danger" onclick="voidShipment(<%= s.id %>, '<%= s.product_type %>')">Void</button>
             <% } %>
@@ -170,6 +176,36 @@ function statusLabel(s) {
 <% } %>
 
 <!-- ══ Void Modal ════════════════════════════════════════════════════ -->
+<!-- ═══ Email Shipping Documents ════════════════════════════════════
+     Internal only — goes to our own stores through Brevo. WWEX has no
+     API to email a BOL, and this is deliberately NOT customer-facing.
+═════════════════════════════════════════════════════════════════════ -->
+<div id="emailDocsModal" class="adm-modal-overlay" style="display:none" onclick="if(event.target===this)closeEmailDocs()">
+  <div class="adm-modal" style="max-width:460px">
+    <h3 style="margin:0 0 4px">Email Shipping Documents</h3>
+    <p style="margin:0 0 14px;color:#718096;font-size:.85rem">
+      BOL <strong id="emailDocsBol"></strong> — sent internally to your stores.
+    </p>
+
+    <div class="adm-label" style="margin-bottom:6px">Documents</div>
+    <label class="ship-check"><input type="checkbox" class="edoc" value="BILL_OF_LADING" checked> Bill of Lading</label>
+    <label class="ship-check"><input type="checkbox" class="edoc" value="PALLET_LABEL" checked> Pallet Label</label>
+    <label class="ship-check"><input type="checkbox" class="edoc" value="PACKING_LIST"> Packing List</label>
+
+    <div class="adm-field" style="margin-top:14px">
+      <label class="adm-label">Send to <small style="color:#718096;font-weight:400">(blank = configured store list)</small></label>
+      <input id="emailDocsTo" type="text" class="adm-input" placeholder="store1@example.com, store2@example.com">
+    </div>
+
+    <div id="emailDocsMsg" style="margin-top:10px;font-size:.82rem"></div>
+
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+      <button class="btn btn-outline" onclick="closeEmailDocs()">Cancel</button>
+      <button class="btn btn-primary" id="emailDocsBtn">Send</button>
+    </div>
+  </div>
+</div>
+
 <div id="voidModal" class="adm-modal-overlay" style="display:none" onclick="if(event.target===this)closeVoid()">
   <div class="adm-modal" style="max-width:400px">
     <h3 style="margin:0 0 12px">Void Shipment</h3>
@@ -216,6 +252,65 @@ function refreshTracking(bol, shipmentId) {
 
 /* ── Void ─────────────────────────────────────────────────────── */
 var _voidId, _voidType;
+/* ── Email shipping documents (internal, via Brevo) ──────────────── */
+var _edocId = null;
+
+function openEmailDocs(id, bol) {
+  _edocId = id;
+  document.getElementById('emailDocsBol').textContent = bol || id;
+  document.getElementById('emailDocsMsg').innerHTML   = '';
+  document.getElementById('emailDocsTo').value        = '';
+  var btn = document.getElementById('emailDocsBtn');
+  btn.disabled = false; btn.textContent = 'Send';
+  document.getElementById('emailDocsModal').style.display = 'flex';
+}
+function closeEmailDocs() {
+  document.getElementById('emailDocsModal').style.display = 'none';
+}
+
+document.getElementById('emailDocsBtn').addEventListener('click', function() {
+  var btn  = this;
+  var msg  = document.getElementById('emailDocsMsg');
+  var docs = Array.prototype.slice
+    .call(document.querySelectorAll('.edoc:checked'))
+    .map(function(c) { return c.value; });
+
+  if (!docs.length) {
+    msg.innerHTML = '<span style="color:#c53030">Select at least one document.</span>';
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = 'Sending…';
+  msg.innerHTML = '<span style="color:#718096">Fetching documents from WWEX…</span>';
+
+  fetch('/admin/shipping/email-documents', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({
+      shipmentId: _edocId,
+      docTypes:   docs,
+      to:         document.getElementById('emailDocsTo').value,
+    }),
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.ok) {
+      msg.innerHTML = '<span style="color:#276749">✓ ' + (d.message || 'Sent.') + '</span>';
+      btn.textContent = 'Sent';
+      setTimeout(closeEmailDocs, 2200);
+      return;
+    }
+    btn.disabled = false; btn.textContent = 'Send';
+    var e = d.error;
+    if (e && typeof e === 'object') e = e.message || JSON.stringify(e);
+    msg.innerHTML = '<span style="color:#c53030">' + (e || 'Send failed.') + '</span>';
+  })
+  .catch(function(err) {
+    btn.disabled = false; btn.textContent = 'Send';
+    msg.innerHTML = '<span style="color:#c53030">' + err.message + '</span>';
+  });
+});
+
 function voidShipment(id, type) {
   _voidId   = id;
   _voidType = type;

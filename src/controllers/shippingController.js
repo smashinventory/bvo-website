@@ -17,6 +17,9 @@
 
 const { bvoPool } = require('../config/database');
 const wwex        = require('../services/wwexService');
+// Internal distribution of shipping paperwork to our own stores. BVO-sent,
+// unrelated to WWEX — they have no API to email a BOL.
+const brevo       = require('../services/brevoService');
 
 const LAYOUT = { layout: 'layouts/admin', activePage: 'shipping' };
 
@@ -258,6 +261,30 @@ function _addressLines(a) {
 }
 
 /* ─────────────────────────────────────────────────────────────────
+   Phone normalisation — DIGITS ONLY.
+
+   WWEX rejects formatted numbers with
+     "Invalid Origin/Destination phone; exception: AppException"
+   A number stored as "(404) 555-0349" or "404-555-0349" is 12–14
+   characters, so it passed the old length check and the digits-only
+   validation, but was TRANSMITTED with its punctuation intact.
+
+   Rules:
+     • strip everything that is not a digit
+     • drop a leading US country code so 1XXXXXXXXXX becomes XXXXXXXXXX
+     • return '' for anything that cannot be a real number, so the
+       required-phone guards fire with a clear message instead of WWEX
+       rejecting the booking
+     • cap at 15 digits per the documented field limit
+───────────────────────────────────────────────────────────────────*/
+function _phone(v) {
+  let d = String(v || '').replace(/\D/g, '');
+  if (d.length === 11 && d.startsWith('1')) d = d.slice(1);   // US country code
+  if (d.length < 10) return '';                               // too short to be valid
+  return d.slice(0, 15);
+}
+
+/* ─────────────────────────────────────────────────────────────────
    WWEX packagingType / commodityType — one shared enum (19 values).
    Verified against the Postman collection. NOTE: there is no 'OTH'.
    The legacy map translates BVO's old 3-letter codes, which were
@@ -314,8 +341,8 @@ async function getRates(req, res) {
               postalCode:  destination.zip,
               countryCode: destination.country || 'US',
               companyName: destination.company || '',
-              phone:       destination.phone   || '',
-              contactList: [{ firstName: '', lastName: destination.name || '', phone: destination.phone || '', email: destination.email || '', extension: null }],
+              phone:       _phone(destination.phone),
+              contactList: [{ firstName: '', lastName: destination.name || '', phone: _phone(destination.phone), email: destination.email || '', extension: null }],
             },
           },
           handlingUnitList: hus.map(pkg => ({
@@ -340,8 +367,8 @@ async function getRates(req, res) {
               postalCode:  origin.zip,
               countryCode: origin.country || 'US',
               companyName: origin.company || '',
-              phone:       origin.phone   || '',
-              contactList: [{ firstName: '', lastName: origin.name || '', phone: origin.phone || '' }],
+              phone:       _phone(origin.phone),
+              contactList: [{ firstName: '', lastName: origin.name || '', phone: _phone(origin.phone) }],
             },
           },
         },
@@ -427,7 +454,7 @@ async function getRates(req, res) {
               contactList: [{
                 firstName:   '',
                 lastName:    (origin.name  || '').slice(0, 35),
-                phone:       String(origin.phone || '').slice(0, 15),
+                phone:       _phone(origin.phone),
                 contactType: 'SENDER',
               }],
             },
@@ -446,7 +473,7 @@ async function getRates(req, res) {
               contactList: [{
                 firstName:   '',
                 lastName:    (destination.name  || '').slice(0, 35),
-                phone:       String(destination.phone || '').slice(0, 15),
+                phone:       _phone(destination.phone),
                 contactType: 'RECEIVER',
               }],
             },
@@ -613,7 +640,9 @@ async function bookShipment(req, res) {
     const _bookAddr = (a, contactType) => {
       const addr    = (a && a.address) || {};
       const contact = (addr.contactList && addr.contactList[0]) || {};
-      const phone   = String(contact.phone || addr.phone || '').slice(0, 15);
+      // Digits only — WWEX rejects formatted numbers with
+      // "Invalid Origin/Destination phone". See _phone().
+      const phone   = _phone(contact.phone || addr.phone);
       return {
         address: {
           addressLineList: (addr.addressLineList || []).filter(Boolean).slice(0, 3),
@@ -655,16 +684,19 @@ async function bookShipment(req, res) {
        exception: AppException" when address.phone is blank. Fail here with a
        clear message rather than spending a round trip to find out. Both
        origin and destination phone are Required in quoteOrderFlow. */
-    if (!String(bookShipmentObj.destinationAddress.address.phone || '').replace(/\D/g, '')) {
+    /* _phone() returns '' for anything under 10 digits, so this catches both
+       a missing number and one too malformed to be valid — WWEX would
+       otherwise reject it with "Invalid Origin/Destination phone". */
+    if (!bookShipmentObj.destinationAddress.address.phone) {
       return res.status(400).json({
         ok: false,
-        error: 'Destination Phone is required. Go back to Step 1 and add a phone number for the receiver — WWEX will not accept the booking without one.',
+        error: 'Destination phone is missing or invalid. It must be a full 10-digit number — go back to Step 1 and correct it.',
       });
     }
-    if (!String(bookShipmentObj.originAddress.address.phone || '').replace(/\D/g, '')) {
+    if (!bookShipmentObj.originAddress.address.phone) {
       return res.status(400).json({
         ok: false,
-        error: 'Origin Phone is required. Go back to Step 1 and add a phone number for the shipper.',
+        error: 'Origin phone is missing or invalid. It must be a full 10-digit number.',
       });
     }
 
@@ -924,6 +956,136 @@ async function getDocument(req, res) {
   }
 }
 
+/* ═════════════════════════════════════════════════════════════════
+   EMAIL SHIPPING DOCUMENTS — POST /admin/shipping/email-documents
+   Body: { shipmentId, docTypes: ['BILL_OF_LADING', ...], to?: 'a@b.com,c@d.com' }
+
+   INTERNAL distribution of shipping paperwork to our own stores, sent by
+   BVO through Brevo. This has nothing to do with WWEX's own processes:
+   WWEX has no API to email a BOL (confirmed by their support), and their
+   carrier tracking alerts are a separate mechanism entirely. This is not
+   a customer-facing notification and must not become one.
+
+   Recipients default to the `shipping_document_recipients` key in
+   app_settings — a comma or newline separated list — and can be overridden
+   per send.
+═══════════════════════════════════════════════════════════════════ */
+
+/** Documents we allow emailing. Values are WWEX docTypes. */
+const EMAILABLE_DOC_TYPES = {
+  BILL_OF_LADING: 'Bill of Lading',
+  PALLET_LABEL:   'Pallet Label',
+  PACKING_LIST:   'Packing List',
+};
+
+/** Read the configured internal recipient list from app_settings. */
+async function _documentRecipients() {
+  const row = await safeQueryOne(
+    'SELECT value FROM app_settings WHERE `key` = ? LIMIT 1',
+    ['shipping_document_recipients']
+  );
+  return String(row?.value || '')
+    .split(/[,\n;]+/)
+    .map(s => s.trim())
+    .filter(s => s.includes('@'));
+}
+
+async function emailDocuments(req, res) {
+  try {
+    const { shipmentId, docTypes = [], to = '' } = req.body;
+    if (!shipmentId) return res.status(400).json({ ok: false, error: 'shipmentId is required.' });
+
+    // Whitelist — never pass an arbitrary docType through to WWEX.
+    const wanted = (Array.isArray(docTypes) ? docTypes : [docTypes])
+      .filter(d => Object.prototype.hasOwnProperty.call(EMAILABLE_DOC_TYPES, d));
+    if (!wanted.length) {
+      return res.status(400).json({ ok: false, error: 'Select at least one document to send.' });
+    }
+
+    const row = await safeQueryOne(
+      `SELECT id, product_transaction_id, product_type, bol_number, pro_number,
+              carrier, dest_company, dest_city, dest_state, ship_date, order_id
+         FROM shipments WHERE id = ?`, [shipmentId]
+    );
+    if (!row) return res.status(404).json({ ok: false, error: 'Shipment not found.' });
+    if (!row.product_transaction_id || String(row.product_transaction_id).startsWith('STUB')) {
+      return res.status(409).json({ ok: false, error: 'This shipment has no WWEX transaction — documents are unavailable.' });
+    }
+
+    // Recipients: explicit override, else the configured internal list.
+    const recipients = to.trim()
+      ? to.split(/[,\n;]+/).map(s => s.trim()).filter(s => s.includes('@'))
+      : await _documentRecipients();
+    if (!recipients.length) {
+      return res.status(400).json({
+        ok: false,
+        error: 'No recipients. Add addresses to the "shipping_document_recipients" setting, or enter them on this send.',
+      });
+    }
+
+    /* Fetch each document from WWEX. Partial success is deliberate: if the
+       BOL is available but the pallet label is not, send what we have and
+       report the rest rather than failing the whole send. */
+    const attachments = [];
+    const failed      = [];
+    for (const docType of wanted) {
+      const doc = await wwex.documentDownloadFlow(row.product_transaction_id, docType, row.product_type);
+      if (doc.ok && doc.base64) {
+        attachments.push({
+          content: doc.base64,
+          name:    `${row.bol_number || row.id}-${docType}.pdf`,
+        });
+      } else {
+        failed.push(EMAILABLE_DOC_TYPES[docType]);
+        console.warn(`[shipping] emailDocuments: ${docType} unavailable —`, doc.error || 'no fileContent');
+      }
+    }
+
+    if (!attachments.length) {
+      return res.status(502).json({
+        ok: false,
+        error: `WWEX returned no documents for this shipment (${failed.join(', ')}). It may be too soon after booking — try again shortly.`,
+      });
+    }
+
+    const dest    = [row.dest_company, row.dest_city, row.dest_state].filter(Boolean).join(' — ');
+    const shipOn  = row.ship_date ? new Date(row.ship_date).toLocaleDateString('en-US') : 'TBD';
+    const subject = `Shipping docs — BOL ${row.bol_number || row.id}${dest ? ' — ' + dest : ''}`;
+    const html    =
+      `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1a2e4a;line-height:1.7">
+         <p style="margin:0 0 12px"><strong>Shipping documents attached.</strong></p>
+         <table style="border-collapse:collapse;font-size:13px">
+           <tr><td style="padding:2px 12px 2px 0;color:#718096">BOL</td><td><strong>${row.bol_number || '—'}</strong></td></tr>
+           <tr><td style="padding:2px 12px 2px 0;color:#718096">PRO</td><td>${row.pro_number || '—'}</td></tr>
+           <tr><td style="padding:2px 12px 2px 0;color:#718096">Carrier</td><td>${row.carrier || '—'}</td></tr>
+           <tr><td style="padding:2px 12px 2px 0;color:#718096">Destination</td><td>${dest || '—'}</td></tr>
+           <tr><td style="padding:2px 12px 2px 0;color:#718096">Ship date</td><td>${shipOn}</td></tr>
+           ${row.order_id ? `<tr><td style="padding:2px 12px 2px 0;color:#718096">Order</td><td>#${row.order_id}</td></tr>` : ''}
+         </table>
+         <p style="margin:14px 0 0;color:#718096;font-size:12px">
+           Attached: ${attachments.map(a => a.name).join(', ')}
+           ${failed.length ? `<br>Unavailable: ${failed.join(', ')}` : ''}
+         </p>
+       </div>`;
+
+    const sent = await brevo.sendWithAttachments(recipients, subject, html, attachments);
+    if (!sent.ok) return res.status(502).json({ ok: false, error: sent.error });
+
+    console.log(`[shipping] emailed ${attachments.length} doc(s) for shipment ${shipmentId} to ${recipients.join(', ')}`);
+    res.json({
+      ok:         true,
+      sentTo:     recipients,
+      attached:   attachments.map(a => a.name),
+      unavailable: failed,
+      message:    `Sent ${attachments.length} document(s) to ${recipients.length} recipient(s).`
+              + (failed.length ? ` ${failed.join(' and ')} unavailable.` : ''),
+    });
+  } catch (err) {
+    console.error('[shipping] emailDocuments error:', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+}
+
 /* ─────────────────────────────────────────────────────────────────
    TRACK — GET /admin/shipping/track/:bol  (AJAX)
 ───────────────────────────────────────────────────────────────────*/
@@ -1106,6 +1268,6 @@ async function openOrders(req, res) {
 
 module.exports = {
   index, createForm, getRates, bookShipment, cancelShipment,
-  getDocument, trackShipment, trackPage, dashboard, invoices,
+  getDocument, emailDocuments, trackShipment, trackPage, dashboard, invoices,
   validateAddress, openOrders,
 };
