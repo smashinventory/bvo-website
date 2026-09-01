@@ -143,6 +143,12 @@ function statusLabel(s) {
             <% } else if (s.product_transaction_id && !s.product_transaction_id.startsWith('STUB')) { %>
             <a href="/admin/shipping/document?shipmentId=<%= s.id %>&docType=BILL_OF_LADING" target="_blank" class="btn btn-xs">BOL</a>
             <% } %>
+            <%# PALLET_LABEL is a docType on documentDownloadFlow, confirmed by
+                WWEX 2026-08-31. It is a post-booking download, not a booking
+                option — which is why it is here rather than on the confirm page. %>
+            <% if (s.product_type === 'LTL' && s.product_transaction_id && !s.product_transaction_id.startsWith('STUB')) { %>
+            <a href="/admin/shipping/document?shipmentId=<%= s.id %>&docType=PALLET_LABEL" target="_blank" class="btn btn-xs btn-outline">Label</a>
+            <% } %>
             <% if (s.status === 'delivered') { %>
             <a href="/admin/shipping/document?shipmentId=<%= s.id %>&docType=PROOF_OF_DELIVERY" target="_blank" class="btn btn-xs btn-outline">POD</a>
             <% } %>

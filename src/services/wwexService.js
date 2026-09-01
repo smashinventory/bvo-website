@@ -429,22 +429,34 @@ exports.documentDownloadFlow = async (productTransactionId, docType = 'BILL_OF_L
       }
     }, productType);
     const resp = data.response || data;
-    /* The document body key is NOT yet confirmed against a real response.
-       quoteOrderFlow returns documents as `s3fileName` entries, so this flow
-       may return a URL or a signed link rather than base64. Log the shape so
-       the next attempt pins it down instead of guessing again. */
-    console.log('[wwex] documentDownloadFlow resp keys:', Object.keys(resp));
-    const base64 = resp.document || resp.base64Document || resp.content
-                || resp.documentList?.[0]?.document || null;
+
+    /* CONFIRMED BY WWEX SUPPORT 2026-08-31 (they ran our exact request against
+       our staging credentials). The response carries BOTH:
+         fileContent — base64 of the PDF
+         a download link — valid for only 60 SECONDS before it expires
+       Earlier code looked for `document` / `base64Document` / `content`, none
+       of which exist, which is why the BOL button returned nothing.
+
+       We prefer fileContent and stream the bytes ourselves rather than
+       redirecting the browser to the link — a 60-second expiry is far too
+       short to survive a redirect plus the user's click. */
+    const doc = resp.documentList?.[0] || resp;
+    const base64 = resp.fileContent
+                || doc.fileContent
+                || resp.document || resp.base64Document || resp.content
+                || null;
+    const url = resp.url || resp.link || resp.downloadLink
+             || doc.url || doc.link || doc.downloadLink || null;
+
     if (!base64) {
-      console.warn('[wwex] documentDownloadFlow: no document body found. Raw response:',
-                   JSON.stringify(resp, null, 2));
+      console.warn('[wwex] documentDownloadFlow: no fileContent. resp keys:', Object.keys(resp));
+      console.warn('[wwex] documentDownloadFlow raw:', JSON.stringify(resp, null, 2));
     }
     return {
       ok:          true,
       base64,
-      // If WWEX returns a link instead of bytes, surface it so the caller can redirect.
-      url:         resp.url || resp.documentUrl || resp.s3Url || null,
+      // Fallback only. Expires in 60s — do not persist or hand to the browser late.
+      url,
       contentType: resp.contentType || 'application/pdf',
     };
   } catch (err) {

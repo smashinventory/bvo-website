@@ -453,6 +453,38 @@ unconfirmed — it returned `ok:true` with no body, which crashed `getDocument()
 on `Buffer.from(undefined)`. Now guarded, and it logs the response keys so the
 mapping can be pinned on the next attempt.
 
+### ✅ ANSWERED DIRECTLY BY WWEX SUPPORT — 2026-08-31
+
+These came from WWEX support in writing, in response to
+`WWEX_SUPPORT_REQUEST.md`. **This section outranks anything inferred from the
+Postman collection.**
+
+| Question | WWEX answer |
+|---|---|
+| `setAlertFlow` | **Not available for use.** Do not build against it, even though the SpeedShip portal calls it. |
+| Email alerts | Use **`notificationGroups`** on `quoteOrderFlow`. This is their recommendation. |
+| `notificationGroupId` | The `productTransactionId` returned from `shopFlow`. Confirmed. |
+| Alert recipient | **`emailList` is required.** It does **NOT** fall back to `destinationAddress.contactList[].email`. No email = no alerts. |
+| Email a BOL via API | **Not possible.** Portal only. There is no endpoint. |
+| `documentDownloadFlow` response | Returns **two** things: a **download link valid for only 60 SECONDS**, and **`fileContent`** — base64 that converts to a PDF. |
+| `s3fileName` from quoteOrderFlow | Used with **`searchDocumentFlow`** to retrieve order information. (Note: `searchDocumentFlow`, not `searchIndexDocumentFlow`.) |
+| Grocery consolidation | **Supported.** `groceryConsolidationPickupFlag` / `groceryConsolidationDeliveryFlag`, both booleans. Absent from the Postman collection, but real. |
+| Billing / freight terms | **Not a request field.** Always **Bill Third Party**, fixed remit-to address. No field names, no values, not selectable per shipment. |
+| `shipmentOfferedProductId` | **Does not need to be sent** on `quoteOrderFlow`. Confirmed — we already removed it. |
+| `productTransactionId` scope | **One per shipment.** The same value is returned on every offer. Our per-offer read is therefore safe but not strictly necessary. |
+
+**Fixed billing remit-to address:**
+```
+Carrier Payment Processing
+P O Box 192629
+Dallas, TX 75219  United States
+Customer Number: W0002746112
+```
+
+**Why the 60-second link matters:** do not redirect the browser to it or store
+it. By the time a user clicks, it is dead. Always stream `fileContent` from
+the server instead — which is what `getDocument()` now does.
+
 ### Documented constraints
 
 - `addressLineList` — up to **3** lines (BVO sends 1)

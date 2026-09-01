@@ -396,6 +396,12 @@ async function getRates(req, res) {
           constructionSiteDeliveryFlag: !!b.constructionDelivery,
           constructionSitePickupFlag:   !!b.constructionPickup,
           notifyBeforeDeliveryFlag:     !!b.notifyBeforeDelivery,
+          // CONFIRMED BY WWEX SUPPORT 2026-08-31 — these ARE real API fields.
+          // They are absent from the Postman collection, which is why an
+          // earlier pass concluded they were unsupported and left the UI
+          // checkboxes disconnected.
+          groceryConsolidationPickupFlag:   !!b.groceryPickup,
+          groceryConsolidationDeliveryFlag: !!b.groceryDelivery,
           // FIXED 2026-08-31: read b.protectFromFreeze (what create.ejs actually
           // sends). Was reading b.protectionFromCold, which is never sent.
           protectionFromColdFlag:       !!b.protectFromFreeze,
@@ -536,12 +542,20 @@ async function getRates(req, res) {
    All accessorials are now wired directly into the shopFlow payload
    in getRates(). Do not reintroduce a code-list builder.
 
-   NOT SUPPORTED BY THE API (no field exists anywhere in the V4
-   Postman collection): Grocery Consolidation Pickup/Delivery, and
-   billing terms (Bill Shipper / Recipient / Third Party). The BVO
-   form still shows these for parity with the SpeedShip UI, but they
-   cannot be transmitted — billing is an account-level setting on the
-   WWEX side. Do not invent field names for them.
+   UPDATE 2026-08-31 — WWEX support answered both open items:
+
+   • Grocery Consolidation IS supported. The fields are
+     groceryConsolidationPickupFlag / groceryConsolidationDeliveryFlag
+     (booleans). They are simply missing from the Postman collection.
+     Now wired in getRates().
+
+   • Billing terms are NOT a request field and never will be. Freight
+     Terms are ALWAYS "Bill Third Party" with a fixed remit-to address:
+         Carrier Payment Processing
+         P O Box 192629, Dallas, TX 75219
+         Customer Number: W0002746112
+     The BVO billing dropdown was therefore misleading — it implied a
+     choice that does not exist. Replaced with a fixed display.
 ───────────────────────────────────────────────────────────────────*/
 
 /* ─────────────────────────────────────────────────────────────────

@@ -227,15 +227,24 @@ const meta = orderMeta           || null;
         </div>
 
         <!-- Billing Details -->
+        <%# CHANGED 2026-08-31 — WWEX support confirmed freight terms are NOT a
+            request field. They are ALWAYS "Bill Third Party" with a fixed
+            remit-to address. The previous dropdown offered a choice that does
+            not exist and was never transmitted. Shown as fixed text instead. %>
         <div class="ship-acc-section">
           <div class="ship-acc-label">Billing Details</div>
-          <div class="adm-field">
-            <select id="ltl_billing" class="adm-input">
-              <option value="BILL_SHIPPER">Bill My Account</option>
-              <option value="BILL_RECIPIENT">Bill Recipient</option>
-              <option value="BILL_THIRD_PARTY">Bill Third Party</option>
-            </select>
+          <div style="font-size:.85rem;color:#4a5568;line-height:1.6">
+            <div style="font-weight:600">Bill Third Party</div>
+            <div style="color:#718096;font-size:.78rem">
+              Carrier Payment Processing<br>
+              P O Box 192629, Dallas, TX 75219<br>
+              Customer #W0002746112
+            </div>
+            <div style="color:#a0aec0;font-size:.72rem;margin-top:4px">
+              Set by WWEX — not selectable per shipment.
+            </div>
           </div>
+          <input type="hidden" id="ltl_billing" value="BILL_THIRD_PARTY">
         </div>
 
       </div><!-- /ship-acc-grid -->
@@ -1181,16 +1190,18 @@ function openNotifyPanel() {
     html += '<div class="adm-alert adm-alert--error" style="margin-top:10px;font-size:.82rem">'
          + 'No receiver email on this order — alerts will not be sent unless you add one above.</div>';
   }
-  /* SpeedShip's own panel also offers "Email BOL" and "Pallet Label". Neither
-     maps to a documented API field — their UI drives them through an
-     undocumented /svc/setAlertFlow endpoint. Shown here as disabled so the
-     parity gap is visible rather than silently missing. Enable once WWEX
-     support confirms the field names (see WWEX_SUPPORT_REQUEST.md). */
-  html += '<div style="margin-top:14px;padding-top:12px;border-top:1px solid #e2e8f0">'
-       +  '<label class="ship-check" style="color:#a0aec0"><input type="checkbox" disabled> Email BOL to receiver</label>'
-       +  '<label class="ship-check" style="color:#a0aec0"><input type="checkbox" disabled> Pallet Label</label>'
-       +  '<small style="color:#718096;font-size:.72rem;display:block;margin-top:4px">'
-       +  'Awaiting field names from WWEX. Both are available in the SpeedShip portal meanwhile.</small>'
+  /* RESOLVED 2026-08-31 by WWEX support:
+       • "Email BOL" — there is NO way to email a BOL through the API. It is
+         portal-only. Removed rather than shown as a dead checkbox.
+       • "Pallet Label" — not a booking option at all. PALLET_LABEL is a
+         docType on documentDownloadFlow, so it is a download available AFTER
+         booking, alongside the BOL. Surfaced on the Shipments list instead.
+     Neither belongs in this panel. */
+  html += '<div style="margin-top:14px;padding-top:12px;border-top:1px solid #e2e8f0;'
+       +  'color:#718096;font-size:.75rem;line-height:1.6">'
+       +  'The BOL and pallet label are available to download from the Shipments '
+       +  'list once booked. WWEX has no API to email a BOL — use the SpeedShip '
+       +  'portal if the receiver needs it sent directly.'
        +  '</div>';
   document.getElementById('notifyBody').innerHTML = html;
   document.getElementById('notifyModal').style.display = 'flex';
