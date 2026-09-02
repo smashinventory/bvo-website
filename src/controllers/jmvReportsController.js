@@ -368,6 +368,100 @@ async function dashboard(req, res) {
       [cutoffStr]
     ) : [];
 
+    /* ═══════════════════════════════════════════════════════════════════
+       TOPS DEMAND — added 2026-09-02
+       ───────────────────────────────────────────────────────────────────
+       Which stone finishes and sizes are actually moving, so the storefront
+       can eventually be sorted by demand rather than by hand.
+
+       NO GROUP DEDUP ANYWHERE IN THIS SECTION, deliberately. A combo
+       (vanity + top) sku automatically draws down the individual top sku,
+       so the Top rows already capture every top that moved — whether sold
+       alone or inside a combo. They are the atomic unit; there is nothing
+       left to collapse, and a MAX-per-group here would hide exactly what
+       these charts exist to show. A heavy-selling top appears as itself.
+
+       All four queries are SKU-level over product_type = 'Top'.
+    ═══════════════════════════════════════════════════════════════════ */
+
+    // Stone finish by demand — what colour is selling
+    const topsByFinish = hasDims ? await safeQuery(
+      `SELECT d.top_finish, SUM(m.demand_min) AS total_drawdown,
+              COUNT(DISTINCT d.sku) AS sku_count
+       FROM jmv_daily_movement m
+       JOIN jmv_dimensions d ON d.sku = m.sku
+       WHERE m.is_valid = 1 AND m.demand_min > 0
+         AND d.product_type = 'Top'
+         AND d.top_finish IS NOT NULL AND d.top_finish <> ''
+         AND m.movement_date >= ?
+       GROUP BY d.top_finish
+       ORDER BY total_drawdown DESC
+       LIMIT 15`,
+      [cutoffStr]
+    ) : [];
+
+    // Size by demand — which widths move
+    const topsBySize = hasDims ? await safeQuery(
+      `SELECT d.size_nominal, SUM(m.demand_min) AS total_drawdown
+       FROM jmv_daily_movement m
+       JOIN jmv_dimensions d ON d.sku = m.sku
+       WHERE m.is_valid = 1 AND m.demand_min > 0
+         AND d.product_type = 'Top'
+         AND d.size_nominal IS NOT NULL
+         AND m.movement_date >= ?
+       GROUP BY d.size_nominal
+       ORDER BY d.size_nominal ASC`,
+      [cutoffStr]
+    ) : [];
+
+    // Material — Silestone / quartz / composite etc.
+    const topsByMaterial = hasDims ? await safeQuery(
+      `SELECT d.top_material, SUM(m.demand_min) AS total_drawdown
+       FROM jmv_daily_movement m
+       JOIN jmv_dimensions d ON d.sku = m.sku
+       WHERE m.is_valid = 1 AND m.demand_min > 0
+         AND d.product_type = 'Top'
+         AND d.top_material IS NOT NULL AND d.top_material <> ''
+         AND m.movement_date >= ?
+       GROUP BY d.top_material
+       ORDER BY total_drawdown DESC
+       LIMIT 10`,
+      [cutoffStr]
+    ) : [];
+
+    /* Finish × size matrix. Which stone sells in which width — the pairing
+       that decides what to stock and what to surface first on a size-filtered
+       collection page. Returned long-form; the view pivots it. */
+    const topsFinishSize = hasDims ? await safeQuery(
+      `SELECT d.top_finish, d.size_nominal, SUM(m.demand_min) AS total_drawdown
+       FROM jmv_daily_movement m
+       JOIN jmv_dimensions d ON d.sku = m.sku
+       WHERE m.is_valid = 1 AND m.demand_min > 0
+         AND d.product_type = 'Top'
+         AND d.top_finish IS NOT NULL AND d.top_finish <> ''
+         AND d.size_nominal IS NOT NULL
+         AND m.movement_date >= ?
+       GROUP BY d.top_finish, d.size_nominal`,
+      [cutoffStr]
+    ) : [];
+
+    // SKU leaderboard — the explicit ask: a heavy seller must show as itself
+    const topsLeaderboard = hasDims ? await safeQuery(
+      `SELECT d.sku, d.top_finish, d.top_material, d.size_nominal, d.sinks,
+              CASE WHEN d.sku LIKE '%-FP-%' THEN 1 ELSE 0 END AS is_fp,
+              SUM(m.demand_min) AS total_drawdown,
+              COUNT(DISTINCT m.movement_date) AS active_days
+       FROM jmv_daily_movement m
+       JOIN jmv_dimensions d ON d.sku = m.sku
+       WHERE m.is_valid = 1 AND m.demand_min > 0
+         AND d.product_type = 'Top'
+         AND m.movement_date >= ?
+       GROUP BY d.sku, d.top_finish, d.top_material, d.size_nominal, d.sinks, is_fp
+       ORDER BY total_drawdown DESC
+       LIMIT 40`,
+      [cutoffStr]
+    ) : [];
+
     // ── Restock cadence (top restocked SKUs) ─────────────────────────
     const restockCadence = await safeQuery(
       `SELECT m.sku, d.collection, d.base_finish, d.size_nominal,
@@ -454,6 +548,12 @@ async function dashboard(req, res) {
       heatmapMatrix:   JSON.stringify(heatmapMatrix),
       topMirrors:      JSON.stringify(topMirrors),
       fpAttach:        JSON.stringify(fpAttach),
+      // Tops demand — SKU-level, no group dedup (see the section comment above)
+      topsByFinish:    JSON.stringify(topsByFinish),
+      topsBySize:      JSON.stringify(topsBySize),
+      topsByMaterial:  JSON.stringify(topsByMaterial),
+      topsFinishSize:  JSON.stringify(topsFinishSize),
+      topsLeaderboard,
       restockCadence,
       daysOfCover,
       top50,
@@ -474,7 +574,10 @@ async function dashboard(req, res) {
       topCollections: '[]', topFinishes: '[]', topSizes: '[]',
       topThemes: '[]', topVanityTypes: '[]', priceBandsFallback: '[]',
       heatmapFinishes: '[]', heatmapSizes: '[]', heatmapMatrix: '{}',
-      topMirrors: '[]', fpAttach: '[]', restockCadence: [], daysOfCover: [], top50: [],
+      topMirrors: '[]', fpAttach: '[]',
+      topsByFinish: '[]', topsBySize: '[]', topsByMaterial: '[]',
+      topsFinishSize: '[]', topsLeaderboard: [],
+      restockCadence: [], daysOfCover: [], top50: [],
       restockEvents: 0, restockQty: 0,
       style: '',
     });

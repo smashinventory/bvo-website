@@ -16,6 +16,13 @@ const _heatmapSizes    = JSON.parse(heatmapSizes    || '[]');
 const _heatmapMatrix   = JSON.parse(heatmapMatrix   || '{}');
 const _topMirrors      = JSON.parse(topMirrors      || '[]');
 const _fpAttach        = JSON.parse(fpAttach        || '[]');
+/* Tops demand — SKU-level, no group dedup. A combo draws down its individual
+   top SKU automatically, so these rows already include tops sold inside
+   combos; they are the atomic unit and a heavy seller shows as itself. */
+const _topsByFinish    = JSON.parse(topsByFinish    || '[]');
+const _topsBySize      = JSON.parse(topsBySize      || '[]');
+const _topsByMaterial  = JSON.parse(topsByMaterial  || '[]');
+const _topsFinishSize  = JSON.parse(topsFinishSize  || '[]');
 %>
 
 <!-- ══ Toolbar ══════════════════════════════════════════════════════ -->
@@ -322,6 +329,132 @@ const _docCollections = [...new Set(daysOfCover.map(r => r.collection).filter(Bo
 
 </div>
 
+<%# ══════════════════════════════════════════════════════════════════
+    TOPS DEMAND — added 2026-09-02
+    SKU-level, no group dedup. A combo (vanity + top) draws down its
+    individual top SKU automatically, so these rows already include tops
+    sold inside combos. A heavy-selling top appears as itself.
+    ══════════════════════════════════════════════════════════════════ %>
+<h2 class="report-section-title" style="margin-top:28px">
+  Tops Demand
+  <span style="font-weight:400;font-size:.85rem;font-style:italic">— individual top SKUs, not grouped</span>
+</h2>
+<p style="font-size:.78rem;color:var(--text-muted);margin:0 0 12px">
+  Which stone finishes and sizes are actually depleting at JM's warehouse.
+  Every top counts once, whether it sold on its own or inside a vanity combo.
+</p>
+
+<%# Inline grid to match the existing rows — this file has no grid class.
+    An earlier draft used .jmv-grid-2, which does not exist in any stylesheet
+    and would have silently stacked the cards full-width. %>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+
+  <!-- Stone finish -->
+  <div class="admin-card">
+    <h3 class="admin-card-title">Stone Finish by Demand</h3>
+    <% if (_topsByFinish.length) { %>
+    <canvas id="chartTopsFinish" height="240"></canvas>
+    <% } else { %><div class="adm-empty">No top movement in this window.</div><% } %>
+  </div>
+
+  <!-- Size -->
+  <div class="admin-card">
+    <h3 class="admin-card-title">Top Size by Demand</h3>
+    <% if (_topsBySize.length) { %>
+    <canvas id="chartTopsSize" height="240"></canvas>
+    <% } else { %><div class="adm-empty">No top movement in this window.</div><% } %>
+  </div>
+
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px">
+
+  <!-- Material -->
+  <div class="admin-card">
+    <h3 class="admin-card-title">Top Material</h3>
+    <% if (_topsByMaterial.length) { %>
+    <div style="position:relative;height:220px"><canvas id="chartTopsMaterial"></canvas></div>
+    <% } else { %><div class="adm-empty">No data for this window.</div><% } %>
+  </div>
+
+  <!-- Finish × Size heatmap -->
+  <div class="admin-card">
+    <h3 class="admin-card-title">Stone Finish × Size
+      <span class="jmv-tip" data-tip="Which stone sells in which width. This is the pairing that decides what to stock, and what to surface first on a size-filtered collection page. Darker = more units depleted.">ℹ</span>
+    </h3>
+    <% if (_topsFinishSize.length) { %>
+    <%
+      /* Pivot long-form rows into finish → size → qty, ordered by the
+         finish ranking already computed above so both charts agree. */
+      const _tfsSizes = [...new Set(_topsFinishSize.map(r => Number(r.size_nominal)))].sort((a,b)=>a-b);
+      const _tfsMap = {};
+      _topsFinishSize.forEach(r => {
+        (_tfsMap[r.top_finish] = _tfsMap[r.top_finish] || {})[Number(r.size_nominal)] = Number(r.total_drawdown);
+      });
+      const _tfsFinishes = _topsByFinish.map(r => r.top_finish).filter(f => _tfsMap[f]).slice(0, 12);
+      const _tfsMax = Math.max(1, ..._topsFinishSize.map(r => Number(r.total_drawdown)));
+    %>
+    <div style="overflow-x:auto">
+      <table class="jmv-heatmap">
+        <thead>
+          <tr>
+            <th style="text-align:left;min-width:150px">Finish \ Size →</th>
+            <% _tfsSizes.forEach(s => { %><th><%= s %>"</th><% }) %>
+          </tr>
+        </thead>
+        <tbody>
+        <% _tfsFinishes.forEach(finish => { %>
+          <tr>
+            <td class="jmv-heatmap__label"><%= finish %></td>
+            <% _tfsSizes.forEach(sz => { %>
+              <% const v = (_tfsMap[finish] || {})[sz] || 0; %>
+              <% const ratio = v / _tfsMax; %>
+              <td class="jmv-heatmap__cell"
+                  style="background:rgba(26,46,74,<%= ratio.toFixed(2) %>);color:<%= ratio > 0.5 ? '#fff' : '#1a2e4a' %>"><%= v || '' %></td>
+            <% }) %>
+          </tr>
+        <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %><div class="adm-empty">No data for this window.</div><% } %>
+  </div>
+
+</div>
+
+<!-- Top SKU leaderboard -->
+<% if (topsLeaderboard.length > 0) { %>
+<div class="admin-card" style="margin-top:12px">
+  <h3 class="admin-card-title">Top SKUs by Demand
+    <span style="font-weight:400;font-size:.8rem;color:var(--text-muted)">— individual SKUs, ungrouped</span>
+  </h3>
+  <div class="adm-table-wrap jmv-scroll-wrap">
+    <table class="adm-table">
+      <thead><tr>
+        <th>#</th><th>SKU</th><th>FINISH</th><th>MATERIAL</th>
+        <th>SIZE</th><th>SINKS</th><th>FP</th>
+        <th>DRAWDOWN</th><th>ACTIVE DAYS</th>
+      </tr></thead>
+      <tbody>
+      <% topsLeaderboard.forEach(function(r, i) { %>
+        <tr>
+          <td><%= i + 1 %></td>
+          <td style="font-weight:600"><%= r.sku %></td>
+          <td><%= r.top_finish || '—' %></td>
+          <td><%= r.top_material || '—' %></td>
+          <td><%= r.size_nominal != null ? r.size_nominal + '"' : '—' %></td>
+          <td><%= r.sinks != null ? r.sinks : '—' %></td>
+          <td><% if (r.is_fp) { %><span class="rag-pill rag-pill--green">FP</span><% } else { %><span class="adm-meta">—</span><% } %></td>
+          <td style="font-weight:600"><%= r.total_drawdown %></td>
+          <td class="adm-meta"><%= r.active_days %></td>
+        </tr>
+      <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<% } %>
+
 <!-- Restock Cadence -->
 <% if (restockCadence.length > 0) { %>
 <div class="admin-card" style="margin-top:12px">
@@ -452,6 +585,9 @@ const topThemes      = <%- topThemes %>;
 const topVTypes      = <%- topVanityTypes %>;
 const priceBands     = <%- priceBandsFallback %>;
 const fpAttach       = <%- fpAttach %>;
+const topsByFinish   = <%- topsByFinish %>;
+const topsBySize     = <%- topsBySize %>;
+const topsByMaterial = <%- topsByMaterial %>;
 
 function makeBar(id, labels, data, colorFn) {
   const el = document.getElementById(id);
@@ -539,6 +675,29 @@ if (fpAttach.length) {
   makePie('chartFP',
     fpAttach.map(r => r.fp),
     fpAttach.map(r => r.total_drawdown)
+  );
+}
+
+/* ── Tops demand ─────────────────────────────────────────────────────
+   SKU-level, no group dedup. See the section comment in the markup. */
+if (topsByFinish.length) {
+  makeBar('chartTopsFinish',
+    topsByFinish.map(r => r.top_finish),
+    topsByFinish.map(r => r.total_drawdown),
+    topsByFinish.map((_, i) => PALETTE[i % PALETTE.length])
+  );
+}
+if (topsBySize.length) {
+  makeBar('chartTopsSize',
+    topsBySize.map(r => Number(r.size_nominal) + '"'),
+    topsBySize.map(r => r.total_drawdown),
+    topsBySize.map((_, i) => PALETTE[i % PALETTE.length])
+  );
+}
+if (topsByMaterial.length) {
+  makePie('chartTopsMaterial',
+    topsByMaterial.map(r => r.top_material),
+    topsByMaterial.map(r => r.total_drawdown)
   );
 }
 
