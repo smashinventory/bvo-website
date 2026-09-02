@@ -6,6 +6,15 @@ const Customer  = require('../models/Customer');
 const { bvoPool } = require('../config/database');
 const { FAMILIES } = require('../config/colorFamilies');
 
+/* Four inline `.catch(() => [])` swallows lived in this file — product
+   documents, product videos, and both "Complete the Look" mirror queries.
+   All are supporting sections: on failure the page still renders and the
+   section is simply absent, which is the right behaviour. What was wrong is
+   that it happened in total silence, so a broken query and a product that
+   genuinely has no videos were indistinguishable forever.
+   See src/db/query.js. */
+const { safeQuery } = require('../db/query')('products');
+
 /* ── Taxonomy constants ─────────────────────────────────────────── */
 const VANITY_CAT_ID  = 1;
 const CABINET_TYPES  = ['Single Sink Cabinet Only', 'Double Sink Cabinet Only'];
@@ -50,17 +59,17 @@ exports.show = async (req, res, next) => {
       product.category_id
         ? Product.findRelated(product.category_id, product.id, 4)
         : Promise.resolve([]),
-      bvoPool.query(
+      safeQuery(
         'SELECT doc_type, url, label FROM product_documents WHERE product_id = ? ORDER BY sort_order ASC, id ASC',
         [product.id]
-      ).then(([rows]) => rows).catch(() => []),
-      bvoPool.query(
+      ),
+      safeQuery(
         'SELECT url, title FROM product_videos WHERE product_id = ? ORDER BY sort_order ASC, id ASC',
         [product.id]
-      ).then(([rows]) => rows).catch(() => []),
+      ),
       // Same-model mirrors for the "Complete the Look" strip
       isSuggestMirrors
-        ? bvoPool.query(`
+        ? safeQuery(`
             SELECT p.id, p.slug, p.name, p.price, p.compare_price,
               COALESCE(
                 p.primary_image_url,
@@ -76,16 +85,16 @@ exports.show = async (req, res, next) => {
               AND p.is_active = 1
             ORDER BY p.price ASC
             LIMIT 4
-          `, [product.model]).then(([rows]) => rows).catch(() => [])
+          `, [product.model])
         : Promise.resolve([]),
       // All active variants of this model in the vanities category
       isVanityWithVariants
-        ? bvoPool.query(`
+        ? safeQuery(`
             SELECT id, slug, name, product_type, width_in, color_family
             FROM products
             WHERE model = ? AND category_id = ? AND is_active = 1
             ORDER BY width_in ASC, color_family ASC, id ASC
-          `, [product.model, VANITY_CAT_ID]).then(([rows]) => rows).catch(() => [])
+          `, [product.model, VANITY_CAT_ID])
         : Promise.resolve([]),
     ]);
 

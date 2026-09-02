@@ -61,7 +61,13 @@ exports.show = async (req, res, next) => {
         WHERE p.is_active = 1 AND p.compare_price IS NOT NULL AND p.compare_price > p.price
         ORDER BY p.is_featured DESC, p.created_at DESC
         LIMIT 48
-      `).catch(() => [[]]);
+      `).catch(err => {
+        /* Was `.catch(() => [[]])` — silent. The Sale page would render
+           completely empty and look like a legitimately empty promotion
+           rather than a broken query. */
+        console.error('[collections] sale query FAILED:', err.code, err.sqlMessage || err.message);
+        return [[]];
+      });
       const products = Array.isArray(saleRows[0]) ? saleRows[0] : saleRows;
       return res.render('pages/collection', {
         pageTitle:    'Sale | BathroomVanitiesOutlet.com',

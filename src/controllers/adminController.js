@@ -151,13 +151,14 @@ const LAYOUT = { layout: 'layouts/admin' };
 /* ── Image URL columns image_2_url … image_30_url (29 total) ─── */
 const IMG_URL_COLS = Array.from({ length: 29 }, (_, i) => `image_${i + 2}_url`);
 
-function safeQuery(sql, params = []) {
-  return bvoPool.query(sql, params).then(([rows]) => rows).catch(() => []);
-}
+/* Was `.catch(() => [])` / `.catch(() => null)` — every DB error swallowed
+   with no log and no signal. See src/db/query.js.
 
-function safeQueryOne(sql, params = []) {
-  return bvoPool.query(sql, params).then(([rows]) => rows[0] || null).catch(() => null);
-}
+   mustQuery/mustAffect THROW. Use them for anything whose success is
+   reported back to the operator: this file had two handlers that swallowed
+   a write and then flashed "success" regardless. */
+const { safeQuery, safeQueryOne, mustQuery, mustAffect } =
+  require('../db/query')('admin');
 
 /* ════════════════════════════════════════════════════════════════
    AUTH
@@ -580,12 +581,31 @@ exports.productUpdate = async (req, res, next) => {
 };
 
 exports.productDelete = async (req, res, next) => {
+  /* FIXED 2026-09-02 — the DELETE ran through `.catch(() => {})` and the
+     "Product deleted." flash fired unconditionally. A product with rows in
+     order_items cannot be deleted (foreign key), so the most likely failure
+     was also the most misleading: the admin saw a success message, went
+     back to the list, and the product was still there. Twice.
+
+     mustAffect throws on error AND on a zero-row match — the latter being
+     the case a plain try/catch misses entirely: valid SQL, runs fine,
+     deletes nothing because the id does not exist. */
   try {
-    await bvoPool.query('DELETE FROM products WHERE id = ?', [req.params.id])
-      .catch(() => {});
+    await mustAffect(
+      'DELETE FROM products WHERE id = ?', [req.params.id], 'product'
+    );
     req.session.flash = { type: 'success', msg: 'Product deleted.' };
-    res.redirect('/admin/products');
-  } catch (err) { next(err); }
+  } catch (err) {
+    console.error('[admin] productDelete failed — id:', req.params.id,
+                  err.code, err.sqlMessage || err.message);
+    req.session.flash = {
+      type: 'error',
+      msg: err.code === 'ER_ROW_IS_REFERENCED_2' || err.code === 'ER_ROW_IS_REFERENCED'
+        ? 'Cannot delete: this product appears on existing orders. Deactivate it instead.'
+        : `Delete failed: ${err.sqlMessage || err.message}`,
+    };
+  }
+  res.redirect('/admin/products');
 };
 
 /* POST /admin/products/bulk — bulk actions on selected product IDs */
@@ -1650,17 +1670,46 @@ exports.orderList = async (req, res, next) => {
 };
 
 exports.orderUpdateStatus = async (req, res, next) => {
+  /* FIXED 2026-09-02 — three separate lies in nine lines.
+
+     1. The UPDATE ran through `.catch(() => {})`, so a failure was silent.
+     2. The success flash fired OUTSIDE the `if`, so an invalid status —
+        one not in ORDER_STATUSES — wrote nothing at all and still reported
+        `Order status updated to "whatever"`.
+     3. Neither case told the operator the order had not moved.
+
+     This matters more here than almost anywhere else in the admin: order
+     status drives the Ship button, the shipping dashboard and the customer's
+     view of their order. We already spent this afternoon reconciling
+     BVO-20260004, where an order carried booked freight while reading
+     'confirmed'. A status change that silently does nothing produces
+     exactly that state. */
+  const { status } = req.body;
+
+  if (!ORDER_STATUSES.includes(status)) {
+    console.error('[admin] orderUpdateStatus rejected invalid status:', status);
+    req.session.flash = {
+      type: 'error',
+      msg: `"${status}" is not a valid order status. Nothing was changed.`,
+    };
+    return res.redirect('/admin/orders');
+  }
+
   try {
-    const { status } = req.body;
-    if (ORDER_STATUSES.includes(status)) {
-      await bvoPool.query(
-        'UPDATE orders SET status=?, updated_at=NOW() WHERE id=?',
-        [status, req.params.id]
-      ).catch(() => {});
-    }
+    await mustAffect(
+      'UPDATE orders SET status=?, updated_at=NOW() WHERE id=?',
+      [status, req.params.id], 'order'
+    );
     req.session.flash = { type: 'success', msg: `Order status updated to "${status}".` };
-    res.redirect('/admin/orders');
-  } catch (err) { next(err); }
+  } catch (err) {
+    console.error('[admin] orderUpdateStatus failed — id:', req.params.id,
+                  'status:', status, err.code, err.sqlMessage || err.message);
+    req.session.flash = {
+      type: 'error',
+      msg: `Could not update order status: ${err.sqlMessage || err.message}`,
+    };
+  }
+  res.redirect('/admin/orders');
 };
 
 /* ════════════════════════════════════════════════════════════════
@@ -1973,7 +2022,7 @@ exports.syncPage = async (req, res) => {
       `SELECT started_at FROM rflpos_sync_log WHERE sync_type='product' ORDER BY id DESC LIMIT 1`
     );
 
-    const pending = await bvoPool.query(`
+    const pending = await safeQuery(`
       SELECT p.id, p.name, p.sku, p.price, p.brand,
              pi.url AS primary_image_url,
              c.name AS category_name,
@@ -1985,11 +2034,11 @@ exports.syncPage = async (req, res) => {
       WHERE p.source_flag='rflpos' AND p.is_active=0
       ORDER BY p.brand, p.name
       LIMIT 200
-    `).then(([rows]) => rows).catch(() => []);
+    `);
 
-    const logs = await bvoPool.query(
+    const logs = await safeQuery(
       `SELECT * FROM rflpos_sync_log WHERE sync_type='product' ORDER BY id DESC LIMIT 10`
-    ).then(([rows]) => rows).catch(() => []);
+    );
 
     // Load RFLPOS brand list for the brand filter UI (non-fatal if not connected yet)
     let rflBrands = [];

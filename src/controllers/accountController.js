@@ -192,16 +192,30 @@ exports.newsletter = async (req, res) => {
       return res.status(400).json({ ok: false, error: 'Invalid email.' });
     }
 
-    // Mark existing customer as accepting marketing
+    /* Both writes stay non-fatal — this is a public endpoint and we always
+       tell the visitor "thanks", never an internal error. But they were
+       `.catch(() => {})`: a signup could vanish entirely with no trace, and
+       the only symptom would be a marketing list that quietly stops growing.
+       Nobody notices an absence. Now failures are logged. */
     await bvoPool.query(
       'UPDATE customers SET accepts_marketing=1 WHERE email=?', [email]
-    ).catch(() => {});
+    ).catch(err => {
+      console.error('[account] newsletter: accepts_marketing update failed for',
+                    email, err.code, err.sqlMessage || err.message);
+    });
 
-    // Best-effort insert into newsletter_signups (table may not exist yet)
+    // newsletter_signups may not exist yet — INSERT IGNORE plus a logged catch.
     await bvoPool.query(
       `INSERT IGNORE INTO newsletter_signups (email, source, created_at)
        VALUES (?, 'homepage', NOW())`, [email]
-    ).catch(() => {});
+    ).catch(err => {
+      console.error('[account] newsletter: signup insert failed for',
+                    email, err.code, err.sqlMessage || err.message);
+      if (err.code === 'ER_NO_SUCH_TABLE') {
+        console.error('[account]   newsletter_signups table does not exist — ' +
+                      'every signup is being discarded.');
+      }
+    });
 
     res.json({ ok: true });
   } catch {

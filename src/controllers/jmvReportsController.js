@@ -26,12 +26,13 @@ const LAYOUT = { layout: 'layouts/admin' };
 const SYNC_TYPES = ['Vanity', 'Cabinet', 'Top'];
 const SYNC_TYPES_SQL = SYNC_TYPES.map(() => '?').join(',');
 
-function safeQuery(sql, params = []) {
-  return bvoPool.query(sql, params).then(([rows]) => rows).catch(() => []);
-}
-function safeQueryOne(sql, params = []) {
-  return bvoPool.query(sql, params).then(([rows]) => rows[0] || null).catch(() => null);
-}
+/* Was `.catch(() => [])` / `.catch(() => null)`. Especially costly on this
+   dashboard: a broken query renders as "No data", which looks like a
+   legitimate empty period rather than a fault. That is exactly how the
+   Price Band Velocity panel sat blank until someone happened to question it.
+   See src/db/query.js. */
+const { safeQuery, safeQueryOne, mustQuery, mustAffect } =
+  require('../db/query')('jmv-reports');
 
 /** Build the deduped-by-group inner query fragment */
 const DEDUPED_INNER = (whereExtra = '') => `

@@ -29,12 +29,12 @@ const multer      = require('multer');
 
 const LAYOUT = { layout: 'layouts/admin' };
 
-function safeQuery(sql, params = []) {
-  return bvoPool.query(sql, params).then(([rows]) => rows).catch(() => []);
-}
-function safeQueryOne(sql, params = []) {
-  return bvoPool.query(sql, params).then(([rows]) => rows[0] || null).catch(() => null);
-}
+/* Was `.catch(() => [])` / `.catch(() => null)` — every DB error swallowed
+   with no log and no signal, so a broken query looked exactly like an empty
+   table. See src/db/query.js for the two production incidents that came of
+   it. Reads still degrade gracefully; nothing is silent. */
+const { safeQuery, safeQueryOne, mustQuery, mustAffect } =
+  require('../db/query')('orders');
 
 /* ── Document upload (BOLs, invoices, damage photos) ─────────── */
 const _docStorage = multer.diskStorage({
