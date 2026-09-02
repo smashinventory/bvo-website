@@ -5,17 +5,68 @@
    otherwise start with no environment: WWEX_CLIENT_ID would be undefined,
    wwexService would fall into stub mode, and this job would report
    "nothing to poll" on every run while silently doing nothing.
-   Path matches src/jobs/syncJMFeed.js, which hit the same problem.
-   Falls back to the repo-relative .env for local runs. */
+
+   WHERE THE ENVIRONMENT ACTUALLY COMES FROM — read this before changing
+   anything here.
+
+   The source of truth is hPanel. Environment variables are defined in
+   Hostinger's Node.js app manager, and hPanel injects them into the
+   MANAGED APP PROCESS. That is why server.js gets away with a bare
+   require('dotenv').config() and why the site works.
+
+   A cron job inherits none of that. Cron spawns a bare shell with a
+   minimal environment; it is not the managed app process, so nothing is
+   injected. This is the same shape as the node-not-found problem one layer
+   down: works interactively, works for the app, dies on a schedule.
+
+   So a cron-run job has to get the values from a FILE. On this server they
+   materialise at:
+
+       <domain>/hbuilds/config/.env
+
+   which sits outside hbuilds/current/ so deploys cannot overwrite it, and
+   carries DB_* plus WWEX_*. Note this file is DOWNSTREAM of hPanel, not the
+   authority: change a variable in hPanel, not here. If a value looks stale,
+   suspect drift between the two before suspecting this code.
+
+   (The alternative, used by jmsync.sh and jmv_rollup.sh, is to export the
+   values inline in the shell wrapper. That works, but puts a plaintext
+   password in a file at the domain root and creates a third copy to keep
+   in sync. Reading the file avoids both.)
+
+   CORRECTED 2026-09-02 — this previously pointed at <domain>/nodejs/.env,
+   which holds only a .env.example, and the job died with
+   "DB_PASS is not set in .env".
+
+   Every candidate is tried in turn and the one that actually yields
+   DB_PASS wins, so this works on the server and on a laptop without
+   editing anything. The resolved path is logged — an environment loaded
+   from somewhere unexpected should never be a mystery. */
 const path = require('path');
-require('dotenv').config({
-  path: process.env.BVO_ENV_PATH
-     || '/home/u222311468/domains/slategrey-falcon-350174.hostingersite.com/nodejs/.env',
-});
-// Local/dev fallback — harmless on the server, where the path above already loaded.
-if (!process.env.DB_PASS) {
-  require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
+const fs   = require('fs');
+
+const BVO_BASE = '/home/u222311468/domains/slategrey-falcon-350174.hostingersite.com';
+const ENV_CANDIDATES = [
+  process.env.BVO_ENV_PATH,                       // explicit override wins
+  `${BVO_BASE}/hbuilds/config/.env`,              // CONFIRMED — survives deploys
+  `${BVO_BASE}/hbuilds/current/nodejs/.env`,      // if a deploy ever symlinks it in
+  path.resolve(__dirname, '../../.env'),          // local/dev checkout
+].filter(Boolean);
+
+let ENV_LOADED_FROM = null;
+for (const candidate of ENV_CANDIDATES) {
+  if (!fs.existsSync(candidate)) continue;
+  require('dotenv').config({ path: candidate });
+  if (process.env.DB_PASS) { ENV_LOADED_FROM = candidate; break; }
 }
+
+if (!ENV_LOADED_FROM) {
+  console.error('FATAL: no .env yielded DB_PASS. Looked in:');
+  ENV_CANDIDATES.forEach(c => console.error('  ', c, fs.existsSync(c) ? '(exists)' : '(missing)'));
+  console.error('Set BVO_ENV_PATH to the correct file if it has moved.');
+  process.exit(1);
+}
+console.log('[poll] env loaded from:', ENV_LOADED_FROM);
 
 /**
  * shipmentStatusPoll.js
