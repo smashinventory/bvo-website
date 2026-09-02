@@ -65,10 +65,61 @@ if [ ! -d "$APP" ]; then
   exit 1
 fi
 
+# ── Locate node ─────────────────────────────────────────────────────
+# Cron runs with a minimal PATH that does NOT include node, so a bare
+# `node` call fails with "node: command not found" (exit 127). It works
+# interactively because a login shell sources the profile that adds it.
+#
+# NOTE: jmv_rollup.sh has the same bare `node` call and the same latent
+# problem. It goes unnoticed because node-cron inside server.js runs that
+# job too, so the app does the work even when the shell wrapper fails.
+#
+# The FIRST path below is the one this server actually uses — taken from
+# jmsync.sh, the existing Node cron job that works:
+#     /opt/alt/alt-nodejs18/root/bin/node
+# Note it is root/bin/node, NOT root/usr/bin/node. Getting that wrong is why
+# a guessed path list would still have failed.
+#
+# Newer alt-nodejs versions are checked first in case the server is upgraded,
+# then the known-good 18, then generic locations, then nvm.
+find_node() {
+  if command -v node >/dev/null 2>&1; then command -v node; return; fi
+  for c in \
+      /opt/alt/alt-nodejs22/root/bin/node \
+      /opt/alt/alt-nodejs20/root/bin/node \
+      /opt/alt/alt-nodejs18/root/bin/node \
+      /opt/alt/alt-nodejs22/root/usr/bin/node \
+      /opt/alt/alt-nodejs20/root/usr/bin/node \
+      /opt/alt/alt-nodejs18/root/usr/bin/node \
+      /usr/local/bin/node \
+      /usr/bin/node ; do
+    [ -x "$c" ] && { echo "$c"; return; }
+  done
+  # nvm — newest version last, so the final match wins
+  for c in "$HOME"/.nvm/versions/node/v*/bin/node; do
+    [ -x "$c" ] && NODE_FOUND="$c"
+  done
+  [ -n "${NODE_FOUND:-}" ] && echo "$NODE_FOUND"
+}
+
+NODE="$(find_node || true)"
+
+if [ -z "$NODE" ]; then
+  {
+    echo "$(stamp) ERROR: node not found. Cron's PATH is: ${PATH}"
+    echo "$(stamp)   Searched: /opt/alt/alt-nodejs{22,20,18}, /usr/local/bin, /usr/bin, \$HOME/.nvm"
+    echo "$(stamp)   Find it with a one-off cron:  * * * * * which node > $LOG_DIR/node-path.txt 2>&1"
+    echo "$(stamp)   Then hardcode that path as NODE= near the top of this script."
+  } >> "$LOG"
+  exit 127
+fi
+
+echo "$(stamp) using node: $NODE ($("$NODE" -v 2>/dev/null || echo 'version unknown'))" >> "$LOG"
+
 cd "$APP"
 
 set +e
-node src/jobs/shipmentStatusPoll.js $ARGS >> "$LOG" 2>&1
+"$NODE" src/jobs/shipmentStatusPoll.js $ARGS >> "$LOG" 2>&1
 EXIT=$?
 set -e
 
