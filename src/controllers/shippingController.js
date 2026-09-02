@@ -846,15 +846,69 @@ async function bookShipment(req, res) {
       });
     }
 
-    // Mark order as shipped if linked
+    /* ── Mark the order shipped ────────────────────────────────────────
+       REWRITTEN 2026-09-02. This was:
+
+         await safeQuery(`UPDATE orders SET status='shipped' ...`);
+
+       safeQuery catches, logs, and returns [] — so a failed or zero-row
+       UPDATE was indistinguishable from success. The booking still returned
+       ok:true and the order silently stayed where it was, with freight
+       already committed at the carrier. Same failure class as the swallow
+       that orphaned BOL ATE34769194.
+
+       It is also not hypothetical: BVO-20260004 was found carrying a Booked
+       shipment while still reading "Confirmed", with no event row to explain
+       when or why.
+
+       We do NOT fail the request here — the freight IS booked, and returning
+       an error would invite a re-book. Instead the response carries a warning
+       naming the order and the BOL so it can be reconciled by hand. */
+    let orderWarning = null;
     if (orderId) {
-      await safeQuery(
-        `UPDATE orders SET status='shipped', tracking_number=?, updated_at=NOW() WHERE id=?`,
-        [booked.bolNumber || booked.proNumber || '', orderId]
-      );
+      const trackingRef = booked.bolNumber || booked.proNumber || '';
+      // Read the prior status first so the audit row records what it moved FROM.
+      const _prev = await safeQueryOne('SELECT status FROM orders WHERE id = ?', [orderId]);
+      const orderStatusBefore = _prev ? _prev.status : null;
+      try {
+        const upd = await bvoPool.query(
+          `UPDATE orders SET status='shipped', tracking_number=?, updated_at=NOW() WHERE id=?`,
+          [trackingRef, orderId]
+        ).then(([r]) => r);
+
+        if (!upd || upd.affectedRows === 0) {
+          // Query ran without error but matched nothing — a deleted or
+          // mistyped order id. Silent under the old code.
+          orderWarning =
+            `Shipment booked (BOL ${booked.bolNumber || 'unknown'}), but order #${orderId} ` +
+            `was not updated — no such order row. The order will not show as shipped.`;
+          console.error('[shipping] order update matched 0 rows — orderId:', orderId);
+        } else {
+          /* Audit trail. The void path has written an order_events row since
+             2026-08-31; booking never did, so a disagreement between order and
+             shipment left nothing to reconstruct from. Best-effort — a logging
+             failure must not affect a booking that already succeeded. */
+          await safeQuery(
+            `INSERT INTO order_events (order_id, event_type, from_status, to_status, actor, notes)
+             VALUES (?, 'shipment_booked', ?, 'shipped', ?, ?)`,
+            [orderId, orderStatusBefore || null, req.session?.adminUser || 'admin',
+             `Shipment booked with ${booked.carrier || 'carrier'} — ` +
+             `BOL ${booked.bolNumber || 'n/a'}, PRO ${booked.proNumber || 'n/a'}.`]
+          );
+          console.log(`[shipping] order ${orderId} → shipped (BOL ${booked.bolNumber || 'n/a'})`);
+        }
+      } catch (updErr) {
+        orderWarning =
+          `Shipment booked (BOL ${booked.bolNumber || 'unknown'}), but updating order #${orderId} ` +
+          `failed: ${updErr.sqlMessage || updErr.message}. Set it to Shipped by hand — ` +
+          `do NOT re-book, the freight is already committed.`;
+        console.error('[shipping] *** ORDER UPDATE FAILED AFTER SUCCESSFUL BOOKING ***');
+        console.error('[shipping]   orderId:', orderId, '| BOL:', booked.bolNumber);
+        console.error('[shipping]   db error:', updErr.code, updErr.sqlMessage || updErr.message);
+      }
     }
 
-    res.json({ ok: true, ...booked, pickupConfirmation });
+    res.json({ ok: true, ...booked, pickupConfirmation, orderWarning });
   } catch (err) {
     console.error('[shipping] bookShipment error:', err);
     res.status(500).json({ ok: false, error: err.message });

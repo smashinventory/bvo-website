@@ -1344,6 +1344,18 @@ function bookShipment() {
     if (d.proNumber) details += '<p><strong>PRO #:</strong> ' + d.proNumber + '</p>';
     if (d.pickupConfirmation) details += '<p><strong>Pickup Confirmation:</strong> ' + d.pickupConfirmation + '</p>';
     if (d.stub) details += '<p style="color:#975a16;font-size:.8rem">⚠ Stub booking — no actual shipment created.</p>';
+    /* ADDED 2026-09-02 — the booking can succeed at the carrier while the
+       linked ORDER fails to update. That used to be invisible: the order
+       silently stayed on its old status with freight already committed.
+       Shown here in full, because the recovery is manual and the operator
+       is the only one who will see it. */
+    if (d.orderWarning) {
+      details += '<div style="margin-top:12px;padding:10px 12px;border:1px solid #f0b429;'
+               + 'background:#fffbeb;border-radius:6px;color:#7c5300;font-size:.82rem;line-height:1.45">'
+               + '<strong>⚠ Order not updated</strong><br>'
+               + String(d.orderWarning).replace(/</g, '&lt;')
+               + '</div>';
+    }
     document.getElementById('successDetails').innerHTML = details;
     if (d.bolUrl) {
       var link = document.getElementById('bolLink');

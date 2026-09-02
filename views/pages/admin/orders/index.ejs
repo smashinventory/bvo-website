@@ -97,10 +97,34 @@
           <td>
             <div style="display:flex;gap:4px">
               <a href="/admin/orders/<%= o.id %>" class="btn btn-outline btn-sm">View</a>
-              <%# in_transit added 2026-08-31 — freight already moving, must not
-                  offer to book a second shipment for it %>
-              <% if (!['shipped','in_transit','delivered','cancelled','refunded'].includes(o.status)) { %>
+              <%# Ship button visibility — TWO independent gates, both required.
+
+                  1. Order status. in_transit added 2026-08-31: freight already
+                     moving, must not offer to book a second shipment for it.
+
+                  2. Shipment presence. ADDED 2026-09-02. Gate 1 alone was not
+                     enough: an order can carry a live booked shipment while its
+                     own status lags behind (seen on BVO-20260004 — shipment
+                     ATE34769491 Booked, order still Confirmed). The button
+                     showed, one click from booking real freight twice.
+                     o.ship_status was already loaded for the badge above; it
+                     just was not consulted here.
+
+                  A voided shipment deliberately does NOT block the button —
+                  the whole point of the void revert is to allow re-shipping. %>
+              <%
+                const _orderBlocks = ['shipped','in_transit','delivered','cancelled','refunded']
+                                       .includes(o.status);
+                const _hasLiveShipment = !!o.ship_status && o.ship_status !== 'voided';
+              %>
+              <% if (!_orderBlocks && !_hasLiveShipment) { %>
               <a href="/admin/shipping/create?orderId=<%= o.id %>" class="btn btn-sm btn-ship" title="Create shipment for this order">Ship</a>
+              <% } else if (_hasLiveShipment && !_orderBlocks) { %>
+              <%# Mismatch: shipment exists but the order never advanced. Say so
+                  rather than silently hiding the button, which would look like
+                  a missing feature. %>
+              <span class="adm-meta" style="font-size:.72rem;color:#b45309;white-space:nowrap"
+                    title="This order already has a <%= o.ship_status %> shipment, but its status is still &quot;<%= o.status %>&quot;. The Ship button is hidden to prevent double-booking. Open the order to reconcile.">⚠ status lag</span>
               <% } %>
             </div>
           </td>
