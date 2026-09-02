@@ -331,6 +331,8 @@ document.getElementById('voidConfirmBtn').addEventListener('click', function() {
   .then(function(r){ return r.json(); })
   .then(function(d) {
     if (d.ok) {
+      // Surface the order revert so it is obvious the order can be re-shipped.
+      if (d.orderReverted) alert(d.message);
       closeVoid();
       window.location.reload();
     } else {

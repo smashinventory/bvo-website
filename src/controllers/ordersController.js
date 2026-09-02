@@ -18,6 +18,8 @@
  */
 
 const { bvoPool }    = require('../config/database');
+// Single source of truth for status values and their meanings.
+const { ORDER_STATUSES, VALID_ORDER_STATUSES } = require('../config/orderStatuses');
 const brevo          = require('../services/brevoService');
 const wwex           = require('../services/wwexService');
 const authorizeNet   = require('../services/authorizeNetService');
@@ -158,6 +160,7 @@ exports.list = async (req, res, next) => {
       activePage: 'orders',
       pageTitle:  'Orders',
       flash:      null,
+      ORDER_STATUSES,      // labels + hover definitions
       orders,
       total,
       page,
@@ -216,6 +219,7 @@ exports.detail = async (req, res, next) => {
       ...LAYOUT,
       activePage: 'orders',
       pageTitle:  `Order ${order.order_number}`,
+      ORDER_STATUSES,      // labels + hover definitions
       order,
       items,
       vendorPo:   vendorPo || null,
@@ -237,8 +241,11 @@ exports.updateStatus = async (req, res) => {
   try {
     const id     = parseInt(req.params.id);
     const { status, notes } = req.body;
-    const VALID  = ['pending','confirmed','processing','shipped','delivered','cancelled','refunded'];
-    if (!VALID.includes(status)) return res.status(400).json({ ok: false, error: 'Invalid status' });
+    // Was a duplicated inline array; now shares src/config/orderStatuses.js
+    // with the list filter, the badges and the detail dropdown.
+    if (!VALID_ORDER_STATUSES.includes(status)) {
+      return res.status(400).json({ ok: false, error: 'Invalid status' });
+    }
 
     const [[order]] = await conn.query('SELECT status FROM orders WHERE id = ?', [id]);
     if (!order) return res.status(404).json({ ok: false, error: 'Not found' });

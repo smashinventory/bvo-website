@@ -877,7 +877,7 @@ async function cancelShipment(req, res) {
        takes two entries: the shipment productTransactionId, and the pickup
        transaction id captured from the quoteOrderFlow response at booking time. */
     const row = await safeQueryOne(
-      `SELECT product_transaction_id, pickup_txn_id, product_type
+      `SELECT product_transaction_id, pickup_txn_id, product_type, order_id
          FROM shipments WHERE id = ?`, [shipmentId]
     );
     const txnId = row?.product_transaction_id;
@@ -904,7 +904,48 @@ async function cancelShipment(req, res) {
       `UPDATE shipments SET status='voided', updated_at=NOW() WHERE id=?`, [shipmentId]
     );
 
-    res.json({ ok: true });
+    /* ADDED 2026-08-31 — revert the linked order.
+       Booking sets orders.status='shipped'. Voiding left it there, so the
+       order still read "Shipped" with no shipment attached, and the Ship
+       button stayed hidden until someone manually changed the status back.
+
+       We revert to 'processing' rather than the original status because that
+       is what the order now IS: validated, not yet shipped, ready to re-ship.
+       The Ship button shows for anything not in
+       (shipped, delivered, cancelled, refunded), so this restores it.
+
+       Tracking number and shipped_at are cleared too — leaving a tracking
+       number on a voided shipment would be worse than the original bug. */
+    let orderReverted = null;
+    if (row.order_id) {
+      const ord = await safeQueryOne('SELECT status FROM orders WHERE id = ?', [row.order_id]);
+      if (ord && ord.status === 'shipped') {
+        await safeQuery(
+          `UPDATE orders
+              SET status = 'processing', tracking_number = NULL,
+                  carrier = NULL, shipped_at = NULL, updated_at = NOW()
+            WHERE id = ?`,
+          [row.order_id]
+        );
+        // Best-effort audit trail; never let a logging failure break the void.
+        await safeQuery(
+          `INSERT INTO order_events (order_id, event_type, from_status, to_status, actor, notes)
+           VALUES (?, 'shipment_voided', 'shipped', 'processing', ?, ?)`,
+          [row.order_id, req.session?.adminUser || 'admin',
+           `Shipment #${shipmentId} voided with carrier — order returned to processing.`]
+        );
+        orderReverted = row.order_id;
+        console.log(`[shipping] void: order ${row.order_id} reverted shipped → processing`);
+      }
+    }
+
+    res.json({
+      ok: true,
+      orderReverted,
+      message: orderReverted
+        ? `Shipment voided. Order #${orderReverted} returned to Processing and can be re-shipped.`
+        : 'Shipment voided.',
+    });
   } catch (err) {
     console.error('[shipping] cancelShipment error:', err);
     res.status(500).json({ ok: false, error: err.message });

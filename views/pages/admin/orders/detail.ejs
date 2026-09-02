@@ -99,10 +99,15 @@ const hasPayment    = !!order.payment_transaction_id;
     </h1>
   </div>
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-    <span class="order-status order-status--<%= order.status %>" style="font-size:14px"><%= order.status %></span>
-    <select id="statusSelect" class="adm-search-select">
-      <% ['pending','confirmed','processing','shipped','delivered','cancelled','refunded'].forEach(s => { %>
-        <option value="<%= s %>" <%= order.status === s ? 'selected' : '' %>><%= s.charAt(0).toUpperCase() + s.slice(1) %></option>
+    <%# Hover on the badge or any option explains what the status means.
+        Definitions: src/config/orderStatuses.js %>
+    <span class="order-status order-status--<%= order.status %>" style="font-size:14px;cursor:help"
+          title="<%= (ORDER_STATUSES.find(s => s.value === order.status) || {}).tip || '' %>"><%= order.status %></span>
+    <select id="statusSelect" class="adm-search-select"
+            title="<%= (ORDER_STATUSES.find(s => s.value === order.status) || {}).tip || '' %>"
+            onchange="this.title = (this.options[this.selectedIndex] || {}).title || ''">
+      <% ORDER_STATUSES.forEach(s => { %>
+        <option value="<%= s.value %>" title="<%= s.tip %>" <%= order.status === s.value ? 'selected' : '' %>><%= s.label %></option>
       <% }) %>
     </select>
     <button id="saveStatusBtn" class="btn btn-primary btn-sm">Save Status</button>

@@ -4,10 +4,12 @@
 
   <form method="GET" action="/admin/orders" class="adm-search-form" id="orderSearchForm">
     <input type="text" name="search" value="<%= search %>" placeholder="Search order #, customer, email…" class="adm-search-input">
+    <%# Status definitions come from src/config/orderStatuses.js so the filter,
+        the badges and the detail-page dropdown can never drift apart. %>
     <select name="status" class="adm-search-select" onchange="document.getElementById('orderSearchForm').submit()">
       <option value="">All Statuses</option>
-      <% ['pending','confirmed','processing','shipped','delivered','cancelled','refunded'].forEach(s => { %>
-        <option value="<%= s %>" <%= status === s ? 'selected' : '' %>><%= s.charAt(0).toUpperCase() + s.slice(1) %></option>
+      <% ORDER_STATUSES.forEach(s => { %>
+        <option value="<%= s.value %>" title="<%= s.tip %>" <%= status === s.value ? 'selected' : '' %>><%= s.label %></option>
       <% }) %>
     </select>
     <button type="submit" class="btn btn-primary">Search</button>
@@ -64,7 +66,11 @@
           <td><a href="/admin/orders/<%= o.id %>" style="font-weight:700;color:var(--color-navy)"><%= o.order_number %></a></td>
           <td><%= o.customer_name || '—' %></td>
           <td style="font-weight:700">$<%= parseFloat(o.total || 0).toFixed(2) %></td>
-          <td><span class="order-status order-status--<%= o.status %>"><%= o.status %></span></td>
+          <%# Hover explains what the status means — definitions live in
+              src/config/orderStatuses.js %>
+          <td><span class="order-status order-status--<%= o.status %>"
+                    title="<%= (ORDER_STATUSES.find(s => s.value === o.status) || {}).tip || '' %>"
+                    style="cursor:help"><%= o.status %></span></td>
           <td>
             <% if (!o.vpo_status) { %>
               <span class="rag-pill rag-pill--red">Not Sent</span>
