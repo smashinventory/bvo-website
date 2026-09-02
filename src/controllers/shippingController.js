@@ -1215,6 +1215,38 @@ async function emailDocuments(req, res) {
   }
 }
 
+/* ═════════════════════════════════════════════════════════════════
+   RUN STATUS POLL — POST /admin/shipping/run-poll   (AJAX)
+   Body: { dry: true|false }
+
+   Runs the same job the twice-daily cron runs, on demand. Exists so the
+   poll can be tested and triggered WITHOUT shell access — deployment here
+   is by git push and manual file drops, so there is no terminal on the
+   server. Mirrors the "Run Rollup" button on the JMV reports page.
+═══════════════════════════════════════════════════════════════════ */
+async function runStatusPoll(req, res) {
+  try {
+    // Required lazily so the job module is only loaded when actually used.
+    const { runPoll } = require('../jobs/shipmentStatusPoll');
+    const dry = req.body.dry === true || req.body.dry === 'true' || req.body.dry === '1';
+
+    console.log(`[shipping] status poll triggered from admin${dry ? ' (dry run)' : ''}`);
+    const result = await runPoll({ dry });
+
+    if (result.stub) {
+      return res.status(503).json({
+        ok: false,
+        error: result.error,
+        lines: result.lines,
+      });
+    }
+    res.json(result);
+  } catch (err) {
+    console.error('[shipping] runStatusPoll error:', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+}
+
 /* ─────────────────────────────────────────────────────────────────
    TRACK — GET /admin/shipping/track/:bol  (AJAX)
 ───────────────────────────────────────────────────────────────────*/
@@ -1405,5 +1437,5 @@ async function openOrders(req, res) {
 module.exports = {
   index, createForm, getRates, bookShipment, cancelShipment,
   getDocument, emailDocuments, trackShipment, trackPage, dashboard, invoices,
-  validateAddress, openOrders,
+  validateAddress, openOrders, runStatusPoll,
 };

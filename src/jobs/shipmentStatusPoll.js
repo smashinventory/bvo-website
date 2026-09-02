@@ -1,5 +1,22 @@
 'use strict';
 
+/* Load .env BEFORE any other require.
+   Only src/server.js calls dotenv normally, so a job run from cron would
+   otherwise start with no environment: WWEX_CLIENT_ID would be undefined,
+   wwexService would fall into stub mode, and this job would report
+   "nothing to poll" on every run while silently doing nothing.
+   Path matches src/jobs/syncJMFeed.js, which hit the same problem.
+   Falls back to the repo-relative .env for local runs. */
+const path = require('path');
+require('dotenv').config({
+  path: process.env.BVO_ENV_PATH
+     || '/home/u222311468/domains/slategrey-falcon-350174.hostingersite.com/nodejs/.env',
+});
+// Local/dev fallback — harmless on the server, where the path above already loaded.
+if (!process.env.DB_PASS) {
+  require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
+}
+
 /**
  * shipmentStatusPoll.js
  * Polls WWEX for the current carrier status of every ACTIVE shipment and
@@ -23,8 +40,6 @@
 
 const { bvoPool } = require('../config/database');
 const wwex        = require('../services/wwexService');
-
-const DRY = process.argv.includes('--dry');
 
 /* Statuses worth polling. Anything already delivered, voided or cancelled
    is terminal and never checked again — that keeps the API call count
@@ -68,15 +83,25 @@ function mapCarrierStatus(raw) {
   return 'booked';
 }
 
-async function run() {
+/**
+ * Run the poll.
+ * @param {{dry?:boolean}} opts  dry = report only, write nothing
+ * @returns {Promise<object>} summary — also returned to the admin UI
+ */
+async function runPoll(opts = {}) {
+  const DRY     = !!opts.dry;
   const started = Date.now();
-  console.log(`[poll] shipment status poll starting${DRY ? ' (DRY RUN)' : ''} — ${new Date().toISOString()}`);
+  const lines   = [];   // human-readable trace returned to the caller
+  const say = (msg) => { lines.push(msg); console.log(msg); };
+
+  say(`[poll] shipment status poll starting${DRY ? ' (DRY RUN)' : ''} — ${new Date().toISOString()}`);
 
   if (wwex.apiMode === 'stub') {
-    console.log('[poll] wwexService is in stub mode — no credentials. Nothing to poll.');
-    return;
+    say('[poll] wwexService is in stub mode — no WWEX credentials visible to this process. Nothing to poll.');
+    return { ok: false, dry: DRY, stub: true, lines,
+             error: 'WWEX credentials not loaded — the poll cannot run. Check that .env is readable from the job.' };
   }
-  console.log(`[poll] WWEX mode: ${wwex.apiMode}`);
+  say(`[poll] WWEX mode: ${wwex.apiMode}`);
 
   const [rows] = await bvoPool.query(
     `SELECT id, bol_number, pro_number, product_type, status, order_id, ship_date
@@ -89,10 +114,11 @@ async function run() {
   );
 
   if (!rows.length) {
-    console.log('[poll] no active shipments to check.');
-    return;
+    say('[poll] no active shipments to check.');
+    return { ok: true, dry: DRY, checked: 0, changed: 0,
+             deliveredOrders: 0, inTransitOrders: 0, failed: 0, lines };
   }
-  console.log(`[poll] checking ${rows.length} active shipment(s)…`);
+  say(`[poll] checking ${rows.length} active shipment(s)…`);
 
   let changed = 0, deliveredOrders = 0, inTransitOrders = 0, failed = 0, unchanged = 0;
 
@@ -104,7 +130,7 @@ async function run() {
       const result = await wwex.searchShipmentsFlow([ref], type, s.product_type || 'LTL');
       if (!result.ok) {
         failed++;
-        console.warn(`[poll]   #${s.id} ${ref} — lookup failed: ${result.error}`);
+        say(`[poll]   #${s.id} ${ref} — lookup failed: ${result.error}`);
         continue;
       }
 
@@ -114,7 +140,7 @@ async function run() {
       const next = mapCarrierStatus(carrier.status);
       if (next === s.status) { unchanged++; continue; }
 
-      console.log(`[poll]   #${s.id} ${ref} — ${s.status} → ${next} ("${carrier.status}")`);
+      say(`[poll]   #${s.id} ${ref} — ${s.status} → ${next} ("${carrier.status}")`);
       if (DRY) { changed++; continue; }
 
       await bvoPool.query(
@@ -155,26 +181,40 @@ async function run() {
              `Carrier reported "${next}" for shipment #${s.id} (${ref}).`]
           );
           if (target === 'delivered') deliveredOrders++; else inTransitOrders++;
-          console.log(`[poll]     order ${s.order_id} ${ord.status} → ${target}`);
+          say(`[poll]     order ${s.order_id} ${ord.status} → ${target}`);
         }
       }
     } catch (err) {
       failed++;
-      console.error(`[poll]   #${s.id} ${ref} — error:`, err.message);
+      say(`[poll]   #${s.id} ${ref} — error: ${err.message}`);
     }
   }
 
   const secs = ((Date.now() - started) / 1000).toFixed(1);
-  console.log(`[poll] done in ${secs}s — checked ${rows.length}, shipments changed ${changed}, `
-            + `orders → in transit ${inTransitOrders}, → delivered ${deliveredOrders}, `
-            + `unchanged ${unchanged}, failed ${failed}`
-            + (DRY ? '  (DRY RUN — nothing written)' : ''));
+  say(`[poll] done in ${secs}s — checked ${rows.length}, shipments changed ${changed}, `
+    + `orders → in transit ${inTransitOrders}, → delivered ${deliveredOrders}, `
+    + `unchanged ${unchanged}, failed ${failed}`
+    + (DRY ? '  (DRY RUN — nothing written)' : ''));
+
+  return {
+    ok: true, dry: DRY,
+    checked: rows.length, changed, inTransitOrders, deliveredOrders,
+    unchanged, failed, seconds: Number(secs), lines,
+  };
 }
 
-run()
-  .then(()  => bvoPool.end())
-  .then(()  => process.exit(0))
-  .catch(e  => {
-    console.error('[poll] FATAL:', e);
-    bvoPool.end().finally(() => process.exit(1));
-  });
+module.exports = { runPoll, mapCarrierStatus };
+
+/* ── CLI entry ─────────────────────────────────────────────────────
+   Only self-executes when run directly (node src/jobs/shipmentStatusPoll.js).
+   Requiring the module from the admin controller must NOT trigger a run or
+   close the shared connection pool. */
+if (require.main === module) {
+  runPoll({ dry: process.argv.includes('--dry') })
+    .then(()  => bvoPool.end())
+    .then(()  => process.exit(0))
+    .catch(e  => {
+      console.error('[poll] FATAL:', e);
+      bvoPool.end().finally(() => process.exit(1));
+    });
+}

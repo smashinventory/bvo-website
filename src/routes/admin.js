@@ -156,6 +156,7 @@ router.post('/shipping/book',             shippingCtrl.bookShipment);
 router.post('/shipping/cancel',           shippingCtrl.cancelShipment);
 router.get ('/shipping/document',         shippingCtrl.getDocument);
 router.post('/shipping/email-documents',  shippingCtrl.emailDocuments);
+router.post('/shipping/run-poll',         shippingCtrl.runStatusPoll);
 router.get ('/shipping/track/:bol',       shippingCtrl.trackShipment);
 router.post('/shipping/validate-address', shippingCtrl.validateAddress);
 router.get ('/shipping/open-orders',      shippingCtrl.openOrders);

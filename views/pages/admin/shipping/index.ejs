@@ -24,6 +24,12 @@ function statusLabel(s) {
     <span class="adm-toolbar-title">Shipments</span>
   </div>
   <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+    <%# Runs the same job as the twice-daily cron. Exists so the poll can be
+        tested and triggered without shell access. %>
+    <button class="btn btn-sm btn-outline" id="pollDryBtn"
+            title="Check carrier status for all active shipments and report what would change — writes nothing">↻ Check Status (dry)</button>
+    <button class="btn btn-sm btn-outline" id="pollRunBtn"
+            title="Check carrier status and apply updates to shipments and orders">↻ Sync Status</button>
     <button class="btn btn-sm btn-primary" onclick="openOrderPicker()">+ New Shipment</button>
   </div>
 </div>
@@ -252,6 +258,61 @@ function refreshTracking(bol, shipmentId) {
 
 /* ── Void ─────────────────────────────────────────────────────── */
 var _voidId, _voidType;
+/* ── Run the WWEX status poll on demand ──────────────────────────────
+   Same job the twice-daily cron runs. Deployment here is git push + manual
+   file drops with no server shell, so this is how the poll gets tested and
+   triggered. Dry mode reports what WOULD change and writes nothing. */
+function runStatusPoll(dry, btn) {
+  const other = document.getElementById(dry ? 'pollRunBtn' : 'pollDryBtn');
+  const label = btn.textContent;
+  btn.disabled = true; other.disabled = true;
+  btn.textContent = dry ? 'Checking…' : 'Syncing…';
+
+  fetch('/admin/shipping/run-poll', {
+    method:  'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || '',
+    },
+    body: JSON.stringify({ dry: !!dry }),
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    btn.disabled = false; other.disabled = false; btn.textContent = label;
+
+    if (!d.ok) {
+      alert('Status poll failed:\n\n' + (d.error || 'Unknown error')
+          + (d.lines && d.lines.length ? '\n\n' + d.lines.join('\n') : ''));
+      return;
+    }
+    if (!d.checked) {
+      alert('No active shipments to check.\n\nOnly shipments in booked, in transit, '
+          + 'out for delivery or exception are polled — delivered and voided are skipped.');
+      return;
+    }
+
+    let msg = (d.dry ? 'DRY RUN — nothing was written.\n\n' : '')
+            + 'Checked ' + d.checked + ' shipment(s) in ' + d.seconds + 's\n'
+            + '  Shipments changed: ' + d.changed + '\n'
+            + '  Orders → In Transit: ' + d.inTransitOrders + '\n'
+            + '  Orders → Delivered: '  + d.deliveredOrders + '\n'
+            + '  Unchanged: ' + d.unchanged + '   Failed: ' + d.failed;
+
+    // Show the per-shipment trace so a dry run is actually informative.
+    const detail = (d.lines || []).filter(function(l) { return l.indexOf('  #') !== -1; });
+    if (detail.length) msg += '\n\n' + detail.join('\n');
+
+    alert(msg);
+    if (!d.dry && d.changed) window.location.reload();
+  })
+  .catch(function(e) {
+    btn.disabled = false; other.disabled = false; btn.textContent = label;
+    alert('Network error: ' + e.message);
+  });
+}
+document.getElementById('pollDryBtn')?.addEventListener('click', function() { runStatusPoll(true,  this); });
+document.getElementById('pollRunBtn')?.addEventListener('click', function() { runStatusPoll(false, this); });
+
 /* ── Email shipping documents (internal, via Brevo) ──────────────── */
 var _edocId = null;
 
