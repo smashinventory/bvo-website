@@ -97,7 +97,9 @@
           <td>
             <div style="display:flex;gap:4px">
               <a href="/admin/orders/<%= o.id %>" class="btn btn-outline btn-sm">View</a>
-              <% if (!['shipped','delivered','cancelled','refunded'].includes(o.status)) { %>
+              <%# in_transit added 2026-08-31 — freight already moving, must not
+                  offer to book a second shipment for it %>
+              <% if (!['shipped','in_transit','delivered','cancelled','refunded'].includes(o.status)) { %>
               <a href="/admin/shipping/create?orderId=<%= o.id %>" class="btn btn-sm btn-ship" title="Create shipment for this order">Ship</a>
               <% } %>
             </div>

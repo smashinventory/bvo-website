@@ -47,10 +47,16 @@ const ORDER_STATUSES = [
     autoSet: true,    // shippingController.bookShipment
   },
   {
+    value: 'in_transit',
+    label: 'In Transit',
+    tip:   'Carrier has picked up the freight and it is moving. Set automatically by the twice-daily shipment status poll.',
+    autoSet: true,    // shipmentStatusPoll.js / manual Refresh
+  },
+  {
     value: 'delivered',
     label: 'Delivered',
-    tip:   'Carrier has delivered the freight. Currently MANUAL — WWEX sends delivery alerts to the receiver, not to us, so nothing updates this automatically.',
-    autoSet: false,
+    tip:   'Carrier has delivered the freight. Set automatically by the twice-daily shipment status poll, or immediately when someone clicks Refresh on the Shipments list.',
+    autoSet: true,    // shipmentStatusPoll.js / manual Refresh
   },
   {
     value: 'cancelled',

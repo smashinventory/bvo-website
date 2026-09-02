@@ -14,7 +14,12 @@
   <link rel="stylesheet" href="/css/brand.css">
   <!-- Admin CSS (appended to site.css) -->
   <link rel="stylesheet" href="/css/site.css">
-  <link rel="stylesheet" href="/css/site4.css">
+  <!-- site4.css is ADMIN-ONLY and is deliberately NOT in site-bundle.css.
+       Putting it there would ship ~23KB of admin CSS to every public visitor.
+       The comment in layouts/main.ejs claiming the bundle contains site4.css
+       is wrong — see CLAUDE.md Rule 5.
+       Bump ?v= whenever site4.css changes, to bust the Hostinger CDN cache. -->
+  <link rel="stylesheet" href="/css/site4.css?v=2">
 
   <%- style %>
   <meta name="csrf-token" content="<%= csrfToken %>">

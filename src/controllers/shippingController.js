@@ -998,6 +998,94 @@ async function getDocument(req, res) {
 }
 
 /* ═════════════════════════════════════════════════════════════════
+   CARRIER STATUS → OUR STATUS
+   Shared by the manual Refresh button and the scheduled poller so the
+   two can never disagree about what a carrier string means.
+═══════════════════════════════════════════════════════════════════ */
+
+/** Map a free-text carrier status onto our shipments.status vocabulary.
+ *
+ *  ORDER MATTERS. Several carrier strings contain the word "deliver" without
+ *  meaning delivered:
+ *    "Out For Delivery"   → still on the truck, NOT delivered
+ *    "Delivery Exception" → a problem, NOT delivered
+ *  A naive includes('deliver') check first would mark both as delivered and,
+ *  worse, flip the order to Delivered while the freight is still moving.
+ *  So the specific cases are tested before the general one.
+ */
+function _mapCarrierStatus(raw) {
+  const s = String(raw || '').toLowerCase();
+  if (s.includes('out for'))                          return 'out_for_delivery';
+  if (s.includes('exception') || s.includes('fail'))  return 'exception';
+  if (s.includes('deliver'))                          return 'delivered';
+  if (s.includes('void') || s.includes('cancel'))     return 'voided';
+  if (s.includes('transit') || s.includes('pickup')
+      || s.includes('picked'))                        return 'in_transit';
+  return 'booked';
+}
+
+/* Which carrier states move the ORDER, and what they move it to.
+   Orders stay coarser than shipments on purpose: 'out_for_delivery' and
+   'exception' are real shipment states but would add churn to the order
+   without telling anyone anything the Shipments list doesn't already show. */
+const SHIPMENT_TO_ORDER_STATUS = {
+  in_transit: 'in_transit',
+  delivered:  'delivered',
+};
+
+/* Orders may only move FORWARD along this path. Prevents a late or
+   out-of-order carrier update from dragging a delivered order back to
+   in_transit, and stops anything touching a cancelled or refunded order. */
+const ORDER_PROGRESSION = ['shipped', 'in_transit', 'delivered'];
+
+/**
+ * Push a shipment's carrier status onto its linked order.
+ *
+ * Guarded three ways: only mapped states apply, the order must already be
+ * somewhere on the shipping path, and the move must be forward. A cancelled
+ * or refunded order is never touched.
+ *
+ * @returns {{orderId:number, from:string, to:string}|null}
+ */
+async function _syncOrderFromShipment(bolOrPro, dbStatus, actor = 'system') {
+  const target = SHIPMENT_TO_ORDER_STATUS[dbStatus];
+  if (!target) return null;
+
+  const ship = await safeQueryOne(
+    `SELECT id, order_id FROM shipments
+      WHERE (bol_number = ? OR pro_number = ?) AND order_id IS NOT NULL
+      LIMIT 1`,
+    [bolOrPro, bolOrPro]
+  );
+  if (!ship?.order_id) return null;
+
+  const ord = await safeQueryOne('SELECT status FROM orders WHERE id = ?', [ship.order_id]);
+  if (!ord) return null;
+
+  const from = ORDER_PROGRESSION.indexOf(ord.status);
+  const to   = ORDER_PROGRESSION.indexOf(target);
+  if (from === -1 || to <= from) return null;   // not on the path, or not forward
+
+  await safeQuery(
+    `UPDATE orders
+        SET status = ?,
+            delivered_at = CASE WHEN ? = 'delivered' THEN COALESCE(delivered_at, NOW()) ELSE delivered_at END,
+            updated_at = NOW()
+      WHERE id = ?`,
+    [target, target, ship.order_id]
+  );
+  await safeQuery(
+    `INSERT INTO order_events (order_id, event_type, from_status, to_status, actor, notes)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [ship.order_id, target === 'delivered' ? 'delivered' : 'in_transit',
+     ord.status, target, actor,
+     `Carrier reported "${dbStatus}" for shipment #${ship.id}.`]
+  );
+  console.log(`[shipping] order ${ship.order_id} ${ord.status} → ${target} (shipment #${ship.id})`);
+  return { orderId: ship.order_id, from: ord.status, to: target };
+}
+
+/* ═════════════════════════════════════════════════════════════════
    EMAIL SHIPPING DOCUMENTS — POST /admin/shipping/email-documents
    Body: { shipmentId, docTypes: ['BILL_OF_LADING', ...], to?: 'a@b.com,c@d.com' }
 
@@ -1143,21 +1231,28 @@ async function trackShipment(req, res) {
     const result = await wwex.searchShipmentsFlow([bol], type, productType);
     if (!result.ok) return res.status(502).json(result);
 
-    // Update DB status if delivered
     const ship = result.shipments?.[0];
+    let orderUpdated = null;
+
     if (ship?.status) {
-      const dbStatus = ship.status.toLowerCase().includes('deliver') ? 'delivered'
-                     : ship.status.toLowerCase().includes('transit')  ? 'in_transit'
-                     : ship.status.toLowerCase().includes('void')     ? 'voided'
-                     : 'booked';
+      const dbStatus = _mapCarrierStatus(ship.status);
       await safeQuery(
-        `UPDATE shipments SET status=?, pro_number=COALESCE(pro_number,?), updated_at=NOW()
+        `UPDATE shipments SET status=?, pro_number=COALESCE(pro_number,?),
+                delivered_at = CASE WHEN ? = 'delivered' THEN COALESCE(delivered_at, NOW()) ELSE delivered_at END,
+                updated_at=NOW()
          WHERE bol_number=? OR pro_number=?`,
-        [dbStatus, ship.pro || bol, bol, bol]
+        [dbStatus, ship.pro || bol, dbStatus, bol, bol]
       );
+
+      /* ADDED 2026-08-31 — propagate to the ORDER.
+         Previously this updated shipments.status only, so a shipment could
+         read "delivered" while its order sat on "Shipped" indefinitely. Same
+         class of gap as the void bug: the shipping side moved, the order side
+         never followed. */
+      orderUpdated = await _syncOrderFromShipment(bol, dbStatus, req.session?.adminUser || 'admin');
     }
 
-    res.json({ ok: true, shipment: ship });
+    res.json({ ok: true, shipment: ship, orderUpdated });
   } catch (err) {
     console.error('[shipping] track error:', err);
     res.status(500).json({ ok: false, error: err.message });

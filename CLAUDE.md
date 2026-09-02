@@ -13,10 +13,26 @@
 2. **Never assume what the user wants.** Ask. Do not infer intent from prior sessions or partial context.
 3. **Always provide git push commands** in a copyable code block. Never push silently.
 4. **Scope discipline** — only touch files required by the current task. Do not "improve" adjacent code while fixing something else.
-5. **CSS bundle workflow** — CSS is now served as a single bundle. Rules:
-   - Edit source files: `public/css/brand.css`, `site.css`, `site2.css`, `site4.css`
-   - After any edit, rebuild the bundle: `cd "BVO Node.js/public/css" && cat brand.css site.css site2.css site4.css > site-bundle.css`
-   - Bump `?v=N` on `site-bundle.css` in `views/layouts/main.ejs` to bust Hostinger CDN cache. Current version: `v5` (verified against `main.ejs` line 86 on 2026-08-31 — this is the single source of truth; if this line and the Architecture Quick Reference table ever disagree, `main.ejs` wins).
+5. **CSS bundle workflow** — two separate pipelines. Do not mix them.
+
+   **PUBLIC pages** — `site-bundle.css`, linked in `views/layouts/main.ejs`:
+   - Source files: `public/css/brand.css`, `site.css`, `site2.css` — **site4.css is NOT one of them**
+   - After any edit, rebuild: `cd "BVO Node.js/public/css" && cat brand.css site.css site2.css > site-bundle.css`
+   - Bump `?v=N` on `site-bundle.css` in `main.ejs`. Current version: `v5` (verified against `main.ejs` line 86 on 2026-08-31 — that line is the single source of truth; if it and the Architecture table disagree, `main.ejs` wins).
+
+   **ADMIN pages** — `site4.css`, linked directly in `views/layouts/admin.ejs`:
+   - Edit `public/css/site4.css` and bump its own `?v=N` in `admin.ejs`. Current: `v2`.
+   - **No rebuild needed.** It is not concatenated into anything.
+
+   ⚠️ **CORRECTED 2026-08-31.** This rule previously said to `cat` site4.css into
+   the bundle, and the comment in `main.ejs` said the same. Both were wrong and
+   contradicted the Admin UI Component Standard section further down this file,
+   which correctly states site4.css is loaded separately. Following the old
+   instruction shipped ~23KB of admin-only CSS to every public visitor and grew
+   the bundle from 121KB to 137KB. site4.css content was never in the committed
+   bundle — admin styling has always come from the `admin.ejs` link.
+
+   `site3.css` is in neither bundle — it loads per-page via the `<%- style %>` slot. Current version: `v16`.
    - `site3.css` is NOT in the bundle — it loads per-page via the `<%- style %>` slot. Current version: `v16`.
 
 ---

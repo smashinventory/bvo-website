@@ -99,6 +99,9 @@
 .order-status--confirmed  { background:#e9d8fd; color:#553c9a; }
 .order-status--processing { background:#fefcbf; color:#744210; }
 .order-status--shipped    { background:#bee3f8; color:#2c5282; }
+/* in_transit: teal, sitting visually between shipped (blue) and delivered
+   (green) so the progression reads left-to-right at a glance. */
+.order-status--in_transit { background:#b2f5ea; color:#234e52; }
 .order-status--delivered  { background:#c6f6d5; color:#22543d; }
 .order-status--cancelled  { background:#fed7d7; color:#742a2a; }
 .order-status--refunded   { background:#e2e8f0; color:#4a5568; }
