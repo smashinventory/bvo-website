@@ -1003,25 +1003,48 @@ async function getDocument(req, res) {
    two can never disagree about what a carrier string means.
 ═══════════════════════════════════════════════════════════════════ */
 
+/* shipments.status is an ENUM in the database, NOT the VARCHAR(30) the
+   migration file claims. Writing a value outside it does NOT error — MySQL in
+   non-strict mode stores an EMPTY STRING instead. That row then falls outside
+   every status filter and becomes invisible to the poll and the UI.
+
+   This bit us: an 'out_for_delivery' value was introduced, the column would
+   not accept it, and shipment #1 silently ended up with status ''.
+
+   Keep this list matching the ENUM exactly. Anything not in it must never
+   reach a write. */
+const SHIPMENT_STATUSES = ['booked', 'in_transit', 'delivered', 'exception', 'voided'];
+
 /** Map a free-text carrier status onto our shipments.status vocabulary.
  *
- *  ORDER MATTERS. Several carrier strings contain the word "deliver" without
- *  meaning delivered:
- *    "Out For Delivery"   → still on the truck, NOT delivered
- *    "Delivery Exception" → a problem, NOT delivered
- *  A naive includes('deliver') check first would mark both as delivered and,
- *  worse, flip the order to Delivered while the freight is still moving.
- *  So the specific cases are tested before the general one.
+ *  ORDER MATTERS. Several carrier strings contain "deliver" without meaning
+ *  delivered:
+ *    "Out For Delivery"   → still on the truck → in_transit
+ *    "Delivery Exception" → a problem          → exception
+ *  Checking includes('deliver') first would mark both delivered and flip the
+ *  order to Delivered while the freight is still moving.
+ *
+ *  "Out For Delivery" maps to in_transit rather than its own status: the ENUM
+ *  has no out_for_delivery, and the extra precision is not worth widening the
+ *  column for — the freight is still, accurately, in transit.
  */
 function _mapCarrierStatus(raw) {
   const s = String(raw || '').toLowerCase();
-  if (s.includes('out for'))                          return 'out_for_delivery';
-  if (s.includes('exception') || s.includes('fail'))  return 'exception';
-  if (s.includes('deliver'))                          return 'delivered';
-  if (s.includes('void') || s.includes('cancel'))     return 'voided';
-  if (s.includes('transit') || s.includes('pickup')
-      || s.includes('picked'))                        return 'in_transit';
-  return 'booked';
+  let v;
+  if (s.includes('out for'))                            v = 'in_transit';
+  else if (s.includes('exception') || s.includes('fail')) v = 'exception';
+  else if (s.includes('deliver'))                       v = 'delivered';
+  else if (s.includes('void') || s.includes('cancel'))  v = 'voided';
+  else if (s.includes('transit') || s.includes('pickup')
+        || s.includes('picked'))                        v = 'in_transit';
+  else                                                  v = 'booked';
+
+  // Belt and braces — never hand the ENUM a value it cannot store.
+  if (!SHIPMENT_STATUSES.includes(v)) {
+    console.warn(`[shipping] refusing to write unknown shipment status "${v}" (from "${raw}") — using 'booked'`);
+    return 'booked';
+  }
+  return v;
 }
 
 /* Which carrier states move the ORDER, and what they move it to.

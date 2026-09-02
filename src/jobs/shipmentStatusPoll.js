@@ -44,7 +44,15 @@ const wwex        = require('../services/wwexService');
 /* Statuses worth polling. Anything already delivered, voided or cancelled
    is terminal and never checked again — that keeps the API call count
    proportional to shipments actually in motion. */
-const ACTIVE_STATUSES = ['booked', 'in_transit', 'out_for_delivery', 'exception'];
+/* shipments.status is an ENUM, NOT the VARCHAR(30) the migration file claims:
+     enum('booked','in_transit','delivered','exception','voided')
+   Writing anything outside it does NOT error — MySQL in non-strict mode stores
+   an EMPTY STRING, and that row then falls outside every status filter and
+   goes invisible. Keep this list matching the ENUM exactly. */
+const SHIPMENT_STATUSES = ['booked', 'in_transit', 'delivered', 'exception', 'voided'];
+
+/* Statuses worth polling. delivered and voided are terminal. */
+const ACTIVE_STATUSES = ['booked', 'in_transit', 'exception'];
 
 /* Which carrier states move the ORDER, and what they move it to.
    Mirrors SHIPMENT_TO_ORDER_STATUS in shippingController. Orders stay
@@ -71,16 +79,27 @@ const MAX_AGE_DAYS = 45;
  *  "deliver" but neither means delivered. Testing the general case first
  *  would mark freight still on the truck as delivered and flip its order
  *  to Delivered prematurely — so the specific cases come first.
+ *
+ *  "Out For Delivery" maps to in_transit: the ENUM has no out_for_delivery,
+ *  and the freight is still, accurately, in transit.
  */
 function mapCarrierStatus(raw) {
   const s = String(raw || '').toLowerCase();
-  if (s.includes('out for'))                          return 'out_for_delivery';
-  if (s.includes('exception') || s.includes('fail'))  return 'exception';
-  if (s.includes('deliver'))                          return 'delivered';
-  if (s.includes('void') || s.includes('cancel'))     return 'voided';
-  if (s.includes('transit') || s.includes('pickup')
-      || s.includes('picked'))                        return 'in_transit';
-  return 'booked';
+  let v;
+  if (s.includes('out for'))                              v = 'in_transit';
+  else if (s.includes('exception') || s.includes('fail')) v = 'exception';
+  else if (s.includes('deliver'))                         v = 'delivered';
+  else if (s.includes('void') || s.includes('cancel'))    v = 'voided';
+  else if (s.includes('transit') || s.includes('pickup')
+        || s.includes('picked'))                          v = 'in_transit';
+  else                                                    v = 'booked';
+
+  // Never hand the ENUM a value it cannot store — that writes '' silently.
+  if (!SHIPMENT_STATUSES.includes(v)) {
+    console.warn(`[poll] refusing unknown shipment status "${v}" (from "${raw}") — using 'booked'`);
+    return 'booked';
+  }
+  return v;
 }
 
 /**

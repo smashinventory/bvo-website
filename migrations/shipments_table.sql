@@ -29,8 +29,19 @@ CREATE TABLE IF NOT EXISTS shipments (
   service_level           VARCHAR(100) NULL,
   total_charge            DECIMAL(10,2) NULL,
 
-  -- Status: booked | in_transit | delivered | voided | exception
-  status                  VARCHAR(30)  NOT NULL DEFAULT 'booked',
+  -- ⚠️ THIS IS AN ENUM IN PRODUCTION, NOT A VARCHAR.
+  -- This file previously declared VARCHAR(30), which does not match the live
+  -- table. The distinction matters: writing a value outside an ENUM does NOT
+  -- error — MySQL in non-strict mode stores an EMPTY STRING. That row then
+  -- falls outside every status filter and silently disappears from the UI and
+  -- the status poll. It happened: an 'out_for_delivery' value was introduced,
+  -- the column rejected it, and a shipment ended up with status ''.
+  --
+  -- If you add a value here you MUST also ALTER the live table, and update
+  -- SHIPMENT_STATUSES in both src/controllers/shippingController.js and
+  -- src/jobs/shipmentStatusPoll.js.
+  status                  ENUM('booked','in_transit','delivered','exception','voided')
+                          NOT NULL DEFAULT 'booked',
 
   -- Origin (our warehouse — usually pre-filled from config)
   origin_company          VARCHAR(150) NULL,
