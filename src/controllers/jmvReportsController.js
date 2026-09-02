@@ -183,31 +183,60 @@ async function dashboard(req, res) {
     // representative price; groups with no snapshot row fall into 'Unknown'.
     const priceBands = []; // replaced by priceBandsFallback below
 
+    /* FIXED 2026-09-02 — this query never ran. Not once.
+
+       It was:
+         SELECT CASE WHEN MAX(gd.grp_map) < 2000 THEN ... END AS price_band ...
+         GROUP BY price_band
+
+       price_band is an alias for an expression containing MAX(), and you
+       cannot group on an aggregate. MariaDB rejects it outright:
+
+         #1056 - Can't group on 'price_band'
+         (MySQL reports the same thing as #1111 Invalid use of group function)
+
+       safeQuery swallowed the error and returned [], so the panel rendered
+       "No data" — indistinguishable from a genuinely empty period. It had
+       been that way since the panel was written.
+
+       Wrong twice over, in fact: even in an engine that permitted it,
+       MAX(gd.grp_map) evaluates across the WHOLE result rather than per row,
+       so every group would have collapsed into a single band. The aggregate
+       was not merely illegal, it was not what was meant.
+
+       FIX: band each inner row by its own grp_map in a subquery, THEN sum.
+       The inner query is unchanged — its per-(date, group) dedup was correct.
+
+       Verified against production data before committing: 7 bands,
+       $5K–$7K leading at 1206, then $2K–$3K at 538. */
     const priceBandsFallback = hasDims ? await safeQuery(
-      `SELECT
-         CASE
-           WHEN MAX(gd.grp_map) IS NULL THEN 'Unknown'
-           WHEN MAX(gd.grp_map) < 2000  THEN 'Under $2K'
-           WHEN MAX(gd.grp_map) < 3000  THEN '$2K–$3K'
-           WHEN MAX(gd.grp_map) < 4000  THEN '$3K–$4K'
-           WHEN MAX(gd.grp_map) < 5000  THEN '$4K–$5K'
-           WHEN MAX(gd.grp_map) < 7000  THEN '$5K–$7K'
-           ELSE '$7K+'
-         END AS price_band,
-         SUM(gd.grp_max) AS total_drawdown
+      `SELECT band AS price_band, SUM(grp_max) AS total_drawdown
        FROM (
-         SELECT m.movement_date, d.group_number,
-                MAX(m.demand_min)     AS grp_max,
-                MAX(s.map_price)      AS grp_map
-         FROM jmv_daily_movement m
-         JOIN jmv_dimensions d USING (sku)
-         LEFT JOIN jmv_snapshots s ON s.sku = m.sku AND s.snapshot_date = ?
-         WHERE m.is_valid = 1 AND m.demand_min > 0
-           AND d.product_type IN (${SYNC_TYPES_SQL})
-           AND m.movement_date >= ?
-         GROUP BY m.movement_date, d.group_number
-       ) gd
-       GROUP BY price_band
+         SELECT
+           CASE
+             WHEN gd.grp_map IS NULL THEN 'Unknown'
+             WHEN gd.grp_map < 2000  THEN 'Under $2K'
+             WHEN gd.grp_map < 3000  THEN '$2K–$3K'
+             WHEN gd.grp_map < 4000  THEN '$3K–$4K'
+             WHEN gd.grp_map < 5000  THEN '$4K–$5K'
+             WHEN gd.grp_map < 7000  THEN '$5K–$7K'
+             ELSE '$7K+'
+           END AS band,
+           gd.grp_max
+         FROM (
+           SELECT m.movement_date, d.group_number,
+                  MAX(m.demand_min)     AS grp_max,
+                  MAX(s.map_price)      AS grp_map
+           FROM jmv_daily_movement m
+           JOIN jmv_dimensions d USING (sku)
+           LEFT JOIN jmv_snapshots s ON s.sku = m.sku AND s.snapshot_date = ?
+           WHERE m.is_valid = 1 AND m.demand_min > 0
+             AND d.product_type IN (${SYNC_TYPES_SQL})
+             AND m.movement_date >= ?
+           GROUP BY m.movement_date, d.group_number
+         ) gd
+       ) b
+       GROUP BY band
        ORDER BY total_drawdown DESC`,
       [latestDate, ...SYNC_TYPES, cutoffStr]
     ) : [];
@@ -280,22 +309,39 @@ async function dashboard(req, res) {
     // Instead: collapse to exactly one row per (movement_date, group_number),
     // capturing MAX(demand_min) for dedup and a binary has_fp flag that is 1
     // if ANY SKU in the group has a recognised FreePower attribute value.
+    /* FIXED 2026-09-02 — identical bug to priceBandsFallback above, found by
+       grepping for the same shape rather than by noticing the symptom.
+
+       'fp' aliased a CASE over MAX(gd.has_fp) and was then used in GROUP BY.
+       You cannot group on an aggregate; MariaDB answers #1056 every time.
+
+       This one hid better than the price bands did. Its empty state reads
+       "No data (only 366 FP-compatible SKUs in feed)" — and that 366 is a
+       REAL number from a separate count, so the message looks like a
+       considered finding rather than a failure. It attached a true fact to
+       a conclusion it had never actually reached. A plain "No data" would
+       have been more honest, and more likely to get questioned.
+
+       FIX: label each inner row, then aggregate. Inner query untouched. */
     const fpAttach = hasDims ? await safeQuery(
-      `SELECT
-         CASE WHEN MAX(gd.has_fp) = 1 THEN 'Yes – FreePower' ELSE 'Standard' END AS fp,
-         SUM(gd.grp_max) AS total_drawdown
+      `SELECT fp, SUM(grp_max) AS total_drawdown
        FROM (
-         SELECT m.movement_date, d.group_number,
-                MAX(m.demand_min) AS grp_max,
-                MAX(CASE WHEN d.freepower IN ('Y','y','Yes','yes','YES','1','true','True') THEN 1 ELSE 0 END) AS has_fp
-         FROM jmv_daily_movement m
-         JOIN jmv_dimensions d ON d.sku = m.sku
-         WHERE m.is_valid = 1
-           AND m.demand_min > 0
-           AND d.product_type IN (${SYNC_TYPES_SQL})
-           AND m.movement_date >= ?
-         GROUP BY m.movement_date, d.group_number
-       ) gd
+         SELECT
+           CASE WHEN gd.has_fp = 1 THEN 'Yes – FreePower' ELSE 'Standard' END AS fp,
+           gd.grp_max
+         FROM (
+           SELECT m.movement_date, d.group_number,
+                  MAX(m.demand_min) AS grp_max,
+                  MAX(CASE WHEN d.freepower IN ('Y','y','Yes','yes','YES','1','true','True') THEN 1 ELSE 0 END) AS has_fp
+           FROM jmv_daily_movement m
+           JOIN jmv_dimensions d ON d.sku = m.sku
+           WHERE m.is_valid = 1
+             AND m.demand_min > 0
+             AND d.product_type IN (${SYNC_TYPES_SQL})
+             AND m.movement_date >= ?
+           GROUP BY m.movement_date, d.group_number
+         ) gd
+       ) b
        GROUP BY fp
        ORDER BY total_drawdown DESC`,
       [...SYNC_TYPES, cutoffStr]

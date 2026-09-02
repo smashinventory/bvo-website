@@ -307,7 +307,16 @@ const _docCollections = [...new Set(daysOfCover.map(r => r.collection).filter(Bo
     <h3 class="admin-card-title">FreePower Attach Rate</h3>
     <% if (_fpAttach.length) { %>
     <div style="position:relative;height:200px"><canvas id="chartFP"></canvas></div>
-    <% } else { %><div class="adm-empty">No data (only 366 FP-compatible SKUs in feed)</div><% } %>
+    <%# CHANGED 2026-09-02 — this used to read
+        "No data (only 366 FP-compatible SKUs in feed)".
+        The 366 was real, but it was a hard-coded number from a different
+        count, offered as an explanation for an emptiness nobody had
+        actually diagnosed. The query was in fact failing on every load
+        (#1056, aggregate in GROUP BY) and the plausible-sounding message
+        is a large part of why it went unquestioned for so long.
+        An empty state should say what is true — that there is nothing to
+        show — and not invent a reason. %>
+    <% } else { %><div class="adm-empty">No data for this window.</div><% } %>
   </div>
 
 </div>
