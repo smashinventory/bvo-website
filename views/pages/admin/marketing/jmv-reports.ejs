@@ -304,7 +304,8 @@ const _docCollections = [...new Set(daysOfCover.map(r => r.collection).filter(Bo
 
   <!-- FreePower Attach -->
   <div class="admin-card">
-    <h3 class="admin-card-title">FreePower Attach Rate</h3>
+    <h3 class="admin-card-title">FreePower Attach Rate <span class="jmv-tip" data-tip="Share of TOP drawdown carrying the FreePower wireless charger. Denominator is individual top SKUs — a combo (vanity + top) automatically draws down its individual top SKU too, so these rows already include tops sold inside combos. Identified from the SKU (-FP-), not from the feed's 'FreePower Compatible?' column, which marks bases that can ACCEPT a charger rather than units that have one.">ℹ</span></h3>
+    <p style="font-size:.78rem;color:var(--text-muted);margin:0 0 8px">Share of tops depleted that carried the charger</p>
     <% if (_fpAttach.length) { %>
     <div style="position:relative;height:200px"><canvas id="chartFP"></canvas></div>
     <%# CHANGED 2026-09-02 — this used to read
@@ -491,8 +492,13 @@ function makePie(id, labels, data) {
 }
 
 if (topCollections.length) {
+  /* CHANGED 2026-09-02 — a bare '—' read as missing data. It is not: these
+     are standalone tops and sinks (050-S…, 051-…, 060-…, CS-…) that belong
+     to no vanity collection in the JM feed. Verified there is no Vanity or
+     Cabinet in that bucket, so nothing is being silently dropped from the
+     named collections. Naming it stops the question being re-asked. */
   makeBar('chartCollections',
-    topCollections.map(r => r.collection || '—'),
+    topCollections.map(r => r.collection || 'Tops & Sinks (no collection)'),
     topCollections.map(r => r.total_drawdown),
     topCollections.map((_,i) => PALETTE[i % PALETTE.length])
   );

@@ -309,42 +309,63 @@ async function dashboard(req, res) {
     // Instead: collapse to exactly one row per (movement_date, group_number),
     // capturing MAX(demand_min) for dedup and a binary has_fp flag that is 1
     // if ANY SKU in the group has a recognised FreePower attribute value.
-    /* FIXED 2026-09-02 — identical bug to priceBandsFallback above, found by
-       grepping for the same shape rather than by noticing the symptom.
+    /* ── FreePower attach rate ────────────────────────────────────────
+       REWRITTEN 2026-09-02. The old query was wrong three separate ways;
+       the SQL error was only the most visible of them.
 
-       'fp' aliased a CASE over MAX(gd.has_fp) and was then used in GROUP BY.
-       You cannot group on an aggregate; MariaDB answers #1056 every time.
+       1. INVALID SQL. 'fp' aliased a CASE over MAX(gd.has_fp), then was used
+          in GROUP BY. You cannot group on an aggregate — MariaDB answers
+          #1056 every time. safeQuery swallowed it and the panel showed
+          "No data". (Same bug as priceBandsFallback above; found by grepping
+          for the shape, not by noticing a second symptom.)
 
-       This one hid better than the price bands did. Its empty state reads
-       "No data (only 366 FP-compatible SKUs in feed)" — and that 366 is a
-       REAL number from a separate count, so the message looks like a
-       considered finding rather than a failure. It attached a true fact to
-       a conclusion it had never actually reached. A plain "No data" would
-       have been more honest, and more likely to get questioned.
+       2. WRONG COLUMN. It read d.freepower, which comes from the feed column
+          'FreePower Compatible?' — meaning "this base can ACCEPT a charger",
+          not "this unit HAS one". The two are close to inverses in practice.
+          Proof from one row pair on 2026-09-02, group 330:
 
-       FIX: label each inner row, then aggregate. Inner query untouched. */
+            330-V60S-BW        top_finish NULL                freepower 1
+            330-V60S-BW-FEJP   Eternal Jasmine Pearl          freepower 0
+
+          The bare cabinet is flagged 1; the actual FreePower vanity built on
+          it is flagged 0.
+
+       3. WRONG DENOMINATOR AND WRONG DEDUP. It grouped by (date, group) and
+          took MAX(has_fp), so if ANY sku in a model family had the flag, the
+          family's entire drawdown was attributed to FreePower. group_number
+          is the model prefix — 330 is all of Breckenridge — so nearly every
+          group qualified and the chart read close to 100%.
+
+       WHAT IT MEASURES NOW: of the tops that moved, what share carried the
+       FreePower charger. Straight from the business question.
+
+       WHY product_type = 'Top' AND NO DEDUP: a combo (vanity + top) sku
+       draws down the individual cabinet sku AND the individual top sku
+       automatically. So the standalone Top rows already capture every top
+       that moved, whether sold alone or inside a combo. They are the atomic
+       unit — there is no coupling left to correct for, and adding a group
+       dedup here would undercount.
+
+       WHY THE SKU RULE: verified against product names across all 5,218 JM
+       skus, with zero disagreement in either direction:
+
+         name says FreePower  &  sku rule says FP    979
+         name says nothing    &  sku rule says no   4239
+
+       Baseline at time of writing: FreePower 441 / Standard 2240 ≈ 16%. */
     const fpAttach = hasDims ? await safeQuery(
-      `SELECT fp, SUM(grp_max) AS total_drawdown
-       FROM (
-         SELECT
-           CASE WHEN gd.has_fp = 1 THEN 'Yes – FreePower' ELSE 'Standard' END AS fp,
-           gd.grp_max
-         FROM (
-           SELECT m.movement_date, d.group_number,
-                  MAX(m.demand_min) AS grp_max,
-                  MAX(CASE WHEN d.freepower IN ('Y','y','Yes','yes','YES','1','true','True') THEN 1 ELSE 0 END) AS has_fp
-           FROM jmv_daily_movement m
-           JOIN jmv_dimensions d ON d.sku = m.sku
-           WHERE m.is_valid = 1
-             AND m.demand_min > 0
-             AND d.product_type IN (${SYNC_TYPES_SQL})
-             AND m.movement_date >= ?
-           GROUP BY m.movement_date, d.group_number
-         ) gd
-       ) b
+      `SELECT
+         CASE WHEN d.sku LIKE '%-FP-%' THEN 'FreePower' ELSE 'Standard' END AS fp,
+         SUM(m.demand_min) AS total_drawdown
+       FROM jmv_daily_movement m
+       JOIN jmv_dimensions d ON d.sku = m.sku
+       WHERE m.is_valid = 1
+         AND m.demand_min > 0
+         AND d.product_type = 'Top'
+         AND m.movement_date >= ?
        GROUP BY fp
        ORDER BY total_drawdown DESC`,
-      [...SYNC_TYPES, cutoffStr]
+      [cutoffStr]
     ) : [];
 
     // ── Restock cadence (top restocked SKUs) ─────────────────────────
