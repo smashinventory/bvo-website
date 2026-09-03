@@ -325,6 +325,73 @@ async function processSnapshot(dateStr, conn) {
 
   const prevMap = new Map(prevRows.map(r => [r.sku, r.qty]));
 
+  /* ── NO OBSERVATION vs ZERO DEMAND ─────────────────────────────────
+     ADDED 2026-09-03.
+
+     James Martin publishes new data roughly once every 24h, but gvssync
+     runs twice daily and the rollup runs per calendar date. So a date
+     regularly gets a snapshot that is BYTE-IDENTICAL to the previous one.
+
+     Previously that produced 5,218 rows of delta = 0, is_valid = 1 —
+     asserting "we looked and observed no demand anywhere in the warehouse".
+     We did not look. JM had not published. The Financials chart then drew
+     $0 on 08-24, 08-28, 08-30, 09-01 and 09-03, and the depletion that
+     really occurred on those days was attributed to whichever date the feed
+     did change: 08-29 showed 18,949 units for what was actually two days.
+
+     Now: if not one SKU differs, this date has NO OBSERVATION. No movement
+     rows are written, and any previously written for it are removed. Charts
+     gap rather than showing a false zero.
+
+     The next date that DOES differ needs no special handling — its delta is
+     already measured against the last changed state, so the VALUE is right.
+     What it lacked was a record of how many days it covers. span_days
+     supplies that, so a two-day observation can be labelled as one rather
+     than read as a one-day spike. */
+  let changedSkus = 0;
+  for (const row of rows) {
+    const qtyPrev = prevMap.has(row.sku) ? prevMap.get(row.sku) : row.qty;
+    if (row.qty !== qtyPrev) { changedSkus++; break; }
+  }
+
+  if (changedSkus === 0) {
+    // Remove anything previously recorded for this date under the old
+    // behaviour, so a re-run repairs history rather than leaving false zeros.
+    const [purged] = await conn.query(
+      `DELETE FROM jmv_daily_movement WHERE movement_date = ?`, [dateStr]
+    );
+    await conn.query(
+      `INSERT INTO jmv_snapshot_validity (snapshot_date, row_count, is_valid, notes)
+       VALUES (?, ?, 1, ?)
+       ON DUPLICATE KEY UPDATE notes=VALUES(notes)`,
+      [dateStr, rowCount, 'Feed unchanged — no observation, no movement recorded']
+    );
+    console.log(`[rollup] ${dateStr}: feed unchanged since previous snapshot — ` +
+                `no observation recorded${purged.affectedRows ? `, purged ${purged.affectedRows} false zero rows` : ''}`);
+    return {
+      date: dateStr, inserted: 0, restocks: 0, skipped: rowCount,
+      isValid: true, noObservation: true,
+      notes: 'Feed unchanged — no observation (chart will gap, not show zero)',
+    };
+  }
+
+  /* How many calendar days this observation covers. 1 normally; more when
+     the preceding days had no new feed. Uses the previous date that actually
+     produced movement rows, so it stays correct after the purge above. */
+  const [spanRow] = await conn.query(
+    `SELECT GREATEST(1, DATEDIFF(?, COALESCE(
+              (SELECT MAX(movement_date) FROM jmv_daily_movement
+                WHERE movement_date < ?),
+              DATE_SUB(?, INTERVAL 1 DAY)
+            ))) AS span`,
+    [dateStr, dateStr, dateStr]
+  );
+  const spanDays = Math.min(255, Number(spanRow[0]?.span || 1));
+  if (spanDays > 1) {
+    console.log(`[rollup] ${dateStr}: observation covers ${spanDays} days ` +
+                `(no new feed on the preceding ${spanDays - 1})`);
+  }
+
   // Compute deltas + restock detection
   let inserted = 0, restocks = 0;
   const movementRows = [];
@@ -358,7 +425,7 @@ async function processSnapshot(dateStr, conn) {
     movementRows.push([
       dateStr, row.sku, qtyEnd, delta,
       demandMin, receivedMin, receivedMax,
-      demandEst, isRestock, isEstimated, 1 /* is_valid */
+      demandEst, isRestock, isEstimated, 1 /* is_valid */, spanDays
     ]);
     inserted++;
   }
@@ -369,14 +436,14 @@ async function processSnapshot(dateStr, conn) {
       `INSERT INTO jmv_daily_movement
          (movement_date, sku, qty_end, delta,
           demand_min, received_min, received_max,
-          demand_est, is_restock, is_estimated, is_valid)
+          demand_est, is_restock, is_estimated, is_valid, span_days)
        VALUES ?
        ON DUPLICATE KEY UPDATE
          qty_end=VALUES(qty_end), delta=VALUES(delta),
          demand_min=VALUES(demand_min), received_min=VALUES(received_min),
          received_max=VALUES(received_max), demand_est=VALUES(demand_est),
          is_restock=VALUES(is_restock), is_estimated=VALUES(is_estimated),
-         is_valid=VALUES(is_valid)`,
+         is_valid=VALUES(is_valid), span_days=VALUES(span_days)`,
       [movementRows]
     );
   }

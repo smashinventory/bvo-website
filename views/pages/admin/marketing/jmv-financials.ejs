@@ -131,6 +131,20 @@ function fmtDollar(n) {
     <h3 class="admin-card-title">By Collection (Top 12 — Revenue)</h3>
     <% if (_byColl.length) { %>
     <div class="jmvf-chart-wrap" style="height:320px"><canvas id="chartByColl"></canvas></div>
+    <%# ADDED 2026-09-03. This chart previously carried a '(none)' bar holding
+        every standalone top, sink and accessory — and it ranked first,
+        because it was the sum of everything without a collection rather
+        than a collection. Those rows are now excluded from the axis, and
+        stated here instead, so the difference between this chart and the
+        revenue KPI above is explained rather than unaccounted for. %>
+    <% if (excludedNoCollectionRev > 0) { %>
+    <p style="font-size:.75rem;color:var(--text-muted);margin:8px 0 0">
+      Excludes $<%= Number(excludedNoCollectionRev).toLocaleString() %>
+      (<%= Number(excludedNoCollectionUnits).toLocaleString() %> units) of tops,
+      sinks and accessories that belong to no collection — see Tops Demand on the
+      main dashboard for those.
+    </p>
+    <% } %>
     <% } else { %><div class="adm-empty">No data for this window</div><% } %>
   </div>
 
@@ -143,6 +157,16 @@ function fmtDollar(n) {
     <h3 class="admin-card-title">By Color / Finish (Top 10)</h3>
     <% if (_byFin.length) { %>
     <div class="jmvf-chart-wrap" style="height:280px"><canvas id="chartByFin"></canvas></div>
+    <%# Same fix as the collection chart. base_finish is the VANITY BASE
+        colour — tops and sinks do not have one, so they were all collapsing
+        into a single '(none)' bar that outranked every real finish. %>
+    <% if (excludedNoFinishRev > 0) { %>
+    <p style="font-size:.75rem;color:var(--text-muted);margin:8px 0 0">
+      Excludes $<%= Number(excludedNoFinishRev).toLocaleString() %>
+      (<%= Number(excludedNoFinishUnits).toLocaleString() %> units) with no base
+      finish — tops and sinks are counted by stone finish under Tops Demand.
+    </p>
+    <% } %>
     <% } else { %><div class="adm-empty">No data for this window</div><% } %>
   </div>
 
@@ -269,6 +293,27 @@ if (byDay.length) {
         legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 14 } },
         tooltip: {
           callbacks: {
+            /* ADDED 2026-09-03 — label multi-day observations.
+               JM does not publish new data every day. A date whose snapshot
+               was unchanged now has no rows at all, so it is absent from this
+               series and the chart GAPS rather than drawing a false $0. The
+               bar on the day the feed DID change therefore covers the quiet
+               days too, and span_days says how many. Without this the bar
+               reads as a one-day spike — which is exactly how 08-29's two
+               days of depletion looked like one enormous day.
+
+               NOTE: this callback belongs INSIDE the existing plugins block.
+               My first attempt added a second `plugins:` key to the same
+               object literal — JavaScript keeps the last duplicate key
+               silently, so the addition would have been discarded with no
+               error at all. */
+            afterBody: function (items) {
+              var r = byDay[items[0].dataIndex];
+              var n = Number(r && r.span_days) || 1;
+              if (n <= 1) return '';
+              return 'Covers ' + n + ' days — JM published no new feed on the '
+                   + (n - 1) + ' day' + (n === 2 ? '' : 's') + ' before this.';
+            },
             label: function(ctx) {
               if (ctx.dataset.yAxisID === 'yRev') return ' $' + Number(ctx.parsed.y).toLocaleString();
               return ' ' + ctx.parsed.y + ' units';

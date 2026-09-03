@@ -366,20 +366,38 @@ async function dashboard(req, res) {
       [latestDate, ...SYNC_TYPES, cutoffStr]
     );
 
-    // ── Top mirrors (full feed scope — "should we add?" view) ────────
+    /* ── Top mirrors (full feed scope — "should we add?" view) ────────
+       FIXED 2026-09-03 — a FAN-OUT JOIN was multiplying every number here.
+
+       It was:
+         FROM ( ...one row per (date, group_number)... ) gm
+         JOIN jmv_dimensions d ON d.group_number = gm.group_number
+         GROUP BY d.collection
+
+       group_number identifies a model FAMILY, so joining jmv_dimensions back
+       on it returns one row per SKU in that family — and each deduped
+       (date, group) figure was then counted once per SKU. The inflation
+       factor was roughly the mirror SKU count for that collection. Bristol
+       reading "3090 units · 1 groups" was that artefact, not demand.
+
+       The inner query carries collection through now, so there is nothing to
+       re-join. Collection-less rows are excluded for the same reason as
+       every other dimensional chart: this axis is collections. */
     const topMirrors = hasDims ? await safeQuery(
-      `SELECT d.collection, SUM(gm.grp_max) AS total_drawdown, COUNT(DISTINCT d.group_number) AS group_count
+      `SELECT gm.collection, SUM(gm.grp_max) AS total_drawdown,
+              COUNT(DISTINCT gm.group_number) AS group_count
        FROM (
-         SELECT m.movement_date, d.group_number, MAX(m.demand_min) AS grp_max
+         SELECT m.movement_date, d.group_number, d.collection,
+                MAX(m.demand_min) AS grp_max
          FROM jmv_daily_movement m
          JOIN jmv_dimensions d USING (sku)
          WHERE m.is_valid = 1 AND m.demand_min > 0
            AND d.product_type = 'Mirror'
            AND m.movement_date >= ?
-         GROUP BY m.movement_date, d.group_number
+         GROUP BY m.movement_date, d.group_number, d.collection
        ) gm
-       JOIN jmv_dimensions d ON d.group_number = gm.group_number
-       GROUP BY d.collection
+       WHERE gm.collection IS NOT NULL AND gm.collection <> ''
+       GROUP BY gm.collection
        ORDER BY total_drawdown DESC LIMIT 10`,
       [cutoffStr]
     ) : [];
@@ -865,6 +883,10 @@ async function getFinancials(req, res) {
         top10Revenue: [],
         revenueByDay: '[]', revenueByCategory: '[]',
         revenueByCollection: '[]', revenueByFinish: '[]',
+        // Footnote figures — the cards read these unconditionally, so an
+        // error path that omits them turns a handled 500 into a template crash.
+        excludedNoCollectionRev: 0, excludedNoCollectionUnits: 0,
+        excludedNoFinishRev: 0, excludedNoFinishUnits: 0,
         comboVsIndividual: '[]',
         error: 'No valid snapshot data yet — run the rollup job first.',
         style: '',
@@ -880,6 +902,8 @@ async function getFinancials(req, res) {
         MAX(d.collection)   AS collection,
         MAX(d.base_finish)  AS base_finish,
         MAX(d.size_nominal) AS size_nominal,
+        -- Carried through so revenueByDay can label multi-day observations.
+        MAX(m.span_days)    AS span_days,
         MAX(CASE WHEN d.product_type = 'Vanity'  THEN m.demand_min  ELSE 0 END) AS combo_u,
         MAX(CASE WHEN d.product_type = 'Cabinet' THEN m.demand_min  ELSE 0 END) AS cabinet_u,
         MAX(CASE WHEN d.product_type = 'Top'     THEN m.demand_min  ELSE 0 END) AS top_u,
@@ -907,10 +931,17 @@ async function getFinancials(req, res) {
     );
 
     // ── Revenue by day ───────────────────────────────────────────────
+    /* span_days added 2026-09-03 — see migrations/2026-09-03_movement_span_days.sql.
+       An observation can cover more than one calendar day, because JM does
+       not publish new data every day. Days with no new feed now have NO rows
+       at all, so this series simply skips them and the chart gaps rather than
+       drawing a false $0. The span comes through so the tooltip can say
+       "covers 2 days" instead of reading as a one-day spike. */
     const revenueByDay = await safeQuery(
       `SELECT DATE_FORMAT(g.movement_date,'%Y-%m-%d') AS date,
               ROUND(SUM(${REV}),0) AS revenue,
-              SUM(${UNITS}) AS units
+              SUM(${UNITS}) AS units,
+              MAX(g.span_days) AS span_days
        FROM (${PIVOT}) g
        GROUP BY g.movement_date ORDER BY g.movement_date`, PP
     );
@@ -927,22 +958,61 @@ async function getFinancials(req, res) {
        FROM (${PIVOT}) g`, PP
     );
 
+    /* ══════════════════════════════════════════════════════════════════
+       DIMENSIONAL CHARTS — no '(none)' buckets. FIXED 2026-09-03.
+
+       Both queries below read COALESCE(<dimension>,'(none)') and grouped by
+       it, which manufactured a bucket containing every standalone top, sink
+       and accessory in the feed. On charts titled "Revenue by Collection"
+       and "By Color / Finish" that bucket ranked FIRST — larger than
+       Bellshire, larger than Whitewashed Oak — precisely because it is not a
+       collection or a finish. It was the sum of everything that has neither.
+
+       THE RULE, applied here and to be applied to any chart added later:
+       a chart keyed on a dimension may only contain rows that HAVE that
+       dimension. Tops and sinks have no collection and no base finish, so
+       they do not belong on those axes at any size.
+
+       They are not simply discarded. Each excluded total is returned
+       alongside so the view can state it as a footnote — money left off a
+       chart should be visible, not a silent gap between the chart and the
+       KPI above it.
+
+       Tops and sinks have their own analysis: the Tops Demand section on
+       the main dashboard, keyed on top_finish, size and material — the
+       dimensions they actually have.
+    ══════════════════════════════════════════════════════════════════ */
+
     // ── Revenue by collection ─────────────────────────────────────────
     const revenueByCollection = await safeQuery(
-      `SELECT COALESCE(g.collection,'(none)') AS label,
+      `SELECT g.collection AS label,
               ROUND(SUM(${REV}),0) AS revenue,
               SUM(${UNITS}) AS units
        FROM (${PIVOT}) g
+       WHERE g.collection IS NOT NULL AND g.collection <> ''
        GROUP BY g.collection ORDER BY revenue DESC LIMIT 12`, PP
+    );
+
+    const excludedNoCollection = await safeQueryOne(
+      `SELECT ROUND(SUM(${REV}),0) AS revenue, SUM(${UNITS}) AS units
+       FROM (${PIVOT}) g
+       WHERE g.collection IS NULL OR g.collection = ''`, PP
     );
 
     // ── Revenue by finish ─────────────────────────────────────────────
     const revenueByFinish = await safeQuery(
-      `SELECT COALESCE(g.base_finish,'(none)') AS label,
+      `SELECT g.base_finish AS label,
               ROUND(SUM(${REV}),0) AS revenue,
               SUM(${UNITS}) AS units
        FROM (${PIVOT}) g
+       WHERE g.base_finish IS NOT NULL AND g.base_finish <> ''
        GROUP BY g.base_finish ORDER BY revenue DESC LIMIT 10`, PP
+    );
+
+    const excludedNoFinish = await safeQueryOne(
+      `SELECT ROUND(SUM(${REV}),0) AS revenue, SUM(${UNITS}) AS units
+       FROM (${PIVOT}) g
+       WHERE g.base_finish IS NULL OR g.base_finish = ''`, PP
     );
 
     // ── Top 10 groups by revenue (conservative dedup) ─────────────────
@@ -994,16 +1064,23 @@ async function getFinancials(req, res) {
       extraRevenue = Number(otKpi?.rev || 0);
       extraUnits   = Number(otKpi?.u   || 0);
 
+      /* Same rule as the main queries above — no '(none)' bucket on a
+         dimensional axis. This is the "all types" path, so it carries even
+         more collection-less rows than the sync-scope one: mirrors,
+         backsplashes, samples, shelves. Merging them into a single bar and
+         ranking it against Brittany was the whole problem. */
       const otColl = await safeQuery(
-        `SELECT COALESCE(d.collection,'(none)') AS label,
+        `SELECT d.collection AS label,
                 ROUND(SUM(m.demand_min * COALESCE(s.map_price,0)),0) AS revenue,
                 SUM(m.demand_min) AS units ${OT_JN} ${OT_WH}
+           AND d.collection IS NOT NULL AND d.collection <> ''
          GROUP BY d.collection ORDER BY revenue DESC LIMIT 12`, OTP
       );
       const otFin = await safeQuery(
-        `SELECT COALESCE(d.base_finish,'(none)') AS label,
+        `SELECT d.base_finish AS label,
                 ROUND(SUM(m.demand_min * COALESCE(s.map_price,0)),0) AS revenue,
                 SUM(m.demand_min) AS units ${OT_JN} ${OT_WH}
+           AND d.base_finish IS NOT NULL AND d.base_finish <> ''
          GROUP BY d.base_finish ORDER BY revenue DESC LIMIT 10`, OTP
       );
       const otCat = await safeQuery(
@@ -1055,6 +1132,15 @@ async function getFinancials(req, res) {
       revenueByCategory:   JSON.stringify([...revenueByCategory, ...extraByCat]),
       revenueByCollection: JSON.stringify(mergeByLabel(revenueByCollection, extraByCollection).slice(0, 12)),
       revenueByFinish:     JSON.stringify(mergeByLabel(revenueByFinish, extraByFinish).slice(0, 10)),
+      /* What the two dimensional charts above deliberately leave out —
+         tops, sinks and accessories that have no collection / no base
+         finish. Rendered as a footnote on each card so the difference
+         between these charts and the KPI totals is stated rather than left
+         as an unexplained gap. */
+      excludedNoCollectionRev:   Number(excludedNoCollection?.revenue || 0),
+      excludedNoCollectionUnits: Number(excludedNoCollection?.units   || 0),
+      excludedNoFinishRev:       Number(excludedNoFinish?.revenue     || 0),
+      excludedNoFinishUnits:     Number(excludedNoFinish?.units       || 0),
       comboVsIndividual:   JSON.stringify(comboVsIndividual),
       style: '',
     });
@@ -1070,6 +1156,10 @@ async function getFinancials(req, res) {
       top10Revenue: [],
       revenueByDay: '[]', revenueByCategory: '[]',
       revenueByCollection: '[]', revenueByFinish: '[]',
+      // Footnote figures — the cards read these unconditionally, so an error
+      // path that omits them turns a handled 500 into a template crash.
+      excludedNoCollectionRev: 0, excludedNoCollectionUnits: 0,
+      excludedNoFinishRev: 0, excludedNoFinishUnits: 0,
       comboVsIndividual: '[]',
       style: '',
     });
