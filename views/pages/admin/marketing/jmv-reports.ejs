@@ -811,13 +811,30 @@ document.getElementById('jmv-rollup-btn')?.addEventListener('click', async () =>
     });
     const data = await resp.json();
     if (data.ok) {
-      const summary = data.results.map(r =>
-        r.type === 'dimensions'
-          ? `Dimensions: ${r.upserted} upserted`
-          : r.error
-            ? `${r.date}: ERROR — ${r.error}`
-            : `${r.date}: ${r.inserted} rows, ${r.restocks} restocks${!r.isValid?' (INVALID)':''}`
-      ).join('\n');
+      /* This formatter assumed every result was a per-DATE row
+         ({date, inserted, restocks, isValid}), with 'dimensions' as the one
+         special case. Adding demand scores produced a result shaped nothing
+         like that, and the fallback branch happily rendered it:
+
+           undefined: undefined rows, undefined restocks (INVALID)
+
+         Four undefineds and a false alarm, from a step that had actually
+         succeeded. Dispatch on r.type first now, so a new result kind has to
+         be handled rather than silently mangled. */
+      const summary = data.results.map(r => {
+        if (r.type === 'dimensions') {
+          return `Dimensions: ${r.upserted} upserted`;
+        }
+        if (r.type === 'demand_scores') {
+          if (r.skipped) return `Demand scores: SKIPPED — ${r.error}`;
+          return `Demand scores: ${r.scored} scored, ${r.cleared} cleared `
+               + `(${r.days}d window from ${r.fromDate})`;
+        }
+        if (r.error) return `${r.date}: ERROR — ${r.error}`;
+        if (!r.date) return `Unrecognised result: ${JSON.stringify(r)}`;
+        return `${r.date}: ${r.inserted} rows, ${r.restocks} restocks`
+             + (r.isValid ? '' : ' (INVALID)');
+      }).join('\n');
       alert('Rollup complete:\n\n' + summary + '\n\nReloading…');
       location.reload();
     } else {
