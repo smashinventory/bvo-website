@@ -58,8 +58,11 @@ const DEDUPED_INNER = (whereExtra = '') => `
 async function dashboard(req, res) {
   try {
     const days   = parseInt(req.query.days  || '30', 10);
-    const ptype  = req.query.type  || 'sync';   // 'sync' | 'all'
-    const scope  = ptype === 'all' ? [] : SYNC_TYPES;
+    /* REMOVED 2026-09-03 — ptype / scope.
+       `scope` was computed here and never read; every query on this page
+       hardcodes SYNC_TYPES. `ptype` existed only to render the selected
+       state of a dropdown that changed nothing. Both gone with the control.
+       The working full-feed view is the scope selector on JMV Financials. */
     const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - days);
     const cutoffStr = cutoff.toISOString().slice(0, 10);
 
@@ -658,7 +661,7 @@ async function dashboard(req, res) {
     const viewData = {
       pageTitle: 'JMV Demand Reports',
       // controls
-      days, ptype,
+      days,
       // meta
       snapshotStatus,
       latestDate,
@@ -710,7 +713,7 @@ async function dashboard(req, res) {
       ...LAYOUT,
       pageTitle: 'JMV Demand Reports',
       error: 'Failed to load report data — ' + err.message,
-      days: 30, ptype: 'sync', hasDims: false, snapshotStatus: [],
+      days: 30, hasDims: false, snapshotStatus: [],
       latestDate: null, totalDays: 0, earliestDate: null,
       /* Must be supplied here too. The KPI cards render these
          unconditionally, so omitting them turns a handled 500 — which is

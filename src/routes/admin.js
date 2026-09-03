@@ -173,7 +173,45 @@ router.post('/upload',        ctrl.uploadMiddleware,      ctrl.uploadImage);
 router.post('/upload/video',  ctrl.uploadVideoMiddleware, ctrl.uploadVideo);
 router.get ('/upload/probe',  ctrl.uploadProbe);  // diagnostic: check upload dir
 
-/* ── RFLPOS Sync — DISABLED (rflpos.com server compromise 2026-07-28) ─── */
+/* ══════════════════════════════════════════════════════════════════════
+   RFLPOS SYNC — PARKED, NOT ABANDONED
+
+   WHY IT IS OFF (corrected 2026-09-03)
+     rflpos.com came under a malicious attack on 2026-07-28. BVO was NOT
+     compromised and there was no incident on this side. Syncing was not
+     live at the time — the one-way sync had been stood up and tested but
+     was not in production use — so it was disconnected pre-emptively, out
+     of caution, rather than in response to anything reaching BVO.
+
+   WHY THE CODE IS STILL HERE
+     Deliberate. The handlers in adminController remain because this feature
+     is coming back, not because anyone forgot to delete them. Do not treat
+     them as dead code.
+
+   WHAT IT IS FOR
+     BVO and RFLPOS can list the same physical item. Without a sync, the
+     same unit can sell twice — once on each side — and one of those
+     customers gets an apology instead of a vanity. Preventing that double
+     sale is the whole point.
+
+   WHEN IT COMES BACK — THE CONSTRAINT THAT MATTERS
+     BVO PULLS. RFLPOS NEVER PUSHES.
+
+     No inbound endpoint RFLPOS can call, no webhook, no credential held on
+     the RFLPOS side that reaches BVO. BVO initiates on a schedule, fetches,
+     validates against an expected schema and sane bounds, then writes.
+
+     That keeps the blast radius one-way no matter what happens over there:
+     a compromised RFLPOS can serve bad DATA — which validation catches —
+     but has no path to execute anything here. It holds even if the sync
+     later becomes bidirectional at the business level; "BVO writes to
+     RFLPOS" is still BVO initiating an outbound call, not RFLPOS reaching in.
+
+     The original design was already one-way, so re-enabling should mean
+     confirming that property rather than rebuilding for it.
+
+   The route registrations below stay commented until that review is done.
+   ══════════════════════════════════════════════════════════════════════ */
 // router.get ('/sync/probe',        ctrl.syncProbe);
 // router.get ('/sync',              ctrl.syncPage);
 // router.post('/sync/run',          ctrl.syncRun);

@@ -41,10 +41,24 @@ const _topsFinishSize  = JSON.parse(topsFinishSize  || '[]');
       <option value="60"  <%= days===60  ? 'selected':'' %>>Last 60 days</option>
       <option value="90"  <%= days===90  ? 'selected':'' %>>Last 90 days</option>
     </select>
-    <select name="type" class="adm-search-select" onchange="this.form.submit()">
-      <option value="sync" <%= ptype==='sync' ? 'selected':'' %>>Vanity / Cabinet / Top</option>
-      <option value="all"  <%= ptype==='all'  ? 'selected':'' %>>Full Feed (all types)</option>
-    </select>
+    <%# REMOVED 2026-09-03 — the "Vanity / Cabinet / Top" vs "Full Feed (all
+        types)" dropdown lived here and did nothing.
+
+        The controller computed:
+          const scope = ptype === 'all' ? [] : SYNC_TYPES;
+        and then never read `scope` again — every query on this page
+        hardcodes SYNC_TYPES. Selecting Full Feed submitted the form,
+        reloaded the page, kept itself selected, and changed not one number.
+
+        Removed rather than wired up: after the dimensional sweep, the extra
+        types (mirrors, backsplashes, samples) carry no collection and no
+        base finish, so they are excluded from every dimensional chart on
+        this page regardless of scope. A working toggle would have moved
+        only the KPI counts, while implying it had rescoped the charts.
+
+        The genuine full-feed view already exists and works — the scope
+        dropdown on JMV Financials. Two similar-looking controls where one
+        was inert was the confusing part. %>
   </form>
 
   <a href="/admin/marketing/jmv/financials" class="btn btn-outline" style="margin-left:8px">
