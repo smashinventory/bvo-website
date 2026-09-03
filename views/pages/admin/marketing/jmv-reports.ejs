@@ -132,10 +132,22 @@ const _docCollections = [...new Set(daysOfCover.map(r => r.collection).filter(Bo
 %>
 <!-- Days of Cover -->
 <div class="admin-card" style="margin-top:8px">
-  <h3 class="admin-card-title">Days of Cover — Fastest Moving (sync scope)</h3>
+  <%# RETITLED 2026-09-02. Was "Days of Cover — Fastest Moving (sync scope)",
+      which described neither what the query returned nor what the panel is
+      for. It is a reorder list: in-stock items ranked by how soon they run
+      out. Stocked-out SKUs are excluded — the Stockouts KPI above covers
+      those, with its own drill-down. %>
+  <h3 class="admin-card-title">Days of Cover — Reorder Soonest (sync scope)</h3>
   <p style="font-size:.8rem;color:var(--text-muted);margin:0 0 10px">
-    Current qty ÷ avg daily drawdown (zero-qty days excluded from avg to prevent dilution).
-    Directional only at &lt;30 days of history. Click any column header to sort.
+    Current qty ÷ avg daily drawdown, lowest cover first — these run out next.
+    Zero-qty days are excluded from the average so stockouts do not dilute the
+    demand signal, and SKUs already at zero are excluded entirely (see Stockouts above).
+    <%# The original read "Directional only at <30 days of history" — 30 was a
+        THRESHOLD, not a count, and an earlier edit of mine briefly rendered
+        the actual day count into that slot, inverting the meaning. State the
+        history you have, and flag directionality only when it applies. %>
+    Based on <%= totalDays %> day<%= totalDays === 1 ? '' : 's' %> of history<% if (totalDays < 30) { %> — directional only<% } %>.
+    Click any column header to sort.
   </p>
 
   <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">

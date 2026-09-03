@@ -492,10 +492,44 @@ async function dashboard(req, res) {
       [...SYNC_TYPES, cutoffStr]
     );
 
-    // ── Days of cover (sync scope, latest snapshot) ───────────────────
-    // AVG is computed ONLY over days with confirmed demand (demand_min > 0)
-    // via CASE WHEN — this freezes the average the moment a SKU hits 0 qty,
-    // so extended stockout periods do not dilute the true demand signal.
+    /* ── Days of cover — REORDER LIST ──────────────────────────────────
+       AVG is computed ONLY over days with confirmed demand (demand_min > 0)
+       via CASE WHEN — this freezes the average the moment a SKU hits 0 qty,
+       so extended stockout periods do not dilute the true demand signal.
+
+       FIXED 2026-09-02 — the top of this table was noise.
+
+       The HAVING read:
+
+         HAVING avg_daily IS NOT NULL OR restock_events > 0
+
+       That second limb admitted rows with NO demand average at all, provided
+       they had been restocked. Those rows have days_cover = NULL, and MySQL
+       sorts NULL FIRST under ASC — so every SKU with no movement signal
+       floated to the top of a panel titled "Fastest Moving".
+
+       Measured on production: 59 null rows against 3,798 real ones. With
+       LIMIT 200, that is the first 30% of the visible table showing "— —"
+       where the fastest movers should be.
+
+       TWO CHANGES:
+
+       1. Dropped the `OR restock_events > 0` limb. A row with no demand
+          average cannot have a days-of-cover; restock activity already has
+          its own panel (Restock Cadence). NULLs can no longer be produced,
+          which also makes ORDER BY days_cover ASC safe rather than
+          accidentally inverted.
+
+       2. Added `AND s.qty > 0`. This table is a REORDER LIST — what is in
+          stock and running out soonest. SKUs already at zero have
+          days_cover = 0.0, which is accurate but would fill every visible
+          row and push the actionable ones below the fold, recreating the
+          bug in a different form. The 1,269 already-out SKUs are covered by
+          the Stockouts KPI at the top of the page, which has its own
+          drill-down.
+
+       To include stockouts again, delete the `AND s.qty > 0` line — but
+       expect them to dominate the first screen. */
     const daysOfCover = await safeQuery(
       `SELECT s.sku, d.collection, d.base_finish, d.size_nominal, d.product_type,
               s.qty AS current_qty, s.map_price,
@@ -510,9 +544,10 @@ async function dashboard(req, res) {
          AND m.is_valid = 1
          AND d.product_type IN (${SYNC_TYPES_SQL})
          AND m.movement_date >= ?
+         AND s.qty > 0
        GROUP BY s.sku, d.collection, d.base_finish, d.size_nominal,
                 d.product_type, s.qty, s.map_price
-       HAVING avg_daily IS NOT NULL OR restock_events > 0
+       HAVING avg_daily IS NOT NULL
        ORDER BY days_cover ASC, restock_events DESC
        LIMIT 200`,
       [latestDate, ...SYNC_TYPES, cutoffStr]
