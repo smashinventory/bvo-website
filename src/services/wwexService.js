@@ -137,12 +137,64 @@ const STUB_RATES_SP = [
     estimatedDelivery: _addDays(new Date(),3).toISOString().split('T')[0], totalCharge: 89.25, currency: 'USD', stub: true },
 ];
 
+/* ───────────────────────────────────────────────────────────────
+   _proseScan — find human-readable text ANYWHERE in a response
+
+   Written to answer one question: does WWEX return the carrier rules
+   that SpeedShip's own UI shows us, or does it only show them there?
+
+   Two carrier rules are visible on speedship.com and reach us nowhere:
+
+     RL Carriers  a BLOCKING modal on rate selection — 'R&L requires that
+                  each handling unit display both shipper and consignee
+                  information...' (~250 chars, Accept / Cancel)
+     TForce       an INLINE banner, no acknowledgement — 'Any pickup request
+                  received after 3pm shipper's local time will be scheduled
+                  for the following business day.'
+
+   Verified 2026-09-03 by clicking the rate for all 12 carriers on a
+   Marietta GA -> Chicago IL quote: those two, nobody else.
+
+   Scanning by VALUE rather than by key name is deliberate. We do not know
+   what such a field would be called, and guessing names ('note', 'message',
+   'disclaimer') can only confirm guesses — it cannot tell us we guessed
+   wrong. Prose is self-identifying: a long string with spaces in it is not
+   an id, a SCAC or a price, whatever the field is named.
+   ─────────────────────────────────────────────────────────────── */
+function _proseScan(root, { minLen = 40, maxHits = 40, maxDepth = 8 } = {}) {
+  const hits = [];
+  const seen = new WeakSet();
+  (function walk(node, path, depth) {
+    if (hits.length >= maxHits || depth > maxDepth || node == null) return;
+    if (typeof node === 'string') {
+      // Prose = long enough, and contains a space. Ids and SCACs have neither.
+      if (node.length >= minLen && /\s/.test(node)) {
+        hits.push({ path, len: node.length, value: node.slice(0, 400) });
+      }
+      return;
+    }
+    if (typeof node !== 'object') return;
+    if (seen.has(node)) return;              // cycles
+    seen.add(node);
+    if (Array.isArray(node)) {
+      node.forEach((v, i) => walk(v, `${path}[${i}]`, depth + 1));
+    } else {
+      for (const k of Object.keys(node)) walk(node[k], path ? `${path}.${k}` : k, depth + 1);
+    }
+  })(root, '', 0);
+  return hits;
+}
+
 /* ═══════════════════════════════════════════════════════════════
    shopFlow — rate shop
    Returns { ok, productTransactionId, rates[] } where each rate has offerId.
    productType: 'LTL' | 'SMALLPACK'
+
+   opts.diag — attach a _diag block to the return describing the RAW
+   response. Off unless explicitly requested; see _proseScan above and
+   the ?diag=1 gate in shippingController.getRates.
    ═══════════════════════════════════════════════════════════════ */
-exports.shopFlow = async (payload, productType = 'LTL') => {
+exports.shopFlow = async (payload, productType = 'LTL', opts = {}) => {
   if (!HAS_CREDS) {
     const rates = productType === 'SMALLPACK' ? STUB_RATES_SP : STUB_RATES_LTL;
     return { ok: true, productTransactionId: `STUB-TXN-${Date.now()}`, rates, stub: true };
@@ -232,7 +284,37 @@ exports.shopFlow = async (payload, productType = 'LTL') => {
       console.warn('[wwex] offers carry', distinctTxn.length,
                    'DIFFERENT productTransactionIds — per-offer id is required, not optional.');
     }
-    return { ok: true, productTransactionId: txnId, rates: offers };
+    const out = { ok: true, productTransactionId: txnId, rates: offers };
+
+    /* ── Diagnostic, only when explicitly asked for ────────────────
+       Reports the SHAPE of the raw response, not a reading of it.
+       Whether any of this is a carrier rule is a judgement call for
+       whoever reads it — the scan does not guess. */
+    if (opts.diag) {
+      const o0 = rawOffers[0] || null;
+      out._diag = {
+        respKeys:     Object.keys(resp),
+        respMessage:  typeof resp.message === 'string'
+                        ? resp.message.slice(0, 500)
+                        : (resp.message ? `[${typeof resp.message}] ${JSON.stringify(resp.message).slice(0, 300)}` : null),
+        offerCount:   rawOffers.length,
+        offerKeys:    o0 ? Object.keys(o0) : [],
+        vendorKeys:   o0?.primaryVendor ? Object.keys(o0.primaryVendor) : [],
+        productKeys:  o0?.offeredProductList?.[0] ? Object.keys(o0.offeredProductList[0]) : [],
+        /* The decisive part. Any prose ANYWHERE in the response, by value
+           rather than by key name — see _proseScan. If RL's labeling rule
+           or TForce's 3pm cutoff is in this payload, it lands here whatever
+           the field is called. If this comes back empty, the API does not
+           carry carrier rules and no amount of field-name guessing will
+           change that. */
+        prose:        _proseScan(resp),
+        carriers:     rawOffers.map(o => o.primaryVendor?.preferredName
+                                      || o.primaryVendor?.scac || '—'),
+      };
+      console.log('[wwex][diag] prose hits:', out._diag.prose.length,
+                  '| resp.message:', JSON.stringify(out._diag.respMessage));
+    }
+    return out;
   } catch (err) {
     // Log full error so we can debug validation failures
     console.error('[wwex] shopFlow error | status:', err.response?.status);

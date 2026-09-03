@@ -542,7 +542,24 @@ async function getRates(req, res) {
     }
 
     console.log('[shipping] shopFlow payload:', JSON.stringify(shopPayload, null, 2));
-    const result = await wwex.shopFlow(shopPayload, productType);
+
+    /* ── ?diag=1 — inspect the RAW WWEX response ───────────────────
+       SpeedShip's own UI shows carrier rules that never reach us: RL
+       Carriers puts a BLOCKING modal on rate selection about labeling every
+       handling unit, and TForce shows an inline 3pm pickup cutoff. Verified
+       2026-09-03 across all 12 carriers on one lane — only those two.
+
+       We map each offer down to nine fields and discard the rest, so if
+       WWEX does return that text we would never have noticed. This answers
+       it from the browser's network tab, which the server log cannot be
+       read from without hPanel access.
+
+       OFF unless asked for. Admin-only regardless (router.use(requireAdmin),
+       routes/admin.js:32). Never enabled by default, and the push script
+       fails if that changes. Delete once the question is settled. */
+    const diag = req.query.diag === '1' || req.body?.diag === '1';
+    if (diag) console.log('[shipping] getRates: DIAG requested');
+    const result = await wwex.shopFlow(shopPayload, productType, { diag });
     // Return the original shipment object so the client can echo it back in quoteOrderFlow.
     // WWEX requires the full shipment (handlingUnitList, freight flags, etc.) in the booking.
     res.json({ ...result, shopShipment: shopPayload.shipment || null });
