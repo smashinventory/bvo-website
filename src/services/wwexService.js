@@ -310,6 +310,48 @@ exports.shopFlow = async (payload, productType = 'LTL', opts = {}) => {
         prose:        _proseScan(resp),
         carriers:     rawOffers.map(o => o.primaryVendor?.preferredName
                                       || o.primaryVendor?.scac || '—'),
+
+        /* ROUND 2 — 2026-09-03.
+
+           Round 1 answered the prose question: NO. The only prose in the
+           whole response was specialInstructions, identical on all six
+           offers, and it is OUR OWN input echoed back. RL's labeling rule
+           and TForce's 3pm cutoff are not in this payload as text.
+
+           But primaryVendor turned out to carry STRUCTURED operational
+           fields we had never looked at:
+
+             latestPickupTime   pickupWindow   pickupDays
+             businessHours      commentList    coverageDetails
+
+           latestPickupTime is plausibly TForce's 3pm cutoff expressed as
+           data rather than a sentence — which would be BETTER than the
+           banner, because a time can be compared against the ship date
+           instead of read by a human. commentList is the likeliest home
+           for anything RL-shaped.
+
+           These are short values, so the prose scan could never have
+           caught them: '15:00' is not prose. Reporting them by name is
+           correct here precisely BECAUSE we now know the names. */
+        vendorOps: rawOffers.map(o => {
+          const v = o.primaryVendor || {};
+          const pick = {};
+          for (const k of ['latestPickupTime', 'pickupWindow', 'pickupDays',
+                           'businessHours', 'commentList', 'coverageDetails',
+                           'notificationWindow', 'carrierCategory']) {
+            if (v[k] === undefined) continue;
+            if (typeof v[k] !== 'object' || v[k] === null) { pick[k] = v[k]; continue; }
+            /* Serialise to a capped STRING. Do NOT slice JSON and re-parse:
+               any object over the cap yields truncated JSON and JSON.parse
+               throws — inside shopFlow's try/catch that surfaces as
+               'ok:false' and a dead rate shop. It would have failed hardest
+               on commentList, the biggest field and the one most likely to
+               hold what we are looking for. */
+            const s = JSON.stringify(v[k]);
+            pick[k] = s.length > 600 ? s.slice(0, 600) + `…[truncated, ${s.length} chars]` : s;
+          }
+          return { carrier: v.preferredName || v.scac || '—', scac: v.scac || null, ...pick };
+        }),
       };
       console.log('[wwex][diag] prose hits:', out._diag.prose.length,
                   '| resp.message:', JSON.stringify(out._diag.respMessage));
