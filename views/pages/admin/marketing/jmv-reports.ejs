@@ -94,15 +94,15 @@ const _topsFinishSize  = JSON.parse(topsFinishSize  || '[]');
   </div>
 
   <a href="/admin/marketing/jmv/new-arrivals" class="kpi-card" style="text-decoration:none">
-    <div class="kpi-label">New Arrivals <span class="jmv-tip" data-tip="SKUs that appear in today's snapshot but were absent from the earliest snapshot on record. These are newly introduced products at JM.">ℹ</span></div>
+    <div class="kpi-label">New Arrivals <span class="jmv-tip" data-tip="Vanity, Cabinet and Top SKUs in today's snapshot that were absent from the baseline — the newest valid snapshot at or before your selected window. Newly introduced products at JM. Previously this compared against the earliest snapshot on record regardless of the window, so it grew without bound and ignored the selector.">ℹ</span></div>
     <div class="kpi-value"><%= newArrivalsCount %></div>
-    <div class="kpi-sub">vs earliest snapshot · click to view</div>
+    <div class="kpi-sub">Sync scope · since <%= baselineDate || '—' %> · click to view</div>
   </a>
 
   <div class="kpi-card kpi-card--<%= discontinuedCount > 0 ? 'warn' : 'ok' %>">
-    <div class="kpi-label">Discontinued Watch <span class="jmv-tip" data-tip="SKUs present in the earliest snapshot but missing from today's. JM may have discontinued these — pull from the site before customers order something JM can no longer supply.">ℹ</span></div>
+    <div class="kpi-label">Discontinued Watch <span class="jmv-tip" data-tip="Vanity, Cabinet and Top SKUs present at the baseline but absent from the last <%= discontinuedDays %> CONSECUTIVE valid snapshots. JM may have discontinued these. Requiring several days in a row matters: this used to be a single-day comparison, so one short or re-fetched feed file could flag a live product for delisting — and deploys do wipe the drop zone. Still worth confirming with JM before pulling anything.">ℹ</span></div>
     <div class="kpi-value" style="<%= discontinuedCount > 0 ? 'color:#c05621' : '' %>"><%= discontinuedCount %></div>
-    <div class="kpi-sub">Pull from site before orders</div>
+    <div class="kpi-sub">Sync scope · absent <%= discontinuedDays %> days running</div>
   </div>
 
   <div class="kpi-card">
@@ -112,9 +112,9 @@ const _topsFinishSize  = JSON.parse(topsFinishSize  || '[]');
   </div>
 
   <div class="kpi-card">
-    <div class="kpi-label">MAP Changes <span class="jmv-tip" data-tip="SKUs where the MAP price recorded in today's snapshot differs from the earliest snapshot. Review these to keep your BVO pricing in sync.">ℹ</span></div>
+    <div class="kpi-label">MAP Changes <span class="jmv-tip" data-tip="Vanity, Cabinet and Top SKUs whose MAP price today differs from the baseline — the newest valid snapshot at or before your selected window. Review these to keep BVO pricing in sync. This previously counted the whole feed including mirrors, backsplashes and samples we do not sell, which made the number larger than the work it implied.">ℹ</span></div>
     <div class="kpi-value"><%= mapChangesCount %></div>
-    <div class="kpi-sub">Since <%= earliestDate || '—' %></div>
+    <div class="kpi-sub">Sync scope · since <%= baselineDate || '—' %></div>
   </div>
 
   <div class="kpi-card">

@@ -93,36 +93,107 @@ async function dashboard(req, res) {
       [latestDate, ...SYNC_TYPES]
     );
 
-    // New arrivals: SKUs in latest snapshot not in earliest
+    /* ── Comparison baseline ───────────────────────────────────────────
+       FIXED 2026-09-02 — these three KPIs used to compare against the
+       EARLIEST valid snapshot, always, which broke in two ways:
+
+       1. The 7/14/30/60/90 window selector never reached them. It sets
+          cutoffStr, which the charts use; these read earliestDate. Changing
+          the window moved every chart and left these three frozen.
+
+       2. The meaning drifted as history accumulated. With 10 days of data
+          "New Arrivals" means "added in the last 10 days". At 90 days it
+          silently becomes "added in the last three months" — a number that
+          only ever grows and stops being actionable, without the label
+          changing.
+
+       Now: compare against the newest valid snapshot at or before the
+       selected cutoff. The selector works, and "new since X" means what the
+       window says. Falls back to the earliest snapshot when history is
+       shorter than the window — which is the case today at 10 days. */
     const earliestDate = await safeQueryOne(
       `SELECT MIN(snapshot_date) AS d FROM jmv_snapshot_validity WHERE is_valid = 1`
     );
+    const baselineRow = await safeQueryOne(
+      `SELECT COALESCE(
+                (SELECT MAX(snapshot_date) FROM jmv_snapshot_validity
+                  WHERE is_valid = 1 AND snapshot_date <= ?),
+                (SELECT MIN(snapshot_date) FROM jmv_snapshot_validity
+                  WHERE is_valid = 1)
+              ) AS d`,
+      [cutoffStr]
+    );
+    const baselineDate = baselineRow?.d || earliestDate?.d || latestDate;
+
+    /* All three below now filter to SYNC_TYPES. They previously did not,
+       while Stockouts / Low Stock / Restock Events did — so one strip was
+       reporting two different populations, and only some cards said so.
+       MAP Changes was the sharpest case: its tooltip tells you to bring BVO
+       pricing in line, while counting mirrors, backsplashes and samples we
+       do not sell. */
+
+    // New arrivals: in the latest snapshot, absent from the baseline
     const newArrivalsCount = await safeQueryOne(
-      `SELECT COUNT(*) AS cnt FROM jmv_snapshots s
+      `SELECT COUNT(*) AS cnt
+       FROM jmv_snapshots s
+       JOIN jmv_dimensions d USING (sku)
        WHERE s.snapshot_date = ?
+         AND d.product_type IN (${SYNC_TYPES_SQL})
          AND s.sku NOT IN (SELECT sku FROM jmv_snapshots WHERE snapshot_date = ?)`,
-      [latestDate, earliestDate?.d || latestDate]
+      [latestDate, ...SYNC_TYPES, baselineDate]
     );
 
-    // Discontinued: in earliest but not latest
+    /* Discontinued: present at the baseline, absent from the last N
+       CONSECUTIVE valid snapshots.
+
+       This used to be a single comparison against one day. Its tooltip says
+       "Pull from site before orders" — a destructive action — and one short
+       feed file was enough to trigger it. Not hypothetical: deploys wipe the
+       drop zone and gvssync recovers from the protected archive, so partial
+       or re-fetched files happen.
+
+       Requiring absence across the most recent 3 valid snapshots means a
+       single bad day cannot recommend delisting a live product. */
+    const DISCONTINUED_CONSECUTIVE_DAYS = 3;
     const discontinuedCount = await safeQueryOne(
-      `SELECT COUNT(*) AS cnt FROM jmv_snapshots s
+      `SELECT COUNT(*) AS cnt
+       FROM jmv_snapshots s
+       JOIN jmv_dimensions d USING (sku)
        WHERE s.snapshot_date = ?
-         AND s.sku NOT IN (SELECT sku FROM jmv_snapshots WHERE snapshot_date = ?)`,
-      [earliestDate?.d || latestDate, latestDate]
+         AND d.product_type IN (${SYNC_TYPES_SQL})
+         AND s.sku NOT IN (
+           SELECT sku FROM jmv_snapshots
+            WHERE snapshot_date IN (
+              /* Derived table, not a bare LIMIT. MySQL rejects
+                 "IN (SELECT ... LIMIT n)" outright:
+                   #1235 This version of MySQL doesn't yet support
+                         'LIMIT & IN/ALL/ANY/SOME subquery'
+                 Wrapping it makes the same intent portable. */
+              SELECT d FROM (
+                SELECT snapshot_date AS d
+                  FROM jmv_snapshot_validity
+                 WHERE is_valid = 1
+                 ORDER BY snapshot_date DESC
+                 LIMIT ${DISCONTINUED_CONSECUTIVE_DAYS}
+              ) recent
+            )
+         )`,
+      [baselineDate, ...SYNC_TYPES]
     );
 
-    // MAP changes since earliest
+    // MAP changes between the baseline and the latest snapshot
     const mapChangesCount = await safeQueryOne(
       `SELECT COUNT(DISTINCT a.sku) AS cnt
        FROM jmv_snapshots a
        JOIN jmv_snapshots b ON a.sku = b.sku
+       JOIN jmv_dimensions d ON d.sku = a.sku
        WHERE a.snapshot_date = ?
          AND b.snapshot_date = ?
+         AND d.product_type IN (${SYNC_TYPES_SQL})
          AND a.map_price IS NOT NULL
          AND b.map_price IS NOT NULL
          AND a.map_price <> b.map_price`,
-      [earliestDate?.d || latestDate, latestDate]
+      [baselineDate, latestDate, ...SYNC_TYPES]
     );
 
     // ── Top collections (group-deduped) ──────────────────────────────
@@ -563,6 +634,12 @@ async function dashboard(req, res) {
       totalDays,
       hasDims,
       earliestDate: earliestDate?.d,
+      /* The date the New Arrivals / Discontinued / MAP Changes cards are
+         actually measured from. Was earliestDate, which stopped matching the
+         selected window the moment history exceeded it. The cards render
+         this so the strip states its own baseline instead of implying one. */
+      baselineDate,
+      discontinuedDays: DISCONTINUED_CONSECUTIVE_DAYS,
       // alert strip
       stockoutCount:      stockoutCount?.cnt  || 0,
       lowStockCount:      lowStockCount?.cnt  || 0,
@@ -604,6 +681,12 @@ async function dashboard(req, res) {
       error: 'Failed to load report data — ' + err.message,
       days: 30, ptype: 'sync', hasDims: false, snapshotStatus: [],
       latestDate: null, totalDays: 0, earliestDate: null,
+      /* Must be supplied here too. The KPI cards render these
+         unconditionally, so omitting them turns a handled 500 — which is
+         supposed to show the user a readable error — into a ReferenceError
+         inside the template and a blank page. The error path is the one
+         place you cannot afford a second failure. */
+      baselineDate: null, discontinuedDays: 3,
       stockoutCount: 0, lowStockCount: 0, newArrivalsCount: 0,
       discontinuedCount: 0, mapChangesCount: 0,
       topCollections: '[]', topFinishes: '[]', topSizes: '[]',
@@ -682,15 +765,19 @@ async function newArrivalsDrilldown(req, res) {
     const earliest = snapDates[0]?.snapshot_date;
     const latest   = snapDates[snapDates.length - 1]?.snapshot_date;
 
+    /* Scope filter added 2026-09-02 — this drill-down listed the whole feed
+       (mirrors, backsplashes, samples) while the KPI card that links to it
+       is scoped to Vanity/Cabinet/Top. The count and the list disagreed. */
     const rows = await safeQuery(
       `SELECT s.sku, d.collection, d.base_finish, d.size_nominal,
               d.product_type, s.qty, s.map_price
        FROM jmv_snapshots s
        JOIN jmv_dimensions d USING (sku)
        WHERE s.snapshot_date = ?
+         AND d.product_type IN (${SYNC_TYPES_SQL})
          AND s.sku NOT IN (SELECT sku FROM jmv_snapshots WHERE snapshot_date = ?)
        ORDER BY d.collection, s.map_price DESC`,
-      [latest, earliest]
+      [latest, ...SYNC_TYPES, earliest]
     );
 
     res.render('pages/admin/marketing/jmv-new-arrivals', {
