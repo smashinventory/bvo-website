@@ -7,6 +7,27 @@
 -- ── 1. Raw daily snapshots ───────────────────────────────────────────
 --  One row per (date, sku). Written by jmvMovementRollup.js before any
 --  delta math. Covers ALL 5,218+ feed SKUs, not just sync scope.
+-- ⚠️ EVERY CREATE TABLE BELOW MUST DECLARE COLLATE EXPLICITLY.
+--
+-- These four tables originally read `DEFAULT CHARSET=utf8mb4` with no
+-- collation. Omitting it does not mean "use the project default" — it means
+-- "let the server pick", and the server these were created on picked
+-- utf8mb4_uca1400_ai_ci, while the rest of this schema is
+-- utf8mb4_unicode_ci.
+--
+-- The result was that any '=' between a jmv_* string column and a column in
+-- an older table failed outright:
+--
+--   Illegal mix of collations (utf8mb4_uca1400_ai_ci,IMPLICIT)
+--   and (utf8mb4_unicode_ci,IMPLICIT) for operation '='
+--
+-- It stayed hidden until the first cross-table join was written — the
+-- demand-score update in jmvMovementRollup.js, months later.
+--
+-- Existing databases are repaired by
+--   migrations/2026-09-03_jmv_collation_align.sql
+-- The COLLATE clauses here stop a fresh install recreating the problem.
+
 CREATE TABLE IF NOT EXISTS jmv_snapshots (
   snapshot_date  DATE         NOT NULL,
   sku            VARCHAR(64)  NOT NULL,
@@ -15,7 +36,7 @@ CREATE TABLE IF NOT EXISTS jmv_snapshots (
   PRIMARY KEY (snapshot_date, sku),
   INDEX idx_sku  (sku),
   INDEX idx_date (snapshot_date)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── 2. Snapshot validity log ─────────────────────────────────────────
 --  Tracks whether each nightly drop was usable. A day whose row count
@@ -26,7 +47,7 @@ CREATE TABLE IF NOT EXISTS jmv_snapshot_validity (
   row_count      INT          NOT NULL,
   is_valid       TINYINT(1)   NOT NULL DEFAULT 1,
   notes          VARCHAR(500)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── 3. SKU dimension table ───────────────────────────────────────────
 --  Loaded from dimensions.csv.gz (weekly refresh). Drives every cut in
@@ -54,7 +75,7 @@ CREATE TABLE IF NOT EXISTS jmv_dimensions (
   INDEX idx_product_type (product_type),
   INDEX idx_base_finish  (base_finish),
   INDEX idx_size         (size_nominal)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── 4. Daily movement rollup ─────────────────────────────────────────
 --  One row per (date, sku). Computed by jmvMovementRollup.js.
@@ -83,4 +104,4 @@ CREATE TABLE IF NOT EXISTS jmv_daily_movement (
   INDEX idx_sku    (sku),
   INDEX idx_date   (movement_date),
   INDEX idx_valid  (is_valid, movement_date)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

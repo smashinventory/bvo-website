@@ -197,11 +197,24 @@ async function dashboard(req, res) {
     );
 
     // ── Top collections (group-deduped) ──────────────────────────────
+    /* CHANGED 2026-09-03 — collection-less rows are excluded outright.
+
+       Earlier today I labelled the blank bucket "Tops & Sinks (no
+       collection)" so it would stop reading as missing data. That was the
+       wrong call: naming it kept a non-collection in a chart of collections,
+       where it ranked 4th and pushed real collections down. It is not a
+       collection, so it does not belong on this axis at all.
+
+       Nothing is lost — those SKUs are standalone tops and sinks, and they
+       now have their own Tops Demand section with finish, size, material and
+       a SKU leaderboard, which says far more about them than one unnamed bar
+       ever did. */
     const topCollections = hasDims ? await safeQuery(
       `SELECT gd.collection,
               SUM(gd.grp_max) AS total_drawdown,
               COUNT(DISTINCT gd.group_number) AS group_count
        FROM (${DEDUPED_INNER(`AND m.movement_date >= ?`)}) gd
+       WHERE gd.collection IS NOT NULL AND gd.collection <> ''
        GROUP BY gd.collection
        ORDER BY total_drawdown DESC LIMIT 15`,
       [...SYNC_TYPES, cutoffStr]

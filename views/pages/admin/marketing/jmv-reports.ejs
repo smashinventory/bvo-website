@@ -640,13 +640,12 @@ function makePie(id, labels, data) {
 }
 
 if (topCollections.length) {
-  /* CHANGED 2026-09-02 — a bare '—' read as missing data. It is not: these
-     are standalone tops and sinks (050-S…, 051-…, 060-…, CS-…) that belong
-     to no vanity collection in the JM feed. Verified there is no Vanity or
-     Cabinet in that bucket, so nothing is being silently dropped from the
-     named collections. Naming it stops the question being re-asked. */
+  /* The collection-less bucket is now excluded by the query itself, not
+     relabelled here. Naming it (2026-09-02) still left a non-collection
+     ranking 4th on a chart of collections. The fallback below is kept only
+     so a future NULL cannot render as the string "undefined". */
   makeBar('chartCollections',
-    topCollections.map(r => r.collection || 'Tops & Sinks (no collection)'),
+    topCollections.map(r => r.collection || '—'),
     topCollections.map(r => r.total_drawdown),
     topCollections.map((_,i) => PALETTE[i % PALETTE.length])
   );

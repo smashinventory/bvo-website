@@ -528,9 +528,44 @@ async function runRollup({ dates = null, includeDimensions = false } = {}) {
 
     /* Demand scores run on EVERY rollup, not only on dimension days. The
        storefront sorts by this, so a stale score is a visibly wrong page
-       ordering rather than a stale report nobody is looking at. */
-    const scoreResult = await updateDemandScores(conn);
-    results.push({ type: 'demand_scores', ...scoreResult });
+       ordering rather than a stale report nobody is looking at.
+
+       ISOLATED 2026-09-03 — this must never take the rollup down with it.
+
+       As first written it was un-guarded, so on a server where the
+       demand_score migration had not been run yet the whole job died:
+
+         [FATAL] Unknown column 'p.demand_score' in 'SET'
+         exit=1
+
+       Snapshot ingestion and movement deltas had already completed and
+       committed by that point; only the reporting of them was lost, along
+       with a red "Rollup failed" in the admin UI. That is a bad trade for an
+       optional enhancement. Scoring is a nice-to-have layered on top of the
+       rollup — the rollup is the thing that must not fail.
+
+       A missing column is now a warning naming the migration to run. */
+    try {
+      const scoreResult = await updateDemandScores(conn);
+      results.push({ type: 'demand_scores', ...scoreResult });
+    } catch (scoreErr) {
+      const missingColumn = scoreErr.code === 'ER_BAD_FIELD_ERROR';
+      if (missingColumn) {
+        console.warn('[rollup] demand scores SKIPPED — products.demand_score does not exist.');
+        console.warn('[rollup]   Run migrations/2026-09-02_product_demand_score.sql, then re-run.');
+        console.warn('[rollup]   Collection pages keep their current order until then.');
+      } else {
+        console.error('[rollup] demand scores FAILED:',
+                      scoreErr.code || '', scoreErr.sqlMessage || scoreErr.message);
+      }
+      results.push({
+        type: 'demand_scores',
+        skipped: true,
+        error: missingColumn
+          ? 'products.demand_score missing — run migrations/2026-09-02_product_demand_score.sql'
+          : (scoreErr.sqlMessage || scoreErr.message),
+      });
+    }
   } finally {
     conn.release();
   }
@@ -582,6 +617,26 @@ async function updateDemandScores(conn) {
      No group dedup: this ranks individual products for a product listing,
      and collapsing a family would make every variant rank identically —
      which is precisely what a popularity sort must not do. */
+  /* No COLLATE clauses here, deliberately.
+
+     An earlier version of this pinned both sides of the join to
+     utf8mb4_unicode_ci to work around:
+
+       Illegal mix of collations (utf8mb4_uca1400_ai_ci,IMPLICIT)
+       and (utf8mb4_unicode_ci,IMPLICIT) for operation '='
+
+     That treated the symptom. The cause was that the four jmv_* tables were
+     declared `DEFAULT CHARSET=utf8mb4` with NO collation, so the server
+     chose its own — uca1400_ai_ci on newer MariaDB — while every other
+     table in the schema is utf8mb4_unicode_ci. Pinning it per-query would
+     have left the next join between products and a jmv_* table to fail the
+     same way, and cost the sku index every time.
+
+     Fixed at the schema instead:
+       migrations/2026-09-03_jmv_collation_align.sql
+
+     If this join ever raises a collation error again, the migration has not
+     been run on that database. Do not add COLLATE here — fix the table. */
   const [scored] = await conn.query(
     `UPDATE products p
        JOIN (
