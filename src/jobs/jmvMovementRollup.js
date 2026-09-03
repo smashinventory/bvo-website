@@ -525,11 +525,106 @@ async function runRollup({ dates = null, includeDimensions = false } = {}) {
       const dimResult = await upsertDimensions(conn);
       results.push({ type: 'dimensions', ...dimResult });
     }
+
+    /* Demand scores run on EVERY rollup, not only on dimension days. The
+       storefront sorts by this, so a stale score is a visibly wrong page
+       ordering rather than a stale report nobody is looking at. */
+    const scoreResult = await updateDemandScores(conn);
+    results.push({ type: 'demand_scores', ...scoreResult });
   } finally {
     conn.release();
   }
 
   return results;
+}
+
+/**
+ * updateDemandScores(conn)
+ * ─────────────────────────────────────────────────────────────────────
+ * Writes products.demand_score from JM warehouse depletion, so collection
+ * pages can sort by popularity.
+ *
+ * THE SIGNAL IS MACRO, NOT OURS. This is how fast a SKU depletes at James
+ * Martin's warehouse — industry-wide demand across all their retailers, not
+ * BVO sales. Deliberate: our own order history is thin, and the intent is to
+ * surface what the market buys.
+ *
+ * WINDOW: all valid days available, capped at 90. Only ~10 days of history
+ * exist at the time of writing, so a fixed 30-day window would score most
+ * SKUs on partial data without saying so. demand_days records what each
+ * score actually covers.
+ *
+ * EVERY ACTIVE PRODUCT IS WRITTEN, including those with no JMV row — they
+ * are reset to 0 rather than left holding a stale score. A product that
+ * stops appearing in the feed must fall out of the popularity ordering, not
+ * sit at the top forever on a number nobody refreshes.
+ */
+async function updateDemandScores(conn) {
+  // How many valid days we actually have, capped at 90.
+  const [[win]] = await conn.query(
+    `SELECT COUNT(*) AS valid_days,
+            COALESCE(MIN(d), CURDATE()) AS from_date
+       FROM (SELECT snapshot_date AS d
+               FROM jmv_snapshot_validity
+              WHERE is_valid = 1
+              ORDER BY snapshot_date DESC
+              LIMIT 90) w`
+  );
+  const days     = win.valid_days || 0;
+  const fromDate = win.from_date;
+
+  if (!days) {
+    console.warn('[rollup] demand scores skipped — no valid snapshot days');
+    return { scored: 0, cleared: 0, days: 0, note: 'no valid snapshot days' };
+  }
+
+  /* Score = total observed drawdown over the window, SKU-level.
+     No group dedup: this ranks individual products for a product listing,
+     and collapsing a family would make every variant rank identically —
+     which is precisely what a popularity sort must not do. */
+  const [scored] = await conn.query(
+    `UPDATE products p
+       JOIN (
+         SELECT m.sku, SUM(m.demand_min) AS score
+           FROM jmv_daily_movement m
+          WHERE m.is_valid = 1
+            AND m.demand_min > 0
+            AND m.movement_date >= ?
+          GROUP BY m.sku
+       ) s ON s.sku = p.sku
+        SET p.demand_score     = s.score,
+            p.demand_days      = ?,
+            p.demand_scored_at = CURDATE()`,
+    [fromDate, days]
+  );
+
+  // Anything with no row in the window drops to 0 — never left stale.
+  const [cleared] = await conn.query(
+    `UPDATE products p
+        LEFT JOIN (
+          SELECT DISTINCT m.sku
+            FROM jmv_daily_movement m
+           WHERE m.is_valid = 1
+             AND m.demand_min > 0
+             AND m.movement_date >= ?
+        ) s ON s.sku = p.sku
+        SET p.demand_score     = 0,
+            p.demand_days      = ?,
+            p.demand_scored_at = CURDATE()
+      WHERE s.sku IS NULL
+        AND (p.demand_score <> 0 OR p.demand_scored_at IS NULL)`,
+    [fromDate, days]
+  );
+
+  console.log(`[rollup] demand scores: ${scored.affectedRows} scored, ` +
+              `${cleared.affectedRows} cleared, window ${days}d from ${fromDate}`);
+
+  return {
+    scored:  scored.affectedRows,
+    cleared: cleared.affectedRows,
+    days,
+    fromDate: String(fromDate).slice(0, 10),
+  };
 }
 
 /**
@@ -545,4 +640,4 @@ async function getSnapshotStatus() {
   return rows;
 }
 
-module.exports = { runRollup, getSnapshotStatus, upsertDimensions };
+module.exports = { runRollup, getSnapshotStatus, upsertDimensions, updateDemandScores };

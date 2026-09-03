@@ -707,6 +707,10 @@
         <% hwColorFamilyActive.forEach(function(f) { %><input type="hidden" name="hw_color_family" value="<%= f %>"><% }) %>
         <% hwColorExactActive.forEach(function(e) { %><input type="hidden" name="hw_color_exact" value="<%= e %>"><% }) %>
         <select name="sort" class="sort-select" onchange="this.closest('form').submit()" aria-label="Sort products">
+          <%# Popularity leads the list because it is the default on any page
+              with more than 10 results. Ranked by James Martin warehouse
+              depletion — market-wide demand, not BVO sales. %>
+          <option value="popularity" <%= sort==='popularity' ? 'selected':'' %>>Most Popular</option>
           <option value="featured"   <%= sort==='featured'   ? 'selected':'' %>>Featured</option>
           <option value="newest"     <%= sort==='newest'     ? 'selected':'' %>>Newest</option>
           <option value="price_asc"  <%= sort==='price_asc'  ? 'selected':'' %>>Price: Low to High</option>

@@ -563,7 +563,12 @@ exports.show = async (req, res, next) => {
 
     // ── Parse standard query params ──────────────────────────────
     const page         = Math.max(1, parseInt(req.query.page  || '1', 10));
-    const sort         = req.query.sort || 'featured';
+    /* null (not 'featured') when the visitor has not chosen a sort, so the
+       model can pick the default AFTER counting results: popularity on a
+       long list, featured on a short one. An explicit ?sort= always wins.
+       The effective value comes back on the result and is what the dropdown
+       renders — see below. */
+    const sort         = req.query.sort || null;
     const brands       = [].concat(req.query.brand        || []).filter(Boolean);
     const productTypes = [].concat(req.query.type         || []).filter(Boolean);
 
@@ -923,7 +928,12 @@ exports.show = async (req, res, next) => {
       isVanityCategory,
       ...result,
       pageWindow: buildPageWindow(page, result.pages || 1),
-      sort,
+      /* The EFFECTIVE sort, not the requested one. `sort` is null when the
+         visitor did not choose, and the model resolves it after counting
+         results. Spreading ...result already carries the resolved value, but
+         this line used to be a bare `sort,` that overwrote it — leaving the
+         dropdown reading "Featured" above a popularity-ordered page. */
+      sort: result.sort || sort || 'featured',
       brands, productTypes,
       model,
       modelColorMap,

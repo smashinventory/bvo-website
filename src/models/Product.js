@@ -200,14 +200,38 @@ const Product = {
         price_desc: 'p.price DESC',
         newest:     'p.created_at DESC',
         name_asc:   'p.name ASC',
+        /* Popularity — JM warehouse depletion, written nightly by
+           jmvMovementRollup.updateDemandScores(). Macro market demand, not
+           BVO sales.
+
+           The featured ordering is appended as the tiebreak, and that is
+           load-bearing rather than tidy: most SKUs score 0 in a short
+           window, and anything not James Martin has no signal at all. With
+           the scores tied, the page must fall back to today's ordering
+           rather than to whatever the storage engine happens to return. */
+        popularity: 'p.demand_score DESC, p.is_featured DESC, p.sort_order, p.created_at DESC',
       };
-      const order = orderMap[sort] || orderMap.featured;
 
       const countParams = [...params];
       const [[{ total }]] = await bvoPool.query(
         `SELECT COUNT(*) AS total FROM products p WHERE ${where}`,
         countParams,
       );
+
+      /* Resolve the effective sort AFTER the count, because the default
+         depends on how many results there are.
+
+         sort === null means the visitor did not choose one. On a long list,
+         lead with what the market actually buys; on a short list, leave the
+         curated featured order alone — reordering ten items by a signal most
+         of them lack is noise, not insight.
+
+         An explicit ?sort= always wins. The resolved value is returned so the
+         dropdown can show what is actually in effect rather than a guess. */
+      const POPULARITY_MIN_RESULTS = 10;
+      const effectiveSort = sort
+        || (total > POPULARITY_MIN_RESULTS ? 'popularity' : 'featured');
+      const order = orderMap[effectiveSort] || orderMap.featured;
 
       const listParams = [...params, PER_PAGE, offset];
       const [products] = await bvoPool.query(`
@@ -245,10 +269,22 @@ const Product = {
         compare_price: p.compare_price != null ? parseFloat(p.compare_price) : null,
       }));
 
-      return { products: clean, total, page, perPage: PER_PAGE, pages: Math.ceil(total / PER_PAGE) };
+      // sort: what is ACTUALLY in effect, so the dropdown can show it rather
+      // than displaying "Featured" over a popularity-ordered page.
+      return {
+        products: clean, total, page, perPage: PER_PAGE,
+        pages: Math.ceil(total / PER_PAGE),
+        sort: effectiveSort,
+      };
 
-    } catch {
-      return { products: [], total: 0, page, perPage: PER_PAGE, pages: 0 };
+    } catch (err) {
+      /* Was a bare `catch {}` returning an empty result — a broken query and
+         an empty category were indistinguishable, and the page rendered "no
+         products" either way. Same class as the swallows removed from the
+         controllers on 2026-09-02. */
+      console.error('[Product.findByCategory] FAILED:',
+                    err.code || '', err.sqlMessage || err.message);
+      return { products: [], total: 0, page, perPage: PER_PAGE, pages: 0, sort: 'featured' };
     }
   },
 
