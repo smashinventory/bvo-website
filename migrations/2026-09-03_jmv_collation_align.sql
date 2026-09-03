@@ -44,14 +44,21 @@
 
 
 -- ── 1. BEFORE — see the disagreement ───────────────────────────────
-SELECT TABLE_NAME, TABLE_COLLATION
-  FROM information_schema.TABLES
- WHERE TABLE_SCHEMA = DATABASE()
-   AND TABLE_NAME IN ('products','jmv_snapshots','jmv_dimensions',
-                      'jmv_daily_movement','jmv_snapshot_validity')
- ORDER BY TABLE_NAME;
--- Expect: products = utf8mb4_unicode_ci
---         jmv_*    = utf8mb4_uca1400_ai_ci   <- the problem
+--
+-- NOTE: SHOW, not information_schema. Hostinger's shared MySQL does not
+-- grant this DB user access to information_schema:
+--
+--   #1044 - Access denied for user '...'@'127.0.0.1'
+--           to database 'information_schema'
+--
+-- The first version of this file used information_schema and failed on
+-- exactly that. SHOW TABLE STATUS needs no special privilege and returns
+-- the same Collation column.
+SHOW TABLE STATUS LIKE 'jmv\_%';
+SHOW TABLE STATUS LIKE 'products';
+-- Read the Collation column.
+-- Expect BEFORE: products = utf8mb4_unicode_ci
+--                jmv_*    = utf8mb4_uca1400_ai_ci   <- the problem
 
 
 -- ── 2. CONVERT ─────────────────────────────────────────────────────
@@ -68,20 +75,22 @@ ALTER TABLE jmv_daily_movement
   CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 
--- ── 3. VERIFY — expect ZERO rows ───────────────────────────────────
--- Any table in this database whose collation is not utf8mb4_unicode_ci.
--- This is deliberately broader than the four above: if something else has
--- drifted, better to find out now than at the next join.
-SELECT TABLE_NAME, TABLE_COLLATION
-  FROM information_schema.TABLES
- WHERE TABLE_SCHEMA = DATABASE()
-   AND TABLE_TYPE = 'BASE TABLE'
-   AND TABLE_COLLATION <> 'utf8mb4_unicode_ci'
- ORDER BY TABLE_NAME;
+-- ── 3. VERIFY the collations changed ───────────────────────────────
+-- All four must now read utf8mb4_unicode_ci in the Collation column.
+SHOW TABLE STATUS LIKE 'jmv\_%';
+
+-- Whole-database sweep, if you want it. Scan the Collation column for
+-- anything that is not utf8mb4_unicode_ci — a table that has drifted is
+-- better found now than at the next join someone writes.
+--   SHOW TABLE STATUS;
 
 
--- ── 4. VERIFY the join that was failing ────────────────────────────
--- Expect a non-zero match count. If it errors, step 2 did not take.
+-- ── 4. VERIFY the join that was actually failing ───────────────────
+-- THIS IS THE TEST THAT MATTERS. Everything above is diagnosis; this is
+-- the statement the rollup could not execute.
+--
+-- Expect a non-zero count. If it raises "Illegal mix of collations",
+-- step 2 did not take — re-run the ALTERs individually and read each result.
 SELECT COUNT(*) AS matching_skus
   FROM products p
   JOIN jmv_daily_movement m ON m.sku = p.sku;
@@ -95,9 +104,9 @@ SELECT COUNT(*) AS matching_skus
 -- table someone creates without an explicit COLLATE reintroduces exactly
 -- this bug.
 --
---   SELECT DEFAULT_CHARACTER_SET_NAME, DEFAULT_COLLATION_NAME
---     FROM information_schema.SCHEMATA
---    WHERE SCHEMA_NAME = DATABASE();
+-- Check it WITHOUT information_schema (no privilege for it on this host):
+--
+--   SELECT @@character_set_database, @@collation_database;
 --
 -- If it is not utf8mb4_unicode_ci:
 --
