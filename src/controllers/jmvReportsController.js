@@ -1016,6 +1016,27 @@ async function getFinancials(req, res) {
     );
 
     // ── Top 10 groups by revenue (conservative dedup) ─────────────────
+    /* FIXED 2026-09-03 — the sweep missed this table, and how it missed it
+       matters more than the fix.
+
+       The sweep checker looked for `GROUP BY <dimension>`. This groups by
+       group_number and only DISPLAYS collection and base_finish, so it went
+       straight through a gate written to catch exactly this problem.
+
+       The symptom: row 1 read '— / — / 84.0"' with 467 TOP-ONLY units and
+       $1.34M — a bucket of standalone tops ranked above every vanity family
+       on a table titled "Top 10 Groups". Standalone tops do share a
+       group_number, so they collapse into one pseudo-group that then wins on
+       aggregate size rather than on being a model.
+
+       Excluded, on the same rule as everywhere else: this table ranks MODEL
+       FAMILIES, and a set of collection-less tops is not one. They are
+       covered SKU-by-SKU in the Tops Demand section, which is the right
+       granularity for them.
+
+       The gate is now written against the RENDERED IDENTITY of a row, not
+       just the GROUP BY clause — a display column that can be NULL is the
+       thing that produces a dash where a name belongs. */
     const top10Revenue = await safeQuery(
       `SELECT g.group_number,
               MAX(g.collection)   AS collection,
@@ -1027,6 +1048,7 @@ async function getFinancials(req, res) {
               ROUND(SUM(${REV}),0)                          AS revenue,
               SUM(${UNITS})                                 AS units
        FROM (${PIVOT}) g
+       WHERE g.collection IS NOT NULL AND g.collection <> ''
        GROUP BY g.group_number
        ORDER BY revenue DESC LIMIT 10`, PP
     );
