@@ -188,14 +188,39 @@ set +e
   const { runRollup } = require('./src/jobs/jmvMovementRollup');   // AFTER dotenv
   const includeDimensions = process.argv.includes('--include-dimensions');
   runRollup({ includeDimensions }).then(results => {
+    /* Dispatch on TYPE FIRST, then error, then the date-shaped default.
+
+       runRollup returns THREE shapes, not one. A demand_scores result carries
+       no .date, so with the old ordering it fell through to the default and
+       logged:
+
+         [undefined]  inserted=undefined  restocks=undefined  valid=undefined
+
+       for a step that had in fact succeeded — 4,045 SKUs scored. The SKIPPED
+       variant of the same type was worse: it carries .error, so it matched the
+       error branch and printed '[ERROR] undefined <message>', reading like a
+       dated failure with a missing date rather than a whole step opting out.
+
+       The catch-all at the end exists so the NEXT result type added to the job
+       degrades to raw JSON rather than to four undefineds. Adding a result
+       type and forgetting the formatter is the recurring shape of this bug. */
     results.forEach(r => {
       if (r.type === 'dimensions') {
         console.log('[dims]   upserted=' + r.upserted + (r.notes ? '  notes=' + r.notes : ''));
+      } else if (r.type === 'demand_scores') {
+        if (r.skipped) {
+          console.error('[scores] SKIPPED — ' + r.error);
+        } else {
+          console.log('[scores] scored=' + r.scored + '  cleared=' + r.cleared +
+            '  window=' + r.days + 'd' + (r.note ? '  note=' + r.note : ''));
+        }
       } else if (r.error) {
-        console.error('[ERROR]  ' + r.date + '  ' + r.error);
-      } else {
+        console.error('[ERROR]  ' + (r.date || '(no date)') + '  ' + r.error);
+      } else if (r.date) {
         console.log('[' + r.date + ']  inserted=' + r.inserted + '  restocks=' + r.restocks +
           '  valid=' + r.isValid + (r.notes ? '  notes=' + r.notes : ''));
+      } else {
+        console.log('[?]      unrecognised result shape: ' + JSON.stringify(r));
       }
     });
     process.exit(0);
