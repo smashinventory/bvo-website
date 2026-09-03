@@ -3,7 +3,20 @@
    JMV Demand Intelligence Dashboard
    Source note (required on every chart): "Depletion from James Martin
    warehouse — industry-wide demand, not RFL sales."
-   All aggregations: MAX per group_number, never SUM (coupling hazard).
+   AGGREGATION — stated accurately as of 2026-09-03.
+   DEDUPED_INNER takes MAX (never SUM) per row, but its grouping key is
+   TWELVE columns, not just group_number. So the collapse is at VARIANT
+   level, not group level. Measured: 8,005 rows where a true per-group
+   dedup yields 179.
+
+   Consequence, and it is deliberate: a cabinet and the combos built on it
+   land in separate rows, because top_finish and freepower differ between
+   them. Collection totals therefore run HIGH. Collapsing them properly
+   would merge every stone finish into a single number and destroy the
+   visibility these charts exist to provide, so the trade was made
+   knowingly. Captions say "MAX per variant per day" rather than
+   "group-deduped" for that reason — the old label promised a collapse the
+   query does not perform.
 ═══════════════════════════════════════════════════════════════════ */
 const _topCollections  = JSON.parse(topCollections  || '[]');
 const _topFinishes     = JSON.parse(topFinishes     || '[]');
@@ -230,7 +243,7 @@ const _docCollections = [...new Set(daysOfCover.map(r => r.collection).filter(Bo
 
   <!-- Top Collections -->
   <div class="admin-card">
-    <h3 class="admin-card-title">Top Collections <span style="font-weight:400;font-size:.8rem;color:var(--text-muted)">(group-deduped)</span></h3>
+    <h3 class="admin-card-title">Top Collections <span style="font-weight:400;font-size:.8rem;color:var(--text-muted)">one row per variant per day (MAX, not SUM)</span></h3>
     <% if (_topCollections.length) { %>
     <canvas id="chartCollections" height="260"></canvas>
     <% } else { %>
@@ -240,8 +253,8 @@ const _docCollections = [...new Set(daysOfCover.map(r => r.collection).filter(Bo
 
   <!-- Size × Finish Heatmap -->
   <div class="admin-card">
-    <h3 class="admin-card-title">Size × Base Finish — Observed Drawdown <span class="jmv-tip" data-tip="Each cell shows the group-deduped unit drawdown for that size + finish combination over the selected window. Darker = more units depleted at JM's warehouse. This is minimum estimated demand — actual demand ≥ shown figures.">ℹ</span></h3>
-    <p style="font-size:.78rem;color:var(--text-muted);margin:0 0 8px">Units depleted at JM warehouse · group-deduped · color intensity = relative velocity</p>
+    <h3 class="admin-card-title">Size × Base Finish — Observed Drawdown <span class="jmv-tip" data-tip="Each cell shows unit drawdown for that size + finish combination over the selected window, taken as MAX per variant per day rather than SUM. NOTE: a cabinet and the combos built on it are counted SEPARATELY here, because their top finish differs — so collection totals run high. Deliberate: collapsing them would merge every stone finish into one number and hide which stone is actually moving. Darker = more units depleted at JM's warehouse. This is minimum estimated demand — actual demand ≥ shown figures.">ℹ</span></h3>
+    <p style="font-size:.78rem;color:var(--text-muted);margin:0 0 8px">Units depleted at JM warehouse · MAX per variant per day · color intensity = relative velocity</p>
     <% if (_heatmapFinishes.length && _heatmapSizes.length) { %>
     <div style="overflow-x:auto">
       <table class="jmv-heatmap">
@@ -292,7 +305,7 @@ const _docCollections = [...new Set(daysOfCover.map(r => r.collection).filter(Bo
 <% } %>
 
 <!-- ══ ROW 3 — DIMENSION BREAKDOWNS ═════════════════════════════════ -->
-<h2 class="report-section-title" style="margin-top:28px">Dimension Breakdowns <span style="font-weight:400;font-size:.85rem;font-style:italic">— group-deduped, sync scope</span></h2>
+<h2 class="report-section-title" style="margin-top:28px">Dimension Breakdowns <span style="font-weight:400;font-size:.85rem;font-style:italic">— MAX per variant per day, sync scope</span></h2>
 <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
 
   <!-- Base Finishes -->
@@ -513,7 +526,11 @@ const _docCollections = [...new Set(daysOfCover.map(r => r.collection).filter(Bo
 <!-- ══ ROW 4 — TOP 50 SKU TABLE ══════════════════════════════════════ -->
 <h2 class="report-section-title" style="margin-top:28px">Top 50 SKUs — Observed Drawdown</h2>
 <p style="font-size:.8rem;color:var(--text-muted);margin:-4px 0 10px">
-  SKU-level (not group-deduped) — check Group # to identify shared-component clusters.
+  <%# Reworded 2026-09-03. Was "SKU-level (not group-deduped)" — accurate,
+        but it contrasted with a label that no longer exists anywhere on this
+        page. The other charts now read "MAX per variant per day"; this table
+        applies no dedup at all, which is the real distinction. %>
+    SKU-level, no dedup applied — check Group # to identify shared-component clusters.
   "Observed drawdown (minimum demand)" — demand on restock days is hidden.
 </p>
 

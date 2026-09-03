@@ -5,7 +5,14 @@
  * JMV Demand Intelligence — admin reporting layer over nightly snapshot data.
  *
  * ALL aggregations follow the three-hazard rules:
- *  1. Group deduplication: MAX demand_min per group_number per day, never SUM
+ *  1. Deduplication: MAX demand_min, never SUM.
+ *     CORRECTED 2026-09-03 — this line used to read "per group_number per
+ *     day", which overstated it. DEDUPED_INNER groups by TWELVE columns, so
+ *     the collapse is at VARIANT level, not group level: 8,005 rows where a
+ *     true per-group dedup yields 179. A cabinet and its combos land in
+ *     separate rows because top_finish and freepower differ, so collection
+ *     totals run HIGH. Deliberate — a true group collapse would merge every
+ *     stone finish into one number and hide which stone is moving.
  *  2. Metric label: "observed drawdown (minimum demand)" — NEVER "units sold"
  *  3. Feed-gap exclusion: is_valid = 1 only
  *
