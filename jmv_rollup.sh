@@ -21,22 +21,49 @@
 # SETUP — before first run:
 #   1. Copy this file to the server root:
 #      /home/u222311468/domains/slategrey-falcon-350174.hostingersite.com/jmv_rollup.sh
-#   2. Set your DB password in the DB_PASS line below (keep on server, never in chat).
-#   3. Add the cron line above in hPanel → Cron Jobs.
-#   4. First run via "↺ Run Rollup" in /admin/marketing/jmv to seed historical dates.
+#      That is a PLAIN COPY. There is nothing to edit afterwards — see below.
+#   2. Add the cron line above in hPanel → Cron Jobs.
+#   3. First run via "↺ Run Rollup" in /admin/marketing/jmv to seed historical dates.
+#
+# NO CREDENTIALS IN THIS FILE. The DB credentials are read from the app's own
+# .env inside the node call, so this copy and the one in hbuilds/ are byte
+# identical and the file drop needs no follow-up edit.
+#
+# Until 2026-09-03 this script exported DB_HOST/USER/NAME/PASS inline. The
+# consequence was two copies that differed by exactly one line — the deployed
+# copy carried YOUR_DB_PASSWORD_HERE and only the root copy worked — so every
+# file drop required remembering to re-paste the password. Forget once and the
+# rollup fails at DB connect, which is a log line you only see if you go
+# looking. shipment_status_poll.sh already worked this way; this now matches it.
+#
+# hPanel remains the source of truth for env. It writes hbuilds/config/.env,
+# which survives deploys. hPanel injects those vars into the managed app
+# process, but CRON DOES NOT INHERIT THAT INJECTION — which is why the file has
+# to be read explicitly here.
+#
+# See ROLLBACK_jmv_rollup_env.md for the full dependency check and revert steps.
 # ═══════════════════════════════════════════════════════════════════════
 
 set -euo pipefail
 
 BASE=/home/u222311468/domains/slategrey-falcon-350174.hostingersite.com
 
-# ── Database credentials (set DB_PASS — never paste into chat) ──────
-export DB_HOST=127.0.0.1
-export DB_USER=u222311468_Admin1
-export DB_NAME=u222311468_BVO_website
-export DB_PASS="YOUR_DB_PASSWORD_HERE"
+# ── Database credentials ─────────────────────────────────────────────
+# Intentionally absent. Loaded from hbuilds/config/.env inside the node call
+# below, where the load ORDER matters — see the note there before editing.
 
 # ── Data source paths ────────────────────────────────────────────────
+# These stay as shell exports ON PURPOSE, unlike the DB credentials.
+#
+# They are DERIVED from $BASE rather than stored literals. If they were read
+# from .env instead and hPanel's stored value ever disagreed with what $BASE
+# resolves to, the rollup would run happily against the wrong snapshot
+# directory and report success on stale or absent data. $BASE-derived is the
+# more correct source, so it wins.
+#
+# dotenv does not override variables that are already set, so these survive
+# even if .env also defines them.
+
 # csv.gz snapshots (created by gvssync.sh nightly)
 export JMV_SNAPSHOTS_PATH=$BASE/jmv_sync/snapshots
 
@@ -121,9 +148,44 @@ echo "$(stamp) using node: $NODE ($("$NODE" -v 2>/dev/null || echo 'version unkn
 set +e
 
 "$NODE" -e "
-  process.env.JMV_SNAPSHOTS_PATH = process.env.JMV_SNAPSHOTS_PATH;
-  process.env.JMV_FEED_ARCHIVE   = process.env.JMV_FEED_ARCHIVE;
-  const { runRollup, upsertDimensions } = require('./src/jobs/jmvMovementRollup');
+  /* ── Load DB credentials ───────────────────────────────────────────
+     ORDER IS LOAD-BEARING. config/database.js calls createPool() at module
+     top level, and jmvMovementRollup requires it at ITS top level. So by the
+     time the require below returns, the pool is already built. dotenv MUST
+     run first or the pool is created with a blank password.
+
+     Do not move the require above this block.
+
+     hPanel writes hbuilds/config/.env and it survives deploys. The app gets
+     these vars injected by hPanel directly; cron does not inherit that
+     injection, hence reading the file. Candidates are tried in order and the
+     first one that actually yields DB_PASS wins — dotenv never overwrites an
+     already-set variable, so a value exported by the shell still takes
+     precedence over the file. */
+  const fs = require('fs');
+  const CANDIDATES = [
+    process.env.BVO_ENV_PATH,
+    '$BASE/hbuilds/config/.env',
+    '$BASE/hbuilds/current/nodejs/.env',
+  ].filter(Boolean);
+
+  let envFile = null;
+  for (const p of CANDIDATES) {
+    if (!fs.existsSync(p)) continue;
+    require('dotenv').config({ path: p });
+    if (process.env.DB_PASS) { envFile = p; break; }
+  }
+
+  if (!process.env.DB_PASS) {
+    /* Exit 78 is EX_CONFIG and means exactly one thing: no file supplied
+       DB_PASS. A WRONG password surfaces as a driver error instead, so these
+       two failures are never confused for one another in the log. */
+    console.error('[FATAL] no .env supplied DB_PASS. Tried: ' + CANDIDATES.join(', '));
+    process.exit(78);
+  }
+  console.log('[env] loaded ' + envFile);
+
+  const { runRollup } = require('./src/jobs/jmvMovementRollup');   // AFTER dotenv
   const includeDimensions = process.argv.includes('--include-dimensions');
   runRollup({ includeDimensions }).then(results => {
     results.forEach(r => {
