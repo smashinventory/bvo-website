@@ -39,9 +39,12 @@ const CAP          = 2048;
 const API_BASE     = 'https://api.cloudinary.com/v1_1/';
 const HTTP_TIMEOUT = 120;
 
+/** Admin API deletes at most this many public_ids per request. */
+const DESTROY_BATCH = 100;
+
 // ---------------------------------------------------------------- arguments
 $opt = getopt('', ['map:', 'journal:', 'limit::', 'max-minutes::', 'dry-run',
-                   'confirm-upload', 'report', 'only::']);
+                   'confirm-upload', 'report', 'only::', 'redo-png', 'confirm-delete']);
 
 $mapPath = $opt['map']     ?? '';
 $jrnPath = $opt['journal'] ?? (dirname($mapPath) . '/bvo_cloudinary_journal.csv');
@@ -120,13 +123,25 @@ function cloudinaryUpload(string $cloud, string $key, string $secret,
 
     // Signed params: everything except file, api_key, resource_type and
     // cloud_name, sorted by key, joined k=v with &, secret appended, sha1.
+    //
+    // f_jpg IS NOT OPTIONAL. c_limit preserves the source format, so without it
+    // a PNG stays a PNG and stays enormous: the first run stored a 1920x1080
+    // Kensington render at 9,417 KB and a 1152x928 Bristol render at 1,227 KB,
+    // against 39 KB for an Oxford JPEG of twice the pixel count. One 13.4 MB PNG
+    // was refused outright by the 10 MB ceiling. Extrapolated across 316 images
+    // that is ~300 MB — roughly 300 credits against a 25-credit plan.
+    //
+    // b_white flattens alpha. Most of these renders are opaque, but
+    // Kensington_Solo_Closed_f_*.png carries transparency, and a JPEG cannot.
+    // White is where these product renders belong, so flattening is correct
+    // rather than merely safe.
     $signed = [
         'context'        => 'alt=' . str_replace(['|', '='], ['-', '-'], $alt),
         'overwrite'      => 'false',   // a public_id is frozen once written
         'public_id'      => $publicId,
         'tags'           => implode(',', $tags),
         'timestamp'      => (string)$ts,
-        'transformation' => 'c_limit,w_' . CAP . ',h_' . CAP,
+        'transformation' => 'c_limit,w_' . CAP . ',h_' . CAP . ',f_jpg,q_auto:good,b_white',
         'unique_filename'=> 'false',
     ];
     ksort($signed);
@@ -180,6 +195,97 @@ if ($report) {
     logline('journal: ' . json_encode($c) . '  of ' . count($uploads) . ' uploads in the map');
     foreach ($journal as $j) if ($j['status'] !== 'ok') logline('  FAILED ' . $j['public_id'] . ' — ' . $j['note']);
     exit(0);
+}
+
+/* ── --redo-png ───────────────────────────────────────────────────────────
+   Surgical repair for the first full run, which stored every PNG source AS a
+   PNG because c_limit preserves the source format. 101 of 316 uploads came
+   from PNG; the smallest was 1,157 KB and six exceeded the 10 MB ceiling and
+   failed outright. The 215 JPEG-sourced assets are fine and are left alone —
+   their public_ids stay exactly as they are.
+
+   Deletes only the PNG-sourced ids, drops them from the journal, and leaves an
+   ordinary --confirm-upload to put them back with f_jpg applied. */
+if (array_key_exists('redo-png', $opt)) {
+    $png = [];
+    foreach ($rows as $r) {
+        if (($r['upload'] ?? '') !== 'yes') continue;
+        if (($r['source'] ?? '') !== 'shopify') continue;
+        if (!preg_match('/\.png$/i', $r['source_file'] ?? '')) continue;
+        $png[] = $r['public_id'];
+    }
+    $png = array_values(array_unique($png));
+    logline(sprintf('%d PNG-sourced assets in the map (of %d uploads)',
+        count($png), count(array_filter($rows, fn($r) => ($r['upload'] ?? '') === 'yes'))));
+
+    $inJournal = array_values(array_filter($png, fn($p) => isset($journal[$p])));
+    logline(sprintf('%d of them are in the journal and would be deleted + requeued', count($inJournal)));
+
+    if (!array_key_exists('confirm-delete', $opt)) {
+        logline('DRY RUN — nothing deleted. Add --confirm-delete to act.');
+        foreach (array_slice($png, 0, 8) as $p) logline('  would delete  ' . $p);
+        if (count($png) > 8) logline('  … and ' . (count($png) - 8) . ' more');
+        exit(0);
+    }
+    if ($cloud === '' || $key === '' || $secret === '') {
+        logline('FATAL: credentials are not set.'); exit(2);
+    }
+
+    $deleted = 0; $missing = 0; $failed = 0;
+    foreach (array_chunk($png, DESTROY_BATCH) as $chunk) {
+        $qs = 'public_ids[]=' . implode('&public_ids[]=', array_map('urlencode', $chunk));
+        $ch = curl_init(API_BASE . $cloud . '/resources/image/upload?' . $qs);
+        curl_setopt_array($ch, [
+            CURLOPT_CUSTOMREQUEST  => 'DELETE',
+            CURLOPT_USERPWD        => $key . ':' . $secret,
+            CURLOPT_HTTPAUTH       => CURLAUTH_BASIC,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => HTTP_TIMEOUT,
+        ]);
+        $body = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        $j = json_decode((string)$body, true);
+        if ($code < 200 || $code >= 300 || !is_array($j)) {
+            logline("  batch FAILED http $code: " . substr((string)$body, 0, 200));
+            $failed += count($chunk);
+            continue;
+        }
+        foreach (($j['deleted'] ?? []) as $id => $state) {
+            if ($state === 'deleted')       { $deleted++; }
+            elseif ($state === 'not_found') { $missing++; }
+            else                            { $failed++; logline("  $id -> $state"); }
+        }
+        logline(sprintf('  batch of %d: %d deleted so far, %d not found', count($chunk), $deleted, $missing));
+    }
+
+    // Drop them from the journal so the next run re-uploads exactly these.
+    // A failed delete must NOT be requeued: overwrite=false means the upload
+    // would be refused and the asset would stay a PNG while the log said ok.
+    if ($failed === 0) {
+        $kept = 0; $dropped = 0;
+        $tmp = $jrnPath . '.tmp';
+        $fh2 = fopen($tmp, 'w');
+        fputcsv($fh2, ['public_id','status','secure_url','width','height','bytes','format','note','at']);
+        $drop = array_flip($png);
+        foreach ($journal as $pid => $j2) {
+            if (isset($drop[$pid])) { $dropped++; continue; }
+            fputcsv($fh2, [$j2['public_id'], $j2['status'], $j2['secure_url'] ?? '',
+                           $j2['width'] ?? '', $j2['height'] ?? '', $j2['bytes'] ?? '',
+                           $j2['format'] ?? '', $j2['note'] ?? '', $j2['at'] ?? '']);
+            $kept++;
+        }
+        fclose($fh2);
+        rename($tmp, $jrnPath);
+        logline("journal rewritten: $kept kept, $dropped requeued");
+    } else {
+        logline("journal NOT touched — $failed deletes failed, so requeuing would");
+        logline("silently no-op against overwrite=false. Fix those first.");
+    }
+
+    logline("done: $deleted deleted, $missing already gone, $failed failed");
+    logline('next: ./bvosync_cloudinary.sh --confirm-upload');
+    exit($failed > 0 ? 1 : 0);
 }
 
 $todo = [];
