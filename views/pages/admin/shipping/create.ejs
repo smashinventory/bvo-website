@@ -1349,6 +1349,9 @@ function bookShipment() {
       // does not exist in the V4 API. See SHIPPING_WWEX_BRIEF.md.
       offeredProductId:     _selected.offeredProductId || null,
       carrier:              strField(_selected.carrier),
+      /* SCAC, not the display name. carrier_rules joins on this; sending
+         only 'RL Carriers' would match no rule and look like none applied. */
+      carrierScac:          strField(_selected.scac),
       serviceLevel:         strField(_selected.serviceLevel) || strField(_selected.service),
       totalCharge:          _selected.totalCharge,
       estimatedDelivery:    _selected.estimatedDelivery || null,

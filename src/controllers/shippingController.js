@@ -651,6 +651,7 @@ async function bookShipment(req, res) {
       shipment,
       orderId         = null,
       carrier           = '',
+      carrierScac       = '',   // WWEX primaryVendor.scac — the carrier_rules join key
       serviceLevel      = '',
       totalCharge       = 0,
       estimatedDelivery = null,   // from the selected rate — stored as est_delivery
@@ -836,12 +837,12 @@ async function bookShipment(req, res) {
             (origin is always our own warehouse). */
       `INSERT INTO shipments
          (order_id, product_transaction_id, offer_id, product_type, bol_number, pro_number,
-          bol_url, carrier, service_level, total_charge, status,
+          bol_url, carrier, carrier_scac, service_level, total_charge, status,
           ship_date, est_delivery, pickup_txn_id,
           origin_company, origin_city, origin_state, origin_zip,
           dest_company, dest_name, dest_address1, dest_city, dest_state, dest_zip,
           dest_phone, dest_email, pickup_confirmation, created_at, updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, NOW(), NOW())`,
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, NOW(), NOW())`,
       [
         orderId || null,
         booked.productTransactionId || productTransactionId,
@@ -851,6 +852,7 @@ async function bookShipment(req, res) {
         booked.proNumber || null,
         booked.bolUrl    || null,
         carrier,
+        (carrierScac || '').toUpperCase() || null,
         serviceLevel,
         totalCharge,
         'booked',
@@ -1258,7 +1260,7 @@ async function emailDocuments(req, res) {
 
     const row = await safeQueryOne(
       `SELECT id, product_transaction_id, product_type, bol_number, pro_number,
-              carrier, dest_company, dest_city, dest_state, ship_date, order_id
+              carrier, carrier_scac, dest_company, dest_city, dest_state, ship_date, order_id
          FROM shipments WHERE id = ?`, [shipmentId]
     );
     if (!row) return res.status(404).json({ ok: false, error: 'Shipment not found.' });
@@ -1305,6 +1307,51 @@ async function emailDocuments(req, res) {
     const dest    = [row.dest_company, row.dest_city, row.dest_state].filter(Boolean).join(' — ');
     const shipOn  = row.ship_date ? new Date(row.ship_date).toLocaleDateString('en-US') : 'TBD';
     const subject = `Shipping docs — BOL ${row.bol_number || row.id}${dest ? ' — ' + dest : ''}`;
+
+    /* ── Carrier pack-time requirements ────────────────────────────────
+       THIS is the delivery point for a 'pack' rule, and the reason the
+       rules table splits on applies_at at all.
+
+       R&L requires shipper and consignee information on EVERY handling
+       unit. The people who must act on that are the VENDOR's warehouse —
+       James Martin palletises the freight and hands it to the carrier. An
+       admin screen in BVO never reaches them. This email carries the BOL
+       to whoever prepares the shipment, so the instruction travels with
+       the paperwork it belongs to.
+
+       SpeedShip shows the same requirement as a modal at rate selection,
+       which interrupts whoever is booking to convey a warehouse
+       instruction — the wrong person, days early. Reproducing that in our
+       own UI would have felt like handling it.
+
+       Fails soft: a missing table, an absent SCAC, or a thrown lookup all
+       produce an email identical to today's. Documents must never fail to
+       send because an advisory paragraph could not be built. */
+    let packHtml = '';
+    try {
+      const packRules = await carrierRules.getPackInstructions(row.carrier_scac);
+      if (packRules.length) {
+        packHtml =
+          `<div style="margin:16px 0 0;padding:12px 14px;border-left:3px solid #d97706;background:#fffbeb;border-radius:3px">
+             <p style="margin:0 0 6px;font-weight:700;color:#92400e;font-size:13px">
+               Before pickup — ${packRules[0].carrier} requirement${packRules.length > 1 ? 's' : ''}
+             </p>
+             ${packRules.map(r =>
+               `<p style="margin:0 0 6px;color:#92400e;font-size:13px;line-height:1.55">${r.text || ''}</p>`
+             ).join('')}
+             <p style="margin:6px 0 0;color:#b45309;font-size:11px">
+               Carrier policy, not a BVO instruction. Missing it can mean refusal at pickup or a reconsignment charge.
+             </p>
+           </div>`;
+      } else if (!row.carrier_scac) {
+        /* Not an error — every shipment booked before 2026-09-03 predates the
+           carrier_scac column. Logged so 'no requirements shown' is never
+           silently ambiguous between 'none apply' and 'we could not check'. */
+        console.log(`[shipping] emailDocuments: shipment ${row.id} has no carrier_scac — pack rules not checked`);
+      }
+    } catch (ruleErr) {
+      console.error('[shipping] pack-rule lookup failed (documents still sent):', ruleErr.message);
+    }
     const html    =
       `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1a2e4a;line-height:1.7">
          <p style="margin:0 0 12px"><strong>Shipping documents attached.</strong></p>
@@ -1316,6 +1363,7 @@ async function emailDocuments(req, res) {
            <tr><td style="padding:2px 12px 2px 0;color:#718096">Ship date</td><td>${shipOn}</td></tr>
            ${row.order_id ? `<tr><td style="padding:2px 12px 2px 0;color:#718096">Order</td><td>#${row.order_id}</td></tr>` : ''}
          </table>
+         ${packHtml}
          <p style="margin:14px 0 0;color:#718096;font-size:12px">
            Attached: ${attachments.map(a => a.name).join(', ')}
            ${failed.length ? `<br>Unavailable: ${failed.join(', ')}` : ''}
