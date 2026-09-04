@@ -20,6 +20,7 @@ const wwex        = require('../services/wwexService');
 // Internal distribution of shipping paperwork to our own stores. BVO-sent,
 // unrelated to WWEX — they have no API to email a BOL.
 const brevo       = require('../services/brevoService');
+const carrierRules = require('../services/carrierRules');
 
 const LAYOUT = { layout: 'layouts/admin', activePage: 'shipping' };
 
@@ -560,9 +561,39 @@ async function getRates(req, res) {
     const diag = req.query.diag === '1' || req.body?.diag === '1';
     if (diag) console.log('[shipping] getRates: DIAG requested');
     const result = await wwex.shopFlow(shopPayload, productType, { diag });
+
+    /* ── Carrier rules WWEX does not return ────────────────────────────
+       Booking-time warnings only. This DOES NOT and MUST NOT touch
+       ship_date — the decision was warn, do not change. An unconfirmed
+       cutoff must never silently move a date somebody entered on purpose.
+
+       Wrapped in its own try/catch on top of carrierRules' own safe reads:
+       a rate shop that already succeeded must not be turned into a failure
+       by an advisory feature. Worst allowed outcome is a missing warning. */
+    let carrierWarnings = [];
+    try {
+      if (result.ok && Array.isArray(result.rates) && result.rates.length) {
+        const scacs = [...new Set(result.rates.map(r => r.scac || r.carrier).filter(Boolean))];
+        const warn = await carrierRules.getBookingWarnings(scacs, {
+          originState: b.origin && b.origin.state,
+          shipDate:    b.shipmentDate,
+        });
+        if (warn.size) {
+          carrierWarnings = [...warn.values()];
+          // Attach to the matching rate rows so the UI can render in place.
+          result.rates.forEach(r => {
+            const hit = warn.get(String(r.scac || r.carrier || '').toUpperCase());
+            if (hit) r.cutoffWarning = hit;
+          });
+        }
+      }
+    } catch (ruleErr) {
+      console.error('[shipping] carrier rules lookup failed (rates unaffected):', ruleErr.message);
+    }
+
     // Return the original shipment object so the client can echo it back in quoteOrderFlow.
     // WWEX requires the full shipment (handlingUnitList, freight flags, etc.) in the booking.
-    res.json({ ...result, shopShipment: shopPayload.shipment || null });
+    res.json({ ...result, shopShipment: shopPayload.shipment || null, carrierWarnings });
   } catch (err) {
     console.error('[shipping] getRates error:', err);
     res.status(500).json({ ok: false, error: err.message });

@@ -230,6 +230,11 @@ exports.shopFlow = async (payload, productType = 'LTL', opts = {}) => {
     //  or as separate offers — flatMap handles both correctly)
     const offers = rawOffers.flatMap(o => {
       const carrier   = o.primaryVendor?.preferredName || o.primaryVendor?.scac || '—';
+      /* SCAC carried through as its own field, added 2026-09-03.
+         carrier is DISPLAY text — 'RL Carriers', 'TFORCE FREIGHT' — and its
+         case and punctuation vary. carrier_rules joins on SCAC, so matching
+         a rule against the display name would silently never fire. */
+      const scac      = o.primaryVendor?.scac || null;
       const products  = (o.offeredProductList || []);
       // If no products array, fall back to one row using offer-level price
       if (!products.length) {
@@ -241,6 +246,7 @@ exports.shopFlow = async (payload, productType = 'LTL', opts = {}) => {
           productTransactionId: o.productTransactionId || null,
           offeredProductId: null,
           carrier,
+          scac,
           serviceLevel:     'Standard',
           transitDays:      null,
           estimatedDelivery: null,
@@ -260,6 +266,7 @@ exports.shopFlow = async (payload, productType = 'LTL', opts = {}) => {
           productTransactionId: o.productTransactionId || null,   // per-offer, see note above
           offeredProductId: prod.offeredProductId || null,
           carrier,
+          scac,
           serviceLevel,
           transitDays:      tit.transitDays  ?? null,
           estimatedDelivery: tit.estimatedDeliveryDate || null,

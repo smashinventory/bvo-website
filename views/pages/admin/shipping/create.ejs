@@ -964,13 +964,34 @@ function renderRates(rates, isStub) {
 
     html += '<div class="ship-rate-row">';
 
+    /* Carrier rule warning — WWEX does not return these; carrier_rules does.
+       ADVISORY ONLY. Nothing here changes the ship date or the booking; the
+       decision was warn, do not change. Absence of a warning means "no rule
+       applies", never "not checked" — the server only sets cutoffWarning
+       when the ship date is TODAY in shipper-local time AND the cutoff has
+       actually passed, so this stays quiet on the bookings it doesn't
+       concern. A banner that fires on everything gets ignored. */
+    var cw = ref && ref.cutoffWarning;
+    var cwHtml = '';
+    if (cw) {
+      cwHtml = '<div class="ship-rate-warn">'
+        + '&#9888; ' + esc(cw.text || 'Carrier cutoff has passed.')
+        + '<span class="ship-rate-warn-meta">Cutoff ' + esc(cw.cutoff)
+        + ' &middot; now ' + esc(cw.localTime) + ' ' + esc(cw.tz)
+        + (cw.tzApprox ? ' (approx — origin state not mapped)' : '')
+        + (cw.unverified ? ' &middot; SCAC not yet seen in a BVO response' : '')
+        + '</span></div>';
+    }
+
     /* Carrier column */
     html += '<div class="ship-rate-col-name">'
       + '<div class="ship-rate-carrier-name">' + g.name + '</div>'
       + '<div class="ship-rate-meta">'
       + (transit  ? '<span class="ship-rate-meta-item">' + clockSvg + ' ' + transit  + '</span>' : '')
       + (delivery ? '<span class="ship-rate-meta-item">' + calSvg   + ' ' + delivery + '</span>' : '')
-      + '</div></div>';
+      + '</div>'
+      + cwHtml
+      + '</div>';
 
     /* Standard column */
     html += '<div class="ship-rate-col-std">';
@@ -1033,6 +1054,22 @@ function buildConfirmStep() {
     + '<div style="opacity:.6;font-size:.75rem">' + (pt === 'LTL' ? 'LTL Freight' : 'Small Package') + '</div>'
     + '</div>'
     + '</div>';
+
+  /* Repeat the carrier cutoff warning here. Step 2 is where it is easy to
+     skim past — this is the screen where the booking is actually committed,
+     so the consequence is restated at the moment of decision. Still
+     advisory: the ship date shown below is exactly what was entered. */
+  if (r.cutoffWarning) {
+    var w = r.cutoffWarning;
+    html += '<div class="ship-rate-warn" style="margin:0 0 14px;font-size:.82rem">'
+      + '&#9888; ' + esc(w.text || 'Carrier cutoff has passed.')
+      + '<span class="ship-rate-warn-meta">'
+      + esc(w.carrier) + ' cutoff ' + esc(w.cutoff)
+      + ' &middot; now ' + esc(w.localTime) + ' ' + esc(w.tz)
+      + (w.tzApprox ? ' (approx)' : '')
+      + ' &middot; ship date below is unchanged'
+      + '</span></div>';
+  }
 
   // ── Ship From / Ship To
   function addrCard(label, name, addr1, city, state, zip, phone, email) {
@@ -1489,6 +1526,13 @@ function applyCommodity(i) {
 .ship-rate-carrier-name { font-size:.9rem;font-weight:700;color:#1a2e4a;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis }
 .ship-rate-meta         { display:flex;gap:12px;margin-top:3px;font-size:.78rem;color:#718096 }
 .ship-rate-meta-item    { display:flex;align-items:center;gap:3px }
+/* Carrier rule warning. Amber, not red: the rate is still bookable and the
+   ship date is untouched — this is a consequence to expect, not an error to
+   fix. Sized down and wrapped so it never pushes the price columns around. */
+.ship-rate-warn         { margin-top:6px;padding:6px 8px;border-left:3px solid #d97706;
+                          background:#fffbeb;border-radius:3px;font-size:.76rem;
+                          color:#92400e;line-height:1.35;white-space:normal }
+.ship-rate-warn-meta    { display:block;margin-top:3px;font-size:.7rem;color:#b45309;opacity:.85 }
 .ship-rate-btn          { padding:6px 14px;border:2px solid #cbd5e0;border-radius:6px;background:#fff;font-size:.95rem;font-weight:700;color:#1a2e4a;cursor:pointer;transition:border-color .12s,background .12s,box-shadow .12s;white-space:nowrap }
 .ship-rate-btn:hover    { border-color:#4299e1;background:#EBF8FF }
 .ship-rate-btn.selected { border-color:#1a2e4a;background:#1a2e4a;color:#fff;box-shadow:0 0 0 3px rgba(26,46,74,.15) }
