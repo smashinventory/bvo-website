@@ -571,12 +571,47 @@ async function runRollup({ dates = null, includeDimensions = false } = {}) {
         ...xlsxFiles.map(f => parseDateFromXlsxFilename(f)).filter(Boolean),
       ])).sort();
 
-      // Find which dates already have movement rows
+      /* Which dates are DONE?
+
+         Movement rows alone are not the answer, and assuming they were is a
+         slow leak. TWO outcomes deliberately write no movement rows:
+
+           feed unchanged   byte-identical to the previous snapshot, so no
+                            observation is recorded — this is the fix that
+                            stops charts showing a false $0 day
+           invalid          row count deviates too far from the median
+
+         Both write a jmv_snapshot_validity row instead. Neither ever appears
+         in jmv_daily_movement, so under the old check they were re-read on
+         EVERY run, for ever. Observed 2026-09-03: five of the six archived
+         dates reprocessed on both runs that night.
+
+         That was survivable only because RAW_KEEP_DAYS capped the archive at
+         90 workbooks. The JMV Shopify sync has since raised raw retention to
+         730 days, which removes the cap — several hundred XLSX files, ~5,200
+         rows each, re-parsed nightly against Hostinger's 30-minute process
+         limit. Their retention change is correct and was NOT the bug; this
+         check was. It would have surfaced months from now as an exit 137 in
+         a log nobody was watching.
+
+         A validity row means "this date was evaluated and a conclusion was
+         reached." Re-evaluating an archived workbook returns the same answer,
+         because the file does not change once mirrored into the protected
+         archive.
+
+         TO FORCE A RE-READ: runRollup({ dates: ['2026-09-03'] }). The
+         explicit-dates path skips this filter entirely — that is the escape
+         hatch if a workbook is ever genuinely replaced. */
       const [processed] = await conn.query(
-        `SELECT DISTINCT DATE_FORMAT(movement_date,'%Y-%m-%d') AS d FROM jmv_daily_movement`
+        `SELECT DATE_FORMAT(movement_date,'%Y-%m-%d') AS d FROM jmv_daily_movement
+         UNION
+         SELECT DATE_FORMAT(snapshot_date,'%Y-%m-%d') AS d FROM jmv_snapshot_validity`
       );
       const processedSet = new Set(processed.map(r => r.d));
       targetDates = allDates.filter(d => !processedSet.has(d));
+      console.log(`[rollup] ${allDates.length} archived date(s), ` +
+                  `${allDates.length - targetDates.length} already evaluated, ` +
+                  `${targetDates.length} to process`);
     }
 
     for (const date of targetDates) {
