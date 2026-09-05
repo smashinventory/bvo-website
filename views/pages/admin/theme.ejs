@@ -155,9 +155,25 @@ function teFilters(pk,d,base){
   var opt=function(val,label,cur){
     return '<option value="'+esc(val)+'"'+(String(cur||'')===String(val)?' selected':'')+'>'+esc(label)+'</option>';
   };
+  /* Options carry a live product count. A filter that matches nothing
+     hides the section, so the count is the fastest way to see that a
+     choice is a dead end before saving. */
+  var opts=function(list,cur){
+    return (list||[]).map(function(o){ return opt(o.value,o.label,cur); }).join('');
+  };
+  /* A saved value that is no longer in the list (its products went away,
+     or it was a display-only category chosen before this list was
+     filtered) must still show, or saving the panel would silently reset
+     it to "All" without the user touching that control. */
+  var keepOrphan=function(list,cur,noun){
+    if(!cur) return '';
+    if((list||[]).some(function(o){return String(o.value)===String(cur);})) return '';
+    return opt(cur, cur+' — no matching products', cur);
+  };
   var brandSel='<div class="te4-field"><label>Brand</label><select name="'+pk+'.brand" class="te4-select">'
     + opt('','All brands',d.brand)
-    + vocab.brands.map(function(b){return opt(b,b,d.brand);}).join('')
+    + keepOrphan(vocab.brands,d.brand)
+    + opts(vocab.brands,d.brand)
     + '</select></div>';
 
   if(base==='categories_section'){
@@ -171,15 +187,18 @@ function teFilters(pk,d,base){
 
   var catSel='<div class="te4-field"><label>Category</label><select name="'+pk+'.category" class="te4-select">'
     + opt('','All categories',d.category)
-    + vocab.categories.map(function(c){return opt(c.slug,c.name,d.category);}).join('')
+    + keepOrphan(vocab.categories,d.category)
+    + opts(vocab.categories,d.category)
     + '</select></div>';
   var typeSel='<div class="te4-field"><label>Product type</label><select name="'+pk+'.ptype" class="te4-select">'
     + opt('','All types',d.ptype)
-    + vocab.ptypes.map(function(p){return opt(p,p,d.ptype);}).join('')
+    + keepOrphan(vocab.ptypes,d.ptype)
+    + opts(vocab.ptypes,d.ptype)
     + '</select></div>';
 
   return '<div class="te4-section-label">Filters</div>'
     + '<p class="te4-panel-desc">Narrow what this section shows. Duplicate the section and give each copy a different brand to run a James Martin band and an ER Vanities band side by side. The CTA link below is scoped to the brand automatically unless you write your own <code>brand=</code> into it.</p>'
+    + '<p class="te4-panel-desc"><strong>If a combination matches no products the whole section disappears from the homepage.</strong> The number after each option is how many products it covers; only categories that actually hold products are listed. Combinations can still come up empty — Brand + Category especially — so check the homepage after saving.</p>'
     + brandSel + catSel + typeSel;
 }
 

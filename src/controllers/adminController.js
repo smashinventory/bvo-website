@@ -1735,21 +1735,37 @@ async function _themeFilterVocab() {
   try {
     const [[brands], [categories], [ptypes]] = await Promise.all([
       bvoPool.query(
-        `SELECT DISTINCT brand FROM products
+        `SELECT brand, COUNT(*) AS n FROM products
           WHERE is_active = 1 AND brand IS NOT NULL AND brand <> ''
-          ORDER BY brand`),
+          GROUP BY brand ORDER BY brand`),
+      /* ONLY categories that actually contain active products.
+
+         An earlier version listed every active category, which offered
+         'Vanity Models' — a DISPLAY category (display_mode='model-group')
+         that holds no products of its own; model-group pages source from
+         bathroom-vanities. Choosing it filtered to zero products and the
+         section vanished from the homepage on save, with the most
+         plausible-looking option in the list for a Featured MODELS band.
+
+         The join is the fix rather than a display_mode exclusion, because
+         it also removes ordinary categories that merely happen to be
+         empty. A category the user cannot pick cannot empty a section. */
       bvoPool.query(
-        `SELECT slug, name FROM categories
-          WHERE is_active = 1 ORDER BY sort_order, name`),
+        `SELECT c.slug, c.name, COUNT(p.id) AS n
+           FROM categories c
+           JOIN products p ON p.category_id = c.id AND p.is_active = 1
+          WHERE c.is_active = 1
+          GROUP BY c.id, c.slug, c.name
+          ORDER BY c.sort_order, c.name`),
       bvoPool.query(
-        `SELECT DISTINCT product_type FROM products
+        `SELECT product_type, COUNT(*) AS n FROM products
           WHERE is_active = 1 AND product_type IS NOT NULL AND product_type <> ''
-          ORDER BY product_type`),
+          GROUP BY product_type ORDER BY product_type`),
     ]);
     return {
-      brands:     brands.map(r => r.brand),
-      categories: categories.map(r => ({ slug: r.slug, name: r.name })),
-      ptypes:     ptypes.map(r => r.product_type),
+      brands:     brands.map(r => ({ value: r.brand,        label: `${r.brand} (${r.n})` })),
+      categories: categories.map(r => ({ value: r.slug,     label: `${r.name} (${r.n})` })),
+      ptypes:     ptypes.map(r => ({ value: r.product_type, label: `${r.product_type} (${r.n})` })),
     };
   } catch (err) {
     console.warn('[themeEditor] filter vocabulary query failed:', err.message);
