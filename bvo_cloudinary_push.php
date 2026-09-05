@@ -101,18 +101,28 @@ function appendJournal(string $p, array $row): void {
  * Rewrite a map source URL so the CDN hands Cloudinary an already-capped file.
  * Both forms below were verified against live files before this was written.
  */
-function cappedSource(string $url, string $source): string {
+/** Widths to fall back through when Cloudinary refuses the SOURCE as too large.
+ *  Ordered, first that fits wins. See the retry in the upload loop for why. */
+const FALLBACK_WIDTHS = [1600, 1200, 900];
+
+function cappedSource(string $url, string $source, int $width = CAP): string {
     if ($source === 'drive') {
         // The map stores drive.google.com/uc?id=<id>; lh3 serves the bytes and
         // honours =s<N>, which caps the LONG edge and never upscales.
         if (preg_match('/[?&]id=([A-Za-z0-9_-]+)/', $url, $m)) {
-            return 'https://lh3.googleusercontent.com/d/' . $m[1] . '=s' . CAP;
+            return 'https://lh3.googleusercontent.com/d/' . $m[1] . '=s' . $width;
         }
         return $url;
     }
     // Shopify: ?width=N caps the width. A file already narrower comes back
     // untouched rather than upscaled.
-    return $url . (str_contains($url, '?') ? '&' : '?') . 'width=' . CAP;
+    //
+    // It does NOT change format. ?width=2048&format=jpg was tested against a
+    // live file and returns image/png at 13,090 KB, exactly as ?width=2048
+    // alone does — the parameter is ignored. That matters because the 10 MB
+    // ceiling applies to what Cloudinary FETCHES, before f_jpg can run, so the
+    // only lever left on an oversized PNG is a narrower request.
+    return $url . (str_contains($url, '?') ? '&' : '?') . 'width=' . $width;
 }
 
 // ------------------------------------------------------------------ upload
@@ -325,9 +335,31 @@ foreach ($todo as $r) {
         break;
     }
 
-    $src  = cappedSource($r['source_url'], $r['source']);
     $tags = ['er-vanities', strtolower($r['collection']), $r['rflpos_sku'], $r['shot_type']];
-    $res  = cloudinaryUpload($cloud, $key, $secret, $r['public_id'], $src, $r['alt_text'], $tags);
+
+    /* The 10 MB ceiling is enforced on the file Cloudinary FETCHES, not on what
+       it stores, so f_jpg cannot rescue an oversized source — the request is
+       refused before any transformation runs. Six Atlanta_Ls_Closed_f_*.png
+       renders are 13.1-13.7 MB at ?width=2048, and Shopify ignores &format=jpg
+       (verified: still image/png, same bytes). A narrower request is the only
+       lever, and 1600 brings that same file to 8,165 KB.
+
+       Only the widths are stepped down, and only on this specific error. The 95
+       PNGs that fetch fine at 2048 are never touched, so nothing is degraded to
+       fix six files. */
+    $width = CAP; $src = cappedSource($r['source_url'], $r['source'], $width);
+    $res   = cloudinaryUpload($cloud, $key, $secret, $r['public_id'], $src, $r['alt_text'], $tags);
+
+    if (!$res['ok'] && str_contains($res['note'], 'File size too large')) {
+        foreach (FALLBACK_WIDTHS as $w) {
+            logline(sprintf('  retry %s at width=%d (source too large at %d)',
+                basename($r['public_id']), $w, $width));
+            $width = $w;
+            $src   = cappedSource($r['source_url'], $r['source'], $w);
+            $res   = cloudinaryUpload($cloud, $key, $secret, $r['public_id'], $src, $r['alt_text'], $tags);
+            if ($res['ok'] || !str_contains($res['note'], 'File size too large')) break;
+        }
+    }
     $done++;
 
     if ($res['ok']) {
