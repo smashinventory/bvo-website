@@ -147,6 +147,49 @@ const prefillKey   = prefillModel ? (prefillModel + '||' + prefillBrand) : '';
         <% } %>
       </div>
 
+      <!-- Starting product ------------------------------------------------
+           Which product the card leads with. Only offered on an existing
+           record, because the variant list is looked up from the saved
+           model and brand. -->
+      <% if (!isNew) { %>
+      <div class="me-card">
+        <p class="me-card-title">Starting product</p>
+        <% if (variants && variants.length) { %>
+        <div class="me-field">
+          <label class="me-label" for="meDefaultSku">Card leads with</label>
+          <select id="meDefaultSku" name="default_sku" class="me-select">
+            <option value="">Automatic — cheapest price, smallest size</option>
+            <% variants.forEach(function(v) { %>
+            <%
+              var _bits = [];
+              if (v.width_in) _bits.push(Math.round(v.width_in) + '"');
+              if (v.color)    _bits.push(v.color);
+              if (v.price != null) _bits.push('$' + Number(v.price).toLocaleString('en-US'));
+            %>
+            <option value="<%= v.sku %>" <%= (mg.default_sku === v.sku) ? 'selected' : '' %>>
+              <%= _bits.join(' · ') %> — <%= v.sku %>
+            </option>
+            <% }); %>
+          </select>
+          <p class="me-hint">
+            On automatic, the card shows the cheapest price, the smallest size, and
+            an image picked independently of both — so the photo need not match the
+            price beside it. Choose a product here and the image, price, size and
+            finish all come from that one.
+          </p>
+          <% if (mg.default_sku && !variants.some(function(v){ return v.sku === mg.default_sku; })) { %>
+          <p class="me-hint" style="color:#c00">
+            Saved product <strong><%= mg.default_sku %></strong> is no longer active
+            for this model, so the card has gone back to automatic. Pick another.
+          </p>
+          <% } %>
+        </div>
+        <% } else { %>
+        <p class="me-hint">No active products found for this model and brand, so there is nothing to choose from.</p>
+        <% } %>
+      </div>
+      <% } %>
+
       <!-- Description / tagline -->
       <div class="me-card">
         <p class="me-card-title">Content</p>

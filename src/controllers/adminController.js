@@ -2643,6 +2643,11 @@ async function _ensureModelGroupsTable() {
       meta_title       VARCHAR(255)         DEFAULT NULL,
       meta_description TEXT                 DEFAULT NULL,
       og_image         VARCHAR(500)         DEFAULT NULL,
+      /* Which product the model card leads with. NULL = old behaviour:
+         cheapest price, smallest size, and whichever image MIN() lands on
+         — three things chosen independently, so they need not describe the
+         same product. Set it and all four agree. */
+      default_sku      VARCHAR(64)          DEFAULT NULL,
       created_at       TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at       TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       UNIQUE KEY uniq_model_brand (model_name, brand)
@@ -2667,6 +2672,7 @@ async function _ensureModelGroupsTable() {
     { name: 'meta_title',       sql: 'ADD COLUMN meta_title VARCHAR(255) DEFAULT NULL AFTER description' },
     { name: 'meta_description', sql: 'ADD COLUMN meta_description TEXT DEFAULT NULL AFTER meta_title' },
     { name: 'og_image',         sql: 'ADD COLUMN og_image VARCHAR(500) DEFAULT NULL AFTER meta_description' },
+    { name: 'default_sku',      sql: 'ADD COLUMN default_sku VARCHAR(64) DEFAULT NULL AFTER og_image' },
     { name: 'created_at',       sql: 'ADD COLUMN created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP' },
     { name: 'updated_at',       sql: 'ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP' },
   ];
@@ -2829,6 +2835,11 @@ exports.modelNew = async (req, res, next) => {
       mg:         null,
       isNew:      true,
       available,
+      /* Passed empty rather than omitted. A missing EJS local is a hard
+         render error, not a falsy value, so leaving it out would break the
+         new-model page the moment the template mentions it. There is
+         nothing to list anyway — the record has no model yet. */
+      variants:   [],
       query:      req.query,   // pass ?model= pre-fill
     });
     delete req.session.flash;
@@ -2847,6 +2858,28 @@ exports.modelEditPage = async (req, res, next) => {
       req.session.flash = { type: 'error', msg: 'Model group not found.' };
       return res.redirect('/admin/models');
     }
+
+    /* Products this model card can lead with. Scoped by (model, brand) —
+       model alone would list James Martin's Bristol SKUs on the ER
+       Vanities record. Ordered smallest-and-cheapest first because that is
+       what the card does today, so the current default reads as the first
+       option rather than being buried. */
+    let variants = [];
+    try {
+      const [rows] = await bvoPool.query(`
+        SELECT p.sku, p.name, p.price, p.width_in, p.color, p.product_type,
+               COALESCE(p.primary_image_url, pi.url) AS image_url
+        FROM products p
+        LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
+        WHERE p.is_active = 1 AND p.model = ? AND p.brand = ?
+        GROUP BY p.id
+        ORDER BY p.width_in ASC, p.price ASC
+      `, [mg.model_name, mg.brand || '']);
+      variants = rows;
+    } catch (err) {
+      console.warn('[modelEditPage] variant list failed:', err.message);
+    }
+
     res.render('pages/admin/model-edit', {
       ...LAYOUT,
       pageTitle:  `Edit: ${mg.model_name} | BVO Admin`,
@@ -2855,6 +2888,7 @@ exports.modelEditPage = async (req, res, next) => {
       mg,
       isNew:      false,
       available:  [],
+      variants,
     });
     delete req.session.flash;
   } catch (err) { next(err); }
@@ -2934,14 +2968,17 @@ exports.modelUpdate = async (req, res, next) => {
     const meta_title       = (req.body.meta_title       || '').trim() || null;
     const meta_description = (req.body.meta_description || '').trim() || null;
     const og_image         = (req.body.og_image         || '').trim() || null;
+    // '' (the "auto" option) is stored as NULL so the card falls back to
+    // its original behaviour rather than looking for a SKU named "".
+    const default_sku      = (req.body.default_sku      || '').trim() || null;
 
     await bvoPool.query(
       `UPDATE model_groups
           SET is_featured=?, sort_order=?, custom_image=?, image_alt=?, video_url=?,
-              description=?, meta_title=?, meta_description=?, og_image=?
+              description=?, meta_title=?, meta_description=?, og_image=?, default_sku=?
         WHERE id = ?`,
       [is_featured, sort_order, custom_image, image_alt, video_url,
-       description, meta_title, meta_description, og_image, id]
+       description, meta_title, meta_description, og_image, default_sku, id]
     );
     req.session.flash = { type: 'success', msg: 'Model group saved.' };
     res.redirect(`/admin/models/${id}/edit`);

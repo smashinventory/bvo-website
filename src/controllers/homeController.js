@@ -197,7 +197,8 @@ async function getFeaturedModels(opts = {}) {
          ranking for no visible reason. */
       const [mgRows] = await bvoPool.query(`
         SELECT model_name, brand, is_featured, sort_order,
-               custom_image, image_alt, video_url AS mg_video_url, description
+               custom_image, image_alt, video_url AS mg_video_url, description,
+               default_sku
         FROM model_groups
         WHERE is_featured = 1${mgBrand ? ' AND brand = ?' : ''}
         ORDER BY sort_order, model_name, brand
@@ -403,6 +404,43 @@ async function getFeaturedModels(opts = {}) {
       }));
     }
 
+    /* ── Starting product per model card ──────────────────────────────
+       A curated row may name a default_sku. Left unset, the card's image,
+       price, finish and size are each chosen independently — cheapest
+       price, smallest size, and whichever image MIN() lands on — so they
+       need not describe the same product. Resolving one SKU makes all four
+       agree.
+
+       Looked up by (sku, model, brand), not sku alone: the SKU is typed by
+       hand in the admin, and a typo that happened to match another model's
+       product would otherwise put a completely unrelated vanity on the
+       card. Matching all three means a wrong SKU simply finds nothing and
+       the card falls back, which is the safe direction. */
+    const wantedSkus = curatedModels
+      .filter(r => r.default_sku)
+      .map(r => [r.default_sku, r.model_name, r.brand]);
+
+    const defaultBySku = {};
+    if (wantedSkus.length) {
+      try {
+        const ph = wantedSkus.map(() => '(?,?,?)').join(',');
+        const [defRows] = await bvoPool.query(`
+          SELECT p.sku, p.model, p.brand, p.color, p.width_in,
+                 p.price, p.compare_price,
+                 COALESCE(p.primary_image_url, pi.url) AS image_url
+          FROM products p
+          LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
+          WHERE p.is_active = 1 AND (p.sku, p.model, p.brand) IN (${ph})
+          GROUP BY p.id
+        `, wantedSkus.flat());
+        for (const d of defRows) defaultBySku[modelKey(d)] = d;
+      } catch (err) {
+        // Non-fatal: every card falls back to automatic rather than the
+        // whole carousel disappearing over one bad SKU.
+        console.warn('[getFeaturedModels] default_sku lookup failed:', err.message);
+      }
+    }
+
     return modelRows.map(r => {
       /* RESOLVED 2026-09-05 — was the last map on the site still keyed on
          model name alone. A curated row for "Bristol" applied its custom
@@ -413,17 +451,36 @@ async function getFeaturedModels(opts = {}) {
          column were missing, the curated query above would throw,
          curatedModels would be empty, and this would fall back to auto
          ranking rather than mis-apply an overlay. */
-      const ov = mgOverlay[modelKey(r)] || {};
+      const ov  = mgOverlay[modelKey(r)] || {};
+      const def = defaultBySku[modelKey(r)] || null;
+
+      /* Which size chip to preselect. The chip carries a BUCKET key, not a
+         raw width, so the chosen product's width_in has to go through the
+         same toBucket() the chips were built with — comparing width to
+         bucket key directly would match nothing and silently leave the
+         first chip active. */
+      const defBucket = (def && def.width_in) ? toBucket(Math.round(Number(def.width_in))) : null;
+
       return {
         ...r,
-        // Curated overrides: custom_image wins over auto product image
-        image_url:    ov.custom_image  || r.image_url,
+        /* Precedence: custom_image (an explicitly uploaded picture) beats
+           the starting product's photo, which beats the automatic pick.
+           custom_image stays on top because it is the more specific
+           instruction — someone uploaded that file for this card. */
+        image_url:    ov.custom_image  || (def && def.image_url) || r.image_url,
         video_url:    ov.mg_video_url  || r.video_url,
         mg_desc:      ov.description   || null,   // tagline from model_groups
         is_curated:   !!ov.model_name,
         sizes:        modelBuckets[modelKey(r)] || [],
         finishes:     swatchMap[modelKey(r)]    || [],
         sizeImageMap: sizeImageMap[modelKey(r)] || {},
+        // Null when unset or unresolvable — the template falls back to
+        // its original "first one wins" behaviour on null.
+        defaultSku:      def ? def.sku : null,
+        defaultColor:    def ? def.color : null,
+        defaultSizeKey:  defBucket ? defBucket.key : null,
+        defaultPrice:    def && def.price != null ? Number(def.price) : null,
+        defaultCompare:  def && def.compare_price != null ? Number(def.compare_price) : null,
       };
     });
   } catch {

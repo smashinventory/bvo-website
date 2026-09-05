@@ -617,6 +617,17 @@ _DEFAULT_ORDER.forEach(function(k) {
         var _discPct         = m.compare_price_from ? Math.round((1 - m.price_from / m.compare_price_from) * 100) : 0;
         var _saveAmt         = (m.compare_price_from && m.price_from && m.compare_price_from > m.price_from)
                                  ? Math.round(m.compare_price_from - m.price_from) : 0;
+
+        /* Starting-product figures, computed HERE rather than beside the
+           price row, because the corner badge on the image renders first
+           and would otherwise print undefined. All three follow the same
+           product so the badge, the strike-through and the price agree. */
+        var _mWas     = (m.defaultPrice != null) ? m.defaultCompare : m.compare_price_from;
+        var _mSave    = (_mWas && m.defaultPrice != null && _mWas > m.defaultPrice)
+                          ? Math.round(_mWas - m.defaultPrice)
+                          : (m.defaultPrice != null ? 0 : _saveAmt);
+        var _mIsRange = (m.defaultPrice == null) && !!(m.price_to && m.price_to > m.price_from);
+
         var _visibleSwatches = m.finishes.slice(0, 4);
         var _extraSwatches   = m.finishes.length > 4 ? m.finishes.length - 4 : 0;
         // Model card ids and links must carry BRAND, not just model.
@@ -649,8 +660,10 @@ _DEFAULT_ORDER.forEach(function(k) {
       <article class="model-card" data-model="<%= m.model %>" data-sizes="<%= m.sizes.map(function(s){return s.key}).join(',') %>">
 
         <div class="model-card-img-wrap">
-          <% if (_saveAmt > 0) { %>
-          <span class="model-card-badge">Save $<%= _saveAmt.toLocaleString('en-US') %></span>
+          <%# _mSave, not _saveAmt — the corner badge has to describe the
+              same product as the price below it. %>
+          <% if (_mSave > 0) { %>
+          <span class="model-card-badge">Save $<%= _mSave.toLocaleString('en-US') %></span>
           <% } %>
           <a href="<%= _mHref %>" class="model-card-img-link" tabindex="-1" aria-hidden="true">
             <img src="<%= _mImg %>"
@@ -668,17 +681,23 @@ _DEFAULT_ORDER.forEach(function(k) {
 
         <div class="model-card-body">
           <%
-            var _mPriceDefault = (m.price_to && m.price_to > m.price_from)
-              ? ('$' + m.price_from.toLocaleString('en-US') + ' – $' + m.price_to.toLocaleString('en-US'))
-              : ('From $' + m.price_from.toLocaleString('en-US'));
+            /* A chosen starting product shows ITS price, exactly — not a
+               range and not "From". The range is what the card falls back
+               to when nobody has picked one. */
+            var _mPriceDefault = (m.defaultPrice != null)
+              ? ('$' + m.defaultPrice.toLocaleString('en-US'))
+              : ((m.price_to && m.price_to > m.price_from)
+                  ? ('$' + m.price_from.toLocaleString('en-US') + ' – $' + m.price_to.toLocaleString('en-US'))
+                  : ('From $' + m.price_from.toLocaleString('en-US')));
+
           %>
           <div class="model-card-price-row">
             <span class="model-card-price" id="model-price-<%= _mId %>" data-default="<%= _mPriceDefault %>"><%= _mPriceDefault %></span>
-            <% if (m.compare_price_from && !(m.price_to && m.price_to > m.price_from)) { %>
-            <span class="model-card-was">$<%= m.compare_price_from.toLocaleString('en-US') %></span>
+            <% if (_mWas && !_mIsRange) { %>
+            <span class="model-card-was">$<%= _mWas.toLocaleString('en-US') %></span>
             <% } %>
-            <% if (_saveAmt > 0 && !(m.price_to && m.price_to > m.price_from)) { %>
-            <span class="card-save-badge">Save $<%= _saveAmt.toLocaleString('en-US') %></span>
+            <% if (_mSave > 0 && !_mIsRange) { %>
+            <span class="card-save-badge">Save $<%= _mSave.toLocaleString('en-US') %></span>
             <% } %>
           </div>
 
@@ -694,7 +713,11 @@ _DEFAULT_ORDER.forEach(function(k) {
               var _isLight      = ['#F0F0EF','#F5F5F5','#FAFAFA','#FFFFFF','#C4A882'].indexOf(f.hex) !== -1;
               var _swatchBorder = _isLight ? '#ccc' : (f.border || f.hex);
             %>
-            <button class="model-card-swatch<%= i === 0 ? ' is-active' : '' %>"
+            <%# Preselect the starting product's finish. Falls back to the
+                first swatch when no starting product is set, or when its
+                colour is not among the visible four. %>
+            <% var _swActive = m.defaultColor ? (f.color === m.defaultColor) : (i === 0); %>
+            <button class="model-card-swatch<%= _swActive ? ' is-active' : '' %>"
                     data-target-img="model-img-<%= _mId %>"
                     data-target-price="model-price-<%= _mId %>"
                     data-finish="<%= f.color %>"
@@ -716,8 +739,11 @@ _DEFAULT_ORDER.forEach(function(k) {
             <div class="model-card-size-chips">
               <% m.sizes.forEach(function(sz, i) { %>
               <% var _szImg = m.sizeImageMap && m.sizeImageMap[sz.key] ? m.sizeImageMap[sz.key] : null; %>
+              <%# Same rule as the swatches — the starting product's size
+                  bucket, else the first (smallest) chip. %>
+              <% var _szActive = m.defaultSizeKey ? (sz.key === m.defaultSizeKey) : (i === 0); %>
               <button type="button"
-                      class="model-card-size-btn<%= i === 0 ? ' is-active' : '' %>"
+                      class="model-card-size-btn<%= _szActive ? ' is-active' : '' %>"
                       data-target-img="model-img-<%= _mId %>"
                       data-target-price="model-price-<%= _mId %>"
                       data-size="<%= sz.key %>"
