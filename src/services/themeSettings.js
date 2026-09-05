@@ -215,6 +215,13 @@ const DEFAULTS = {
     eyebrow: 'Browse by Category',
     title: 'Everything Your Bathroom Needs',
     subtitle: 'Curated collections from the top brands in bath design',
+    /* Categories themselves have no brand — Vanities and Mirrors are shared
+       across James Martin and ER Vanities. So brand here scopes the card
+       LINKS, not which cards appear: set it and every card points at that
+       category already filtered to the brand. That is what makes a
+       duplicated copy of this section useful (one JM band, one ER band).
+       '' means unscoped links, which is the original behaviour. */
+    brand: '',
   },
   bundle_teaser: {
     enabled: true,
@@ -238,6 +245,34 @@ const DEFAULTS = {
     badge3: '+ Faucet (or pair) = 15% Off',
     pair_note: 'Mirrors & faucets can be added as a matched pair for double vanities — a pair still counts as one bundle step.',
   },
+  /* ── Filters on featured_section / featured_models ──────────────────
+     Three narrowing filters, each '' meaning "no filter" so existing saved
+     settings keep their current behaviour:
+
+       brand     products.brand         e.g. 'James Martin Vanities'
+       category  categories.slug        e.g. 'bathroom-vanities', 'faucets'
+       ptype     products.product_type  e.g. 'Single Sink Vanity With Top'
+
+     category is a real filter rather than an assumption on purpose. Both
+     of these used to hardcode the bathroom-vanities category, which meant
+     a "Featured Faucet Models" band could not exist. Model cards are not
+     inherently a vanity concept — when plumbing fixtures gain models, this
+     section should be able to point at them without a code change.
+
+     These are also what make a duplicated copy worth having: two Featured
+     Models bands, one scoped to James Martin, one to ER Vanities.
+
+     NOTE THE TWO DIFFERENT category DEFAULTS BELOW — they are not a
+     copy/paste slip. get() deep-merges saved settings over these defaults
+     key by key, so a section saved before this change inherits whatever
+     is written here. Each default is set to reproduce that section's
+     CURRENT behaviour exactly:
+
+       featured_models   'bathroom-vanities'  it hardcoded that category join
+       featured_section  ''                   it had no category filter at all
+
+     Defaulting both to '' would have quietly let non-vanity models onto
+     the homepage the moment this deployed. */
   featured_section: {
     enabled: true,
     show_on: 'all',
@@ -247,6 +282,9 @@ const DEFAULTS = {
     cta_text: 'View All Products',
     cta_url: '/collections/bathroom-vanities',
     limit: 4,
+    brand: '',
+    category: '',
+    ptype: '',
   },
   featured_models: {
     enabled: true,
@@ -257,6 +295,9 @@ const DEFAULTS = {
     cta_text: 'See All Our Models',
     cta_url: '/collections/vanity-models',
     limit: 8,
+    brand: '',
+    category: 'bathroom-vanities',   // was a hardcoded join — see note above
+    ptype: '',
   },
   image_with_text: {
     enabled: true,
@@ -401,9 +442,14 @@ const DEFAULTS = {
     subtitle: '',
     items: [],
   },
+  /* featured_models was missing from this list. The live site renders it
+     anyway because the saved order in the database contains it and
+     index.ejs splices in any known key that is absent — but a fresh
+     install would have shipped without it. Added so the default matches
+     what the site actually shows. */
   homepage_section_order: [
     'scrolling_ticker','hero','hero_mobile','brand_logos','categories_section','bundle_teaser',
-    'featured_section','image_with_text','video_text','before_after',
+    'featured_section','featured_models','image_with_text','video_text','before_after',
     'trust_band','parallax','testimonials','newsletter',
   ],
 

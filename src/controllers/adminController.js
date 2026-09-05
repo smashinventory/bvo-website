@@ -1718,15 +1718,57 @@ exports.orderUpdateStatus = async (req, res, next) => {
    THEME EDITOR
    ════════════════════════════════════════════════════════════════ */
 
-exports.themeEditor = (req, res) => {
-  res.render('pages/admin/theme', {
-    ...LAYOUT,
-    pageTitle:  'Theme Editor | BVO Admin',
-    activePage: 'theme',
-    flash:      req.session.flash || null,
-    ts:         themeSettings.get(),
-  });
-  delete req.session.flash;
+/**
+ * Filter vocabularies for the Featured Products / Featured Models /
+ * Category Grid panels.
+ *
+ * Read from the database rather than hardcoded. Hardcoding is what put a
+ * literal 'bathroom-vanities' inside getFeaturedModels and made a
+ * "Featured Faucet Models" band impossible without a code change — the
+ * lists have to grow on their own as the catalogue does.
+ *
+ * Failure is non-fatal: empty lists render as a plain "All" dropdown, so a
+ * hiccup here costs the filter UI, not the Theme Editor.
+ */
+async function _themeFilterVocab() {
+  const empty = { brands: [], categories: [], ptypes: [] };
+  try {
+    const [[brands], [categories], [ptypes]] = await Promise.all([
+      bvoPool.query(
+        `SELECT DISTINCT brand FROM products
+          WHERE is_active = 1 AND brand IS NOT NULL AND brand <> ''
+          ORDER BY brand`),
+      bvoPool.query(
+        `SELECT slug, name FROM categories
+          WHERE is_active = 1 ORDER BY sort_order, name`),
+      bvoPool.query(
+        `SELECT DISTINCT product_type FROM products
+          WHERE is_active = 1 AND product_type IS NOT NULL AND product_type <> ''
+          ORDER BY product_type`),
+    ]);
+    return {
+      brands:     brands.map(r => r.brand),
+      categories: categories.map(r => ({ slug: r.slug, name: r.name })),
+      ptypes:     ptypes.map(r => r.product_type),
+    };
+  } catch (err) {
+    console.warn('[themeEditor] filter vocabulary query failed:', err.message);
+    return empty;
+  }
+}
+
+exports.themeEditor = async (req, res, next) => {
+  try {
+    res.render('pages/admin/theme', {
+      ...LAYOUT,
+      pageTitle:  'Theme Editor | BVO Admin',
+      activePage: 'theme',
+      flash:      req.session.flash || null,
+      ts:         themeSettings.get(),
+      filterVocab: await _themeFilterVocab(),
+    });
+    delete req.session.flash;
+  } catch (err) { next(err); }
 };
 
 exports.themeSave = (req, res) => {
@@ -1863,9 +1905,16 @@ exports.themeSaveOrder = (req, res) => {
 exports.themeDuplicate = (req, res) => {
   try {
     const { from } = req.body || {};
+    /* Keep in step with _DUPL_BASES in views/pages/index.ejs and in
+       views/pages/admin/theme.ejs. A base listed here but missing from
+       index.ejs produces a slot the admin can create and reorder but the
+       homepage refuses to render. */
     const DUPLICATABLE_BASES = new Set([
       'image_with_text', 'before_after', 'video_text',
       'trust_band', 'parallax', 'testimonials',
+      // Added 2026-09-05 alongside the brand/category/type filters — a copy
+      // is only useful because each one can now be scoped differently.
+      'featured_section', 'featured_models', 'categories_section',
     ]);
 
     // Derive base type (strips _2, _3, etc.)

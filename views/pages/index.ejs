@@ -4,9 +4,28 @@ const S    = settings || {};
 const hero = S.hero               || {};
 const tick = S.scrolling_ticker   || {};
 const bl   = S.brand_logos        || {};
-const cs   = S.categories_section || {};
-const fs_  = S.featured_section   || {};
-const fm_  = S.featured_models    || {};
+/* Append a section's brand filter to its CTA so "See All Our JM Models"
+   lands on the JM-filtered list instead of the mixed one — the reason this
+   whole change exists.
+
+   Two guards, both deliberate:
+     • no brand set  → URL is returned untouched
+     • URL already has a brand= → left alone, so a hand-written Theme Editor
+       URL always wins over the automatic append and cannot end up with two
+       conflicting brand params.
+   Written to tolerate absolute URLs and existing query strings. */
+function _ctaWithBrand(url, brand) {
+  var u = String(url || '');
+  var b = String(brand || '').trim();
+  if (!u || !b) return u;
+  if (/[?&]brand=/.test(u)) return u;
+  return u + (u.indexOf('?') === -1 ? '?' : '&') + 'brand=' + encodeURIComponent(b);
+}
+/* cs / fs_ / fm_ are gone deliberately. They pointed at the BASE slot only,
+   so any code reaching for them inside a duplicated section would silently
+   read the first copy's settings. Every one of the three sections now uses
+   the per-slot `_d`. Removing the names rather than leaving them unused
+   means a stray reference fails loudly instead of rendering wrong. */
 const bt_  = S.bundle_teaser       || {};
 const iwt  = S.image_with_text    || {};
 const iwt2  = S.image_with_text_2  || {};
@@ -46,7 +65,12 @@ function _salsifyImg(url, w, h) {
 const _DEFAULT_ORDER = ['scrolling_ticker','hero','hero_mobile','brand_logos','categories_section','bundle_teaser',
   'featured_section','featured_models','inspiration','image_with_text','video_text','before_after','trust_band','parallax','testimonials','newsletter'];
 const _STATIC_SET  = new Set(_DEFAULT_ORDER);
-const _DUPL_BASES  = new Set(['image_with_text','before_after','video_text','trust_band','parallax','testimonials']);
+/* Must stay in step with DUPLICATABLE_BASES in adminController.themeDuplicate
+   and _DUPL_BASES in admin/theme.ejs. If a base is duplicatable there but
+   missing here, _isValidKey rejects the new slot and the copy renders
+   nothing — the admin shows a section that does not exist on the page. */
+const _DUPL_BASES  = new Set(['image_with_text','before_after','video_text','trust_band','parallax','testimonials',
+                              'featured_section','featured_models','categories_section']);
 
 // Accept any _N copy of a duplicatable base type (image_with_text_2, _3, _4, …)
 function _isValidKey(k) {
@@ -354,26 +378,44 @@ _DEFAULT_ORDER.forEach(function(k) {
 <% } /* end brand_logos */ %>
 
 <!-- ── CATEGORY CAROUSEL ──────────────────────────────────────────── -->
-<% if (sectionKey === 'categories_section' && cs.enabled !== false && categories && categories.length) { %>
 <%
-  var _csTag   = _safeTag(cs.title_level, 'h2');
-  var _csAlign = cs.text_align  || 'center';
+/* _baseKey, not sectionKey — an exact-match on 'categories_section' meant a
+   duplicated categories_section_2 sat in the order rendering nothing at
+   all, silently. Same conversion applied to the two featured sections. */
 %>
-<section class="section" data-section="categories_section" data-section-label="Category Grid" aria-labelledby="cat-heading">
+<% if (_baseKey === 'categories_section' && _d.enabled !== false && categories && categories.length) { %>
+<%
+  var _csTag   = _safeTag(_d.title_level, 'h2');
+  var _csAlign = _d.text_align  || 'center';
+  /* Categories have no brand of their own, so a brand here scopes where
+     each card POINTS rather than which cards show. _qs appends it only
+     when the target does not already carry a brand, so a hand-written URL
+     in the Theme Editor still wins. */
+  var _csBrand = (_d.brand || '').trim();
+  var _csHref  = function (slug) {
+    var u = '/collections/' + slug;
+    return _csBrand ? u + '?brand=' + encodeURIComponent(_csBrand) : u;
+  };
+  var _csId = 'cat-heading-' + sectionKey;
+%>
+<section class="section" data-section="<%= sectionKey %>" data-section-label="Category Grid" aria-labelledby="<%= _csId %>">
   <div class="section-header" style="text-align:<%= _csAlign %>">
-    <p class="section-eyebrow"><%= cs.eyebrow || 'Browse by Category' %></p>
-    <<%- _csTag %> class="section-title" id="cat-heading"><%= cs.title || 'Everything Your Bathroom Needs' %></<%- _csTag %>>
-    <% if (cs.subtitle) { %><p class="section-sub"><%= cs.subtitle %></p><% } %>
+    <p class="section-eyebrow"><%= _d.eyebrow || 'Browse by Category' %></p>
+    <<%- _csTag %> class="section-title" id="<%= _csId %>"><%= _d.title || 'Everything Your Bathroom Needs' %></<%- _csTag %>>
+    <% if (_d.subtitle) { %><p class="section-sub"><%= _d.subtitle %></p><% } %>
   </div>
 
-  <div class="cat-carousel-outer">
-    <button class="fm-arrow fm-arrow--left" id="catArrowLeft" aria-label="Scroll left" hidden>
+  <%# Bound by data attribute in /js/carousels.js. The old id="catCarouselTrack"
+      is gone on purpose: getElementById returns one node, so a duplicated
+      section's arrows were dead. See carousels.js for the full note. %>
+  <div class="cat-carousel-outer" data-carousel data-carousel-card=".cat-card" data-carousel-per="1.5,2,4">
+    <button class="fm-arrow fm-arrow--left" data-carousel-prev aria-label="Scroll left" hidden>
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
     </button>
 
-    <div class="cat-carousel-track" id="catCarouselTrack">
+    <div class="cat-carousel-track" data-carousel-track>
       <% categories.forEach(function(cat) { %>
-      <a href="/collections/<%= cat.slug %>" class="cat-card">
+      <a href="<%= _csHref(cat.slug) %>" class="cat-card">
         <div class="cat-img">
           <% if (cat.image_url) { %>
             <img src="<%= cat.image_url %>" alt="<%= cat.name %>" loading="lazy">
@@ -390,7 +432,7 @@ _DEFAULT_ORDER.forEach(function(k) {
       <% }); %>
     </div>
 
-    <button class="fm-arrow fm-arrow--right" id="catArrowRight" aria-label="Scroll right">
+    <button class="fm-arrow fm-arrow--right" data-carousel-next aria-label="Scroll right">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
     </button>
   </div>
@@ -398,21 +440,35 @@ _DEFAULT_ORDER.forEach(function(k) {
 <% } /* end categories_section */ %>
 
 <!-- ── FEATURED PRODUCTS ─────────────────────────────────────────── -->
-<% if (sectionKey === 'featured_section' && fs_.enabled !== false) { %>
 <%
-  var _fsTag   = _safeTag(fs_.title_level, 'h2');
-  var _fsAlign = fs_.text_align  || 'center';
+/* Per-slot: _d is this slot's settings, _rows is this slot's OWN products.
+   Both copies used to read the single module-scope `fs_` and the single
+   `products` array, so two Featured Products bands could only ever show
+   identical content no matter how they were filtered. */
 %>
-<section class="section section-alt" data-section="featured_section" data-section-label="Featured Products" aria-labelledby="feat-heading">
+<% if (_baseKey === 'featured_section' && _d.enabled !== false) { %>
+<%
+  var _fsTag   = _safeTag(_d.title_level, 'h2');
+  var _fsAlign = _d.text_align  || 'center';
+  var _fsRows  = (typeof sectionData !== 'undefined' && sectionData && sectionData[sectionKey])
+                 ? sectionData[sectionKey] : [];
+  var _fsId    = 'feat-heading-' + sectionKey;
+%>
+<% if (_fsRows.length) { %>
+<section class="section section-alt" data-section="<%= sectionKey %>" data-section-label="Featured Products" aria-labelledby="<%= _fsId %>">
   <div class="section-header" style="text-align:<%= _fsAlign %>">
-    <p class="section-eyebrow"><%= fs_.eyebrow || 'Staff Picks' %></p>
-    <<%- _fsTag %> class="section-title" id="feat-heading"><%= fs_.title || 'Featured Products' %></<%- _fsTag %>>
-    <% if (fs_.subtitle) { %><p class="section-sub"><%= fs_.subtitle %></p><% } %>
+    <p class="section-eyebrow"><%= _d.eyebrow || 'Staff Picks' %></p>
+    <<%- _fsTag %> class="section-title" id="<%= _fsId %>"><%= _d.title || 'Featured Products' %></<%- _fsTag %>>
+    <% if (_d.subtitle) { %><p class="section-sub"><%= _d.subtitle %></p><% } %>
   </div>
   <div class="product-grid">
-    <% products.forEach(function(product) { %>
+    <% _fsRows.forEach(function(product) { %>
     <%
-      var _hpImgId = 'feat-img-' + product.id;
+      /* Element ids must be unique per SLOT as well as per product — two
+         bands can legitimately feature the same product, and a duplicate
+         id would make the swatch handler in site.js retarget the wrong
+         card's image. */
+      var _hpImgId = 'feat-img-' + sectionKey + '-' + product.id;
     %>
     <%
       var _fpSwatches     = (product.finishes || []).slice(0, 4);
@@ -523,27 +579,39 @@ _DEFAULT_ORDER.forEach(function(k) {
     <% }) %>
   </div>
   <div class="section-cta">
-    <a href="<%= fs_.cta_url || '/collections/bathroom-vanities' %>" class="btn btn-outline"><%= fs_.cta_text || 'View All Products' %></a>
+    <a href="<%= _ctaWithBrand(_d.cta_url || '/collections/bathroom-vanities', _d.brand) %>" class="btn btn-outline"><%= _d.cta_text || 'View All Products' %></a>
   </div>
 </section>
+<% } /* end _fsRows.length */ %>
 <% } /* end featured_section */ %>
 
 <!-- ── FEATURED MODELS ───────────────────────────────────────────── -->
-<% if (sectionKey === 'featured_models' && fm_.enabled !== false && typeof featuredModels !== 'undefined' && featuredModels && featuredModels.length) { %>
-<% var _carouselModels = featuredModels; %>
-<section class="section section-alt" id="featured-models-section" data-section="featured_models" data-section-label="Featured Models" aria-labelledby="feat-models-heading">
-  <div class="section-header" style="text-align:<%= fm_.text_align || 'center' %>">
-    <p class="section-eyebrow"><%= fm_.eyebrow || 'Shop by Collection' %></p>
-    <h2 class="section-title" id="feat-models-heading"><%= fm_.title || 'Featured Models' %></h2>
-    <p class="section-sub"><%= fm_.subtitle || 'Explore our most popular vanity collections — click a finish to see it in action.' %></p>
+<%
+/* Per-slot, same conversion as the two sections above. `_carouselModels`
+   comes from sectionData[sectionKey] so a JM band and an ER band each hold
+   their own rows; it used to be the one shared `featuredModels` array. */
+%>
+<% if (_baseKey === 'featured_models' && _d.enabled !== false) { %>
+<%
+  var _carouselModels = (typeof sectionData !== 'undefined' && sectionData && sectionData[sectionKey])
+                        ? sectionData[sectionKey] : [];
+  var _fmId = 'feat-models-heading-' + sectionKey;
+%>
+<% if (_carouselModels.length) { %>
+<section class="section section-alt" id="featured-models-<%= sectionKey %>" data-section="<%= sectionKey %>" data-section-label="Featured Models" aria-labelledby="<%= _fmId %>">
+  <div class="section-header" style="text-align:<%= _d.text_align || 'center' %>">
+    <p class="section-eyebrow"><%= _d.eyebrow || 'Shop by Collection' %></p>
+    <h2 class="section-title" id="<%= _fmId %>"><%= _d.title || 'Featured Models' %></h2>
+    <p class="section-sub"><%= _d.subtitle || 'Explore our most popular vanity collections — click a finish to see it in action.' %></p>
   </div>
 
-  <div class="fm-carousel-outer">
-    <button class="fm-arrow fm-arrow--left" id="fmArrowLeft" aria-label="Scroll left" hidden>
+  <%# data-carousel, not id="fmCarouselTrack" — see carousels.js. %>
+  <div class="fm-carousel-outer" data-carousel data-carousel-card=".model-card" data-carousel-per="1.2,2,4">
+    <button class="fm-arrow fm-arrow--left" data-carousel-prev aria-label="Scroll left" hidden>
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
     </button>
 
-    <div class="fm-carousel-track" id="fmCarouselTrack">
+    <div class="fm-carousel-track" data-carousel-track>
       <% _carouselModels.forEach(function(m) { %>
       <%
         var _discPct         = m.compare_price_from ? Math.round((1 - m.price_from / m.compare_price_from) * 100) : 0;
@@ -563,8 +631,14 @@ _DEFAULT_ORDER.forEach(function(k) {
         // Not visible today only because page 1 holds 12 cards and JM's
         // Bristol falls to page 2 — any filter that thins the earlier JM
         // models puts them on one page and it fires.
+        // SLOT is part of the id too, for the same reason brand is. Once
+        // this section became duplicatable, two bands can legitimately
+        // feature the same (model, brand) — a JM band and an "all brands"
+        // band both showing Hudson — and the ids would collide again,
+        // resurrecting exactly the cross-card swatch bug described above.
         var _mSlug           = function (v) { return String(v || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); };
-        var _mId             = m.model ? (_mSlug(m.model) + '-' + (_mSlug(m.brand) || 'nobrand')) : 'model';
+        var _mId             = (m.model ? (_mSlug(m.model) + '-' + (_mSlug(m.brand) || 'nobrand')) : 'model')
+                               + '-' + _mSlug(sectionKey);
         // Brand on the link too — without it the ER Bristol card led to a
         // grid holding both brands' Bristol products. getCollection already
         // parses req.query.brand, so this needs no controller change.
@@ -666,17 +740,20 @@ _DEFAULT_ORDER.forEach(function(k) {
         </div>
       </article>
       <% }); %>
-    </div><!-- /#fmCarouselTrack -->
+    </div><!-- /.fm-carousel-track -->
 
-    <button class="fm-arrow fm-arrow--right" id="fmArrowRight" aria-label="Scroll right">
+    <button class="fm-arrow fm-arrow--right" data-carousel-next aria-label="Scroll right">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
     </button>
   </div><!-- /.fm-carousel-outer -->
 
   <div class="section-cta">
-    <a href="<%= fm_.cta_url || '/collections/vanity-models' %>" class="btn btn-navy"><%= fm_.cta_text || 'See All Our Models' %></a>
+    <%# The reason for all of this: "See All Our JM Models" now lands on the
+        JM-filtered list rather than the mixed one. %>
+    <a href="<%= _ctaWithBrand(_d.cta_url || '/collections/vanity-models', _d.brand) %>" class="btn btn-navy"><%= _d.cta_text || 'See All Our Models' %></a>
   </div>
 </section>
+<% } /* end _carouselModels.length */ %>
 <% } /* end featured_models */ %>
 
 <!-- ── INSPIRATION GUIDES ────────────────────────────────────────── -->

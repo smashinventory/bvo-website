@@ -20,8 +20,51 @@ function toBucket(rawSize) {
 const FAMILY_HEX = {};
 FAMILIES.forEach(f => { FAMILY_HEX[f.key] = f.hex; FAMILY_HEX[f.key + '_border'] = f.border; });
 
-async function getFeaturedProducts() {
+/* ═══════════════════════════════════════════════════════════════════════
+   Section filters — brand / category / product_type
+
+   Shared by getFeaturedProducts and BOTH branches of getFeaturedModels.
+   It lives in one place because getFeaturedModels has two queries (curated
+   and auto-ranked) that must narrow identically; when they were written
+   out separately, a filter added to one and forgotten in the other would
+   show a correctly-filtered section until the curated list emptied, then
+   silently widen.
+
+   Every filter is optional — '' or undefined contributes nothing, so a
+   section with no filters produces exactly the SQL it produced before.
+
+   `category` matches categories.slug and requires the caller to have the
+   categories table joined as `c`. Callers that pass a category must
+   include that join; joinCategories below reports whether it is needed so
+   the join and the predicate cannot get out of step.
+   ═══════════════════════════════════════════════════════════════════════ */
+function sectionFilters(opts = {}) {
+  const brand    = (opts.brand    || '').trim();
+  const category = (opts.category || '').trim();
+  const ptype    = (opts.ptype    || '').trim();
+
+  const sql = [];
+  const params = [];
+  if (brand)    { sql.push('p.brand = ?');        params.push(brand); }
+  if (ptype)    { sql.push('p.product_type = ?'); params.push(ptype); }
+  if (category) { sql.push('c.slug = ?');         params.push(category); }
+
+  return {
+    where: sql.length ? ' AND ' + sql.join(' AND ') : '',
+    params,
+    joinCategories: !!category,
+    // Stable identity for memoisation — two sections with identical
+    // filters must not run the same query twice.
+    key: JSON.stringify([brand, category, ptype]),
+  };
+}
+
+async function getFeaturedProducts(opts = {}) {
   try {
+    const f = sectionFilters(opts);
+    /* limit was previously hardcoded to 12 and featured_section.limit was
+       read by nobody, so the Theme Editor control did nothing. */
+    const safeLimit = Math.max(1, Math.min(24, parseInt(opts.limit) || 12));
     const [rows] = await bvoPool.query(`
       SELECT
         p.id, p.slug, p.name, p.brand, p.price, p.compare_price, p.is_new, p.model,
@@ -41,10 +84,11 @@ async function getFeaturedProducts() {
       FROM products p
       LEFT JOIN product_images pi  ON pi.product_id  = p.id AND pi.is_primary = 1
       LEFT JOIN inventory      inv ON inv.product_id = p.id
-      WHERE p.is_active = 1 AND p.is_featured = 1
+      ${f.joinCategories ? 'JOIN categories c ON c.id = p.category_id' : ''}
+      WHERE p.is_active = 1 AND p.is_featured = 1${f.where}
       ORDER BY p.sort_order, p.created_at DESC
-      LIMIT 12
-    `);
+      LIMIT ?
+    `, [...f.params, safeLimit]);
     if (!rows.length) return [];
 
     /* Fetch color swatches + color×size image map for each product's model.
@@ -137,21 +181,28 @@ async function getFeaturedProducts() {
   }
 }
 
-async function getFeaturedModels(limit = 8) {
+async function getFeaturedModels(opts = {}) {
   try {
-    const safeLimit = Math.max(1, Math.min(20, parseInt(limit) || 8));
+    const safeLimit = Math.max(1, Math.min(20, parseInt(opts.limit) || 8));
+    const f = sectionFilters(opts);
+    const mgBrand = (opts.brand || '').trim();
 
     /* ── Check for curated model_groups featured records first ── */
     let curatedModels = [];
     try {
+      /* Brand-scoped at the model_groups level, not just downstream. A
+         section scoped to ER Vanities must not spend its LIMIT slots on
+         curated James Martin rows and then filter them out — that would
+         return fewer cards than asked for, or none, and fall back to auto
+         ranking for no visible reason. */
       const [mgRows] = await bvoPool.query(`
         SELECT model_name, brand, is_featured, sort_order,
                custom_image, image_alt, video_url AS mg_video_url, description
         FROM model_groups
-        WHERE is_featured = 1
+        WHERE is_featured = 1${mgBrand ? ' AND brand = ?' : ''}
         ORDER BY sort_order, model_name, brand
         LIMIT ?
-      `, [safeLimit]);
+      `, mgBrand ? [mgBrand, safeLimit] : [safeLimit]);
       curatedModels = mgRows;
     } catch (mgErr) {
       /* Falls through to auto-ranking on ANY error, which is deliberate —
@@ -186,10 +237,10 @@ async function getFeaturedModels(limit = 8) {
           MIN(CASE WHEN p.video_url IS NOT NULL THEN p.video_url END) AS video_url
         FROM products p
         LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
-        JOIN categories c ON c.id = p.category_id AND c.slug = 'bathroom-vanities'
-        WHERE p.is_active = 1 AND (p.model, p.brand) IN (${curatedPairSql})
+        ${f.joinCategories ? 'JOIN categories c ON c.id = p.category_id' : ''}
+        WHERE p.is_active = 1 AND (p.model, p.brand) IN (${curatedPairSql})${f.where}
         GROUP BY p.model, p.brand
-      `, curatedParams);
+      `, [...curatedParams, ...f.params]);
 
       /* Restore curated sort order (SQL IN() doesn't guarantee order).
 
@@ -219,12 +270,12 @@ async function getFeaturedModels(limit = 8) {
           MIN(CASE WHEN p.video_url IS NOT NULL THEN p.video_url END) AS video_url
         FROM products p
         LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
-        JOIN categories c ON c.id = p.category_id AND c.slug = 'bathroom-vanities'
-        WHERE p.is_active = 1 AND p.model IS NOT NULL
+        ${f.joinCategories ? 'JOIN categories c ON c.id = p.category_id' : ''}
+        WHERE p.is_active = 1 AND p.model IS NOT NULL${f.where}
         GROUP BY p.model, p.brand
         ORDER BY COUNT(*) DESC
         LIMIT ?
-      `, [safeLimit]);
+      `, [...f.params, safeLimit]);
     }
 
     /* Build curated overlay map: model_name → {custom_image, mg_video_url, description} */
@@ -423,25 +474,76 @@ async function getFeaturedInspirationPages() {
   }
 }
 
+/* Section bases whose content is fetched per slot. Each may appear as the
+   bare key or as base_2, base_3 … once duplicated in the Theme Editor. */
+const PER_SLOT_BASES = ['featured_section', 'featured_models'];
+
+/**
+ * Resolve every featured_* slot in the homepage order to its own row set.
+ *
+ * Returns { featured_section: [...], featured_models_2: [...], ... } keyed
+ * by the FULL slot key, so two copies of a section with different filters
+ * hold different content. Before this existed there was one `products`
+ * array and one `featuredModels` array shared by every copy, which is why
+ * duplicating these sections was not offered.
+ *
+ * Identical filter sets share one query — three bands all scoped to James
+ * Martin cost one round trip, not three.
+ */
+async function getSectionData(ts) {
+  const order = Array.isArray(ts.homepage_section_order) ? ts.homepage_section_order : [];
+  const slots = order.filter(k => PER_SLOT_BASES.includes(k.replace(/_\d+$/, '')));
+
+  const cache = new Map();   // filter signature -> Promise of rows
+  const out   = {};
+
+  for (const slot of slots) {
+    const base = slot.replace(/_\d+$/, '');
+    const cfg  = ts[slot] || {};
+    if (cfg.enabled === false) { out[slot] = []; continue; }
+
+    const opts = {
+      limit:    cfg.limit,
+      brand:    cfg.brand,
+      category: cfg.category,
+      ptype:    cfg.ptype,
+    };
+    /* base is part of the signature: featured_section and featured_models
+       return different shapes, so they must never share a cache entry even
+       with identical filters. */
+    const sig = base + '|' + sectionFilters(opts).key + '|' + (parseInt(cfg.limit) || 0);
+
+    if (!cache.has(sig)) {
+      cache.set(sig, base === 'featured_models'
+        ? getFeaturedModels(opts)
+        : getFeaturedProducts(opts));
+    }
+    out[slot] = await cache.get(sig);
+  }
+  return out;
+}
+
 exports.index = async (req, res, next) => {
   try {
     const ts = themeSettings.get();
-    const fmSettings = ts.featured_models || {};
-    const fmLimit    = fmSettings.limit || 8;
 
-    const [products, categories, featuredModels, inspirationPages] = await Promise.all([
-      getFeaturedProducts(),
+    const [sectionData, categories, inspirationPages] = await Promise.all([
+      getSectionData(ts),
       getFeaturedCategories(),
-      fmSettings.enabled !== false ? getFeaturedModels(fmLimit) : Promise.resolve([]),
       getFeaturedInspirationPages(),
     ]);
 
     res.render('pages/index', {
       pageTitle: ts.seo?.home_title || 'BathroomVanitiesOutlet.com — Premium Vanities at Outlet Prices',
       metaDesc:  ts.seo?.home_description || 'Shop premium bathroom vanities, mirrors, faucets and accessories. Free shipping on all orders. Outlet prices on top brands.',
-      products,
+      /* `products` and `featuredModels` are kept as aliases for the base
+         slot. index.ejs reads sectionData now, but other includes and any
+         cached view could still reference these, and an undefined local is
+         a hard EJS error rather than an empty section. */
+      products:      sectionData.featured_section || [],
+      featuredModels: sectionData.featured_models || [],
+      sectionData,
       categories,
-      featuredModels,
       inspirationPages,
       settings: ts,
     });

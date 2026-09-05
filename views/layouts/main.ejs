@@ -192,6 +192,10 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
 
   <!-- Site JS -->
   <script nonce="<%= cspNonce %>" src="/js/site.js?v=9"></script>
+  <!-- Carousel binding by data attribute — supports duplicated sections.
+       site.js still contains the old id-based blocks; they no-op because
+       index.ejs no longer emits those ids. See public/js/carousels.js. -->
+  <script nonce="<%= cspNonce %>" src="/js/carousels.js?v=1"></script>
 
   <!-- Page-level scripts -->
   <%- script %>

@@ -27,7 +27,16 @@ const THEME_SECS = [
 ];
 // Static (non-duplicatable) section keys — order matters for the default layout
 const _STATIC_KEYS = ['scrolling_ticker','hero','hero_mobile','brand_logos','categories_section','bundle_teaser','featured_section','featured_models','image_with_text','video_text','before_after','trust_band','parallax','testimonials','newsletter'];
-const _DUPL_BASES  = new Set(['image_with_text','before_after','video_text','trust_band','parallax','testimonials']);
+/* Keep in step with DUPLICATABLE_BASES in adminController.themeDuplicate
+   and _DUPL_BASES in views/pages/index.ejs. */
+const _DUPL_BASES  = new Set(['image_with_text','before_after','video_text','trust_band','parallax','testimonials',
+                              'featured_section','featured_models','categories_section']);
+
+/* These three keep a hardcoded base panel further down (they sit in a
+   specific spot in the editor), so the dynamic loop must render only their
+   _N copies. Without this the base would get two panels — one hardcoded,
+   one from the loop — and edits in whichever came second would win. */
+const _DUPL_BASE_HAS_OWN_PANEL = new Set(['featured_section','featured_models','categories_section']);
 
 // Build ALL_TEMPLATE_KEYS: static keys + any _N copies present in the saved order
 const savedOrder = (Array.isArray(t.homepage_section_order) && t.homepage_section_order.length)
@@ -129,6 +138,121 @@ function teToggle(name,label,checked,compact){
   var cls=compact?'te4-toggle compact':'te4-toggle'; var chk=checked?'checked':'';
   return '<label class="'+cls+'"><input type="hidden" name="'+name+'" value="false"><input type="checkbox" name="'+name+'" value="true" '+chk+' class="te4-toggle-cb"><span class="te4-toggle-track"><span class="te4-toggle-thumb"></span></span><span class="te4-toggle-lbl">'+label+'</span></label>';
 }
+/* ── Featured-section panel body (ONE definition) ──────────────────────
+   Emits the editor body for featured_section / featured_models /
+   categories_section, for the base key AND for any _N copy.
+
+   Written as a single function on purpose. The obvious alternative was to
+   leave the three hardcoded panels alone and add matching branches to the
+   duplicate loop, but then every field exists twice: add a control to the
+   base and the copies quietly lack it, with nothing to catch the omission
+   because both halves still render fine.
+
+   `pk` is the full slot key, so every input name is namespaced to the slot
+   and two copies post independently. */
+function teFilters(pk,d,base){
+  var vocab = (typeof filterVocab!=='undefined' && filterVocab) ? filterVocab : {brands:[],categories:[],ptypes:[]};
+  var opt=function(val,label,cur){
+    return '<option value="'+esc(val)+'"'+(String(cur||'')===String(val)?' selected':'')+'>'+esc(label)+'</option>';
+  };
+  var brandSel='<div class="te4-field"><label>Brand</label><select name="'+pk+'.brand" class="te4-select">'
+    + opt('','All brands',d.brand)
+    + vocab.brands.map(function(b){return opt(b,b,d.brand);}).join('')
+    + '</select></div>';
+
+  if(base==='categories_section'){
+    /* Categories have no brand of their own, so this scopes the card LINKS
+       rather than which cards appear. Said plainly in the hint because the
+       control looks identical to the other two but does something else. */
+    return '<div class="te4-section-label">Brand scope</div>'
+      + '<p class="te4-panel-desc">Categories are shared across brands, so this does not change which cards show — it points every card at that category already filtered to the brand. Leave on “All brands” for unscoped links.</p>'
+      + brandSel;
+  }
+
+  var catSel='<div class="te4-field"><label>Category</label><select name="'+pk+'.category" class="te4-select">'
+    + opt('','All categories',d.category)
+    + vocab.categories.map(function(c){return opt(c.slug,c.name,d.category);}).join('')
+    + '</select></div>';
+  var typeSel='<div class="te4-field"><label>Product type</label><select name="'+pk+'.ptype" class="te4-select">'
+    + opt('','All types',d.ptype)
+    + vocab.ptypes.map(function(p){return opt(p,p,d.ptype);}).join('')
+    + '</select></div>';
+
+  return '<div class="te4-section-label">Filters</div>'
+    + '<p class="te4-panel-desc">Narrow what this section shows. Duplicate the section and give each copy a different brand to run a James Martin band and an ER Vanities band side by side. The CTA link below is scoped to the brand automatically unless you write your own <code>brand=</code> into it.</p>'
+    + brandSel + catSel + typeSel;
+}
+
+function teVisibleOn(pk,d){
+  return '<div class="te4-field" style="margin-top:.5rem;padding-top:.75rem;border-top:1px solid var(--te-border)">'
+    + '<label>Visible on</label><select name="'+pk+'.show_on" class="te4-select">'
+    + '<option value="all"'    +((d.show_on||'all')==='all'   ?' selected':'')+'>All devices</option>'
+    + '<option value="desktop"'+(d.show_on==='desktop'        ?' selected':'')+'>Desktop only</option>'
+    + '<option value="mobile"' +(d.show_on==='mobile'         ?' selected':'')+'>Mobile only</option>'
+    + '</select></div>';
+}
+
+function teFeaturedBody(pk,d,base){
+  var h='';
+  var sel=function(name,cur,opts){
+    return '<select name="'+name+'" class="te4-select">'+opts.map(function(o){
+      return '<option value="'+esc(o[0])+'"'+(String(cur||'')===String(o[0])?' selected':'')+'>'+esc(o[1])+'</option>';
+    }).join('')+'</select>';
+  };
+
+  if(base==='categories_section'){
+    h+='<p class="te4-panel-desc">Category cards come from your Products → Categories database. Edit headings and layout here.</p>';
+  } else if(base==='featured_models'){
+    h+='<p class="te4-panel-desc">Model collection carousel — finish swatches and size chips. Curated models come from Product Mgt → Models; anything not curated falls back to the most popular models that match the filters below.</p>';
+  }
+
+  h+=teToggle(pk+'.enabled','Show section', base==='featured_models' ? d.enabled!==false : d.enabled);
+
+  h+='<div class="te4-section-label">Section header</div>';
+  h+=teField('text',pk+'.eyebrow','Eyebrow',d.eyebrow);
+  h+='<div class="te4-row2">'+teHeadingLevel(pk+'.title_level',d.title_level||'h2')
+    + teAlignment(pk+'.text_align',d.text_align||'center')+'</div>';
+  h+=teField('text',pk+'.title','Title',d.title);
+  h+=teField('text',pk+'.subtitle','Subtitle',d.subtitle);
+
+  if(base==='featured_section'){
+    h+='<div class="te4-section-label">Grid layout</div><div class="te4-row2">';
+    h+='<div class="te4-field"><label>Products to show</label><div class="te4-slider-wrap">'
+      +'<input type="range" class="te4-slider" name="'+pk+'.limit" min="2" max="12" step="1" value="'+(d.limit||4)+'">'
+      +'<input type="number" class="te4-slider-num" min="2" max="12" step="1" value="'+(d.limit||4)+'">'
+      +'<span class="te4-slider-unit"></span></div></div>';
+    h+='<div class="te4-field"><label>Columns</label>'
+      +sel(pk+'.columns',d.columns||'4',[['2','2'],['3','3'],['4','4 (default)']])+'</div></div>';
+    h+='<div class="te4-section-label">Card options</div>';
+    h+=teToggle(pk+'.show_price','Show price',d.show_price!==false);
+    h+=teToggle(pk+'.show_badge','Show badges (Sale / New / Best)',d.show_badge!==false);
+    h+=teToggle(pk+'.show_button','Show Add-to-Cart button',d.show_button!==false);
+  } else if(base==='featured_models'){
+    h+='<div class="te4-section-label">Display</div>';
+    h+='<div class="te4-field"><label>Models to show</label><div class="te4-slider-wrap">'
+      +'<input type="range" class="te4-slider" name="'+pk+'.limit" min="2" max="16" step="1" value="'+(d.limit||8)+'">'
+      +'<input type="number" class="te4-slider-num" min="2" max="16" step="1" value="'+(d.limit||8)+'">'
+      +'</div></div>';
+  } else {
+    h+='<div class="te4-section-label">Grid layout</div>';
+    h+='<div class="te4-field"><label>Columns</label>'
+      +sel(pk+'.columns',d.columns||'4',[['2','2 columns'],['3','3 columns'],['4','4 columns (default)']])+'</div>';
+    h+='<div class="te4-field"><label>Card style</label>'
+      +sel(pk+'.card_style',d.card_style||'image-top',[['image-top','Image top'],['overlay','Text overlay']])+'</div>';
+  }
+
+  h+=teFilters(pk,d,base);
+
+  if(base!=='categories_section'){
+    h+='<div class="te4-section-label">Call to action</div><div class="te4-row2">'
+      +teField('text',pk+'.cta_text','CTA label',d.cta_text)
+      +teField('url', pk+'.cta_url', 'CTA URL',  d.cta_url)+'</div>';
+  }
+
+  h+=teVisibleOn(pk,d);
+  return h;
+}
+
 function teColor(name,label,value){
   var v=esc(value||'#000000');
   return '<div class="te4-color-field"><label>'+label+'</label><div class="te4-color-wrap"><input type="color" class="te4-color-swatch" value="'+v+'" data-for="'+name+'"><input type="text" name="'+name+'" value="'+v+'" class="te4-color-hex" maxlength="7"></div></div>';
@@ -1029,29 +1153,10 @@ function teArrayLinks(prefix,listId,tplId,items){
           </div>
 
           <!-- ── CATEGORIES ─────────────────────────────────── -->
+          <%# Body comes from teFeaturedBody so the base panel and every _N
+              copy render the identical field set. See its definition above. %>
           <div class="te4-panel" id="panel-categories_section">
-            <% const catsec=t.categories_section||{}; %>
-            <p class="te4-panel-desc">Category cards come from your Products → Categories database. Edit headings and layout here.</p>
-            <%- teToggle('categories_section.enabled','Show section',catsec.enabled) %>
-            <div class="te4-section-label">Section header</div>
-            <%- teField('text','categories_section.eyebrow','Eyebrow',catsec.eyebrow) %>
-            <div class="te4-row2">
-              <%- teHeadingLevel('categories_section.title_level',catsec.title_level||'h2') %>
-              <%- teAlignment('categories_section.text_align',catsec.text_align||'center') %>
-            </div>
-            <%- teField('text','categories_section.title','Title',catsec.title) %>
-            <%- teField('text','categories_section.subtitle','Subtitle',catsec.subtitle) %>
-            <div class="te4-section-label">Grid layout</div>
-            <div class="te4-field"><label>Columns</label><select name="categories_section.columns" class="te4-select"><option value="2" <%=(catsec.columns||'4')==='2'?'selected':''%>>2 columns</option><option value="3" <%=catsec.columns==='3'?'selected':''%>>3 columns</option><option value="4" <%=(catsec.columns||'4')==='4'?'selected':''%>>4 columns (default)</option></select></div>
-            <div class="te4-field"><label>Card style</label><select name="categories_section.card_style" class="te4-select"><option value="image-top" <%=(catsec.card_style||'image-top')==='image-top'?'selected':''%>>Image top</option><option value="overlay" <%=catsec.card_style==='overlay'?'selected':''%>>Text overlay</option></select></div>
-            <div class="te4-field" style="margin-top:.5rem;padding-top:.75rem;border-top:1px solid var(--te-border)">
-              <label>Visible on</label>
-              <select name="categories_section.show_on" class="te4-select">
-                <option value="all"     <%=(catsec.show_on||'all')==='all'    ?'selected':''%>>All devices</option>
-                <option value="desktop" <%=catsec.show_on==='desktop'         ?'selected':''%>>Desktop only</option>
-                <option value="mobile"  <%=catsec.show_on==='mobile'          ?'selected':''%>>Mobile only</option>
-              </select>
-            </div>
+            <%- teFeaturedBody('categories_section', t.categories_section||{}, 'categories_section') %>
           </div>
 
           <!-- ── BUNDLE TEASER ─────────────────────────────── -->
@@ -1101,74 +1206,12 @@ function teArrayLinks(prefix,listId,tplId,items){
 
           <!-- ── FEATURED PRODUCTS ──────────────────────────── -->
           <div class="te4-panel" id="panel-featured_section">
-            <% const fsec=t.featured_section||{}; %>
-            <%- teToggle('featured_section.enabled','Show section',fsec.enabled) %>
-            <div class="te4-section-label">Section header</div>
-            <%- teField('text','featured_section.eyebrow','Eyebrow',fsec.eyebrow) %>
-            <div class="te4-row2">
-              <%- teHeadingLevel('featured_section.title_level',fsec.title_level||'h2') %>
-              <%- teAlignment('featured_section.text_align',fsec.text_align||'center') %>
-            </div>
-            <%- teField('text','featured_section.title','Title',fsec.title) %>
-            <%- teField('text','featured_section.subtitle','Subtitle',fsec.subtitle) %>
-            <div class="te4-section-label">Grid layout</div>
-            <div class="te4-row2">
-              <div class="te4-field"><label>Products to show</label><div class="te4-slider-wrap"><input type="range" class="te4-slider" name="featured_section.limit" min="2" max="12" step="1" value="<%=fsec.limit||4%>"><input type="number" class="te4-slider-num" min="2" max="12" step="1" value="<%=fsec.limit||4%>"><span class="te4-slider-unit"></span></div></div>
-              <div class="te4-field"><label>Columns</label><select name="featured_section.columns" class="te4-select"><option value="2" <%=(fsec.columns||'4')==='2'?'selected':''%>>2</option><option value="3" <%=fsec.columns==='3'?'selected':''%>>3</option><option value="4" <%=(fsec.columns||'4')==='4'?'selected':''%>>4 (default)</option></select></div>
-            </div>
-            <div class="te4-section-label">Card options</div>
-            <%- teToggle('featured_section.show_price','Show price',fsec.show_price!==false) %>
-            <%- teToggle('featured_section.show_badge','Show badges (Sale / New / Best)',fsec.show_badge!==false) %>
-            <%- teToggle('featured_section.show_button','Show Add-to-Cart button',fsec.show_button!==false) %>
-            <div class="te4-section-label">Call to action</div>
-            <div class="te4-row2">
-              <%- teField('text','featured_section.cta_text','CTA label',fsec.cta_text) %>
-              <%- teField('url', 'featured_section.cta_url', 'CTA URL',  fsec.cta_url) %>
-            </div>
-            <div class="te4-field" style="margin-top:.5rem;padding-top:.75rem;border-top:1px solid var(--te-border)">
-              <label>Visible on</label>
-              <select name="featured_section.show_on" class="te4-select">
-                <option value="all"     <%=(fsec.show_on||'all')==='all'    ?'selected':''%>>All devices</option>
-                <option value="desktop" <%=fsec.show_on==='desktop'         ?'selected':''%>>Desktop only</option>
-                <option value="mobile"  <%=fsec.show_on==='mobile'          ?'selected':''%>>Mobile only</option>
-              </select>
-            </div>
+            <%- teFeaturedBody('featured_section', t.featured_section||{}, 'featured_section') %>
           </div>
 
           <!-- ── FEATURED MODELS ───────────────────────────────── -->
           <div class="te4-panel" id="panel-featured_models">
-            <% const fmsec=t.featured_models||{}; %>
-            <p class="te4-panel-desc">Model collection carousel — shows the top vanity lines with finish swatches and size chips. Models are pulled automatically from your product catalog by popularity.</p>
-            <%- teToggle('featured_models.enabled','Show section',fmsec.enabled!==false) %>
-            <div class="te4-section-label">Section header</div>
-            <%- teField('text','featured_models.eyebrow','Eyebrow',fmsec.eyebrow||'Shop by Collection') %>
-            <div class="te4-row2">
-              <%- teHeadingLevel('featured_models.title_level',fmsec.title_level||'h2') %>
-              <%- teAlignment('featured_models.text_align',fmsec.text_align||'center') %>
-            </div>
-            <%- teField('text','featured_models.title','Title',fmsec.title||'Featured Models') %>
-            <%- teField('text','featured_models.subtitle','Subtitle',fmsec.subtitle) %>
-            <div class="te4-section-label">Display</div>
-            <div class="te4-field">
-              <label>Models to show</label>
-              <div class="te4-slider-wrap">
-                <input type="range" class="te4-slider" name="featured_models.limit" min="2" max="16" step="1" value="<%=fmsec.limit||8%>">
-                <input type="number" class="te4-slider-num" min="2" max="16" step="1" value="<%=fmsec.limit||8%>">
-              </div>
-            </div>
-            <div class="te4-section-label">Call to action</div>
-            <div class="te4-row2">
-              <%- teField('text','featured_models.cta_text','CTA label',fmsec.cta_text||'See All Our Models') %>
-              <%- teField('url', 'featured_models.cta_url', 'CTA URL',  fmsec.cta_url||'/collections/vanity-models') %>
-            </div>
-            <div class="te4-field" style="margin-top:.5rem;padding-top:.75rem;border-top:1px solid var(--te-border)">
-              <label>Visible on</label>
-              <select name="featured_models.show_on" class="te4-select">
-                <option value="all"     <%=(fmsec.show_on||'all')==='all'    ?'selected':''%>>All devices</option>
-                <option value="desktop" <%=fmsec.show_on==='desktop'         ?'selected':''%>>Desktop only</option>
-                <option value="mobile"  <%=fmsec.show_on==='mobile'          ?'selected':''%>>Mobile only</option>
-              </select>
-            </div>
+            <%- teFeaturedBody('featured_models', t.featured_models||{}, 'featured_models') %>
           </div>
 
           <!-- ── DUPLICATABLE SECTION PANELS (dynamic loop) ── -->
@@ -1178,12 +1221,19 @@ function teArrayLinks(prefix,listId,tplId,items){
                var pkBase = pk.replace(/_\d+$/, '');
                if (!_DUPL_BASES.has(pkBase)) return;  // skip non-duplicatable sections
                var pkIsCopy = (pk !== pkBase);
+               // Bases with their own hardcoded panel: copies only.
+               if (!pkIsCopy && _DUPL_BASE_HAS_OWN_PANEL.has(pkBase)) return;
                var d = t[pk] || {};
                var pkListId = pk.replace(/\W/g,'') + 'List';
                var pkTplId  = pk.replace(/\W/g,'') + 'Tpl';
           %>
           <div class="te4-panel" id="panel-<%= pk %>">
+            <%# teFeaturedBody emits its own enabled toggle, so it is skipped
+                here for those bases — two inputs sharing the name would post
+                twice and the parser would keep whichever it saw last. %>
+            <% if (!_DUPL_BASE_HAS_OWN_PANEL.has(pkBase)) { %>
             <%- teToggle(pk+'.enabled','Show section',d.enabled) %>
+            <% } %>
             <% if (pkIsCopy) { %>
             <div class="te4-hint" style="margin-bottom:.75rem">This is a copy of the <%= getMeta(pkBase).label %> section. Fill it in and enable it to show this additional block.</div>
             <% } %>
@@ -1341,7 +1391,16 @@ function teArrayLinks(prefix,listId,tplId,items){
                 <button type="button" class="te4-remove-row">×</button>
               </div>
             </template>
+
+            <% } else if (_DUPL_BASE_HAS_OWN_PANEL.has(pkBase)) { %>
+            <%# Copies of the three featured sections. Same teFeaturedBody the
+                base panel uses, so a copy can never be missing a field the
+                base has. It emits its own "Visible on", which is why the
+                shared block below is skipped for these. %>
+            <%- teFeaturedBody(pk, d, pkBase) %>
             <% } %>
+
+            <% if (!_DUPL_BASE_HAS_OWN_PANEL.has(pkBase)) { %>
             <div class="te4-field" style="margin-top:.5rem;padding-top:.75rem;border-top:1px solid var(--te-border)">
               <label>Visible on</label>
               <select name="<%= pk %>.show_on" class="te4-select">
@@ -1350,6 +1409,7 @@ function teArrayLinks(prefix,listId,tplId,items){
                 <option value="mobile"  <%=d.show_on==='mobile'          ?'selected':''%>>Mobile only</option>
               </select>
             </div>
+            <% } %>
 
           </div><!-- /panel-<%= pk %> -->
           <% }); /* end duplicatable panel loop */ %>
