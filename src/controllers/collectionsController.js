@@ -342,10 +342,23 @@ exports.show = async (req, res, next) => {
       // Drives synchronized image preview: swatch click respects active size,
       // size chip click respects active color. One query replaces the old
       // separate swatch-image and size-image queries.
-      const mgModelNames    = mgModelRows.map(r => r.model).filter(Boolean);
-      const mgColorSizeMap  = {}; // [model][color][size] = image_url
-      const mgSizeImageMap  = {}; // [model][size] = image_url (first-color fallback for chips)
-      const mgSwatchMap     = {}; // [model] = [{color, hex, border, image_url, sizeImages}]
+      // KEYED BY MODEL **AND BRAND**, not model alone. The model query above
+      // groups by (model, brand), so two brands that happen to share a model
+      // name produce two separate cards — but until 2026-09-05 every map below
+      // was keyed on model only, so the second brand's rows silently overwrote
+      // the first's. ER Vanities Bristol and James Martin Bristol collided the
+      // day ER Vanities loaded: the ER card rendered James Martin's
+      // images.salsify.com photography, its swatches and its prices.
+      //
+      // mk(row) is the only key that may be used for these maps. A bare
+      // [r.model] is the bug.
+      const mk = r => `${r.model}||${r.brand}`;
+
+      const mgModelNames    = [...new Set(mgModelRows.map(r => r.model).filter(Boolean))];
+      const mgModelBrands   = [...new Set(mgModelRows.map(r => r.brand).filter(Boolean))];
+      const mgColorSizeMap  = {}; // [model||brand][color][size] = image_url
+      const mgSizeImageMap  = {}; // [model||brand][size] = image_url (first-color fallback for chips)
+      const mgSwatchMap     = {}; // [model||brand] = [{color, hex, border, image_url, sizeImages}]
 
       if (mgModelNames.length) {
         // Build mgCsRows WHERE dynamically so product_type filter applies when mgActiveTypes
@@ -358,8 +371,15 @@ exports.show = async (req, res, next) => {
           mgCsWhere += ` AND p.product_type IN (${mgActiveTypes.map(() => '?').join(',')})`;
           mgCsParams.push(...mgActiveTypes);
         }
+        // Scope to the brands actually on this page. Derived from mgModelRows,
+        // NOT from mgActiveBrands — the ?brand= param is empty on the unfiltered
+        // page, and that is exactly the page where both Bristols appear.
+        if (mgModelBrands.length) {
+          mgCsWhere += ` AND p.brand IN (${mgModelBrands.map(() => '?').join(',')})`;
+          mgCsParams.push(...mgModelBrands);
+        }
         const [mgCsRows] = await bvoPool.query(`
-          SELECT p.model, p.color, p.color_family, p.width_in AS size_in,
+          SELECT p.model, p.brand, p.color, p.color_family, p.width_in AS size_in,
             COALESCE(
               MIN(CASE WHEN p.primary_image_url IS NOT NULL THEN p.primary_image_url END),
               MIN(pi.url)
@@ -368,15 +388,16 @@ exports.show = async (req, res, next) => {
           FROM products p
           LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
           WHERE ${mgCsWhere}
-          GROUP BY p.model, p.color, p.color_family, p.width_in
-          ORDER BY p.model, p.color, p.width_in
+          GROUP BY p.model, p.brand, p.color, p.color_family, p.width_in
+          ORDER BY p.brand, p.model, p.color, p.width_in
         `, mgCsParams);
 
-        const mgColorSizePriceMap = {}; // [model][color][bucketKey] = min price
-        const mgSizePriceMap      = {}; // [model][bucketKey] = min price across all colors
+        const mgColorSizePriceMap = {}; // [model||brand][color][bucketKey] = min price
+        const mgSizePriceMap      = {}; // [model||brand][bucketKey] = min price across all colors
 
         // Build color×size map and derive the downstream maps from it
         for (const r of mgCsRows) {
+          const k       = mk(r);
           const sizeKey = r.size_in != null ? Math.round(Number(r.size_in)) : null;
 
           // Resolve raw width → bucket key for price and image maps
@@ -384,57 +405,58 @@ exports.show = async (req, res, next) => {
           const bucketKey = bkt ? (parseInt(bkt.label, 10) || 0) : 0;
 
           // color × size image map
-          if (!mgColorSizeMap[r.model]) mgColorSizeMap[r.model] = {};
-          if (!mgColorSizeMap[r.model][r.color]) mgColorSizeMap[r.model][r.color] = {};
+          if (!mgColorSizeMap[k]) mgColorSizeMap[k] = {};
+          if (!mgColorSizeMap[k][r.color]) mgColorSizeMap[k][r.color] = {};
           if (sizeKey > 0 && r.image_url) {
-            mgColorSizeMap[r.model][r.color][sizeKey] = r.image_url;
+            mgColorSizeMap[k][r.color][sizeKey] = r.image_url;
           }
 
           // size fallback image map (first-seen color wins for each size)
           if (sizeKey > 0 && r.image_url) {
-            if (!mgSizeImageMap[r.model]) mgSizeImageMap[r.model] = {};
-            if (!mgSizeImageMap[r.model][sizeKey]) {
-              mgSizeImageMap[r.model][sizeKey] = r.image_url;
+            if (!mgSizeImageMap[k]) mgSizeImageMap[k] = {};
+            if (!mgSizeImageMap[k][sizeKey]) {
+              mgSizeImageMap[k][sizeKey] = r.image_url;
             }
           }
 
           // color × size price map (keep minimum price per bucket)
           if (bucketKey > 0 && r.price != null) {
-            if (!mgColorSizePriceMap[r.model])               mgColorSizePriceMap[r.model] = {};
-            if (!mgColorSizePriceMap[r.model][r.color])      mgColorSizePriceMap[r.model][r.color] = {};
-            const curCP = mgColorSizePriceMap[r.model][r.color][bucketKey];
-            if (curCP == null || r.price < curCP) mgColorSizePriceMap[r.model][r.color][bucketKey] = r.price;
+            if (!mgColorSizePriceMap[k])               mgColorSizePriceMap[k] = {};
+            if (!mgColorSizePriceMap[k][r.color])      mgColorSizePriceMap[k][r.color] = {};
+            const curCP = mgColorSizePriceMap[k][r.color][bucketKey];
+            if (curCP == null || r.price < curCP) mgColorSizePriceMap[k][r.color][bucketKey] = r.price;
 
             // size-level min price (across all colors)
-            if (!mgSizePriceMap[r.model]) mgSizePriceMap[r.model] = {};
-            const curSP = mgSizePriceMap[r.model][bucketKey];
-            if (curSP == null || r.price < curSP) mgSizePriceMap[r.model][bucketKey] = r.price;
+            if (!mgSizePriceMap[k]) mgSizePriceMap[k] = {};
+            const curSP = mgSizePriceMap[k][bucketKey];
+            if (curSP == null || r.price < curSP) mgSizePriceMap[k][bucketKey] = r.price;
           }
         }
 
-        // Build swatch list (one entry per model+color, preserving order)
+        // Build swatch list (one entry per model+brand+color, preserving order)
         // Includes per-color size image map AND per-color size price map for JS price updates.
         const seenSwatchKey = new Set();
         for (const r of mgCsRows) {
-          const key = `${r.model}||${r.color}`;
+          const k   = mk(r);
+          const key = `${k}||${r.color}`;
           if (seenSwatchKey.has(key)) continue;
           seenSwatchKey.add(key);
-          if (!mgSwatchMap[r.model]) mgSwatchMap[r.model] = [];
+          if (!mgSwatchMap[k]) mgSwatchMap[k] = [];
           const swatchFamilyKey = r.color_family || normalize(r.color, 'all') || '';
-          const colorImgRow = mgCsRows.find(x => x.model === r.model && x.color === r.color && x.image_url);
-          mgSwatchMap[r.model].push({
+          const colorImgRow = mgCsRows.find(x => mk(x) === k && x.color === r.color && x.image_url);
+          mgSwatchMap[k].push({
             color:        r.color,
             color_family: r.color_family,
             hex:          FAMILY_HEX[swatchFamilyKey]              || '#ccc',
             border:       FAMILY_HEX[swatchFamilyKey + '_border']  || '#aaa',
             image_url:    colorImgRow ? colorImgRow.image_url : null,
-            sizeImages:   mgColorSizeMap[r.model][r.color]        || {},
-            sizePrices:   mgColorSizePriceMap[r.model]?.[r.color] || {},
+            sizeImages:   mgColorSizeMap[k][r.color]        || {},
+            sizePrices:   mgColorSizePriceMap[k]?.[r.color] || {},
           });
         }
 
         // Expose size-level price map for hydration below
-        mgModelRows.forEach(r => { r._sizePriceMap = mgSizePriceMap[r.model] || {}; });
+        mgModelRows.forEach(r => { r._sizePriceMap = mgSizePriceMap[mk(r)] || {}; });
       }
 
       // Hydrate model rows with parsed sizes + sizeImages + finishes arrays
@@ -454,8 +476,8 @@ exports.show = async (req, res, next) => {
                 .filter(Boolean)
             ).values()]
           : [],
-        sizeImages: mgSizeImageMap[r.model] || {},
-        finishes:   mgSwatchMap[r.model] || [],
+        sizeImages: mgSizeImageMap[mk(r)] || {},
+        finishes:   mgSwatchMap[mk(r)] || [],
       }));
 
       // Size bucket filter — post-query because sizes live per-product not per-model
