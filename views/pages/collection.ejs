@@ -744,8 +744,25 @@
                                  ? Math.round(m.compare_price_from - m.price_from) : 0;
         var _visibleSwatches = m.finishes.slice(0, 4);
         var _extraSwatches   = m.finishes.length > 4 ? m.finishes.length - 4 : 0;
-        var _mId             = m.model ? m.model.toLowerCase().replace(/[^a-z0-9]+/g, '-') : 'model';
-        var _mHref           = '/collections/bathroom-vanities?model=' + encodeURIComponent(m.model || '');
+        // Model card ids and links must carry BRAND, not just model.
+        //
+        // Two brands sell a "Bristol". With model alone both cards emitted
+        // id="model-img-bristol", and site.js resolves a swatch click with
+        // getElementById(dataset.targetImg) — which returns the FIRST match
+        // in the document. Cards sort by brand, so clicking a swatch on the
+        // James Martin card swapped the image and price on the ER Vanities
+        // card. Duplicate ids are also invalid HTML.
+        //
+        // Not visible today only because page 1 holds 12 cards and JM's
+        // Bristol falls to page 2 — any filter that thins the earlier JM
+        // models puts them on one page and it fires.
+        var _mSlug           = function (v) { return String(v || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); };
+        var _mId             = m.model ? (_mSlug(m.model) + '-' + (_mSlug(m.brand) || 'nobrand')) : 'model';
+        // Brand on the link too — without it the ER Bristol card led to a
+        // grid holding both brands' Bristol products. getCollection already
+        // parses req.query.brand, so this needs no controller change.
+        var _mHref           = '/collections/bathroom-vanities?model=' + encodeURIComponent(m.model || '')
+                               + (m.brand ? '&brand=' + encodeURIComponent(m.brand) : '');
         // Initial image = first swatch's image so the visual matches the is-active swatch state.
         // Fallback to model-level image if first swatch has none.
         var _mImg = (_visibleSwatches.length > 0 && _visibleSwatches[0].image_url)
@@ -889,8 +906,13 @@
       <%
         /* DB-driven model color swatches */
         var _pImgId       = 'prod-img-' + product.id;
-        var _mcSwatches   = (product.model && typeof modelColorMap !== 'undefined' && modelColorMap[product.model])
-                              ? modelColorMap[product.model] : [];
+        // Model maps are keyed by "model||brand" — see the MODEL CARD
+        // IDENTITY note at the top of collectionsController.js. Two brands
+        // sell a "Bristol"; keying on the name alone merged their swatches,
+        // so a swatch click loaded the other brand's photography.
+        var _mKey         = (product.model || '') + '||' + (product.brand || '');
+        var _mcSwatches   = (product.model && typeof modelColorMap !== 'undefined' && modelColorMap[_mKey])
+                              ? modelColorMap[_mKey] : [];
         /* Fallback: if no model swatches, show single swatch for this product's own color */
         if (!_mcSwatches.length && product.color_family && typeof familyHex !== 'undefined') {
           _mcSwatches = [{
@@ -902,8 +924,8 @@
         }
         var _pSwatches    = _mcSwatches.slice(0, 4);
         var _pSwatchExtra = _mcSwatches.length > 4 ? _mcSwatches.length - 4 : 0;
-        var _pSizes       = (product.model && typeof modelSizeMap !== 'undefined' && modelSizeMap[product.model])
-                              ? modelSizeMap[product.model] : null;
+        var _pSizes       = (product.model && typeof modelSizeMap !== 'undefined' && modelSizeMap[_mKey])
+                              ? modelSizeMap[_mKey] : null;
         var _pQtyRaw      = parseInt(product.qty_on_hand || 0, 10);
         var _pQtyDisplay  = _pQtyRaw <= 3  ? _pQtyRaw
                           : _pQtyRaw <= 6  ? 4
@@ -1003,9 +1025,9 @@
             <div class="model-card-size-chips">
               <% _pSizes.forEach(function(sz, i) {
                    var _pSzImg = (typeof modelSizeImageMap !== 'undefined' &&
-                                  modelSizeImageMap[product.model] &&
-                                  modelSizeImageMap[product.model][sz.key])
-                                 ? modelSizeImageMap[product.model][sz.key] : null;
+                                  modelSizeImageMap[_mKey] &&
+                                  modelSizeImageMap[_mKey][sz.key])
+                                 ? modelSizeImageMap[_mKey][sz.key] : null;
               %>
               <button type="button"
                       class="model-card-size-btn<%= i === 0 ? ' is-active' : '' %>"

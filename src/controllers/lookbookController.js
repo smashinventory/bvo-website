@@ -15,6 +15,9 @@
  */
 
 const { bvoPool }      = require('../config/database');
+/* (model, brand) identity — see src/utils/modelKey.js. Two brands sell a
+   "Bristol", so a model name alone is not a key on this site. */
+const { modelKey, modelBrandPairs } = require('../utils/modelKey');
 const { FAMILIES }     = require('../config/colorFamilies');
 const { SIZE_BUCKETS } = require('../config/sizeBuckets');
 
@@ -133,7 +136,7 @@ exports.index = async (req, res, next) => {
     // representative per model that actually satisfies all active filters.
     // Products without a model value are excluded (too many one-off SKUs).
     const [products] = await bvoPool.query(`
-      SELECT p.id, p.slug, p.model, p.width_in, p.color_family, p.product_type
+      SELECT p.id, p.slug, p.model, p.brand, p.width_in, p.color_family, p.product_type
       FROM products p
       WHERE ${PWHERE}
         AND p.model IS NOT NULL AND p.model != ''
@@ -157,22 +160,30 @@ exports.index = async (req, res, next) => {
     //   • Deduplicated by URL (many variants share the same hero shot).
     //   • The full list of cabinet colors the model is available in.
     if (products.length > 0) {
-      const models   = products.map(p => p.model);
-      const modelPh  = models.map(() => '?').join(',');
+      /* BRAND-SCOPED 2026-09-05. These lookups matched on model alone, so an
+         ER Vanities "Bristol" card collected James Martin's photography and
+         colour swatches alongside its own. Same fault as the model-group and
+         product-card maps — this page was not in the original inventory and
+         was found by grepping for the shape of the others.
+
+         p.brand is now selected on the outer query above. Without it every
+         key would degrade to "Bristol||undefined" and the collision would
+         return while looking fixed. */
+      const { params: modelParams, sql: modelPairSql } = modelBrandPairs(products);
 
       // Variant IDs for image fetching.  Reuse IWHERE so the carousel only
       // shows images from variants that satisfy the active filters — e.g.
       // size=72 → only 72" variants of this model contribute images.
       // Cabinet-only variants are ordered first so their images lead.
       const [allVariants] = await bvoPool.query(`
-        SELECT id, model
+        SELECT id, model, brand
         FROM products
-        WHERE model IN (${modelPh})
+        WHERE (model, brand) IN (${modelPairSql})
           AND ${IWHERE}
-        ORDER BY model,
+        ORDER BY model, brand,
                  CASE WHEN product_type LIKE '%Cabinet Only%' THEN 0 ELSE 1 END,
                  id ASC
-      `, [...models, ...iParams]);
+      `, [...modelParams, ...iParams]);
 
       if (allVariants.length > 0) {
         const allIds = allVariants.map(v => v.id);
@@ -180,11 +191,11 @@ exports.index = async (req, res, next) => {
 
         // Images for all variant IDs — cabinet-only variant images lead.
         const [imgRows] = await bvoPool.query(`
-          SELECT pi.product_id, pi.url, p.model
+          SELECT pi.product_id, pi.url, p.model, p.brand
           FROM product_images pi
           JOIN products p ON p.id = pi.product_id
           WHERE pi.product_id IN (${idPh})
-          ORDER BY p.model,
+          ORDER BY p.model, p.brand,
                    CASE WHEN p.product_type LIKE '%Cabinet Only%' THEN 0 ELSE 1 END,
                    pi.is_primary DESC, pi.sort_order ASC, pi.id ASC
         `, allIds);
@@ -193,36 +204,37 @@ exports.index = async (req, res, next) => {
         const modelImages  = {};
         const modelSeenUrl = {};
         for (const row of imgRows) {
-          if (!modelImages[row.model]) {
-            modelImages[row.model]  = [];
-            modelSeenUrl[row.model] = new Set();
+          const k = modelKey(row);
+          if (!modelImages[k]) {
+            modelImages[k]  = [];
+            modelSeenUrl[k] = new Set();
           }
-          if (!modelSeenUrl[row.model].has(row.url)) {
-            modelImages[row.model].push(row.url);
-            modelSeenUrl[row.model].add(row.url);
+          if (!modelSeenUrl[k].has(row.url)) {
+            modelImages[k].push(row.url);
+            modelSeenUrl[k].add(row.url);
           }
         }
 
         // Colors the model is available in (for card swatches).
         const [colorRows] = await bvoPool.query(`
-          SELECT model,
+          SELECT model, brand,
                  GROUP_CONCAT(DISTINCT color_family ORDER BY color_family) AS colors
           FROM products
-          WHERE model IN (${modelPh})
+          WHERE (model, brand) IN (${modelPairSql})
             AND is_active = 1
             ${catId ? 'AND category_id = ?' : ''}
             AND color_family IS NOT NULL AND color_family != ''
-          GROUP BY model
-        `, [...models, ...(catId ? [catId] : [])]);
+          GROUP BY model, brand
+        `, [...modelParams, ...(catId ? [catId] : [])]);
 
         const modelColorMap = {};
         for (const row of colorRows) {
-          modelColorMap[row.model] = row.colors ? row.colors.split(',') : [];
+          modelColorMap[modelKey(row)] = row.colors ? row.colors.split(',') : [];
         }
 
         for (const p of products) {
-          p.images      = modelImages[p.model]   || [];
-          p.availColors = modelColorMap[p.model] || [];
+          p.images      = modelImages[modelKey(p)]   || [];
+          p.availColors = modelColorMap[modelKey(p)] || [];
         }
       }
     }

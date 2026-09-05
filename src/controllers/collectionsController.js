@@ -12,6 +12,23 @@ const FAMILY_HEX = {};
 FAMILIES.forEach(f => { FAMILY_HEX[f.key] = f.hex; FAMILY_HEX[f.key + '_border'] = f.border; });
 
 const MODELS_PER_PAGE = 12;
+
+/* ── MODEL CARD IDENTITY — read before touching any model-keyed map ──
+   A model is identified by (model, brand), NEVER by model alone.
+
+   ER Vanities and James Martin Vanities both sell a "Bristol". Keying a
+   per-model lookup on the name alone makes one brand overwrite the other
+   (assignment) or concatenate with it (push). The push case is the nastier
+   one: the card shows a merged finish list, and clicking a swatch loads the
+   other brand's photography.
+
+   THE TRAP: the row must actually CARRY brand. If a query does not SELECT
+   p.brand, r.brand is undefined, the key degrades to "Bristol||undefined",
+   and the collision returns while looking fixed.
+
+   The same string is built in views/pages/collection.ejs — if this format
+   ever changes, that template changes with it. */
+const mk = r => `${r.model}||${r.brand}`;
 // SIZE_BUCKETS imported from src/config/sizeBuckets.js — shared with megaMenuData middleware
 
 /* ── Windowed pagination ─────────────────────────────────────────── *
@@ -120,6 +137,26 @@ exports.show = async (req, res, next) => {
       const mgSourceCat    = await Category.findBySlug('bathroom-vanities');
       const mgProductCatId = mgSourceCat ? mgSourceCat.id : 1;
 
+      /* ── MODEL CARD IDENTITY ────────────────────────────────────────
+         A model card is identified by (model, brand) — NEVER by model
+         alone. ER Vanities and James Martin Vanities both sell a
+         "Bristol"; keying on model alone makes one overwrite the other,
+         or worse, concatenates their finishes so a swatch click loads the
+         other brand's photography.
+
+         MOVED HERE 2026-09-05 from line ~355. It was declared below its
+         first use once mgModelSinkMap started using it, which is a TDZ
+         ReferenceError at runtime — and `node --check` does not catch it,
+         because it is a scope error rather than a syntax error. Declared
+         once, at the top of the block, so every map below can use it.
+
+         The trap when applying this: the row must actually CARRY brand.
+         If the query does not SELECT p.brand, r.brand is undefined, the
+         key silently degrades to "Bristol||undefined", and the collision
+         comes back looking exactly like it was never fixed.
+
+         mk() is declared at module scope — see the note at the top. */
+
       const mgPage = Math.max(1, parseInt(req.query.page || '1', 10));
 
       // Active filter values — sizes are bucket labels (strings), not raw numbers
@@ -182,11 +219,19 @@ exports.show = async (req, res, next) => {
         // Global (category-level) presence
         if (!mgBktSinkPresent[bkt.label]) mgBktSinkPresent[bkt.label] = {};
         mgBktSinkPresent[bkt.label][sink || 'none'] = true;
-        // Per-model presence (used when filtering mgModels by S/D chip)
+        /* Per-model presence (used when filtering mgModels by S/D chip).
+
+           Keyed by mk(r) — (model, brand) — NOT by model alone. James
+           Martin's Bristol has Double Sink widths that ER Vanities'
+           Bristol does not, so a bare [r.model] let a 60D chip match the
+           ER card on the strength of JM inventory that does not exist
+           under that name. mgOptRows already SELECTs p.brand, so mk()
+           resolves properly here — no query change needed. */
         if (r.model) {
-          if (!mgModelSinkMap[r.model])           mgModelSinkMap[r.model] = {};
-          if (!mgModelSinkMap[r.model][bkt.label]) mgModelSinkMap[r.model][bkt.label] = {};
-          mgModelSinkMap[r.model][bkt.label][sink || 'none'] = true;
+          const k = mk(r);
+          if (!mgModelSinkMap[k])             mgModelSinkMap[k] = {};
+          if (!mgModelSinkMap[k][bkt.label])  mgModelSinkMap[k][bkt.label] = {};
+          mgModelSinkMap[k][bkt.label][sink || 'none'] = true;
         }
       });
 
@@ -352,7 +397,10 @@ exports.show = async (req, res, next) => {
       //
       // mk(row) is the only key that may be used for these maps. A bare
       // [r.model] is the bug.
-      const mk = r => `${r.model}||${r.brand}`;
+      //
+      // mk() is declared at the top of this block (see the note there) —
+      // mgModelSinkMap above needs it too, and a const cannot be used
+      // before its declaration.
 
       const mgModelNames    = [...new Set(mgModelRows.map(r => r.model).filter(Boolean))];
       const mgModelBrands   = [...new Set(mgModelRows.map(r => r.brand).filter(Boolean))];
@@ -498,8 +546,10 @@ exports.show = async (req, res, next) => {
             if (!m.sizes.some(ms => ms >= bucket.min && ms <= bucket.max)) return false;
             // If no sink filter, width match is sufficient
             if (!sink) return true;
-            // Check per-model sink map so "60S" only matches models with Single Sink 60"
-            const sinkMap = mgModelSinkMap[m.model];
+            // Check per-model sink map so "60S" only matches models with Single Sink 60".
+            // mk(m) — the card row carries brand (mgModelRows SELECTs p.brand),
+            // so this reads the same (model, brand) key the map was written with.
+            const sinkMap = mgModelSinkMap[mk(m)];
             return sinkMap && sinkMap[bucketLabel] && sinkMap[bucketLabel][sink];
           })
         );
@@ -837,13 +887,36 @@ exports.show = async (req, res, next) => {
       .filter(b => availableWidths.some(w => w >= b.min && w <= b.max))
       .map(b => b.label);
 
-    // ── Model → color swatches map ────────────────────────────────
-    const pageModels = [...new Set(result.products.map(p => p.model).filter(Boolean))];
+    /* ── Model → color swatches map ──────────────────────────────────
+       BRAND-SCOPED 2026-09-05. These three queries matched on p.model
+       alone, so the ER Vanities Bristol card listed its own Natural White
+       Ash swatch followed by James Martin's three — and clicking one of
+       those loaded a James Martin image onto an ER card. modelColorMap
+       PUSHES, which is why this instance concatenated rather than
+       overwrote, and why it was the worst of the set.
+
+       Matching is now on the (model, brand) PAIR via a row constructor:
+         WHERE (p.model, p.brand) IN ((?,?),(?,?),...)
+
+       Category scope was considered and deliberately NOT added. Brand
+       scope is a bug fix; category scope is a behaviour change — a model
+       spanning categories would silently lose swatches, and that loss
+       looks identical to the bug being fixed here. Kept separate on
+       purpose. */
+    const pageModelPairs = [...new Map(
+      result.products
+        .filter(p => p.model)
+        .map(p => [mk(p), [p.model, p.brand]])
+    ).values()];
+    // Flattened for the row-constructor placeholders: [m1,b1,m2,b2,...]
+    const pageModelParams = pageModelPairs.flat();
+    const pagePairSql     = pageModelPairs.map(() => '(?,?)').join(',');
     let modelColorMap = {};
-    if (pageModels.length) {
+    if (pageModelPairs.length) {
       const [mcRows] = await bvoPool.query(`
         SELECT
           p.model,
+          p.brand,
           p.color,
           p.color_family,
           COALESCE(
@@ -852,15 +925,16 @@ exports.show = async (req, res, next) => {
           ) AS image_url
         FROM products p
         LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
-        WHERE p.model IN (${pageModels.map(() => '?').join(',')})
+        WHERE (p.model, p.brand) IN (${pagePairSql})
           AND p.color IS NOT NULL AND p.is_active = 1
-        GROUP BY p.model, p.color, p.color_family
-        ORDER BY p.model, p.color
-      `, pageModels);
+        GROUP BY p.model, p.brand, p.color, p.color_family
+        ORDER BY p.model, p.brand, p.color
+      `, pageModelParams);
       for (const r of mcRows) {
-        if (!modelColorMap[r.model]) modelColorMap[r.model] = [];
+        const k = mk(r);
+        if (!modelColorMap[k]) modelColorMap[k] = [];
         const swatchFamilyKey = r.color_family || normalize(r.color, 'all') || '';
-        modelColorMap[r.model].push({
+        modelColorMap[k].push({
           color:        r.color,
           color_family: r.color_family,
           hex:          FAMILY_HEX[swatchFamilyKey]              || '#ccc',
@@ -874,22 +948,23 @@ exports.show = async (req, res, next) => {
     // Each entry is {label, key} — label is the display string ('30', '20-', '84+'),
     // key is the numeric value used as data-size and as the sizeImages dict key.
     let modelSizeMap = {};
-    if (pageModels.length) {
+    if (pageModelPairs.length) {
       const [msRows] = await bvoPool.query(`
-        SELECT DISTINCT p.model, CAST(p.width_in AS UNSIGNED) AS size_in
+        SELECT DISTINCT p.model, p.brand, CAST(p.width_in AS UNSIGNED) AS size_in
         FROM products p
-        WHERE p.model IN (${pageModels.map(() => '?').join(',')})
+        WHERE (p.model, p.brand) IN (${pagePairSql})
           AND p.is_active = 1 AND p.width_in IS NOT NULL AND p.width_in > 0
-        ORDER BY p.model, p.width_in
-      `, pageModels);
+        ORDER BY p.model, p.brand, p.width_in
+      `, pageModelParams);
       for (const r of msRows) {
         const bucket = SIZE_BUCKETS.find(b => r.size_in >= b.min && r.size_in <= b.max);
         if (!bucket) continue;
         const bKey = parseInt(bucket.label, 10) || 0;
         if (!bKey) continue;
-        if (!modelSizeMap[r.model]) modelSizeMap[r.model] = [];
-        if (!modelSizeMap[r.model].some(s => s.key === bKey))
-          modelSizeMap[r.model].push({ label: bucket.label, key: bKey });
+        const k = mk(r);
+        if (!modelSizeMap[k]) modelSizeMap[k] = [];
+        if (!modelSizeMap[k].some(s => s.key === bKey))
+          modelSizeMap[k].push({ label: bucket.label, key: bKey });
       }
     }
 
@@ -898,21 +973,21 @@ exports.show = async (req, res, next) => {
     // First image encountered for a bucket wins (ORDER BY width_in ensures smallest first).
     let modelColorSizeMap = {};
     let modelSizeImageMap = {};
-    if (pageModels.length) {
+    if (pageModelPairs.length) {
       const [mcSizeRows] = await bvoPool.query(`
-        SELECT p.model, p.color, CAST(p.width_in AS UNSIGNED) AS size_in,
+        SELECT p.model, p.brand, p.color, CAST(p.width_in AS UNSIGNED) AS size_in,
           COALESCE(
             MIN(CASE WHEN p.primary_image_url IS NOT NULL THEN p.primary_image_url END),
             MIN(pi.url)
           ) AS image_url
         FROM products p
         LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
-        WHERE p.model IN (${pageModels.map(() => '?').join(',')})
+        WHERE (p.model, p.brand) IN (${pagePairSql})
           AND p.color IS NOT NULL AND p.is_active = 1
           AND p.width_in IS NOT NULL AND p.width_in > 0
-        GROUP BY p.model, p.color, p.width_in
-        ORDER BY p.model, p.color, p.width_in
-      `, pageModels);
+        GROUP BY p.model, p.brand, p.color, p.width_in
+        ORDER BY p.model, p.brand, p.color, p.width_in
+      `, pageModelParams);
       for (const r of mcSizeRows) {
         const rawSize = Math.round(Number(r.size_in));
         if (!rawSize || !r.image_url) continue;
@@ -920,12 +995,13 @@ exports.show = async (req, res, next) => {
         if (!bucket) continue;
         const bKey = parseInt(bucket.label, 10) || 0;
         if (!bKey) continue;
-        if (!modelColorSizeMap[r.model])           modelColorSizeMap[r.model] = {};
-        if (!modelColorSizeMap[r.model][r.color])  modelColorSizeMap[r.model][r.color] = {};
-        if (!modelColorSizeMap[r.model][r.color][bKey])  // first image per bucket wins
-          modelColorSizeMap[r.model][r.color][bKey] = r.image_url;
-        if (!modelSizeImageMap[r.model])            modelSizeImageMap[r.model] = {};
-        if (!modelSizeImageMap[r.model][bKey])      modelSizeImageMap[r.model][bKey] = r.image_url;
+        const k = mk(r);
+        if (!modelColorSizeMap[k])           modelColorSizeMap[k] = {};
+        if (!modelColorSizeMap[k][r.color])  modelColorSizeMap[k][r.color] = {};
+        if (!modelColorSizeMap[k][r.color][bKey])  // first image per bucket wins
+          modelColorSizeMap[k][r.color][bKey] = r.image_url;
+        if (!modelSizeImageMap[k])            modelSizeImageMap[k] = {};
+        if (!modelSizeImageMap[k][bKey])      modelSizeImageMap[k][bKey] = r.image_url;
       }
       // Attach per-bucket image dict to every swatch → emitted as data-size-images
       for (const mdl of Object.keys(modelColorMap)) {

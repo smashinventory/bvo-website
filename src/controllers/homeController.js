@@ -1,6 +1,9 @@
 'use strict';
 
 const { bvoPool }              = require('../config/database');
+/* (model, brand) identity — see src/utils/modelKey.js for why a model
+   name alone is not a key on this site. */
+const { modelKey, modelBrandPairs } = require('../utils/modelKey');
 const { FAMILIES, normalize }   = require('../config/colorFamilies');
 const { SIZE_BUCKETS }          = require('../config/sizeBuckets');
 const themeSettings            = require('../services/themeSettings');
@@ -44,32 +47,39 @@ async function getFeaturedProducts() {
     `);
     if (!rows.length) return [];
 
-    /* Fetch color swatches + color×size image map for each product's model */
-    const modelNames = [...new Set(rows.map(r => r.model).filter(Boolean))];
-    if (!modelNames.length) return rows.map(r => ({ ...r, finishes: [], sizes: [], sizeImageMap: {} }));
+    /* Fetch color swatches + color×size image map for each product's model.
 
-    const ph = modelNames.map(() => '?').join(',');
+       BRAND-SCOPED 2026-09-05. These sub-queries matched p.model alone and
+       the maps below PUSH, so a featured ER Vanities Bristol listed its own
+       finish followed by James Martin's three — and clicking one of those
+       loaded a James Martin image onto an ER card. The outer query already
+       selects p.brand, so the rows carry it.
+
+       modelBrandPairs also de-duplicates: with two brands sharing a model
+       name the old modelNames list emitted the name twice. */
+    const { pairs: modelPairs, params: modelParams, sql: pairSql } = modelBrandPairs(rows);
+    if (!modelPairs.length) return rows.map(r => ({ ...r, finishes: [], sizes: [], sizeImageMap: {} }));
 
     const [[swatchRows], [csRows]] = await Promise.all([
       bvoPool.query(`
-        SELECT p.model, p.color, p.color_family,
+        SELECT p.model, p.brand, p.color, p.color_family,
           COALESCE(MIN(CASE WHEN p.primary_image_url IS NOT NULL THEN p.primary_image_url END), MIN(pi.url)) AS image_url
         FROM products p
         LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
-        WHERE p.is_active = 1 AND p.model IN (${ph}) AND p.color IS NOT NULL
-        GROUP BY p.model, p.color, p.color_family
-        ORDER BY p.model, p.color
-      `, modelNames),
+        WHERE p.is_active = 1 AND (p.model, p.brand) IN (${pairSql}) AND p.color IS NOT NULL
+        GROUP BY p.model, p.brand, p.color, p.color_family
+        ORDER BY p.model, p.brand, p.color
+      `, modelParams),
       bvoPool.query(`
-        SELECT p.model, p.color, CAST(p.width_in AS UNSIGNED) AS size_in,
+        SELECT p.model, p.brand, p.color, CAST(p.width_in AS UNSIGNED) AS size_in,
           COALESCE(MIN(CASE WHEN p.primary_image_url IS NOT NULL THEN p.primary_image_url END), MIN(pi.url)) AS image_url
         FROM products p
         LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
-        WHERE p.is_active = 1 AND p.model IN (${ph}) AND p.color IS NOT NULL
+        WHERE p.is_active = 1 AND (p.model, p.brand) IN (${pairSql}) AND p.color IS NOT NULL
           AND p.width_in IS NOT NULL AND p.width_in > 0
-        GROUP BY p.model, p.color, p.width_in
-        ORDER BY p.model, p.color, p.width_in
-      `, modelNames),
+        GROUP BY p.model, p.brand, p.color, p.width_in
+        ORDER BY p.model, p.brand, p.color, p.width_in
+      `, modelParams),
     ]);
 
     /* Build swatchMap[model] = [{color, hex, border, image_url, sizeImages}] */
@@ -83,22 +93,24 @@ async function getFeaturedProducts() {
       if (!rawSize || !r.image_url) continue;
       const bkt = toBucket(rawSize);
       if (!bkt) continue;
-      if (!colorSizeMap[r.model])           colorSizeMap[r.model] = {};
-      if (!colorSizeMap[r.model][r.color])  colorSizeMap[r.model][r.color] = {};
-      if (!colorSizeMap[r.model][r.color][bkt.key]) colorSizeMap[r.model][r.color][bkt.key] = r.image_url;
-      if (!sizeImageMap[r.model])            sizeImageMap[r.model] = {};
-      if (!sizeImageMap[r.model][bkt.key])   sizeImageMap[r.model][bkt.key] = r.image_url;
+      const k = modelKey(r);
+      if (!colorSizeMap[k])           colorSizeMap[k] = {};
+      if (!colorSizeMap[k][r.color])  colorSizeMap[k][r.color] = {};
+      if (!colorSizeMap[k][r.color][bkt.key]) colorSizeMap[k][r.color][bkt.key] = r.image_url;
+      if (!sizeImageMap[k])            sizeImageMap[k] = {};
+      if (!sizeImageMap[k][bkt.key])   sizeImageMap[k][bkt.key] = r.image_url;
     }
 
     const swatchMap = {};
     for (const r of swatchRows) {
-      if (!swatchMap[r.model]) swatchMap[r.model] = [];
+      const k = modelKey(r);
+      if (!swatchMap[k]) swatchMap[k] = [];
       const fk = r.color_family || normalize(r.color, 'all') || '';
-      swatchMap[r.model].push({
+      swatchMap[k].push({
         color: r.color, color_family: r.color_family,
         hex: FAMILY_HEX_LOCAL[fk] || '#ccc', border: FAMILY_HEX_LOCAL[fk + '_border'] || '#aaa',
         image_url: r.image_url || null,
-        sizeImages: (colorSizeMap[r.model] && colorSizeMap[r.model][r.color]) || {},
+        sizeImages: (colorSizeMap[k] && colorSizeMap[k][r.color]) || {},
       });
     }
 
@@ -108,15 +120,16 @@ async function getFeaturedProducts() {
       const rawSize = Math.round(Number(r.size_in));
       const bkt = toBucket(rawSize);
       if (!bkt) continue;
-      if (!modelSizes[r.model]) modelSizes[r.model] = [];
-      if (!modelSizes[r.model].some(s => s.key === bkt.key)) modelSizes[r.model].push(bkt);
+      const k = modelKey(r);
+      if (!modelSizes[k]) modelSizes[k] = [];
+      if (!modelSizes[k].some(s => s.key === bkt.key)) modelSizes[k].push(bkt);
     }
 
     return rows.map(r => ({
       ...r,
-      finishes:     swatchMap[r.model]  || [],
-      sizes:        modelSizes[r.model] || [],
-      sizeImageMap: sizeImageMap[r.model] || {},
+      finishes:     swatchMap[modelKey(r)]  || [],
+      sizes:        modelSizes[modelKey(r)] || [],
+      sizeImageMap: sizeImageMap[modelKey(r)] || {},
     }));
   } catch (e) {
     console.error('getFeaturedProducts error:', e);
@@ -172,7 +185,20 @@ async function getFeaturedModels(limit = 8) {
         GROUP BY p.model, p.brand
       `, curatedNames);
 
-      // Restore curated sort order (SQL IN() doesn't guarantee order)
+      /* Restore curated sort order (SQL IN() doesn't guarantee order).
+
+         KEYED ON MODEL NAME ALONE, and it has to be — same schema gap as
+         mgOverlay below. model_groups stores model_name with no brand
+         column, so a curated row for "Bristol" cannot tell ER Vanities'
+         from James Martin's.
+
+         Consequence here is mild: both brands' Bristol get the same sort
+         position and fall back on surrounding order. Keying this on
+         (model, brand) would NOT fix it — it would match neither card and
+         drop both to 999, which is worse than the current behaviour.
+
+         Same schema change fixes this and mgOverlay together: add
+         model_groups.brand, backfill, re-key both. */
       const orderMap = {};
       curatedModels.forEach((r, i) => { orderMap[r.model_name] = i; });
       modelRows.sort((a, b) => (orderMap[a.model] ?? 999) - (orderMap[b.model] ?? 999));
@@ -207,11 +233,22 @@ async function getFeaturedModels(limit = 8) {
 
     if (!modelRows.length) return [];
 
-    /* Fetch per-model color swatches with one representative image per (model, color) */
-    const modelNames = modelRows.map(r => r.model);
+    /* Fetch per-model color swatches, one representative image per
+       (model, brand, color).
+
+       BRAND-SCOPED 2026-09-05. The homepage carousel keyed five maps on
+       model alone, so ER Vanities' Bristol and James Martin's overwrote
+       or concatenated each other. modelRows already GROUPs BY p.model,
+       p.brand, so the rows carry brand.
+
+       The old `modelRows.map(r => r.model)` also had no de-duplication —
+       two brands sharing a name emitted it twice in the IN list.
+       modelBrandPairs de-duplicates on the pair. */
+    const { pairs: mPairs, params: mParams, sql: mPairSql } = modelBrandPairs(modelRows);
     const [swatchRows] = await bvoPool.query(`
       SELECT
         p.model,
+        p.brand,
         p.color,
         p.color_family,
         COALESCE(
@@ -220,17 +257,18 @@ async function getFeaturedModels(limit = 8) {
         ) AS image_url
       FROM products p
       LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
-      WHERE p.is_active = 1 AND p.model IN (${modelNames.map(() => '?').join(',')})
+      WHERE p.is_active = 1 AND (p.model, p.brand) IN (${mPairSql})
         AND p.color IS NOT NULL
-      GROUP BY p.model, p.color, p.color_family
-      ORDER BY p.model, p.color
-    `, modelNames);
+      GROUP BY p.model, p.brand, p.color, p.color_family
+      ORDER BY p.model, p.brand, p.color
+    `, mParams);
 
     const swatchMap = {};
     for (const r of swatchRows) {
-      if (!swatchMap[r.model]) swatchMap[r.model] = [];
+      const k = modelKey(r);
+      if (!swatchMap[k]) swatchMap[k] = [];
       const swatchFamilyKey = r.color_family || normalize(r.color, 'all') || '';
-      swatchMap[r.model].push({
+      swatchMap[k].push({
         color:        r.color,
         color_family: r.color_family,
         hex:          FAMILY_HEX[swatchFamilyKey]              || '#ccc',
@@ -241,7 +279,7 @@ async function getFeaturedModels(limit = 8) {
 
     /* Fetch color × size → image + price map so carousel chips can swap images and show prices */
     const [csRows] = await bvoPool.query(`
-      SELECT p.model, p.color, CAST(p.width_in AS UNSIGNED) AS size_in,
+      SELECT p.model, p.brand, p.color, CAST(p.width_in AS UNSIGNED) AS size_in,
         COALESCE(
           MIN(CASE WHEN p.primary_image_url IS NOT NULL THEN p.primary_image_url END),
           MIN(pi.url)
@@ -249,11 +287,11 @@ async function getFeaturedModels(limit = 8) {
         MIN(p.price) AS price
       FROM products p
       LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
-      WHERE p.is_active = 1 AND p.model IN (${modelNames.map(() => '?').join(',')})
+      WHERE p.is_active = 1 AND (p.model, p.brand) IN (${mPairSql})
         AND p.color IS NOT NULL AND p.width_in IS NOT NULL AND p.width_in > 0
-      GROUP BY p.model, p.color, p.width_in
-      ORDER BY p.model, p.color, p.width_in
-    `, modelNames);
+      GROUP BY p.model, p.brand, p.color, p.width_in
+      ORDER BY p.model, p.brand, p.color, p.width_in
+    `, mParams);
 
     // Build bucketed colorSizeMap, sizeImageMap, colorSizePriceMap, sizePriceMap
     const colorSizeMap      = {}; // [model][color][bKey] = imageURL
@@ -267,28 +305,29 @@ async function getFeaturedModels(limit = 8) {
       const bkt = toBucket(rawSize);
       if (!bkt) continue;
 
-      if (!colorSizeMap[r.model])          colorSizeMap[r.model] = {};
-      if (!colorSizeMap[r.model][r.color]) colorSizeMap[r.model][r.color] = {};
-      if (!colorSizeMap[r.model][r.color][bkt.key]) colorSizeMap[r.model][r.color][bkt.key] = r.image_url;
+      const k = modelKey(r);
+      if (!colorSizeMap[k])          colorSizeMap[k] = {};
+      if (!colorSizeMap[k][r.color]) colorSizeMap[k][r.color] = {};
+      if (!colorSizeMap[k][r.color][bkt.key]) colorSizeMap[k][r.color][bkt.key] = r.image_url;
 
-      if (!sizeImageMap[r.model])           sizeImageMap[r.model] = {};
-      if (!sizeImageMap[r.model][bkt.key])  sizeImageMap[r.model][bkt.key] = r.image_url;
+      if (!sizeImageMap[k])           sizeImageMap[k] = {};
+      if (!sizeImageMap[k][bkt.key])  sizeImageMap[k][bkt.key] = r.image_url;
 
       // Price maps
       if (r.price != null) {
-        if (!colorSizePriceMap[r.model])               colorSizePriceMap[r.model] = {};
-        if (!colorSizePriceMap[r.model][r.color])      colorSizePriceMap[r.model][r.color] = {};
-        const curCP = colorSizePriceMap[r.model][r.color][bkt.key];
-        if (curCP == null || r.price < curCP) colorSizePriceMap[r.model][r.color][bkt.key] = r.price;
+        if (!colorSizePriceMap[k])               colorSizePriceMap[k] = {};
+        if (!colorSizePriceMap[k][r.color])      colorSizePriceMap[k][r.color] = {};
+        const curCP = colorSizePriceMap[k][r.color][bkt.key];
+        if (curCP == null || r.price < curCP) colorSizePriceMap[k][r.color][bkt.key] = r.price;
 
-        if (!sizePriceMap[r.model]) sizePriceMap[r.model] = {};
-        const curSP = sizePriceMap[r.model][bkt.key];
-        if (curSP == null || r.price < curSP) sizePriceMap[r.model][bkt.key] = r.price;
+        if (!sizePriceMap[k]) sizePriceMap[k] = {};
+        const curSP = sizePriceMap[k][bkt.key];
+        if (curSP == null || r.price < curSP) sizePriceMap[k][bkt.key] = r.price;
       }
 
-      if (!modelBuckets[r.model]) modelBuckets[r.model] = [];
-      if (!modelBuckets[r.model].some(s => s.key === bkt.key)) {
-        modelBuckets[r.model].push({ label: bkt.label, key: bkt.key });
+      if (!modelBuckets[k]) modelBuckets[k] = [];
+      if (!modelBuckets[k].some(s => s.key === bkt.key)) {
+        modelBuckets[k].push({ label: bkt.label, key: bkt.key });
       }
     }
 
@@ -310,6 +349,16 @@ async function getFeaturedModels(limit = 8) {
     }
 
     return modelRows.map(r => {
+      /* KNOWN GAP — NOT fixable by a key change. Left deliberately.
+
+         model_groups has no brand column, so a curated featured-model row
+         for "Bristol" applies to EVERY brand's Bristol — custom image,
+         video, tagline. Keying this on modelKey(r) would look consistent
+         with the maps above and would simply never match, turning a wrong
+         overlay into a silently absent one.
+
+         The fix is a schema change: add model_groups.brand, backfill it,
+         then re-key here. Logged rather than guessed. */
       const ov = mgOverlay[r.model] || {};
       return {
         ...r,
@@ -318,9 +367,9 @@ async function getFeaturedModels(limit = 8) {
         video_url:    ov.mg_video_url  || r.video_url,
         mg_desc:      ov.description   || null,   // tagline from model_groups
         is_curated:   !!ov.model_name,
-        sizes:        modelBuckets[r.model] || [],
-        finishes:     swatchMap[r.model]    || [],
-        sizeImageMap: sizeImageMap[r.model] || {},
+        sizes:        modelBuckets[modelKey(r)] || [],
+        finishes:     swatchMap[modelKey(r)]    || [],
+        sizeImageMap: sizeImageMap[modelKey(r)] || {},
       };
     });
   } catch {
