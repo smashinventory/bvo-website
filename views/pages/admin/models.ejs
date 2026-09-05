@@ -1,8 +1,11 @@
 <%
 /**
  * Admin — Model Groups list
- * Locals: models [{model_name, product_count, price_from, auto_image, mg: {id, is_featured, sort_order, custom_image, ...} | null}]
- *         orphans [{id, model_name, ...}]  — model_groups rows with no matching product
+ * A row is one (model_name, brand) pair, not one model name — two brands
+ * can sell the same model. See src/utils/modelKey.js.
+ *
+ * Locals: models [{model_name, brand, product_count, price_from, auto_image, mg: {id, brand, is_featured, sort_order, custom_image, ...} | null}]
+ *         orphans [{id, model_name, brand, ...}]  — model_groups rows matching no product
  *         flash {type, msg} | null
  */
 %>
@@ -138,6 +141,12 @@ const managedCount  = models.filter(m => m.mg).length;
         </td>
         <td>
           <div class="mg-name"><%= m.model_name %></div>
+          <%# Brand is half the model's identity — two brands can share a
+              model name, so the list would otherwise show two rows that
+              look identical. See src/utils/modelKey.js. %>
+          <% if (m.brand) { %>
+          <div class="mg-sub" style="font-size:.78rem;color:var(--text-muted)"><%= m.brand %></div>
+          <% } %>
           <% if (m.mg && m.mg.description) { %>
           <div class="mg-sub" style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><%= m.mg.description %></div>
           <% } %>
@@ -176,7 +185,9 @@ const managedCount  = models.filter(m => m.mg).length;
               <button type="submit" class="adm-btn adm-btn--sm adm-btn--danger">Remove</button>
             </form>
             <% } else { %>
-            <a href="/admin/models/new?model=<%= encodeURIComponent(m.model_name) %>"
+            <%# brand must ride along — without it the new-record form
+                cannot preselect the right (model, brand) pair. %>
+            <a href="/admin/models/new?model=<%= encodeURIComponent(m.model_name) %>&brand=<%= encodeURIComponent(m.brand || '') %>"
                class="adm-btn adm-btn--sm adm-btn--outline">+ Manage</a>
             <% } %>
           </div>
@@ -198,8 +209,16 @@ const managedCount  = models.filter(m => m.mg).length;
           </div>
         </td>
         <td>
-          <div class="mg-name"><%= o.model_name %></div>
-          <div class="mg-sub">No matching products — safe to remove</div>
+          <div class="mg-name"><%= o.model_name %><% if (o.brand) { %> <span style="opacity:.65;font-weight:400">— <%= o.brand %></span><% } %></div>
+          <%# A row can land here two ways now: the products genuinely went
+              away, or its brand does not match any product's brand. The
+              second is a data-entry error, not a dead record, so the copy
+              must not tell the user to delete it unconditionally. %>
+          <% if (!o.brand) { %>
+          <div class="mg-sub" style="color:#c00">No brand set — cannot match any product. Delete and recreate against the correct brand.</div>
+          <% } else { %>
+          <div class="mg-sub">No products matching this model and brand</div>
+          <% } %>
         </td>
         <td style="text-align:center">0</td>
         <td colspan="3"></td>

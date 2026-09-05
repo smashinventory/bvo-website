@@ -145,17 +145,21 @@ async function getFeaturedModels(limit = 8) {
     let curatedModels = [];
     try {
       const [mgRows] = await bvoPool.query(`
-        SELECT model_name, is_featured, sort_order,
+        SELECT model_name, brand, is_featured, sort_order,
                custom_image, image_alt, video_url AS mg_video_url, description
         FROM model_groups
         WHERE is_featured = 1
-        ORDER BY sort_order, model_name
+        ORDER BY sort_order, model_name, brand
         LIMIT ?
       `, [safeLimit]);
       curatedModels = mgRows;
     } catch (mgErr) {
-      // model_groups table may not exist yet — fall through to auto-ranking
-      console.warn('[getFeaturedModels] model_groups query failed (table may not exist yet):', mgErr.message);
+      /* Falls through to auto-ranking on ANY error, which is deliberate —
+         but note the failure mode: if `brand` were selected before the
+         column existed, the homepage would not error, it would quietly
+         stop honouring curated featured models. The schema change must
+         land before this code. Logged loudly for that reason. */
+      console.warn('[getFeaturedModels] model_groups query failed (table/column may not exist yet):', mgErr.message);
     }
 
     /* ── Determine model names to fetch (curated list, or auto-top-N) ── */
@@ -163,8 +167,10 @@ async function getFeaturedModels(limit = 8) {
     let modelRows;
 
     if (useCurated) {
-      const curatedNames = curatedModels.map(r => r.model_name);
-      const ph = curatedNames.map(() => '?').join(',');
+      /* Composite match on (model, brand). Matching on name alone pulled
+         in EVERY brand's Bristol when only one was curated. */
+      const curatedRows = curatedModels.map(r => ({ model: r.model_name, brand: r.brand }));
+      const { params: curatedParams, sql: curatedPairSql } = modelBrandPairs(curatedRows);
       [modelRows] = await bvoPool.query(`
         SELECT
           p.model,
@@ -181,27 +187,21 @@ async function getFeaturedModels(limit = 8) {
         FROM products p
         LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
         JOIN categories c ON c.id = p.category_id AND c.slug = 'bathroom-vanities'
-        WHERE p.is_active = 1 AND p.model IN (${ph})
+        WHERE p.is_active = 1 AND (p.model, p.brand) IN (${curatedPairSql})
         GROUP BY p.model, p.brand
-      `, curatedNames);
+      `, curatedParams);
 
       /* Restore curated sort order (SQL IN() doesn't guarantee order).
 
-         KEYED ON MODEL NAME ALONE, and it has to be — same schema gap as
-         mgOverlay below. model_groups stores model_name with no brand
-         column, so a curated row for "Bristol" cannot tell ER Vanities'
-         from James Martin's.
-
-         Consequence here is mild: both brands' Bristol get the same sort
-         position and fall back on surrounding order. Keying this on
-         (model, brand) would NOT fix it — it would match neither card and
-         drop both to 999, which is worse than the current behaviour.
-
-         Same schema change fixes this and mgOverlay together: add
-         model_groups.brand, backfill, re-key both. */
+         RESOLVED 2026-09-05 — model_groups.brand added and backfilled, so
+         this is now keyed on (model, brand) like every other per-model map
+         on the site. Previously it could only key on the name, which gave
+         both brands' Bristol the same sort position. */
       const orderMap = {};
-      curatedModels.forEach((r, i) => { orderMap[r.model_name] = i; });
-      modelRows.sort((a, b) => (orderMap[a.model] ?? 999) - (orderMap[b.model] ?? 999));
+      curatedModels.forEach((r, i) => {
+        orderMap[modelKey({ model: r.model_name, brand: r.brand })] = i;
+      });
+      modelRows.sort((a, b) => (orderMap[modelKey(a)] ?? 999) - (orderMap[modelKey(b)] ?? 999));
     } else {
       /* Auto-top-N by product count — original behaviour */
       [modelRows] = await bvoPool.query(`
@@ -228,8 +228,12 @@ async function getFeaturedModels(limit = 8) {
     }
 
     /* Build curated overlay map: model_name → {custom_image, mg_video_url, description} */
+    /* Keyed on (model, brand) — see src/utils/modelKey.js. The curated
+       rows carry model_name rather than model, so they are adapted here. */
     const mgOverlay = {};
-    curatedModels.forEach(r => { mgOverlay[r.model_name] = r; });
+    curatedModels.forEach(r => {
+      mgOverlay[modelKey({ model: r.model_name, brand: r.brand })] = r;
+    });
 
     if (!modelRows.length) return [];
 
@@ -349,17 +353,16 @@ async function getFeaturedModels(limit = 8) {
     }
 
     return modelRows.map(r => {
-      /* KNOWN GAP — NOT fixable by a key change. Left deliberately.
+      /* RESOLVED 2026-09-05 — was the last map on the site still keyed on
+         model name alone. A curated row for "Bristol" applied its custom
+         image, video and tagline to EVERY brand's Bristol.
 
-         model_groups has no brand column, so a curated featured-model row
-         for "Bristol" applies to EVERY brand's Bristol — custom image,
-         video, tagline. Keying this on modelKey(r) would look consistent
-         with the maps above and would simply never match, turning a wrong
-         overlay into a silently absent one.
-
-         The fix is a schema change: add model_groups.brand, backfill it,
-         then re-key here. Logged rather than guessed. */
-      const ov = mgOverlay[r.model] || {};
+         model_groups.brand now exists and is backfilled, so this keys on
+         (model, brand) like the rest. Note the precondition: if the
+         column were missing, the curated query above would throw,
+         curatedModels would be empty, and this would fall back to auto
+         ranking rather than mis-apply an overlay. */
+      const ov = mgOverlay[modelKey(r)] || {};
       return {
         ...r,
         // Curated overrides: custom_image wins over auto product image

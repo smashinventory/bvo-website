@@ -15,6 +15,14 @@ const formAction = isNew ? '/admin/models' : `/admin/models/${mg.id}`;
 
 // Pre-fill model name from ?model= query param (set by "+ Manage" link on list page)
 const prefillModel = typeof query !== 'undefined' && query && query.model ? query.model : '';
+/* A model is identified by (model, brand) — see src/utils/modelKey.js.
+   Two brands sell a "Bristol", so the name alone cannot say which record
+   to create. The select below therefore posts "model||brand" in a single
+   value and adminController.modelCreate splits it; that avoids a
+   JS-dependent hidden field that would silently post a blank brand if the
+   script failed to run. */
+const prefillBrand = typeof query !== 'undefined' && query && query.brand ? query.brand : '';
+const prefillKey   = prefillModel ? (prefillModel + '||' + prefillBrand) : '';
 %>
 
 <style>
@@ -103,27 +111,37 @@ const prefillModel = typeof query !== 'undefined' && query && query.model ? quer
       <div class="me-card">
         <p class="me-card-title">Model</p>
         <% if (!isNew) { %>
-        <div class="me-model-badge"><%= mg.model_name %></div>
+        <div class="me-model-badge"><%= mg.model_name %><% if (mg.brand) { %> <span style="opacity:.65;font-weight:400">— <%= mg.brand %></span><% } %></div>
         <input type="hidden" name="model_name" value="<%= mg.model_name %>">
-        <p class="me-hint">Model name is set at creation and cannot be changed. If you need a different model, delete this record and create a new one.</p>
+        <input type="hidden" name="brand" value="<%= mg.brand || '' %>">
+        <p class="me-hint">Model and brand together identify this record and are set at creation. If you need a different one, delete this record and create a new one.</p>
+        <% if (!mg.brand) { %>
+        <p class="me-hint" style="color:#c00">No brand on this record, so it will not match any product and its curation is being ignored. Delete it and recreate it against the correct brand.</p>
+        <% } %>
         <% } else { %>
         <div class="me-field">
-          <label class="me-label" for="meModelName">Model Name <span style="color:#c00">*</span></label>
+          <label class="me-label" for="meModelName">Model <span style="color:#c00">*</span></label>
           <% if (available.length) { %>
           <select id="meModelName" name="model_name" class="me-select" required>
             <option value="">— Select a model —</option>
             <% available.forEach(function(a) { %>
-            <option value="<%= a.model_name %>"
-              <%= (prefillModel === a.model_name) ? 'selected' : '' %>>
-              <%= a.model_name %>
+            <% var aKey = a.model_name + '||' + (a.brand || ''); %>
+            <option value="<%= aKey %>" <%= (prefillKey === aKey) ? 'selected' : '' %>>
+              <%= a.model_name %><% if (a.brand) { %> — <%= a.brand %><% } %>
             </option>
             <% }); %>
           </select>
-          <p class="me-hint">Only models not yet in Model Groups are shown. To add metadata for a managed model, edit its existing record.</p>
+          <p class="me-hint">Listed as Model — Brand, because two brands can share a model name and each needs its own record. Only pairs not yet in Model Groups are shown.</p>
           <% } else { %>
           <input type="text" id="meModelName" name="model_name" class="me-input"
                  value="<%= prefillModel %>" placeholder="e.g. Brittany" required>
           <p class="me-hint">Type the exact model name as it appears in your product catalog.</p>
+          <div style="margin-top:14px">
+            <label class="me-label" for="meBrand">Brand <span style="color:#c00">*</span></label>
+            <input type="text" id="meBrand" name="brand" class="me-input"
+                   value="<%= prefillBrand %>" placeholder="e.g. James Martin Vanities" required>
+            <p class="me-hint">Must match the brand on the products exactly. A record with the wrong brand matches nothing and is silently ignored.</p>
+          </div>
           <% } %>
         </div>
         <% } %>

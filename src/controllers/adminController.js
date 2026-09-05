@@ -9,6 +9,8 @@ const themeSettings  = require('../services/themeSettings');
 const rflposSync     = require('../services/rflposSync');
 const syncSettings   = require('../services/syncSettings');
 const { normalize: normalizeColor } = require('../config/colorFamilies');
+/* (model, brand) identity — see src/utils/modelKey.js */
+const { modelKey }   = require('../utils/modelKey');
 const path           = require('path');
 const fs             = require('fs');
 const multer         = require('multer');
@@ -2552,10 +2554,21 @@ async function _ensureModelGroupsTable() {
   if (_mgTableReady) return;
 
   // Create base table if it doesn't exist at all
+  //
+  // IDENTITY IS (model_name, brand) — never model_name alone. See
+  // src/utils/modelKey.js. Two brands sell a "Bristol"; a UNIQUE on the
+  // name alone made it impossible to curate the second one at all (the
+  // admin form rejected it as a duplicate).
+  //
+  // brand is NOT NULL DEFAULT '' on purpose. MySQL treats NULLs as
+  // distinct inside a UNIQUE index, so a nullable brand would let two
+  // (Bristol, NULL) rows coexist while the constraint appeared to be
+  // doing its job.
   await bvoPool.query(`
     CREATE TABLE IF NOT EXISTS model_groups (
       id               INT AUTO_INCREMENT PRIMARY KEY,
-      model_name       VARCHAR(255) NOT NULL UNIQUE,
+      model_name       VARCHAR(255) NOT NULL,
+      brand            VARCHAR(255) NOT NULL DEFAULT '',
       is_featured      TINYINT(1)  NOT NULL DEFAULT 0,
       sort_order       INT         NOT NULL DEFAULT 0,
       custom_image     VARCHAR(500)         DEFAULT NULL,
@@ -2566,7 +2579,8 @@ async function _ensureModelGroupsTable() {
       meta_description TEXT                 DEFAULT NULL,
       og_image         VARCHAR(500)         DEFAULT NULL,
       created_at       TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at       TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      updated_at       TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uniq_model_brand (model_name, brand)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
@@ -2578,6 +2592,7 @@ async function _ensureModelGroupsTable() {
   const existing = new Set(cols.map(c => c.COLUMN_NAME));
 
   const migrations = [
+    { name: 'brand',            sql: "ADD COLUMN brand VARCHAR(255) NOT NULL DEFAULT '' AFTER model_name" },
     { name: 'is_featured',      sql: 'ADD COLUMN is_featured TINYINT(1) NOT NULL DEFAULT 0 AFTER model_name' },
     { name: 'sort_order',       sql: 'ADD COLUMN sort_order INT NOT NULL DEFAULT 0 AFTER is_featured' },
     { name: 'custom_image',     sql: 'ADD COLUMN custom_image VARCHAR(500) DEFAULT NULL AFTER sort_order' },
@@ -2597,6 +2612,65 @@ async function _ensureModelGroupsTable() {
     }
   }
 
+  /* ── Identity migration: model_name → (model_name, brand) ─────────────
+     The array above only knows how to add columns, so the index swap and
+     the brand backfill live here.
+
+     Sequence matters. A table that just gained `brand` has it '' on every
+     row. If we swapped the index and stopped there, the column would
+     exist, every query selecting it would succeed, and every curated
+     overlay would quietly stop matching — a working-looking no-op. So the
+     backfill runs first, and the index swap only after.
+
+     All three steps are guarded and idempotent; on the live database the
+     equivalent DDL was already applied by hand, so every guard here is
+     expected to be a no-op there. */
+  const [mgIdx] = await bvoPool.query(`
+    SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'model_groups'
+  `);
+  const idxNames = new Set(mgIdx.map(r => r.INDEX_NAME));
+
+  if (!idxNames.has('uniq_model_brand')) {
+    // Backfill brand from products before the composite key starts to matter.
+    // Only touches rows still holding the '' default, so re-running is safe.
+    // A model name matching more than one brand cannot be resolved
+    // automatically — MIN() would pick one arbitrarily — so those are left
+    // at '' and reported rather than guessed.
+    const [ambiguous] = await bvoPool.query(`
+      SELECT mg.model_name, COUNT(DISTINCT p.brand) AS n
+      FROM model_groups mg
+      JOIN products p ON p.model = mg.model_name AND p.is_active = 1
+      WHERE mg.brand = ''
+      GROUP BY mg.model_name
+      HAVING n > 1
+    `);
+    for (const r of ambiguous) {
+      console.warn(`[model_groups] "${r.model_name}" matches ${r.n} brands — brand left blank, set it in /admin/models`);
+    }
+
+    const [bf] = await bvoPool.query(`
+      UPDATE model_groups mg
+      JOIN (
+        SELECT model, MIN(brand) AS brand
+        FROM products
+        WHERE is_active = 1 AND model IS NOT NULL AND model <> ''
+        GROUP BY model
+        HAVING COUNT(DISTINCT brand) = 1
+      ) b ON b.model = mg.model_name
+      SET mg.brand = b.brand
+      WHERE mg.brand = ''
+    `);
+    if (bf.affectedRows) console.log(`[model_groups] Backfilled brand on ${bf.affectedRows} row(s)`);
+
+    if (idxNames.has('model_name')) {
+      await bvoPool.query('ALTER TABLE model_groups DROP INDEX model_name');
+      console.log('[model_groups] Dropped UNIQUE(model_name)');
+    }
+    await bvoPool.query('ALTER TABLE model_groups ADD UNIQUE KEY uniq_model_brand (model_name, brand)');
+    console.log('[model_groups] Added UNIQUE(model_name, brand)');
+  }
+
   _mgTableReady = true;
 }
 
@@ -2605,10 +2679,14 @@ exports.modelList = async (req, res, next) => {
   try {
     await _ensureModelGroupsTable();
 
-    // All distinct models from products DB (with stats)
+    /* All distinct (model, brand) pairs from products DB (with stats).
+       GROUPED BY BRAND TOO — grouping on model alone would fold ER
+       Vanities' Bristol and James Martin's into one admin row, and the
+       product_count would silently be the sum of both. */
     const [productModels] = await bvoPool.query(`
       SELECT
         p.model                           AS model_name,
+        p.brand                           AS brand,
         COUNT(*)                          AS product_count,
         MIN(p.price)                      AS price_from,
         COALESCE(
@@ -2619,27 +2697,32 @@ exports.modelList = async (req, res, next) => {
       LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
       JOIN categories c ON c.id = p.category_id AND c.slug = 'bathroom-vanities'
       WHERE p.is_active = 1 AND p.model IS NOT NULL AND p.model != ''
-      GROUP BY p.model
+      GROUP BY p.model, p.brand
       ORDER BY COUNT(*) DESC
     `);
 
     // All model_groups records
     const [mgRows] = await bvoPool.query(
-      `SELECT id, model_name, is_featured, sort_order, custom_image, image_alt, video_url,
+      `SELECT id, model_name, brand, is_featured, sort_order, custom_image, image_alt, video_url,
               description, meta_title, meta_description, og_image
-       FROM model_groups ORDER BY sort_order, model_name`
+       FROM model_groups ORDER BY sort_order, model_name, brand`
     );
+    /* Keyed on (model_name, brand) via the shared modelKey() helper. The
+       rows carry `model_name`, not `model`, so they are adapted at the
+       call site rather than the key format being forked. */
+    const mgKey = r => modelKey({ model: r.model_name, brand: r.brand });
     const mgMap = {};
-    for (const r of mgRows) mgMap[r.model_name] = r;
+    for (const r of mgRows) mgMap[mgKey(r)] = r;
 
     // Merge: each product model gets its model_groups overlay (if any)
     const models = productModels.map(pm => ({
       ...pm,
-      mg: mgMap[pm.model_name] || null,
+      mg: mgMap[mgKey(pm)] || null,
     }));
 
-    // Also surface any model_groups rows whose model no longer exists in products
-    const orphans = mgRows.filter(r => !productModels.find(pm => pm.model_name === r.model_name));
+    // Also surface any model_groups rows whose (model, brand) no longer exists in products
+    const pmKeys = new Set(productModels.map(mgKey));
+    const orphans = mgRows.filter(r => !pmKeys.has(mgKey(r)));
 
     res.render('pages/admin/models', {
       ...LAYOUT,
@@ -2657,17 +2740,21 @@ exports.modelList = async (req, res, next) => {
 exports.modelNew = async (req, res, next) => {
   try {
     await _ensureModelGroupsTable();
-    // Dropdown of all model names not yet in model_groups
+    /* Dropdown of all (model, brand) pairs not yet in model_groups.
+       DISTINCT on model alone would list "Bristol" once, and picking it
+       could only ever create a row for whichever brand happened to sort
+       first — the other brand would be permanently uncreatable. */
     const [allModels] = await bvoPool.query(`
-      SELECT DISTINCT p.model AS model_name
+      SELECT DISTINCT p.model AS model_name, p.brand AS brand
       FROM products p
       JOIN categories c ON c.id = p.category_id AND c.slug = 'bathroom-vanities'
       WHERE p.is_active = 1 AND p.model IS NOT NULL AND p.model != ''
-      ORDER BY p.model
+      ORDER BY p.model, p.brand
     `);
-    const [existing] = await bvoPool.query(`SELECT model_name FROM model_groups`);
-    const existingSet = new Set(existing.map(r => r.model_name));
-    const available = allModels.filter(r => !existingSet.has(r.model_name));
+    const [existing] = await bvoPool.query(`SELECT model_name, brand FROM model_groups`);
+    const mgKey = r => modelKey({ model: r.model_name, brand: r.brand });
+    const existingSet = new Set(existing.map(mgKey));
+    const available = allModels.filter(r => !existingSet.has(mgKey(r)));
 
     res.render('pages/admin/model-edit', {
       ...LAYOUT,
@@ -2712,7 +2799,21 @@ exports.modelEditPage = async (req, res, next) => {
 exports.modelCreate = async (req, res, next) => {
   try {
     await _ensureModelGroupsTable();
-    const model_name       = (req.body.model_name       || '').trim();
+    /* brand is half the identity — see src/utils/modelKey.js.
+
+       The new-record <select> posts a single "model||brand" value so the
+       pair cannot be separated in transit; the free-text fallback posts
+       model_name and brand as two fields. Handle both. Split on the FIRST
+       separator so a brand containing "||" (none do, but) cannot swallow
+       part of the model name. '' rather than NULL keeps the column NOT
+       NULL and the composite UNIQUE meaningful. */
+    let   model_name       = (req.body.model_name       || '').trim();
+    let   brand            = (req.body.brand            || '').trim();
+    const sepAt = model_name.indexOf('||');
+    if (sepAt !== -1) {
+      brand      = model_name.slice(sepAt + 2).trim();
+      model_name = model_name.slice(0, sepAt).trim();
+    }
     const is_featured      = req.body.is_featured      ? 1 : 0;
     const sort_order       = parseInt(req.body.sort_order)      || 0;
     const custom_image     = (req.body.custom_image     || '').trim() || null;
@@ -2727,15 +2828,26 @@ exports.modelCreate = async (req, res, next) => {
       req.session.flash = { type: 'error', msg: 'Model name is required.' };
       return res.redirect('/admin/models/new');
     }
+    /* Reject a blank brand rather than storing one. A brand-less row
+       matches no product, so it would save cleanly, appear in the admin
+       list, and never affect the site — the exact failure this whole
+       change exists to remove. */
+    if (!brand) {
+      req.session.flash = { type: 'error', msg: 'Brand is required — a model group with no brand matches no products.' };
+      return res.redirect('/admin/models/new?model=' + encodeURIComponent(model_name));
+    }
     const [result] = await bvoPool.query(
       `INSERT INTO model_groups
-         (model_name, is_featured, sort_order, custom_image, image_alt, video_url,
+         (model_name, brand, is_featured, sort_order, custom_image, image_alt, video_url,
           description, meta_title, meta_description, og_image)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [model_name, is_featured, sort_order, custom_image, image_alt, video_url,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [model_name, brand, is_featured, sort_order, custom_image, image_alt, video_url,
        description, meta_title, meta_description, og_image]
     );
-    req.session.flash = { type: 'success', msg: `Model "${model_name}" created.` };
+    req.session.flash = {
+      type: 'success',
+      msg:  `Model "${model_name}${brand ? ' — ' + brand : ''}" created.`,
+    };
     res.redirect(`/admin/models/${result.insertId}/edit`);
   } catch (err) {
     req.session.flash = { type: 'error', msg: 'Create failed: ' + err.message };
@@ -2778,13 +2890,18 @@ exports.modelUpdate = async (req, res, next) => {
 exports.modelDelete = async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
-    const [[row]] = await bvoPool.query('SELECT model_name FROM model_groups WHERE id = ?', [id]);
+    /* brand is in the confirmation copy because two rows can now share a
+       model name — "Model Bristol removed" would be ambiguous. */
+    const [[row]] = await bvoPool.query('SELECT model_name, brand FROM model_groups WHERE id = ?', [id]);
     if (!row) {
       req.session.flash = { type: 'error', msg: 'Model group not found.' };
       return res.redirect('/admin/models');
     }
     await bvoPool.query('DELETE FROM model_groups WHERE id = ?', [id]);
-    req.session.flash = { type: 'success', msg: `Model "${row.model_name}" removed from management.` };
+    req.session.flash = {
+      type: 'success',
+      msg:  `Model "${row.model_name}${row.brand ? ' — ' + row.brand : ''}" removed from management.`,
+    };
     res.redirect('/admin/models');
   } catch (err) {
     req.session.flash = { type: 'error', msg: 'Delete failed: ' + err.message };
