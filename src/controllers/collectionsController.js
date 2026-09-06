@@ -8,6 +8,9 @@ const { SIZE_BUCKETS }                                  = require('../config/siz
 /* Which product a model card leads with — shared with homeController so
    the carousel and this page cannot pick different heroes. */
 const { fetchModelHeroes, heroFields }                  = require('../utils/modelHero');
+/* Corner badge — shared with homeController so a card cannot claim one
+   thing on the homepage and another here. */
+const { pickBadge }                                     = require('../utils/cardBadge');
 const { bvoPool }                                       = require('../config/database');
 
 /* ── Color family hex lookup: family_key → hex / border ──────────── */
@@ -546,9 +549,22 @@ exports.show = async (req, res, next) => {
 
       const mgHeroes = await fetchModelHeroes(bvoPool, mgModelRows, mgHeroOverrides);
 
-      let mgModels = mgModelRows.map(r => ({
+      let mgModels = mgModelRows.map(r => {
+        const _hero  = heroFields(mgHeroes[mk(r)]);
+        const _finis = mgSwatchMap[mk(r)] || [];
+        return {
         ...r,
-        ...heroFields(mgHeroes[mk(r)]),
+        ..._hero,
+        /* Corner badge, same rule as the homepage. Material and stock come
+           from the hero because that is the product on the card. */
+        cardBadge: pickBadge({
+          key:         mk(r),
+          onSale:      !!(r.compare_price_from && r.price_from && r.compare_price_from > r.price_from),
+          qty:         _hero.heroQty,
+          colorCount:  _finis.length,
+          material:    _hero.heroMaterial,
+          demandScore: Number(r.model_demand) || 0,
+        }),
         sizes:      r.sizes_csv
           ? [...new Map(
               r.sizes_csv.split(',').map(Number).filter(Boolean)
@@ -564,8 +580,9 @@ exports.show = async (req, res, next) => {
             ).values()]
           : [],
         sizeImages: mgSizeImageMap[mk(r)] || {},
-        finishes:   mgSwatchMap[mk(r)] || [],
-      }));
+        finishes:   _finis,
+        };
+      });
 
       // Size bucket filter — post-query because sizes live per-product not per-model
       // Rule 10: compare against SIZE_BUCKETS ranges, not raw widths (±2" approximation)

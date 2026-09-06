@@ -510,6 +510,11 @@ _DEFAULT_ORDER.forEach(function(k) {
           <% } %>
           <% if (product.badge) { %>
           <span class="product-badge badge-<%= product.badge %>"><%= product.badge.toUpperCase() %></span>
+          <% } else if (product.cardBadge) { %>
+          <%# No SALE/NEW/BEST earned — show the rotating label instead of
+              nothing. badge-sale is reused purely for its colour; the
+              class carries no meaning beyond styling. %>
+          <span class="product-badge badge-sale"><%= product.cardBadge.toUpperCase() %></span>
           <% } %>
           <% if (product.video_url) { %>
           <span class="product-video-badge" data-video-url="<%= product.video_url %>" aria-label="Watch video">
@@ -660,10 +665,12 @@ _DEFAULT_ORDER.forEach(function(k) {
       <article class="model-card" data-model="<%= m.model %>" data-sizes="<%= m.sizes.map(function(s){return s.key}).join(',') %>">
 
         <div class="model-card-img-wrap">
-          <%# _mSave, not _saveAmt — the corner badge has to describe the
-              same product as the price below it. %>
-          <% if (_mSave > 0) { %>
-          <span class="model-card-badge">Save $<%= _mSave.toLocaleString('en-US') %></span>
+          <%# The corner badge used to read "Save $1,211" directly above a
+              price row that also read "Save $1,211" — the same number
+              twice on one card. It now carries a rotating label the card
+              actually qualifies for. See src/utils/cardBadge.js. %>
+          <% if (m.cardBadge) { %>
+          <span class="model-card-badge"><%= m.cardBadge %></span>
           <% } %>
           <a href="<%= _mHref %>" class="model-card-img-link" tabindex="-1" aria-hidden="true">
             <img src="<%= _mImg %>"

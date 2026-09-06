@@ -7,6 +7,9 @@ const { modelKey, modelBrandPairs } = require('../utils/modelKey');
 /* Which product a model card leads with — shared with collectionsController
    so the homepage carousel and the full list cannot disagree. */
 const { fetchModelHeroes } = require('../utils/modelHero');
+/* Corner badge — shared with collectionsController so a card cannot claim
+   one thing on the homepage and another on the full list. */
+const { pickBadge }        = require('../utils/cardBadge');
 const { FAMILIES, normalize }   = require('../config/colorFamilies');
 const { SIZE_BUCKETS }          = require('../config/sizeBuckets');
 const themeSettings            = require('../services/themeSettings');
@@ -79,6 +82,11 @@ async function getFeaturedProducts(opts = {}) {
          LIMIT 1 OFFSET 1) AS hover_image,
         COALESCE(inv.qty_on_hand, 0) AS qty_on_hand,
         p.demand_score,
+        /* Corner-badge input — see src/utils/cardBadge.js. MAX() because
+           the join can return more than one row per product and the outer
+           query does not group; without it a product with two material
+           rows would duplicate the whole card. */
+        MAX(pav.value_text) AS primary_material,
         /* 'best' is NOT awarded here any more. It used to fire for every
            is_featured row, which made the badge mean "someone ticked a
            box" rather than "this one sells". It is assigned below, to the
@@ -91,8 +99,15 @@ async function getFeaturedProducts(opts = {}) {
       FROM products p
       LEFT JOIN product_images pi  ON pi.product_id  = p.id AND pi.is_primary = 1
       LEFT JOIN inventory      inv ON inv.product_id = p.id
+      LEFT JOIN product_attribute_values pav
+             ON pav.product_id = p.id AND pav.attr_key = 'primary_material'
       ${f.joinCategories ? 'JOIN categories c ON c.id = p.category_id' : ''}
       WHERE p.is_active = 1 AND p.is_featured = 1${f.where}
+      /* GROUP BY is required now that the SELECT aggregates
+         primary_material. Without it MySQL treats the whole query as one
+         aggregate and returns a SINGLE row — the entire Featured Products
+         section collapsing to one card. */
+      GROUP BY p.id
       /* is_featured picks the POOL by hand; national demand orders it.
 
          demand_score comes from the James Martin movement rollup — how
@@ -117,6 +132,10 @@ async function getFeaturedProducts(opts = {}) {
        first, which is exactly the unearned "best" this change removes. */
     const topSeller = rows.find(r => Number(r.demand_score) > 0);
     if (topSeller && !topSeller.badge) topSeller.badge = 'best';
+
+    /* The corner badge is computed further down, once `finishes` exists —
+       "Multiple Colors" needs the swatch count, so computing it here would
+       silently never award that badge. */
 
     /* Fetch color swatches + color×size image map for each product's model.
 
@@ -196,12 +215,31 @@ async function getFeaturedProducts(opts = {}) {
       if (!modelSizes[k].some(s => s.key === bkt.key)) modelSizes[k].push(bkt);
     }
 
-    return rows.map(r => ({
-      ...r,
-      finishes:     swatchMap[modelKey(r)]  || [],
-      sizes:        modelSizes[modelKey(r)] || [],
-      sizeImageMap: sizeImageMap[modelKey(r)] || {},
-    }));
+    return rows.map(r => {
+      const finishes = swatchMap[modelKey(r)] || [];
+      return {
+        ...r,
+        finishes,
+        sizes:        modelSizes[modelKey(r)] || [],
+        sizeImageMap: sizeImageMap[modelKey(r)] || {},
+
+        /* Corner badge. Computed here, not earlier, because
+           "Multiple Colors" needs the finish count and `finishes` only
+           exists at this point.
+
+           A card that already earned SALE / NEW / BEST keeps it — those
+           are stronger signals than a rotation label, and one badge per
+           corner. Only the rest rotate. */
+        cardBadge: r.badge ? null : pickBadge({
+          key:         String(r.sku || r.slug || r.id),
+          onSale:      !!(r.compare_price && r.price && Number(r.compare_price) > Number(r.price)),
+          qty:         r.qty_on_hand,
+          colorCount:  finishes.length,
+          material:    r.primary_material,
+          demandScore: Number(r.demand_score) || 0,
+        }),
+      };
+    });
   } catch (e) {
     console.error('getFeaturedProducts error:', e);
     return [];
@@ -524,6 +562,19 @@ async function getFeaturedModels(opts = {}) {
         defaultSizeKey:  defBucket ? defBucket.key : null,
         defaultPrice:    def && def.price != null ? Number(def.price) : null,
         defaultCompare:  def && def.compare_price != null ? Number(def.compare_price) : null,
+
+        /* Corner badge. Replaces a "Save $X" that duplicated the figure in
+           the price row below it. Each card rotates only among badges it
+           qualifies for — see src/utils/cardBadge.js. Material and stock
+           come from the hero, because that is the product on the card. */
+        cardBadge: pickBadge({
+          key:         modelKey(r),
+          onSale:      !!(r.compare_price_from && r.price_from && r.compare_price_from > r.price_from),
+          qty:         def ? def.qty_on_hand : null,
+          colorCount:  (swatchMap[modelKey(r)] || []).length,
+          material:    def ? def.primary_material : null,
+          demandScore: Number(r.model_demand) || 0,
+        }),
       };
     });
   } catch {

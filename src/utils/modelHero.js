@@ -55,11 +55,19 @@ async function fetchModelHeroes(pool, rows, overrides = {}) {
        Tiebreak on price ASC so an unscored model still resolves to
        something stable rather than shuffling between deploys. */
     const [heroRows] = await pool.query(`
-      SELECT sku, model, brand, color, width_in, price, compare_price, demand_score, image_url
+      SELECT sku, model, brand, color, width_in, price, compare_price, demand_score,
+             qty_on_hand, primary_material, image_url
       FROM (
         SELECT
           p.sku, p.model, p.brand, p.color, p.width_in,
           p.price, p.compare_price, p.demand_score,
+          /* Feeds the corner badge (src/utils/cardBadge.js). The hero is
+             the product the card actually shows, so its material and its
+             stock are the honest basis for an "All Wood" or "Low Stock"
+             claim on that card — not an aggregate across variants that
+             may differ. */
+          COALESCE(inv.qty_on_hand, 0) AS qty_on_hand,
+          MAX(pav.value_text)          AS primary_material,
           COALESCE(p.primary_image_url, MIN(pi.url)) AS image_url,
           ROW_NUMBER() OVER (
             PARTITION BY p.model, p.brand
@@ -67,6 +75,9 @@ async function fetchModelHeroes(pool, rows, overrides = {}) {
           ) AS rn
         FROM products p
         LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
+        LEFT JOIN inventory inv     ON inv.product_id = p.id
+        LEFT JOIN product_attribute_values pav
+               ON pav.product_id = p.id AND pav.attr_key = 'primary_material'
         WHERE p.is_active = 1
           AND (p.model, p.brand) IN (${sql})
           AND p.width_in IS NOT NULL
@@ -105,9 +116,18 @@ async function fetchModelHeroes(pool, rows, overrides = {}) {
       const [pinned] = await pool.query(`
         SELECT p.sku, p.model, p.brand, p.color, p.width_in,
                p.price, p.compare_price, p.demand_score,
+               /* Same two columns the demand-picked hero carries. Without
+                  them a hand-picked hero would silently lose its material
+                  and stock, and its card would drop to a neutral badge
+                  while an automatic one kept "All Wood". */
+               COALESCE(inv.qty_on_hand, 0) AS qty_on_hand,
+               MAX(pav.value_text)          AS primary_material,
                COALESCE(p.primary_image_url, MIN(pi.url)) AS image_url
         FROM products p
         LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
+        LEFT JOIN inventory inv     ON inv.product_id = p.id
+        LEFT JOIN product_attribute_values pav
+               ON pav.product_id = p.id AND pav.attr_key = 'primary_material'
         WHERE p.is_active = 1 AND (p.sku, p.model, p.brand) IN (${ph})
         GROUP BY p.id
       `, wanted.flat());
@@ -147,6 +167,7 @@ function heroFields(hero) {
     return {
       defaultSku: null, defaultColor: null, defaultSizeKey: null,
       defaultPrice: null, defaultCompare: null, defaultImage: null,
+      heroQty: null, heroMaterial: null, heroDemand: 0,
     };
   }
   const bkt = hero.width_in != null ? toBucket(Math.round(Number(hero.width_in))) : null;
@@ -162,6 +183,7 @@ function heroFields(hero) {
     return {
       defaultSku: null, defaultColor: null, defaultSizeKey: null,
       defaultPrice: null, defaultCompare: null, defaultImage: null,
+      heroQty: null, heroMaterial: null, heroDemand: 0,
     };
   }
 
@@ -172,6 +194,11 @@ function heroFields(hero) {
     defaultPrice:   hero.price         != null ? Number(hero.price)         : null,
     defaultCompare: hero.compare_price != null ? Number(hero.compare_price) : null,
     defaultImage:   hero.image_url || null,
+    /* Corner-badge inputs. Sourced from the hero because that is the
+       product the card actually shows — see src/utils/cardBadge.js. */
+    heroQty:        hero.qty_on_hand != null ? Number(hero.qty_on_hand) : null,
+    heroMaterial:   hero.primary_material || null,
+    heroDemand:     Number(hero.demand_score) || 0,
   };
 }
 
