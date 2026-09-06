@@ -5,6 +5,9 @@ const Product                                           = require('../models/Pro
 const Customer                                          = require('../models/Customer');
 const { FAMILIES, normalize, getFamily, CABINET_KEYS, METAL_KEYS } = require('../config/colorFamilies');
 const { SIZE_BUCKETS }                                  = require('../config/sizeBuckets');
+/* Which product a model card leads with — shared with homeController so
+   the carousel and this page cannot pick different heroes. */
+const { fetchModelHeroes, heroFields }                  = require('../utils/modelHero');
 const { bvoPool }                                       = require('../config/database');
 
 /* ── Color family hex lookup: family_key → hex / border ──────────── */
@@ -519,8 +522,33 @@ exports.show = async (req, res, next) => {
       }
 
       // Hydrate model rows with parsed sizes + sizeImages + finishes arrays
+      /* ── Which product each card leads with ──────────────────────────
+         Same rule as the homepage carousel (src/utils/modelHero.js): a
+         hand-picked model_groups.default_sku if there is one, otherwise
+         the best-selling variant nationally.
+
+         model_groups is read here purely for the overrides. Skipping it
+         would mean a hero pinned by hand shows on the homepage but not on
+         "See All" — the two views disagreeing about the same card, which
+         is the exact failure the shared helper exists to prevent. */
+      const mgHeroOverrides = {};
+      try {
+        const [mgDefRows] = await bvoPool.query(
+          `SELECT model_name, brand, default_sku FROM model_groups WHERE default_sku IS NOT NULL AND default_sku <> ''`
+        );
+        for (const d of mgDefRows) {
+          mgHeroOverrides[mk({ model: d.model_name, brand: d.brand })] = d.default_sku;
+        }
+      } catch (err) {
+        // Column or table absent — heroes fall back to demand ranking.
+        console.warn('[collections] default_sku overrides unavailable:', err.message);
+      }
+
+      const mgHeroes = await fetchModelHeroes(bvoPool, mgModelRows, mgHeroOverrides);
+
       let mgModels = mgModelRows.map(r => ({
         ...r,
+        ...heroFields(mgHeroes[mk(r)]),
         sizes:      r.sizes_csv
           ? [...new Map(
               r.sizes_csv.split(',').map(Number).filter(Boolean)

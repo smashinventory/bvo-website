@@ -4,6 +4,9 @@ const { bvoPool }              = require('../config/database');
 /* (model, brand) identity — see src/utils/modelKey.js for why a model
    name alone is not a key on this site. */
 const { modelKey, modelBrandPairs } = require('../utils/modelKey');
+/* Which product a model card leads with — shared with collectionsController
+   so the homepage carousel and the full list cannot disagree. */
+const { fetchModelHeroes } = require('../utils/modelHero');
 const { FAMILIES, normalize }   = require('../config/colorFamilies');
 const { SIZE_BUCKETS }          = require('../config/sizeBuckets');
 const themeSettings            = require('../services/themeSettings');
@@ -453,42 +456,15 @@ async function getFeaturedModels(opts = {}) {
       }));
     }
 
-    /* ── Starting product per model card ──────────────────────────────
-       A curated row may name a default_sku. Left unset, the card's image,
-       price, finish and size are each chosen independently — cheapest
-       price, smallest size, and whichever image MIN() lands on — so they
-       need not describe the same product. Resolving one SKU makes all four
-       agree.
-
-       Looked up by (sku, model, brand), not sku alone: the SKU is typed by
-       hand in the admin, and a typo that happened to match another model's
-       product would otherwise put a completely unrelated vanity on the
-       card. Matching all three means a wrong SKU simply finds nothing and
-       the card falls back, which is the safe direction. */
-    const wantedSkus = curatedModels
-      .filter(r => r.default_sku)
-      .map(r => [r.default_sku, r.model_name, r.brand]);
-
-    const defaultBySku = {};
-    if (wantedSkus.length) {
-      try {
-        const ph = wantedSkus.map(() => '(?,?,?)').join(',');
-        const [defRows] = await bvoPool.query(`
-          SELECT p.sku, p.model, p.brand, p.color, p.width_in,
-                 p.price, p.compare_price,
-                 COALESCE(p.primary_image_url, pi.url) AS image_url
-          FROM products p
-          LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
-          WHERE p.is_active = 1 AND (p.sku, p.model, p.brand) IN (${ph})
-          GROUP BY p.id
-        `, wantedSkus.flat());
-        for (const d of defRows) defaultBySku[modelKey(d)] = d;
-      } catch (err) {
-        // Non-fatal: every card falls back to automatic rather than the
-        // whole carousel disappearing over one bad SKU.
-        console.warn('[getFeaturedModels] default_sku lookup failed:', err.message);
-      }
-    }
+    /* ── Which product each model card leads with ─────────────────────
+       Hand-picked default_sku first, otherwise the best-selling variant
+       nationally. See src/utils/modelHero.js — the rule is shared with the
+       collection page so the two cannot rank differently. */
+    const heroOverrides = {};
+    curatedModels.forEach(r => {
+      if (r.default_sku) heroOverrides[modelKey({ model: r.model_name, brand: r.brand })] = r.default_sku;
+    });
+    const defaultBySku = await fetchModelHeroes(bvoPool, modelRows, heroOverrides);
 
     return modelRows.map(r => {
       /* RESOLVED 2026-09-05 — was the last map on the site still keyed on

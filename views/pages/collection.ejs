@@ -763,17 +763,35 @@
         // parses req.query.brand, so this needs no controller change.
         var _mHref           = '/collections/bathroom-vanities?model=' + encodeURIComponent(m.model || '')
                                + (m.brand ? '&brand=' + encodeURIComponent(m.brand) : '');
-        // Initial image = first swatch's image so the visual matches the is-active swatch state.
-        // Fallback to model-level image if first swatch has none.
-        var _mImg = (_visibleSwatches.length > 0 && _visibleSwatches[0].image_url)
-          ? _visibleSwatches[0].image_url
-          : (m.image_url || '/images/placeholder-vanity.jpg');
+        /* The card leads with its hero — the hand-picked default_sku if one
+           is set, otherwise the best-selling variant nationally. See
+           src/utils/modelHero.js; the homepage carousel resolves the same
+           hero, so a card looks identical in both places.
+
+           Falls back to the old rule (first swatch's image, else the
+           model-level image) when no hero resolved — an unscored model, or
+           one whose products carry no width or colour. */
+        var _mImg = m.defaultImage
+          || ((_visibleSwatches.length > 0 && _visibleSwatches[0].image_url)
+                ? _visibleSwatches[0].image_url
+                : (m.image_url || '/images/placeholder-vanity.jpg'));
+
+        /* Price, strike-through and Save badge all follow the hero too, so
+           the figure under the photo describes the product in it. Without
+           this the card would show the hero's image above the collection's
+           cheapest price — two different products. */
+        var _mWas  = (m.defaultPrice != null) ? m.defaultCompare : m.compare_price_from;
+        var _mSave = (_mWas && m.defaultPrice != null && _mWas > m.defaultPrice)
+                       ? Math.round(_mWas - m.defaultPrice)
+                       : (m.defaultPrice != null ? 0 : _saveAmt);
       %>
       <article class="model-card" data-model="<%= m.model %>" data-sizes="<%= m.sizes.join(',') %>">
 
         <div class="model-card-img-wrap">
-          <% if (_saveAmt > 0) { %>
-          <span class="model-card-badge">Save $<%= _saveAmt.toLocaleString('en-US') %></span>
+          <%# _mSave, not _saveAmt — the corner badge has to describe the
+              same product as the price below it. %>
+          <% if (_mSave > 0) { %>
+          <span class="model-card-badge">Save $<%= _mSave.toLocaleString('en-US') %></span>
           <% } %>
           <% if (m.video_url) { %>
           <span class="product-video-badge" data-video-url="<%= m.video_url %>" aria-label="Watch video">
@@ -797,17 +815,22 @@
 
           <!-- Price — updates dynamically on size/color click via site.js -->
           <%
-            var _mPriceDefault = (m.price_to && m.price_to > m.price_from)
-              ? ('$' + m.price_from.toLocaleString('en-US') + ' – $' + m.price_to.toLocaleString('en-US'))
-              : ('From $' + m.price_from.toLocaleString('en-US'));
+            /* A resolved hero shows ITS price exactly. The range is what
+               the card falls back to when no hero resolved. */
+            var _mPriceDefault = (m.defaultPrice != null)
+              ? ('$' + m.defaultPrice.toLocaleString('en-US'))
+              : ((m.price_to && m.price_to > m.price_from)
+                  ? ('$' + m.price_from.toLocaleString('en-US') + ' – $' + m.price_to.toLocaleString('en-US'))
+                  : ('From $' + m.price_from.toLocaleString('en-US')));
+            var _mIsRange = (m.defaultPrice == null) && !!(m.price_to && m.price_to > m.price_from);
           %>
           <div class="model-card-price-row">
             <span class="model-card-price" id="model-price-<%= _mId %>" data-default="<%= _mPriceDefault %>"><%= _mPriceDefault %></span>
-            <% if (m.compare_price_from && !(m.price_to && m.price_to > m.price_from)) { %>
-            <span class="model-card-was">$<%= m.compare_price_from.toLocaleString('en-US') %></span>
+            <% if (_mWas && !_mIsRange) { %>
+            <span class="model-card-was">$<%= _mWas.toLocaleString('en-US') %></span>
             <% } %>
-            <% if (_saveAmt > 0 && !(m.price_to && m.price_to > m.price_from)) { %>
-            <span class="card-save-badge">Save $<%= _saveAmt.toLocaleString('en-US') %></span>
+            <% if (_mSave > 0 && !_mIsRange) { %>
+            <span class="card-save-badge">Save $<%= _mSave.toLocaleString('en-US') %></span>
             <% } %>
           </div>
 
@@ -819,7 +842,9 @@
               var _swatchBorder = _isLight ? '#ccc' : (f.border || f.hex);
               var _isWood       = ['wood_l','wood_m','wood_d'].indexOf(f.color_family) !== -1;
             %>
-            <button class="model-card-swatch<%= i === 0 ? ' is-active' : '' %><%= _isWood ? ' swatch--wood-grain' : '' %>"
+            <%# Preselect the hero's finish; first swatch when none resolved. %>
+            <% var _swActiveM = m.defaultColor ? (f.color === m.defaultColor) : (i === 0); %>
+            <button class="model-card-swatch<%= _swActiveM ? ' is-active' : '' %><%= _isWood ? ' swatch--wood-grain' : '' %>"
                     data-target-img="model-img-<%= _mId %>"
                     data-target-price="model-price-<%= _mId %>"
                     data-finish="<%= f.color %>"
@@ -843,7 +868,7 @@
                    var _szImg = m.sizeImages && m.sizeImages[sz.key] ? m.sizeImages[sz.key] : null;
               %>
               <button type="button"
-                      class="model-card-size-btn<%= i === 0 ? ' is-active' : '' %>"
+                      class="model-card-size-btn<%= (m.defaultSizeKey ? (sz.key === m.defaultSizeKey) : (i === 0)) ? ' is-active' : '' %>"
                       data-target-img="model-img-<%= _mId %>"
                       data-target-price="model-price-<%= _mId %>"
                       data-size="<%= sz.key %>"
@@ -1004,6 +1029,10 @@
               var _sb      = _isLight ? '#ccc' : (f.border || f.hex);
               var _isWood  = ['wood_l','wood_m','wood_d'].indexOf(f.color_family) !== -1;
             %>
+            <%# PRODUCT card, not a model card — `m` does not exist in this
+                scope, so the hero preselection above must not be copied
+                here. A product card already represents one product; there
+                is no "which variant leads" question to answer. %>
             <button class="model-card-swatch<%= i === 0 ? ' is-active' : '' %><%= _isWood ? ' swatch--wood-grain' : '' %>"
                     data-target-img="<%= _pImgId %>"
                     data-finish="<%= f.color %>"
@@ -1029,6 +1058,9 @@
                                   modelSizeImageMap[_mKey][sz.key])
                                  ? modelSizeImageMap[_mKey][sz.key] : null;
               %>
+              <%# PRODUCT card — `m` is not in scope here. Keep the plain
+                  first-chip default; the hero rule applies to model cards
+                  only, where "which variant leads" is a real question. %>
               <button type="button"
                       class="model-card-size-btn<%= i === 0 ? ' is-active' : '' %>"
                       data-target-img="<%= _pImgId %>"
