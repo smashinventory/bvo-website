@@ -931,10 +931,29 @@ exports.show = async (req, res, next) => {
         hwColorFilters,
         minPrice, maxPrice,
         model,
+        /* Accessories live in the bathroom-vanities category alongside the
+           vanities and carry no product_type, so they surfaced in the
+           shopping grid: at 25" wide, ten of the first twelve cards were
+           Bellshire Drawer Units.
+
+           Scoped to the vanity category, not applied globally — other
+           categories may legitimately hold untyped products and this
+           would hide them silently.
+
+           KNOWN COST: console vanities (Auburn, Boston 20", Brooklyn) are
+           untyped on purpose — importJamesMartinFeed.js leaves them NULL
+           by design, see the comment at its product_type block — so this
+           hides roughly 28 real vanities too. Typing the accessories
+           properly is the fix that costs nothing; this is the immediate
+           one. */
+        requireProductType: isVanityCategory,
       }),
       Product.getPriceRange(category.id),
       isSizableCategory
-        ? Product.getAvailableWidths(category.id, { brands, productTypes, colorFilters, hwColorFilters, minPrice, maxPrice, model })
+        ? Product.getAvailableWidths(category.id, { brands, productTypes, colorFilters, hwColorFilters, minPrice, maxPrice, model,
+            // Same scope as the listing above, or the sidebar offers
+            // widths the grid cannot show.
+            requireProductType: isVanityCategory })
         : Promise.resolve([]),
     ]);
 

@@ -195,7 +195,10 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   <!-- Carousel binding by data attribute — supports duplicated sections.
        site.js still contains the old id-based blocks; they no-op because
        index.ejs no longer emits those ids. See public/js/carousels.js. -->
-  <script nonce="<%= cspNonce %>" src="/js/carousels.js?v=1"></script>
+  <%# v=2 — added variant navigation for product cards. The .htaccess sets
+      long cache headers on /js, so returning visitors would keep v=1 and
+      their size chips would swap the photo without navigating. %>
+  <script nonce="<%= cspNonce %>" src="/js/carousels.js?v=2"></script>
 
   <!-- Page-level scripts -->
   <%- script %>

@@ -99,3 +99,44 @@
     initAll();
   }
 })();
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Variant navigation on PRODUCT cards
+
+   A model card can switch variants in place — it links to a filtered
+   collection, so changing the pictured size is honest. A product card is
+   one SKU: swapping only the photo left the price and the "View Details"
+   link on the original product, so clicking 72" showed a 72" picture over
+   a 24" price and led to the 24" page.
+
+   Chips on product cards now carry data-variant-href and navigate.
+
+   ── WHY CAPTURE PHASE ──────────────────────────────────────────────────
+   site.js binds .model-card-size-btn and .model-card-swatch on the
+   BUBBLE phase and calls preventDefault()/stopPropagation() to do its
+   in-place image swap. A plain link or a bubble-phase listener here would
+   be swallowed by it. Capture runs first, so this wins — without editing
+   site.js, which has no unminified source in the repo.
+
+   Model-card chips have no data-variant-href, so they fall through
+   untouched and keep the in-place swap. That behaviour is deliberate and
+   is what makes model cards feel good; nothing here changes it.
+   ═══════════════════════════════════════════════════════════════════════ */
+(function () {
+  document.addEventListener('click', function (e) {
+    var el = e.target && e.target.closest
+      ? e.target.closest('[data-variant-href]')
+      : null;
+    if (!el) return;
+
+    var href = el.getAttribute('data-variant-href');
+    if (!href) return;
+
+    // Let modified clicks behave normally (new tab, download, etc).
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    window.location.href = href;
+  }, true); // ← capture
+})();

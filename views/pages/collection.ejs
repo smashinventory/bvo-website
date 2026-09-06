@@ -1036,11 +1036,16 @@
               var _sb      = _isLight ? '#ccc' : (f.border || f.hex);
               var _isWood  = ['wood_l','wood_m','wood_d'].indexOf(f.color_family) !== -1;
             %>
-            <%# PRODUCT card, not a model card — `m` does not exist in this
-                scope, so the hero preselection above must not be copied
-                here. A product card already represents one product; there
-                is no "which variant leads" question to answer. %>
-            <button class="model-card-swatch<%= i === 0 ? ' is-active' : '' %><%= _isWood ? ' swatch--wood-grain' : '' %>"
+            <%# PRODUCT card. Highlight the colour this product IS, and let
+                the other swatches navigate to that colour's product —
+                changing colour in place would leave the price and the
+                View Details link on the original SKU. %>
+            <%
+              var _pSwActive = product.color ? (f.color === product.color) : (i === 0);
+              var _pSwHref   = (product.colorLinks && product.colorLinks[f.color]) || null;
+            %>
+            <button class="model-card-swatch<%= _pSwActive ? ' is-active' : '' %><%= _isWood ? ' swatch--wood-grain' : '' %>"
+                    <% if (_pSwHref) { %>data-variant-href="/products/<%= _pSwHref %>"<% } %>
                     data-target-img="<%= _pImgId %>"
                     data-finish="<%= f.color %>"
                     <% if (f.image_url) { %>data-image="<%= f.image_url %>"<% } %>
@@ -1065,12 +1070,30 @@
                                   modelSizeImageMap[_mKey][sz.key])
                                  ? modelSizeImageMap[_mKey][sz.key] : null;
               %>
-              <%# PRODUCT card — `m` is not in scope here. Keep the plain
-                  first-chip default; the hero rule applies to model cards
-                  only, where "which variant leads" is a real question. %>
+              <%# PRODUCT card. Two things differ from a model card:
+
+                  1. The highlighted chip is THIS product's own size, not
+                     the first in the list. A 36" product used to render
+                     with "20-" lit, which read as the wrong size.
+                  2. Chips navigate. A product card is one SKU, so it
+                     cannot switch variants in place — swapping only the
+                     photo left the price and the View Details link on the
+                     original product. data-variant-href carries the
+                     sibling's URL; see public/js/carousels.js. %>
+              <%
+                /* product.sizeKey is this product's own bucket key, set in
+                   Product.attachVariantLinks. The chips carry bucket keys
+                   and the size list has no min/max, so comparing raw
+                   widths here would match nothing. */
+                var _pSzActive = (product.sizeKey != null)
+                                   ? (sz.key === product.sizeKey)
+                                   : (i === 0);
+                var _pSzHref = (product.sizeLinks && product.sizeLinks[sz.key]) || null;
+              %>
               <button type="button"
-                      class="model-card-size-btn<%= i === 0 ? ' is-active' : '' %>"
+                      class="model-card-size-btn<%= _pSzActive ? ' is-active' : '' %>"
                       data-target-img="<%= _pImgId %>"
+                      <% if (_pSzHref) { %>data-variant-href="/products/<%= _pSzHref %>"<% } %>
                       data-size="<%= sz.key %>"
                       <% if (_pSzImg) { %>data-image="<%= _pSzImg %>"<% } %>
                       aria-label="<%= sz.label %>&quot; wide"

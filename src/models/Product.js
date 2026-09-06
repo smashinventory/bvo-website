@@ -5,8 +5,102 @@ const { FAMILIES } = require('../config/colorFamilies');
 /* Corner badge — same rule the homepage uses, so a product cannot claim
    one thing there and another on a collection page. */
 const { pickBadge } = require('../utils/cardBadge');
+/* Width → size-chip bucket key. Shared so a variant link is keyed the same
+   way the chip that triggers it is. */
+const { toBucket }  = require('../utils/modelHero');
 
 const PER_PAGE = 24;
+
+/* ═══════════════════════════════════════════════════════════════════════
+   attachVariantLinks — make a product card's size and colour chips real
+
+   A PRODUCT card is one SKU. Its chips used to swap the photo and nothing
+   else: the price stayed on the original product and "View Details" still
+   pointed at it, so clicking 72" showed a 72" picture above a 24" price
+   and led to the 24" page.
+
+   A MODEL card can legitimately switch variants in place, because it links
+   to a filtered collection rather than a single product. A product card
+   cannot — so its chips navigate instead.
+
+   Each chip gets the slug of the sibling that differs in ONE dimension:
+     size chip   → same colour, different width
+     colour chip → same width, different colour
+   Falling back to any variant of that size/colour when the exact pair
+   does not exist, and to nothing at all when the model has no sibling —
+   a chip with no destination is left inert rather than pointed somewhere
+   arbitrary.
+   ═══════════════════════════════════════════════════════════════════════ */
+async function attachVariantLinks(rows) {
+  const pairs = [...new Map(
+    rows.filter(r => r.model && r.brand).map(r => [`${r.model}||${r.brand}`, [r.model, r.brand]])
+  ).values()];
+  if (!pairs.length) return;
+
+  let siblings = [];
+  try {
+    const ph = pairs.map(() => '(?,?)').join(',');
+    const [rowsOut] = await bvoPool.query(`
+      SELECT model, brand, slug, width_in, color, price
+      FROM products
+      WHERE is_active = 1
+        AND (model, brand) IN (${ph})
+        AND slug IS NOT NULL
+      ORDER BY width_in, price
+    `, pairs.flat());
+    siblings = rowsOut;
+  } catch (err) {
+    /* Non-fatal: chips keep their current behaviour rather than the
+       listing failing over a navigation nicety. */
+    console.warn('[Product.attachVariantLinks] failed:', err.message);
+    return;
+  }
+
+  const byModel = {};
+  for (const s of siblings) {
+    const k = `${s.model}||${s.brand}`;
+    (byModel[k] = byModel[k] || []).push(s);
+  }
+
+  for (const r of rows) {
+    const list = byModel[`${r.model}||${r.brand}`] || [];
+    if (!list.length) continue;
+
+    const myBucket = r.width_in != null ? toBucket(Math.round(Number(r.width_in))) : null;
+    const myKey    = myBucket ? myBucket.key : null;
+
+    const sizeLinks = {};
+    for (const s of list) {
+      const b = s.width_in != null ? toBucket(Math.round(Number(s.width_in))) : null;
+      if (!b) continue;
+      // Prefer the same colour; only fill from another colour if nothing better.
+      if (!sizeLinks[b.key] || (s.color === r.color && sizeLinks[b.key]._c !== r.color)) {
+        sizeLinks[b.key] = { slug: s.slug, _c: s.color };
+      }
+    }
+
+    const colorLinks = {};
+    for (const s of list) {
+      if (!s.color) continue;
+      const b = s.width_in != null ? toBucket(Math.round(Number(s.width_in))) : null;
+      const sameSize = myKey != null && b && b.key === myKey;
+      // Prefer the same width; fall back to any width of that colour.
+      if (!colorLinks[s.color] || (sameSize && !colorLinks[s.color]._same)) {
+        colorLinks[s.color] = { slug: s.slug, _same: sameSize };
+      }
+    }
+
+    r.sizeLinks  = Object.fromEntries(Object.entries(sizeLinks ).map(([k, v]) => [k, v.slug]));
+    r.colorLinks = Object.fromEntries(Object.entries(colorLinks).map(([k, v]) => [k, v.slug]));
+
+    /* This product's OWN size-chip key, so the card can highlight the
+       chip it actually is. The chips carry bucket keys and the size list
+       has no min/max, so the template cannot work this out itself — it
+       was falling back to "highlight the first chip", which rendered a
+       36" product with 20" lit. */
+    r.sizeKey = myKey;
+  }
+}
 
 const Product = {
 
@@ -34,12 +128,28 @@ const Product = {
     colorFilters = {}, hwColorFilters = {},
     minPrice, maxPrice,
     model = null,   // collection slug e.g. 'brookfield'; matched against product name
+    /* Opt-in, default OFF. Only the vanity category passes it. Other
+       categories may hold legitimately untyped products, and switching
+       this on globally would hide them with nothing to show it had
+       happened. */
+    requireProductType = false,
   } = {}) {
     const offset = (page - 1) * PER_PAGE;
 
     try {
       const params = [categoryId];
       let where = 'p.category_id = ? AND p.is_active = 1';
+
+      /* Accessories sit in the bathroom-vanities category with no
+         product_type — drawer units, wall brackets, storage cabinets,
+         door pulls — so they appeared in the shopping grid. At 25" wide,
+         ten of the first twelve cards were Bellshire Drawer Units.
+
+         This also hides the console vanities, which are untyped BY DESIGN
+         (see the product_type block in importJamesMartinFeed.js). That is
+         a real cost, ~28 products, accepted deliberately as the immediate
+         fix. Typing the accessories is what removes the cost. */
+      if (requireProductType) where += ' AND p.product_type IS NOT NULL';
 
       if (brands.length) {
         where += ` AND p.brand IN (${brands.map(() => '?').join(',')})`;
@@ -242,6 +352,11 @@ const Product = {
           p.id, p.slug, p.name, p.brand, p.price, p.compare_price,
           p.is_new, p.is_featured, p.short_desc, p.product_type,
           p.model, p.color, p.color_family,
+          /* Needed by attachVariantLinks: without it the card does not
+             know its own size, so a colour chip could not prefer the
+             sibling of the SAME width and would quietly send the shopper
+             to a different size as well as a different colour. */
+          p.width_in,
           p.video_url,
           COALESCE(p.primary_image_url, pi.url) AS primary_image,
           (SELECT pi2.url FROM product_images pi2
@@ -299,6 +414,8 @@ const Product = {
           demandScore: Number(p.demand_score) || 0,
         }),
       }));
+
+      await attachVariantLinks(clean);
 
       // sort: what is ACTUALLY in effect, so the dropdown can show it rather
       // than displaying "Featured" over a popularity-ordered page.
@@ -541,10 +658,18 @@ const Product = {
     brands = [], productTypes = [],
     colorFilters = {}, hwColorFilters = {},
     minPrice, maxPrice, model = null,
+    requireProductType = false,
   } = {}) {
     try {
       const params = [categoryId];
       let where = 'p.category_id = ? AND p.is_active = 1 AND p.width_in IS NOT NULL AND p.width_in > 0';
+
+      /* Must mirror findByCategory. This builds the sidebar's Width
+         checkboxes; if the listing hides untyped products but this does
+         not, the sidebar offers widths that only accessories have and
+         clicking one returns an empty page — a filter that looks
+         available and leads nowhere. */
+      if (requireProductType) where += ' AND p.product_type IS NOT NULL';
 
       if (brands.length) {
         where += ` AND p.brand IN (${brands.map(() => '?').join(',')})`;
