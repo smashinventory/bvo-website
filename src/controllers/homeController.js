@@ -75,10 +75,14 @@ async function getFeaturedProducts(opts = {}) {
          ORDER BY pi2.sort_order ASC, pi2.id ASC
          LIMIT 1 OFFSET 1) AS hover_image,
         COALESCE(inv.qty_on_hand, 0) AS qty_on_hand,
+        p.demand_score,
+        /* 'best' is NOT awarded here any more. It used to fire for every
+           is_featured row, which made the badge mean "someone ticked a
+           box" rather than "this one sells". It is assigned below, to the
+           top-ranked product only. */
         CASE
           WHEN p.compare_price IS NOT NULL AND p.compare_price > p.price THEN 'sale'
           WHEN p.is_new = 1 THEN 'new'
-          WHEN p.is_featured = 1 THEN 'best'
           ELSE NULL
         END AS badge
       FROM products p
@@ -86,10 +90,30 @@ async function getFeaturedProducts(opts = {}) {
       LEFT JOIN inventory      inv ON inv.product_id = p.id
       ${f.joinCategories ? 'JOIN categories c ON c.id = p.category_id' : ''}
       WHERE p.is_active = 1 AND p.is_featured = 1${f.where}
-      ORDER BY p.sort_order, p.created_at DESC
+      /* is_featured picks the POOL by hand; national demand orders it.
+
+         demand_score comes from the James Martin movement rollup — how
+         fast the SKU ships across all JM dealers — deliberately, not from
+         this site's own order history. National trend, not local.
+
+         demand_score is INT UNSIGNED NOT NULL DEFAULT 0, so an unscored
+         product is 0 rather than NULL — DESC puts it last either way, and
+         sort_order / created_at still break the tie among the zeros. */
+      ORDER BY p.demand_score DESC, p.sort_order, p.created_at DESC
       LIMIT ?
     `, [...f.params, safeLimit]);
     if (!rows.length) return [];
+
+    /* Award 'best' to the strongest seller in this section, and only if it
+       is not already carrying a sale or new badge — one badge per card,
+       and a live discount is the more useful thing to shout about.
+
+       Requires a score ABOVE ZERO, not merely non-null. The column is
+       NOT NULL DEFAULT 0, so every unscored product reads 0 — a null
+       check would pass on all of them and badge whatever happened to sort
+       first, which is exactly the unearned "best" this change removes. */
+    const topSeller = rows.find(r => Number(r.demand_score) > 0);
+    if (topSeller && !topSeller.badge) topSeller.badge = 'best';
 
     /* Fetch color swatches + color×size image map for each product's model.
 
@@ -230,6 +254,12 @@ async function getFeaturedModels(opts = {}) {
           MIN(p.price)          AS price_from,
           MAX(p.price)          AS price_to,
           MIN(p.compare_price)  AS compare_price_from,
+          /* Collection-level national demand: the total movement of every
+             SKU in the model. SUM rather than MAX because the question is
+             "which collection sells most", and a model earning its
+             position through many steady sizes is as popular as one
+             carried by a single hot SKU. */
+          SUM(p.demand_score)   AS model_demand,
           GROUP_CONCAT(DISTINCT FLOOR(p.width_in) ORDER BY p.width_in) AS sizes_csv,
           COALESCE(
             MIN(CASE WHEN p.primary_image_url IS NOT NULL THEN p.primary_image_url END),
@@ -243,17 +273,26 @@ async function getFeaturedModels(opts = {}) {
         GROUP BY p.model, p.brand
       `, [...curatedParams, ...f.params]);
 
-      /* Restore curated sort order (SQL IN() doesn't guarantee order).
+      /* Order the curated pool by national demand, most popular first.
 
-         RESOLVED 2026-09-05 — model_groups.brand added and backfilled, so
-         this is now keyed on (model, brand) like every other per-model map
-         on the site. Previously it could only key on the name, which gave
-         both brands' Bristol the same sort position. */
+         The Featured toggle in /admin/models picks WHICH models appear;
+         demand decides the order among them. Curated sort_order is kept
+         only as the tiebreaker, so hand-set positions still decide between
+         models the rollup scores equally (or has not scored at all).
+
+         SQL IN() does not guarantee order, so this has to be done here
+         regardless — the sort is not extra work, only a different key.
+
+         Keyed on (model, brand) — see src/utils/modelKey.js. */
       const orderMap = {};
       curatedModels.forEach((r, i) => {
         orderMap[modelKey({ model: r.model_name, brand: r.brand })] = i;
       });
-      modelRows.sort((a, b) => (orderMap[modelKey(a)] ?? 999) - (orderMap[modelKey(b)] ?? 999));
+      modelRows.sort((a, b) => {
+        const db = Number(b.model_demand || 0) - Number(a.model_demand || 0);
+        if (db !== 0) return db;
+        return (orderMap[modelKey(a)] ?? 999) - (orderMap[modelKey(b)] ?? 999);
+      });
     } else {
       /* Auto-top-N by product count — original behaviour */
       [modelRows] = await bvoPool.query(`
@@ -263,6 +302,12 @@ async function getFeaturedModels(opts = {}) {
           MIN(p.price)          AS price_from,
           MAX(p.price)          AS price_to,
           MIN(p.compare_price)  AS compare_price_from,
+          /* Collection-level national demand: the total movement of every
+             SKU in the model. SUM rather than MAX because the question is
+             "which collection sells most", and a model earning its
+             position through many steady sizes is as popular as one
+             carried by a single hot SKU. */
+          SUM(p.demand_score)   AS model_demand,
           GROUP_CONCAT(DISTINCT FLOOR(p.width_in) ORDER BY p.width_in) AS sizes_csv,
           COALESCE(
             MIN(CASE WHEN p.primary_image_url IS NOT NULL THEN p.primary_image_url END),
@@ -274,7 +319,11 @@ async function getFeaturedModels(opts = {}) {
         ${f.joinCategories ? 'JOIN categories c ON c.id = p.category_id' : ''}
         WHERE p.is_active = 1 AND p.model IS NOT NULL${f.where}
         GROUP BY p.model, p.brand
-        ORDER BY COUNT(*) DESC
+        /* Was COUNT(*) DESC — which ranked by how many SKUs a model has,
+           not by how well it sells. A model with many colours beat a
+           genuinely popular one. Demand first, SKU count only as the
+           tiebreaker among models the rollup has not scored. */
+        ORDER BY SUM(p.demand_score) DESC, COUNT(*) DESC
         LIMIT ?
       `, [...f.params, safeLimit]);
     }
