@@ -2,6 +2,9 @@
 
 const { bvoPool } = require('../config/database');
 const { FAMILIES } = require('../config/colorFamilies');
+/* Corner badge — same rule the homepage uses, so a product cannot claim
+   one thing there and another on a collection page. */
+const { pickBadge } = require('../utils/cardBadge');
 
 const PER_PAGE = 24;
 
@@ -246,6 +249,16 @@ const Product = {
            ORDER BY pi2.sort_order ASC, pi2.id ASC
            LIMIT 1 OFFSET 1) AS hover_image,
           i.qty_on_hand,
+          p.demand_score,
+          /* Corner-badge inputs — see src/utils/cardBadge.js.
+
+             Scalar subquery rather than a JOIN + MAX() on purpose: an
+             aggregate here would force a GROUP BY onto this query, and
+             getting that wrong collapses a whole listing to one row. A
+             scalar subquery cannot fan out and needs no grouping. */
+          (SELECT pav.value_text FROM product_attribute_values pav
+            WHERE pav.product_id = p.id AND pav.attr_key = 'primary_material'
+            LIMIT 1) AS primary_material,
           CASE
             WHEN p.compare_price IS NOT NULL AND p.compare_price > p.price THEN 'sale'
             WHEN p.is_new = 1                                               THEN 'new'
@@ -267,6 +280,24 @@ const Product = {
         brand:         p.brand ? p.brand.replace(/<[^>]*>/g, '').trim() : p.brand,
         price:         parseFloat(p.price) || 0,
         compare_price: p.compare_price != null ? parseFloat(p.compare_price) : null,
+
+        /* Rotating corner badge. Every product in this catalogue is
+           discounted, so the SQL CASE above resolved to 'sale' on
+           essentially every card and the whole grid read SALE, SALE,
+           SALE — while each card ALSO printed "Save $2,535" beside its
+           price. Same rule as the homepage; see src/utils/cardBadge.js.
+
+           colorCount is 0 here on purpose: finish swatches are assembled
+           by the controller, not this query, so "Multiple Colors" is not
+           claimable at this layer. It is a model-level idea anyway. */
+        cardBadge: pickBadge({
+          key:         String(p.sku || p.slug || p.id),
+          isNew:       !!p.is_new,
+          qty:         p.qty_on_hand,
+          colorCount:  0,
+          material:    p.primary_material,
+          demandScore: Number(p.demand_score) || 0,
+        }),
       }));
 
       // sort: what is ACTUALLY in effect, so the dropdown can show it rather

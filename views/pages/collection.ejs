@@ -977,8 +977,14 @@
                 <polyline points="21 15 16 10 5 21"/>
               </svg>
             <% } %>
-            <% if (product.badge) { %>
-            <span class="product-badge badge-<%= product.badge %>"><%= product.badge.toUpperCase() %></span>
+            <%# Only BEST wins outright. Everything else comes from the
+                rotation, so a grid of discounted products no longer reads
+                SALE on every card while each one also prints its saving
+                beside the price. See src/utils/cardBadge.js. %>
+            <% if (product.badge === 'best') { %>
+            <span class="product-badge badge-best">BEST</span>
+            <% } else if (product.cardBadge) { %>
+            <span class="product-badge badge-sale"><%= product.cardBadge.toUpperCase() %></span>
             <% } %>
             <% if (product.video_url) { %>
             <span class="product-video-badge" data-video-url="<%= product.video_url %>" aria-label="Watch video">

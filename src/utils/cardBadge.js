@@ -67,13 +67,19 @@ const NEUTRAL = ['Great Value', 'Designer Class'];
 function pickBadge(ctx = {}) {
   const eligible = [];
 
-  /* Sale and New are ELIGIBLE, not automatic. Every featured product is
-     currently discounted, so treating Sale as a short-circuit produced a
-     row of four identical SALE pills — the repetition this badge exists
-     to break. The saving is still stated in words next to the price, so
-     nothing is lost when the corner shows something else. */
-  if (ctx.onSale) eligible.push('Sale');
-  if (ctx.isNew)  eligible.push('New');
+  /* 'Sale' is deliberately NOT in this pool.
+
+     Making it eligible instead of automatic was not enough: nearly the
+     whole catalogue is discounted, so Sale stayed in every card's pool
+     and still won a third of the corners. More to the point, the card
+     already prints "Save $1,440" beside the price. A SALE pill above that
+     figure is the redundancy this badge was created to remove — it just
+     moved from "Save $X twice" to "Save $X and also SALE".
+
+     A discount is still visible on every discounted card, in the place
+     that states the actual amount. The corner is now reserved for things
+     the price row cannot say. */
+  if (ctx.isNew) eligible.push('New');
 
   if (isSolidWood(ctx.material)) {
     eligible.push('All Wood', 'Furniture Grade', 'Solid Quality');
