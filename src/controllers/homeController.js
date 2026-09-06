@@ -448,6 +448,24 @@ async function getFeaturedModels(opts = {}) {
       }));
     }
 
+    /* Sort the size chips by width before anything reads them.
+
+       They are built by walking csRows and pushing each bucket the first
+       time it is seen — and that query is ORDER BY model, brand, COLOUR,
+       width. Colour-major, so the chips came out grouped by colour rather
+       than sorted by size. Most models looked fine by luck, because their
+       smallest width happened to sit in the first colour; London has a 25"
+       that exists only in its second colour, so it rendered
+       "30 36 48 60 72 25".
+
+       Sorting here rather than reordering the query: csRows also feeds
+       colorSizeMap and sizeImageMap, which are keyed lookups and do not
+       care about row order, but changing the ORDER BY to satisfy this one
+       consumer would be a change with no local justification. */
+    for (const model of Object.keys(modelBuckets)) {
+      modelBuckets[model].sort((a, b) => a.key - b.key);
+    }
+
     // Attach priceFrom to each size bucket
     for (const model of Object.keys(modelBuckets)) {
       modelBuckets[model] = modelBuckets[model].map(bkt => ({
