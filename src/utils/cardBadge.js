@@ -67,7 +67,13 @@ const NEUTRAL = ['Great Value', 'Designer Class'];
 function pickBadge(ctx = {}) {
   const eligible = [];
 
+  /* Sale and New are ELIGIBLE, not automatic. Every featured product is
+     currently discounted, so treating Sale as a short-circuit produced a
+     row of four identical SALE pills — the repetition this badge exists
+     to break. The saving is still stated in words next to the price, so
+     nothing is lost when the corner shows something else. */
   if (ctx.onSale) eligible.push('Sale');
+  if (ctx.isNew)  eligible.push('New');
 
   if (isSolidWood(ctx.material)) {
     eligible.push('All Wood', 'Furniture Grade', 'Solid Quality');

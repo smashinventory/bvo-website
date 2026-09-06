@@ -227,12 +227,16 @@ async function getFeaturedProducts(opts = {}) {
            "Multiple Colors" needs the finish count and `finishes` only
            exists at this point.
 
-           A card that already earned SALE / NEW / BEST keeps it — those
-           are stronger signals than a rotation label, and one badge per
-           corner. Only the rest rotate. */
-        cardBadge: r.badge ? null : pickBadge({
+           ONLY 'best' short-circuits. It is awarded to exactly one card
+           per section and is genuinely earned, so it outranks a rotation
+           label. Sale and New do NOT short-circuit: every featured
+           product is discounted right now, so honouring 'sale' produced
+           four identical SALE pills in a row. They are passed into the
+           pool instead and surface some of the time. */
+        cardBadge: r.badge === 'best' ? null : pickBadge({
           key:         String(r.sku || r.slug || r.id),
           onSale:      !!(r.compare_price && r.price && Number(r.compare_price) > Number(r.price)),
+          isNew:       !!r.is_new,
           qty:         r.qty_on_hand,
           colorCount:  finishes.length,
           material:    r.primary_material,

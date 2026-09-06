@@ -508,12 +508,13 @@ _DEFAULT_ORDER.forEach(function(k) {
           <% } else { %>
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
           <% } %>
-          <% if (product.badge) { %>
-          <span class="product-badge badge-<%= product.badge %>"><%= product.badge.toUpperCase() %></span>
+          <%# Only BEST wins outright — one card per section, and earned.
+              Everything else, including Sale, comes from the rotation, so
+              a row of discounted products no longer reads SALE four
+              times. badge-sale is reused for its colour only. %>
+          <% if (product.badge === 'best') { %>
+          <span class="product-badge badge-best">BEST</span>
           <% } else if (product.cardBadge) { %>
-          <%# No SALE/NEW/BEST earned — show the rotating label instead of
-              nothing. badge-sale is reused purely for its colour; the
-              class carries no meaning beyond styling. %>
           <span class="product-badge badge-sale"><%= product.cardBadge.toUpperCase() %></span>
           <% } %>
           <% if (product.video_url) { %>
