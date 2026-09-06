@@ -374,13 +374,24 @@ exports.show = async (req, res, next) => {
             MIN(pi.url)
           )                                                AS image_url,
           MIN(CASE WHEN p.video_url IS NOT NULL THEN p.video_url END)
-                                                           AS video_url
+                                                           AS video_url,
+          /* Collection-level national demand — the summed movement of
+             every SKU in the model. Same measure the homepage uses, so
+             "See All" opens on the same ranking the carousel showed
+             rather than reshuffling into alphabetical order. */
+          SUM(p.demand_score)                              AS model_demand
         FROM products p
         LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
         WHERE ${mgWhere}
         GROUP BY p.model, p.brand
         ${mgHavingClause}
-        ORDER BY p.brand, p.model
+        /* Was ORDER BY p.brand, p.model — alphabetical, which buried the
+           models that actually sell behind whatever starts with A.
+
+           demand_score is INT UNSIGNED NOT NULL DEFAULT 0, so unscored
+           models read 0 and sink to the bottom, where brand and name keep
+           them in a stable, predictable order. */
+        ORDER BY SUM(p.demand_score) DESC, p.brand, p.model
       `, mgAllParams);
 
       // Color × size image map — one image per model+color+size combination.
