@@ -117,7 +117,11 @@ async function getFeaturedProducts(opts = {}) {
          demand_score is INT UNSIGNED NOT NULL DEFAULT 0, so an unscored
          product is 0 rather than NULL — DESC puts it last either way, and
          sort_order / created_at still break the tie among the zeros. */
-      ORDER BY p.demand_score DESC, p.sort_order, p.created_at DESC
+      -- Pinned first (see the PIN note in models/Product.js): 0 is the column
+       -- default meaning "not pinned", so a plain ASC sorted every unset
+       -- product above anything deliberately set to 1.
+       ORDER BY COALESCE(NULLIF(p.sort_order, 0), 999999) ASC,
+                p.demand_score DESC, p.created_at DESC
       LIMIT ?
     `, [...f.params, safeLimit]);
     if (!rows.length) return [];

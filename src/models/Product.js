@@ -307,8 +307,21 @@ const Product = {
         }
       }
 
+      /* PIN = sort_order as an explicit merchandising override.
+         0 means "not pinned", and it is also the column default, so a
+         plain ascending sort put all ~5,000 unset products ABOVE anything
+         you deliberately set to 1 — the exact opposite of the intent.
+         NULLIF turns 0 into NULL and COALESCE parks it at the back, so
+         1, 2, 3 really are first, second, third and everything unset
+         ranks automatically underneath.
+
+         Applied to the merchandised sorts ONLY. If a shopper explicitly
+         picks Price or Name, a pin must not silently override the sort
+         they asked for. */
+      const PIN = 'COALESCE(NULLIF(p.sort_order, 0), 999999) ASC';
+
       const orderMap = {
-        featured:   'p.is_featured DESC, p.sort_order, p.created_at DESC',
+        featured:   `${PIN}, p.is_featured DESC, p.created_at DESC`,
         price_asc:  'p.price ASC',
         price_desc: 'p.price DESC',
         newest:     'p.created_at DESC',
@@ -322,7 +335,7 @@ const Product = {
            window, and anything not James Martin has no signal at all. With
            the scores tied, the page must fall back to today's ordering
            rather than to whatever the storage engine happens to return. */
-        popularity: 'p.demand_score DESC, p.is_featured DESC, p.sort_order, p.created_at DESC',
+        popularity: `${PIN}, p.demand_score DESC, p.is_featured DESC, p.created_at DESC`,
       };
 
       const countParams = [...params];
@@ -638,7 +651,10 @@ const Product = {
         FROM products p
         LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
         WHERE p.is_active = 1 AND p.is_featured = 1
-        ORDER BY p.sort_order, p.created_at DESC
+        -- Pinned first (see the PIN note in findByCategory): 0 is the column
+        -- default meaning "not pinned", so a plain ASC sorted every unset
+        -- product above anything deliberately set to 1.
+        ORDER BY COALESCE(NULLIF(p.sort_order, 0), 999999) ASC, p.created_at DESC
         LIMIT ?
       `, [limit]);
       return rows;
