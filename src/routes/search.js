@@ -17,6 +17,8 @@ const express  = require('express');
 const router   = express.Router();
 const { bvoPool } = require('../config/database');
 const Product  = require('../models/Product');
+/* Shared search-box behaviour — see src/utils/searchQuery.js */
+const { buildSearch } = require('../utils/searchQuery');
 
 /* ── Typesense client (optional — graceful fallback if not configured) ── */
 function getTypesenseClient() {
@@ -84,16 +86,41 @@ router.get('/predict', async (req, res) => {
     }
   }
 
-  // ── MySQL FULLTEXT fallback ────────────────────────────────────
+  // ── MySQL fallback ─────────────────────────────────────────────
+  /* Was MATCH(...) AGAINST('term*' IN BOOLEAN MODE). Replaced because
+     InnoDB's innodb_ft_min_token_size defaults to 3, so every vanity
+     width -- 24, 30, 36, 42, 48, 54, 60, 66, 72 -- is too short to be
+     in idx_fulltext_search at all. "Brittany 36" matched every Brittany
+     because the 36 was invisible to the index. Raising that limit needs
+     my.cnf, a restart and a rebuild, none available on managed hosting.
+
+     Two other defects went with it: BOOLEAN MODE without '+' makes every
+     term OPTIONAL (adding a word WIDENED the results), and the '*' was
+     appended to the whole string so only the last word got prefix
+     matching. See src/utils/searchQuery.js. */
   try {
-    const params = [`${q}*`, limit];
-    let catJoin  = '';
-    let catWhere = '';
-    if (catSlug) {
-      catJoin  = 'JOIN categories c ON c.id = p.category_id';
-      catWhere = 'AND c.slug = ?';
-      params.splice(1, 0, catSlug);
-    }
+    const s = buildSearch(q, {
+      columns: ['p.name', 'p.brand', 'p.sku', 'p.short_desc'],
+      weights: { 'p.name': 5, 'p.brand': 3, 'p.sku': 3, 'p.short_desc': 1 },
+      exact:   ['p.sku'],
+      prefix:  'p.name',
+      // Tiebreakers only — nothing is filtered out by these.
+      boosts:  [{ expr: 'p.is_featured = 1', points: 2 },
+                { expr: 'p.is_new = 1',      points: 1 }],
+    });
+    if (!s.active) return res.json({ hits: [], source: 'mysql', total: 0 });
+
+    const catJoin  = catSlug ? 'JOIN categories c ON c.id = p.category_id' : '';
+    const catWhere = catSlug ? 'AND c.slug = ?' : '';
+
+    /* Bind order follows the SQL text: SELECT list, then WHERE (category
+       before search), then LIMIT. */
+    const params = [
+      ...s.scoreParams,
+      ...(catSlug ? [catSlug] : []),
+      ...s.params,
+      limit,
+    ];
 
     const [rows] = await bvoPool.query(`
       SELECT
@@ -105,13 +132,14 @@ router.get('/predict', async (req, res) => {
           WHEN p.is_new  = 1 THEN 'new'
           WHEN p.is_featured = 1 THEN 'best'
           ELSE NULL
-        END AS badge
+        END AS badge,
+        ${s.score} AS relevance
       FROM products p
       ${catJoin}
       LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
       WHERE p.is_active = 1 ${catWhere}
-        AND MATCH(p.name, p.short_desc, p.brand) AGAINST(? IN BOOLEAN MODE)
-      ORDER BY p.is_featured DESC, p.sort_order
+        AND (${s.sql})
+      ORDER BY relevance DESC, p.is_featured DESC, p.price ASC
       LIMIT ?
     `, params);
 
@@ -185,23 +213,38 @@ router.get('/', async (req, res) => {
     }
   }
 
-  // ── MySQL FULLTEXT fallback ─────────────────────────────────────
+  // ── MySQL fallback ──────────────────────────────────────────────
+  /* Same swap as /predict — see the note there and src/utils/searchQuery.js.
+     'featured' additionally led with p.sort_order, which productUpdate
+     overwrites with 0 on every save, so the computed match score was
+     discarded in favour of a near-constant column. */
   try {
-    const params = [`${q}*`];
-    let where = `p.is_active = 1 AND MATCH(p.name, p.short_desc, p.brand) AGAINST(? IN BOOLEAN MODE)`;
-    if (brands.length) { where += ` AND p.brand IN (${brands.map(() => '?').join(',')})`; params.push(...brands); }
-    if (types.length)  { where += ` AND p.product_type IN (${types.map(() => '?').join(',')})`; params.push(...types); }
+    const s = buildSearch(q, {
+      columns: ['p.name', 'p.brand', 'p.sku', 'p.short_desc'],
+      weights: { 'p.name': 5, 'p.brand': 3, 'p.sku': 3, 'p.short_desc': 1 },
+      exact:   ['p.sku'],
+      prefix:  'p.name',
+      boosts:  [{ expr: 'p.is_featured = 1', points: 2 },
+                { expr: 'p.is_new = 1',      points: 1 }],
+    });
+    if (!s.active) return res.json({ hits: [], total: 0, page, pages: 0 });
+
+    let where = `p.is_active = 1 AND (${s.sql})`;
+    const whereParams = [...s.params];
+    if (brands.length) { where += ` AND p.brand IN (${brands.map(() => '?').join(',')})`; whereParams.push(...brands); }
+    if (types.length)  { where += ` AND p.product_type IN (${types.map(() => '?').join(',')})`; whereParams.push(...types); }
 
     const orderMap = {
-      featured:   'p.is_featured DESC, p.sort_order',
+      featured:   'relevance DESC, p.is_featured DESC, p.price ASC',
       price_asc:  'p.price ASC',
       price_desc: 'p.price DESC',
       newest:     'p.is_new DESC, p.created_at DESC',
       name_asc:   'p.name ASC',
     };
 
+    // COUNT has no SELECT list, so it takes the WHERE params only.
     const [[{ total }]] = await bvoPool.query(
-      `SELECT COUNT(*) AS total FROM products p WHERE ${where}`, [...params],
+      `SELECT COUNT(*) AS total FROM products p WHERE ${where}`, whereParams,
     );
     const [rows] = await bvoPool.query(`
       SELECT p.id, p.slug, p.name, p.brand, p.price, p.compare_price,
@@ -209,13 +252,14 @@ router.get('/', async (req, res) => {
              COALESCE(p.primary_image_url, pi.url) AS image,
              CASE WHEN p.compare_price > p.price THEN 'sale'
                   WHEN p.is_new=1 THEN 'new'
-                  WHEN p.is_featured=1 THEN 'best' ELSE NULL END AS badge
+                  WHEN p.is_featured=1 THEN 'best' ELSE NULL END AS badge,
+             ${s.score} AS relevance
       FROM products p
       LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
       WHERE ${where}
       ORDER BY ${orderMap[sort] || orderMap.featured}
       LIMIT ? OFFSET ?
-    `, [...params, perPage, (page - 1) * perPage]);
+    `, [...s.scoreParams, ...whereParams, perPage, (page - 1) * perPage]);
 
     return res.json({
       hits:   rows.map(r => ({ ...r, url: `/products/${r.slug}` })),

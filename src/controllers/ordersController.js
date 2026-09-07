@@ -18,6 +18,8 @@
  */
 
 const { bvoPool }    = require('../config/database');
+/* Shared search-box behaviour — see src/utils/searchQuery.js */
+const { buildSearch } = require('../utils/searchQuery');
 // Single source of truth for status values and their meanings.
 const { ORDER_STATUSES, VALID_ORDER_STATUSES } = require('../config/orderStatuses');
 const brevo          = require('../services/brevoService');
@@ -118,10 +120,23 @@ exports.list = async (req, res, next) => {
     let where = 'WHERE 1=1';
     const params = [];
     if (status) { where += ' AND o.status = ?'; params.push(status); }
-    if (search) {
-      where += ' AND (o.order_number LIKE ? OR o.guest_email LIKE ? OR CONCAT(c.first_name," ",c.last_name) LIKE ?)';
-      const s = `%${search}%`;
-      params.push(s, s, s);
+
+    /* Word-by-word matching — see src/utils/searchQuery.js.
+       Was a single `%${search}%` across all three expressions, so the whole
+       string had to appear contiguously. Searching a customer as
+       "Smith John" found nothing, because the CONCAT produces "John Smith". */
+    const searchQ = buildSearch(search, {
+      columns: ['o.order_number', 'o.guest_email',
+                'CONCAT(c.first_name," ",c.last_name)'],
+      weights: { 'o.order_number': 5,
+                 'CONCAT(c.first_name," ",c.last_name)': 3,
+                 'o.guest_email': 2 },
+      exact:   ['o.order_number'],
+      prefix:  'o.order_number',
+    });
+    if (searchQ.active) {
+      where += ` AND (${searchQ.sql})`;
+      params.push(...searchQ.params);
     }
 
     const countRow = await safeQueryOne(
@@ -134,15 +149,17 @@ exports.list = async (req, res, next) => {
               COALESCE(CONCAT(c.first_name,' ',c.last_name), o.guest_email) AS customer_name,
               vpo.status AS vpo_status, vpo.sent_at AS vpo_sent_at, vpo.confirmed_at AS vpo_confirmed_at,
               s.status AS ship_status, s.estimated_delivery, s.last_tracking_scan,
-              (SELECT COUNT(*) FROM order_returns r WHERE r.order_id = o.id AND r.status NOT IN ('resolved','denied')) AS open_returns
+              (SELECT COUNT(*) FROM order_returns r WHERE r.order_id = o.id AND r.status NOT IN ('resolved','denied')) AS open_returns,
+              ${searchQ.score} AS relevance
        FROM orders o
        LEFT JOIN customers c ON c.id = o.customer_id
        LEFT JOIN vendor_purchase_orders vpo ON vpo.order_id = o.id
        LEFT JOIN shipments s ON s.order_id = o.id
        ${where}
-       ORDER BY o.created_at DESC
+       ORDER BY ${searchQ.active ? 'relevance DESC, ' : ''}o.created_at DESC
        LIMIT ? OFFSET ?`,
-      [...params, limit, offset]
+      // Score params bind first — they sit in the SELECT list.
+      [...searchQ.scoreParams, ...params, limit, offset]
     );
 
     orders.forEach(o => {

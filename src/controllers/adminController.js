@@ -11,6 +11,8 @@ const syncSettings   = require('../services/syncSettings');
 const { normalize: normalizeColor } = require('../config/colorFamilies');
 /* (model, brand) identity — see src/utils/modelKey.js */
 const { modelKey }   = require('../utils/modelKey');
+/* Shared search-box behaviour — see src/utils/searchQuery.js */
+const { buildSearch } = require('../utils/searchQuery');
 const path           = require('path');
 const fs             = require('fs');
 const multer         = require('multer');
@@ -304,10 +306,22 @@ exports.productList = async (req, res, next) => {
     const clauses = [];
     const qParams = [];
 
-    if (search) {
-      clauses.push('(p.name LIKE ? OR p.sku LIKE ? OR p.brand LIKE ? OR p.vendor_sku LIKE ?)');
-      const like = `%${search}%`;
-      qParams.push(like, like, like, like);
+    /* Word-by-word matching + relevance — see src/utils/searchQuery.js.
+       Was a single `%${search}%`, so the whole typed string had to appear
+       verbatim and in order: "Brittany white" found nothing, because the
+       product is 'Brittany 36" Single Vanity in Bright White' and the two
+       words sit 20 characters apart. */
+    const searchQ = buildSearch(search, {
+      columns: ['p.name', 'p.sku', 'p.brand', 'p.vendor_sku'],
+      weights: { 'p.name': 5, 'p.brand': 3, 'p.sku': 3, 'p.vendor_sku': 3 },
+      exact:   ['p.sku', 'p.vendor_sku'],
+      prefix:  'p.name',
+      // Tiebreakers, not filters — a zero-stock product still shows.
+      boosts:  [{ expr: 'COALESCE(i.qty_on_hand, 0) > 0', points: 2 }],
+    });
+    if (searchQ.active) {
+      clauses.push(searchQ.sql);
+      qParams.push(...searchQ.params);
     }
     if (fCategory !== null) {
       clauses.push('p.category_id = ?');
@@ -353,7 +367,14 @@ exports.productList = async (req, res, next) => {
       brand:      'p.brand ASC, p.name ASC',
       sku:        'p.sku ASC',
     };
-    const orderBy = sortMap[sort] || 'p.id DESC';
+    /* When you have typed a search and NOT picked a sort, best-match wins.
+       `sort` defaults to 'newest', so testing sortMap[sort] would always be
+       truthy and relevance would never apply — the explicit check against
+       req.query.sort is what makes this work. Picking a sort still overrides. */
+    const sortExplicit = !!String(req.query.sort || '').trim();
+    const orderBy = sortExplicit
+      ? (sortMap[sort] || 'p.id DESC')
+      : (searchQ.active ? 'relevance DESC, p.id DESC' : 'p.id DESC');
 
     // Count + data
     const countRow = await safeQueryOne(
@@ -363,11 +384,16 @@ exports.productList = async (req, res, next) => {
     const total = countRow?.n ?? 0;
     const pages = Math.ceil(total / PER_PAGE) || 1;
 
+    /* PARAM ORDER: score placeholders sit in the SELECT list, so they bind
+       BEFORE the WHERE ones. Swapping these two spreads throws nothing and
+       returns nothing useful — the counts still match. Gated in the push
+       script by executing the query shape, not by grepping for it. */
     const products = await safeQuery(
       `SELECT p.id, p.name, p.slug, p.sku, p.vendor_sku, p.brand, p.price, p.compare_price,
               p.is_active, p.source_flag, p.status, p.product_type,
               COALESCE(i.qty_on_hand, 0) AS qty_on_hand,
               c.name AS category_name,
+              ${searchQ.score} AS relevance,
               (SELECT url FROM product_images WHERE product_id=p.id
                ORDER BY is_primary DESC, sort_order ASC LIMIT 1) AS thumb
        FROM products p
@@ -376,7 +402,7 @@ exports.productList = async (req, res, next) => {
        ${where}
        ORDER BY ${orderBy}
        LIMIT ? OFFSET ?`,
-      [...qParams, PER_PAGE, offset]
+      [...searchQ.scoreParams, ...qParams, PER_PAGE, offset]
     );
 
     // Pre-fetch data for filter sidebar
