@@ -81,7 +81,16 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   <!-- CSS bundle: brand.css + site.css + site2.css concatenated into one file.
        One blocking request instead of three — eliminates 2 extra HTTP round trips on critical path.
        SOURCE FILES: public/css/brand.css, site.css, site2.css (edit these, then rebuild).
-       REBUILD: cat brand.css site.css site2.css > site-bundle.css   (in public/css/)
+       REBUILD: DO NOT run a plain `cat brand.css site.css site2.css`.
+       Verified 2026-09-06: site-bundle.css is brand + site + site2 PLUS the
+       first 8039 bytes of site4.css -- the public responsive polish
+       (checkout, PDP chips, nav touch targets). The rest of site4.css is
+       admin-only and is loaded separately by layouts/admin.ejs. A plain cat
+       silently drops those 8039 bytes from every public page.
+         cat brand.css site.css site2.css > site-bundle.css
+         head -c 8039 site4.css >> site-bundle.css
+       Better: patch site.css and site-bundle.css with the same edit and do
+       not concatenate at all.
        Bump ?v= any time any source CSS changes to bust Hostinger CDN cache (CLAUDE.md Rule 5).
 
        CORRECTED 2026-08-31 — this comment previously listed site4.css as part
@@ -89,7 +98,7 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
        ADMIN-ONLY and is loaded separately by views/layouts/admin.ejs. Adding
        it here ships ~23KB of admin CSS to every public visitor and grows the
        bundle from 121KB to 137KB for no benefit. Do not add it. -->
-  <link rel="stylesheet" href="/css/site-bundle.css?v=5">
+  <link rel="stylesheet" href="/css/site-bundle.css?v=6">
   <!-- site3.css: Trust signals, checkout, CMS pages, blog, inspiration guides -->
   <!-- Loaded conditionally per-page via <%- style %> slot — not global (perf: saves 37KB blocking CSS on homepage/collections/products) -->
 

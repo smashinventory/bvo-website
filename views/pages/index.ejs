@@ -461,7 +461,27 @@ _DEFAULT_ORDER.forEach(function(k) {
     <<%- _fsTag %> class="section-title" id="<%= _fsId %>"><%= _d.title || 'Featured Products' %></<%- _fsTag %>>
     <% if (_d.subtitle) { %><p class="section-sub"><%= _d.subtitle %></p><% } %>
   </div>
-  <div class="product-grid">
+  <%
+    /* Columns control — Theme Editor. Was a live dropdown that nothing read:
+       .product-grid was hardcoded to repeat(4,1fr), so picking 2 or 3 saved
+       happily and changed nothing.
+
+       Driven by a CSS variable set INLINE here rather than by a class, so it
+       is scoped to this section. .product-grid is also used by product.ejs,
+       and a global rule would have silently restyled that page too.
+
+       --fs-cols     desktop
+       --fs-cols-md  tablet, capped at 3 — otherwise choosing 2 columns for
+                     desktop would leave tablet showing MORE columns than
+                     desktop, since the 1100px rule is a fixed 3.
+       Phones stay at 2 regardless; that rule is untouched.
+       Both CSS fallbacks equal the old hardcoded values, so an unset or
+       malformed setting renders exactly as it does today. */
+    const _fsColsRaw = parseInt(_d.columns, 10);
+    const _fsCols    = [2, 3, 4].includes(_fsColsRaw) ? _fsColsRaw : 4;
+    const _fsColsMd  = Math.min(_fsCols, 3);
+  %>
+  <div class="product-grid" style="--fs-cols:<%= _fsCols %>;--fs-cols-md:<%= _fsColsMd %>">
     <% _fsRows.forEach(function(product) { %>
     <%
       /* Element ids must be unique per SLOT as well as per product — two

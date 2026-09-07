@@ -282,6 +282,10 @@ const DEFAULTS = {
     cta_text: 'View All Products',
     cta_url: '/collections/bathroom-vanities',
     limit: 4,
+    // 4 matches the CSS fallback, so behaviour on deploy is unchanged.
+    // The Theme Editor has always offered this control; nothing read it
+    // until now, and it had no default here either.
+    columns: 4,
     brand: '',
     category: '',
     ptype: '',
