@@ -43,7 +43,13 @@ function filterUrl(overrides) {
     <% if (filters.price_min) { %><input type="hidden" name="price_min" value="<%= filters.price_min %>"><% } %>
     <% if (filters.price_max) { %><input type="hidden" name="price_max" value="<%= filters.price_max %>"><% } %>
     <% if (filters.in_stock) { %><input type="hidden" name="in_stock" value="1"><% } %>
-    <input type="hidden" name="sort" value="<%= filters.sort %>">
+    <%# Carry a DELIBERATE sort choice forward, but not the browse default.
+          This used to resubmit sort=newest on every search and every filter
+          change, which pinned results to newest and left the relevance score
+          as dead weight — a Pecan vanity topped a "white" search. Omitting it
+          lets the controller pick best-match; a real choice like Price ↑
+          still survives. %>
+      <% if (filters.sort && filters.sort !== 'newest') { %><input type="hidden" name="sort" value="<%= filters.sort %>"><% } %>
     <input type="text" name="q" value="<%= filters.q %>" placeholder="Search name, SKU, brand, vendor SKU…" class="adm-search-input">
     <button type="submit" class="btn btn-outline">Search</button>
     <% if (filters.q) { %><a href="<%= filterUrl({q:'',page:1}) %>" class="btn btn-outline">Clear</a><% } %>
@@ -129,7 +135,13 @@ function filterUrl(overrides) {
   <aside class="adm-pl-sidebar" id="filterSidebar">
     <form method="GET" action="/admin/products" id="filterForm">
       <% if (filters.q) { %><input type="hidden" name="q" value="<%= filters.q %>"><% } %>
-      <input type="hidden" name="sort" value="<%= filters.sort %>">
+      <%# Carry a DELIBERATE sort choice forward, but not the browse default.
+          This used to resubmit sort=newest on every search and every filter
+          change, which pinned results to newest and left the relevance score
+          as dead weight — a Pecan vanity topped a "white" search. Omitting it
+          lets the controller pick best-match; a real choice like Price ↑
+          still survives. %>
+      <% if (filters.sort && filters.sort !== 'newest') { %><input type="hidden" name="sort" value="<%= filters.sort %>"><% } %>
 
       <div class="adm-fs-header">
         <span class="adm-fs-title">Filters</span>
@@ -270,9 +282,12 @@ function filterUrl(overrides) {
         <% if (hasFilters) { %><span style="color:#999;font-weight:400"> — filtered</span><% } %>
       </span>
       <select class="adm-sort-select" onchange="applySort(this.value)">
-        <% [['newest','Newest'],['name_asc','Name A–Z'],['name_desc','Name Z–A'],
-            ['price_asc','Price ↑'],['price_desc','Price ↓'],['brand','Brand'],['sku','SKU']
-           ].forEach(function(o) { %>
+        <%# Best match only appears while a query exists — with no query every
+            row scores 0 and the ordering would be arbitrary. %>
+        <% (filters.q ? [['relevance','Best match']] : []).concat(
+           [['newest','Newest'],['name_asc','Name A–Z'],['name_desc','Name Z–A'],
+            ['price_asc','Price ↑'],['price_desc','Price ↓'],['brand','Brand'],['sku','SKU']]
+           ).forEach(function(o) { %>
         <option value="<%= o[0] %>" <%= filters.sort===o[0]?'selected':'' %>><%= o[1] %></option>
         <% }); %>
       </select>

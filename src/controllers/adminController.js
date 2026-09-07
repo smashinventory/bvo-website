@@ -12,7 +12,7 @@ const { normalize: normalizeColor } = require('../config/colorFamilies');
 /* (model, brand) identity — see src/utils/modelKey.js */
 const { modelKey }   = require('../utils/modelKey');
 /* Shared search-box behaviour — see src/utils/searchQuery.js */
-const { buildSearch } = require('../utils/searchQuery');
+const { buildSearch, productSearch } = require('../utils/searchQuery');
 const path           = require('path');
 const fs             = require('fs');
 const multer         = require('multer');
@@ -300,7 +300,8 @@ exports.productList = async (req, res, next) => {
     const fPriceMin  = req.query.price_min ? parseFloat(req.query.price_min) : null;
     const fPriceMax  = req.query.price_max ? parseFloat(req.query.price_max) : null;
     const fInStock   = req.query.in_stock === '1';
-    const sort       = req.query.sort || 'newest';
+    // Searching defaults to best-match; browsing defaults to newest.
+    const sort       = req.query.sort || (search ? 'relevance' : 'newest');
 
     // ── Build WHERE clause ───────────────────────────────────────────
     const clauses = [];
@@ -311,13 +312,13 @@ exports.productList = async (req, res, next) => {
        verbatim and in order: "Brittany white" found nothing, because the
        product is 'Brittany 36" Single Vanity in Bright White' and the two
        words sit 20 characters apart. */
-    const searchQ = buildSearch(search, {
-      columns: ['p.name', 'p.sku', 'p.brand', 'p.vendor_sku'],
-      weights: { 'p.name': 5, 'p.brand': 3, 'p.sku': 3, 'p.vendor_sku': 3 },
-      exact:   ['p.sku', 'p.vendor_sku'],
-      prefix:  'p.name',
-      // Tiebreakers, not filters — a zero-stock product still shows.
-      boosts:  [{ expr: 'COALESCE(i.qty_on_hand, 0) > 0', points: 2 }],
+    /* Columns and weights come from PRODUCT_SEARCH so this bar and the
+       storefront cannot rank differently — see src/utils/searchQuery.js.
+       Only the boost is local: this query JOINs inventory, so it can
+       favour in-stock rows. Tiebreaker, not a filter — a zero-stock
+       product still appears, just lower. */
+    const searchQ = productSearch(search, {
+      boosts: [{ expr: 'COALESCE(i.qty_on_hand, 0) > 0', points: 2 }],
     });
     if (searchQ.active) {
       clauses.push(searchQ.sql);
@@ -359,6 +360,7 @@ exports.productList = async (req, res, next) => {
 
     // Sort
     const sortMap = {
+      relevance:  'relevance DESC, p.id DESC',
       newest:     'p.id DESC',
       name_asc:   'p.name ASC',
       name_desc:  'p.name DESC',
@@ -367,14 +369,16 @@ exports.productList = async (req, res, next) => {
       brand:      'p.brand ASC, p.name ASC',
       sku:        'p.sku ASC',
     };
-    /* When you have typed a search and NOT picked a sort, best-match wins.
-       `sort` defaults to 'newest', so testing sortMap[sort] would always be
-       truthy and relevance would never apply — the explicit check against
-       req.query.sort is what makes this work. Picking a sort still overrides. */
-    const sortExplicit = !!String(req.query.sort || '').trim();
-    const orderBy = sortExplicit
-      ? (sortMap[sort] || 'p.id DESC')
-      : (searchQ.active ? 'relevance DESC, p.id DESC' : 'p.id DESC');
+    /* 'relevance' is a REAL option in the sort dropdown, not an inferred
+       default. The previous attempt inferred it from req.query.sort being
+       absent — but products.ejs resubmits the current sort in a hidden
+       field on every search, so the param was never absent, relevance
+       never applied, and a Pecan vanity sat at the top of a "white"
+       search. Relevance is only selectable while a query exists; without
+       one every row scores 0 and the order would be meaningless. */
+    const orderBy = (sort === 'relevance' && !searchQ.active)
+      ? 'p.id DESC'
+      : (sortMap[sort] || 'p.id DESC');
 
     // Count + data
     const countRow = await safeQueryOne(

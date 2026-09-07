@@ -18,7 +18,7 @@ const router   = express.Router();
 const { bvoPool } = require('../config/database');
 const Product  = require('../models/Product');
 /* Shared search-box behaviour — see src/utils/searchQuery.js */
-const { buildSearch } = require('../utils/searchQuery');
+const { productSearch } = require('../utils/searchQuery');
 
 /* ── Typesense client (optional — graceful fallback if not configured) ── */
 function getTypesenseClient() {
@@ -99,11 +99,9 @@ router.get('/predict', async (req, res) => {
      appended to the whole string so only the last word got prefix
      matching. See src/utils/searchQuery.js. */
   try {
-    const s = buildSearch(q, {
-      columns: ['p.name', 'p.brand', 'p.sku', 'p.short_desc'],
-      weights: { 'p.name': 5, 'p.brand': 3, 'p.sku': 3, 'p.short_desc': 1 },
-      exact:   ['p.sku'],
-      prefix:  'p.name',
+    /* Columns and weights come from PRODUCT_SEARCH so the storefront and
+       the admin bar cannot rank differently — see searchQuery.js. */
+    const s = productSearch(q, {
       // Tiebreakers only — nothing is filtered out by these.
       boosts:  [{ expr: 'p.is_featured = 1', points: 2 },
                 { expr: 'p.is_new = 1',      points: 1 }],
@@ -219,11 +217,9 @@ router.get('/', async (req, res) => {
      overwrites with 0 on every save, so the computed match score was
      discarded in favour of a near-constant column. */
   try {
-    const s = buildSearch(q, {
-      columns: ['p.name', 'p.brand', 'p.sku', 'p.short_desc'],
-      weights: { 'p.name': 5, 'p.brand': 3, 'p.sku': 3, 'p.short_desc': 1 },
-      exact:   ['p.sku'],
-      prefix:  'p.name',
+    /* Columns and weights come from PRODUCT_SEARCH so the storefront and
+       the admin bar cannot rank differently — see searchQuery.js. */
+    const s = productSearch(q, {
       boosts:  [{ expr: 'p.is_featured = 1', points: 2 },
                 { expr: 'p.is_new = 1',      points: 1 }],
     });

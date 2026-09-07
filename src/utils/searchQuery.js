@@ -198,4 +198,47 @@ function buildSearch(query, opts = {}) {
   };
 }
 
-module.exports = { buildSearch, escapeLike, splitWords, MAX_WORDS };
+/* ────────────────────────────────────────────────────────────────────
+   THE product search configuration. One object, three call sites.
+   ────────────────────────────────────────────────────────────────────
+   Previously these columns and weights were written out inline in
+   adminController and twice in routes/search.js, so the admin bar and
+   the storefront could silently rank differently -- the exact drift this
+   module exists to prevent. Exported so the push-script gates can score
+   real rows against the REAL weights instead of a copy: a gate holding
+   its own copy of the numbers passes happily while the app's numbers are
+   wrong, which is worse than no gate.
+
+   p.color outranks p.name deliberately. Product names embed the
+   COUNTERTOP's name -- 'Brittany 36" Single Vanity, Burnished Mahogany
+   w/ 3 CM White Zeus Silestone Top' contains "white" -- so on a "white"
+   search a mahogany vanity scored the same as a genuinely white one.
+   Weighting the colour column highest breaks that tie toward the product
+   whose colour actually IS white. It does not stop White Zeus rows
+   matching; substring search cannot tell which noun a word modifies. It
+   stops them outranking the right answer.
+
+   vendor_sku is searchable on the storefront too. It is not sensitive,
+   it is never rendered, and matching on it only ever helps someone who
+   pasted one in. */
+const PRODUCT_SEARCH = {
+  columns: ['p.name', 'p.brand', 'p.sku', 'p.vendor_sku',
+            'p.short_desc', 'p.color', 'p.color_family'],
+  weights: { 'p.color': 8, 'p.color_family': 6, 'p.name': 5,
+             'p.brand': 3, 'p.sku': 3, 'p.vendor_sku': 3, 'p.short_desc': 1 },
+  exact:   ['p.sku', 'p.vendor_sku'],
+  prefix:  'p.name',
+};
+
+/** buildSearch pre-loaded with PRODUCT_SEARCH. `extra` is for per-site
+ *  boosts only — the admin list can boost on stock because it JOINs
+ *  inventory; the storefront cannot. Overriding columns or weights here
+ *  would reintroduce the drift this exists to prevent. */
+function productSearch(query, extra = {}) {
+  return buildSearch(query, { ...PRODUCT_SEARCH, ...extra });
+}
+
+module.exports = {
+  buildSearch, productSearch, PRODUCT_SEARCH,
+  escapeLike, splitWords, MAX_WORDS,
+};
