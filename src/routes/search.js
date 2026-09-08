@@ -19,6 +19,8 @@ const { bvoPool } = require('../config/database');
 const Product  = require('../models/Product');
 /* Shared search-box behaviour — see src/utils/searchQuery.js */
 const { productSearch } = require('../utils/searchQuery');
+/* Shared with the /search HTML page — see src/services/searchService.js */
+const { runProductSearch } = require('../services/searchService');
 
 /* ── Typesense client (optional — graceful fallback if not configured) ── */
 function getTypesenseClient() {
@@ -212,56 +214,22 @@ router.get('/', async (req, res) => {
   }
 
   // ── MySQL fallback ──────────────────────────────────────────────
-  /* Same swap as /predict — see the note there and src/utils/searchQuery.js.
-     'featured' additionally led with p.sort_order, which productUpdate
-     overwrites with 0 on every save, so the computed match score was
-     discarded in favour of a near-constant column. */
+  /* Delegated to services/searchService.js, which also backs the /search
+     HTML page. Previously this query lived here and the page did not
+     exist; when the page was added, copying the query would have created
+     two rankings that were supposed to agree and eventually wouldn't —
+     a shopper seeing a product in the dropdown and not on the results
+     page reads as a broken site. */
   try {
-    /* Columns and weights come from PRODUCT_SEARCH so the storefront and
-       the admin bar cannot rank differently — see searchQuery.js. */
-    const s = productSearch(q, {
-      boosts:  [{ expr: 'p.is_featured = 1', points: 2 },
-                { expr: 'p.is_new = 1',      points: 1 }],
+    const result = await runProductSearch(bvoPool, {
+      q, page, perPage, sort, brands, types,
     });
-    if (!s.active) return res.json({ hits: [], total: 0, page, pages: 0 });
-
-    let where = `p.is_active = 1 AND (${s.sql})`;
-    const whereParams = [...s.params];
-    if (brands.length) { where += ` AND p.brand IN (${brands.map(() => '?').join(',')})`; whereParams.push(...brands); }
-    if (types.length)  { where += ` AND p.product_type IN (${types.map(() => '?').join(',')})`; whereParams.push(...types); }
-
-    const orderMap = {
-      featured:   'relevance DESC, p.is_featured DESC, p.price ASC',
-      price_asc:  'p.price ASC',
-      price_desc: 'p.price DESC',
-      newest:     'p.is_new DESC, p.created_at DESC',
-      name_asc:   'p.name ASC',
-    };
-
-    // COUNT has no SELECT list, so it takes the WHERE params only.
-    const [[{ total }]] = await bvoPool.query(
-      `SELECT COUNT(*) AS total FROM products p WHERE ${where}`, whereParams,
-    );
-    const [rows] = await bvoPool.query(`
-      SELECT p.id, p.slug, p.name, p.brand, p.price, p.compare_price,
-             p.is_new, p.is_featured, p.product_type,
-             COALESCE(p.primary_image_url, pi.url) AS image,
-             CASE WHEN p.compare_price > p.price THEN 'sale'
-                  WHEN p.is_new=1 THEN 'new'
-                  WHEN p.is_featured=1 THEN 'best' ELSE NULL END AS badge,
-             ${s.score} AS relevance
-      FROM products p
-      LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
-      WHERE ${where}
-      ORDER BY ${orderMap[sort] || orderMap.featured}
-      LIMIT ? OFFSET ?
-    `, [...s.scoreParams, ...whereParams, perPage, (page - 1) * perPage]);
 
     return res.json({
-      hits:   rows.map(r => ({ ...r, url: `/products/${r.slug}` })),
-      total,
-      page,
-      pages:  Math.ceil(total / perPage),
+      hits:   result.hits.map(r => ({ ...r, url: `/products/${r.slug}` })),
+      total:  result.total,
+      page:   result.page,
+      pages:  result.pages,
       source: 'mysql',
     });
   } catch (err) {
