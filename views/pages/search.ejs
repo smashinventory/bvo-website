@@ -52,11 +52,20 @@
   </div>
 </div>
 
+<%# Same structure as collection.ejs — listing-layout > listing-main >
+    listing-toolbar > product-grid. Deliberately not a different wrapper:
+    a product listing should be built one way on this site.
+
+    .listing-layout is `grid-template-columns: 240px 1fr` for the sidebar +
+    main split. This page has no sidebar, so without the --full modifier its
+    single child lands in the 240px column and every card renders as a
+    sliver. That modifier is new CSS, added in site.css and site-bundle.css
+    following the same --modifier convention as .product-card--no-stock. %>
 <div class="listing-layout listing-layout--full">
   <div class="listing-main">
 
     <% if (total > 0) { %>
-    <div class="listing-bar">
+    <div class="listing-toolbar">
       <span class="listing-count">
         Showing <%= ((page - 1) * 24) + 1 %>&ndash;<%= Math.min(page * 24, total) %>
         of <%= total.toLocaleString('en-US') %>
@@ -116,7 +125,7 @@
             <span class="card-qty<%= _qtyRaw === 0 ? ' card-qty--zero' : '' %>">QTY: <%= _qtyBand(_qtyRaw) %></span>
           </div>
           <% } %>
-          <a href="/products/<%= product.slug %>" class="btn btn-primary product-cta">View Details</a>
+          <a href="/products/<%= product.slug %>" class="btn btn-primary">View Details</a>
         </div>
       </article>
       <% }); %>
@@ -125,11 +134,11 @@
     <% if (pages > 1) { %>
     <nav class="pagination" aria-label="Search results pages">
       <% if (page > 1) { %>
-        <a class="page-link" href="<%= _qs({ page: page - 1 }) %>" rel="prev">&laquo; Prev</a>
+        <a class="page-btn" href="<%= _qs({ page: page - 1 }) %>" rel="prev">&laquo; Prev</a>
       <% } %>
       <span class="page-current">Page <%= page %> of <%= pages %></span>
       <% if (page < pages) { %>
-        <a class="page-link" href="<%= _qs({ page: page + 1 }) %>" rel="next">Next &raquo;</a>
+        <a class="page-btn" href="<%= _qs({ page: page + 1 }) %>" rel="next">Next &raquo;</a>
       <% } %>
     </nav>
     <% } %>
@@ -138,10 +147,10 @@
 
     <%# Empty state. Reached by a typo far more often than by a genuinely
         absent product, because LIKE matching has no typo tolerance. %>
-    <div class="search-empty">
+    <div class="listing-empty">
       <% if (q) { %>
         <h2>Nothing matched &ldquo;<%= q %>&rdquo;</h2>
-        <ul class="search-empty-tips">
+        <ul>
           <li>Check the spelling — try a shorter word, like <em>brittany</em> rather than the full name.</li>
           <li>Search by size or colour on its own, such as <em>36 white</em>.</li>
           <li>Paste a SKU directly if you have one.</li>
