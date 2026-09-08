@@ -52,11 +52,37 @@
       </div>
 
       <!-- Shop column -->
+      <%
+        /* Footer columns come from the Menu Manager — nav_menus handles
+           footer-shop / footer-help / footer-company (migration 015).
+
+           Before that, this template rendered ft.col_*_links from theme
+           settings, whose URLs were /pages/shipping, /pages/returns,
+           /pages/contact, /pages/about and /pages/privacy. Migration 012
+           seeded the long slugs, so every one of those was a 404 — and had
+           been since the footer was built. Meanwhile the Menu Manager had a
+           'footer' menu with the CORRECT links that nothing ever read.
+
+           The theme-settings list is kept only as a fallback for the window
+           between deploying this code and running migration 015. Once the
+           menus exist they win, and the Menu Manager is the single place to
+           edit the footer. Column HEADINGS stay in theme settings, so "Help"
+           can be renamed without touching menus. */
+        var _fm = (typeof footerMenus !== 'undefined' && footerMenus) ? footerMenus : {};
+        function _footerCol(menuItems, themeLinks) {
+          if (menuItems && menuItems.length) return menuItems;
+          return themeLinks || [];
+        }
+        var _colShop    = _footerCol(_fm.shop,    ft.col_shop_links);
+        var _colHelp    = _footerCol(_fm.help,    ft.col_help_links);
+        var _colCompany = _footerCol(_fm.company, ft.col_company_links);
+      %>
+
       <div class="footer-col">
         <h4><%= ft.col_shop_heading || 'Shop' %></h4>
         <ul role="list">
-          <% (ft.col_shop_links || []).forEach(l => { %>
-          <li><a href="<%= l.url %>"><%= l.label %></a></li>
+          <% _colShop.forEach(function(l) { %>
+          <li><a href="<%= l.url %>"<%= l.is_highlight ? ' class="footer-link--highlight"' : '' %>><%= l.label %></a></li>
           <% }) %>
         </ul>
       </div>
@@ -65,24 +91,19 @@
       <div class="footer-col">
         <h4><%= ft.col_help_heading || 'Help' %></h4>
         <ul role="list">
-          <% (ft.col_help_links || []).forEach(l => { %>
-          <li><a href="<%= l.url %>"><%= l.label %></a></li>
+          <% _colHelp.forEach(function(l) { %>
+          <li><a href="<%= l.url %>"<%= l.is_highlight ? ' class="footer-link--highlight"' : '' %>><%= l.label %></a></li>
           <% }) %>
         </ul>
       </div>
 
-      <!-- Company column — falls back to DB pages if no theme links set -->
+      <!-- Company column -->
       <div class="footer-col">
         <h4><%= ft.col_company_heading || 'Company' %></h4>
         <ul role="list">
-          <%
-            var _footerCompanyLinks = ft.col_company_links && ft.col_company_links.length
-              ? ft.col_company_links
-              : (typeof cmsPages !== 'undefined' ? cmsPages.map(function(p){ return { url: '/pages/' + p.slug, label: p.title }; }) : []);
-          %>
-          <% _footerCompanyLinks.forEach(function(l) { %>
-          <li><a href="<%= l.url %>"><%= l.label %></a></li>
-          <% }); %>
+          <% _colCompany.forEach(function(l) { %>
+          <li><a href="<%= l.url %>"<%= l.is_highlight ? ' class="footer-link--highlight"' : '' %>><%= l.label %></a></li>
+          <% }) %>
         </ul>
       </div>
 

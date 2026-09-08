@@ -36,7 +36,7 @@ async function loadCmsData() {
   if (_cmsCache && (now - _cmsCacheTime) < CMS_TTL_MS) return _cmsCache;
 
   try {
-    const [navItems, cmsPages] = await Promise.all([
+    const [navItems, footerItems, cmsPages] = await Promise.all([
       bvoPool.query(`
         SELECT ni.id, ni.label, ni.url, ni.sort_order, ni.is_highlight
         FROM nav_menu_items ni
@@ -44,17 +44,46 @@ async function loadCmsData() {
         WHERE nm.handle = 'main-menu'
         ORDER BY ni.sort_order, ni.id
       `).then(([r]) => r),
+      /* Footer columns — one menu per column, handles footer-shop /
+         footer-help / footer-company (migration 015).
+
+         Until this query existed, the Menu Manager had a 'footer' menu
+         that saved correctly and was read by nothing, while footer.ejs
+         rendered a hardcoded list from theme settings whose URLs were all
+         404s. Two systems, and the one with correct data was the one being
+         ignored. This is the read that makes the editor real. */
+      bvoPool.query(`
+        SELECT nm.handle, ni.label, ni.url, ni.sort_order, ni.is_highlight
+        FROM nav_menu_items ni
+        JOIN nav_menus nm ON nm.id = ni.menu_id
+        WHERE nm.handle IN ('footer-shop','footer-help','footer-company')
+        ORDER BY ni.sort_order, ni.id
+      `).then(([r]) => r),
       bvoPool.query(`
         SELECT id, slug, title, sort_order FROM pages
         WHERE is_visible=1 ORDER BY sort_order ASC, id ASC
       `).then(([r]) => r),
     ]);
-    _cmsCache     = { navMenuItems: navItems, cmsPages };
+
+    /* Grouped by column. Empty arrays rather than undefined, so the
+       template can test length without guarding for the key. */
+    const footerMenus = { shop: [], help: [], company: [] };
+    const _col = { 'footer-shop': 'shop', 'footer-help': 'help', 'footer-company': 'company' };
+    for (const it of footerItems) footerMenus[_col[it.handle]].push(it);
+
+    _cmsCache     = { navMenuItems: navItems, footerMenus, cmsPages };
     _cmsCacheTime = now;
     return _cmsCache;
   } catch {
-    // Tables may not exist yet on first deploy — return empty gracefully
-    return { navMenuItems: [], cmsPages: [] };
+    /* Tables may not exist yet on first deploy — return empty gracefully.
+       footerMenus MUST carry its three empty arrays: the footer template
+       reads .shop/.help/.company lengths directly, and an undefined here
+       would throw on every page render rather than degrading. */
+    return {
+      navMenuItems: [],
+      footerMenus:  { shop: [], help: [], company: [] },
+      cmsPages:     [],
+    };
   }
 }
 
@@ -112,6 +141,7 @@ module.exports = async function megaMenuData(req, res, next) {
   res.locals.megaMenuSizes         = data.megaMenuSizes;
   res.locals.megaMenuColorFamilies = data.megaMenuColorFamilies;
   res.locals.navMenuItems          = cms.navMenuItems;   // DB-driven main nav
-  res.locals.cmsPages              = cms.cmsPages;       // DB pages (for footer)
+  res.locals.footerMenus           = cms.footerMenus;    // DB-driven footer columns
+  res.locals.cmsPages              = cms.cmsPages;       // DB pages (last-resort fallback)
   next();
 };

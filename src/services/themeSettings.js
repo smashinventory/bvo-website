@@ -483,16 +483,30 @@ const DEFAULTS = {
       { label: 'Faucets',           url: '/collections/faucets' },
       { label: 'Sale',              url: '/collections/sale' },
     ],
+    /* URLs must match the slugs seeded by migration 012, which are the
+       long forms: shipping-policy, returns-policy, privacy-policy,
+       terms-and-conditions, about-us, contact-us.
+
+       Verified live 8 Sept 2026: the previous short forms — /pages/shipping,
+       /pages/returns, /pages/contact, /pages/about, /pages/privacy — ALL
+       returned 404. Every policy link in the footer was broken, and had
+       been since the footer was built. Nothing errored because a 404 on a
+       footer link is invisible unless somebody clicks it. */
     col_help_heading: 'Help',
     col_help_links: [
-      { label: 'Shipping Policy', url: '/pages/shipping' },
-      { label: 'Returns',         url: '/pages/returns' },
-      { label: 'Contact Us',      url: '/pages/contact' },
+      { label: 'Shipping Policy',   url: '/pages/shipping-policy' },
+      { label: 'Returns & Refunds', url: '/pages/returns-policy' },
+      { label: 'Contact Us',        url: '/pages/contact-us' },
     ],
     col_company_heading: 'Company',
     col_company_links: [
-      { label: 'About Us',       url: '/pages/about' },
-      { label: 'Privacy Policy', url: '/pages/privacy' },
+      { label: 'About Us',           url: '/pages/about-us' },
+      { label: 'Privacy Policy',     url: '/pages/privacy-policy' },
+      /* Added 8 Sept 2026. Terms was not linked anywhere on the site.
+         An unlinked Terms page is close to unenforceable — the customer
+         has to be able to find it. The checkout agreement line does the
+         heavier legal work, but the footer link is the baseline. */
+      { label: 'Terms & Conditions', url: '/pages/terms-and-conditions' },
     ],
   },
 };
