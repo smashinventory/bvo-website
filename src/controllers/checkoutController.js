@@ -270,6 +270,15 @@ exports.process = async (req, res) => {
                              { year: 'numeric', month: 'long', day: 'numeric' }),
       order_items_html:    `<table style="width:100%;border-collapse:collapse">${itemsHtml}</table>`,
       order_total:         `$${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      /* Processing time before the freight carrier collects — NOT total
+         time to the customer's door. The Shipping Policy states 2-5
+         business days to process and ship, then 5-12 business days in
+         transit. The template says "ships in approximately", so this must
+         stay the processing figure or the two documents contradict each
+         other. brevoService renders an unknown {{var}} as an empty string,
+         so omitting this would print "ships in approximately ." with no
+         error anywhere. */
+      estimated_ship_window: '2 to 5 business days',
     }, `${(first_name || '').trim()} ${(last_name || '').trim()}`.trim())
       .catch(err => console.error('[checkout] confirmation email failed for',
                                   orderNumber, '—', err?.message || err));
