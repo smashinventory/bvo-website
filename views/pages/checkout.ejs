@@ -197,6 +197,34 @@
 
         <p class="co-sum-note">Taxes calculated at next step</p>
 
+        <%
+          /* Agreement line — must sit IMMEDIATELY above the Place Order button.
+             This is what makes the policy pages binding rather than merely
+             published: the arbitration clause, the liability cap and the 25%
+             restocking fee all depend on the customer having been shown the
+             terms at the moment of purchase. A footer link is weak evidence
+             of that; a line adjacent to the button is the standard one.
+
+             Passive by design — no checkbox. Decided 8 Sept 2026.
+
+             The four hrefs are the slugs seeded by migration 012 and used by
+             the footer menus in migration 015. They are NOT guesses: an
+             earlier draft of the policy migration invented `terms`,
+             `privacy` and `returns-refunds`, which would have 404'd here in
+             exactly the place a 404 does the most damage. Verified by gate 1
+             in git_push_checkout_agreement.sh.
+
+             Reuses .co-sum-note (site3.css, already used by the taxes note
+             directly above) — no new class, no CSS change, no ?v= bump. */
+        %>
+        <p class="co-sum-note">
+          By placing your order you agree to our
+          <a href="/pages/terms-and-conditions">Terms &amp; Conditions</a>,
+          <a href="/pages/privacy-policy">Privacy Policy</a>,
+          <a href="/pages/shipping-policy">Shipping Policy</a> and
+          <a href="/pages/returns-policy">Returns &amp; Refunds</a>.
+        </p>
+
         <button type="button" id="payBtn" class="btn btn-amber checkout-submit-btn">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2" aria-hidden="true" style="margin-right:6px;vertical-align:middle">
