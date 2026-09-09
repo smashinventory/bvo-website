@@ -1,4 +1,9 @@
-<%- layout('layouts/admin') %>
+<%# NO layout() call here — layout is set by the controller.
+    Calling layout() inside an admin template throws "layout is not a
+    function" at render time, which the controller catches and turns into
+    the generic error page. CLAUDE.md: "⛔ EJS LAYOUT RULE — NEVER
+    VIOLATE". These two settings views were the only ones in the codebase
+    still doing it. %>
 
 <!-- ══ Toolbar ══════════════════════════════════════════════════════ -->
 <div class="adm-toolbar">

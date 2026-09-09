@@ -1,5 +1,236 @@
 # BVO Change Log Brief
-*Last updated: 2026-08-10*
+*Last updated: 2026-09-09*
+
+> **⚠️ This file had a one-month hole.** It stopped at 2026-08-10 while roughly
+> seventy tasks shipped — the whole order-management and fulfilment stack, the
+> JMV reporting dashboard, the WWEX integration, the brand/model rework, the
+> search rewrite and the policy pages. None of it was written down. On
+> 2026-09-08 that gap caused a live mistake: `email_templates` was assumed not
+> to exist because nothing in the repo mentioned it, and a migration was
+> written to create a table that already held 9 live templates.
+>
+> The entries below close that hole. Where a dedicated brief already exists,
+> the entry points at it rather than duplicating it.
+>
+> **Companion reference:** `BVO_AUDIT_BRIEF.md` → *LIVE DATABASE INVENTORY* —
+> all 41 live tables, and which 16 of them have no migration file.
+
+---
+
+## Policy Pages, Footer Menus, Checkout Agreement, Order Confirmation Email
+**Date:** 2026-09-08 → 2026-09-09
+**Migrations:** `014_policy_pages.sql`, `015_footer_column_menus.sql`, `016_email_templates.sql`
+**Decisions of record:** `docs/POLICY_ANSWERS.md` — read this before changing any policy wording
+**Vendor limits:** `docs/VENDOR_POLICY_CONSTRAINTS.md` · **Human tasks:** `docs/PRE_LAUNCH_CHECKLIST.md`
+
+### Four policy pages — migration 014
+Shipping, Returns & Refunds, Privacy, Terms — written as `UPDATE` statements
+against the four slugs migration 012 already seeded (`shipping-policy`,
+`returns-policy`, `privacy-policy`, `terms-and-conditions`).
+
+⚠️ **An earlier draft invented slugs** (`terms`, `privacy`, `returns-refunds`)
+and used `INSERT IGNORE`. Run as written it would have skipped
+`shipping-policy` silently and created three duplicate pages — seven policy
+pages, four wrong, no error raised. Always check migration 012 for the real
+slug before writing anything that targets `pages`.
+
+⚠️ **Titles are stored with a plain `&`, never `&amp;`.** The footer renders
+them through EJS `<%= %>`, which escapes on output; storing the entity
+double-escapes and prints a literal `&amp;` on the live site.
+
+**Key policy decisions** (full reasoning in `POLICY_ANSWERS.md`):
+
+| | |
+|---|---|
+| Return window | **30 days from order date**, plus at least 10 days from receipt if delivery runs past the published timeframe |
+| RMA | Required. Carrier must collect within **14 days** or it voids — *this is not the return window; do not conflate the two* |
+| Restocking | 25% unopened or opened-but-boxed · 40% de-packaged · not returnable once installed |
+| Damage | Visible 48h · shortage 48h · concealed 21 days (JMV allows BVO 72h/72h/30d) |
+| Refunds | 5–7 business days from BVO's inspection, not from JMV settling |
+| Payment | `authOnly` at order, captured manually from the admin — **not** on shipment |
+| Warranty | Manufacturer's only, linked not restated |
+
+### Footer menus — migration 015
+Two systems both claimed the footer and the wrong one won. The Menu Manager
+wrote to `nav_menus`/`nav_menu_items` under handle `footer`; **nothing read
+it** — `megaMenuData.js` only queried `main-menu`. Meanwhile `footer.ejs`
+rendered `themeSettings.footer.col_*_links`, whose URLs were `/pages/shipping`,
+`/pages/returns`, `/pages/contact`, `/pages/about`, `/pages/privacy`. Migration
+012 seeded the long slugs, so **all five footer links were 404s** and had been
+since the footer was built.
+
+Fixed by splitting into three handles — `footer-shop`, `footer-help`,
+`footer-company` — one per column, adding the footer query to
+`megaMenuData.js`, and deleting the orphan `footer` menu. Column *headings*
+stay in theme settings so "Help" can be renamed without touching menus.
+
+The catch path in `megaMenuData.js` **must** return
+`footerMenus: { shop: [], help: [], company: [] }` — the template reads those
+three lengths directly and an undefined would throw on every page render.
+
+### Checkout agreement line
+`views/pages/checkout.ejs` — one paragraph immediately above Place Order
+linking all four policies. Passive, no checkbox (decided 2026-09-08). This is
+what makes the arbitration clause, the liability cap and the restocking fee
+binding rather than merely published; a footer link is weak evidence of
+assent. Reuses `.co-sum-note` from site3.css — no CSS change.
+
+⚠️ The Place Order button lives in the summary `<aside>`, **outside**
+`#checkout-form` (form closes ~line 155, button ~line 200). Anything
+requiring validation or submission must sit inside the form or carry
+`form="checkout-form"`.
+
+### Order confirmation email
+`checkoutController` never sent one. Now sends `order_confirmed` after
+`conn.commit()`, **not awaited**, with its own `.catch`. The card is already
+authorized at that point — an email failure must never surface as a failed
+order. `brevoService.getTemplate()` was moved inside `sendTemplate`'s try block
+for the same reason; it previously sat above it and could throw out of the send.
+
+Email content carries six points: be present for delivery · **inspect before
+signing** · keep packaging · 48h/21d reporting · 30-day returns + RMA ·
+authorization-hold explanation. The inspection warning is required here
+specifically (`POLICY_ANSWERS.md` R6) — it is the message customers read.
+
+This email is also BVO's **strongest evidence** of what a customer was shown
+at purchase, because the copy sits in their mailbox rather than in a database
+BVO controls.
+
+### ⚠️ Migration 016 was a partial no-op
+`email_templates` already existed with 9 active templates. `INSERT IGNORE`
+skipped every seed, so the six-point copy above **is not live** — the
+pre-existing 597-character `order_confirmed` is. Nothing was damaged. See the
+warning in `BVO_AUDIT_BRIEF.md` → LIVE DATABASE INVENTORY.
+
+Also unreconciled: the existing return templates use **RA** (`ra_number`)
+while the Returns policy page says **RMA**.
+
+### Still open
+- `page_revisions` table + order-level consent stamp — deliberately deferred
+  until after Sam's policy editing pass, so revision 1 is final text rather
+  than a trail of drafts
+- Shipping Policy payment paragraph still says "charge it when your item
+  ships"; agreed wording is "when your order is confirmed"
+- `support@`, `legal@`, `orders@` mailboxes do not exist yet
+- Brevo sender/domain authentication not done — no email can send until it is
+
+---
+
+## Order Management & Fulfilment Stack
+**Date:** 2026-08-11 → 2026-08-31 *(never previously documented)*
+
+The largest undocumented block. Built the entire post-purchase side.
+
+**Controllers:** `ordersController.js` (list, detail, status transitions, RAG
+status logic, capture payment, vendor PO send), `returnsController.js`
+(request → approve/deny → receive → resolve), `shippingController.js` (WWEX
+rate-shop, book, void, documents), `emailTemplatesController.js` (admin CRUD
+over `email_templates`).
+
+**Services:** `brevoService.js` (transactional email, DB-backed templates,
+`{{var}}` substitution, attachment support), `wwexService.js` (SpeedShip V4),
+`carrierRules.js` (per-carrier confirm rules).
+
+**Routes:** all under `src/routes/admin.js` — `/orders`, `/returns`,
+`/shipping`, `/settings/email-templates`, `/marketing`. **There are no
+separate `orders.js` / `returns.js` / `email-templates.js` route files**,
+despite what the task list said.
+
+**Views:** `views/pages/admin/orders/`, `admin/shipping/`, `admin/settings/`,
+`admin/marketing/`. CSS in `site4.css` (admin only — never bundled).
+
+**Tables created outside migrations:** `order_events`, `order_returns`,
+`order_documents`, `shipments`, `carrier_rules`, `email_templates`,
+`vendor_purchase_orders`. This is why the inventory section exists.
+
+**Email trigger keys in code:** `order_confirmed`, `order_shipped`,
+`vanity_in_preparation`, `return_approved`, `return_resolved`. The live table
+also holds `out_for_delivery`, `order_delivered`, `review_request` and
+`cross_sell` — **four templates with no code path calling them.**
+
+**Known gaps carried forward:** refused deliveries are mis-mapped as
+`delivered`; special-order status is populated but never displayed to the
+customer. Both are on the pre-launch checklist.
+
+### Admin Email Templates page was broken from the day it shipped
+`/admin/settings/email-templates` returned the generic error page.
+`emailTemplatesController` was the **only** admin controller with no layout on
+its `res.render` calls, and its two views were the **only** views in the
+codebase still calling `<%- layout('layouts/admin') %>` — both halves of the
+"⛔ EJS LAYOUT RULE — NEVER VIOLATE" section of `CLAUDE.md`, broken in the same
+place. Fixed 2026-09-09.
+
+---
+
+## FraudLabs Pro Screening
+**Date:** ~2026-08-20 *(never previously documented)*
+
+`src/services/fraudLabsService.js` called from `checkoutController` before the
+Authorize.Net auth. Writes `fraudlabs_score`, `fraudlabs_status`,
+`fraudlabs_ip_vpn`, `fraudlabs_ip_tor`, `fraudlabs_ip_proxy`,
+`fraudlabs_email_risk` onto the order row. Risk panel rendered in
+`views/pages/admin/orders/detail.ejs`. Env: `FRAUDLABS_API_KEY`.
+
+---
+
+## JMV Movement Reporting + Nightly Rollup
+**Date:** ~2026-08-25 *(never previously documented)*
+
+Four tables — `jmv_snapshots` (83k rows), `jmv_daily_movement` (31k),
+`jmv_dimensions` (5.2k), `jmv_snapshot_validity` — built from the nightly
+James Martin feed to infer inventory movement, since JM supplies stock levels
+but not sales.
+
+`src/jobs/jmvMovementRollup.js` ingests the latest XLSX/csv.gz and computes
+day-over-day deltas. `jmvReportsController.js` + `admin/marketing/jmv-reports.ejs`
+render the dashboard. Cron wrapper `jmv_rollup.sh` runs **05:30 UTC**, a
+31-minute buffer after `gvssync.sh` — Hostinger kills any process at 30 minutes.
+
+⚠️ `jmvMovementRollup.js`'s header comment claims node-cron in `server.js`
+also fires this job. **It does not** — there is no `cron.schedule` anywhere in
+`src/`. The hPanel cron is the only trigger.
+
+---
+
+## WWEX SpeedShip V4 Integration
+**Date:** 2026-08-15 → 2026-09-02
+**→ Full detail: `SHIPPING_WWEX_BRIEF.md` (747 lines). MANDATORY read before
+touching `wwexService.js`, `shippingController.js` or `admin/shipping/`.**
+
+Summary only: replaced the stub with the real SpeedShip V4 API — rate shop,
+book, void, document download, carrier notification options. Two-layer
+Handling Unit + Commodity UI. `shipment_status_poll.sh` polls carrier status
+twice daily (13:00 and 23:00 UTC) because WWEX sends delivery alerts to the
+*receiver*, not to BVO, and offers no webhook.
+
+---
+
+## Brand / Model Keying + ER Vanities Catalogue Load
+**Date:** 2026-09-04 → 2026-09-05
+**→ `BVO_MODEL_BRAND_KEY_BRIEF.md` and `BVO_BRAND_ONBOARDING_PLAYBOOK.md`
+(MANDATORY before loading any new brand — 9 phases, 16 numbered traps).**
+
+Summary only: `model_groups` and every model-card path re-keyed from `model`
+to `(model, brand)`, since two brands can share a model name. Homepage
+featured sections gained brand/category/type filters and unlimited duplication.
+ER Vanities loaded as brand `ER Vanities` — `Ethan Roth` is retired. Settled
+facts that look like data errors but are not are listed in `CLAUDE.md`.
+
+---
+
+## Storefront + Admin Search Rewrite
+**Date:** 2026-09-06 → 2026-09-07
+**→ `docs/SEARCH_AND_ORDERING_2026-09-06.md`**
+
+Summary only: FULLTEXT abandoned — `innodb_ft_min_token_size` defaults to 3, so
+every two-character vanity width (24, 30, 36, 42, 48, 54, 60, 66, 72) was
+**never in the index**. Replaced with a shared LIKE + weighted-relevance
+builder, `src/utils/searchQuery.js`, used by all three search bars so they
+cannot disagree. Added `/search` results page (`searchService.js`,
+`searchPageController.js`, `views/pages/search.ejs`) — pressing Enter used to
+404. Pin-to-position fixed via
+`COALESCE(NULLIF(p.sort_order, 0), 999999)` — 0 previously meant both "unset"
+and "strongest".
 
 ---
 

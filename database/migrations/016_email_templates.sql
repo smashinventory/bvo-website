@@ -1,65 +1,69 @@
 -- ═══════════════════════════════════════════════════════════════════════
--- 016_email_templates.sql — create the email_templates table + seed
+-- 016_email_templates.sql — align the live order_confirmed template
 --
--- ── WHY THIS EXISTS ───────────────────────────────────────────────────
--- `email_templates` is read by src/services/brevoService.js and written by
--- src/controllers/emailTemplatesController.js, and has an admin editor at
--- /admin/settings/email-templates. It has never had a CREATE statement —
--- not in any migration, not as a self-heal in code.
+-- ── REWRITTEN 2026-09-09. THE FIRST VERSION OF THIS FILE WAS WRONG. ───
+-- It was written on the assumption that `email_templates` did not exist,
+-- because nothing in database/migrations/ creates it. The table exists and
+-- has held 9 active templates since the order-management build in August.
 --
--- Five trigger keys are already referenced by live code:
---     order_confirmed        (added by this change, checkoutController)
---     order_shipped          ordersController.bookShipment
---     vanity_in_preparation  ordersController.sendVendorOrder
---     return_approved        returnsController
---     return_resolved        returnsController
+-- The first version therefore:
+--   * CREATE TABLE IF NOT EXISTS with a schema that did NOT match live
+--     (varchar(64/255/500) + MEDIUMTEXT + a created_at column and an index
+--      that live does not have) — a no-op here, but it would have built a
+--      DIFFERENT table on a fresh install, and
+--   * INSERT IGNORE'd five templates, every one of which was skipped. The
+--     approved order_confirmed copy silently never landed, and the file
+--     reported success.
 --
--- brevoService.getTemplate() runs OUTSIDE the try block in sendTemplate,
--- so a missing table throws out of the send rather than being caught. That
--- is fixed in the same commit as this migration.
+-- 16 of the 41 live tables have no CREATE in database/migrations/. See
+-- BVO_AUDIT_BRIEF.md → LIVE DATABASE INVENTORY. Absence of a migration is
+-- not evidence that a table is absent.
 --
--- ── is_active ─────────────────────────────────────────────────────────
--- Only `order_confirmed` is seeded ACTIVE. Its copy was written and
--- approved 8 Sept 2026. The other four are seeded INACTIVE with working
--- but unreviewed drafts, so that:
---   * the rows exist and are editable in the admin editor, and
---   * nothing sends unreviewed copy to a customer.
--- getTemplate() filters on is_active = 1, so an inactive template makes
--- sendTemplate log and skip — which is the current behaviour minus the
--- throw. Activate each one from the admin editor after reading it.
+-- ── WHAT THIS FILE NOW DOES ──────────────────────────────────────────
+-- ONE thing: replaces the body and subject of `order_confirmed` with the
+-- six-point copy approved 2026-09-08. Nothing else is touched.
 --
--- Safe to re-run: CREATE TABLE IF NOT EXISTS + INSERT IGNORE on a UNIQUE
--- trigger_key. Re-running will NOT overwrite copy edited in the admin.
+-- The other EIGHT templates are left exactly as they are. Four of them
+-- (out_for_delivery, order_delivered, review_request, cross_sell) have no
+-- code path calling them; that is a separate decision, not a migration.
+--
+-- ── VARIABLES ────────────────────────────────────────────────────────
+-- This body uses, and checkoutController supplies, exactly:
+--     {{customer_first_name}} {{order_number}} {{order_date}}
+--     {{order_items_html}}    {{order_total}}
+--
+-- The template being REPLACED used {{product_name}} and
+-- {{estimated_ship_window}}, which checkoutController does NOT send.
+-- brevoService.substituteVars() renders an unknown placeholder as an empty
+-- string, so had this not been corrected the first live confirmation email
+-- would have gone out with two blank gaps and no error anywhere.
+--
+-- ── DDL ──────────────────────────────────────────────────────────────
+-- Mirrors the LIVE schema exactly, read from the 2026-09-08 mysqldump. It
+-- exists so a fresh install builds the same table, not a similar one. On
+-- the live database it is a no-op.
+--
+-- Safe to re-run: the UPDATE is a full overwrite of that one row. It WILL
+-- overwrite edits made in the admin editor, so once this is applied, edit
+-- the copy at /admin/settings/email-templates and not here.
 -- ═══════════════════════════════════════════════════════════════════════
 
-CREATE TABLE IF NOT EXISTS email_templates (
-  id           INT AUTO_INCREMENT PRIMARY KEY,
-  trigger_key  VARCHAR(64)  NOT NULL UNIQUE,
-  label        VARCHAR(255) NOT NULL,
-  subject      VARCHAR(500) NOT NULL,
-  body_html    MEDIUMTEXT   NOT NULL,
-  is_active    TINYINT(1)   NOT NULL DEFAULT 0,
-  created_at   DATETIME     NOT NULL DEFAULT NOW(),
-  updated_at   DATETIME     NOT NULL DEFAULT NOW() ON UPDATE NOW(),
-  INDEX idx_email_templates_active (trigger_key, is_active)
+CREATE TABLE IF NOT EXISTS `email_templates` (
+  `id`          int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `trigger_key` varchar(100) NOT NULL,
+  `label`       varchar(200) NOT NULL,
+  `subject`     varchar(300) NOT NULL,
+  `body_html`   longtext     NOT NULL,
+  `is_active`   tinyint(1)   NOT NULL DEFAULT 1,
+  `updated_at`  datetime     NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `trigger_key` (`trigger_key`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ── order_confirmed — ACTIVE ──────────────────────────────────────────
--- Variables available (substituted by brevoService.substituteVars):
---   {{customer_first_name}} {{order_number}} {{order_date}}
---   {{order_items_html}}    {{order_total}}
---
--- The six points below are the approved set, in the order the customer
--- lives them. Bullet 2 is the one that carries real money: once a clean
--- delivery receipt is signed, James Martin and the carrier both deny the
--- claim, and the loss lands on BVO or the customer. POLICY_ANSWERS.md R6
--- calls for it to appear here specifically, because this is the email that
--- actually gets read.
-INSERT IGNORE INTO email_templates (trigger_key, label, subject, body_html, is_active) VALUES
-('order_confirmed',
- 'Order Confirmation',
- 'Your BVO order {{order_number}} is confirmed',
- '<div style="font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#2c2c2c;max-width:620px;margin:0 auto;padding:24px">
+-- ── order_confirmed — replace subject + body ──────────────────────────
+UPDATE email_templates SET
+  subject   = 'Your BVO order {{order_number}} is confirmed',
+  body_html = '<div style="font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#2c2c2c;max-width:620px;margin:0 auto;padding:24px">
 
   <h1 style="font-size:22px;margin:0 0 4px">Thank you, {{customer_first_name}}.</h1>
   <p style="margin:0 0 20px;color:#7a7264">Order <strong>{{order_number}}</strong> &middot; {{order_date}}</p>
@@ -87,7 +91,7 @@ INSERT IGNORE INTO email_templates (trigger_key, label, subject, body_html, is_a
   Visible damage or missing boxes: <strong>48 hours</strong>. Concealed damage: <strong>21 days</strong>. We have to file with the manufacturer inside their window, so these are firm.</p>
 
   <p style="margin:0 0 16px"><strong>5. Returns.</strong><br>
-  <strong>30 days from your order date</strong>, and email us for an RMA first &mdash; returns sent without one are refused. Return shipping and a restocking fee apply. If delivery runs late, you will have at least 10 days from the day it arrives.</p>
+  <strong>30 days from your order date</strong>, and email us for an RA first &mdash; returns sent without one are refused. Return shipping and a restocking fee apply. If delivery runs late, you will have at least 10 days from the day it arrives.</p>
 
   <p style="margin:0 0 24px"><strong>6. About your payment.</strong><br>
   We have placed an authorization hold on your card and will charge it when your order is confirmed. If your bank shows a hold that later disappears, that is normal &mdash; authorizations expire after about a week, and if your order takes longer we will re-confirm before capture of payment and shipping is scheduled. Nothing is charged if we cancel before capture of payment.</p>
@@ -108,75 +112,24 @@ INSERT IGNORE INTO email_templates (trigger_key, label, subject, body_html, is_a
   </p>
 
 </div>',
- 1);
-
--- ── The four already-referenced keys — INACTIVE drafts ────────────────
--- These exist so the code paths that call them stop hitting a missing
--- table. Read and activate each from /admin/settings/email-templates.
-INSERT IGNORE INTO email_templates (trigger_key, label, subject, body_html, is_active) VALUES
-('order_shipped',
- 'Order Shipped',
- 'Your BVO order has shipped',
- '<div style="font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#2c2c2c;max-width:620px;margin:0 auto;padding:24px">
-  <p>Hi {{customer_first_name}},</p>
-  <p>Your {{product_name}} is on its way with {{carrier}}, estimated {{estimated_delivery}}.</p>
-  <p><a href="{{tracking_url}}">Track your shipment</a></p>
-  <div style="border-left:3px solid #c9a227;padding:12px 16px;margin:16px 0;background:#fdfaf3">
-    <p style="margin:0"><strong>Inspect before you sign.</strong> If the packaging is damaged, refuse the shipment and call us the same day. If you accept it and see damage, write it on the delivery receipt before signing and photograph it. &ldquo;Subject to inspection&rdquo; does not count &mdash; once a clean receipt is signed the claim cannot be recovered.</p>
-  </div>
-  <p>Someone must be present to receive and sign. Delivery is curbside with liftgate.</p>
-  <p style="font-size:13px;color:#7a7264"><a href="https://bathroomvanitiesoutlet.com/pages/shipping-policy">Shipping Policy</a> &middot; support@bathroomvanitiesoutlet.com &middot; (877) 777-1948</p>
-</div>',
- 0),
-
-('vanity_in_preparation',
- 'Vanity In Preparation',
- 'Your BVO order is being prepared',
- '<div style="font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#2c2c2c;max-width:620px;margin:0 auto;padding:24px">
-  <p>Hi {{customer_first_name}},</p>
-  <p>Your {{product_name}} is being prepared for shipment. Transit is typically {{transit_days}} business days once it leaves the warehouse, and we will send tracking as soon as it ships.</p>
-  <p style="font-size:13px;color:#7a7264">support@bathroomvanitiesoutlet.com &middot; (877) 777-1948</p>
-</div>',
- 0),
-
-('return_approved',
- 'Return Approved (RMA issued)',
- 'Your return has been approved — RMA {{rma_number}}',
- '<div style="font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#2c2c2c;max-width:620px;margin:0 auto;padding:24px">
-  <p>Hi {{customer_first_name}},</p>
-  <p>Your return is approved. Your RMA number is <strong>{{rma_number}}</strong>.</p>
-  <p>Please return to: {{return_address}}</p>
-  <p><strong>Write the RMA number on the outside of the carton.</strong> Items shipped without an RMA, or sent to our office address, are refused. The carrier must collect within 14 days or the authorization expires.</p>
-  <p>Items must be in original packaging. Return shipping and a restocking fee apply as set out in our returns policy.</p>
-  <p style="font-size:13px;color:#7a7264"><a href="https://bathroomvanitiesoutlet.com/pages/returns-policy">Returns &amp; Refunds</a> &middot; support@bathroomvanitiesoutlet.com</p>
-</div>',
- 0),
-
-('return_resolved',
- 'Return Resolved (refund issued)',
- 'Your refund has been issued',
- '<div style="font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#2c2c2c;max-width:620px;margin:0 auto;padding:24px">
-  <p>Hi {{customer_first_name}},</p>
-  <p>We have received and inspected your return, and a refund of <strong>{{refund_amount}}</strong> has been issued to your original payment method.</p>
-  <p>Your bank may take a few more days to post it.</p>
-  <p style="font-size:13px;color:#7a7264">support@bathroomvanitiesoutlet.com &middot; (877) 777-1948</p>
-</div>',
- 0);
+  is_active = 1
+WHERE trigger_key = 'order_confirmed';
 
 -- ── Verification ──────────────────────────────────────────────────────
--- Expect 5 rows: order_confirmed active, the other four inactive.
-SELECT trigger_key, label, is_active, CHAR_LENGTH(body_html) AS body_len
+-- Expect exactly ONE row changed. Zero means the trigger_key is wrong.
+SELECT ROW_COUNT() AS rows_changed;
+
+-- Expect 9 rows. order_confirmed should now be ~3,800 chars; the other
+-- eight unchanged. If order_confirmed is still ~597, the UPDATE missed.
+SELECT trigger_key, is_active, CHAR_LENGTH(body_html) AS body_len
 FROM email_templates ORDER BY id;
 
--- Expect ZERO rows. Any trigger_key called in code with no row here is a
--- send that silently does nothing.
-SELECT k.trigger_key AS missing_template
-FROM (
-  SELECT 'order_confirmed' AS trigger_key UNION ALL
-  SELECT 'order_shipped'            UNION ALL
-  SELECT 'vanity_in_preparation'    UNION ALL
-  SELECT 'return_approved'          UNION ALL
-  SELECT 'return_resolved'
-) k
-LEFT JOIN email_templates t ON t.trigger_key = k.trigger_key
-WHERE t.id IS NULL;
+-- Expect ZERO rows. Any {{variable}} in order_confirmed that
+-- checkoutController does not supply renders as an empty string.
+SELECT 'order_confirmed uses an unsupplied variable' AS problem
+FROM email_templates
+WHERE trigger_key = 'order_confirmed'
+  AND (body_html LIKE '%{{product_name}}%'
+    OR body_html LIKE '%{{estimated_ship_window}}%'
+    OR body_html LIKE '%{{tracking_url}}%'
+    OR body_html LIKE '%{{carrier}}%');

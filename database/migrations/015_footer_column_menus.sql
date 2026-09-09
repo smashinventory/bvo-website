@@ -14,9 +14,15 @@
 --     /pages/about and /pages/privacy.
 --
 -- Migration 012 seeded the pages as shipping-policy, returns-policy,
--- contact-us, about-us and privacy-policy. So ALL FIVE footer links were
--- 404s — verified live 8 Sept 2026 — and had been since the footer was
--- built. Terms & Conditions was not linked at all.
+-- contact-us, about-us and privacy-policy. So all five of those footer
+-- links were 404s and had been since the footer was built. Terms &
+-- Conditions was not linked at all.
+--
+-- CORRECTED 9 Sept 2026 after reading app_settings out of the database
+-- dump: it is SIX broken links, not five. col_shop_links also carries
+-- `Mirrors -> /collections/mirrors`, and `mirrors` is a RETIRED slug —
+-- renamed to `bathroom-mirrors` in the July taxonomy overhaul (Rule 12).
+-- The Shop column was not clean either.
 --
 -- Nothing errored. A 404 on a footer link is invisible until someone
 -- clicks it, and an admin screen that saves to a table nobody reads looks
@@ -47,8 +53,12 @@ INSERT IGNORE INTO nav_menus (name, handle) VALUES
   ('Footer — Company', 'footer-company');
 
 -- ── Shop column ───────────────────────────────────────────────────────
--- Matches the current live footer. These were never broken; they point at
--- collections, not pages.
+-- Same four links the live footer shows, with one CORRECTION: theme
+-- settings point Mirrors at /collections/mirrors, a retired slug that
+-- 404s. The row below uses /collections/bathroom-mirrors.
+--
+-- /collections/sale is NOT a category row — it is a virtual route handled
+-- in collectionsController.js line 72. Verified; leave it as-is.
 INSERT IGNORE INTO nav_menu_items (menu_id, label, url, sort_order)
 SELECT id, 'Bathroom Vanities', '/collections/bathroom-vanities', 10 FROM nav_menus WHERE handle='footer-shop';
 INSERT IGNORE INTO nav_menu_items (menu_id, label, url, sort_order)

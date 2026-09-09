@@ -14,6 +14,15 @@
 const { bvoPool } = require('../config/database');
 const brevo       = require('../services/brevoService');
 
+/* Admin layout comes from the controller, never from a layout() call in
+   the template — CLAUDE.md, "⛔ EJS LAYOUT RULE — NEVER VIOLATE". This
+   controller was the only admin controller in the codebase with no layout
+   on its render calls, and its two views were the only ones still calling
+   layout() themselves. Both halves of the rule were broken in the same
+   place, which is why /admin/settings/email-templates returned the
+   generic error page while every other admin page worked. */
+const LAYOUT = { layout: 'layouts/admin' };
+
 /* ── Sample vars for live preview ─────────────────────────────── */
 const PREVIEW_VARS = {
   customer_first_name: 'Jane',
@@ -40,6 +49,7 @@ exports.list = async (req, res) => {
   try {
     const templates = await brevo.listTemplates();
     res.render('pages/admin/settings/email-templates', {
+      ...LAYOUT,
       activePage: 'email-templates',
       pageTitle:  'Email Templates',
       templates,
@@ -63,6 +73,7 @@ exports.editForm = async (req, res) => {
     const preview = brevo.previewTemplate(tpl, PREVIEW_VARS);
 
     res.render('pages/admin/settings/email-template-edit', {
+      ...LAYOUT,
       activePage:   'email-templates',
       pageTitle:    `Edit: ${tpl.label}`,
       tpl,
