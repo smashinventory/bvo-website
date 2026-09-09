@@ -46,16 +46,23 @@ exports.sendTemplate = async (triggerKey, toEmail, vars = {}, toName = '') => {
     return { skipped: true };
   }
 
-  const tpl = await getTemplate(triggerKey);
-  if (!tpl) {
-    console.warn('[brevo] No active template found for trigger_key:', triggerKey);
-    return { skipped: true };
-  }
-
-  const subject  = substituteVars(tpl.subject,   vars);
-  const htmlBody = substituteVars(tpl.body_html,  vars);
-
+  /* The DB read lives INSIDE the try. It used to sit above it, so a
+     missing or unreachable email_templates table threw out of
+     sendTemplate rather than being caught here. That is tolerable for the
+     admin-triggered sends, but checkoutController now calls this after the
+     card is authorized — an exception escaping at that point would turn a
+     Brevo or DB hiccup into a failed order that has already been charged
+     a hold. Nothing in this function may throw. */
   try {
+    const tpl = await getTemplate(triggerKey);
+    if (!tpl) {
+      console.warn('[brevo] No active template found for trigger_key:', triggerKey);
+      return { skipped: true };
+    }
+
+    const subject  = substituteVars(tpl.subject,   vars);
+    const htmlBody = substituteVars(tpl.body_html, vars);
+
     const response = await axios.post(
       BREVO_API_URL,
       {

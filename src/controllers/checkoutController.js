@@ -22,6 +22,7 @@
 const { bvoPool }    = require('../config/database');
 const authorizeNet   = require('../services/authorizeNetService');
 const fraudLabs      = require('../services/fraudLabsService');
+const brevo          = require('../services/brevoService');
 
 /* ── Helpers ────────────────────────────────────────────────────── */
 
@@ -231,6 +232,47 @@ exports.process = async (req, res) => {
     }
 
     await conn.commit();
+
+    /* ── Order confirmation email ──────────────────────────────────────
+       AFTER commit, and deliberately NOT awaited.
+
+       The card is already authorized by this point. If this send were
+       awaited and rejected, the customer would see the "we could not
+       record your order" error for an order that committed fine, and
+       would likely order again. So it is fire-and-forget with its own
+       catch: the order is complete whether or not the email lands.
+       brevoService.sendTemplate never throws (its DB read is inside its
+       try) — the .catch here is belt and braces.
+
+       This email is also the strongest evidence BVO has of what the
+       customer was shown at purchase, because the copy sits in their
+       mailbox rather than in a database we control. It restates the six
+       points and links the four policies. See docs/POLICY_ANSWERS.md R6,
+       which calls for the delivery-inspection warning to appear here
+       specifically — this is the message customers actually read. */
+    const itemsHtml = cart.items.map(it => {
+      const disc  = parseFloat(it.bundle_discount_pct) || 0;
+      const unit  = parseFloat(it.price || 0) * (1 - disc / 100);
+      const line  = unit * (it.qty || 1);
+      const esc   = s => String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+      return `<tr>
+        <td style="padding:8px 0;border-bottom:1px solid #e5e0d8">${esc(it.name || 'Product')}${(it.qty || 1) > 1 ? ` &times;${it.qty}` : ''}</td>
+        <td style="padding:8px 0;border-bottom:1px solid #e5e0d8;text-align:right;white-space:nowrap">$${line.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+      </tr>`;
+    }).join('');
+
+    brevo.sendTemplate('order_confirmed', email.trim(), {
+      customer_first_name: (first_name || '').trim() || 'there',
+      order_number:        orderNumber,
+      order_date:          new Date().toLocaleDateString('en-US',
+                             { year: 'numeric', month: 'long', day: 'numeric' }),
+      order_items_html:    `<table style="width:100%;border-collapse:collapse">${itemsHtml}</table>`,
+      order_total:         `$${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+    }, `${(first_name || '').trim()} ${(last_name || '').trim()}`.trim())
+      .catch(err => console.error('[checkout] confirmation email failed for',
+                                  orderNumber, '—', err?.message || err));
 
     // Store confirmation info in session
     req.session.lastOrder = {
