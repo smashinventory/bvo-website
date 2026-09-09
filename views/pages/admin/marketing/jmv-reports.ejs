@@ -36,6 +36,14 @@ const _topsByFinish    = JSON.parse(topsByFinish    || '[]');
 const _topsBySize      = JSON.parse(topsBySize      || '[]');
 const _topsByMaterial  = JSON.parse(topsByMaterial  || '[]');
 const _topsFinishSize  = JSON.parse(topsFinishSize  || '[]');
+const _cabByCollection   = JSON.parse(cabByCollection   || '[]');
+const _cabByFinish       = JSON.parse(cabByFinish       || '[]');
+const _cabBySize         = JSON.parse(cabBySize         || '[]');
+const _cabCollectionSize = JSON.parse(cabCollectionSize || '[]');
+const _comboByCollection = JSON.parse(comboByCollection || '[]');
+const _comboBySize       = JSON.parse(comboBySize       || '[]');
+const _comboFinishPair   = JSON.parse(comboFinishPair   || '[]');
+const _comboBySinks      = JSON.parse(comboBySinks      || '[]');
 %>
 
 <!-- ══ Toolbar ══════════════════════════════════════════════════════ -->
@@ -53,6 +61,12 @@ const _topsFinishSize  = JSON.parse(topsFinishSize  || '[]');
       <option value="30"  <%= days===30  ? 'selected':'' %>>Last 30 days</option>
       <option value="60"  <%= days===60  ? 'selected':'' %>>Last 60 days</option>
       <option value="90"  <%= days===90  ? 'selected':'' %>>Last 90 days</option>
+      <%# 365 so history past 90 days is visible as it accrues. It is NOT
+          a year-over-year view — MoM/YoY comparison needs two windows and
+          a delta, which is a separate build and pointless under ~60 days
+          of data. Values are whitelisted in the controller; anything not
+          in ALLOWED_DAYS falls back to 30. %>
+      <option value="365" <%= days===365 ? 'selected':'' %>>Last 365 days</option>
     </select>
     <%# REMOVED 2026-09-03 — the "Vanity / Cabinet / Top" vs "Full Feed (all
         types)" dropdown lived here and did nothing.
@@ -494,6 +508,237 @@ const _docCollections = [...new Set(daysOfCover.map(r => r.collection).filter(Bo
 </div>
 <% } %>
 
+<%# ══════════════════════════════════════════════════════════════════
+    CABINET DEMAND — added 2026-09-09
+    product_type = 'Cabinet'. 332 SKUs, none with a top, none with sinks.
+    SKU-level, no group dedup — same reasoning as Tops Demand: scoped to
+    one product_type the SKU is the atomic unit.
+    ══════════════════════════════════════════════════════════════════ %>
+<h2 class="report-section-title" style="margin-top:28px">
+  Cabinet Demand
+  <span style="font-weight:400;font-size:.85rem;font-style:italic">— individual cabinet SKUs, not grouped</span>
+</h2>
+<p style="font-size:.78rem;color:var(--text-muted);margin:0 0 12px">
+  Cabinet-only SKUs — no top, no sinks. Accessories and one-off components
+  are excluded entirely.
+</p>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+  <div class="admin-card">
+    <h3 class="admin-card-title">Collection by Demand</h3>
+    <% if (_cabByCollection.length) { %>
+    <canvas id="chartCabCollection" height="240"></canvas>
+    <% } else { %><div class="adm-empty">No cabinet movement in this window.</div><% } %>
+  </div>
+  <div class="admin-card">
+    <h3 class="admin-card-title">Cabinet Size by Demand</h3>
+    <% if (_cabBySize.length) { %>
+    <canvas id="chartCabSize" height="240"></canvas>
+    <% } else { %><div class="adm-empty">No cabinet movement in this window.</div><% } %>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px">
+  <div class="admin-card">
+    <h3 class="admin-card-title">Base Finish by Demand</h3>
+    <% if (_cabByFinish.length) { %>
+    <div style="position:relative;height:220px"><canvas id="chartCabFinish"></canvas></div>
+    <% } else { %><div class="adm-empty">No data for this window.</div><% } %>
+  </div>
+
+  <div class="admin-card">
+    <h3 class="admin-card-title">Collection × Size
+      <span class="jmv-tip" data-tip="Which cabinet line sells in which width. Darker = more units depleted.">ℹ</span>
+    </h3>
+    <% if (_cabCollectionSize.length) { %>
+    <%
+      /* Pivot long-form into collection → size → qty, ordered by the
+         collection ranking above so both panels agree. Same shape as the
+         Tops finish × size heatmap. */
+      const _ccsSizes = [...new Set(_cabCollectionSize.map(r => Number(r.size_nominal)))].sort((a,b)=>a-b);
+      const _ccsMap = {};
+      _cabCollectionSize.forEach(r => {
+        (_ccsMap[r.collection] = _ccsMap[r.collection] || {})[Number(r.size_nominal)] = Number(r.total_drawdown);
+      });
+      const _ccsCollections = _cabByCollection.map(r => r.collection).filter(c => _ccsMap[c]).slice(0, 12);
+      const _ccsMax = Math.max(1, ..._cabCollectionSize.map(r => Number(r.total_drawdown)));
+    %>
+    <div style="overflow-x:auto">
+      <table class="jmv-heatmap">
+        <thead>
+          <tr>
+            <th style="text-align:left;min-width:150px">Collection \ Size →</th>
+            <% _ccsSizes.forEach(s => { %><th><%= s %>"</th><% }) %>
+          </tr>
+        </thead>
+        <tbody>
+        <% _ccsCollections.forEach(col => { %>
+          <tr>
+            <td class="jmv-heatmap__label"><%= col %></td>
+            <% _ccsSizes.forEach(sz => { %>
+              <% const v = (_ccsMap[col] || {})[sz] || 0; const ratio = v / _ccsMax; %>
+              <td class="jmv-heatmap__cell"
+                  style="background:rgba(26,46,74,<%= ratio.toFixed(2) %>);color:<%= ratio > 0.5 ? '#fff' : '#1a2e4a' %>"><%= v || '' %></td>
+            <% }) %>
+          </tr>
+        <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %><div class="adm-empty">No data for this window.</div><% } %>
+  </div>
+</div>
+
+<% if (cabLeaderboard.length > 0) { %>
+<div class="admin-card" style="margin-top:12px">
+  <h3 class="admin-card-title">Top Cabinet SKUs by Demand
+    <span style="font-weight:400;font-size:.8rem;color:var(--text-muted)">— individual SKUs, ungrouped</span>
+  </h3>
+  <div class="adm-table-wrap jmv-scroll-wrap">
+    <table class="adm-table">
+      <thead><tr>
+        <th>#</th><th>SKU</th><th>COLLECTION</th><th>FINISH</th>
+        <th>SIZE</th><th>HARDWARE</th><th>TYPE</th>
+        <th>DRAWDOWN</th><th>ACTIVE DAYS</th>
+      </tr></thead>
+      <tbody>
+      <% cabLeaderboard.forEach(function(r, i) { %>
+        <tr>
+          <td><%= i + 1 %></td>
+          <td style="font-weight:600"><%= r.sku %></td>
+          <td><%= r.collection || '—' %></td>
+          <td><%= r.base_finish || '—' %></td>
+          <td><%= r.size_nominal != null ? r.size_nominal + '"' : '—' %></td>
+          <td><%= r.hardware || '—' %></td>
+          <td class="adm-meta"><%= r.vanity_type || '—' %></td>
+          <td style="font-weight:600"><%= r.total_drawdown %></td>
+          <td class="adm-meta"><%= r.active_days %></td>
+        </tr>
+      <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<% } %>
+
+<%# ══════════════════════════════════════════════════════════════════
+    COMBO DEMAND — added 2026-09-09
+    product_type = 'Vanity'. 4,212 SKUs, 4,199 with both a top finish and
+    sinks. SKU-level, no group dedup, same reasoning as above.
+    ══════════════════════════════════════════════════════════════════ %>
+<h2 class="report-section-title" style="margin-top:28px">
+  Combo Demand
+  <span style="font-weight:400;font-size:.85rem;font-style:italic">— individual cabinet + top SKUs, not grouped</span>
+</h2>
+<p style="font-size:.78rem;color:var(--text-muted);margin:0 0 12px">
+  Complete units — cabinet, top and sinks in one SKU. Accessories and
+  one-off components are excluded entirely.
+</p>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+  <div class="admin-card">
+    <h3 class="admin-card-title">Collection by Demand</h3>
+    <% if (_comboByCollection.length) { %>
+    <canvas id="chartComboCollection" height="240"></canvas>
+    <% } else { %><div class="adm-empty">No combo movement in this window.</div><% } %>
+  </div>
+  <div class="admin-card">
+    <h3 class="admin-card-title">Combo Size by Demand</h3>
+    <% if (_comboBySize.length) { %>
+    <canvas id="chartComboSize" height="240"></canvas>
+    <% } else { %><div class="adm-empty">No combo movement in this window.</div><% } %>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px">
+  <div class="admin-card">
+    <h3 class="admin-card-title">Single vs Double Sink</h3>
+    <% if (_comboBySinks.length) { %>
+    <div style="position:relative;height:220px"><canvas id="chartComboSinks"></canvas></div>
+    <% } else { %><div class="adm-empty">No data for this window.</div><% } %>
+  </div>
+
+  <div class="admin-card">
+    <h3 class="admin-card-title">Base Finish × Top Finish
+      <span class="jmv-tip" data-tip="Which cabinet colour sells against which stone. The pairing that decides which combination to stock and which to surface first. Darker = more units depleted.">ℹ</span>
+    </h3>
+    <% if (_comboFinishPair.length) { %>
+    <%
+      /* Base finish rows × top finish columns. Both axes ranked by their
+         own totals so the densest cells sit top-left. */
+      const _cfpTotals = {};
+      _comboFinishPair.forEach(r => {
+        _cfpTotals[r.top_finish] = (_cfpTotals[r.top_finish] || 0) + Number(r.total_drawdown);
+      });
+      const _cfpTops = Object.keys(_cfpTotals).sort((a,b) => _cfpTotals[b] - _cfpTotals[a]).slice(0, 10);
+      const _cfpMap = {};
+      const _cfpBaseTotals = {};
+      _comboFinishPair.forEach(r => {
+        (_cfpMap[r.base_finish] = _cfpMap[r.base_finish] || {})[r.top_finish] = Number(r.total_drawdown);
+        _cfpBaseTotals[r.base_finish] = (_cfpBaseTotals[r.base_finish] || 0) + Number(r.total_drawdown);
+      });
+      const _cfpBases = Object.keys(_cfpBaseTotals).sort((a,b) => _cfpBaseTotals[b] - _cfpBaseTotals[a]).slice(0, 12);
+      const _cfpMax = Math.max(1, ..._comboFinishPair.map(r => Number(r.total_drawdown)));
+    %>
+    <div style="overflow-x:auto">
+      <table class="jmv-heatmap">
+        <thead>
+          <tr>
+            <th style="text-align:left;min-width:150px">Base \ Top →</th>
+            <% _cfpTops.forEach(t => { %><th><%= t %></th><% }) %>
+          </tr>
+        </thead>
+        <tbody>
+        <% _cfpBases.forEach(base => { %>
+          <tr>
+            <td class="jmv-heatmap__label"><%= base %></td>
+            <% _cfpTops.forEach(t => { %>
+              <% const v = (_cfpMap[base] || {})[t] || 0; const ratio = v / _cfpMax; %>
+              <td class="jmv-heatmap__cell"
+                  style="background:rgba(26,46,74,<%= ratio.toFixed(2) %>);color:<%= ratio > 0.5 ? '#fff' : '#1a2e4a' %>"><%= v || '' %></td>
+            <% }) %>
+          </tr>
+        <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %><div class="adm-empty">No data for this window.</div><% } %>
+  </div>
+</div>
+
+<% if (comboLeaderboard.length > 0) { %>
+<div class="admin-card" style="margin-top:12px">
+  <h3 class="admin-card-title">Top Combo SKUs by Demand
+    <span style="font-weight:400;font-size:.8rem;color:var(--text-muted)">— individual SKUs, ungrouped</span>
+  </h3>
+  <div class="adm-table-wrap jmv-scroll-wrap">
+    <table class="adm-table">
+      <thead><tr>
+        <th>#</th><th>SKU</th><th>COLLECTION</th><th>BASE FINISH</th>
+        <th>TOP FINISH</th><th>SIZE</th><th>SINKS</th><th>FP</th>
+        <th>DRAWDOWN</th><th>ACTIVE DAYS</th>
+      </tr></thead>
+      <tbody>
+      <% comboLeaderboard.forEach(function(r, i) { %>
+        <tr>
+          <td><%= i + 1 %></td>
+          <td style="font-weight:600"><%= r.sku %></td>
+          <td><%= r.collection || '—' %></td>
+          <td><%= r.base_finish || '—' %></td>
+          <td><%= r.top_finish || '—' %></td>
+          <td><%= r.size_nominal != null ? r.size_nominal + '"' : '—' %></td>
+          <td><%= r.sinks != null ? r.sinks : '—' %></td>
+          <td><% if (r.is_fp) { %><span class="rag-pill rag-pill--green">FP</span><% } else { %><span class="adm-meta">—</span><% } %></td>
+          <td style="font-weight:600"><%= r.total_drawdown %></td>
+          <td class="adm-meta"><%= r.active_days %></td>
+        </tr>
+      <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<% } %>
+
 <!-- Restock Cadence -->
 <% if (restockCadence.length > 0) { %>
 <div class="admin-card" style="margin-top:12px">
@@ -631,6 +876,12 @@ const fpAttach       = <%- fpAttach %>;
 const topsByFinish   = <%- topsByFinish %>;
 const topsBySize     = <%- topsBySize %>;
 const topsByMaterial = <%- topsByMaterial %>;
+const cabByCollection   = <%- cabByCollection %>;
+const cabByFinish       = <%- cabByFinish %>;
+const cabBySize         = <%- cabBySize %>;
+const comboByCollection = <%- comboByCollection %>;
+const comboBySize       = <%- comboBySize %>;
+const comboBySinks      = <%- comboBySinks %>;
 
 function makeBar(id, labels, data, colorFn) {
   const el = document.getElementById(id);
@@ -740,6 +991,54 @@ if (topsByMaterial.length) {
   makePie('chartTopsMaterial',
     topsByMaterial.map(r => r.top_material),
     topsByMaterial.map(r => r.total_drawdown)
+  );
+}
+
+/* ── Cabinet Demand (product_type = 'Cabinet') ────────────────────── */
+if (cabByCollection.length) {
+  makeBar('chartCabCollection',
+    cabByCollection.map(r => r.collection),
+    cabByCollection.map(r => r.total_drawdown),
+    cabByCollection.map((_, i) => PALETTE[i % PALETTE.length])
+  );
+}
+if (cabBySize.length) {
+  makeBar('chartCabSize',
+    cabBySize.map(r => Number(r.size_nominal) + '"'),
+    cabBySize.map(r => r.total_drawdown),
+    cabBySize.map((_, i) => PALETTE[i % PALETTE.length])
+  );
+}
+if (cabByFinish.length) {
+  makePie('chartCabFinish',
+    cabByFinish.map(r => r.base_finish),
+    cabByFinish.map(r => r.total_drawdown)
+  );
+}
+
+/* ── Combo Demand (product_type = 'Vanity') ───────────────────────── */
+if (comboByCollection.length) {
+  makeBar('chartComboCollection',
+    comboByCollection.map(r => r.collection),
+    comboByCollection.map(r => r.total_drawdown),
+    comboByCollection.map((_, i) => PALETTE[i % PALETTE.length])
+  );
+}
+if (comboBySize.length) {
+  makeBar('chartComboSize',
+    comboBySize.map(r => Number(r.size_nominal) + '"'),
+    comboBySize.map(r => r.total_drawdown),
+    comboBySize.map((_, i) => PALETTE[i % PALETTE.length])
+  );
+}
+if (comboBySinks.length) {
+  /* sinks is a tinyint, so label it rather than plotting "1" and "2" —
+     a legend reading 1/2 next to drawdown counts is unreadable. */
+  makePie('chartComboSinks',
+    comboBySinks.map(r => Number(r.sinks) === 1 ? 'Single sink'
+                        : Number(r.sinks) === 2 ? 'Double sink'
+                        : r.sinks + ' sinks'),
+    comboBySinks.map(r => r.total_drawdown)
   );
 }
 

@@ -786,15 +786,49 @@ async function updateDemandScores(conn) {
 
 /**
  * getSnapshotStatus()
- * Returns a summary of what's in the DB — used by the admin dashboard header.
+ * The most recent N snapshot days, for the per-day status TABLE at the
+ * bottom of the dashboard.
+ *
+ * ⚠ The LIMIT bounds a rendered table, nothing else. Do NOT count these
+ * rows to answer "how much history do we have" — use getValidDayCount().
+ *
+ * That is exactly what the dashboard did until 2026-09-09:
+ *   totalDays = snapshotStatus.filter(r => r.is_valid).length
+ * With LIMIT 14 hardcoded, "Valid days collected" pinned at 14 the day
+ * history reached 14 and never moved again. The rollup was ingesting
+ * daily the whole time and the DATA WINDOW card was printing "14 days"
+ * beside "Aug 23 → Sep 09", which is 17. Nothing was broken except the
+ * number, and the number was the only thing anyone looked at.
+ *
+ * The two other LIMITs in this file are deliberate and must stay:
+ *   getTrailingMedian()   LIMIT 7  — rolling feed-truncation check
+ *   updateDemandScores()  LIMIT 90 — popularity must not be driven by
+ *                                    two-year-old movement
  */
-async function getSnapshotStatus() {
+async function getSnapshotStatus(limit = 30) {
+  const n = Math.max(1, Math.min(365, parseInt(limit, 10) || 30));
   const [rows] = await bvoPool.query(
     `SELECT snapshot_date, row_count, is_valid, notes
      FROM jmv_snapshot_validity
-     ORDER BY snapshot_date DESC LIMIT 14`
+     ORDER BY snapshot_date DESC LIMIT ?`, [n]
   );
   return rows;
 }
 
-module.exports = { runRollup, getSnapshotStatus, upsertDimensions, updateDemandScores };
+/**
+ * getValidDayCount()
+ * How many valid snapshot days exist, full stop. Unbounded by design —
+ * this is the number the dashboard reports as history collected, and it
+ * has to keep climbing toward the two-year YoY horizon.
+ */
+async function getValidDayCount() {
+  const [[row]] = await bvoPool.query(
+    `SELECT COUNT(*) AS n FROM jmv_snapshot_validity WHERE is_valid = 1`
+  );
+  return row?.n || 0;
+}
+
+module.exports = {
+  runRollup, getSnapshotStatus, getValidDayCount,
+  upsertDimensions, updateDemandScores,
+};

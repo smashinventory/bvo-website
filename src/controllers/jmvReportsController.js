@@ -27,7 +27,7 @@
  */
 
 const { bvoPool }    = require('../config/database');
-const { runRollup, getSnapshotStatus } = require('../jobs/jmvMovementRollup');
+const { runRollup, getSnapshotStatus, getValidDayCount } = require('../jobs/jmvMovementRollup');
 
 const LAYOUT = { layout: 'layouts/admin' };
 const SYNC_TYPES = ['Vanity', 'Cabinet', 'Top'];
@@ -64,7 +64,14 @@ const DEDUPED_INNER = (whereExtra = '') => `
 
 async function dashboard(req, res) {
   try {
-    const days   = parseInt(req.query.days  || '30', 10);
+    /* Whitelisted, not just parsed. `parseInt(req.query.days || '30', 10)`
+       returns NaN for ?days=abc, cutoff.setDate(NaN) makes an Invalid
+       Date, and .toISOString() then throws — a 500 on a query string.
+       365 is offered so history past 90 days is visible as it accrues;
+       MoM/YoY comparison is a separate build, not a wider window. */
+    const ALLOWED_DAYS = [7, 14, 30, 60, 90, 365];
+    const reqDays = parseInt(req.query.days, 10);
+    const days = ALLOWED_DAYS.includes(reqDays) ? reqDays : 30;
     /* REMOVED 2026-09-03 — ptype / scope.
        `scope` was computed here and never read; every query on this page
        hardcodes SYNC_TYPES. `ptype` existed only to render the selected
@@ -74,9 +81,18 @@ async function dashboard(req, res) {
     const cutoffStr = cutoff.toISOString().slice(0, 10);
 
     // ── Snapshot status ──────────────────────────────────────────────
-    const snapshotStatus = await getSnapshotStatus();
+    /* Two different questions, deliberately two queries.
+
+       snapshotStatus — the most recent N days, for the status TABLE.
+       totalDays      — every valid day on record, for the header, the
+                        DATA WINDOW card and the confidence caption.
+
+       Counting the first to answer the second is what pinned "Valid days
+       collected" at 14 from the day history reached 14. See the note on
+       getSnapshotStatus(). */
+    const snapshotStatus = await getSnapshotStatus(30);
     const latestDate = snapshotStatus[0]?.snapshot_date || null;
-    const totalDays  = snapshotStatus.filter(r => r.is_valid).length;
+    const totalDays  = await getValidDayCount();
 
     // ── Dimension table check ────────────────────────────────────────
     const dimCount = await safeQueryOne(`SELECT COUNT(*) AS cnt FROM jmv_dimensions`);
@@ -574,6 +590,164 @@ async function dashboard(req, res) {
       [cutoffStr]
     ) : [];
 
+    /* ═══════════════════════════════════════════════════════════════════
+       CABINET DEMAND and COMBO DEMAND — added 2026-09-09
+       ───────────────────────────────────────────────────────────────────
+       Two reports, each scoped to ONE product_type:
+
+         Cabinet Demand   product_type = 'Cabinet'   332 SKUs
+                          Verified against the 2026-09-08 dump: zero of
+                          them carry a top_finish and zero have sinks > 0.
+                          Cabinet-only by definition, not by assumption.
+
+         Combo Demand     product_type = 'Vanity'    4,212 SKUs
+                          4,199 carry BOTH a top_finish and sinks > 0 —
+                          cabinet + top. The 13 without a top_finish are
+                          either a feed gap or genuinely top-less; they
+                          are included because product_type is the filter.
+
+       Everything else is excluded: Mirror, Backsplash, Storage Cabinet,
+       Countertop Unit, Drawer Unit, Console, Console Base, Floating
+       Console, Metal Base, Linen Cabinet, Hutch, Shelf, Pull, Bench,
+       Knobs and Legs, and the three Sample types. That is the "no
+       accessories or one-off components" requirement.
+
+       NO GROUP DEDUP, same as Tops Demand and for the same reason: once
+       scoped to a single product_type the SKU is the atomic unit and there
+       is nothing left to collapse. Cross-type double counting cannot occur
+       because the two reports never mix types.
+
+       On whether a combo sale also depletes a standalone cabinet: 37 of 70
+       group_numbers contain both. Measured on the 2026-09-08 movement data,
+       on days a Vanity SKU drew down a Cabinet in the same group also drew
+       down 86% of the time against a 66% base rate — elevated, but far from
+       the ~100% a shared physical pool would produce. Read as correlated
+       demand, not one pool. Sixteen days of sparse data, so revisit if
+       Cabinet numbers ever look implausibly high.
+    ═══════════════════════════════════════════════════════════════════ */
+
+    const CABINET = 'Cabinet';
+    const COMBO   = 'Vanity';
+
+    /* Collection — which model line moves. Same query shape for both
+       reports; the product_type parameter is the only difference. */
+    const demandByCollection = (ptype) => safeQuery(
+      `SELECT d.collection, SUM(m.demand_min) AS total_drawdown,
+              COUNT(DISTINCT d.sku) AS sku_count
+       FROM jmv_daily_movement m
+       JOIN jmv_dimensions d ON d.sku = m.sku
+       WHERE m.is_valid = 1 AND m.demand_min > 0
+         AND d.product_type = ?
+         AND d.collection IS NOT NULL AND d.collection <> ''
+         AND m.movement_date >= ?
+       GROUP BY d.collection
+       ORDER BY total_drawdown DESC
+       LIMIT 15`, [ptype, cutoffStr]);
+
+    const demandByBaseFinish = (ptype) => safeQuery(
+      `SELECT d.base_finish, SUM(m.demand_min) AS total_drawdown
+       FROM jmv_daily_movement m
+       JOIN jmv_dimensions d ON d.sku = m.sku
+       WHERE m.is_valid = 1 AND m.demand_min > 0
+         AND d.product_type = ?
+         AND d.base_finish IS NOT NULL AND d.base_finish <> ''
+         AND m.movement_date >= ?
+       GROUP BY d.base_finish
+       ORDER BY total_drawdown DESC
+       LIMIT 12`, [ptype, cutoffStr]);
+
+    const demandBySize = (ptype) => safeQuery(
+      `SELECT d.size_nominal, SUM(m.demand_min) AS total_drawdown
+       FROM jmv_daily_movement m
+       JOIN jmv_dimensions d ON d.sku = m.sku
+       WHERE m.is_valid = 1 AND m.demand_min > 0
+         AND d.product_type = ?
+         AND d.size_nominal IS NOT NULL
+         AND m.movement_date >= ?
+       GROUP BY d.size_nominal
+       ORDER BY d.size_nominal ASC`, [ptype, cutoffStr]);
+
+    // ── Cabinet Demand ───────────────────────────────────────────────
+    const cabByCollection = hasDims ? await demandByCollection(CABINET) : [];
+    const cabByFinish     = hasDims ? await demandByBaseFinish(CABINET) : [];
+    const cabBySize       = hasDims ? await demandBySize(CABINET)       : [];
+
+    /* Collection × size. Long-form; the view pivots it, ordered by the
+       collection ranking above so both panels agree. */
+    const cabCollectionSize = hasDims ? await safeQuery(
+      `SELECT d.collection, d.size_nominal, SUM(m.demand_min) AS total_drawdown
+       FROM jmv_daily_movement m
+       JOIN jmv_dimensions d ON d.sku = m.sku
+       WHERE m.is_valid = 1 AND m.demand_min > 0
+         AND d.product_type = ?
+         AND d.collection IS NOT NULL AND d.collection <> ''
+         AND d.size_nominal IS NOT NULL
+         AND m.movement_date >= ?
+       GROUP BY d.collection, d.size_nominal`, [CABINET, cutoffStr]) : [];
+
+    const cabLeaderboard = hasDims ? await safeQuery(
+      `SELECT d.sku, d.collection, d.base_finish, d.size_nominal,
+              d.hardware, d.vanity_type,
+              SUM(m.demand_min) AS total_drawdown,
+              COUNT(DISTINCT m.movement_date) AS active_days
+       FROM jmv_daily_movement m
+       JOIN jmv_dimensions d ON d.sku = m.sku
+       WHERE m.is_valid = 1 AND m.demand_min > 0
+         AND d.product_type = ?
+         AND m.movement_date >= ?
+       GROUP BY d.sku, d.collection, d.base_finish, d.size_nominal,
+                d.hardware, d.vanity_type
+       ORDER BY total_drawdown DESC
+       LIMIT 40`, [CABINET, cutoffStr]) : [];
+
+    // ── Combo Demand ─────────────────────────────────────────────────
+    const comboByCollection = hasDims ? await demandByCollection(COMBO) : [];
+    const comboBySize       = hasDims ? await demandBySize(COMBO)       : [];
+
+    /* Base finish × top finish. The pairing unique to combos — which
+       cabinet colour sells against which stone. This is the panel that
+       has no equivalent in either of the other two reports. */
+    const comboFinishPair = hasDims ? await safeQuery(
+      `SELECT d.base_finish, d.top_finish, SUM(m.demand_min) AS total_drawdown
+       FROM jmv_daily_movement m
+       JOIN jmv_dimensions d ON d.sku = m.sku
+       WHERE m.is_valid = 1 AND m.demand_min > 0
+         AND d.product_type = ?
+         AND d.base_finish IS NOT NULL AND d.base_finish <> ''
+         AND d.top_finish  IS NOT NULL AND d.top_finish  <> ''
+         AND m.movement_date >= ?
+       GROUP BY d.base_finish, d.top_finish`, [COMBO, cutoffStr]) : [];
+
+    /* Single vs double sink. `sinks` is a tinyint; COALESCE keeps rows
+       with a NULL out of a bucket that would otherwise read as 0. */
+    const comboBySinks = hasDims ? await safeQuery(
+      `SELECT d.sinks, SUM(m.demand_min) AS total_drawdown,
+              COUNT(DISTINCT d.sku) AS sku_count
+       FROM jmv_daily_movement m
+       JOIN jmv_dimensions d ON d.sku = m.sku
+       WHERE m.is_valid = 1 AND m.demand_min > 0
+         AND d.product_type = ?
+         AND d.sinks IS NOT NULL AND d.sinks > 0
+         AND m.movement_date >= ?
+       GROUP BY d.sinks
+       ORDER BY d.sinks ASC`, [COMBO, cutoffStr]) : [];
+
+    const comboLeaderboard = hasDims ? await safeQuery(
+      `SELECT d.sku, d.collection, d.base_finish, d.top_finish,
+              d.size_nominal, d.sinks,
+              CASE WHEN d.freepower = 1 THEN 1 ELSE 0 END AS is_fp,
+              SUM(m.demand_min) AS total_drawdown,
+              COUNT(DISTINCT m.movement_date) AS active_days
+       FROM jmv_daily_movement m
+       JOIN jmv_dimensions d ON d.sku = m.sku
+       WHERE m.is_valid = 1 AND m.demand_min > 0
+         AND d.product_type = ?
+         AND m.movement_date >= ?
+       GROUP BY d.sku, d.collection, d.base_finish, d.top_finish,
+                d.size_nominal, d.sinks, is_fp
+       ORDER BY total_drawdown DESC
+       LIMIT 40`, [COMBO, cutoffStr]) : [];
+
     // ── Restock cadence (top restocked SKUs) ─────────────────────────
     const restockCadence = await safeQuery(
       `SELECT m.sku, d.collection, d.base_finish, d.size_nominal,
@@ -707,6 +881,18 @@ async function dashboard(req, res) {
       topsByMaterial:  JSON.stringify(topsByMaterial),
       topsFinishSize:  JSON.stringify(topsFinishSize),
       topsLeaderboard,
+      // Cabinet Demand — product_type = 'Cabinet'
+      cabByCollection:   JSON.stringify(cabByCollection),
+      cabByFinish:       JSON.stringify(cabByFinish),
+      cabBySize:         JSON.stringify(cabBySize),
+      cabCollectionSize: JSON.stringify(cabCollectionSize),
+      cabLeaderboard,
+      // Combo Demand — product_type = 'Vanity'
+      comboByCollection: JSON.stringify(comboByCollection),
+      comboBySize:       JSON.stringify(comboBySize),
+      comboFinishPair:   JSON.stringify(comboFinishPair),
+      comboBySinks:      JSON.stringify(comboBySinks),
+      comboLeaderboard,
       restockCadence,
       daysOfCover,
       top50,
@@ -736,6 +922,13 @@ async function dashboard(req, res) {
       topMirrors: '[]', fpAttach: '[]',
       topsByFinish: '[]', topsBySize: '[]', topsByMaterial: '[]',
       topsFinishSize: '[]', topsLeaderboard: [],
+      /* The error render must define EVERY local the template reads, or a
+         failed query becomes a second, more confusing crash inside the
+         error page itself. */
+      cabByCollection: '[]', cabByFinish: '[]', cabBySize: '[]',
+      cabCollectionSize: '[]', cabLeaderboard: [],
+      comboByCollection: '[]', comboBySize: '[]', comboFinishPair: '[]',
+      comboBySinks: '[]', comboLeaderboard: [],
       restockCadence: [], daysOfCover: [], top50: [],
       restockEvents: 0, restockQty: 0,
       style: '',
