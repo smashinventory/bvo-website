@@ -1082,6 +1082,10 @@ async function getFinancials(req, res) {
         ...LAYOUT, pageTitle: 'JMV Financials',
         fromDate, toDate, scope, latestDate: null,
         mapRevenue: 0, qtySold: 0,
+        /* Every local the template reads must exist here too, or a failed
+           query turns the error page into a second, more confusing crash. */
+        rev30: { total:0, days:0, avg:0 }, rev15: { total:0, days:0, avg:0 },
+        rev7:  { total:0, days:0, avg:0 }, rev24: 0, rev24Date: null,
         comboRevenue: 0, comboUnits: 0, indivRevenue: 0, indivUnits: 0,
         top10Revenue: [],
         revenueByDay: '[]', revenueByCategory: '[]',
@@ -1331,6 +1335,108 @@ async function getFinancials(req, res) {
       return Object.values(map).sort((a, b) => b.revenue - a.revenue);
     };
 
+    /* ══════════════════════════════════════════════════════════════════
+       ROLLING REVENUE KPIs — added 2026-09-09
+       ──────────────────────────────────────────────────────────────────
+       Four cards: average revenue per day over 30 / 15 / 7 days, and the
+       revenue of the last reported day.
+
+       ANCHORED ON latestDate, NOT on the page's from/to selector. These
+       answer "what is the run rate right now", so narrowing the date range
+       to inspect a past period must not move them. Same PIVOT and the same
+       conservative-floor REV expression as every other number on the page,
+       so the cards and the chart can never disagree.
+
+       THE DENOMINATOR IS DAYS OF HISTORY ACTUALLY AVAILABLE, not the
+       nominal window. Decided 2026-09-09. With ~17 days of history a
+       30-day card that divides by 30 reads roughly half the true daily
+       rate, and nothing on screen explains why — so each card states its
+       own denominator: "$X/day over 17 days". Once history passes 30 days
+       it becomes a true 30-day average with no code change.
+
+       span_days is the unit of the denominator, not row count. JM does not
+       publish every day; one observation can cover two calendar days and
+       carries two days of revenue, so it must contribute two days of
+       divisor. Counting rows would inflate the average on every gap.
+    ══════════════════════════════════════════════════════════════════ */
+    const _asDate = (v) => { const d = new Date(v); return isNaN(d.getTime()) ? null : d; };
+    const _iso    = (d) => d.toISOString().slice(0, 10);
+    const latestDt = _asDate(latestDate);
+
+    let rollRows = [];
+    if (latestDt) {
+      const from30 = new Date(latestDt); from30.setDate(from30.getDate() - 29);
+      const from30Str = _iso(from30);
+
+      rollRows = await safeQuery(
+        `SELECT DATE_FORMAT(g.movement_date,'%Y-%m-%d') AS date,
+                ROUND(SUM(${REV}),0) AS revenue,
+                MAX(g.span_days) AS span_days
+         FROM (${PIVOT}) g
+         GROUP BY g.movement_date
+         ORDER BY g.movement_date DESC`,
+        [latestDate, ...VCT, from30Str, latestDate]
+      );
+
+      /* Under scope=all the MAP Revenue card these sit beside includes the
+         uncoupled types, via extraRevenue. Leaving them out here would put
+         two revenue figures side by side on the same row that quietly
+         disagree — and the smaller one would look like the safe number.
+         Merged by date so the run rate is on the same basis as the total. */
+      if (OTHER_TYPES.length > 0) {
+        const OT_SQL2 = OTHER_TYPES.map(() => '?').join(',');
+        const otDaily = await safeQuery(
+          `SELECT DATE_FORMAT(m.movement_date,'%Y-%m-%d') AS date,
+                  ROUND(SUM(m.demand_min * COALESCE(s.map_price,0)),0) AS revenue,
+                  MAX(m.span_days) AS span_days
+           FROM jmv_daily_movement m
+           JOIN jmv_dimensions d ON d.sku = m.sku
+           LEFT JOIN jmv_snapshots s ON s.sku = m.sku AND s.snapshot_date = ?
+           WHERE m.is_valid = 1
+             AND d.product_type IN (${OT_SQL2})
+             AND m.movement_date BETWEEN ? AND ?
+           GROUP BY m.movement_date`,
+          [latestDate, ...OTHER_TYPES, from30Str, latestDate]
+        );
+        const byDate = new Map(rollRows.map(r => [String(r.date), r]));
+        otDaily.forEach(r => {
+          const k = String(r.date);
+          const hit = byDate.get(k);
+          if (hit) {
+            hit.revenue = Number(hit.revenue || 0) + Number(r.revenue || 0);
+            hit.span_days = Math.max(Number(hit.span_days || 1), Number(r.span_days || 1));
+          } else {
+            byDate.set(k, { date: k, revenue: Number(r.revenue || 0), span_days: Number(r.span_days || 1) });
+          }
+        });
+        rollRows = [...byDate.values()].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+      }
+    }
+
+    /* n = nominal window. Returns the window's total, the days of history
+       it actually covers, and the per-day average over those days. */
+    const rollingAvg = (n) => {
+      if (!latestDt || !rollRows.length) return { total: 0, days: 0, avg: 0 };
+      const cut = new Date(latestDt); cut.setDate(cut.getDate() - (n - 1));
+      const cutStr = _iso(cut);
+      const rows = rollRows.filter(r => String(r.date) >= cutStr);
+      const total = rows.reduce((s, r) => s + Number(r.revenue || 0), 0);
+      /* Capped at n: the oldest observation's span can reach back before
+         the window opens, which would otherwise divide by more days than
+         the card claims to cover. */
+      const days = Math.min(n, rows.reduce((s, r) => s + Number(r.span_days || 1), 0));
+      return { total, days, avg: days ? total / days : 0 };
+    };
+
+    const rev30 = rollingAvg(30);
+    const rev15 = rollingAvg(15);
+    const rev7  = rollingAvg(7);
+    /* Last REPORTED day, not literally the last 24 hours — if JM published
+       nothing yesterday the newest row may be older than that. The card
+       renders its date so the distinction is visible rather than assumed. */
+    const rev24     = Number(rollRows[0]?.revenue || 0);
+    const rev24Date = rollRows[0]?.date || null;
+
     // ── Final KPI totals ─────────────────────────────────────────────
     const mapRevenue   = Number(kpiVCT?.map_revenue || 0) + extraRevenue;
     const qtySold      = Number(kpiVCT?.qty_sold    || 0) + extraUnits;
@@ -1351,6 +1457,8 @@ async function getFinancials(req, res) {
       pageTitle: 'JMV Financials',
       fromDate, toDate, scope, latestDate,
       mapRevenue, qtySold,
+      // Rolling revenue cards — see the ROLLING REVENUE KPIs block above.
+      rev30, rev15, rev7, rev24, rev24Date,
       comboRevenue, comboUnits, indivRevenue, indivUnits,
       top10Revenue,
       revenueByDay:        JSON.stringify(revenueByDay),
@@ -1377,6 +1485,8 @@ async function getFinancials(req, res) {
       error: 'Failed to load financials — ' + err.message,
       fromDate: '', toDate: '', scope: 'all', latestDate: null,
       mapRevenue: 0, qtySold: 0,
+      rev30: { total:0, days:0, avg:0 }, rev15: { total:0, days:0, avg:0 },
+      rev7:  { total:0, days:0, avg:0 }, rev24: 0, rev24Date: null,
       comboRevenue: 0, comboUnits: 0, indivRevenue: 0, indivUnits: 0,
       top10Revenue: [],
       revenueByDay: '[]', revenueByCategory: '[]',
