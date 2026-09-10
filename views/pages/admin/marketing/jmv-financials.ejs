@@ -8,6 +8,7 @@
    Per-SKU table: SKU-level (shared-component risk acknowledged).
 ═══════════════════════════════════════════════════════════════════ */
 const _byDay   = JSON.parse(revenueByDay        || '[]');
+const _collDays = JSON.parse(collectedDays      || '[]');
 const _byCat   = JSON.parse(revenueByCategory   || '[]');
 const _byColl  = JSON.parse(revenueByCollection || '[]');
 const _byFin   = JSON.parse(revenueByFinish     || '[]');
@@ -174,35 +175,26 @@ function fmtDollar(n) {
        calendar days an observation covers, so summing it gives true
        coverage rather than a bar count. */
     const _obsCount = _byDay.length;
-    const _covered  = _byDay.reduce(function (s, r) { return s + (Number(r.span_days) || 1); }, 0);
-    const _lastObs  = _byDay[_byDay.length - 1] || null;
-    const _msPerDay = 86400000;
-    const _winFrom  = new Date(fromDate), _winTo = new Date(toDate);
-    const _winDays  = (!isNaN(_winFrom) && !isNaN(_winTo))
-      ? Math.round((_winTo - _winFrom) / _msPerDay) + 1 : null;
-    /* Days at the END of the window with no observation yet. Their demand
-       is not lost — it lands on the next changed day, carried by that
-       row's span_days. Pending, not zero. */
-    const _pending = (_winDays != null) ? Math.max(0, _winDays - _covered) : null;
-    const _sparse  = _obsCount <= 2 || (_pending != null && _pending >= 3);
+    const _collected = _collDays.length;
+    /* Days we collected but nothing moved. These are the $0 bars. */
+    const _changedSet = new Set(_byDay.map(function (r) { return String(r.date); }));
+    const _flatDays = _collDays.filter(function (d) { return !_changedSet.has(d); }).length;
+    const _firstDay = _collDays[0] || null;
+    const _lastDay  = _collDays[_collDays.length - 1] || null;
   %>
 
-  <div style="font-size:.78rem;border-left:3px solid <%= _sparse ? '#c05621' : '#cbd5e0' %>;
-              background:<%= _sparse ? '#fffaf0' : 'transparent' %>;
-              padding:8px 12px;margin:0 0 12px;color:var(--text-muted)">
-    <strong><%= _obsCount %></strong> observation<%= _obsCount === 1 ? '' : 's' %>
-    covering <strong><%= _covered %></strong><%= _winDays != null ? ' of the ' + _winDays : '' %>
-    day<%= _covered === 1 ? '' : 's' %> in this window<%= _winDays != null ? '' : '' %>.
-    <% if (_lastObs) { %>
-      The feed last changed on <strong><%= _lastObs.date %></strong>.
+  <div style="font-size:.78rem;border-left:3px solid #cbd5e0;padding:8px 12px;
+              margin:0 0 12px;color:var(--text-muted)">
+    <strong><%= _collected %></strong> day<%= _collected === 1 ? '' : 's' %> collected
+    <% if (_firstDay && _lastDay) { %>(<%= _firstDay %> → <%= _lastDay %>)<% } %>,
+    <strong><%= _obsCount %></strong> with depletion.
+    <% if (_flatDays) { %>
+      The other <strong><%= _flatDays %></strong> sat at <strong>$0</strong> — a snapshot was
+      taken and no quantity moved, which is what a closed weekend or holiday looks like.
+      Days with no snapshot at all are left blank, not zeroed.
     <% } %>
-    <% if (_pending) { %>
-      <%= _pending %> day<%= _pending === 1 ? '' : 's' %> since then <em>not yet observed</em> —
-      that demand lands on the next changed day, it is not zero.
-    <% } %>
-    <% if (_sparse) { %>
-      <br>A gap here means James Martin republished an unchanged file, not that the report is stale.
-    <% } %>
+    Read the trend from the dashed <%= 7 %>-day average, not the individual bars —
+    a feed processed in batches will always sawtooth.
   </div>
 
   <canvas id="chartByDay" height="130"></canvas>
@@ -328,6 +320,7 @@ function fmtDollar(n) {
 <script>
 /* ── Data ─────────────────────────────────────────────────────────── */
 const byDay   = <%- revenueByDay        %>;
+const collectedDays = <%- collectedDays %>;
 const byCat   = <%- revenueByCategory   %>;
 const byColl  = <%- revenueByCollection %>;
 const byFin   = <%- revenueByFinish     %>;
@@ -351,24 +344,97 @@ function fmtK(n) {
 }
 
 /* ── Revenue by Day (combo bar + line) ────────────────────────────── */
-if (byDay.length) {
+/* byDay has one row per day the feed CHANGED, not one per calendar day.
+   collectedDays has every day we actually took a valid snapshot.
+
+   Joining the two is what makes this a real daily axis:
+
+     collected AND changed   → the day's revenue
+     collected, NOT changed  → $0. Nothing was depleted. True, and the
+                               shape worth seeing: a closed Labor Day
+                               weekend should read as flat, not vanish.
+     NOT collected (08-31)   → no bar at all. We do not know, and a zero
+                               would be a claim we cannot support.
+
+   Deliberately NOT averaged across span_days. An earlier version spread
+   each observation backwards over the days it covered, which assumed the
+   quiet days were unobserved rather than genuinely still. On a holiday
+   weekend that smears real depletion onto days the warehouse was shut.
+
+   The cost of honesty here is a sawtooth: closed days sit at zero and the
+   catch-up day carries the backlog. That is the truth of a batch-processed
+   feed, but it is unreadable as a trend — hence the rolling average line
+   below, which is what the trend should actually be read from. */
+var daily = [];
+(function () {
+  var byDate = {};
+  byDay.forEach(function (r) { byDate[String(r.date)] = r; });
+  collectedDays.forEach(function (d) {
+    var hit = byDate[d];
+    daily.push({
+      date:     d,
+      revenue:  hit ? Number(hit.revenue || 0) : 0,
+      units:    hit ? Number(hit.units   || 0) : 0,
+      observed: !!hit,
+    });
+  });
+  /* A changed day with no validity row should still be visible rather
+     than silently dropped — belt and braces against the two tables
+     disagreeing. */
+  byDay.forEach(function (r) {
+    if (collectedDays.indexOf(String(r.date)) === -1) {
+      daily.push({ date: String(r.date), revenue: Number(r.revenue || 0),
+                   units: Number(r.units || 0), observed: true });
+    }
+  });
+  daily.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+})();
+
+/* 7-day trailing mean over the daily bars. Averages over calendar days,
+   including the zeros — a week with a shut warehouse SHOULD pull the
+   trend down. Emitted as null until there are 7 days behind it, so the
+   line starts where it becomes meaningful instead of tracking the first
+   bar. */
+var TREND_N = 7;
+var trend = daily.map(function (_, i) {
+  if (i < TREND_N - 1) return null;
+  var sum = 0;
+  for (var k = i - TREND_N + 1; k <= i; k++) sum += daily[k].revenue;
+  return sum / TREND_N;
+});
+
+if (daily.length) {
   new Chart(document.getElementById('chartByDay'), {
     data: {
-      labels: byDay.map(function(r){ return r.date; }),
+      labels: daily.map(function(r){ return r.date; }),
       datasets: [
         {
           type: 'bar',
           label: 'Revenue ($)',
-          data:  byDay.map(function(r){ return r.revenue; }),
+          data:  daily.map(function(r){ return r.revenue; }),
           backgroundColor: NAVY,
           borderRadius: 4,
           yAxisID: 'yRev',
-          order: 2,
+          order: 3,
+        },
+        {
+          type: 'line',
+          label: TREND_N + '-day avg ($)',
+          data:  trend,
+          borderColor: 'rgba(197,48,48,0.85)',
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          borderDash: [5, 3],
+          pointRadius: 0,
+          spanGaps: false,
+          tension: 0.25,
+          yAxisID: 'yRev',
+          order: 0,
         },
         {
           type: 'line',
           label: 'Units',
-          data:  byDay.map(function(r){ return r.units; }),
+          data:  daily.map(function(r){ return r.units; }),
           borderColor: AMBER,
           backgroundColor: 'transparent',
           borderWidth: 2.5,
@@ -401,11 +467,9 @@ if (byDay.length) {
                silently, so the addition would have been discarded with no
                error at all. */
             afterBody: function (items) {
-              var r = byDay[items[0].dataIndex];
-              var n = Number(r && r.span_days) || 1;
-              if (n <= 1) return '';
-              return 'Covers ' + n + ' days — JM published no new feed on the '
-                   + (n - 1) + ' day' + (n === 2 ? '' : 's') + ' before this.';
+              var r = daily[items[0].dataIndex];
+              if (!r || r.observed) return '';
+              return 'Snapshot taken, feed unchanged — nothing depleted this day.';
             },
             label: function(ctx) {
               if (ctx.dataset.yAxisID === 'yRev') return ' $' + Number(ctx.parsed.y).toLocaleString();

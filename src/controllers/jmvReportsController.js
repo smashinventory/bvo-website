@@ -1088,7 +1088,7 @@ async function getFinancials(req, res) {
         rev7:  { total:0, days:0, avg:0 }, rev24: 0, rev24Date: null,
         comboRevenue: 0, comboUnits: 0, indivRevenue: 0, indivUnits: 0,
         top10Revenue: [],
-        revenueByDay: '[]', revenueByCategory: '[]',
+        revenueByDay: '[]', collectedDays: '[]', revenueByCategory: '[]',
         revenueByCollection: '[]', revenueByFinish: '[]',
         // Footnote figures — the cards read these unconditionally, so an
         // error path that omits them turns a handled 500 into a template crash.
@@ -1151,6 +1151,29 @@ async function getFinancials(req, res) {
               MAX(g.span_days) AS span_days
        FROM (${PIVOT}) g
        GROUP BY g.movement_date ORDER BY g.movement_date`, PP
+    );
+
+    /* ── Days we actually collected ───────────────────────────────────
+       ADDED 2026-09-09.
+
+       revenueByDay only has rows for days the feed CHANGED, so the chart
+       could not tell three different situations apart:
+
+         a) collected, feed unchanged  → nothing was depleted. A real zero.
+         b) never collected (08-31)    → we do not know. A real gap.
+         c) outside the collection era → not our window's business.
+
+       Drawing (a) and (b) the same way is what made a closed Labor Day
+       weekend look identical to a dead cron. With the collected dates in
+       hand the view can draw a $0 bar for (a) and leave (b) blank.
+
+       Validity, not mere presence: a snapshot whose row count failed the
+       ±10% gate is not evidence that nothing sold. */
+    const collectedDays = await safeQuery(
+      `SELECT DATE_FORMAT(snapshot_date,'%Y-%m-%d') AS date
+         FROM jmv_snapshot_validity
+        WHERE is_valid = 1 AND snapshot_date BETWEEN ? AND ?
+        ORDER BY snapshot_date`, [fromDate, toDate]
     );
 
     // ── Combo vs standalone breakdown ────────────────────────────────
@@ -1462,6 +1485,7 @@ async function getFinancials(req, res) {
       comboRevenue, comboUnits, indivRevenue, indivUnits,
       top10Revenue,
       revenueByDay:        JSON.stringify(revenueByDay),
+      collectedDays:       JSON.stringify(collectedDays.map(r => r.date)),
       revenueByCategory:   JSON.stringify([...revenueByCategory, ...extraByCat]),
       revenueByCollection: JSON.stringify(mergeByLabel(revenueByCollection, extraByCollection).slice(0, 12)),
       revenueByFinish:     JSON.stringify(mergeByLabel(revenueByFinish, extraByFinish).slice(0, 10)),
@@ -1489,7 +1513,7 @@ async function getFinancials(req, res) {
       rev7:  { total:0, days:0, avg:0 }, rev24: 0, rev24Date: null,
       comboRevenue: 0, comboUnits: 0, indivRevenue: 0, indivUnits: 0,
       top10Revenue: [],
-      revenueByDay: '[]', revenueByCategory: '[]',
+      revenueByDay: '[]', collectedDays: '[]', revenueByCategory: '[]',
       revenueByCollection: '[]', revenueByFinish: '[]',
       // Footnote figures — the cards read these unconditionally, so an error
       // path that omits them turns a handled 500 into a template crash.
