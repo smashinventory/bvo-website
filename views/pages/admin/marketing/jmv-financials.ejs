@@ -76,6 +76,51 @@ function fmtDollar(n) {
     <div class="kpi-sub">Conservative floor · drawdown × MAP</div>
   </div>
 
+  <%# ── Run-rate cards ──────────────────────────────────────────────
+      Four cards sharing a colour so they read as one group, distinct
+      from the composition cards that follow. The 5-column grid means
+      these plus MAP Revenue fill row one exactly and push Units, Top 10,
+      Combo and Individual to row two — no grid change needed.
+
+      Anchored on the latest snapshot, NOT on the from/to selector, so
+      narrowing the date range to inspect a past period does not move
+      them. Same conservative-floor basis as the MAP Revenue card beside
+      them, including the uncoupled types under scope=all.
+
+      Each average states its own denominator. With ~17 days of history a
+      "30-day" figure divided by 30 would read roughly half the true rate;
+      dividing by days actually collected and saying so is honest, and it
+      becomes a real 30-day average once history passes 30 days. %>
+
+  <div class="kpi-card" style="border-top:3px solid #2c7a7b">
+    <div class="kpi-label">Avg Rev — 30 Day</div>
+    <div class="kpi-value" style="color:#2c7a7b"><%= fmtDollar(Math.round(rev30.avg)) %></div>
+    <div class="kpi-sub">per day · over <%= rev30.days %> day<%= rev30.days === 1 ? '' : 's' %> collected</div>
+  </div>
+
+  <div class="kpi-card" style="border-top:3px solid #2c7a7b">
+    <div class="kpi-label">Avg Rev — 15 Day</div>
+    <div class="kpi-value" style="color:#2c7a7b"><%= fmtDollar(Math.round(rev15.avg)) %></div>
+    <div class="kpi-sub">per day · over <%= rev15.days %> day<%= rev15.days === 1 ? '' : 's' %> collected</div>
+  </div>
+
+  <div class="kpi-card" style="border-top:3px solid #2c7a7b">
+    <div class="kpi-label">Avg Rev — 7 Day</div>
+    <div class="kpi-value" style="color:#2c7a7b"><%= fmtDollar(Math.round(rev7.avg)) %></div>
+    <div class="kpi-sub">per day · over <%= rev7.days %> day<%= rev7.days === 1 ? '' : 's' %> collected</div>
+  </div>
+
+  <div class="kpi-card" style="border-top:3px solid #c05621">
+    <div class="kpi-label">Rev — Last Reported Day</div>
+    <div class="kpi-value" style="color:#c05621"><%= fmtDollar(rev24) %></div>
+    <div class="kpi-sub">
+      <%# The newest observation, which may be older than 24h — JM does not
+          publish every day. Naming the date makes that visible instead of
+          leaving "24hr" to be read literally. %>
+      <%= rev24Date || 'no observation yet' %>
+    </div>
+  </div>
+
   <div class="kpi-card" style="border-top:3px solid #2b6cb0">
     <div class="kpi-label">Units Depleted (min)</div>
     <div class="kpi-value" style="color:#2b6cb0"><%= Number(qtySold||0).toLocaleString() %></div>
