@@ -1,11 +1,11 @@
 <%
 /* ═══════════════════════════════════════════════════════════════════
    JMV Financials — MAP Revenue Proxy Dashboard
-   "Revenue" = observed drawdown × MAP price.  Minimum demand estimate.
+   "Revenue" = observed drawdown × that day's MAP price, per SKU.
    Source note required: "Depletion from James Martin warehouse —
    industry-wide demand, not RFL sales."
-   Aggregate KPIs: group-deduped (MAX per group_number per day).
-   Per-SKU table: SKU-level (shared-component risk acknowledged).
+   Basis: JMV_REVENUE_DEFINITION.md. Individual SKUs only — combos are
+   excluded, and nothing is grouped or deduped.
 ═══════════════════════════════════════════════════════════════════ */
 const _byDay   = JSON.parse(revenueByDay        || '[]');
 const _collDays = JSON.parse(collectedDays      || '[]');
@@ -48,7 +48,7 @@ function fmtDollar(n) {
       <input type="hidden" name="to"    value="<%= toDate %>">
       <select name="scope" class="adm-search-select" onchange="this.form.submit()">
         <option value="all"  <%= scope==='all'  ? 'selected':'' %>>All types</option>
-        <option value="sync" <%= scope==='sync' ? 'selected':'' %>>Vanity / Cabinet / Top</option>
+        <option value="sync" <%= scope==='sync' ? 'selected':'' %>>Vanities &amp; Tops</option>
       </select>
     </form>
   </div>
@@ -57,9 +57,12 @@ function fmtDollar(n) {
 <!-- Snapshot note -->
 <div style="display:flex;align-items:center;gap:16px;padding:6px 0 12px;font-size:.8rem;color:var(--text-muted)">
   <span>Showing: <strong><%= fromDate %></strong> → <strong><%= toDate %></strong></span>
-  <% if (latestDate) { %><span>MAP prices from snapshot: <strong><%= latestDate %></strong></span><% } %>
+  <%# Prices are per-day now, not one snapshot applied across the window.
+      latestDate is still shown because it anchors the run-rate cards. %>
+  <% if (latestDate) { %><span>Latest snapshot: <strong><%= latestDate %></strong></span><% } %>
   <span style="margin-left:auto;font-style:italic">
-    Revenue = drawdown units × MAP price (minimum estimate, industry-wide demand, not RFL sales)
+    Revenue = drawdown units × that day's MAP price · individual SKUs only, combos excluded
+    (industry-wide demand, not RFL sales)
   </span>
 </div>
 
@@ -74,19 +77,19 @@ function fmtDollar(n) {
   <div class="kpi-card" style="border-top:3px solid #1a2e4a">
     <div class="kpi-label">MAP Revenue (min)</div>
     <div class="kpi-value" style="color:#1a2e4a"><%= fmtDollar(mapRevenue) %></div>
-    <div class="kpi-sub">Conservative floor · drawdown × MAP</div>
+    <div class="kpi-sub">Per SKU · drawdown × that day's MAP</div>
   </div>
 
   <%# ── Run-rate cards ──────────────────────────────────────────────
       Four cards sharing a colour so they read as one group, distinct
       from the composition cards that follow. The 5-column grid means
       these plus MAP Revenue fill row one exactly and push Units, Top 10,
-      Combo and Individual to row two — no grid change needed.
+      Cabinet and Top to row two — no grid change needed.
 
       Anchored on the latest snapshot, NOT on the from/to selector, so
       narrowing the date range to inspect a past period does not move
-      them. Same conservative-floor basis as the MAP Revenue card beside
-      them, including the uncoupled types under scope=all.
+      them. Same PRICED basis as the MAP Revenue card beside them, so the
+      two can never quietly disagree.
 
       Each average states its own denominator. With ~17 days of history a
       "30-day" figure divided by 30 would read roughly half the true rate;
@@ -125,7 +128,15 @@ function fmtDollar(n) {
   <div class="kpi-card" style="border-top:3px solid #2b6cb0">
     <div class="kpi-label">Units Depleted (min)</div>
     <div class="kpi-value" style="color:#2b6cb0"><%= Number(qtySold||0).toLocaleString() %></div>
-    <div class="kpi-sub">Observed drawdown · <%= scope === 'sync' ? 'Vanity/Cabinet/Top' : 'All types' %></div>
+    <%# Physical items, not orders. A combo order ships a cabinet AND a top,
+        so it counts as 2 here — see JMV_REVENUE_DEFINITION.md §6. %>
+    <div class="kpi-sub">
+      Physical items · <%= scope === 'sync' ? 'Cabinets &amp; Tops' : 'All types' %>
+      <% if (unpricedUnits) { %>
+        <br><span style="color:#c05621"><%= Number(unpricedUnits).toLocaleString() %>
+        unpriced units excluded (<%= unpricedSkus %> SKU<%= unpricedSkus === 1 ? '' : 's' %>)</span>
+      <% } %>
+    </div>
   </div>
 
   <div class="kpi-card" style="border-top:3px solid #276749">
@@ -133,19 +144,24 @@ function fmtDollar(n) {
     <div class="kpi-value" style="color:#276749">
       <%= fmtDollar(top10Revenue.reduce(function(s,r){ return s + Number(r.revenue||0); }, 0)) %>
     </div>
-    <div class="kpi-sub">Conservative floor · see table below</div>
+    <div class="kpi-sub">By model series · see table below</div>
   </div>
 
   <div class="kpi-card" style="border-top:3px solid #975a16">
-    <div class="kpi-label">Combo (Vanity) Revenue</div>
-    <div class="kpi-value" style="color:#975a16"><%= fmtDollar(comboRevenue) %></div>
-    <div class="kpi-sub"><%= Number(comboUnits||0).toLocaleString() %> units · cabinet + top sets</div>
+    <%# WAS "Combo (Vanity) Revenue". Retired 2026-09-10: the combo SKU is a
+        computed availability figure, not stock, and is no longer counted at
+        all. There is no observable "combo" to put on a card. %>
+    <div class="kpi-label">Cabinet Revenue</div>
+    <div class="kpi-value" style="color:#975a16"><%= fmtDollar(cabinetRevenue) %></div>
+    <div class="kpi-sub"><%= Number(cabinetUnits||0).toLocaleString() %> units · bases, sold alone or as part of a set</div>
   </div>
 
   <div class="kpi-card" style="border-top:3px solid #553c9a">
-    <div class="kpi-label">Individual SKU Revenue</div>
-    <div class="kpi-value" style="color:#553c9a"><%= fmtDollar(indivRevenue) %></div>
-    <div class="kpi-sub"><%= Number(indivUnits||0).toLocaleString() %> units · Cabinet / Top / Mirror / etc.</div>
+    <%# WAS "Individual SKU Revenue" — the counterpart to the combo card.
+        With no combo figure there is nothing to be individual in contrast to. %>
+    <div class="kpi-label">Top Revenue</div>
+    <div class="kpi-value" style="color:#553c9a"><%= fmtDollar(topRevenue) %></div>
+    <div class="kpi-sub"><%= Number(topUnits||0).toLocaleString() %> units · stone &amp; composite tops</div>
   </div>
 
 </div>
@@ -156,7 +172,7 @@ function fmtDollar(n) {
 <div class="admin-card">
   <h3 class="admin-card-title">Daily MAP Revenue &amp; Units Depleted</h3>
   <p style="font-size:.8rem;color:var(--text-muted);margin:0 0 10px">
-    Bars = revenue ($, left axis) · Line = units (right axis) · Conservative floor (dedup applied to Vanity/Cabinet/Top)
+    Bars = revenue ($, left axis) · Line = units (right axis) · Per SKU × that day's MAP, combos excluded
   </p>
 
   <%
@@ -256,9 +272,11 @@ function fmtDollar(n) {
   </div>
 
   <div class="admin-card">
-    <h3 class="admin-card-title">Combo vs Individual SKU</h3>
+    <h3 class="admin-card-title">Composition</h3>
     <p style="font-size:.8rem;color:var(--text-muted);margin:0 0 8px">
-      Combo = Vanity (cabinet + top unit) · Individual = Cabinet, Top, Mirror, etc.
+      What actually depleted. Combo SKUs are excluded — their quantity is
+      derived from their components, so counting them would double-count and
+      price a base sale as a full set.
     </p>
     <% if (_byCombo.length) { %>
     <div class="jmvf-chart-wrap" style="height:280px"><canvas id="chartByCombo"></canvas></div>
@@ -268,10 +286,14 @@ function fmtDollar(n) {
 </div>
 
 <!-- ══ TOP 10 GROUP TABLE ═════════════════════════════════════════════ -->
-<h2 class="report-section-title" style="margin-top:28px">Top 10 Groups — MAP Revenue (Conservative Floor)</h2>
+<h2 class="report-section-title" style="margin-top:28px">Top 10 Model Series — MAP Revenue</h2>
 <p style="font-size:.8rem;color:var(--text-muted);margin:-4px 0 10px">
-  Conservative assumption: Cabinet and Top drawdown up to the combo count is attributed to the combo,
-  not standalone demand. Only the excess counts as standalone revenue. Actual demand ≥ these figures.
+  <%# group_number is James Martin's SERIES code — the leading SKU token. One
+      series spans every size and finish in that model family (157 is 309 SKUs
+      across 7 sizes), so this ranks model families, not individual products.
+      Combos are excluded, same as everywhere else on this page. %>
+  Grouped by James Martin's model series — every size and finish in a family counts together.
+  Individual SKUs only; combos excluded.
 </p>
 
 <% if (top10Revenue && top10Revenue.length > 0) { %>
@@ -282,11 +304,14 @@ function fmtDollar(n) {
       <th>Collection</th>
       <th>Finish</th>
       <th>Size</th>
-      <th style="text-align:right">Combo Units</th>
-      <th style="text-align:right">Cabinet-only</th>
-      <th style="text-align:right">Top-only</th>
+      <%# "Combo Units" column dropped 2026-09-10 — the query no longer
+          produces one, and a column of zeros reads as "nothing sold" rather
+          than "this is not measured". Cabinet and Top are plain unit counts
+          now, not net-of-combo, so the "-only" suffix would be wrong too. %>
+      <th style="text-align:right">Cabinet Units</th>
+      <th style="text-align:right">Top Units</th>
       <th style="text-align:right">Total Units</th>
-      <th style="text-align:right">Revenue (floor)</th>
+      <th style="text-align:right">Revenue</th>
     </tr></thead>
     <tbody>
     <% top10Revenue.forEach(function(r, i) { %>
@@ -295,7 +320,6 @@ function fmtDollar(n) {
         <td><%= r.collection || '—' %></td>
         <td><%= r.base_finish || '—' %></td>
         <td><%= r.size_nominal ? r.size_nominal + '"' : '—' %></td>
-        <td style="text-align:right"><%= Number(r.combo_units||0).toLocaleString() %></td>
         <td style="text-align:right;color:#276749"><%= Number(r.net_cabinet||0).toLocaleString() %></td>
         <td style="text-align:right;color:#975a16"><%= Number(r.net_top||0).toLocaleString() %></td>
         <td style="text-align:right;font-weight:700"><%= Number(r.units||0).toLocaleString() %></td>
@@ -311,7 +335,10 @@ function fmtDollar(n) {
 
 <p style="margin-top:16px;font-size:11px;color:#888;font-style:italic">
   Source: Depletion from James Martin warehouse — industry-wide demand, not RFL sales.
-  Revenue figures are a conservative floor (dedup applied). Actual demand ≥ reported figures.
+  Individual SKUs × that day's MAP price. Combo SKUs are excluded because their quantity is
+  derived from their components rather than being stock of their own.
+  A set that ships as a cabinet plus a top counts as two items at the sum of the two prices,
+  which runs slightly above bundle MAP — see JMV_REVENUE_DEFINITION.md §6.
   Intended for relative comparison and marketing prioritization, not absolute revenue forecasting.
 </p>
 

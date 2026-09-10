@@ -182,10 +182,16 @@ async function upsertCollection(conn, name, brand, description) {
   return row ? row.id : null;
 }
 
+/* Landed cost as a fraction of MSRP. See migration 018 for the
+   evidence: six invoice lines, three SKUs, two quotes, 32.400%
+   exact on every one. The 0.66 MAP factor below is JM's, this is
+   ours — they are unrelated numbers that happen to live together. */
+const JM_COST_FACTOR = 0.324;
+
 async function upsertProduct(conn, data) {
   await conn.query(`
     INSERT INTO products (
-      sku, slug, vendor_sku, name, brand, price, compare_price,
+      sku, slug, vendor_sku, name, brand, price, compare_price, cost,
       long_desc, product_type, component_role, vendor_group_id,
       category_id, collection_id,
       upc, country_origin, warranty, lead_time_days,
@@ -198,7 +204,7 @@ async function upsertProduct(conn, data) {
       shipping_label,
       custom_label_0, custom_label_1, custom_label_2, custom_label_3, custom_label_4
     ) VALUES (
-      :sku, :slug, :vendor_sku, :name, :brand, :price, :compare_price,
+      :sku, :slug, :vendor_sku, :name, :brand, :price, :compare_price, :cost,
       :long_desc, :product_type, :component_role, :vendor_group_id,
       :category_id, :collection_id,
       :upc, :country_origin, :warranty, :lead_time_days,
@@ -217,6 +223,7 @@ async function upsertProduct(conn, data) {
       brand                 = VALUES(brand),
       price                 = VALUES(price),
       compare_price         = VALUES(compare_price),
+      cost                  = VALUES(cost),
       long_desc             = VALUES(long_desc),
       product_type          = VALUES(product_type),
       component_role        = VALUES(component_role),
@@ -728,6 +735,16 @@ async function importFromWorkbook(wb, opts = {}) {
         const vendorSku = itemNumber;
 
         // ── Price resolution ─────────────────────────────────────────
+        /* Our landed cost from JM — derived, not quoted per item. Six
+           invoice lines across three SKUs and two quotes put it at exactly
+           32.400% of MSRP, identical to three decimals regardless of size
+           or price point. A second quote set sat at exactly 33.300%: a
+           different tier, same formula.
+
+           If the tier changes, change JM_COST_FACTOR and re-run the
+           backfill in migration 018. Do not hand-edit rows — cost is
+           derived and a manual value would be overwritten on the next
+           import anyway. */
         // JM pricing model: price = MAP, compare_price = MSRP.
         //
         // Back-calc rule (derived from 4,761 products that have both values):
@@ -766,6 +783,13 @@ async function importFromWorkbook(wb, opts = {}) {
           brand:                 clean(row['Mfg Name']) || 'James Martin Vanities',
           price:                 finalPrice,
           compare_price:         finalCompare,
+          /* NULL, not 0, when there is no MSRP to derive from: a cost of
+             zero reads as free rather than as unknown, and 86 products
+             (mostly samples and shelves) have no MSRP. Samples are excluded
+             outright — their $9.99 covers postage, not goods. */
+          cost:                  (!isSample && finalCompare != null)
+                                   ? Math.round(finalCompare * JM_COST_FACTOR * 100) / 100
+                                   : null,
           long_desc:             clean(row['One Paragraph Product Description']),
           product_type:          productType,
           component_role:        clean(row['Group/Component']),

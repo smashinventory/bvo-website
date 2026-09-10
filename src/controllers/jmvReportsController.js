@@ -30,6 +30,11 @@ const { bvoPool }    = require('../config/database');
 const { runRollup, getSnapshotStatus, getValidDayCount } = require('../jobs/jmvMovementRollup');
 
 const LAYOUT = { layout: 'layouts/admin' };
+/* JM computes MAP as MSRP x 0.66 — derived at import from 4,761 products that
+   carry both values (range 65.85–67.85%). See importJamesMartinFeed.js. Used
+   as the price fallback when MAP is absent. */
+const MSRP_TO_MAP = 0.66;
+
 const SYNC_TYPES = ['Vanity', 'Cabinet', 'Top'];
 const SYNC_TYPES_SQL = SYNC_TYPES.map(() => '?').join(',');
 
@@ -1029,30 +1034,20 @@ async function newArrivalsDrilldown(req, res) {
    FINANCIALS — MAP revenue proxy, velocity by dimension & date
    NOTE: "revenue" = drawdown_units × MAP_price.  Minimum demand estimate.
 
-   METHODOLOGY — CONSERVATIVE (worst-case) deduplication:
-     Purpose: marketing spend planning & content product selection.
-     We cannot validate against JM's actual order data, so we apply the
-     most conservative assumption to avoid chasing inflated signals.
+   METHODOLOGY — see JMV_REVENUE_DEFINITION.md (approved 2026-09-10, amended
+     the same day before build). That document is the artifact of record; if
+     it and this code disagree, it is right and this is a bug.
 
-     Observation: combo (Vanity) availability = min(cabinet qty, top qty)
-     in static snapshots (e.g. 650-V30-BKO=42, 650-V30-BKO-3CAR=42).
-     This suggests components may be coupled to combo allocation.
+     Per SKU, per day: depletion x that day's MAP price, summed. Nothing is
+     grouped, nothing is subtracted from anything else, and no inference is
+     made about what was "really" sold.
 
-     Conservative rule: for each (group_number, movement_date), treat
-     Cabinet and Top drawdown up to the combo count as attributable to
-     the combo — not additional standalone demand. Only the excess is
-     counted as genuine standalone revenue.
+     Combos are excluded — a SKU carrying a top_finish that is not itself a
+     Top includes a top, and its quantity is derived from its components
+     rather than being stock of its own.
 
-       net_cabinet = GREATEST(0, cabinet_drawdown − combo_drawdown)
-       net_top     = GREATEST(0, top_drawdown     − combo_drawdown)
-       revenue     = (combo_u × combo_p)
-                   + (net_cabinet × cabinet_p)
-                   + (net_top × top_p)
-
-     This produces the FLOOR — actual demand ≥ this number.
-     If JM pools are truly independent (flat SUM) this understates; that
-     is acceptable. We prefer false-negative to false-positive when
-     selecting products to invest marketing spend behind.
+     The retired "conservative floor" pivot and the evidence against it are
+     documented at the revenue basis block inside getFinancials.
 ───────────────────────────────────────────────────────────────────── */
 
 async function getFinancials(req, res) {
@@ -1067,11 +1062,9 @@ async function getFinancials(req, res) {
     const toDate   = (req.query.to   || defaultTo).slice(0, 10);
     const scope    = req.query.scope === 'sync' ? 'sync' : 'all';
 
-    // ── VCT = types subject to conservative dedup ────────────────────
-    const VCT     = ['Vanity', 'Cabinet', 'Top'];
-    const VCT_SQL = VCT.map(() => '?').join(',');
-
-    // ── Latest valid snapshot (for MAP price lookup) ─────────────────
+    /* Newest valid snapshot. Anchors the run-rate cards (which must not move
+       when the from/to selector narrows) and gates the whole page: with no
+       snapshot there is nothing to price against. */
     const latestSnap = await safeQueryOne(
       `SELECT MAX(snapshot_date) AS d FROM jmv_snapshot_validity WHERE is_valid = 1`
     );
@@ -1086,12 +1079,11 @@ async function getFinancials(req, res) {
            query turns the error page into a second, more confusing crash. */
         rev30: { total:0, days:0, avg:0 }, rev15: { total:0, days:0, avg:0 },
         rev7:  { total:0, days:0, avg:0 }, rev24: 0, rev24Date: null,
-        comboRevenue: 0, comboUnits: 0, indivRevenue: 0, indivUnits: 0,
+        cabinetRevenue: 0, cabinetUnits: 0, topRevenue: 0, topUnits: 0,
+        otherRevenue: 0, otherUnits: 0, unpricedSkus: 0, unpricedUnits: 0,
         top10Revenue: [],
         revenueByDay: '[]', collectedDays: '[]', revenueByCategory: '[]',
         revenueByCollection: '[]', revenueByFinish: '[]',
-        // Footnote figures — the cards read these unconditionally, so an
-        // error path that omits them turns a handled 500 into a template crash.
         excludedNoCollectionRev: 0, excludedNoCollectionUnits: 0,
         excludedNoFinishRev: 0, excludedNoFinishUnits: 0,
         comboVsIndividual: '[]',
@@ -1100,41 +1092,127 @@ async function getFinancials(req, res) {
       });
     }
 
-    // ── Inner pivot: one row per (group_number, movement_date) ───────
-    // Collapses VCT types into columns so the dedup formula can be applied.
-    const PIVOT = `
-      SELECT
-        d.group_number,
-        m.movement_date,
-        MAX(d.collection)   AS collection,
-        MAX(d.base_finish)  AS base_finish,
-        MAX(d.size_nominal) AS size_nominal,
-        -- Carried through so revenueByDay can label multi-day observations.
-        MAX(m.span_days)    AS span_days,
-        MAX(CASE WHEN d.product_type = 'Vanity'  THEN m.demand_min  ELSE 0 END) AS combo_u,
-        MAX(CASE WHEN d.product_type = 'Cabinet' THEN m.demand_min  ELSE 0 END) AS cabinet_u,
-        MAX(CASE WHEN d.product_type = 'Top'     THEN m.demand_min  ELSE 0 END) AS top_u,
-        MAX(CASE WHEN d.product_type = 'Vanity'  THEN COALESCE(s.map_price,0) ELSE 0 END) AS combo_p,
-        MAX(CASE WHEN d.product_type = 'Cabinet' THEN COALESCE(s.map_price,0) ELSE 0 END) AS cabinet_p,
-        MAX(CASE WHEN d.product_type = 'Top'     THEN COALESCE(s.map_price,0) ELSE 0 END) AS top_p
-      FROM jmv_daily_movement m
-      JOIN jmv_dimensions d ON d.sku = m.sku
-      LEFT JOIN jmv_snapshots s ON s.sku = m.sku AND s.snapshot_date = ?
-      WHERE m.is_valid = 1
-        AND d.product_type IN (${VCT_SQL})
-        AND m.movement_date BETWEEN ? AND ?
-      GROUP BY d.group_number, m.movement_date
-    `;
-    const PP = [latestDate, ...VCT, fromDate, toDate];
+    /* ══════════════════════════════════════════════════════════════════
+       REVENUE BASIS — see JMV_REVENUE_DEFINITION.md (approved 2026-09-10)
+       That document is the artifact of record. If this code and it ever
+       disagree, it is right and this is a bug.
 
-    // Conservative dedup expressions
-    const REV   = `(g.combo_u * g.combo_p) + (GREATEST(0, g.cabinet_u - g.combo_u) * g.cabinet_p) + (GREATEST(0, g.top_u - g.combo_u) * g.top_p)`;
-    const UNITS = `g.combo_u + GREATEST(0, g.cabinet_u - g.combo_u) + GREATEST(0, g.top_u - g.combo_u)`;
+       REPLACED the "conservative floor" pivot on 2026-09-10. The old method
+       took the Vanity SKU's drawdown at face value, priced it at combo MAP,
+       and counted Cabinet/Top only for their excess above it, pivoted to MAX
+       per (group_number, movement_date). Three independent defects:
+
+         - A combo SKU's quantity is min(base, top) — computed availability,
+           not inventory. E444-V72-GW-3WZ logged 72 units across six
+           observations while its base sat at 158, unmoved, every day; from
+           08-29 its qty is identical to the top's. One top drawdown of 62
+           units manufactured 482 units of phantom demand across 51 SKUs.
+         - group_number is JM's SERIES code (the leading SKU token). Group 157
+           is 309 SKUs across 7 sizes collapsed by MAX to one number per day,
+           and ZERO of 71 groups hold both a Cabinet and a Top — so the dedup's
+           premise was unreachable.
+         - 08-29 showed 17,061 Vanity units against 120 Cabinet units. Every
+           real combo consumes a cabinet.
+
+       Measured: $8,957,392 old vs $5,495,606 new over the six observation
+       days — 39% inflation.
+
+       Now: one SKU, one quantity, one price, multiplied and summed. No
+       grouping, no cross-SKU subtraction, no inference about what was "really"
+       sold. ─────────────────────────────────────────────────────────────── */
+
+    /* ── WHAT COUNTS AS A COMBO ──────────────────────────────────────
+       A SKU is an assembly — and therefore excluded — when it carries a
+       top_finish AND belongs to a type that ships in assembled form.
+
+       BOTH halves are load-bearing.
+
+       Without the type list, top_finish alone excludes solid stone pieces
+       that merely share a finish name: 203 Tops, 15 Backsplashes and 15
+       Floating Consoles. The first version of this rule did exactly that
+       and silently deleted 245 units of backsplash demand. Gate G14 caught
+       it; nothing on the page would have.
+
+       Without top_finish, the type list alone is useless: Countertop Unit,
+       Storage Cabinet and Drawer Unit each ship BOTH ways —
+       825-CU30-BW plain, 825-CU30-BW-3CAR with a Carrara top — and only
+       top_finish separates the two.
+
+       The five types below are the ones observed to have an assembled
+       form. Adding a type here excludes its with-top variants; it does not
+       touch its plain ones.
+
+       This also picks up, with no allow-list, the 13 Vanity-typed SKUs
+       that are really cabinets (533-V20-GW-BNK et al): their trailing
+       token is a hardware finish, so they carry no top_finish. */
+    const ASSEMBLED_TYPES = ['Vanity', 'Console', 'Countertop Unit',
+                             'Storage Cabinet', 'Drawer Unit'];
+    const AT_SQL = ASSEMBLED_TYPES.map(t => `'${t.replace(/'/g, "''")}'`).join(',');
+    const NOT_A_COMBO =
+      `NOT (d.top_finish IS NOT NULL AND d.top_finish <> '' AND d.product_type IN (${AT_SQL}))`;
+
+    const NOT_A_SAMPLE = `(d.product_type NOT LIKE 'Sample - %')`;
+
+    // Scope: narrow is Cabinet+Top; "all" is every type, combos and samples
+    // still excluded by the two predicates above.
+    const SCOPE_SQL = scope === 'all' ? '1=1' : `d.product_type IN ('Cabinet','Top')`;
+
+    /* PRICE — resolved per SKU per DAY, definition §4:
+         1. that day's MAP
+         2. that day's MSRP x 0.66      (jmv_snapshots.msrp, migration 017)
+         3. current products.compare_price x 0.66   (retroactive fallback)
+         4. otherwise the row is EXCLUDED from revenue AND units
+
+       0.66 is JM's own back-calc, derived at import from 4,761 products
+       carrying both values. Defined in importJamesMartinFeed.js — this is the
+       one place it is repeated, and it is repeated in SQL because the
+       arithmetic has to happen in the query.
+
+       Previously every row was priced from the LATEST snapshot, so a MAP
+       change was applied retroactively across the whole window, and an
+       unpriced SKU contributed units at $0 via COALESCE(...,0) — inflating
+       Units Depleted while adding nothing to revenue, silently. */
+    const UNIT_PRICE = `COALESCE(sd.map_price, sd.msrp * ${MSRP_TO_MAP}, pr.compare_price * ${MSRP_TO_MAP})`;
+
+    const BASE_JOIN = `
+      FROM jmv_daily_movement m
+      JOIN jmv_dimensions d  ON d.sku = m.sku
+      LEFT JOIN jmv_snapshots sd ON sd.sku = m.sku AND sd.snapshot_date = m.movement_date
+      LEFT JOIN products pr      ON pr.sku = m.sku`;
+
+    const BASE_WHERE = `
+      WHERE m.is_valid = 1
+        AND m.movement_date BETWEEN ? AND ?
+        AND ${SCOPE_SQL}
+        AND ${NOT_A_COMBO}
+        AND ${NOT_A_SAMPLE}
+        AND ${UNIT_PRICE} IS NOT NULL`;
+
+    /* Every figure on the page reads from this one derived table, so a card
+       and the chart beside it cannot end up on different bases. */
+    const PRICED = `
+      SELECT m.sku, m.movement_date, m.span_days,
+             d.collection, d.base_finish, d.size_nominal,
+             d.product_type, d.group_number,
+             m.demand_min                    AS units,
+             m.demand_min * ${UNIT_PRICE}    AS revenue
+      ${BASE_JOIN} ${BASE_WHERE}`;
+    const PP = [fromDate, toDate];
+
+    /* Money we could not price at all — surfaced, not swallowed. */
+    const unpriced = await safeQueryOne(
+      `SELECT COUNT(DISTINCT m.sku) AS skus, SUM(m.demand_min) AS units
+       ${BASE_JOIN}
+       WHERE m.is_valid = 1
+         AND m.movement_date BETWEEN ? AND ?
+         AND ${SCOPE_SQL} AND ${NOT_A_COMBO} AND ${NOT_A_SAMPLE}
+         AND ${UNIT_PRICE} IS NULL`, [fromDate, toDate]
+    );
 
     // ── VCT KPI totals ───────────────────────────────────────────────
     const kpiVCT = await safeQueryOne(
-      `SELECT ROUND(SUM(${REV}),0) AS map_revenue, SUM(${UNITS}) AS qty_sold
-       FROM (${PIVOT}) g`, PP
+      `SELECT ROUND(SUM(g.revenue),0) AS map_revenue, SUM(g.units) AS qty_sold
+       FROM (${PRICED}) g`, PP
     );
 
     // ── Revenue by day ───────────────────────────────────────────────
@@ -1146,10 +1224,10 @@ async function getFinancials(req, res) {
        "covers 2 days" instead of reading as a one-day spike. */
     const revenueByDay = await safeQuery(
       `SELECT DATE_FORMAT(g.movement_date,'%Y-%m-%d') AS date,
-              ROUND(SUM(${REV}),0) AS revenue,
-              SUM(${UNITS}) AS units,
+              ROUND(SUM(g.revenue),0) AS revenue,
+              SUM(g.units) AS units,
               MAX(g.span_days) AS span_days
-       FROM (${PIVOT}) g
+       FROM (${PRICED}) g
        GROUP BY g.movement_date ORDER BY g.movement_date`, PP
     );
 
@@ -1177,15 +1255,17 @@ async function getFinancials(req, res) {
     );
 
     // ── Combo vs standalone breakdown ────────────────────────────────
+    /* Composition. There is no observable "combo" any more, so this is the
+       real split: cabinets, tops, and everything else. */
     const cviBrk = await safeQueryOne(
       `SELECT
-         ROUND(SUM(g.combo_u * g.combo_p),0)                              AS combo_rev,
-         SUM(g.combo_u)                                                    AS combo_u,
-         ROUND(SUM(GREATEST(0, g.cabinet_u - g.combo_u) * g.cabinet_p),0) AS cabinet_rev,
-         SUM(GREATEST(0, g.cabinet_u - g.combo_u))                        AS cabinet_u,
-         ROUND(SUM(GREATEST(0, g.top_u - g.combo_u) * g.top_p),0)        AS top_rev,
-         SUM(GREATEST(0, g.top_u - g.combo_u))                            AS top_u
-       FROM (${PIVOT}) g`, PP
+         ROUND(SUM(CASE WHEN g.product_type='Cabinet' THEN g.revenue ELSE 0 END),0) AS cabinet_rev,
+         SUM(CASE WHEN g.product_type='Cabinet' THEN g.units ELSE 0 END)            AS cabinet_u,
+         ROUND(SUM(CASE WHEN g.product_type='Top'     THEN g.revenue ELSE 0 END),0) AS top_rev,
+         SUM(CASE WHEN g.product_type='Top'     THEN g.units ELSE 0 END)            AS top_u,
+         ROUND(SUM(CASE WHEN g.product_type NOT IN ('Cabinet','Top') THEN g.revenue ELSE 0 END),0) AS other_rev,
+         SUM(CASE WHEN g.product_type NOT IN ('Cabinet','Top') THEN g.units ELSE 0 END)            AS other_u
+       FROM (${PRICED}) g`, PP
     );
 
     /* ══════════════════════════════════════════════════════════════════
@@ -1216,32 +1296,32 @@ async function getFinancials(req, res) {
     // ── Revenue by collection ─────────────────────────────────────────
     const revenueByCollection = await safeQuery(
       `SELECT g.collection AS label,
-              ROUND(SUM(${REV}),0) AS revenue,
-              SUM(${UNITS}) AS units
-       FROM (${PIVOT}) g
+              ROUND(SUM(g.revenue),0) AS revenue,
+              SUM(g.units) AS units
+       FROM (${PRICED}) g
        WHERE g.collection IS NOT NULL AND g.collection <> ''
        GROUP BY g.collection ORDER BY revenue DESC LIMIT 12`, PP
     );
 
     const excludedNoCollection = await safeQueryOne(
-      `SELECT ROUND(SUM(${REV}),0) AS revenue, SUM(${UNITS}) AS units
-       FROM (${PIVOT}) g
+      `SELECT ROUND(SUM(g.revenue),0) AS revenue, SUM(g.units) AS units
+       FROM (${PRICED}) g
        WHERE g.collection IS NULL OR g.collection = ''`, PP
     );
 
     // ── Revenue by finish ─────────────────────────────────────────────
     const revenueByFinish = await safeQuery(
       `SELECT g.base_finish AS label,
-              ROUND(SUM(${REV}),0) AS revenue,
-              SUM(${UNITS}) AS units
-       FROM (${PIVOT}) g
+              ROUND(SUM(g.revenue),0) AS revenue,
+              SUM(g.units) AS units
+       FROM (${PRICED}) g
        WHERE g.base_finish IS NOT NULL AND g.base_finish <> ''
        GROUP BY g.base_finish ORDER BY revenue DESC LIMIT 10`, PP
     );
 
     const excludedNoFinish = await safeQueryOne(
-      `SELECT ROUND(SUM(${REV}),0) AS revenue, SUM(${UNITS}) AS units
-       FROM (${PIVOT}) g
+      `SELECT ROUND(SUM(g.revenue),0) AS revenue, SUM(g.units) AS units
+       FROM (${PRICED}) g
        WHERE g.base_finish IS NULL OR g.base_finish = ''`, PP
     );
 
@@ -1272,12 +1352,11 @@ async function getFinancials(req, res) {
               MAX(g.collection)   AS collection,
               MAX(g.base_finish)  AS base_finish,
               MAX(g.size_nominal) AS size_nominal,
-              SUM(g.combo_u)                                AS combo_units,
-              SUM(GREATEST(0, g.cabinet_u - g.combo_u))    AS net_cabinet,
-              SUM(GREATEST(0, g.top_u     - g.combo_u))    AS net_top,
-              ROUND(SUM(${REV}),0)                          AS revenue,
-              SUM(${UNITS})                                 AS units
-       FROM (${PIVOT}) g
+              SUM(CASE WHEN g.product_type='Cabinet' THEN g.units ELSE 0 END) AS net_cabinet,
+              SUM(CASE WHEN g.product_type='Top'     THEN g.units ELSE 0 END) AS net_top,
+              ROUND(SUM(g.revenue),0)                       AS revenue,
+              SUM(g.units)                                  AS units
+       FROM (${PRICED}) g
        WHERE g.collection IS NOT NULL AND g.collection <> ''
        GROUP BY g.group_number
        ORDER BY revenue DESC LIMIT 10`, PP
@@ -1285,67 +1364,28 @@ async function getFinancials(req, res) {
 
     // ── By-category array ─────────────────────────────────────────────
     const revenueByCategory = [
-      { label: 'Combo (Vanity)',       revenue: cviBrk?.combo_rev   || 0, units: cviBrk?.combo_u   || 0 },
-      { label: 'Cabinet (standalone)', revenue: cviBrk?.cabinet_rev || 0, units: cviBrk?.cabinet_u || 0 },
-      { label: 'Top (standalone)',     revenue: cviBrk?.top_rev     || 0, units: cviBrk?.top_u     || 0 },
+      { label: 'Cabinet', revenue: cviBrk?.cabinet_rev || 0, units: cviBrk?.cabinet_u || 0 },
+      { label: 'Top',     revenue: cviBrk?.top_rev     || 0, units: cviBrk?.top_u     || 0 },
+      { label: 'Other',   revenue: cviBrk?.other_rev   || 0, units: cviBrk?.other_u   || 0 },
     ].filter(r => r.revenue > 0);
 
-    // ── "all" scope: add uncoupled types (Mirror, Linen Cabinet, etc.) ─
-    let extraRevenue = 0, extraUnits = 0;
+    /* ── "all" scope ─────────────────────────────────────────────────
+       REMOVED 2026-09-10. The scope used to be bolted on here as a second,
+       separately-priced query whose results were merged into the first. That
+       is now handled inside PRICED by SCOPE_SQL, so every type is on one
+       basis and there is nothing to merge.
+
+       Two bugs died with it. The old OTHER_TYPES list included 'Console' —
+       a combo type, all 17 of which carry a top_finish — so "all types" was
+       quietly adding combo revenue back after the main query excluded it.
+       And it priced with COALESCE(map_price, 0), booking unpriceable SKUs as
+       units at $0 while the main query did something different.
+
+       These stay declared and empty: the merge helpers and the render block
+       below still reference them, and a scope toggle that silently changed
+       shape mid-refactor is how the last set of defects got in. */
+    const extraRevenue = 0, extraUnits = 0;
     const extraByCollection = [], extraByFinish = [], extraByCat = [];
-
-    const OTHER_TYPES = scope === 'all'
-      ? ['Mirror', 'Linen Cabinet', 'Storage Cabinet', 'Backsplash',
-         'Bench', 'Shelf', 'Hutch', 'Drawer Unit', 'Console']
-      : [];
-
-    if (OTHER_TYPES.length > 0) {
-      const OT_SQL = OTHER_TYPES.map(() => '?').join(',');
-      const OTP  = [latestDate, ...OTHER_TYPES, fromDate, toDate];
-      const OT_JN = `FROM jmv_daily_movement m
-                     JOIN jmv_dimensions d ON d.sku = m.sku
-                     LEFT JOIN jmv_snapshots s ON s.sku = m.sku AND s.snapshot_date = ?`;
-      const OT_WH = `WHERE m.is_valid = 1
-                       AND d.product_type IN (${OT_SQL})
-                       AND m.movement_date BETWEEN ? AND ?`;
-
-      const otKpi = await safeQueryOne(
-        `SELECT ROUND(SUM(m.demand_min * COALESCE(s.map_price,0)),0) AS rev,
-                SUM(m.demand_min) AS u ${OT_JN} ${OT_WH}`, OTP
-      );
-      extraRevenue = Number(otKpi?.rev || 0);
-      extraUnits   = Number(otKpi?.u   || 0);
-
-      /* Same rule as the main queries above — no '(none)' bucket on a
-         dimensional axis. This is the "all types" path, so it carries even
-         more collection-less rows than the sync-scope one: mirrors,
-         backsplashes, samples, shelves. Merging them into a single bar and
-         ranking it against Brittany was the whole problem. */
-      const otColl = await safeQuery(
-        `SELECT d.collection AS label,
-                ROUND(SUM(m.demand_min * COALESCE(s.map_price,0)),0) AS revenue,
-                SUM(m.demand_min) AS units ${OT_JN} ${OT_WH}
-           AND d.collection IS NOT NULL AND d.collection <> ''
-         GROUP BY d.collection ORDER BY revenue DESC LIMIT 12`, OTP
-      );
-      const otFin = await safeQuery(
-        `SELECT d.base_finish AS label,
-                ROUND(SUM(m.demand_min * COALESCE(s.map_price,0)),0) AS revenue,
-                SUM(m.demand_min) AS units ${OT_JN} ${OT_WH}
-           AND d.base_finish IS NOT NULL AND d.base_finish <> ''
-         GROUP BY d.base_finish ORDER BY revenue DESC LIMIT 10`, OTP
-      );
-      const otCat = await safeQuery(
-        `SELECT d.product_type AS label,
-                ROUND(SUM(m.demand_min * COALESCE(s.map_price,0)),0) AS revenue,
-                SUM(m.demand_min) AS units ${OT_JN} ${OT_WH}
-         GROUP BY d.product_type ORDER BY revenue DESC`, OTP
-      );
-
-      otColl.forEach(r => extraByCollection.push(r));
-      otFin.forEach(r => extraByFinish.push(r));
-      otCat.forEach(r => extraByCat.push(r));
-    }
 
     // ── Merge VCT + other-type collection/finish for "all" scope ─────
     const mergeByLabel = (base, extra) => {
@@ -1391,49 +1431,19 @@ async function getFinancials(req, res) {
       const from30 = new Date(latestDt); from30.setDate(from30.getDate() - 29);
       const from30Str = _iso(from30);
 
+      /* Same PRICED basis as the MAP Revenue card these sit beside, so the
+         run rate and the total can never quietly disagree. The old code ran a
+         second query for the "all" scope and merged it by date; PRICED already
+         carries every type, so that merge is gone. */
       rollRows = await safeQuery(
         `SELECT DATE_FORMAT(g.movement_date,'%Y-%m-%d') AS date,
-                ROUND(SUM(${REV}),0) AS revenue,
+                ROUND(SUM(g.revenue),0) AS revenue,
                 MAX(g.span_days) AS span_days
-         FROM (${PIVOT}) g
+         FROM (${PRICED}) g
          GROUP BY g.movement_date
          ORDER BY g.movement_date DESC`,
-        [latestDate, ...VCT, from30Str, latestDate]
+        [from30Str, latestDate]
       );
-
-      /* Under scope=all the MAP Revenue card these sit beside includes the
-         uncoupled types, via extraRevenue. Leaving them out here would put
-         two revenue figures side by side on the same row that quietly
-         disagree — and the smaller one would look like the safe number.
-         Merged by date so the run rate is on the same basis as the total. */
-      if (OTHER_TYPES.length > 0) {
-        const OT_SQL2 = OTHER_TYPES.map(() => '?').join(',');
-        const otDaily = await safeQuery(
-          `SELECT DATE_FORMAT(m.movement_date,'%Y-%m-%d') AS date,
-                  ROUND(SUM(m.demand_min * COALESCE(s.map_price,0)),0) AS revenue,
-                  MAX(m.span_days) AS span_days
-           FROM jmv_daily_movement m
-           JOIN jmv_dimensions d ON d.sku = m.sku
-           LEFT JOIN jmv_snapshots s ON s.sku = m.sku AND s.snapshot_date = ?
-           WHERE m.is_valid = 1
-             AND d.product_type IN (${OT_SQL2})
-             AND m.movement_date BETWEEN ? AND ?
-           GROUP BY m.movement_date`,
-          [latestDate, ...OTHER_TYPES, from30Str, latestDate]
-        );
-        const byDate = new Map(rollRows.map(r => [String(r.date), r]));
-        otDaily.forEach(r => {
-          const k = String(r.date);
-          const hit = byDate.get(k);
-          if (hit) {
-            hit.revenue = Number(hit.revenue || 0) + Number(r.revenue || 0);
-            hit.span_days = Math.max(Number(hit.span_days || 1), Number(r.span_days || 1));
-          } else {
-            byDate.set(k, { date: k, revenue: Number(r.revenue || 0), span_days: Number(r.span_days || 1) });
-          }
-        });
-        rollRows = [...byDate.values()].sort((a, b) => String(b.date).localeCompare(String(a.date)));
-      }
     }
 
     /* n = nominal window. Returns the window's total, the days of history
@@ -1463,16 +1473,26 @@ async function getFinancials(req, res) {
     // ── Final KPI totals ─────────────────────────────────────────────
     const mapRevenue   = Number(kpiVCT?.map_revenue || 0) + extraRevenue;
     const qtySold      = Number(kpiVCT?.qty_sold    || 0) + extraUnits;
-    const comboRevenue = Number(cviBrk?.combo_rev   || 0);
-    const comboUnits   = Number(cviBrk?.combo_u     || 0);
-    const indivRevenue = Number(cviBrk?.cabinet_rev || 0) + Number(cviBrk?.top_rev || 0) + extraRevenue;
-    const indivUnits   = Number(cviBrk?.cabinet_u   || 0) + Number(cviBrk?.top_u   || 0) + extraUnits;
+    /* Composition. The old pair was "Combo (Vanity)" vs "Individual SKU" —
+       a split that cannot exist now that the combo SKU is not counted.
+       Cabinet / Top / Other is the real composition of what depleted. */
+    const cabinetRevenue = Number(cviBrk?.cabinet_rev || 0);
+    const cabinetUnits   = Number(cviBrk?.cabinet_u   || 0);
+    const topRevenue     = Number(cviBrk?.top_rev     || 0);
+    const topUnits       = Number(cviBrk?.top_u       || 0);
+    const otherRevenue   = Number(cviBrk?.other_rev   || 0);
+    const otherUnits     = Number(cviBrk?.other_u     || 0);
+
+    /* Depletion we could not price. Definition §4 rule 4 drops it from BOTH
+       revenue and units rather than booking units at $0, so it is surfaced
+       here instead of becoming a silent gap between the two cards. */
+    const unpricedSkus  = Number(unpriced?.skus  || 0);
+    const unpricedUnits = Number(unpriced?.units || 0);
 
     const comboVsIndividual = [
-      { label: 'Combo (Vanity)',       revenue: comboRevenue,                     units: comboUnits },
-      { label: 'Cabinet (standalone)', revenue: Number(cviBrk?.cabinet_rev || 0), units: Number(cviBrk?.cabinet_u || 0) },
-      { label: 'Top (standalone)',     revenue: Number(cviBrk?.top_rev     || 0), units: Number(cviBrk?.top_u     || 0) },
-      ...extraByCat,
+      { label: 'Cabinet', revenue: cabinetRevenue, units: cabinetUnits },
+      { label: 'Top',     revenue: topRevenue,     units: topUnits     },
+      { label: 'Other',   revenue: otherRevenue,   units: otherUnits   },
     ].filter(r => r.revenue > 0);
 
     res.render('pages/admin/marketing/jmv-financials', {
@@ -1482,7 +1502,8 @@ async function getFinancials(req, res) {
       mapRevenue, qtySold,
       // Rolling revenue cards — see the ROLLING REVENUE KPIs block above.
       rev30, rev15, rev7, rev24, rev24Date,
-      comboRevenue, comboUnits, indivRevenue, indivUnits,
+      cabinetRevenue, cabinetUnits, topRevenue, topUnits,
+      otherRevenue, otherUnits, unpricedSkus, unpricedUnits,
       top10Revenue,
       revenueByDay:        JSON.stringify(revenueByDay),
       collectedDays:       JSON.stringify(collectedDays.map(r => r.date)),
@@ -1511,7 +1532,8 @@ async function getFinancials(req, res) {
       mapRevenue: 0, qtySold: 0,
       rev30: { total:0, days:0, avg:0 }, rev15: { total:0, days:0, avg:0 },
       rev7:  { total:0, days:0, avg:0 }, rev24: 0, rev24Date: null,
-      comboRevenue: 0, comboUnits: 0, indivRevenue: 0, indivUnits: 0,
+      cabinetRevenue: 0, cabinetUnits: 0, topRevenue: 0, topUnits: 0,
+      otherRevenue: 0, otherUnits: 0, unpricedSkus: 0, unpricedUnits: 0,
       top10Revenue: [],
       revenueByDay: '[]', collectedDays: '[]', revenueByCategory: '[]',
       revenueByCollection: '[]', revenueByFinish: '[]',

@@ -46,6 +46,12 @@ const XLSX_COL_MAP = {
   group:        'Group Number',
   name:         'Product Name',
   map:          'MAP Price',
+  /* ADDED 2026-09-10 (migration 017). Price rule 4.2 of
+     JMV_REVENUE_DEFINITION.md — MAP is missing on part of the catalogue
+     and MSRP x 0.66 is JM's own back-calc. Without capturing MSRP per
+     day the fallback can only use products.compare_price, which is one
+     CURRENT value applied backwards over the whole window. */
+  msrp:         'MSRP',
   collection:   'Collection Name',
   base_finish:  'Vanity Base Color/Finish',
   top_material: 'Vanity Countertop Material',
@@ -87,7 +93,7 @@ function parseDateFromXlsxFilename(filename) {
 
 /**
  * Read a JMV XLSX feed file from the archive folder.
- * Returns [{sku, qty, map_price}] or null if file doesn't exist.
+ * Returns [{sku, qty, map_price, msrp}] or null if file doesn't exist.
  */
 function readXlsxFeedFile(dateStr) {
   const filepath = path.join(FEED_ARCHIVE_DIR, `JMV-product-feed_imported_${dateStr}.xlsx`);
@@ -107,8 +113,13 @@ function readXlsxFeedFile(dateStr) {
     const sku = String(clean[XLSX_COL_MAP.sku] || '').trim();
     if (!sku) continue;
     const qty = parseInt(String(clean[XLSX_COL_MAP.qty] || '0').replace(/[^0-9]/g,''), 10) || 0;
-    const mapRaw = String(clean[XLSX_COL_MAP.map] || '').replace(/[$,]/g,'');
-    rows.push({ sku, qty, map_price: parseFloat(mapRaw) || null });
+    const mapRaw  = String(clean[XLSX_COL_MAP.map]  || '').replace(/[$,]/g,'');
+    const msrpRaw = String(clean[XLSX_COL_MAP.msrp] || '').replace(/[$,]/g,'');
+    rows.push({
+      sku, qty,
+      map_price: parseFloat(mapRaw)  || null,
+      msrp:      parseFloat(msrpRaw) || null,
+    });
   }
   return rows;
 }
@@ -166,7 +177,7 @@ function readXlsxDimensions(dateStr) {
   return rows;
 }
 
-/** Read a .csv.gz or .csv file into an array of {sku, qty, map_price} */
+/** Read a .csv.gz or .csv file into an array of {sku, qty, map_price, msrp} */
 async function readSnapshotFile(filepath) {
   return new Promise((resolve, reject) => {
     const rows = [];
@@ -182,9 +193,15 @@ async function readSnapshotFile(filepath) {
       const row = {};
       header.forEach((h, i) => row[h] = (parts[i] || '').trim());
       const qty = parseInt(row['qty'] || row['total_inventory'] || '0', 10);
-      const map = parseFloat((row['map'] || row['map_price'] || '').replace(/[$,]/g,'')) || null;
+      const map  = parseFloat((row['map']  || row['map_price'] || '').replace(/[$,]/g,'')) || null;
+      const msrp = parseFloat((row['msrp'] || row['list_price'] || '').replace(/[$,]/g,'')) || null;
       if (row['sku'] || row['item_number']) {
-        rows.push({ sku: (row['sku'] || row['item_number']).trim(), qty: isNaN(qty) ? 0 : qty, map_price: isNaN(map) ? null : map });
+        rows.push({
+          sku: (row['sku'] || row['item_number']).trim(),
+          qty: isNaN(qty) ? 0 : qty,
+          map_price: isNaN(map)  ? null : map,
+          msrp:      isNaN(msrp) ? null : msrp,
+        });
       }
     });
     rl.on('close', () => resolve(rows));
@@ -294,10 +311,15 @@ async function processSnapshot(dateStr, conn) {
 
   // Upsert jmv_snapshots
   if (rows.length) {
-    const vals = rows.map(r => [dateStr, r.sku, r.qty, r.map_price]);
+    /* msrp added 2026-09-10 — migration 017. A snapshot written before that
+       migration keeps msrp NULL and correctly falls through to the
+       products.compare_price fallback; only history from here forward is
+       priced from the day's own MSRP. */
+    const vals = rows.map(r => [dateStr, r.sku, r.qty, r.map_price, r.msrp ?? null]);
     await conn.query(
-      `INSERT INTO jmv_snapshots (snapshot_date, sku, qty, map_price) VALUES ?
-       ON DUPLICATE KEY UPDATE qty=VALUES(qty), map_price=VALUES(map_price)`,
+      `INSERT INTO jmv_snapshots (snapshot_date, sku, qty, map_price, msrp) VALUES ?
+       ON DUPLICATE KEY UPDATE qty=VALUES(qty), map_price=VALUES(map_price),
+                               msrp=VALUES(msrp)`,
       [vals]
     );
   }
