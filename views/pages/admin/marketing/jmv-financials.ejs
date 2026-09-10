@@ -157,6 +157,54 @@ function fmtDollar(n) {
   <p style="font-size:.8rem;color:var(--text-muted);margin:0 0 10px">
     Bars = revenue ($, left axis) · Line = units (right axis) · Conservative floor (dedup applied to Vanity/Cabinet/Top)
   </p>
+
+  <%
+    /* ── Observation coverage note ─────────────────────────────────────
+       James Martin republishes the same file for days at a stretch. When
+       nothing changes there is no delta to compute, so no movement rows
+       are written and this chart simply has no bar for that day.
+
+       That is correct, but it reads as breakage: pick a 7-day window
+       during a quiet stretch and you get a single bar, and the newest bar
+       can be days older than the window's end. Both look like the report
+       is stale rather than the feed.
+
+       Everything below is derived from the series already on the page —
+       no extra query. span_days is the rollup's own accounting of how many
+       calendar days an observation covers, so summing it gives true
+       coverage rather than a bar count. */
+    const _obsCount = _byDay.length;
+    const _covered  = _byDay.reduce(function (s, r) { return s + (Number(r.span_days) || 1); }, 0);
+    const _lastObs  = _byDay[_byDay.length - 1] || null;
+    const _msPerDay = 86400000;
+    const _winFrom  = new Date(fromDate), _winTo = new Date(toDate);
+    const _winDays  = (!isNaN(_winFrom) && !isNaN(_winTo))
+      ? Math.round((_winTo - _winFrom) / _msPerDay) + 1 : null;
+    /* Days at the END of the window with no observation yet. Their demand
+       is not lost — it lands on the next changed day, carried by that
+       row's span_days. Pending, not zero. */
+    const _pending = (_winDays != null) ? Math.max(0, _winDays - _covered) : null;
+    const _sparse  = _obsCount <= 2 || (_pending != null && _pending >= 3);
+  %>
+
+  <div style="font-size:.78rem;border-left:3px solid <%= _sparse ? '#c05621' : '#cbd5e0' %>;
+              background:<%= _sparse ? '#fffaf0' : 'transparent' %>;
+              padding:8px 12px;margin:0 0 12px;color:var(--text-muted)">
+    <strong><%= _obsCount %></strong> observation<%= _obsCount === 1 ? '' : 's' %>
+    covering <strong><%= _covered %></strong><%= _winDays != null ? ' of the ' + _winDays : '' %>
+    day<%= _covered === 1 ? '' : 's' %> in this window<%= _winDays != null ? '' : '' %>.
+    <% if (_lastObs) { %>
+      The feed last changed on <strong><%= _lastObs.date %></strong>.
+    <% } %>
+    <% if (_pending) { %>
+      <%= _pending %> day<%= _pending === 1 ? '' : 's' %> since then <em>not yet observed</em> —
+      that demand lands on the next changed day, it is not zero.
+    <% } %>
+    <% if (_sparse) { %>
+      <br>A gap here means James Martin republished an unchanged file, not that the report is stale.
+    <% } %>
+  </div>
+
   <canvas id="chartByDay" height="130"></canvas>
 </div>
 <% } %>
