@@ -629,97 +629,19 @@
     return (words[0][0] + words[1][0]).toUpperCase();
   }
 
-  /* What separates two tops that share a finish. Derived from the data,
-     never guessed. Simulated over all 289 offered cabinets: 1,064 finish
-     groups hold more than one top, and these three facts — faucet spread,
-     FreePower, backsplash — give every member of every one of those groups
-     a DISTINCT label. Zero collisions. Gated, because the moment a fourth
-     distinction appears in the feed two buttons start reading alike.
-
-     freepower arrives from the wireless_charging attribute; see the note
-     in getTops(). Its values are 'Yes'/'No' strings, not 1/0. */
-  function topOptionLabel(s) {
-    var bits = [];
-    var spread = (s.faucet_spread == null || s.faucet_spread === '')
-      ? null : String(s.faucet_spread);
-    if (spread) bits.push(spread + '" spread');
-    else        bits.push('Single hole');
-    var fp = String(s.freepower || '').toLowerCase();
-    if (fp === 'yes' || fp === '1' || fp === 'true') bits.push('FreePower');
-    var bsp = String(s.backsplash_included || '').toLowerCase();
-    if (bsp === 'yes' || bsp === '1' || bsp === 'true') bits.push('Backsplash');
-    return bits.join(' · ');
-  }
-
-  /* Tops sharing the selected finish, in the current option set. */
-  function topsSharingFinish() {
-    var all = activeTops();
-    var cur = all[gIdx.top];
-    if (!cur || !cur.skus[0]) return [];
-    var key = matBaseKey(cur.skus[0].stone_material || '');
-    var out = [];
-    all.forEach(function(m, i) {
-      var s = m.skus[0];
-      if (s && matBaseKey(s.stone_material || '') === key) out.push({ sku: s, idx: i });
-    });
-    return out;
-  }
-
-  function renderTopOptions() {
-    var host = el('bb-topopts-top');
-    if (!host) return;
-    var group = topsSharingFinish();
-    var wrap  = el('bb-topopts-row');
-    /* One option is not a choice — hide the control entirely. */
-    if (group.length < 2) {
-      host.innerHTML = '';
-      if (wrap) wrap.hidden = true;
-      return;
-    }
-    if (wrap) wrap.hidden = false;
-    var labels = group.map(function(g) { return topOptionLabel(g.sku); });
-    var dupes  = {};
-    labels.forEach(function(l) { dupes[l] = (dupes[l] || 0) + 1; });
-    host.innerHTML = group.map(function(g, n) {
-      var lbl = labels[n];
-      /* Safety net, not the mechanism. As of the current feed no group
-         collides, so this never fires — but if JM ships a fourth
-         distinction, two buttons reading alike is worse than an ugly one,
-         so fall back to the full SKU, which is unique by definition. The
-         family prefix alone is NOT enough: 869 of 870 historical
-         collisions were same-prefix pairs like 050-S48-EJP-SNK vs
-         050-S48-FP-EJP-SNK. */
-      if (dupes[lbl] > 1) lbl += ' (' + String(g.sku.sku) + ')';
-      return '<button class="bb-topopt' + (g.idx === gIdx.top ? ' is-active' : '') + '"'
-        + ' type="button" data-top-idx="' + g.idx + '">' + esc(lbl) + '</button>';
-    }).join('');
-  }
-
-  /* tipText defaults to the material; callers pass a longer label when two
-     tops share a finish and the picture alone cannot tell them apart. */
-  function topMatSwatchHtml(material, imgUrl, topIdx, isActive, tipText, isProductPhoto) {
-    var tip = tipText || material || 'Other';
+  function topMatSwatchHtml(material, imgUrl, topIdx, isActive) {
     /* Only 3 of the 15 stone finishes have a Stone Sample product, so 12 fell
        back to one hardcoded beige and every swatch in the row looked alike.
        Until the sample photos exist, the tile carries the finish's initials. */
-    /* A sample photo is already a flat square of stone — centre it.
-       A PRODUCT photo is a whole countertop, usually wide with the sink
-       basin in the middle, so centring it gives you a swatch of sink.
-       Pull left and slightly down, where the slab surface is. Zoomed in
-       past 100% so the frame lands on stone rather than the white
-       background these are shot on. */
     var style = imgUrl
-      ? 'background-image:url(' + esc(imgUrl) + ');'
-        + (isProductPhoto
-             ? 'background-size:150%;background-position:50% 90%;'
-             : 'background-size:cover;background-position:center;')
+      ? 'background-image:url(' + esc(imgUrl) + ');background-size:cover;background-position:center;'
       : 'background-color:#C9B89A;';
     var label = imgUrl ? '' : esc(matInitials(material));
     return '<button class="bb-swatch bb-swatch--topmat' + (isActive ? ' is-active' : '')
       + (imgUrl ? '' : ' bb-swatch--noimg') + '"'
       + ' type="button" data-top-idx="' + topIdx + '"'
-      + ' title="'      + esc(tip) + '"'
-      + ' aria-label="' + esc(tip) + '"'
+      + ' title="'      + esc(material || 'Other') + '"'
+      + ' aria-label="' + esc(material || 'Other') + '"'
       + ' style="' + style + '">'
       + label
       + '</button>';
@@ -738,59 +660,24 @@
     return mat.replace(/\bSilestone\b/i, 'Quartz').toLowerCase().trim();
   }
 
-  /* ONE SWATCH PER TOP — not per finish.
-     This row used to dedupe by finish, so 12 compatible tops collapsed to
-     11 swatches and the twelfth was reachable only by arrowing to it. A
-     shopper has no way to tell which swatch is hiding a second option, so
-     "it's behind that one" is not a fix. Every top now has its own tile;
-     the count under the arrows and the number of swatches always agree.
-
-     Two tops of the same stone show the same picture. The tooltip and the
-     line under the row carry what separates them (spread, FreePower,
-     backsplash), and the Faucet & Options row names them side by side. */
   function renderTopMatSwatches() {
     var allTops = activeTops();
-
-    /* Which finishes appear more than once — only those need the extra
-       words, otherwise every tooltip grows a tail for no reason. */
-    var finCount = {};
-    allTops.forEach(function(m) {
-      var s = m.skus[0];
-      if (!s) return;
-      var k = matBaseKey(s.stone_material || '');
-      finCount[k] = (finCount[k] || 0) + 1;
+    var seen = {};
+    var mats = [];
+    allTops.forEach(function(m, idx) {
+      var sku = m.skus[0];
+      var mat = sku ? (sku.stone_material || '') : '';
+      var key = matBaseKey(mat);
+      if (!seen[key]) {
+        seen[key] = true;
+        mats.push({ material: mat, imgUrl: (sku && sku.stone_image) || null, topIdx: idx });
+      }
     });
-
     var swatchEl = el('bb-swatches-top');
     if (!swatchEl) return;
-    swatchEl.innerHTML = allTops.map(function(m, idx) {
-      var s   = m.skus[0];
-      var mat = s ? (s.stone_material || '') : '';
-      var lbl = mat;
-      if (s && finCount[matBaseKey(mat)] > 1) {
-        var opt = topOptionLabel(s);
-        if (opt) lbl = mat + ' — ' + opt;
-      }
-      /* IMAGE SOURCE, in order of quality:
-           1. stone_image  — the real Stone/Swatch Sample photo. Only 44
-              of 171 tops have one, because only 3 of the 15 finishes
-              have a sample product.
-           2. primary_image — the top's OWN product photo, present on
-              169 of 171. It is a picture of the actual slab, which is
-              exactly what a customer choosing a stone needs to see.
-           3. initials on a flat tile — 2 tops, and a genuine last resort.
-
-         Before this, 2 and 3 were collapsed: 9 of 12 tiles rendered as
-         the SAME beige square with two-letter initials, two of them
-         reading "WZ" side by side. A stone picker that shows no stone is
-         not a stone picker, however correct its count. */
-      return topMatSwatchHtml(mat,
-                              (s && (s.stone_image || s.primary_image)) || null,
-                              idx, idx === gIdx.top, lbl,
-                              /* isProductPhoto */ !!(s && !s.stone_image && s.primary_image));
+    swatchEl.innerHTML = mats.map(function(m) {
+      return topMatSwatchHtml(m.material, m.imgUrl, m.topIdx, m.topIdx === gIdx.top);
     }).join('');
-    renderTopOptions();
-
     /* Depth badge — shown on every top so the constraint is visible while
        browsing, not only when the set changes. */
     var depEl = el('bb-depth-top');
@@ -800,19 +687,12 @@
       depEl.textContent = (dv != null) ? (fmtDepth(dv) + '" deep — fits this cabinet') : '';
     }
 
-    /* Stone Material name. When the finish repeats, name the option too —
-       otherwise two selections read identically and the shopper cannot
-       tell which of the two they are looking at. */
+    /* Stone Material name */
     var finEl = el('bb-finish-top');
     if (finEl) {
       var cur = allTops[gIdx.top];
-      var cs  = cur && cur.skus[0];
-      var txt = (cs && cs.stone_material) ? cs.stone_material : '';
-      if (cs && txt && finCount[matBaseKey(txt)] > 1) {
-        var o = topOptionLabel(cs);
-        if (o) txt += ' — ' + o;
-      }
-      finEl.textContent = txt;
+      finEl.textContent = (cur && cur.skus[0] && cur.skus[0].stone_material)
+        ? cur.skus[0].stone_material : '';
     }
   }
 
@@ -1081,10 +961,6 @@
         + '<div class="bb-mcard-price-block"><span class="bb-mcard-price" id="bb-price-top"></span><s class="bb-mcard-compare" id="bb-compare-top"></s><span class="bb-mcard-save-badge" id="bb-save-top"></span></div></div>'
         + '<div class="bb-picker-row bb-picker-row--finish"><span class="bb-picker-lbl">Stone Material</span><div class="bb-swatches-wrap"><div class="bb-swatches" id="bb-swatches-top"></div></div></div>'
         + '<p class="bb-topmat-name" id="bb-finish-top"></p>'
-        + '<div class="bb-picker-row bb-topopts-row" id="bb-topopts-row" hidden>'
-        +   '<span class="bb-picker-lbl">Faucet &amp; Options</span>'
-        +   '<div class="bb-topopts" id="bb-topopts-top"></div>'
-        + '</div>'
         + '<p class="bb-top-depth" id="bb-depth-top"></p>'
         + '<a class="bb-view-link" id="bb-viewlink-top" href="" target="_blank">View product page ›</a>'
         + '<button class="btn btn-navy bb-select-btn" id="bb-select-top" type="button" disabled>Select</button>'
@@ -1292,9 +1168,8 @@
     var sChip = e.target.closest('.model-card-size-btn[data-step]');
     if (sChip) { pickSize(sChip.dataset.step, sChip.dataset.bucket); return; }
 
-    /* Top material swatch, and the Faucet & Options buttons beneath it.
-       Both carry data-top-idx and both just move the viewer to that top. */
-    var topSw = e.target.closest('.bb-swatch--topmat, .bb-topopt');
+    /* Top material swatch */
+    var topSw = e.target.closest('.bb-swatch--topmat');
     if (topSw) { pickTopMat(parseInt(topSw.dataset.topIdx, 10)); return; }
 
     /* Finish swatch */
