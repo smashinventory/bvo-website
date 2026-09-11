@@ -122,6 +122,21 @@ ALTER TABLE attribute_definitions
 -- product_attribute_values (migration 005) instead. This table
 -- is permanently empty and its FK on products(id) caused
 -- TRUNCATE failures during data reloads.
+--
+-- GATE-ALLOW-DROP: product_attributes — verified dead, not merely
+-- unused. Checked against the 2026-09-08 production dump: zero
+-- CREATE TABLE statements for it (010 already dropped it) and zero
+-- INSERTs. Checked against src/: no file references it, and the
+-- similarly-named product_attribute_values is a different table.
+-- So this is a no-op on every database that matters, and the
+-- IF EXISTS makes it a no-op everywhere else.
+--
+-- This marker is what lets gate G10 in git_push_migration_safety.sh
+-- pass the file. G10 fails ANY statement-level DROP TABLE in a
+-- runner-visible migration unless the table is named in a marker
+-- like this one, because 005 proved that a drop which was harmless
+-- when written does not stay harmless. If you add a DROP here, you
+-- add a marker naming that table and you show your evidence.
 SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS product_attributes;
 SET FOREIGN_KEY_CHECKS = 1;
