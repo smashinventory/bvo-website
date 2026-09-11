@@ -77,7 +77,13 @@ function fmtDollar(n) {
   <div class="kpi-card" style="border-top:3px solid #1a2e4a">
     <div class="kpi-label">MAP Revenue (min)</div>
     <div class="kpi-value" style="color:#1a2e4a"><%= fmtDollar(mapRevenue) %></div>
-    <div class="kpi-sub">Per SKU · drawdown × that day's MAP</div>
+    <%# Definition §3a — half the per-size top overage is removed as probable
+        warranty replacement. A judgment, not a measurement; say so. %>
+    <div class="kpi-sub">
+      Per SKU · drawdown × that day's MAP
+      <br><span style="color:#c05621">tops above cabinet count 50% discounted
+      as est. warranty</span>
+    </div>
   </div>
 
   <%# ── Run-rate cards ──────────────────────────────────────────────

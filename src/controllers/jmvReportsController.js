@@ -737,21 +737,150 @@ async function dashboard(req, res) {
        GROUP BY d.sinks
        ORDER BY d.sinks ASC`, [COMBO, cutoffStr]) : [];
 
+    /* ══════════════════════════════════════════════════════════════════
+       ESTIMATED COMBO DEMAND — JMV_COMBO_DEMAND_DEFINITION.md (approved
+       2026-09-10). That document is the artifact of record.
+
+       This table used to read combo-SKU drawdown directly, and storefront
+       popularity sorting ranked on it. A combo SKU's quantity is
+       min(base, top) — computed availability, not stock — so 39 of the top
+       50 SKUs by drawdown were combos and Vanity showed 28,215 units
+       against Cabinet's 865. The ordering was clamp artifacts.
+
+       Combos cannot be observed. They are ESTIMATED: a base cabinet's real
+       drawdown, allocated across the tops that base is actually offered
+       with, in proportion to each top's own real drawdown.
+
+         estimate(combo) = demand(base) x demand(top) / SUM demand(tops of base)
+
+       It conserves — the estimates for one base sum to that base's demand.
+       ═══════════════════════════════════════════════════════════════════ */
+
+    /* Rule 1 — a finish is not one SKU. White Zeus 36" is four physical
+       tops; without folding them it reads 17 units instead of 564. */
+    const TOP_FAMILY = `
+      CASE WHEN SUBSTRING_INDEX(t.sku,'-',1) IN ('050','051') THEN 'PLAIN'
+           WHEN SUBSTRING_INDEX(t.sku,'-',1) = '060'          THEN 'RC'
+           ELSE SUBSTRING_INDEX(t.sku,'-',1) END`;
+
+    /* Rules 2 and 4 — the (finish, material, size, sinks) top key is not
+       unique: 41 of 127 keys match more than one family. These constraints
+       disambiguate it. RC belongs to three collections only; spelling is
+       Kinnsden with two n's, and "Kinsden" would be a silent no-op.
+       Linear takes composite tops only — Glossy White exists across ten
+       SKUs in three prefixes, so without this Linear can be handed a top
+       from the wrong series. */
+    const PAIRING_OK = `
+      ( td.fam <> 'RC'
+        OR c.collection IN ('Gracyn','Kinnsden','Allamari') )
+      AND ( c.collection <> 'Linear'
+            OR td.top_material LIKE '%Composite%' )`;
+
+    /* Top demand per family key, warranty-adjusted the same way the revenue
+       path adjusts it. Share-neutral by construction — every group in a size
+       loses the same fraction — but applied here too so one number cannot
+       drift from the other. */
+    const combosCutoff = [cutoffStr, cutoffStr, cutoffStr, cutoffStr];
     const comboLeaderboard = hasDims ? await safeQuery(
+      `WITH
+       top_dem AS (
+         SELECT ${TOP_FAMILY} AS fam, t.top_finish, t.top_material,
+                t.size_nominal, t.sinks,
+                SUM(m.demand_min) AS u
+           FROM jmv_daily_movement m
+           JOIN jmv_dimensions t ON t.sku = m.sku
+          WHERE m.is_valid = 1 AND m.demand_min > 0
+            AND t.product_type = 'Top' AND m.movement_date >= ?
+          GROUP BY fam, t.top_finish, t.top_material, t.size_nominal, t.sinks
+       ),
+       /* Grouped WITHOUT the cabinet SKU. 40 of 275 base keys hold two
+          cabinets — the double-sink and single-sink variants at the same
+          size, e.g. 157-V60D-M-BW and 157-V60S-M-BW. Both carry sinks = 0
+          because a base has no basin, so nothing in the data separates
+          them and a combo joins to both. Keying on the SKU double-counted
+          every such combo and pushed the total to 821 against 751 units
+          available. Pooling their demand restores conservation; the
+          single/double split still comes through the allocation, because
+          the top key IS sink-aware and a 1-sink combo can only draw on
+          1-sink top demand. */
+       base_dem AS (
+         SELECT b.collection, b.base_finish, b.size_nominal,
+                SUM(m.demand_min) AS u
+           FROM jmv_daily_movement m
+           JOIN jmv_dimensions b ON b.sku = m.sku
+          WHERE m.is_valid = 1 AND m.demand_min > 0
+            AND b.product_type = 'Cabinet' AND m.movement_date >= ?
+          GROUP BY b.collection, b.base_finish, b.size_nominal
+       ),
+       /* combo -> base on (collection, base_finish, size). sinks is
+          DELIBERATELY absent: a cabinet carries sinks = 0, its combo carries
+          sinks = 1, and including it matches zero of 4,199 combos. */
+       opt AS (
+         SELECT c.sku AS combo_sku, c.collection, c.base_finish, c.top_finish,
+                c.size_nominal, c.sinks,
+                CASE WHEN c.freepower = 1 THEN 1 ELSE 0 END AS is_fp,
+                bd.u AS base_u,
+                COALESCE(SUM(td.u), 0) AS top_u
+           FROM jmv_dimensions c
+           JOIN base_dem bd
+             ON bd.collection = c.collection
+            AND bd.base_finish = c.base_finish
+            AND bd.size_nominal = c.size_nominal
+           /* Join top_dem DIRECTLY. An earlier version joined
+              jmv_dimensions t as well and then top_dem through it, which
+              counted a family once per physical SKU — White Zeus 36" has
+              four, so its share quadrupled and every other finish on the
+              same base rounded to 0.00. top_dem already carries the family;
+              the extra join only created duplicate rows. */
+           LEFT JOIN top_dem td
+             ON td.top_finish   = c.top_finish
+            AND td.top_material = c.top_material
+            AND td.size_nominal = c.size_nominal
+            AND td.sinks        = c.sinks
+            AND (${PAIRING_OK})
+          WHERE c.product_type = 'Vanity'
+            AND c.top_finish IS NOT NULL AND c.top_finish <> ''
+          GROUP BY c.sku, c.collection, c.base_finish, c.top_finish,
+                   c.size_nominal, c.sinks, is_fp, bd.u
+       )
+       SELECT o.combo_sku AS sku, o.collection, o.base_finish, o.top_finish,
+              o.size_nominal, o.sinks, o.is_fp,
+              /* 1.0 forces float division. Both operands are integer
+                 sums, and an engine that does integer division truncates
+                 every share to 0 — which is exactly what happened, turning
+                 a 21-unit base into 8 + 8 + nine zeros instead of a real
+                 distribution. Do not remove the 1.0. */
+              ROUND(o.base_u * o.top_u * 1.0
+                    / NULLIF(SUM(o.top_u) OVER (PARTITION BY o.collection, o.base_finish, o.size_nominal), 0), 2)
+                AS total_drawdown,
+              o.base_u AS base_units
+         FROM opt o
+        WHERE o.top_u > 0
+        /* Definition §6 — 1WZ and 3WZ tie exactly and correctly, so the
+           secondary key is required: without it MySQL may return equal rows
+           in any order and paginated listings duplicate or skip. */
+        ORDER BY total_drawdown DESC, sku ASC
+        LIMIT 40`, [cutoffStr, cutoffStr]) : [];
+
+    /* Rule 3 — Bellamy (D300) is the only SKU in its group: no cabinet, no
+       top, and its one-off oval Carrara top is not sold separately. Nothing
+       can clamp it, so its own drawdown is real and counts directly rather
+       than being modelled. Bellamy ALONE — an earlier build treated every
+       combo whose base failed to resolve as captive and counted 59 SKUs of
+       raw drawdown, which took over the leaderboard with exactly the phantom
+       numbers this replaces. */
+    const captiveCombos = hasDims ? await safeQuery(
       `SELECT d.sku, d.collection, d.base_finish, d.top_finish,
               d.size_nominal, d.sinks,
               CASE WHEN d.freepower = 1 THEN 1 ELSE 0 END AS is_fp,
               SUM(m.demand_min) AS total_drawdown,
-              COUNT(DISTINCT m.movement_date) AS active_days
-       FROM jmv_daily_movement m
-       JOIN jmv_dimensions d ON d.sku = m.sku
-       WHERE m.is_valid = 1 AND m.demand_min > 0
-         AND d.product_type = ?
-         AND m.movement_date >= ?
-       GROUP BY d.sku, d.collection, d.base_finish, d.top_finish,
-                d.size_nominal, d.sinks, is_fp
-       ORDER BY total_drawdown DESC
-       LIMIT 40`, [COMBO, cutoffStr]) : [];
+              NULL AS base_units
+         FROM jmv_daily_movement m
+         JOIN jmv_dimensions d ON d.sku = m.sku
+        WHERE m.is_valid = 1 AND m.demand_min > 0
+          AND d.group_number = 'D300' AND m.movement_date >= ?
+        GROUP BY d.sku, d.collection, d.base_finish, d.top_finish,
+                 d.size_nominal, d.sinks, is_fp`, [cutoffStr]) : [];
 
     // ── Restock cadence (top restocked SKUs) ─────────────────────────
     const restockCadence = await safeQuery(
@@ -891,13 +1020,19 @@ async function dashboard(req, res) {
       cabByFinish:       JSON.stringify(cabByFinish),
       cabBySize:         JSON.stringify(cabBySize),
       cabCollectionSize: JSON.stringify(cabCollectionSize),
+      /* Modelled estimates and Bellamy's real drawdown in one list, ordered
+         by the same stable key. Bellamy carries no base_units — the view
+         renders that as "captive" rather than a blank. */
+      comboLeaderboard: [...comboLeaderboard, ...captiveCombos]
+        .sort((a, b) => (Number(b.total_drawdown) - Number(a.total_drawdown))
+                     || String(a.sku).localeCompare(String(b.sku)))
+        .slice(0, 40),
       cabLeaderboard,
       // Combo Demand — product_type = 'Vanity'
       comboByCollection: JSON.stringify(comboByCollection),
       comboBySize:       JSON.stringify(comboBySize),
       comboFinishPair:   JSON.stringify(comboFinishPair),
       comboBySinks:      JSON.stringify(comboBySinks),
-      comboLeaderboard,
       restockCadence,
       daysOfCover,
       top50,
@@ -1188,16 +1323,67 @@ async function getFinancials(req, res) {
         AND ${NOT_A_SAMPLE}
         AND ${UNIT_PRICE} IS NOT NULL`;
 
+    /* ── WARRANTY ADJUSTMENT ON TOPS — definition §3a ────────────────
+       JM tops fit only JM cabinets, and JM does not ship a top without a
+       cabinet order. So top SALES cannot exceed cabinet SALES. Yet tops
+       out-move cabinets 2,714 to 865, and the excess scales with slab
+       size — 1.1x at 20", 3.8x at 72". Sales mix does not produce that
+       gradient; breakage does. Tops also restock on 13.0% of movement rows
+       against cabinets' 6.2%, which is what a replacement pipeline looks
+       like.
+
+       Half the per-size overage is backed out as probable warranty. Half,
+       not all: capping at cabinet units assumes every unpaired top is a
+       replacement, counting them all assumes none is, and neither is
+       established. This is a JUDGMENT, not a measurement, and the page
+       says so.
+
+       Pro-rata within the size, which makes it SHARE-NEUTRAL: every top
+       group in a size loses the same fraction, so relative shares are
+       arithmetically unchanged. JMV_COMBO_DEMAND_DEFINITION.md depends on
+       those shares, so this adjustment cannot move the combo estimates or
+       the popularity sort. A gate asserts it.
+
+       Recomputed per window — there is deliberately no stored per-SKU
+       warranty rate. Sizes where cabinets outnumber tops (24", 39.5") have
+       no overage and are untouched. */
+    const WARRANTY_SHARE = 0.5;
+
+    const SIZE_BALANCE = `
+      SELECT d2.size_nominal AS sz,
+             SUM(CASE WHEN d2.product_type = 'Cabinet' THEN m2.demand_min ELSE 0 END) AS cab_u,
+             SUM(CASE WHEN d2.product_type = 'Top'     THEN m2.demand_min ELSE 0 END) AS top_u
+        FROM jmv_daily_movement m2
+        JOIN jmv_dimensions d2 ON d2.sku = m2.sku
+       WHERE m2.is_valid = 1
+         AND m2.movement_date BETWEEN ? AND ?
+         AND d2.product_type IN ('Cabinet','Top')
+         AND d2.size_nominal IS NOT NULL
+       GROUP BY d2.size_nominal`;
+
+    /* Factor is 1 for everything that is not a Top, and for Tops at sizes
+       with no overage. GREATEST guards the no-overage case; the NULLIF
+       guards a divide-by-zero when a size has cabinets but no tops. */
+    const KEEP_FACTOR = `
+      CASE WHEN d.product_type = 'Top' AND sb.top_u > 0
+           THEN 1 - (GREATEST(0, sb.top_u - sb.cab_u) * ${WARRANTY_SHARE})
+                    / NULLIF(sb.top_u, 0)
+           ELSE 1 END`;
+
     /* Every figure on the page reads from this one derived table, so a card
        and the chart beside it cannot end up on different bases. */
     const PRICED = `
       SELECT m.sku, m.movement_date, m.span_days,
              d.collection, d.base_finish, d.size_nominal,
              d.product_type, d.group_number,
-             m.demand_min                    AS units,
-             m.demand_min * ${UNIT_PRICE}    AS revenue
-      ${BASE_JOIN} ${BASE_WHERE}`;
-    const PP = [fromDate, toDate];
+             m.demand_min * (${KEEP_FACTOR})                 AS units,
+             m.demand_min * (${KEEP_FACTOR}) * ${UNIT_PRICE} AS revenue
+      ${BASE_JOIN}
+      LEFT JOIN (${SIZE_BALANCE}) sb ON sb.sz = d.size_nominal
+      ${BASE_WHERE}`;
+    /* SIZE_BALANCE takes the window first — it is a subquery in the FROM
+       clause, so its placeholders bind ahead of BASE_WHERE's. */
+    const PP = [fromDate, toDate, fromDate, toDate];
 
     /* Money we could not price at all — surfaced, not swallowed. */
     const unpriced = await safeQueryOne(
@@ -1442,7 +1628,10 @@ async function getFinancials(req, res) {
          FROM (${PRICED}) g
          GROUP BY g.movement_date
          ORDER BY g.movement_date DESC`,
-        [from30Str, latestDate]
+        /* Four placeholders now: SIZE_BALANCE consumes the window first,
+           then BASE_WHERE. Same 30-day span for both so the warranty
+           overage is computed over the run-rate window, not the page's. */
+        [from30Str, latestDate, from30Str, latestDate]
       );
     }
 

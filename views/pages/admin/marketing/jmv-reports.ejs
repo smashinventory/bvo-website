@@ -708,15 +708,26 @@ const _docCollections = [...new Set(daysOfCover.map(r => r.collection).filter(Bo
 
 <% if (comboLeaderboard.length > 0) { %>
 <div class="admin-card" style="margin-top:12px">
-  <h3 class="admin-card-title">Top Combo SKUs by Demand
-    <span style="font-weight:400;font-size:.8rem;color:var(--text-muted)">— individual SKUs, ungrouped</span>
+  <h3 class="admin-card-title">Top Combo SKUs — Estimated Demand
+    <span style="font-weight:400;font-size:.8rem;color:var(--text-muted)">— modelled, not observed</span>
   </h3>
+  <%# A combo SKU's quantity is min(base, top) — availability, not stock — so
+      its drawdown is a clamp artifact rather than a sale. These figures are
+      the cabinet's REAL drawdown allocated across the tops that base is
+      offered with, weighted by each top's REAL drawdown.
+      See JMV_COMBO_DEMAND_DEFINITION.md. %>
+  <p style="font-size:.8rem;color:var(--text-muted);margin:-4px 0 10px">
+    Each cabinet's observed drawdown distributed across its available tops by
+    those tops' own observed drawdown. Fractional values are expected — these
+    are allocations, not counts. Rows showing <em>captive</em> are sold only as
+    a set and carry their own real movement.
+  </p>
   <div class="adm-table-wrap jmv-scroll-wrap">
     <table class="adm-table">
       <thead><tr>
         <th>#</th><th>SKU</th><th>COLLECTION</th><th>BASE FINISH</th>
         <th>TOP FINISH</th><th>SIZE</th><th>SINKS</th><th>FP</th>
-        <th>DRAWDOWN</th><th>ACTIVE DAYS</th>
+        <th>EST. DEMAND</th><th>BASE UNITS</th>
       </tr></thead>
       <tbody>
       <% comboLeaderboard.forEach(function(r, i) { %>
@@ -729,8 +740,10 @@ const _docCollections = [...new Set(daysOfCover.map(r => r.collection).filter(Bo
           <td><%= r.size_nominal != null ? r.size_nominal + '"' : '—' %></td>
           <td><%= r.sinks != null ? r.sinks : '—' %></td>
           <td><% if (r.is_fp) { %><span class="rag-pill rag-pill--green">FP</span><% } else { %><span class="adm-meta">—</span><% } %></td>
-          <td style="font-weight:600"><%= r.total_drawdown %></td>
-          <td class="adm-meta"><%= r.active_days %></td>
+          <td style="font-weight:600"><%= Number(r.total_drawdown || 0).toFixed(2) %></td>
+          <%# base_units is NULL for Bellamy, the one captive model, whose own
+              drawdown is real because no component is sold separately. %>
+          <td class="adm-meta"><%= r.base_units != null ? r.base_units : 'captive' %></td>
         </tr>
       <% }) %>
       </tbody>

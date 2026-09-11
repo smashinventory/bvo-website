@@ -1,6 +1,7 @@
 # JMV MAP Revenue — Definition of Record
 
-**Status:** approved 2026-09-10, amended twice before build · **Supersedes:**
+**Status:** approved 2026-09-10 · amended twice before build, plus the §3a
+warranty adjustment approved the same day · **Supersedes:**
 the "conservative floor" methodology block in `jmvReportsController.js`
 
 Amendments, both pre-ship: (1) combo rule moved from a `product_type` list to
@@ -151,6 +152,65 @@ Top" is wrong under this definition — Vanity is no longer in it.
 
 Unchanged, and deliberately so: the ingest is sound. Every defect being
 corrected here lives in the reporting layer above it.
+
+### 3a. Warranty adjustment on tops — *added 2026-09-10*
+
+> **For each size, top units above cabinet units are an overage. Half of that
+> overage is backed out, pro-rata across the top groups within that size.
+> Applies to units and revenue alike.**
+
+**Why.** James Martin tops are anti-universal — they fit only JM cabinets — and
+JM does not ship a top without a cabinet order. So top *sales* cannot exceed
+cabinet *sales*. Yet tops out-move cabinets 2,714 to 865 in the window, and the
+excess is not flat:
+
+| size | cabinets | tops | ratio |
+|---|---|---|---|
+| 20" | 14 | 15 | **1.1×** |
+| 30" | 76 | 147 | 1.9× |
+| 36" | 259 | 817 | 3.2× |
+| 48" | 178 | 591 | 3.3× |
+| 60" | 131 | 491 | 3.7× |
+| 72" | 151 | 575 | **3.8×** |
+
+The ratio climbs monotonically with slab size. No sales mix produces that
+gradient; **fragility does** — large slabs break in transit and get replaced
+under warranty. Corroborated by churn: tops restock on **13.0%** of movement
+rows against cabinets' **6.2%**, with inbound receipts of 2,497 top units
+against 1,177 cabinet units.
+
+**Why half.** A full cap at cabinet units assumes every unpaired top is
+warranty; counting all of them assumes none is. Neither is established.
+**Half is a deliberate midpoint, and it is a judgment, not a measurement.**
+The page must say so — it is not an observed quantity and must never be
+presented as one.
+
+**Effect on the window:**
+
+| | |
+|---|---|
+| top units recorded | 2,714 |
+| unpaired overage | 1,882 |
+| backed out (50%) | **941** |
+| kept as sales | 1,773 |
+| Top revenue before | $3,575,809 |
+| Top revenue after | **$2,311,502** |
+| **MAP Revenue before** | **$5,858,394** |
+| **MAP Revenue after** | **$4,594,088** (−21.6%) |
+
+Sizes where cabinets outnumber tops — 24" and 39.5" — have no overage and are
+untouched.
+
+**Two properties to preserve.**
+
+*Window-dependent.* The overage recomputes for whatever date range is on
+screen. There is no stored per-SKU warranty rate, and there should not be one.
+
+*Share-neutral.* Because the backout is pro-rata within a size, every top group
+in that size loses the same fraction, so **relative shares are arithmetically
+unchanged**. `JMV_COMBO_DEMAND_DEFINITION.md` depends on those shares; this
+adjustment cannot move the combo estimates or the popularity sort. A gate
+asserts it.
 
 ---
 
