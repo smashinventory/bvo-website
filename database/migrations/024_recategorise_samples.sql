@@ -50,6 +50,20 @@ UPDATE products p
  WHERE jd.product_type LIKE 'Sample - %'
    AND (p.category_id <> 10 OR p.product_type IS NULL);
 
+-- ── 2. One name is plural, and that alone hides it ──────────────────
+--  SS-CSP2 is named "Stone Samples - Charcoal Soapstone". The bundle
+--  builder's swatch lookup matches names LIKE 'Stone Sample -%', so the
+--  stray "s" makes this product invisible to it no matter which category
+--  it sits in. Charcoal Soapstone therefore renders as a blank tile even
+--  though its swatch image exists.
+--
+--  Scoped to the one SKU deliberately. A blanket REPLACE of 'Samples'
+--  with 'Sample' across the table would also rewrite legitimate names.
+UPDATE products
+   SET name = 'Stone Sample - Charcoal Soapstone'
+ WHERE sku = 'SS-CSP2'
+   AND name <> 'Stone Sample - Charcoal Soapstone';
+
 -- ── Verify ──────────────────────────────────────────────────────────
 --  COUNT, not absence — an empty result set is how a broken check
 --  disguises itself as a pass. Expect one row: samples, 69.

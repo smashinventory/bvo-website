@@ -512,6 +512,10 @@ const PRODUCT_TYPE_MAP = {
  * @param {string|null} productCategoryStr  JM "Product Category" column value
  * @param {string|null} productTypeStr      JM "Product Type" column value (fallback)
  */
+/* Values already reported as unmatched, so a 5,000-row import logs each
+   unknown type ONCE instead of thousands of times. */
+const _unmatchedTypes = new Set();
+
 function resolveCategoryId(productCategoryStr, productTypeStr) {
   // Primary: Product Category column
   const cat = String(productCategoryStr || '').toLowerCase().trim();
@@ -522,7 +526,37 @@ function resolveCategoryId(productCategoryStr, productTypeStr) {
   for (const [key, id] of Object.entries(PRODUCT_TYPE_MAP)) {
     if (s.includes(key)) return id;
   }
+
+  /* ⚠️ THE SILENT DEFAULT. Read this before changing it.
+     Anything the feed sends that neither map recognises used to become a
+     bathroom vanity with no error, no warning and no log line.
+
+     That is how 66 sample products — 47 wood, 15 stone, 4 metal — ended
+     up filed as vanities: the feed says 'Sample - Wood', the map expected
+     'Wood Sample', nothing matched, and they silently moved. Nobody asked
+     for it, nothing reported it, and it was only found weeks later while
+     investigating an unrelated problem with the samples page.
+
+     The default stays (an import should not abort over one odd row), but
+     it is no longer silent. When JM renames a product type, the import
+     now says so while you are watching it, instead of quietly moving
+     products into the wrong collection. */
+  const key = cat || s || '(blank)';
+  if (!_unmatchedTypes.has(key)) {
+    _unmatchedTypes.add(key);
+    console.warn(
+      `[JM Import] ⚠️  UNMATCHED product type "${key}" — defaulting to ` +
+      `category 1 (bathroom-vanities). If this is not a vanity, add it to ` +
+      `PRODUCT_CATEGORY_MAP or PRODUCT_TYPE_MAP in importJamesMartinFeed.js ` +
+      `and re-import, then check /collections for misfiled products.`
+    );
+  }
   return 1; // default: bathroom-vanities
+}
+
+/** Unmatched product types seen this run. Empty is the healthy state. */
+function getUnmatchedTypes() {
+  return Array.from(_unmatchedTypes);
 }
 
 /* ── Radius Cut depth correction ───────────────────────────────────────
@@ -1074,10 +1108,19 @@ async function importFromWorkbook(wb, opts = {}) {
     if (conn) conn.release();
   }
 
-  return { imported, skipped, errors, errorList, total };
+  /* Surface unmatched product types in the RESULT, not only as a warning
+     that scrolls past mid-run. An import that quietly reclassified
+     products should not be able to report a clean finish. */
+  const unmatchedTypes = getUnmatchedTypes();
+  if (unmatchedTypes.length) {
+    console.warn(`[JM Import] ⚠️  ${unmatchedTypes.length} unmatched product ` +
+                 `type(s) defaulted to bathroom-vanities: ${unmatchedTypes.join(', ')}`);
+  }
+
+  return { imported, skipped, errors, errorList, total, unmatchedTypes };
 }
 
-module.exports = { importFromWorkbook };
+module.exports = { importFromWorkbook, getUnmatchedTypes };
 
 // ── CLI entrypoint (server-only) ──────────────────────────────────────
 if (require.main === module) {
