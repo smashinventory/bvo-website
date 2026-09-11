@@ -133,6 +133,7 @@ async function getTops() {
       p.width_in, p.color, p.color_family,
       CAST(pav_sink.value_num AS UNSIGNED) AS sink_count,
       pav_depth.value_num AS depth_in,
+      jd.top_finish,
       ${IMG_SQL},
       ${CHIP_SQL}
     FROM products p
@@ -146,6 +147,10 @@ async function getTops() {
     LEFT JOIN product_attribute_values pav_depth
       ON  pav_depth.product_id = p.id
       AND pav_depth.attr_key   = 'depth_in'
+    /* top_finish is the CLEAN material name — 'White Zeus', 'Phantome' —
+       populated on all 177 active stone tops. Parsing it out of the product
+       name fails on 49 of them; see enrichTopsWithMaterial(). */
+    LEFT JOIN jmv_dimensions jd ON jd.sku = p.sku
     WHERE p.brand          = ?
       AND c.slug           = 'bathroom-vanity-tops'
       AND p.product_type   = 'Stone Top'
@@ -281,13 +286,31 @@ async function getStoneSamples() {
   return rows;
 }
 
-/** Extract material name from a top product name.
+/** Extract material name from a top product name — FALLBACK ONLY.
  *  "Brooklyn 60\" W x 23\" D Stone Top, 3 CM Carrara White Marble w/ Sink"
- *  → "Carrara White Marble"                                               */
+ *  → "Carrara White Marble"
+ *
+ *  Prefer jmv_dimensions.top_finish. This regex wants ", <N> CM <material> w/"
+ *  and JM writes the same fact at least four ways, so it returns '' on 49 of
+ *  the 177 active stone tops:
+ *
+ *    "...Radius Cut Top, Widespread 3CM Phantome Eclos w/ Sink"  <- word before CM
+ *    "84\" Double Top, 3 CM White Zeus Silestone"                <- no "w/"
+ *    "...White Zeus Silestone, 3 CM, No Sink"                    <- order swapped
+ *    "26\" Single Top For the 301 Collection, Eternal Serena..."  <- clause first
+ *
+ *  An empty material is not merely a missing label: the swatch row dedupes on
+ *  it, so every unparsed top collapses into ONE shared swatch. Gracyn 36"
+ *  showed 3 swatches for 7 tops with three different stones hidden behind one
+ *  tile. Kept only for non-JM rows that have no jmv_dimensions entry.       */
 function extractTopMaterial(topName) {
-  // Stop at "w/" — don't require "Sink" immediately after (handles "w/ Undermount Sink", "w/ Rectangular Sink", etc.)
-  const m = topName.match(/,\s*\d+(?:\.\d+)?\s*CM\s+(.+?)\s+w\//i);
+  const m = String(topName || '').match(/,\s*\d+(?:\.\d+)?\s*CM\s+(.+?)\s+w\//i);
   return m ? m[1].trim() : '';
+}
+
+/** Case/space-insensitive key for matching a finish to its sample product. */
+function finishKey(s) {
+  return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
 /** Count words longer than 3 chars that appear in both strings. */
@@ -304,15 +327,28 @@ function enrichTopsWithMaterial(topRows, sampleRows) {
     imgUrl:   s.img_url || null,
   }));
 
+  /* Exact finish -> sample first. 'STONE SAMPLE - PHANTOME' and a top whose
+     top_finish is 'Phantome' are the same stone; word overlap used to decide
+     that by counting shared words > 3 chars, which is both fragile and prone
+     to cross-matching ('Eternal Marfil' vs 'Eternal Serena' share a word). */
+  const byFinish = new Map();
+  for (const s of samples) if (!byFinish.has(finishKey(s.material))) {
+    byFinish.set(finishKey(s.material), s.imgUrl);
+  }
+
   return topRows.map(top => {
-    const material = extractTopMaterial(top.name);
-    let bestImg   = null;
-    let bestScore = 0;
-    for (const sample of samples) {
-      const score = wordOverlapScore(material, sample.material);
-      if (score > bestScore) { bestScore = score; bestImg = sample.imgUrl; }
+    const material = top.top_finish || extractTopMaterial(top.name);
+
+    let img = byFinish.get(finishKey(material)) || null;
+    if (!img) {                       // fall back to the old fuzzy match
+      let bestScore = 0;
+      for (const sample of samples) {
+        const score = wordOverlapScore(material, sample.material);
+        if (score > bestScore) { bestScore = score; img = sample.imgUrl; }
+      }
+      if (!bestScore) img = null;
     }
-    return { ...top, stone_material: material, stone_image: bestScore > 0 ? bestImg : null };
+    return { ...top, stone_material: material, stone_image: img };
   });
 }
 

@@ -617,15 +617,33 @@
   }
 
   /* ── Top material swatches (Step 2 — stone tops) ─────────────── */
+  /* Initials for a finish with no sample photo: "White Zeus" -> WZ,
+     "Phantome" -> PH. Deliberately NOT an invented colour — guessing that
+     Cala Blue is some particular blue would misrepresent a stone someone is
+     about to spend four figures on. Letters say "these are different"
+     without claiming what they look like. */
+  function matInitials(material) {
+    var words = String(material || '').trim().split(/\s+/).filter(Boolean);
+    if (!words.length) return '?';
+    if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+    return (words[0][0] + words[1][0]).toUpperCase();
+  }
+
   function topMatSwatchHtml(material, imgUrl, topIdx, isActive) {
+    /* Only 3 of the 15 stone finishes have a Stone Sample product, so 12 fell
+       back to one hardcoded beige and every swatch in the row looked alike.
+       Until the sample photos exist, the tile carries the finish's initials. */
     var style = imgUrl
       ? 'background-image:url(' + esc(imgUrl) + ');background-size:cover;background-position:center;'
       : 'background-color:#C9B89A;';
-    return '<button class="bb-swatch bb-swatch--topmat' + (isActive ? ' is-active' : '') + '"'
+    var label = imgUrl ? '' : esc(matInitials(material));
+    return '<button class="bb-swatch bb-swatch--topmat' + (isActive ? ' is-active' : '')
+      + (imgUrl ? '' : ' bb-swatch--noimg') + '"'
       + ' type="button" data-top-idx="' + topIdx + '"'
       + ' title="'      + esc(material || 'Other') + '"'
       + ' aria-label="' + esc(material || 'Other') + '"'
       + ' style="' + style + '">'
+      + label
       + '</button>';
   }
 
