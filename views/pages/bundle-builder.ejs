@@ -695,7 +695,10 @@
     }).join('');
   }
 
-  function topMatSwatchHtml(material, imgUrl, topIdx, isActive) {
+  /* tipText defaults to the material; callers pass a longer label when two
+     tops share a finish and the picture alone cannot tell them apart. */
+  function topMatSwatchHtml(material, imgUrl, topIdx, isActive, tipText) {
+    var tip = tipText || material || 'Other';
     /* Only 3 of the 15 stone finishes have a Stone Sample product, so 12 fell
        back to one hardcoded beige and every swatch in the row looked alike.
        Until the sample photos exist, the tile carries the finish's initials. */
@@ -706,8 +709,8 @@
     return '<button class="bb-swatch bb-swatch--topmat' + (isActive ? ' is-active' : '')
       + (imgUrl ? '' : ' bb-swatch--noimg') + '"'
       + ' type="button" data-top-idx="' + topIdx + '"'
-      + ' title="'      + esc(material || 'Other') + '"'
-      + ' aria-label="' + esc(material || 'Other') + '"'
+      + ' title="'      + esc(tip) + '"'
+      + ' aria-label="' + esc(tip) + '"'
       + ' style="' + style + '">'
       + label
       + '</button>';
@@ -726,31 +729,41 @@
     return mat.replace(/\bSilestone\b/i, 'Quartz').toLowerCase().trim();
   }
 
+  /* ONE SWATCH PER TOP — not per finish.
+     This row used to dedupe by finish, so 12 compatible tops collapsed to
+     11 swatches and the twelfth was reachable only by arrowing to it. A
+     shopper has no way to tell which swatch is hiding a second option, so
+     "it's behind that one" is not a fix. Every top now has its own tile;
+     the count under the arrows and the number of swatches always agree.
+
+     Two tops of the same stone show the same picture. The tooltip and the
+     line under the row carry what separates them (spread, FreePower,
+     backsplash), and the Faucet & Options row names them side by side. */
   function renderTopMatSwatches() {
     var allTops = activeTops();
-    var seen = {};
-    var mats = [];
-    allTops.forEach(function(m, idx) {
-      var sku = m.skus[0];
-      var mat = sku ? (sku.stone_material || '') : '';
-      var key = matBaseKey(mat);
-      if (!seen[key]) {
-        seen[key] = true;
-        mats.push({ material: mat, imgUrl: (sku && sku.stone_image) || null, topIdx: idx });
-      }
+
+    /* Which finishes appear more than once — only those need the extra
+       words, otherwise every tooltip grows a tail for no reason. */
+    var finCount = {};
+    allTops.forEach(function(m) {
+      var s = m.skus[0];
+      if (!s) return;
+      var k = matBaseKey(s.stone_material || '');
+      finCount[k] = (finCount[k] || 0) + 1;
     });
+
     var swatchEl = el('bb-swatches-top');
     if (!swatchEl) return;
-    /* Highlight by FINISH, not by index. A swatch stands for the whole
-       group of tops sharing that finish, and the Faucet & Options row can
-       land us on a member that is not the group's representative — so
-       comparing topIdx would leave no swatch lit at all. */
-    var curTop  = allTops[gIdx.top];
-    var curKey  = (curTop && curTop.skus[0])
-      ? matBaseKey(curTop.skus[0].stone_material || '') : null;
-    swatchEl.innerHTML = mats.map(function(m) {
-      return topMatSwatchHtml(m.material, m.imgUrl, m.topIdx,
-                              matBaseKey(m.material) === curKey);
+    swatchEl.innerHTML = allTops.map(function(m, idx) {
+      var s   = m.skus[0];
+      var mat = s ? (s.stone_material || '') : '';
+      var lbl = mat;
+      if (s && finCount[matBaseKey(mat)] > 1) {
+        var opt = topOptionLabel(s);
+        if (opt) lbl = mat + ' — ' + opt;
+      }
+      return topMatSwatchHtml(mat, (s && s.stone_image) || null,
+                              idx, idx === gIdx.top, lbl);
     }).join('');
     renderTopOptions();
 
@@ -763,12 +776,19 @@
       depEl.textContent = (dv != null) ? (fmtDepth(dv) + '" deep — fits this cabinet') : '';
     }
 
-    /* Stone Material name */
+    /* Stone Material name. When the finish repeats, name the option too —
+       otherwise two selections read identically and the shopper cannot
+       tell which of the two they are looking at. */
     var finEl = el('bb-finish-top');
     if (finEl) {
       var cur = allTops[gIdx.top];
-      finEl.textContent = (cur && cur.skus[0] && cur.skus[0].stone_material)
-        ? cur.skus[0].stone_material : '';
+      var cs  = cur && cur.skus[0];
+      var txt = (cs && cs.stone_material) ? cs.stone_material : '';
+      if (cs && txt && finCount[matBaseKey(txt)] > 1) {
+        var o = topOptionLabel(cs);
+        if (o) txt += ' — ' + o;
+      }
+      finEl.textContent = txt;
     }
   }
 
