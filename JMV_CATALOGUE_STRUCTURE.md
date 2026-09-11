@@ -404,6 +404,38 @@ prefix, not only as a one-off `product_attribute_values` update.
 
 ---
 
+## 8b. `jmv_dimensions.freepower` is DEAD for tops — use `wireless_charging`
+
+`jmv_dimensions.freepower` is **0 on all 203 top rows**. It is populated for
+combos only. Anything reading it to decide whether a *top* has FreePower gets
+a uniform "no" and cannot tell `050-S48-EJP-SNK` from `050-S48-FP-EJP-SNK`.
+
+The live per-part signal is `product_attribute_values.wireless_charging`
+(`'Yes'`/`'No'` — a **string**, not 1/0). It agrees with the `-FP-` SKU token
+and with "FreePower" in `products.name` on **all 258** top rows, zero
+disagreements. Any of the three would work; the attribute is the one to use
+because it survives a naming change.
+
+How this surfaced: the bundle builder's new "Faucet & Options" control labels
+tops by what differs between them. Sourced from `jd.freepower`, **870 of 1,064**
+multi-top groups rendered two buttons both reading `8" spread`. Sourced from
+`wireless_charging`, **zero** collide. Gate G10 in `git_push_top_options.sh`
+pins this by asserting the wrong source still *would* collide — if that ever
+goes quiet, the discriminator set has shifted and the labels need revisiting.
+
+Related trap, same shape: `jmv_dimensions.depth_in` is inherited per finish
+rather than measured per part (§2.3). Neither column is per-part truth. Prefer
+`product_attribute_values` for anything that varies within a finish family.
+
+**Reachability, measured.** Across the 289 cabinets the builder offers, the
+compat sets form 2,765 finish groups, **1,064 of which hold more than one
+top**. The finish swatch lands on the group's first member only, so **46 tops**
+were reachable by nothing but blind arrowing. Three facts — faucet spread,
+FreePower, backsplash — separate every member of every one of those groups.
+A fourth distinction appearing in the feed would break that; G9 gates it.
+
+---
+
 ## 9. What was shipped before this was known
 
 Commit `0e33b31` (2026-09-10) shipped the warranty adjustment and the

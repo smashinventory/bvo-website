@@ -19,3 +19,4 @@ git_push_*.sh
 .gates.*.py
 .gates.loader.py
 .dryrun.sh
+git_push_top_options.sh

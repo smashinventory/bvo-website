@@ -629,6 +629,72 @@
     return (words[0][0] + words[1][0]).toUpperCase();
   }
 
+  /* What separates two tops that share a finish. Derived from the data,
+     never guessed. Simulated over all 289 offered cabinets: 1,064 finish
+     groups hold more than one top, and these three facts — faucet spread,
+     FreePower, backsplash — give every member of every one of those groups
+     a DISTINCT label. Zero collisions. Gated, because the moment a fourth
+     distinction appears in the feed two buttons start reading alike.
+
+     freepower arrives from the wireless_charging attribute; see the note
+     in getTops(). Its values are 'Yes'/'No' strings, not 1/0. */
+  function topOptionLabel(s) {
+    var bits = [];
+    var spread = (s.faucet_spread == null || s.faucet_spread === '')
+      ? null : String(s.faucet_spread);
+    if (spread) bits.push(spread + '" spread');
+    else        bits.push('Single hole');
+    var fp = String(s.freepower || '').toLowerCase();
+    if (fp === 'yes' || fp === '1' || fp === 'true') bits.push('FreePower');
+    var bsp = String(s.backsplash_included || '').toLowerCase();
+    if (bsp === 'yes' || bsp === '1' || bsp === 'true') bits.push('Backsplash');
+    return bits.join(' · ');
+  }
+
+  /* Tops sharing the selected finish, in the current option set. */
+  function topsSharingFinish() {
+    var all = activeTops();
+    var cur = all[gIdx.top];
+    if (!cur || !cur.skus[0]) return [];
+    var key = matBaseKey(cur.skus[0].stone_material || '');
+    var out = [];
+    all.forEach(function(m, i) {
+      var s = m.skus[0];
+      if (s && matBaseKey(s.stone_material || '') === key) out.push({ sku: s, idx: i });
+    });
+    return out;
+  }
+
+  function renderTopOptions() {
+    var host = el('bb-topopts-top');
+    if (!host) return;
+    var group = topsSharingFinish();
+    var wrap  = el('bb-topopts-row');
+    /* One option is not a choice — hide the control entirely. */
+    if (group.length < 2) {
+      host.innerHTML = '';
+      if (wrap) wrap.hidden = true;
+      return;
+    }
+    if (wrap) wrap.hidden = false;
+    var labels = group.map(function(g) { return topOptionLabel(g.sku); });
+    var dupes  = {};
+    labels.forEach(function(l) { dupes[l] = (dupes[l] || 0) + 1; });
+    host.innerHTML = group.map(function(g, n) {
+      var lbl = labels[n];
+      /* Safety net, not the mechanism. As of the current feed no group
+         collides, so this never fires — but if JM ships a fourth
+         distinction, two buttons reading alike is worse than an ugly one,
+         so fall back to the full SKU, which is unique by definition. The
+         family prefix alone is NOT enough: 869 of 870 historical
+         collisions were same-prefix pairs like 050-S48-EJP-SNK vs
+         050-S48-FP-EJP-SNK. */
+      if (dupes[lbl] > 1) lbl += ' (' + String(g.sku.sku) + ')';
+      return '<button class="bb-topopt' + (g.idx === gIdx.top ? ' is-active' : '') + '"'
+        + ' type="button" data-top-idx="' + g.idx + '">' + esc(lbl) + '</button>';
+    }).join('');
+  }
+
   function topMatSwatchHtml(material, imgUrl, topIdx, isActive) {
     /* Only 3 of the 15 stone finishes have a Stone Sample product, so 12 fell
        back to one hardcoded beige and every swatch in the row looked alike.
@@ -675,9 +741,19 @@
     });
     var swatchEl = el('bb-swatches-top');
     if (!swatchEl) return;
+    /* Highlight by FINISH, not by index. A swatch stands for the whole
+       group of tops sharing that finish, and the Faucet & Options row can
+       land us on a member that is not the group's representative — so
+       comparing topIdx would leave no swatch lit at all. */
+    var curTop  = allTops[gIdx.top];
+    var curKey  = (curTop && curTop.skus[0])
+      ? matBaseKey(curTop.skus[0].stone_material || '') : null;
     swatchEl.innerHTML = mats.map(function(m) {
-      return topMatSwatchHtml(m.material, m.imgUrl, m.topIdx, m.topIdx === gIdx.top);
+      return topMatSwatchHtml(m.material, m.imgUrl, m.topIdx,
+                              matBaseKey(m.material) === curKey);
     }).join('');
+    renderTopOptions();
+
     /* Depth badge — shown on every top so the constraint is visible while
        browsing, not only when the set changes. */
     var depEl = el('bb-depth-top');
@@ -961,6 +1037,10 @@
         + '<div class="bb-mcard-price-block"><span class="bb-mcard-price" id="bb-price-top"></span><s class="bb-mcard-compare" id="bb-compare-top"></s><span class="bb-mcard-save-badge" id="bb-save-top"></span></div></div>'
         + '<div class="bb-picker-row bb-picker-row--finish"><span class="bb-picker-lbl">Stone Material</span><div class="bb-swatches-wrap"><div class="bb-swatches" id="bb-swatches-top"></div></div></div>'
         + '<p class="bb-topmat-name" id="bb-finish-top"></p>'
+        + '<div class="bb-picker-row bb-topopts-row" id="bb-topopts-row" hidden>'
+        +   '<span class="bb-picker-lbl">Faucet &amp; Options</span>'
+        +   '<div class="bb-topopts" id="bb-topopts-top"></div>'
+        + '</div>'
         + '<p class="bb-top-depth" id="bb-depth-top"></p>'
         + '<a class="bb-view-link" id="bb-viewlink-top" href="" target="_blank">View product page ›</a>'
         + '<button class="btn btn-navy bb-select-btn" id="bb-select-top" type="button" disabled>Select</button>'
@@ -1168,8 +1248,9 @@
     var sChip = e.target.closest('.model-card-size-btn[data-step]');
     if (sChip) { pickSize(sChip.dataset.step, sChip.dataset.bucket); return; }
 
-    /* Top material swatch */
-    var topSw = e.target.closest('.bb-swatch--topmat');
+    /* Top material swatch, and the Faucet & Options buttons beneath it.
+       Both carry data-top-idx and both just move the viewer to that top. */
+    var topSw = e.target.closest('.bb-swatch--topmat, .bb-topopt');
     if (topSw) { pickTopMat(parseInt(topSw.dataset.topIdx, 10)); return; }
 
     /* Finish swatch */

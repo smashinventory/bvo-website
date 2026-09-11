@@ -134,6 +134,21 @@ async function getTops() {
       CAST(pav_sink.value_num AS UNSIGNED) AS sink_count,
       pav_depth.value_num AS depth_in,
       jd.top_finish,
+      /* The swatch row picks a FINISH. These pick between the tops that
+         SHARE that finish. Measured over all 289 offered cabinets: 1,064
+         finish groups hold more than one top, and 46 tops are reachable
+         ONLY through this second control — the finish swatch alone lands
+         on the group's first member and strands the rest.
+
+         FREEPOWER COMES FROM wireless_charging, NOT jd.freepower.
+         jmv_dimensions.freepower is 0 on all 203 top rows — it is only
+         populated for combos. wireless_charging agrees with the '-FP-' SKU
+         token and the product name on all 258 top rows, no exceptions.
+         Sourcing it from jd.freepower made every FreePower pair render as
+         two buttons reading '8" spread', which is how this was caught. */
+      pav_fp.value_text AS freepower,
+      pav_spread.value_text AS faucet_spread,
+      pav_bsp.value_text    AS backsplash_included,
       ${IMG_SQL},
       ${CHIP_SQL}
     FROM products p
@@ -151,6 +166,15 @@ async function getTops() {
        populated on all 177 active stone tops. Parsing it out of the product
        name fails on 49 of them; see enrichTopsWithMaterial(). */
     LEFT JOIN jmv_dimensions jd ON jd.sku = p.sku
+    LEFT JOIN product_attribute_values pav_spread
+      ON  pav_spread.product_id = p.id
+      AND pav_spread.attr_key   = 'faucet_spread_in'
+    LEFT JOIN product_attribute_values pav_bsp
+      ON  pav_bsp.product_id = p.id
+      AND pav_bsp.attr_key   = 'backsplash_included'
+    LEFT JOIN product_attribute_values pav_fp
+      ON  pav_fp.product_id = p.id
+      AND pav_fp.attr_key   = 'wireless_charging'
     /* STOCK GATE. A top with nothing on hand is not an option — offering it
        costs a customer the configuration they just built. Backorderable rows
        are still offered, because those ARE sellable.
