@@ -309,6 +309,16 @@ async function getStoneSamples() {
       AND p.category_id = 10
       AND (p.name LIKE 'Swatch Sample -%' OR p.name LIKE 'Stone Sample -%')
     ORDER BY
+      /* A row with no imagery must never outrank one that has some. 021
+         inserted three imageless duplicates that shared a name with the
+         real samples, and name-order ties could have handed the swatch to
+         the empty row. Defensive: the DB should not contain those any
+         more (022), but the query should not depend on that. */
+      CASE WHEN COALESCE(
+             (SELECT pi3.url FROM product_images pi3
+               WHERE pi3.product_id = p.id
+               ORDER BY pi3.sort_order ASC, pi3.id ASC LIMIT 1),
+             p.primary_image_url) IS NULL THEN 1 ELSE 0 END,
       /* Swatch Sample wins where both exist. */
       CASE WHEN p.name LIKE 'Swatch Sample -%' THEN 0 ELSE 1 END,
       p.name ASC

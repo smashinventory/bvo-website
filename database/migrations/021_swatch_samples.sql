@@ -27,6 +27,12 @@
 --      Ethereal Noctis · Grey Expo · Lime Delight · Parisien Bleu ·
 --      Phantome · Siberian · Tajnar · Victorian Silver · White Zeus
 --
+--  ⚠ SUPERSEDED IN PART BY 022. The naming expression below uses
+--  REPLACE(), which is case-SENSITIVE in MySQL, while the live rows are
+--  named "STONE SAMPLE - X" in uppercase. On the live run it inserted
+--  three rows carrying the ORIGINAL name. 022 repairs them and renames
+--  by position instead of by case. Run 021 then 022, or just 022.
+--
 --  Idempotent. Safe to re-run.
 -- ════════════════════════════════════════════════════════════════════
 
