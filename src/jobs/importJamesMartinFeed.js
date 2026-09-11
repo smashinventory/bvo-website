@@ -505,6 +505,35 @@ function resolveCategoryId(productCategoryStr, productTypeStr) {
   return 1; // default: bathroom-vanities
 }
 
+/* ── Radius Cut depth correction ───────────────────────────────────────
+   JM's feed reports depth 23.5" on five Radius Cut tops and on the combos
+   built from them. The correct value is 21.5".
+
+   INVARIANT: if a SKU is RC (060 prefix), its depth is 21.5". Established
+   three ways (JMV_CATALOGUE_STRUCTURE.md §2.3):
+     1. The 36" 060-series widespread spec sheet reads 21 1/2" [546mm].
+     2. JM publishes one drawing per size + configuration, shared across
+        finishes; each wrong SKU shares its drawing with a sibling already
+        recorded at 21.5". One drawing cannot document two depths.
+     3. RC tops are only ever paired with Gracyn, Allamari and Lucian —
+        cabinets at 21.38-21.5". A 23.5" RC top has nothing to sit on.
+
+   Applies to the top itself AND to any combo whose top reference is an RC
+   SKU. That second half matters: 16 Gracyn combos carry the wrong depth
+   while their tops are already correct, so a tops-only rule would miss them.
+
+   Reported to JM 2026-09-11. REMOVE THIS ONCE THE FEED IS FIXED — and
+   verify against the feed before removing, because silently reverting to
+   JM's value is exactly the failure this guards against.
+   Migration 019 corrected the rows already in the database. */
+const RC_PREFIX = '060-';
+const RC_DEPTH  = 21.5;
+
+function isRadiusCut(sku, topRefSku) {
+  return String(sku || '').startsWith(RC_PREFIX)
+      || String(topRefSku || '').startsWith(RC_PREFIX);
+}
+
 // ── EAV attribute map ─────────────────────────────────────────────────
 const ATTR_MAP = {
   'Vanity Base Color/Finish':    ['cabinet_finish',               'text'],
@@ -859,6 +888,13 @@ async function importFromWorkbook(wb, opts = {}) {
             textVal = clean(raw);
           }
           await replaceAttr(conn, productId, attrKey, textVal, numVal);
+        }
+
+        /* Radius Cut depth — override JM's wrong value. See RC_DEPTH above.
+           Written AFTER the ATTR_MAP loop so it wins over 'Product Depth'
+           whatever the feed says. */
+        if (isRadiusCut(sku, row['Top Reference SKU 1'])) {
+          await replaceAttr(conn, productId, 'depth_in', String(RC_DEPTH), RC_DEPTH);
         }
 
         // ── Style — multi-value via JM_STYLE_MAP ─────────────────────
