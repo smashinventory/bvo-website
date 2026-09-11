@@ -434,6 +434,12 @@ const PRODUCT_CATEGORY_MAP = {
   'metal base':        4,  // older: optional wall-hung base component
   'pull':              4,  // older: handle/pull accessory
   'shelf':             4,  // older: optional bottom shelf
+  // ⚠️ WORD ORDER — the feed sends 'Sample - Wood', not 'Wood Sample'.
+  // Only the latter was mapped, so all 66 samples defaulted to
+  // category 1 and landed in bathroom-vanities. Both forms now map.
+  'sample - metal':    10, // current feed format
+  'sample - stone':    10, // current feed format
+  'sample - wood':     10, // current feed format
   'metal sample':      10, // older: metallic finish swatch
   'stone sample':      10, // older: stone/countertop material swatch
   'wood sample':       10, // older: paint or stain finish swatch
@@ -482,6 +488,20 @@ const PRODUCT_TYPE_MAP = {
   'hutch':             6,
   'drawer unit':       6,
   // ── Samples (10) ──────────────────────────────────────────────────
+  //
+  // ⚠️ WORD ORDER. The feed sends 'Sample - Wood', NOT 'Wood Sample'.
+  // Only the second form was mapped, so every sample fell through to the
+  // default of 1 and landed in bathroom-vanities: 47 wood, 15 stone and
+  // 4 metal samples, 66 in all. Two consequences — /collections/samples
+  // could only ever show the 3 that were filed by hand, and 66 nine-
+  // dollar chips were listed among the vanities.
+  //
+  // Both forms are mapped now. Do not remove either: 'Wood Sample' is
+  // the older feed format and may still appear in historical workbooks.
+  // Migration 024 repairs the rows that are already wrong.
+  'sample - metal':    10,
+  'sample - stone':    10,
+  'sample - wood':     10,
   'metal sample':      10,
   'stone sample':      10,
   'wood sample':       10,

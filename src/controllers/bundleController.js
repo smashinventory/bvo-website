@@ -485,17 +485,58 @@ async function buildCataloguePayload() {
   return payload;
 }
 
-async function getCataloguePayload() {
-  if (_cache && (Date.now() - _cache.at) < TTL_MS) return _cache.payload;
-  /* A cold cache under load would otherwise fire one 11-second query set
-     per waiting request. Share the single in-flight build instead. */
-  if (!_inflight) {
-    _inflight = buildCataloguePayload()
-      .then(payload => { _cache = { at: Date.now(), payload }; return payload; })
-      .finally(() => { _inflight = null; });
-  }
+function refreshCatalogue() {
+  if (_inflight) return _inflight;
+  _inflight = buildCataloguePayload()
+    .then(payload => { _cache = { at: Date.now(), payload }; return payload; })
+    .catch(err => {
+      /* Keep serving the stale copy rather than taking the page down.
+         A catalogue a few minutes old beats a 500. */
+      console.error('[bundle] catalogue refresh failed:', err.message);
+      if (_cache) return _cache.payload;
+      throw err;
+    })
+    .finally(() => { _inflight = null; });
   return _inflight;
 }
+
+/* STALE-WHILE-REVALIDATE, and it matters more than it sounds.
+
+   The first version of this expired at the TTL and made the next
+   request rebuild — 11 seconds, while someone waited. On a busy site
+   that costs one unlucky visitor every 15 minutes. On THIS site it is
+   close to every real visitor: traffic is sparse enough that the cache
+   is almost always cold when someone actually arrives, and the only
+   reason it measured fast during testing was that I was hammering it.
+   "Slow on the first visit of the day" is exactly that bug.
+
+   So a request never waits for a rebuild:
+     · fresh   -> serve it
+     · stale   -> serve the STALE copy now, refresh in the background
+     · empty   -> only then wait, and warmCatalogue() below means this
+                  should only ever happen if a request beats boot.     */
+async function getCataloguePayload() {
+  if (_cache) {
+    if ((Date.now() - _cache.at) >= TTL_MS) refreshCatalogue();  // no await
+    return _cache.payload;
+  }
+  return refreshCatalogue();
+}
+
+/* Build at boot so the first visitor of the day never pays for it, and
+   keep it warm on a timer so it never goes stale in the first place.
+
+   unref() so this never holds the process open, and a catch so a DB
+   hiccup at boot logs rather than crashing the app. */
+function warmCatalogue() {
+  refreshCatalogue().catch(err =>
+    console.error('[bundle] initial catalogue warm-up failed:', err.message));
+  const t = setInterval(() => {
+    refreshCatalogue().catch(() => {});
+  }, Math.max(60000, TTL_MS - 60000));
+  if (t.unref) t.unref();
+}
+warmCatalogue();
 
 /* ── GET /bundle-builder ─────────────────────────────────────────────── */
 exports.getBundleBuilder = async (req, res) => {

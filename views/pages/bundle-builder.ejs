@@ -697,13 +697,22 @@
 
   /* tipText defaults to the material; callers pass a longer label when two
      tops share a finish and the picture alone cannot tell them apart. */
-  function topMatSwatchHtml(material, imgUrl, topIdx, isActive, tipText) {
+  function topMatSwatchHtml(material, imgUrl, topIdx, isActive, tipText, isProductPhoto) {
     var tip = tipText || material || 'Other';
     /* Only 3 of the 15 stone finishes have a Stone Sample product, so 12 fell
        back to one hardcoded beige and every swatch in the row looked alike.
        Until the sample photos exist, the tile carries the finish's initials. */
+    /* A sample photo is already a flat square of stone — centre it.
+       A PRODUCT photo is a whole countertop, usually wide with the sink
+       basin in the middle, so centring it gives you a swatch of sink.
+       Pull left and slightly down, where the slab surface is. Zoomed in
+       past 100% so the frame lands on stone rather than the white
+       background these are shot on. */
     var style = imgUrl
-      ? 'background-image:url(' + esc(imgUrl) + ');background-size:cover;background-position:center;'
+      ? 'background-image:url(' + esc(imgUrl) + ');'
+        + (isProductPhoto
+             ? 'background-size:150%;background-position:50% 90%;'
+             : 'background-size:cover;background-position:center;')
       : 'background-color:#C9B89A;';
     var label = imgUrl ? '' : esc(matInitials(material));
     return '<button class="bb-swatch bb-swatch--topmat' + (isActive ? ' is-active' : '')
@@ -762,8 +771,23 @@
         var opt = topOptionLabel(s);
         if (opt) lbl = mat + ' — ' + opt;
       }
-      return topMatSwatchHtml(mat, (s && s.stone_image) || null,
-                              idx, idx === gIdx.top, lbl);
+      /* IMAGE SOURCE, in order of quality:
+           1. stone_image  — the real Stone/Swatch Sample photo. Only 44
+              of 171 tops have one, because only 3 of the 15 finishes
+              have a sample product.
+           2. primary_image — the top's OWN product photo, present on
+              169 of 171. It is a picture of the actual slab, which is
+              exactly what a customer choosing a stone needs to see.
+           3. initials on a flat tile — 2 tops, and a genuine last resort.
+
+         Before this, 2 and 3 were collapsed: 9 of 12 tiles rendered as
+         the SAME beige square with two-letter initials, two of them
+         reading "WZ" side by side. A stone picker that shows no stone is
+         not a stone picker, however correct its count. */
+      return topMatSwatchHtml(mat,
+                              (s && (s.stone_image || s.primary_image)) || null,
+                              idx, idx === gIdx.top, lbl,
+                              /* isProductPhoto */ !!(s && !s.stone_image && s.primary_image));
     }).join('');
     renderTopOptions();
 
