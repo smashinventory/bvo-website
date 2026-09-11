@@ -64,14 +64,28 @@ SET @sql := IF(@ix > 0,
      (brand, model, color, category_id)');
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
--- ── Verify — expect both rows present ───────────────────────────────
---  COUNT, not absence. An empty result set is how a broken check
---  disguises itself as a pass.
-SELECT TABLE_NAME, INDEX_NAME, GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) AS cols
-  FROM information_schema.STATISTICS
- WHERE TABLE_SCHEMA = DATABASE()
-   AND INDEX_NAME IN ('idx_jmv_combo_key', 'idx_products_chip_lookup')
- GROUP BY TABLE_NAME, INDEX_NAME;
+-- ── Verify — expect 4 rows from each ────────────────────────────────
+--  SHOW INDEX, not information_schema.STATISTICS.
+--
+--  The first version of this verify queried I_S.STATISTICS filtered on
+--  TABLE_SCHEMA = DATABASE() and INDEX_NAME IN (...). On the live run it
+--  returned ZERO ROWS — while both indexes had in fact just been created
+--  successfully (the EXECUTEs took 19.6 ms and 29.9 ms of real work) and
+--  DATABASE() was correctly set to u222311468_BVO_website. SHOW INDEX
+--  then listed all eight rows.
+--
+--  I have not established the precise cause; MySQL 8 caching I_S table
+--  statistics is the obvious suspect, but that is a guess and this
+--  comment is not the place to launder one into a fact. What IS
+--  established: on this server, immediately after a CREATE INDEX, I_S
+--  lied and SHOW INDEX told the truth. So use SHOW INDEX.
+--
+--  This matters beyond tidiness. An empty result from a verification
+--  step reads as "nothing wrong" at a glance — the same vacuous-pass
+--  failure that let migration 021 look fine while doing nothing. A check
+--  that can silently return empty is not a check.
+SHOW INDEX FROM jmv_dimensions WHERE Key_name = 'idx_jmv_combo_key';
+SHOW INDEX FROM products       WHERE Key_name = 'idx_products_chip_lookup';
 
 -- ────────────────────────────────────────────────────────────────────
 --  AFTER RUNNING: restart the app (or wait out the 15-minute cache

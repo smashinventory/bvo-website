@@ -476,8 +476,12 @@ async function buildCataloguePayload() {
     /* { cabinetSku: [topSku, ...] } — JM's own combo bill of materials. */
     topCompat,
   };
-  console.log('[bundle] catalogue rebuilt in %dms (%d cabinets, %d tops)',
-              Date.now() - t0, cabinets.length, tops.length);
+  /* Template literal, NOT console.log('%d', x). Hostinger's runtime log
+     capture does not apply printf substitution — the first deploy of this
+     line printed "rebuilt in %dms (%d cabinets, %d tops) 10183 289 177",
+     with the format string verbatim and the values tacked on the end. */
+  console.log(`[bundle] catalogue rebuilt in ${Date.now() - t0}ms `
+            + `(${cabinets.length} cabinets, ${tops.length} tops)`);
   return payload;
 }
 
