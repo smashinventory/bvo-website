@@ -19,7 +19,9 @@ TABLES = ['jmv_dimensions', 'jmv_daily_movement', 'jmv_snapshots',
           'product_components', 'product_attribute_values',
           # categories — the storefront queries join it to scope by c.slug,
           # so the bundle-builder gates cannot run without it.
-          'categories']
+          'categories',
+          # inventory — qty_on_hand gates whether a top is offered at all.
+          'inventory']
 
 def columns(dump, t):
     grab, cols = False, []

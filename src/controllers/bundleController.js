@@ -151,10 +151,19 @@ async function getTops() {
        populated on all 177 active stone tops. Parsing it out of the product
        name fails on 49 of them; see enrichTopsWithMaterial(). */
     LEFT JOIN jmv_dimensions jd ON jd.sku = p.sku
+    /* STOCK GATE. A top with nothing on hand is not an option — offering it
+       costs a customer the configuration they just built. Backorderable rows
+       are still offered, because those ARE sellable.
+
+       Safe to apply: all 177 active stone tops carry an inventory row, only 8
+       sit at zero, none of those allows backorder, and no cabinet loses its
+       whole top list. Gated so that stays true. */
+    INNER JOIN inventory inv ON inv.product_id = p.id
     WHERE p.brand          = ?
       AND c.slug           = 'bathroom-vanity-tops'
       AND p.product_type   = 'Stone Top'
       AND p.is_active      = 1
+      AND (inv.qty_on_hand > 0 OR inv.allow_backorder = 1)
     ORDER BY p.model ASC, p.width_in ASC, p.price ASC
   `, [JM_BRAND, JM_BRAND]);
   return rows;
@@ -266,6 +275,25 @@ async function getFaucets() {
    top to its sample image by word-overlap so the bundle builder can
    show a photo swatch for each material rather than a plain colour dot.
    ──────────────────────────────────────────────────────────────────── */
+/* ── Swatch imagery ───────────────────────────────────────────────────
+   The picture of the stone, NOT the little sample you can buy.
+
+   DELIBERATELY UNFILTERED by is_active and by stock. A swatch is a display
+   asset: whether the $9.99 sample happens to be in stock has nothing to do
+   with whether we can show the customer what the countertop looks like.
+   Tajnar sat at QTY 0 while its swatch was the only thing telling anyone
+   what Tajnar looks like.
+
+   Two naming conventions, Swatch Sample preferred:
+     "Swatch Sample - <finish>"  imagery only, kept is_active = 0 so it never
+                                 reaches the storefront. Use this for finishes
+                                 with no sellable sample.
+     "Stone Sample - <finish>"   the sellable sample; its image is reused when
+                                 no Swatch Sample exists.
+
+   The finish must match jmv_dimensions.top_finish exactly, case-insensitively
+   — see finishKey(). "Stone Sample - White Zeus" pairs with top_finish
+   "White Zeus".                                                          */
 async function getStoneSamples() {
   const [rows] = await bvoPool.execute(`
     SELECT
@@ -279,9 +307,11 @@ async function getStoneSamples() {
     FROM products p
     WHERE p.brand       = ?
       AND p.category_id = 10
-      AND p.name        LIKE 'Stone Sample -%'
-      AND p.is_active   = 1
-    ORDER BY p.name ASC
+      AND (p.name LIKE 'Swatch Sample -%' OR p.name LIKE 'Stone Sample -%')
+    ORDER BY
+      /* Swatch Sample wins where both exist. */
+      CASE WHEN p.name LIKE 'Swatch Sample -%' THEN 0 ELSE 1 END,
+      p.name ASC
   `, [JM_BRAND]);
   return rows;
 }
@@ -323,7 +353,7 @@ function wordOverlapScore(a, b) {
 /** Adds stone_material + stone_image fields to each top row. */
 function enrichTopsWithMaterial(topRows, sampleRows) {
   const samples = sampleRows.map(s => ({
-    material: s.name.replace(/^Stone Sample\s*-\s*/i, '').trim(),
+    material: s.name.replace(/^(?:Swatch|Stone) Sample\s*-\s*/i, '').trim(),
     imgUrl:   s.img_url || null,
   }));
 
