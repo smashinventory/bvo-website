@@ -416,31 +416,93 @@ function enrichTopsWithMaterial(topRows, sampleRows) {
   });
 }
 
+/* ── Catalogue cache ──────────────────────────────────────────────────
+   MEASURED: the page took 11,056 ms to first byte. HTML download was
+   94 ms and every one of the 14 assets came back under 51 ms — so none
+   of it was the browser. All eleven seconds were these six queries.
+
+   The offenders are structural, not accidental:
+     · getCabinetTopMap() self-joins jmv_dimensions (5,218 rows) on
+       collection + base_finish + size_nominal. The table has three
+       SEPARATE single-column indexes and no composite, so MySQL picks
+       one and filters the rest by hand — then multiplies that through
+       product_components (8,940 rows) and four computed SKU forms.
+     · CHIP_SQL is a correlated subquery run once per output row,
+       matching brand + model + color + category_id. No index covers
+       that combination.
+
+   None of it needs to run per request. This catalogue changes when the
+   JM feed imports — roughly daily — not between page views. So build it
+   once and hand out the same object until it goes stale.
+
+   WHY A WHOLE-PAYLOAD CACHE AND NOT PER-QUERY: the six run in parallel,
+   so the request costs whatever the SLOWEST one costs. Caching five of
+   six would save nothing.
+
+   Staleness is the price. A product edited in admin can take up to
+   TTL_MS to appear here. That is acceptable for a merchandising page
+   and NOT acceptable for price or stock at checkout — cart and checkout
+   read the DB directly and must keep doing so.
+
+   bustBundleCache() is exported so the feed importer can clear it on
+   completion rather than waiting out the clock.                        */
+const TTL_MS = 15 * 60 * 1000;
+let _cache   = null;   // { at: epochMs, payload: {...} }
+let _inflight = null;  // de-dupes concurrent cold requests
+
+function bustBundleCache() {
+  _cache = null;
+}
+exports.bustBundleCache = bustBundleCache;
+
+async function buildCataloguePayload() {
+  const t0 = Date.now();
+  const [cabinets, rawTops, mirrors, faucets, stoneSamples, topCompat] = await Promise.all([
+    getCabinets(),
+    getTops(),
+    getMirrors(),
+    getFaucets(),
+    getStoneSamples(),
+    getCabinetTopMap(),
+  ]);
+  const tops = enrichTopsWithMaterial(rawTops, stoneSamples);
+  const payload = {
+    cabinetModels: groupByModel(cabinets),
+    topModels:     groupByModel(tops),
+    mirrorModels:  groupByModel(mirrors),
+    faucetModels:  groupByModel(faucets),
+    familyHex:     FAMILY_HEX,
+    sizeBuckets:   SIZE_BUCKETS,
+    /* { cabinetSku: [topSku, ...] } — JM's own combo bill of materials. */
+    topCompat,
+  };
+  console.log('[bundle] catalogue rebuilt in %dms (%d cabinets, %d tops)',
+              Date.now() - t0, cabinets.length, tops.length);
+  return payload;
+}
+
+async function getCataloguePayload() {
+  if (_cache && (Date.now() - _cache.at) < TTL_MS) return _cache.payload;
+  /* A cold cache under load would otherwise fire one 11-second query set
+     per waiting request. Share the single in-flight build instead. */
+  if (!_inflight) {
+    _inflight = buildCataloguePayload()
+      .then(payload => { _cache = { at: Date.now(), payload }; return payload; })
+      .finally(() => { _inflight = null; });
+  }
+  return _inflight;
+}
+
 /* ── GET /bundle-builder ─────────────────────────────────────────────── */
 exports.getBundleBuilder = async (req, res) => {
   try {
-    const [cabinets, rawTops, mirrors, faucets, stoneSamples, topCompat] = await Promise.all([
-      getCabinets(),
-      getTops(),
-      getMirrors(),
-      getFaucets(),
-      getStoneSamples(),
-      getCabinetTopMap(),
-    ]);
-    const tops = enrichTopsWithMaterial(rawTops, stoneSamples);
+    const cat = await getCataloguePayload();
 
     res.render('pages/bundle-builder', {
+      ...cat,
       pageTitle:     'Build Your James Martin Bundle | BathroomVanitiesOutlet.com',
       metaDesc:      'Build your dream bathroom from James Martin\'s premium collection. Mix and match cabinets, tops, and mirrors — save up to 15% on your bundle.',
       canonicalUrl:  `${SITE_URL}/bundle-builder`,
-      cabinetModels: groupByModel(cabinets),
-      topModels:     groupByModel(tops),
-      mirrorModels:  groupByModel(mirrors),
-      faucetModels:  groupByModel(faucets),
-      familyHex:     FAMILY_HEX,
-      sizeBuckets:   SIZE_BUCKETS,
-      /* { cabinetSku: [topSku, ...] } — JM's own combo bill of materials. */
-      topCompat,
     });
   } catch (err) {
     console.error('[bundle] getBundleBuilder error:', err);
