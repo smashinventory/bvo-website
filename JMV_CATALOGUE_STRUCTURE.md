@@ -350,6 +350,38 @@ special-case these.
    and `F` = RCWS + FreePower on the shallow three, but `FSFR` also appears on
    165 SKUs across 23 other collections, where it has not been checked.
 
+## 7a. Stone vs Composite typing — 24 tops were wrong
+
+*Found and corrected 2026-09-11 (migration 020 + `STONE_TERMS` in the importer).*
+
+The importer decides Stone vs Composite with a regex over the product name and
+the Vanity Countertop Material field. **JM names the brand, not the substance**,
+so every term has to be added by hand and two were missing:
+
+| term | what it is | SKUs it was mistyping |
+|---|---|---|
+| `eclos` | Cosentino's zero-silica engineered stone | **22** — all Phantome (PHT) or Tajnar (TJR) |
+| `carrara` | a marble; JM writes "Carrara White", never "marble" | **2** — `040-S72-CAR-SNK`, `090-825-S22-CAR` |
+
+**The tell:** `hasCharger` forces Stone regardless of material, which was
+rescuing seven Eclos tops by accident. So `050-S48-FP-TJR-SNK` was Stone while
+`050-S48-TJR-SNK` — the same slab without a charging pad — was Composite. Any
+time two SKUs differing only by `-FP-` disagree on `product_type`, the material
+regex has a hole.
+
+**Consequences while it was wrong:** the 24 were absent from stone collection
+pages and stone filters, and — because `getTops()` filters on
+`product_type = 'Stone Top'` — six Radius Cut tops were missing from the bundle
+builder, so Gracyn, Allamari and Lucian would have shown a partial top list even
+once their cabinets were admitted.
+
+**Left alone deliberately:** the 26 genuinely-composite tops — Solid Surface
+(`080`, `410`) and Mineral Composite (`CS`, `CSP`, `SWB`). After the fix:
+**177 Stone / 26 Composite**, and all 27 RC tops are Stone.
+
+> Adding a term to `STONE_TERMS` is a catalogue-visible change — it moves
+> products between collection pages. Check what it reclassifies before shipping.
+
 ## 8a. Open with JM — reported 2026-09-11
 
 - **RC depth = 23.5" on five SFR SKUs.** Should be 21.5". §2.3.

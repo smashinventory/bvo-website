@@ -744,13 +744,37 @@ async function importFromWorkbook(wb, opts = {}) {
           if (baseType === 'Backsplash') {
             productType = 'Backsplash';
           } else {
-            // Stone detection: check product name AND the Vanity Countertop Material field.
-            // Silestone is Cosentino's brand of engineered quartz — treat as Stone Top.
-            // Wireless charging tops → always Stone Top regardless of material field.
-            const matField   = clean(row['Vanity Countertop Material ']) || '';
-            const isStone    = /quartz|marble|silestone/i.test(nameLower) || /quartz|marble|silestone/i.test(matField);
-            const hasCharger = /^y/i.test(clean(row['Wireless Charging Unit (Y/N)']) || '');
-            productType      = (isStone || hasCharger) ? 'Stone Top' : 'Composite Top';
+            /* Stone detection — checks the product name AND the Vanity
+               Countertop Material field.
+
+               Each term is a MATERIAL, and every one of them had to be
+               added because JM names the brand rather than the substance:
+                 quartz     — the generic
+                 marble     — the generic
+                 silestone  — Cosentino's engineered quartz
+                 eclos      — Cosentino's zero-silica engineered stone
+                 carrara    — a marble; JM writes "Carrara White", never
+                              the word "marble"
+
+               STONE_TERMS corrected 2026-09-11 (migration 020 backfilled
+               the 24 rows already imported). Before this, 'eclos' and
+               'carrara' were absent and 24 stone tops were typed
+               Composite Top — so they were missing from the stone
+               collection pages, the stone filters, and getTops() in the
+               bundle builder.
+
+               The tell that something was wrong: hasCharger was rescuing
+               seven Eclos tops by accident, so 050-S48-FP-TJR-SNK was
+               Stone while 050-S48-TJR-SNK — the same slab without a
+               charging pad — was Composite.
+
+               Adding a term here is a catalogue-visible change. Check what
+               it reclassifies before shipping it. */
+            const STONE_TERMS = /quartz|marble|silestone|eclos|carrara/i;
+            const matField    = clean(row['Vanity Countertop Material ']) || '';
+            const isStone     = STONE_TERMS.test(nameLower) || STONE_TERMS.test(matField);
+            const hasCharger  = /^y/i.test(clean(row['Wireless Charging Unit (Y/N)']) || '');
+            productType       = (isStone || hasCharger) ? 'Stone Top' : 'Composite Top';
           }
         } else {
           // Non-vanity: map to BVO canonical product_type.
