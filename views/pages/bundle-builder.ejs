@@ -369,6 +369,9 @@
   var FAUCET_MODELS  = <%- JSON.stringify(faucetModels)  %>;
   var FAMILY_HEX     = <%- JSON.stringify(familyHex)     %>;
   var SIZE_BUCKETS   = <%- JSON.stringify(sizeBuckets)   %>;
+  /* { cabinetSku: [topSku, ...] } — JM's own combo bill of materials, the
+     authority on which top fits which cabinet. Not depth, not width. */
+  var TOP_COMPAT     = <%- JSON.stringify(topCompat)     %>;
 
   /* ── Per-item-type bundle discounts ───────────────────────────── */
   /* Vanity is never discounted; each add-on earns its own fixed % off */
@@ -486,6 +489,24 @@
   function activeTops() {
     var allSkus = [];
     TOP_MODELS.forEach(function(m) { allSkus = allSkus.concat(m.skus); });
+
+    /* COMPATIBILITY — the real constraint, and it runs first.
+       TOP_COMPAT[cabinetSku] is the list of tops JM actually pairs with
+       this cabinet, taken from product_components. Incompatible tops are
+       hidden outright; the depth badge on the survivors explains why the
+       set looks the way it does.
+
+       If a cabinet has no entry we fall through to the width/sink filters
+       rather than showing nothing — an unmapped cabinet should degrade to
+       the old behaviour, not to an empty step. 330 of 332 are mapped. */
+    if (state.cabinet && state.cabinet.sku) {
+      var compat = TOP_COMPAT[state.cabinet.sku];
+      if (compat && compat.length) {
+        var ok = {};
+        compat.forEach(function(t) { ok[t] = true; });
+        allSkus = allSkus.filter(function(s) { return ok[s.sku]; });
+      }
+    }
 
     if (state.cabinet && state.cabinet.width_in) {
       var cabBkt = getBucket(state.cabinet.width_in);
@@ -608,6 +629,13 @@
       + '</button>';
   }
 
+  /* 21.50 -> "21.5", 23.00 -> "23" — depths come back as DECIMAL strings. */
+  function fmtDepth(d) {
+    var n = parseFloat(d);
+    if (isNaN(n)) return '';
+    return String(parseFloat(n.toFixed(2)));
+  }
+
   function matBaseKey(mat) {
     // Silestone is Cosentino's brand of engineered quartz — normalize it so
     // "X Quartz" and "X Silestone" share one swatch. Marble stays distinct.
@@ -632,6 +660,15 @@
     swatchEl.innerHTML = mats.map(function(m) {
       return topMatSwatchHtml(m.material, m.imgUrl, m.topIdx, m.topIdx === gIdx.top);
     }).join('');
+    /* Depth badge — shown on every top so the constraint is visible while
+       browsing, not only when the set changes. */
+    var depEl = el('bb-depth-top');
+    if (depEl) {
+      var curT = allTops[gIdx.top];
+      var dv   = curT && curT.skus[0] ? curT.skus[0].depth_in : null;
+      depEl.textContent = (dv != null) ? (fmtDepth(dv) + '" deep — fits this cabinet') : '';
+    }
+
     /* Stone Material name */
     var finEl = el('bb-finish-top');
     if (finEl) {
@@ -906,6 +943,7 @@
         + '<div class="bb-mcard-price-block"><span class="bb-mcard-price" id="bb-price-top"></span><s class="bb-mcard-compare" id="bb-compare-top"></s><span class="bb-mcard-save-badge" id="bb-save-top"></span></div></div>'
         + '<div class="bb-picker-row bb-picker-row--finish"><span class="bb-picker-lbl">Stone Material</span><div class="bb-swatches-wrap"><div class="bb-swatches" id="bb-swatches-top"></div></div></div>'
         + '<p class="bb-topmat-name" id="bb-finish-top"></p>'
+        + '<p class="bb-top-depth" id="bb-depth-top"></p>'
         + '<a class="bb-view-link" id="bb-viewlink-top" href="" target="_blank">View product page ›</a>'
         + '<button class="btn btn-navy bb-select-btn" id="bb-select-top" type="button" disabled>Select</button>'
         + '</div>';
@@ -916,8 +954,19 @@
     if (meta) {
       var cabBucket  = getBucket(state.cabinet.width_in);
       var bucketLabel = cabBucket ? cabBucket.label : state.cabinet.width_in;
+      /* Name the DEPTH, not just the width. JM tops are not interchangeable
+         across depths, and a customer who switches to a deeper base and
+         suddenly sees a different set of finishes needs to know why. */
+      var depths = {};
+      tops.forEach(function(m) {
+        var d = m.skus[0] && m.skus[0].depth_in;
+        if (d != null) depths[fmtDepth(d)] = true;
+      });
+      var dList = Object.keys(depths);
       meta.textContent = 'Showing ' + tops.length + ' top' + (tops.length !== 1 ? 's' : '')
-        + ' matching ' + bucketLabel + '" cabinet · Adds 5% off';
+        + ' that fit your ' + bucketLabel + '" cabinet'
+        + (dList.length === 1 ? ' — ' + dList[0] + '" deep' : '')
+        + ' · Adds 5% off';
     }
     renderViewer('top');
   }

@@ -105,6 +105,15 @@ difference rather than a guess:
 `scripts/jmv_scrub.py` asserts the unresolved count is zero. **Anything needing
 a fourth transform must be reported, never guessed.**
 
+> ⚠ **The `BS` transform inserts before the FINISH, i.e. before the last dash.**
+> `051-S36-WZ` → `051-S36-BS-WZ`. In SQL that is
+> `CONCAT(SUBSTRING_INDEX(sku,'-',2), '-BS-', SUBSTRING_INDEX(sku,'-',-1))`.
+>
+> `REPLACE(sku,'-S','-BS-S')` looks equivalent and is not — it hits the *first*
+> `-S` and yields `051-BS-S36-WZ`, which matches nothing. That mistake shipped
+> into the first draft of `getCabinetTopMap()` and silently dropped all six
+> backsplash tops; a gate on the resolved-top count caught it before release.
+
 ---
 
 ## 2. Depth — the physical fit constraint

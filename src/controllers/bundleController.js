@@ -53,32 +53,56 @@ function groupByModel(rows) {
     .map(([model, skus]) => ({ model, skus }));
 }
 
-/* ── Step 1: Cabinet Only (stone-top-compatible) ──────────────────────
-   Returns JM cabinet-only SKUs whose depth qualifies them for stone tops.
-   (Taxonomy overhaul 2026-07-31 — 4-value product_type system.)
+/* ── Step 1: Cabinet Only ─────────────────────────────────────────────
+   Returns JM cabinet-only SKUs eligible for the bundle builder.
    Ordered model ASC → width_in ASC → price ASC.
    ──────────────────────────────────────────────────────────────────────
-   STONE-TOP COMPATIBILITY RULE (James Martin only — 2026-07-31):
-     JM cabinets with depth_in >= 22.5" accept the 23–23.5" stone tops
-     (Quartz/Marble). Shallower cabinets require Composite tops and are
-     not shown in the bundle builder (which is stone-top-focused).
-     This rule is JM-SPECIFIC — other brands have different depth specs
-     and must NOT be filtered by this threshold when added to BVO.
+   TWO SEPARATE GUARDS. Do not let one stand in for the other.
+
+   1. BRAND — `p.brand = JM_BRAND`. This is what keeps other brands out.
+      It is load-bearing: every ER Vanities cabinet is 21.63" deep, so it
+      would clear the depth floor below. Removing the brand filter leaks
+      all 73 of them into step 1.
+
+   2. DEPTH FLOOR >= 21" — excludes the 43 JM cabinets at 15.4-19.63",
+      which are small-format and pair with composite tops outside this
+      flow. It is NOT a stone-top compatibility test.
+
+   CORRECTED 2026-09-11. The floor was 22.5", on the stated rule that
+   "cabinets >= 22.5 accept stone tops, shallower require Composite."
+   That rule was false and it hid 19 cabinets:
+
+     Gracyn  (D125) 21.38"   Lucian (D704) 21.38"   Allamari (D640) 21.5"
+
+   All three are shallow AND take stone tops — the 060 Radius Cut
+   Silestone range, which exists precisely for them. RC tops are 21.5"
+   deep and are sold to these three collections and to nobody else.
+   See JMV_CATALOGUE_STRUCTURE.md §2.3.
+
+   PAIRING IS NOT DECIDED HERE, AND NOT BY DEPTH. Which tops fit which
+   base comes from the product_components edge list, which carries JM's
+   own combo -> top mapping for 4,198 of 4,199 combos. `depth_in` is
+   inherited per finish rather than measured per part — it was wrong on
+   51 SKUs until migration 019 — so it is a display label, not a join
+   key. Never filter tops against a cabinet's depth.
    ────────────────────────────────────────────────────────────────────── */
 async function getCabinets() {
   const [rows] = await bvoPool.execute(`
     SELECT
-      p.id, p.slug, p.name, p.model, p.price, p.compare_price,
+      p.id, p.sku, p.slug, p.name, p.model, p.price, p.compare_price,
       p.width_in, p.color, p.color_family, p.product_type,
       ${IMG_SQL},
       ${CHIP_SQL}
     FROM products p
     INNER JOIN categories c ON c.id = p.category_id
-    /* Stone-top depth filter: only JM cabinets >= 22.5" deep take stone tops */
+    /* Depth FLOOR, not a compatibility test — drops the 15.4-19.63"
+       small-format cabinets. See the block comment above. */
     INNER JOIN product_attribute_values pav_depth
       ON  pav_depth.product_id = p.id
       AND pav_depth.attr_key   = 'depth_in'
-      AND pav_depth.value_num  >= 22.5
+      AND pav_depth.value_num  >= 21
+    /* p.brand is the BRAND guard — see the block comment above. Every ER
+       Vanities cabinet is 21.63" deep and would clear the floor. */
     WHERE p.brand           = ?
       AND c.slug            = 'bathroom-vanities'
       AND p.product_type IN ('Single Sink Cabinet Only', 'Double Sink Cabinet Only')
@@ -88,19 +112,27 @@ async function getCabinets() {
   return rows;
 }
 
-/* ── Step 2: Stone Tops only (Quartz + Marble) ────────────────────────
-   Width filtering done client-side: once a cabinet is selected, only
-   tops matching that width_in are shown (finish-only viewer, no size
-   chips — width is locked to the chosen cabinet).
-   Filters on product_type = 'Stone Top' — set by the importer when
-   name/countertop_material contains 'Quartz' or 'Marble'.
-   (Replaces fragile LIKE pattern; requires importer re-run + DB update.) */
+/* ── Step 2: Stone Tops ───────────────────────────────────────────────
+   Returns every JM stone top. Which of them a customer actually sees is
+   decided client-side against getCabinetTopMap() once a cabinet is
+   chosen — incompatible tops are hidden, and each visible one carries a
+   depth badge so the changing option set is legible rather than
+   mysterious.
+
+   product_type = 'Stone Top' is set by the importer's STONE_TERMS regex.
+   It knows quartz, marble, silestone, eclos and carrara — JM names the
+   brand rather than the substance, so a missing term silently drops a
+   whole range from this query. That happened: 24 stone tops were typed
+   Composite until 2026-09-11 (migration 020), six of them Radius Cut,
+   which gave the shallow collections a partial list. See
+   JMV_CATALOGUE_STRUCTURE.md §7a.                                       */
 async function getTops() {
   const [rows] = await bvoPool.execute(`
     SELECT
-      p.id, p.slug, p.name, p.model, p.price, p.compare_price,
+      p.id, p.sku, p.slug, p.name, p.model, p.price, p.compare_price,
       p.width_in, p.color, p.color_family,
       CAST(pav_sink.value_num AS UNSIGNED) AS sink_count,
+      pav_depth.value_num AS depth_in,
       ${IMG_SQL},
       ${CHIP_SQL}
     FROM products p
@@ -108,6 +140,12 @@ async function getTops() {
     LEFT JOIN product_attribute_values pav_sink
       ON  pav_sink.product_id = p.id
       AND pav_sink.attr_key   = 'sink_count'
+    /* Depth is a DISPLAY LABEL only — it tells the customer why the option
+       set changed when they switched base. Compatibility comes from
+       getCabinetTopMap(). Never filter tops on this value. */
+    LEFT JOIN product_attribute_values pav_depth
+      ON  pav_depth.product_id = p.id
+      AND pav_depth.attr_key   = 'depth_in'
     WHERE p.brand          = ?
       AND c.slug           = 'bathroom-vanity-tops'
       AND p.product_type   = 'Stone Top'
@@ -115,6 +153,65 @@ async function getTops() {
     ORDER BY p.model ASC, p.width_in ASC, p.price ASC
   `, [JM_BRAND, JM_BRAND]);
   return rows;
+}
+
+/* ── Cabinet → compatible tops ────────────────────────────────────────
+   THE authority on which top fits which cabinet. Not depth, not width,
+   not finish — JM's own combo bill of materials.
+
+   `product_components` carries the exact combo -> top edge for 4,198 of
+   the 4,199 JM combos, straight from the vendor feed. A cabinet's
+   compatible tops are the tops of every combo built on that cabinet:
+
+     cabinet --(collection + base_finish + size_nominal)--> combos
+             --(product_components, role 'top')-----------> tops
+
+   sinks is DELIBERATELY absent from the cabinet->combo key: a cabinet
+   carries sinks = 0 and its combo sinks = 1, so including it matches
+   nothing. The single/double distinction still comes through, because
+   each combo names its own sink-specific top.
+
+   The component SKU is abbreviated in the feed and needs up to three
+   transforms to reach products.sku — the dropped '-SNK' suffix, the
+   dropped 'BS' backsplash token, and S46 -> S46R. All 194 distinct
+   components resolve under these four forms; scripts/jmv_scrub.py
+   asserts that none is left over.
+
+   WHY NOT DEPTH: depth_in is inherited per finish rather than measured
+   per part — it was wrong on 51 SKUs until migration 019. It is a label
+   for the customer, never a join key. See JMV_CATALOGUE_STRUCTURE.md
+   §2.3.                                                                */
+async function getCabinetTopMap() {
+  const [rows] = await bvoPool.execute(`
+    SELECT cab.sku AS cabinet_sku, t.sku AS top_sku
+      FROM jmv_dimensions cab
+      JOIN jmv_dimensions combo
+        ON combo.product_type  = 'Vanity'
+       AND combo.collection    = cab.collection
+       AND combo.base_finish   = cab.base_finish
+       AND combo.size_nominal  = cab.size_nominal
+      JOIN product_components pc
+        ON pc.parent_sku     = combo.sku
+       AND pc.component_role = 'top'
+      JOIN products t
+        ON t.sku IN (pc.component_sku,
+                     CONCAT(pc.component_sku, '-SNK'),
+                     /* backsplash token: 051-S36-WZ -> 051-S36-BS-WZ. The BS
+                        goes before the FINISH, i.e. before the last dash.
+                        REPLACE(sku,'-S','-BS-S') looks equivalent and is not
+                        — it hits the first '-S' and yields 051-BS-S36-WZ,
+                        which matches nothing and drops all six backsplash
+                        tops from the builder. */
+                     CONCAT(SUBSTRING_INDEX(pc.component_sku, '-', 2), '-BS-',
+                            SUBSTRING_INDEX(pc.component_sku, '-', -1)),
+                     CONCAT(REPLACE(pc.component_sku, '-S46-', '-S46R-'), '-SNK'))
+     WHERE cab.product_type = 'Cabinet'
+       AND t.is_active      = 1
+     GROUP BY cab.sku, t.sku
+  `);
+  const map = Object.create(null);
+  for (const r of rows) (map[r.cabinet_sku] ||= []).push(r.top_sku);
+  return map;
 }
 
 /* ── Step 3: Mirrors ─────────────────────────────────────────────────
@@ -222,12 +319,13 @@ function enrichTopsWithMaterial(topRows, sampleRows) {
 /* ── GET /bundle-builder ─────────────────────────────────────────────── */
 exports.getBundleBuilder = async (req, res) => {
   try {
-    const [cabinets, rawTops, mirrors, faucets, stoneSamples] = await Promise.all([
+    const [cabinets, rawTops, mirrors, faucets, stoneSamples, topCompat] = await Promise.all([
       getCabinets(),
       getTops(),
       getMirrors(),
       getFaucets(),
       getStoneSamples(),
+      getCabinetTopMap(),
     ]);
     const tops = enrichTopsWithMaterial(rawTops, stoneSamples);
 
@@ -241,6 +339,8 @@ exports.getBundleBuilder = async (req, res) => {
       faucetModels:  groupByModel(faucets),
       familyHex:     FAMILY_HEX,
       sizeBuckets:   SIZE_BUCKETS,
+      /* { cabinetSku: [topSku, ...] } — JM's own combo bill of materials. */
+      topCompat,
     });
   } catch (err) {
     console.error('[bundle] getBundleBuilder error:', err);
