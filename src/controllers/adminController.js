@@ -1332,6 +1332,14 @@ exports.productImportJM = async (req, res, next) => {
     try {
       console.log('[JM Import] Starting background import…');
       const result = await _jmImporter.importFromWorkbook(wb);
+      /* The bundle builder holds its catalogue in memory for 15 minutes —
+         six queries that cost 11 seconds and change only when the feed
+         lands. This import IS that change, and it runs in the web process,
+         so clear the cache rather than leaving a stale builder up. The
+         standalone CLI importer is a separate process and cannot do this;
+         there the TTL is what eventually catches it. */
+      try { require('./bundleController').bustBundleCache(); }
+      catch (e) { console.warn('[JM Import] bundle cache bust failed:', e.message); }
       const type   = result.errors === 0 ? 'success' : 'warning';
       const errs   = result.errorList.slice(0, 10).join('\n  ');
       console.log(`[JM Import] ✓ Complete — ${result.imported} imported, ${result.skipped} skipped, ${result.errors} errors`);
