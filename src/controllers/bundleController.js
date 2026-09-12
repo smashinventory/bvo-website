@@ -482,6 +482,68 @@ function bustBundleCache() {
 }
 exports.bustBundleCache = bustBundleCache;
 
+/* ── Restore the FreePower siblings c2eec1a removed ───────────────────
+   BEFORE c2eec1a ("pair tops from JM's bill of materials, badge the
+   depth") the builder filtered tops on width bucket and sink count alone.
+   That commit replaced it with getCabinetTopMap(), and it was right to:
+   width matching offered 1,105 Radius Cut tops on cabinets JM never pairs
+   them with, and an RC top is 21.5" with a cut front — wrong on a standard
+   cabinet, and a return we pay freight on twice.
+
+   But it also took away 95 cabinet→top pairings whose only sin was a
+   charging coil. 050-S72-FP-VSL-SNK is the same width, same depth, same
+   sink count, same finish and same series as 050-S72-VSL-SNK, which JM
+   does pair with E444-V72-MCA. JM simply does not publish a combo for the
+   FreePower one, so the BOM never names it and the builder stopped
+   offering it. It used to be on the card. A customer noticed.
+
+   So: if a top is ALREADY approved for a cabinet by the bill of materials,
+   any FreePower twin of that top is approved too. All five fields must
+   match.
+
+   That does NOT mean no Radius Cut top is ever added — two are, and an
+   earlier draft of this comment wrongly claimed otherwise. 060-S48RCWS-FP-
+   VSL-SNK and 060-S72RCWS-FP-VSL-SNK come through, and correctly: their
+   sponsor is the non-FreePower RCWS top of the same 060 series and 21.5"
+   depth, which the BOM already approved for that cabinet. The rule cannot
+   put an RC top on a cabinet that has no RC top, because the sponsor has
+   to be on that cabinet's list already and has to match on series and
+   depth. Adding a FreePower RC top beside an approved RC top is the whole
+   point; adding one to a standard cabinet remains impossible.
+
+   This ADDS. It never removes, and it never widens on anything but an
+   exact five-field match against a top the BOM already blessed. */
+function expandFreePowerSiblings(topCompat, tops) {
+  const key = t => [t.width_in, t.depth_in, t.sink_count,
+                    String(t.top_finish || '').toLowerCase(),
+                    String(t.sku).split('-')[0]].join('|');
+
+  /* Index only the FreePower tops, by the five-field signature. */
+  const fpBySig = new Map();
+  for (const t of tops) {
+    if (String(t.freepower) !== 'Yes') continue;
+    const k = key(t);
+    if (!fpBySig.has(k)) fpBySig.set(k, []);
+    fpBySig.get(k).push(t.sku);
+  }
+  const bySku = new Map(tops.map(t => [t.sku, t]));
+
+  let added = 0;
+  for (const cab of Object.keys(topCompat)) {
+    const have = new Set(topCompat[cab]);
+    for (const sku of topCompat[cab]) {
+      const t = bySku.get(sku);
+      /* Only a NON-FreePower top earns its twin; starting from a FreePower
+         top would let the rule chain onto itself. */
+      if (!t || String(t.freepower) === 'Yes') continue;
+      for (const sib of (fpBySig.get(key(t)) || [])) {
+        if (!have.has(sib)) { have.add(sib); topCompat[cab].push(sib); added++; }
+      }
+    }
+  }
+  return added;
+}
+
 async function buildCataloguePayload() {
   const t0 = Date.now();
   const [cabinets, rawTops, mirrors, faucets, stoneSamples, topCompat] = await Promise.all([
@@ -493,6 +555,11 @@ async function buildCataloguePayload() {
     getCabinetTopMap(),
   ]);
   const tops = enrichTopsWithMaterial(rawTops, stoneSamples);
+  /* Mutates topCompat in place, after getTops() so the attributes are in
+     hand. Logged rather than silent: if this ever prints 0, either JM
+     started publishing the combos (good, the rule is now redundant) or the
+     wireless_charging attribute has gone dead the way jd.freepower did. */
+  const fpAdded = expandFreePowerSiblings(topCompat, tops);
   const payload = {
     cabinetModels: groupByModel(cabinets),
     topModels:     groupByModel(tops),
@@ -508,7 +575,8 @@ async function buildCataloguePayload() {
      line printed "rebuilt in %dms (%d cabinets, %d tops) 10183 289 177",
      with the format string verbatim and the values tacked on the end. */
   console.log(`[bundle] catalogue rebuilt in ${Date.now() - t0}ms `
-            + `(${cabinets.length} cabinets, ${tops.length} tops)`);
+            + `(${cabinets.length} cabinets, ${tops.length} tops, `
+            + `${fpAdded} FreePower pairings restored)`);
   return payload;
 }
 
