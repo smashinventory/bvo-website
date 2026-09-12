@@ -188,7 +188,34 @@ async function getTops() {
       AND p.product_type   = 'Stone Top'
       AND p.is_active      = 1
       AND (inv.qty_on_hand > 0 OR inv.allow_backorder = 1)
-    ORDER BY p.model ASC, p.width_in ASC, p.price ASC
+    /* WIDESPREAD OPENS THE CARD. activeTops() turns every top into its own
+       entry and renderTopMatSwatches() keeps the FIRST one it meets per
+       stone material, so whatever this ORDER BY puts first is what the
+       shopper lands on when they pick a finish.
+
+       Before this key existed the winner was simply the cheapest, and that
+       gave the right answer 1,217 times out of 1,323 by luck rather than by
+       rule. The 106 that opened on single-hole came from two places:
+
+         - 60" single-sink White Zeus, where JM's own MAP puts the
+           single-hole + backsplash top at $1,245 against $1,249 for the
+           plain widespread. Four dollars decided the default.
+         - The Radius Cut pairs — 36"/48" White Zeus and Victorian Silver —
+           where RC and RCWS carry the SAME price. On a tie MySQL promises
+           nothing, so which one opened the card could change between
+           restarts with no code change at all.
+
+       <=> not =. NULL = '8' is NULL, and NULL sorts after 0 under DESC,
+       which would split non-widespread tops into two silent buckets and
+       leave the tie problem alive among them. The NULL-safe operator
+       returns 1 or 0 and never NULL, so this is a clean two-way split.
+
+       Depth is NOT at risk here: Radius Cut tops never share a card with
+       another series, because getCabinetTopMap() already separates them by
+       cabinet. Verified — 0 groups mix series across all 289 cabinets. */
+    ORDER BY p.model ASC, p.width_in ASC,
+             (pav_spread.value_text <=> '8') DESC,
+             p.price ASC
   `, [JM_BRAND, JM_BRAND]);
   return rows;
 }
