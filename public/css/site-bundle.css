@@ -45,3 +45,14 @@
 /* Fix: .mobile-menu ul rule overrides [hidden] — force hidden to win */
 .mobile-sub-list[hidden] { display: none !important; }
 .mobile-sub-list { display: flex; flex-direction: column; gap: 10px; padding: 6px 0 6px 16px; margin: 0; list-style: none; }
+
+/* Bundle builder — top variant options (drilling / backsplash / FreePower).
+   Deliberately the same visual language as .bb-qty-btn: this is another
+   pick-one-of-N control on the same card, and inventing a second look for
+   it would read as a different KIND of choice. Labels are generated from
+   the data and can run long, so this row wraps where .bb-qty-btns does not. */
+.bb-picker-row--topopts{margin-top:.5rem}
+.bb-topopts-btns{display:flex;flex-wrap:wrap;gap:.35rem;flex:1}
+.bb-topopt-btn{padding:.28rem .7rem;font-size:.76rem;font-weight:600;border:1.5px solid var(--border,#e8e4dc);border-radius:.2rem;background:#fff;color:var(--navy,#182840);cursor:pointer;text-align:left;line-height:1.4;transition:border-color .15s,background .15s,color .15s}
+.bb-topopt-btn:hover{border-color:var(--color-amber,#b8862a)}
+.bb-topopt-btn.is-active{background:var(--navy,#182840);border-color:var(--navy,#182840);color:#fff}

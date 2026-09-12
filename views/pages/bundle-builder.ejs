@@ -696,6 +696,104 @@
     }
   }
 
+  /* ── Top variant options ──────────────────────────────────────────
+     A stone finish can be sold as several tops that differ only in how
+     they are drilled, whether a backsplash is attached, or whether the
+     deck carries FreePower. activeTops() already gives each of those its
+     own entry, and renderTopMatSwatches() keeps only the FIRST per finish
+     — so without this control the others are unreachable. 46 tops were.
+
+     NOT a set of independent checkboxes. At 36" White Zeus a standard
+     cabinet is offered exactly two tops: 050-S36-WZ-SNK (widespread, no
+     backsplash) and 051-S36-BS-WZ (single-hole, with backsplash). Two
+     attributes, two real combinations — the other two do not exist as
+     products. Independent checkboxes would offer four and let a shopper
+     build a SKU that cannot be bought. So: one control, one button per
+     top that actually exists.
+
+     Labels are DERIVED, never hardcoded per size or finish. Only the
+     attributes that genuinely differ inside this one group are named, so
+     a FreePower pair reads "with FreePower / no FreePower" and says
+     nothing about drilling, while the pair above names drilling and
+     backsplash. Add a SKU to the feed and it labels itself. */
+  var TOP_VARIANT_ATTRS = [
+    { key: 'faucet_spread',
+      on:  function(v) { return String(v) === '8'; },
+      yes: '8" widespread', no: 'Single hole' },
+    { key: 'backsplash_included',
+      on:  function(v) { return String(v) === 'Yes'; },
+      yes: 'with backsplash', no: 'no backsplash' },
+    { key: 'freepower',
+      on:  function(v) { return String(v) === 'Yes'; },
+      yes: 'with FreePower', no: 'no FreePower' }
+  ];
+
+  /* Every top sharing the current finish, with its index into activeTops()
+     so a click can jump straight to it. */
+  function topVariantGroup(allTops) {
+    var cur = allTops[gIdx.top];
+    if (!cur || !cur.skus[0]) return { items: [], idxs: [] };
+    var key   = matBaseKey(cur.skus[0].stone_material || '');
+    var items = [], idxs = [];
+    allTops.forEach(function(m, i) {
+      if (m.skus[0] && matBaseKey(m.skus[0].stone_material || '') === key) {
+        items.push(m.skus[0]); idxs.push(i);
+      }
+    });
+    return { items: items, idxs: idxs };
+  }
+
+  function labelTopVariants(skus) {
+    /* Keep only the attributes that actually vary here. An attribute that
+       reads the same on every member tells the shopper nothing and would
+       pad every button with the same words. */
+    var varying = TOP_VARIANT_ATTRS.filter(function(a) {
+      var first = a.on(skus[0][a.key]);
+      return skus.some(function(s) { return a.on(s[a.key]) !== first; });
+    });
+    var labels = skus.map(function(s) {
+      var parts = varying.map(function(a) { return a.on(s[a.key]) ? a.yes : a.no; });
+      if (!parts.length) return '';
+      return parts[0].charAt(0).toUpperCase() + parts[0].slice(1)
+           + (parts.length > 1 ? ', ' + parts.slice(1).join(', ') : '');
+    });
+    /* COLLISION GUARD. If two tops in a group differ by something none of
+       the attributes above describes, they would render as two identical
+       buttons — the shopper cannot tell them apart and one is a dead end.
+       An earlier version of this control shipped 870 such pairs because it
+       read FreePower from a column that was 0 on every row. Falling back to
+       the SKU is ugly and correct; identical buttons are neither. */
+    var seen = {};
+    labels.forEach(function(l) { seen[l] = (seen[l] || 0) + 1; });
+    return labels.map(function(l, i) {
+      if (!l || seen[l] > 1) return (l ? l + ' — ' : '') + skus[i].sku;
+      return l;
+    });
+  }
+
+  function renderTopOptions() {
+    var row = el('bb-topopts');
+    if (!row) return;
+    var allTops = activeTops();
+    var grp     = topVariantGroup(allTops);
+    /* One top for this finish means there is nothing to choose. Render
+       nothing at all rather than a control with a single dead button. */
+    if (grp.items.length < 2) { row.innerHTML = ''; row.hidden = true; return; }
+    var labels = labelTopVariants(grp.items);
+    row.hidden = false;
+    row.innerHTML =
+      '<span class="bb-picker-lbl">Options</span>'
+      + '<div class="bb-topopts-btns">'
+      + grp.items.map(function(s, i) {
+          var active = (grp.idxs[i] === gIdx.top);
+          return '<button type="button" class="bb-topopt-btn' + (active ? ' is-active' : '') + '"'
+            + ' data-top-idx="' + grp.idxs[i] + '"'
+            + ' aria-pressed="' + (active ? 'true' : 'false') + '"'
+            + ' title="' + esc(s.sku) + '">' + esc(labels[i]) + '</button>';
+        }).join('')
+      + '</div>';
+  }
+
   /* ── Full viewer render for a step ───────────────────────────── */
   function renderViewer(step) {
     var models = getModels(step);
@@ -777,6 +875,10 @@
     /* Finish / Stone Material swatches */
     if (step === 'top') {
       renderTopMatSwatches();
+      /* AFTER the swatches, which may have moved gIdx.top to the first
+         member of a different finish. The options belong to whatever
+         finish is showing now. */
+      renderTopOptions();
     } else {
       var seen = {};
       var uniqueSkus = [];
@@ -962,6 +1064,9 @@
         + '<div class="bb-picker-row bb-picker-row--finish"><span class="bb-picker-lbl">Stone Material</span><div class="bb-swatches-wrap"><div class="bb-swatches" id="bb-swatches-top"></div></div></div>'
         + '<p class="bb-topmat-name" id="bb-finish-top"></p>'
         + '<p class="bb-top-depth" id="bb-depth-top"></p>'
+        /* hidden until renderTopOptions() finds a finish with more than one
+           top — most finishes have exactly one and get no control at all */
+        + '<div class="bb-picker-row bb-picker-row--topopts" id="bb-topopts" hidden></div>'
         + '<a class="bb-view-link" id="bb-viewlink-top" href="" target="_blank">View product page ›</a>'
         + '<button class="btn btn-navy bb-select-btn" id="bb-select-top" type="button" disabled>Select</button>'
         + '</div>';
@@ -1171,6 +1276,14 @@
     /* Top material swatch */
     var topSw = e.target.closest('.bb-swatch--topmat');
     if (topSw) { pickTopMat(parseInt(topSw.dataset.topIdx, 10)); return; }
+
+    /* Top variant option (drilling / backsplash / FreePower).
+       Same mechanism as the swatch: every top is already its own entry in
+       activeTops(), so selecting a variant is just moving gIdx.top. The
+       image, name, price, product link and Select button all follow from
+       displaySku in renderViewer() — nothing extra to keep in sync. */
+    var topOpt = e.target.closest('.bb-topopt-btn[data-top-idx]');
+    if (topOpt) { pickTopMat(parseInt(topOpt.dataset.topIdx, 10)); return; }
 
     /* Finish swatch */
     var sw = e.target.closest('.bb-swatch[data-step]');
