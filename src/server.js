@@ -95,12 +95,42 @@ app.use(compression());
 
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
-// Rate limiting — 200 req / 15 min per IP
+/* ── Rate limiting ────────────────────────────────────────────────
+   This budget is for PAGES. It used to be 200 requests per 15 minutes
+   counting everything, and it sat here — above express.static — so every
+   stylesheet, script, font and logo spent from the same allowance. A
+   first-time visitor with a cold cache burns 6-10 per page view, which
+   put a browsing session out of the site in the low tens of pages. It
+   only escaped notice because product photography is on
+   images.salsify.com and never touches this server.
+
+   When it tripped it answered 429 with Retry-After ~641 on EVERY route,
+   the homepage included, for eleven minutes. Measured 2026-09-11 by
+   tripping it twice during a site audit.
+
+   The real danger is the crawler. sitemap.xml lists 5,311 URLs; at 200
+   per 15 minutes a full crawl needs more than six days of uninterrupted
+   fetching, and Google reads sustained 429s as a failing server rather
+   than as patience. Pointing bathroomvanitiesoutlet.com at this app with
+   the old numbers would have put the existing rankings at risk.
+
+   robots.txt is exempt deliberately and is not a convenience: a 429 on
+   robots.txt tells Google to stop crawling the site entirely, so it must
+   never be rate limited.
+
+   The strict limiters further down — 10/15min on customer auth, 5/15min
+   on admin login — are UNCHANGED. Those protect credentials and are
+   supposed to be tight. This one only ever protected against scraping,
+   and 1,000 page views per 15 minutes from a single IP still does that. */
+const _RL_SKIP_PREFIX = ['/css/', '/js/', '/images/', '/docs/uploads/'];
+const _RL_SKIP_EXACT  = new Set(['/robots.txt', '/favicon.ico']);
 app.use(rateLimit({
   windowMs: 15 * 60 * 1000,
-  max:      200,
+  max:      1000,
   standardHeaders: true,
   legacyHeaders:   false,
+  skip: (req) => _RL_SKIP_EXACT.has(req.path)
+              || _RL_SKIP_PREFIX.some(p => req.path.startsWith(p)),
 }));
 
 // ── Session ──────────────────────────────────────────────────────
