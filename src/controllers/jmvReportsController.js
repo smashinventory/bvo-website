@@ -765,14 +765,54 @@ async function dashboard(req, res) {
 
     /* Rules 2 and 4 — the (finish, material, size, sinks) top key is not
        unique: 41 of 127 keys match more than one family. These constraints
-       disambiguate it. RC belongs to three collections only; spelling is
-       Kinnsden with two n's, and "Kinsden" would be a silent no-op.
-       Linear takes composite tops only — Glossy White exists across ten
-       SKUs in three prefixes, so without this Linear can be handed a top
+       disambiguate it.
+
+       RULE 2 IS DERIVED, NOT A LIST. Rewritten 2026-09-12.
+
+       It used to read IN ('Gracyn','Kinnsden','Allamari') — and 'Kinnsden'
+       was wrong. Kinnsden's cabinets are 23.13" deep and all 92 of its combo
+       tops are 23.5"; it has never used an 060. The collection that actually
+       uses RC exclusively is LUCIAN, and naming it wrongly pruned Lucian's
+       53 RC combos out of the estimator, leaving that base demand with
+       nowhere to allocate. A hardcoded list cannot be checked against
+       anything — it is an assertion — so the error survived review.
+
+       The rule behind the list: an RC top is 21.5" deep with a cut front, so
+       only a cabinet shallow enough to need one is ever paired with one.
+       Expressed as cabinet depth it is checkable, and it self-maintains if JM
+       adds a fourth shallow collection instead of silently stranding it.
+
+       THE BAND IS 21" <= depth < 22", AND BOTH BOUNDS ARE LOAD-BEARING.
+
+         under 21"     43 cabinets, 7 collections — Chianti, Columbia,
+                       Alicante', Mantova, Linden, Britannia, LINEAR — every
+                       one on CS/CSP composite tops, zero 060. A rule of
+                       "under 22" with no floor hands all seven the RC range.
+         21" - 22"     Gracyn 6 @ 21.38", Lucian 7 @ 21.38", Allamari 6 @ 21.5"
+                       — exactly the three RC collections, nothing else.
+         22" and over  standard depth, 23.5" tops.
+
+       Verified 2026-09-12: all 332 cabinets carry depth_in, none missing, so
+       nothing can be stranded by absent data. Headroom is asymmetric — 1.37"
+       below the floor (nearest non-RC cabinet 19.63") but only 0.5" above the
+       ceiling (nearest 22.5"). If JM ships a ~21.75" standard-depth cabinet
+       it lands in the band and is offered RC tops. Watch the ceiling.
+
+       DEPTH IS NOT A VALID TEST ON THE TOP SIDE. Five 060 SFR (Siberian)
+       tops are recorded at 23.5" instead of 21.5" — the known JM defect on
+       the vendor report. This rule reads CABINET depth, which is clean; the
+       top side keys on the 060 SKU token via td.fam. Do not invert that.
+
+       See JMV_COMBO_DEMAND_DEFINITION.md §4 Rule 2.
+
+       Rule 4 still stands and is NOT made redundant by the band: Linear sits
+       at 18.8"/19.5" so the band already excludes it from RC, but Rule 4
+       guards a different failure — Glossy White exists across ten SKUs in
+       three prefixes, so without it Linear can be handed a composite top
        from the wrong series. */
     const PAIRING_OK = `
       ( td.fam <> 'RC'
-        OR c.collection IN ('Gracyn','Kinnsden','Allamari') )
+        OR c.collection IN (SELECT collection FROM rc_collections) )
       AND ( c.collection <> 'Linear'
             OR td.top_material LIKE '%Composite%' )`;
 
@@ -811,6 +851,28 @@ async function dashboard(req, res) {
           WHERE m.is_valid = 1 AND m.demand_min > 0
             AND b.product_type = 'Cabinet' AND m.movement_date >= ?
           GROUP BY b.collection, b.base_finish, b.size_nominal
+       ),
+       /* Rule 2, derived. The collections whose cabinets fall in the 21"-22"
+          band — the only ones that can take a 21.5" Radius Cut top. Returns
+          Gracyn, Lucian and Allamari today. See the PAIRING_OK comment above
+          for why both bounds matter and why this reads cabinet depth rather
+          than top depth.
+
+          depth_in lives in product_attribute_values, not jmv_dimensions, so
+          this is the one place the estimator reaches into the products
+          tables. Joined on sku; the collation alignment migration
+          (2026-09-03_jmv_collation_align.sql) is what makes that join use
+          the index instead of failing on mixed collations. */
+       rc_collections AS (
+         SELECT DISTINCT cab.collection
+           FROM jmv_dimensions cab
+           JOIN products p ON p.sku = cab.sku
+           JOIN product_attribute_values pav
+             ON pav.product_id = p.id
+            AND pav.attr_key   = 'depth_in'
+          WHERE cab.product_type = 'Cabinet'
+            AND pav.value_num  >= 21.0
+            AND pav.value_num  <  22.0
        ),
        /* combo -> base on (collection, base_finish, size). sinks is
           DELIBERATELY absent: a cabinet carries sinks = 0, its combo carries
