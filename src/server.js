@@ -121,7 +121,26 @@ app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
    The strict limiters further down — 10/15min on customer auth, 5/15min
    on admin login — are UNCHANGED. Those protect credentials and are
    supposed to be tight. This one only ever protected against scraping,
-   and 1,000 page views per 15 minutes from a single IP still does that. */
+   and 1,000 page views per 15 minutes from a single IP still does that.
+
+   ⚠ THE NUMBER 1000 IS PROVISIONAL — PRE-LAUNCH POSTURE, NOT A CONCLUSION.
+
+   The site is not live: www.BathroomVanitiesOutlet.com is still on Shopify
+   and this app runs on the Hostinger preview domain. The setting is
+   deliberately cautious for that reason and is NOT the answer for a live
+   storefront.
+
+   Retune it AT CUTOVER, not before — OPEN_ITEMS.md item 6 carries the
+   reasoning and the suggested settings. The short version: this limiter is
+   a scraping control, not DDoS protection (a request that reaches it has
+   already cost a connection, a TLS handshake and event-loop time — volumetric
+   defence belongs at the edge). What matters more than the ceiling is the
+   LOCKOUT SHAPE: the penalty is the remainder of the window, measured at
+   Retry-After 641, and sustained 429s are read by Google as a failing server.
+   A shorter window with a proportionally smaller max gives the same
+   protection with a fraction of the damage when a legitimate client trips it.
+
+   Do not "tidy" this number without reading that item first. */
 const _RL_SKIP_PREFIX = ['/css/', '/js/', '/images/', '/docs/uploads/'];
 const _RL_SKIP_EXACT  = new Set(['/robots.txt', '/favicon.ico']);
 app.use(rateLimit({

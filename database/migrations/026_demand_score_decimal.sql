@@ -27,7 +27,10 @@
 --  quite equal. Measured 2026-09-12: 1,448 positions moved on noise alone.
 --  A fixed-point column stores what the query produced and nothing more.
 --
---  10,2 gives a ceiling of 99,999,999.99 against a current maximum near 25.
+--  10,2 gives a ceiling of 99,999,999.99. Measured on production at the
+--  moment this ran: 4,273 scored rows, min 1.00, max 732.00. (An earlier
+--  draft of this comment said "maximum near 25" — that was cabinet SKUs
+--  only; a fast-moving top accumulates far more over a 20-day window.)
 --
 --  NOT NULL DEFAULT 0 is preserved — the rollup relies on unscored products
 --  reading 0 rather than NULL so DESC puts them last and the tie-breakers
@@ -38,12 +41,24 @@
 --    ALTER TABLE products MODIFY demand_score INT UNSIGNED NOT NULL DEFAULT 0;
 -- ════════════════════════════════════════════════════════════════════
 
+-- ⚠ SHOW COLUMNS, NOT information_schema.
+--
+--  The application DB user has no grant on information_schema on this host:
+--
+--      #1044 - Access denied for user 'u222311468_Admin1'@'127.0.0.1'
+--              to database 'information_schema'
+--
+--  phpMyAdmin reports that failure against the NEXT statement in the file,
+--  which makes it look as though the ALTER was refused when it was the
+--  verify SELECT. Hit 2026-09-12 on the first run of this migration.
+--
+--  Migration 023 already avoided information_schema.STATISTICS for a
+--  different reason — it returned zero rows straight after a successful
+--  CREATE INDEX while SHOW INDEX listed all eight. Two independent
+--  failures, same conclusion: on this database, use SHOW.
+
 -- Before — expect int(10) unsigned.
-SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT
-  FROM information_schema.COLUMNS
- WHERE TABLE_SCHEMA = DATABASE()
-   AND TABLE_NAME   = 'products'
-   AND COLUMN_NAME  = 'demand_score';
+SHOW COLUMNS FROM products LIKE 'demand_score';
 
 -- ── The change ──────────────────────────────────────────────────────
 --  MODIFY keeps the column in place, so idx_demand_score
@@ -55,13 +70,10 @@ ALTER TABLE products
   COMMENT 'JM depletion over the scoring window. Combos carry Estimated Combo Demand (modelled, JMV_COMBO_DEMAND_DEFINITION.md); all other types carry observed drawdown. 0 = no signal.';
 
 -- ── Verify ──────────────────────────────────────────────────────────
---  Expect decimal(10,2), NO, 0.00. Reports the value rather than asserting
---  absence — an empty result set is how a broken check passes.
-SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT
-  FROM information_schema.COLUMNS
- WHERE TABLE_SCHEMA = DATABASE()
-   AND TABLE_NAME   = 'products'
-   AND COLUMN_NAME  = 'demand_score';
+--  Expect Type = decimal(10,2), Null = NO, Default = 0.00.
+--  Reports the value rather than asserting absence — an empty result set is
+--  how a broken check disguises itself as a pass.
+SHOW COLUMNS FROM products LIKE 'demand_score';
 
 --  The index must still exist and still lead on demand_score.
 --  SHOW INDEX, not information_schema.STATISTICS: on 2026-09-11 STATISTICS

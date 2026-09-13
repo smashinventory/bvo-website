@@ -8,6 +8,75 @@
 
 ---
 
+## ⛔ ARTIFACTS OF RECORD — OPEN THE DOCUMENT BEFORE FORMING A VIEW
+
+Added 2026-09-11 after the fourth repeat of the same failure in one session.
+
+Some decisions in this codebase are **settled and signed off**. They live in
+documents, not in code comments. A code comment that names one of these files is
+telling you the reasoning is elsewhere and has already been argued.
+
+| Document | Governs |
+|---|---|
+| `JMV_COMBO_DEMAND_DEFINITION.md` | Estimated Combo Demand — the estimator, its joins, its four rules, what is in and out of scope |
+| `JMV_REVENUE_DEFINITION.md` | Revenue basis, the warranty haircut |
+| `JMV_CATALOGUE_STRUCTURE.md` | JM catalogue shape — combos, bases, tops, component edges |
+| `CHANGE_LOG_BRIEF.md` | What changed and when |
+| `BVO_AUDIT_BRIEF.md` | Architecture, rules, live DB inventory |
+
+**The rule, in order:**
+
+1. **Before analysing anything in an area, open the document that governs it.**
+   Not after forming a view. Not to check a conclusion you already reached.
+2. **A code comment naming a document is a signpost, not a summary.** Open the
+   file. Comments are fragments; reconstructing a design from fragments produces
+   confident new assumptions that the owner then has to spend time disproving.
+3. **If the document answers it, it is answered.** Do not re-open a signed-off
+   decision because fresh data looks interesting. Note it and move on.
+4. **A document usually beats code — but a conflict is a question for Sam, not
+   a judgement call for you.** Amended 2026-09-12.
+
+   The documents say of themselves that they are right and the code is the bug.
+   Treat that as the *starting presumption*, not a licence to act. A document
+   can be stale, a correction can have landed in code and not in prose, and two
+   sources can both be signed off and still contradict — so:
+
+   - **Document vs code** — presume the document, then **stop and ask**. Do not
+     "fix" the code to match a document that may have been overtaken.
+   - **Source vs source** — when two files, comments or documents contradict
+     each other, **surface both and ask for direction.** Do not pick a winner,
+     and do not quietly follow the one that suits the task in hand.
+
+   Live example, unresolved on purpose: `CLAUDE.md:224` says rebuild the CSS
+   bundle with a plain `cat brand.css site.css site2.css`. `main.ejs:84`,
+   verified later on 2026-09-06, says **DO NOT** do that — the live bundle also
+   carries the first 8,039 bytes of `site4.css`. Following the first drops 8 KB
+   of public CSS. Both are in writing. The answer is Sam's, not mine.
+5. **Amendments need approval, separately.** An improvement to a signed-off
+   definition is a proposal to amend that definition, never a code change made
+   in passing, and never bundled into unrelated work.
+
+**What this cost on 2026-09-11 — all four in one session:**
+
+- Read `jmvReportsController.js:741`, which says *"JMV_COMBO_DEMAND_DEFINITION.md
+  … That document is the artifact of record."* Quoted it. Did not open it. Then
+  spent the next stretch rebuilding the estimator from comments and asking
+  whether the allocation basis should move from cabinets to tops — a question
+  §6 of that document had already considered and **rejected**, with reasons, and
+  which Sam had signed off the day before.
+- Told Sam the "sixteen days of history" figure was wrong because a local dump
+  held six. The dump was short. The document was not wrong.
+- Wrote a SQL migration to fix a `/pages/about` link before checking that
+  `themeSettings.initFromDb()` pushes the JSON file to the DB on every boot —
+  the migration would have reverted itself at the next restart.
+- Earlier the same session: changed swatch rendering three times when migration
+  `021` — written by me — already documented that the fix was data-only and
+  needed no code change at all.
+
+The signposts were not missing in any of these. They were walked past.
+
+---
+
 ## ⛔ BRAND CANON — ER VANITIES (rebrand of Ethan Roth)
 
 **Decided 2026-09-05 by Sam. `Ethan Roth` is RETIRED as a BVO brand value.**
