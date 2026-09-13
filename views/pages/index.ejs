@@ -169,7 +169,22 @@ _DEFAULT_ORDER.forEach(function(k) {
   if (hero.content_h_offset !== undefined && hero.content_h_offset !== '') _heroStyle += '--content-h-offset:'+hero.content_h_offset+'%;';
   var _ctaAlign = _heroAlign==='center'?'justify-content:center':_heroAlign==='right'?'justify-content:flex-end':'';
 %>
-<section class="hero hero--<%= _heroLayout %> hero--desktop-version<%= hero.video_on_mobile === false ? ' hero--no-mobile-video' : '' %><%= hero.mobile_image_url ? ' hero--has-mobile-img' : '' %><%= hero.text_shadow !== false ? ' hero--text-shadow' : '' %>" data-section="hero" data-section-label="Hero Banner" aria-label="Hero" style="<%= _heroStyle %>">
+<%/* ONE hero section, ONE <h1>. The phone hero used to be a second
+    <section> carrying a second copy of the same heading, with CSS hiding
+    whichever one did not apply — so the page always shipped two <h1>
+    elements with identical text, one of them display:none. SEO tools
+    flagged the pair, and demoting either one only moves the problem
+    (whichever survives then sits inside a display:none block at the other
+    viewport, which is the version search engines discount).
+
+    Now the phone settings are an OVERRIDE LAYER on this element: a scoped
+    <style> block below re-declares the custom properties at <=480px and
+    swaps the background layer. Same look, one heading.
+
+    hero--desktop-version is GONE from this class list on purpose. It
+    carries display:none below 480px. Leave it here and the single hero
+    vanishes on phones. See HERO_CURRENT_STATE_2026-09-13.md §3. */%>
+<section id="hero-main" class="hero hero--<%= _heroLayout %><%= hero.video_on_mobile === false ? ' hero--no-mobile-video' : '' %><%= hero.mobile_image_url ? ' hero--has-mobile-img' : '' %><%= hero.text_shadow !== false ? ' hero--text-shadow' : '' %>" data-section="hero" data-section-label="Hero Banner" aria-label="Hero" style="<%= _heroStyle %>">
   <div class="hero-content" style="text-align:<%= _heroAlign %>">
     <div class="hero-content-box">
       <p class="hero-eyebrow" style="<%= _heroESize %>"><%= hero.eyebrow || 'Curated for Your Bathroom Renovation' %></p>
@@ -186,10 +201,16 @@ _DEFAULT_ORDER.forEach(function(k) {
       </div>
     </div>
   </div>
-  <div class="hero-image">
+  <div class="hero-image hero-layer--desktop">
     <div class="hero-overlay" aria-hidden="true"></div>
     <%/* Desktop image — always rendered with hero-poster class for consistent mobile CSS targeting.
-        Gets hero-img-desktop class only when a separate mobile image is set, so CSS can swap them. */%>
+        Gets hero-img-desktop class only when a separate mobile image is set, so CSS can swap them.
+
+        NOTE there are TWO separate "image on small screens" mechanisms and
+        they are not the same thing:
+          hero.mobile_image_url      swaps this <img> at <=860px
+          hero_mobile.image_url      swaps the whole layer at <=480px
+        Both still work. See HERO_CURRENT_STATE_2026-09-13.md §6. */%>
     <% if (hero.image_url) { %>
     <img class="hero-poster<%= hero.mobile_image_url ? ' hero-img-desktop' : '' %>"
          src="<%= hero.image_url %>"
@@ -228,31 +249,81 @@ _DEFAULT_ORDER.forEach(function(k) {
     </div>
     <% } %>
   </div>
-</section>
 
-<!-- ── MOBILE HERO (phone-only ≤480px) ──────────────────────────── -->
+<!-- ── PHONE OVERRIDE LAYER (≤480px) — same section, no second heading ── -->
 <%
+  /* ── The phone hero, as an override layer ──────────────────────
+     Every value below used to build a SECOND <section> containing a second
+     copy of the heading, subtext and CTAs. It now builds a scoped CSS rule
+     applied to this same section below 480px instead.
+
+     What that costs: nothing the admin can reach. The Theme Editor's
+     hero_mobile panel exposes fourteen fields and every one is styling —
+     image, video, layout, alignment, heights, overlay, content box. It has
+     no text field at all. The text keys that exist in the defaults
+     (heading_line1, eyebrow, cta1_text …) can only be set by hand-editing
+     JSON, and each one falls back to its desktop twin when blank, so with
+     nothing configured every phone string already resolved to the desktop
+     string. The two <h1> elements were identical by construction.
+
+     Inventory of what the panel offers, and of the unreachable keys:
+     HERO_CURRENT_STATE_2026-09-13.md §5. */
   var _hm       = S.hero_mobile || {};
   var _hmEna    = (_hm.enabled !== false);
-  var _hmLayout = _hm.layout || 'bg';
-  var _hmTag    = _safeTag(_hm.heading_level, 'h1');
   var _hmAlign  = _hm.text_align || 'center';
-  var _hmHSize  = _hm.heading_size  ? 'font-size:'+_hm.heading_size+'px;'  : '';
-  var _hmSSize  = _hm.subtext_size  ? 'font-size:'+_hm.subtext_size+'px;'  : '';
-  var _hmH2Size = (+_hm.h2_size  > 0) ? 'font-size:'+_hm.h2_size+'px;'  : '';
-  var _hmESize  = (+_hm.eyebrow_size > 0 && _hm.eyebrow_size != 11) ? 'font-size:'+_hm.eyebrow_size+'px;' : '';
-  var _hmS2Size = (+_hm.sub2_size > 0 && _hm.sub2_size != 14) ? 'font-size:'+_hm.sub2_size+'px;' : '';
-  var _hmBdSize = (+_hm.badge_size > 0 && _hm.badge_size != 10) ? 'font-size:'+_hm.badge_size+'px;' : '';
+  var _hmLayout = _hm.layout || 'bg';
+  if (_hm.video_url && _hmLayout === 'split') _hmLayout = 'bg';  // matches the desktop auto-switch
+
+  /* ── Layout emulation at phone width — DO NOT DELETE ──────────────
+     The section can only carry one layout class, and it carries the
+     DESKTOP one. When the phone layout differs we have to reproduce its
+     rules here, scoped to the id.
+
+     I first talked myself out of this on the grounds that site4.css forces
+     .hero--split into the same image-behind-text arrangement as .hero--bg
+     below 860px. That is true of .hero-image and FALSE of .hero-content,
+     which is the half I did not check:
+
+       bg    @media (max-width:519px)
+             .hero--bg .hero-content{display:flex;align-items:center;
+               justify-content:flex-start;padding:0 5% 0 var(--content-h-offset,5%)}
+       split @media (max-width:860px)
+             .hero--split .hero-content{justify-content:flex-end!important;
+               padding-bottom:56px!important}
+
+     bg centres the copy; split pushes it to the bottom with 56px of
+     padding. A desktop-split / phone-bg site — which is the default — would
+     have had its phone hero copy jump to the bottom of the image. The
+     render-and-compare caught it; reading the CSS did not.
+
+     !important on the overrides is required: site4.css marks its rules
+     !important, so specificity alone loses. #hero-main .hero-content is
+     (1,0,1) against .hero--split .hero-content at (0,2,0), so with both
+     sides !important the id wins. */
+  var _hmLayoutCss = '';
+  if (_hmEna && _hmLayout === 'bg' && _heroLayout !== 'bg') {
+    _hmLayoutCss =
+      '#hero-main{grid-template-columns:1fr!important;grid-template-rows:1fr}' +
+      '#hero-main .hero-content{grid-row:1;grid-column:1;position:relative!important;' +
+        'z-index:2!important;display:flex;flex-direction:row;align-items:center;' +
+        'justify-content:flex-start!important;padding:0 5% 0 var(--content-h-offset,5%)!important}' +
+      '#hero-main .hero-image{grid-row:1;grid-column:1;position:absolute!important;inset:0!important;z-index:0}';
+  }
+  /* Font sizes need !important: the desktop values are INLINE styles on each
+     element, and an inline style beats a media-query rule of any specificity.
+     Without it the phone type sizes silently stop applying. */
+  var _hmFont   = '';
+  if (+_hm.heading_size > 0) _hmFont += '#hero-main .hero-h1{font-size:'+(+_hm.heading_size)+'px!important}';
+  if (+_hm.h2_size      > 0) _hmFont += '#hero-main .hero-h2{font-size:'+(+_hm.h2_size)+'px!important}';
+  if (+_hm.subtext_size > 0) _hmFont += '#hero-main .hero-sub{font-size:'+(+_hm.subtext_size)+'px!important}';
+  if (+_hm.sub2_size    > 0) _hmFont += '#hero-main .hero-sub2{font-size:'+(+_hm.sub2_size)+'px!important}';
+  if (+_hm.eyebrow_size > 0) _hmFont += '#hero-main .hero-eyebrow{font-size:'+(+_hm.eyebrow_size)+'px!important}';
   var _hmStyle  = '';
   var _hmCtaAl  = '';
   if (_hmEna) {
     var _hmOvClr  = _hm.overlay_color || '#0f1f35';
     var _hmOvOp   = (_hm.overlay_opacity !== undefined) ? (+_hm.overlay_opacity / 100).toFixed(2) : '0.55';
     _hmStyle = '--ov-clr:'+_hmOvClr+';--ov-op:'+_hmOvOp+';';
-    if (_hmLayout === 'split') {
-      var _hmTxtPct = parseInt(_hm.text_col_pct) || 50;
-      _hmStyle += 'grid-template-columns:'+_hmTxtPct+'% '+(100-_hmTxtPct)+'%;';
-    }
     if (+_hm.height_vh > 0)           _hmStyle += 'height:'+_hm.height_vh+'vh;';
     if (+_hm.min_height_px > 0)       _hmStyle += 'min-height:'+_hm.min_height_px+'px;';
     if (+_hm.max_height_px === 0)     _hmStyle += 'max-height:none;';
@@ -273,41 +344,49 @@ _DEFAULT_ORDER.forEach(function(k) {
     if (_hm.content_h_offset !== undefined && _hm.content_h_offset !== '') _hmStyle += '--content-h-offset:'+_hm.content_h_offset+'%;';
     _hmCtaAl = _hmAlign==='center'?'justify-content:center':_hmAlign==='right'?'justify-content:flex-end':'';
   }
-  /* Text/CTAs fall back to desktop hero when blank */
+  /* Image and video only. The text variables that used to live here —
+     _hmEye, _hmH1, _hmH2, _hmSub, _hmSub2, _hmBadge, _hmC1T/_hmC1U,
+     _hmC2T/_hmC2U — are gone. Each was `_hm.x || hero.x`, and since no
+     editor field can set `_hm.x`, each resolved to the desktop value on
+     every render. They existed only to fill a duplicate copy of the
+     heading block. */
   var _hmImg   = _hm.image_url     || hero.image_url     || '';
   var _hmAlt   = _hm.image_alt     || hero.image_alt     || 'Hero';
   var _hmVid   = _hm.video_url     || '';
-  if (_hmVid && _hmLayout === 'split') _hmLayout = 'bg';
-  var _hmEye   = _hm.eyebrow       || hero.eyebrow       || '';
-  var _hmH1    = _hm.heading_line1  || hero.heading_line1 || 'Premium Vanities.';
-  var _hmH2    = _hm.heading_line2  || hero.heading_line2 || 'Outlet Prices.';
-  var _hmSub   = _hm.subtext        || hero.subtext       || '';
-  var _hmSub2  = _hm.sub2_text      || hero.sub2_text     || '';
-  var _hmBadge = _hm.badge_text     || '';
-  var _hmC1T   = _hm.cta1_text      || hero.cta1_text     || 'Shop Vanities';
-  var _hmC1U   = _hm.cta1_url       || hero.cta1_url      || '/collections/bathroom-vanities';
-  var _hmC2T   = _hm.cta2_text      || hero.cta2_text     || '';
-  var _hmC2U   = _hm.cta2_url       || hero.cta2_url      || '';
   var _hmShad  = (_hm.text_shadow !== false);
 %>
 <% if (_hmEna) { %>
-<section class="hero hero--<%= _hmLayout %> hero--mobile-version<%= _hmShad ? ' hero--text-shadow' : '' %>" data-section="hero_mobile" data-section-label="Hero (Mobile)" aria-label="Hero" style="<%= _hmStyle %>">
-  <div class="hero-content" style="text-align:<%= _hmAlign %>">
-    <div class="hero-content-box">
-      <% if (_hmEye) { %><p class="hero-eyebrow" style="<%= _hmESize %>"><%= _hmEye %></p><% } %>
-      <<%- _hmTag %> class="hero-h1" style="<%= _hmHSize %>"><%= _hmH1 %></<%- _hmTag %>>
-      <p class="hero-h2" style="<%= _hmH2Size %>"><%= _hmH2 %></p>
-      <div class="hero-rule" aria-hidden="true"></div>
-      <% if (_hmSub) { %><p class="hero-sub" style="<%= _hmSSize %>"><%= _hmSub %></p><% } %>
-      <% if (_hmSub2) { %><p class="hero-sub2" style="<%= _hmS2Size %>"><%= _hmSub2 %></p><% } %>
-      <% if (_hmBadge) { %><span class="hero-badge" style="<%= _hmBdSize %>"><%= _hmBadge %></span><% } %>
-      <div class="hero-ctas" style="<%= _hmCtaAl %>">
-        <a href="<%= _hmC1U %>" class="btn btn-navy"><%= _hmC1T %></a>
-        <% if (_hmC2T) { %><a href="<%= _hmC2U %>" class="btn btn-sage"><%= _hmC2T %></a><% } %>
-      </div>
-    </div>
-  </div>
-  <div class="hero-image">
+<style>
+  /* Phone overrides for #hero-main. Scoped to the id so nothing else on the
+     page can be caught by it. Inline styles are allowed by the CSP
+     (styleSrc carries 'unsafe-inline', src/server.js:74) and index.ejs
+     already ships inline <style> blocks.
+
+     480px is not an arbitrary number — it is the breakpoint the two heroes
+     used to swap at, so keeping it means the phone look changes at exactly
+     the width it always did. Note it does NOT line up with the other hero
+     breakpoints (519, 720, 860); that mismatch predates this change and is
+     documented in HERO_CURRENT_STATE_2026-09-13.md §3. Do not "tidy" these
+     numbers without testing the 481–519 band. */
+  #hero-main .hero-layer--mobile{display:none}
+  @media (max-width:480px){
+    #hero-main{<%= _hmStyle %>}
+    #hero-main .hero-layer--desktop{display:none}
+    #hero-main .hero-layer--mobile{display:block}
+    <%- _hmLayoutCss %>
+    #hero-main .hero-content{text-align:<%= _hmAlign %>}
+    <% if (_hmCtaAl) { %>#hero-main .hero-ctas{<%= _hmCtaAl %>}<% } %>
+    <%- _hmFont %>
+    <% if (!_hmShad) { %>#hero-main .hero-h1,#hero-main .hero-h2,#hero-main .hero-sub,#hero-main .hero-sub2,#hero-main .hero-eyebrow{text-shadow:none}<% } %>
+  }
+</style>
+<% } %>
+<%/* The phone background layer. Same section, no heading, no CTAs — those
+    are in the single .hero-content block above and are shared by both
+    viewports. display:none above 480px, so above that width this element
+    takes no grid slot and the split layout keeps its two columns. */%>
+<% if (_hmEna) { %>
+  <div class="hero-image hero-layer--mobile">
     <div class="hero-overlay" aria-hidden="true"></div>
     <% if (_hmImg) { %>
     <img class="hero-poster" src="<%= _hmImg %>" alt="<%= _hmAlt %>" loading="eager" fetchpriority="high" decoding="async">
@@ -334,8 +413,8 @@ _DEFAULT_ORDER.forEach(function(k) {
       <% } %>
     <% } %>
   </div>
+<% } /* end phone layer */ %>
 </section>
-<% } %>
 
 <!-- ── VALUE PROPS (always follows hero) ────────────────────────── -->
 <div class="value-bar" aria-label="Why shop with us">
