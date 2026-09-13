@@ -102,15 +102,71 @@ Surface, `CS`/`CSP`/`SWB` Mineral Composite. 54 SKUs. No grouping applied.
 The `(finish, material, size, sinks)` top key is **not unique** — 41 of 127 keys
 match more than one family. These rules disambiguate it.
 
-**Rule 2 — RC tops belong to three collections only:**
-**Gracyn**, **Kinnsden**, **Allamari**.
+**Rule 2 — RC tops go to collections whose cabinets are 21" ≤ depth < 22".**
+Today that is **Gracyn**, **Lucian** and **Allamari**, and the rule derives that
+list rather than stating it.
 
 For every other collection the RC family is removed from the offer set. Without
 this, 28 collections appear able to use an RC top purely because the key can't
 tell them apart.
 
-> ⚠ The catalogue spells it **`Kinnsden`** — double *n*. "Kinsden" matches
-> nothing and would make the rule a silent no-op for that collection.
+**Why a band and not a list** *(amended 2026-09-12)*. A Radius Cut top is 21.5"
+deep with a cut front, so only a cabinet shallow enough to need one is ever
+paired with one. A hardcoded list cannot be checked against anything — it is an
+assertion — and it silently strands any collection it forgets. It forgot one:
+see the correction below. Expressed as depth the rule is checkable, and a
+fourth shallow collection is picked up automatically instead of being dropped.
+
+**Both bounds are load-bearing.**
+
+| band | collections | tops |
+|---|---|---|
+| under 21" | 43 cabinets across 7 — Chianti, Columbia, Alicante', Mantova, Linden, Britannia, **Linear** | CS/CSP composite, **zero 060** |
+| **21" – 22"** | **Gracyn 21.38", Lucian 21.38", Allamari 21.5"** | **060 RC** |
+| 22" and over | the rest | 23.5" |
+
+Drop the floor and all seven composite collections are handed the RC range —
+Linear included, which is the exact failure Rule 4 exists to catch. Drop the
+ceiling and 25 more leak in.
+
+**Verified 2026-09-12:** all 332 cabinets carry `depth_in`, so nothing can be
+stranded by missing data. Headroom is asymmetric — 1.37" below the floor
+(nearest non-RC cabinet 19.63") against only **0.5" above the ceiling**
+(nearest 22.5"). A future ~21.75" standard-depth cabinet would land in the band
+and be offered RC tops. **Watch the ceiling, not the floor.**
+
+**Cabinet depth, never top depth.** Five `060` SFR (Siberian) tops are recorded
+at 23.5" instead of 21.5" — the known JM defect on the vendor report. Cabinet
+depth is clean; the top side keys on the `060` SKU token. Do not invert this.
+
+> **CORRECTED 2026-09-12 — this rule named `Kinnsden`, which was wrong.**
+>
+> A Radius Cut top is 21.5" deep with a cut front. Only a cabinet shallow
+> enough to need one is ever paired with one. Across the whole catalogue
+> **exactly three collections have cabinets under 22 inches**, and they are the
+> same three whose combos use `060` tops:
+>
+> | collection | cabinets | depth | combo tops used |
+> |---|---|---|---|
+> | Gracyn | 6 | 21.38" | `060` RC |
+> | **Lucian** | 7 | 21.38" | `060` RC — 53 combos, exclusively |
+> | Allamari | 6 | 21.5" | `060` RC |
+> | ~~Kinnsden~~ | 6 | **23.13"** | `040`/`050`/`051`/`090`, all 23.5" — **zero `060`** |
+>
+> Kinnsden is standard depth and has never been paired with an RC top. The
+> effect of the error: `PAIRING_OK` pruned **Lucian's 53 RC combos** out of the
+> estimator, leaving that base demand nowhere to go, while permitting RC for a
+> collection that has none.
+>
+> The original note here warned that the catalogue spells it "Kinnsden" with a
+> double *n* and that "Kinsden" would be a silent no-op. The spelling was
+> checked; the collection never was. `bundleController.js` had it right —
+> Gracyn (D125), Lucian (D704), Allamari (D640).
+>
+> **Do not use depth alone as the test.** Five `060` SFR (Siberian) tops are
+> recorded at 23.5" instead of 21.5" — the known JM defect already on the
+> vendor report. The `060` SKU token is the reliable signal; depth corroborates
+> it.
 
 **Rule 4 — Linear combines only with composite tops.**
 
