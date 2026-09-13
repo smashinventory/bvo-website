@@ -385,7 +385,7 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
    it is in git. */
 %>
 
-<link rel="stylesheet" href="/css/admin-theme-editor.css?v=2">
+<link rel="stylesheet" href="/css/admin-theme-editor.css?v=3">
 
 <!-- ════════════════════════════════════════════════════════
      THEME EDITOR SHELL
@@ -426,6 +426,31 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
         <button class="te4-dev-btn" data-w="390px" title="Mobile">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="18" r="1"/></svg>
         </button>
+        <%# Exact width entry. The three device buttons cover the common cases
+            but cannot reach the widths where this site's CSS actually changes
+            behaviour, and those are never round numbers:
+              480/481  hero desktop <-> phone swap
+              519      .hero--bg mobile layout rules begin
+              720      hero content-box rules
+              860      .hero--split collapses; hero-img-mobile swaps in
+            The datalist offers those plus 375 and 1440. Typing any number
+            works — the iframe is its own viewport, so media queries fire on
+            its width exactly as they would on a real device of that size. %>
+        <div class="te4-width-entry">
+          <input type="number" id="te4WidthInput" list="te4WidthPresets"
+                 min="240" max="3840" step="1" value="" placeholder="auto"
+                 title="Preview width in px — type any value, or pick a breakpoint">
+          <span class="te4-width-unit">px</span>
+          <datalist id="te4WidthPresets">
+            <option value="375" label="375 — phone"></option>
+            <option value="479" label="479 — last px of phone hero"></option>
+            <option value="481" label="481 — desktop hero takes over"></option>
+            <option value="519" label="519 — bg layout rules end"></option>
+            <option value="720" label="720 — content-box rules"></option>
+            <option value="860" label="860 — split collapses"></option>
+            <option value="1440" label="1440 — laptop"></option>
+          </datalist>
+        </div>
       </div>
       <span class="te4-dirty-dot" id="te4DirtyDot" hidden title="Unsaved changes"></span>
       <button class="te4-save-btn" id="te4SaveBtn" type="submit" form="te4Form">Save</button>
@@ -2311,24 +2336,62 @@ window.addEventListener('message', function (e) {
 /* ════════════════════════════════════════════════════════════════
    DEVICE WIDTH BUTTONS
    ════════════════════════════════════════════════════════════════ */
+var widthInput = document.getElementById('te4WidthInput');
+
+/* Single place that sets the preview width, so the buttons and the number
+   box can never disagree about what is on screen. w is '100%' or 'NNNpx'. */
+function applyPreviewWidth(w) {
+  if (w === '100%') {
+    iframeWrap.style.maxWidth     = '';
+    iframeWrap.style.margin       = '';
+    iframeWrap.style.borderRadius = '';
+    iframeWrap.style.boxShadow    = '';
+    if (widthInput) widthInput.value = '';
+  } else {
+    iframeWrap.style.maxWidth     = w;
+    iframeWrap.style.margin       = '16px auto';
+    iframeWrap.style.borderRadius = '12px';
+    iframeWrap.style.overflow     = 'hidden';
+    iframeWrap.style.boxShadow    = '0 4px 24px rgba(0,0,0,.18)';
+    if (widthInput) widthInput.value = parseInt(w, 10);
+  }
+}
+
 document.querySelectorAll('.te4-dev-btn').forEach(function (btn) {
   btn.addEventListener('click', function () {
     document.querySelectorAll('.te4-dev-btn').forEach(function (b) { b.classList.remove('is-active'); });
     btn.classList.add('is-active');
-    var w = btn.dataset.w;
-    if (w === '100%') {
-      iframeWrap.style.maxWidth = '';
-      iframeWrap.style.margin   = '';
-      iframeWrap.style.borderRadius = '';
-    } else {
-      iframeWrap.style.maxWidth     = w;
-      iframeWrap.style.margin       = '16px auto';
-      iframeWrap.style.borderRadius = '12px';
-      iframeWrap.style.overflow     = 'hidden';
-      iframeWrap.style.boxShadow    = '0 4px 24px rgba(0,0,0,.18)';
-    }
+    applyPreviewWidth(btn.dataset.w);
   });
 });
+
+if (widthInput) {
+  /* 'input' rather than 'change' so picking from the datalist applies
+     immediately — a datalist pick does not always fire 'change' in every
+     browser, and having to press Enter after clicking a preset feels broken. */
+  widthInput.addEventListener('input', function () {
+    var n = parseInt(widthInput.value, 10);
+    if (!n) { return; }                       // mid-typing or cleared: leave it alone
+    if (n < 240 || n > 3840) { return; }      // ignore nonsense without fighting the user
+    document.querySelectorAll('.te4-dev-btn').forEach(function (b) { b.classList.remove('is-active'); });
+    /* Not applyPreviewWidth() — that would rewrite value while typing and
+       move the caret. Set the frame directly and leave the field as typed. */
+    iframeWrap.style.maxWidth     = n + 'px';
+    iframeWrap.style.margin       = '16px auto';
+    iframeWrap.style.borderRadius = '12px';
+    iframeWrap.style.overflow     = 'hidden';
+    iframeWrap.style.boxShadow    = '0 4px 24px rgba(0,0,0,.18)';
+  });
+  /* Empty the box to go back to full width. */
+  widthInput.addEventListener('change', function () {
+    if (widthInput.value.trim() === '') {
+      document.querySelectorAll('.te4-dev-btn').forEach(function (b) { b.classList.remove('is-active'); });
+      var deskBtn = document.querySelector('.te4-dev-btn[data-w="100%"]');
+      if (deskBtn) deskBtn.classList.add('is-active');
+      applyPreviewWidth('100%');
+    }
+  });
+}
 
 /* ════════════════════════════════════════════════════════════════
    DIRTY STATE & SAVE BUTTON

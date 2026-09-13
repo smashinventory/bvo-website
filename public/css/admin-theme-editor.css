@@ -1149,3 +1149,41 @@ details[open] > .te4-accord-head { color: var(--color-navy,#182840); }
 .te4-video-url-input:focus { border-color: var(--color-navy,#182840); }
 .te4-video-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .te4-video-upload-input { display: none; }
+
+/* ── Preview width entry (next to the device buttons) ────────────────
+   The icon buttons cover desktop/tablet/mobile; this reaches the exact
+   widths where the storefront CSS changes behaviour (480/481, 519, 720,
+   860), which is what the icons cannot do. */
+.te4-width-entry {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  padding: 0 7px;
+  height: 32px;
+  border: 1px solid #E5E7EB;
+  border-radius: 7px;
+  background: #F9FAFB;
+}
+.te4-width-entry:focus-within {
+  border-color: var(--color-navy, #182840);
+  background: #EEF1F7;
+}
+.te4-width-entry input {
+  width: 52px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  color: #374151;
+  text-align: right;
+  padding: 0;
+  outline: none;
+  /* Spinners steal width and are useless here — the datalist is the picker. */
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.te4-width-entry input::-webkit-outer-spin-button,
+.te4-width-entry input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.te4-width-entry input::placeholder { color: #9CA3AF; }
+.te4-width-unit { font-size: 11px; color: #9CA3AF; user-select: none; }
