@@ -53,29 +53,32 @@
 
       <!-- Shop column -->
       <%
-        /* Footer columns come from the Menu Manager — nav_menus handles
-           footer-shop / footer-help / footer-company (migration 015).
+        /* Footer columns come from the Menu Manager and from NOWHERE ELSE.
+           nav_menus handles footer-shop / footer-help / footer-company
+           (migration 015). Column HEADINGS are still theme settings, so
+           "Help" can be renamed without touching a menu; links are not.
 
-           Before that, this template rendered ft.col_*_links from theme
-           settings, whose URLs were /pages/shipping, /pages/returns,
-           /pages/contact, /pages/about and /pages/privacy. Migration 012
-           seeded the long slugs, so every one of those was a 404 — and had
-           been since the footer was built. Meanwhile the Menu Manager had a
-           'footer' menu with the CORRECT links that nothing ever read.
+           FALLBACK REMOVED 2026-09-13. This used to be
+             _footerCol(menuItems, themeLinks) — menus if present, else
+             ft.col_*_links from theme settings. That fallback covered the
+             window between deploying the Menu Manager read and running
+             migration 015. The window closed; 015 has run.
 
-           The theme-settings list is kept only as a fallback for the window
-           between deploying this code and running migration 015. Once the
-           menus exist they win, and the Menu Manager is the single place to
-           edit the footer. Column HEADINGS stay in theme settings, so "Help"
-           can be renamed without touching menus. */
+           Leaving it in was worse than useless. The theme-settings copy held
+           the pre-012 short slugs — /pages/shipping, /pages/returns,
+           /pages/contact, /pages/about, /pages/privacy — and migration 012
+           seeded the LONG forms, so every one of them 404'd. Verified live
+           8 Sept 2026. They had been broken since the footer was built, and
+           nobody noticed because nothing rendered them: the menus always
+           existed, so the fallback never fired. Empty one menu in the Menu
+           Manager and it would have, silently serving six dead links.
+
+           Now: if a menu is empty the column renders empty. Visible and
+           fixable, rather than quietly wrong. */
         var _fm = (typeof footerMenus !== 'undefined' && footerMenus) ? footerMenus : {};
-        function _footerCol(menuItems, themeLinks) {
-          if (menuItems && menuItems.length) return menuItems;
-          return themeLinks || [];
-        }
-        var _colShop    = _footerCol(_fm.shop,    ft.col_shop_links);
-        var _colHelp    = _footerCol(_fm.help,    ft.col_help_links);
-        var _colCompany = _footerCol(_fm.company, ft.col_company_links);
+        var _colShop    = _fm.shop    || [];
+        var _colHelp    = _fm.help    || [];
+        var _colCompany = _fm.company || [];
       %>
 
       <div class="footer-col">

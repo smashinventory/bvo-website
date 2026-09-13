@@ -1841,13 +1841,22 @@ exports.themeSave = (req, res) => {
 /* ── Shared helpers for theme save ──────────────────────────── */
 function _buildSettingsFromBody(body) {
   const navLinks      = _extractIndexedArray(body, 'nav.links',               ['label','url','highlight','megaMenu']);
-  const shopLinks     = _extractIndexedArray(body, 'footer.col_shop_links',   ['label','url']);
-  const helpLinks     = _extractIndexedArray(body, 'footer.col_help_links',   ['label','url']);
-  const companyLinks  = _extractIndexedArray(body, 'footer.col_company_links',['label','url']);
+  /* footer.col_*_links are GONE — removed 2026-09-13. Footer links live in
+     the Menu Manager (nav_menus footer-shop/help/company) and nowhere else.
+     The theme-settings copy was a fallback that nothing read, holding the
+     pre-migration-012 short slugs, every one a 404. See views/partials/
+     footer.ejs for the full account. */
   const brandLogos    = _extractIndexedArray(body, 'brand_logos.logos',       ['name','image_url','url']);
   const tickerItems   = _extractIndexedArray(body, 'scrolling_ticker.items',  ['text']);
   const testimonials  = _extractIndexedArray(body, 'testimonials.items',      ['text','author','location','rating']);
 
+  /* footer.col_*_links[ prefixes retained here ON PURPOSE. The editor no
+     longer renders those fields, but a browser tab opened before this
+     deployed still has them in its form and will POST them. Without these
+     prefixes those keys fall through to `flat` and setDotPath writes
+     "footer.col_shop_links[0].url" as a literal dotted key, corrupting the
+     settings object. Keep them until you are certain no stale tab survives —
+     which is never, so keep them. */
   const ARRAY_PREFIXES = ['nav.links[','footer.col_shop_links[','footer.col_help_links[',
                           'footer.col_company_links[','brand_logos.logos[',
                           'scrolling_ticker.items[','testimonials.items[',
@@ -1869,9 +1878,14 @@ function _buildSettingsFromBody(body) {
   if (!settings.brand_logos)    settings.brand_logos    = {};
   if (!settings.testimonials)   settings.testimonials   = {};
   if (!settings.scrolling_ticker) settings.scrolling_ticker = {};
-  settings.footer.col_shop_links    = shopLinks;
-  settings.footer.col_help_links    = helpLinks;
-  settings.footer.col_company_links = companyLinks;
+  /* Purge, don't preserve. theme_settings.json on the server still holds the
+     three dead link arrays with their pre-012 short slugs. Nothing reads them
+     now, but leaving them in the file means the next person to open it sees
+     what looks like live footer configuration. Deleting here means the first
+     theme save after this deploys cleans the file permanently. */
+  delete settings.footer.col_shop_links;
+  delete settings.footer.col_help_links;
+  delete settings.footer.col_company_links;
   settings.brand_logos.logos        = brandLogos;
   settings.scrolling_ticker.items   = tickerItems.map(t => t.text || '');
   settings.testimonials.items       = testimonials;

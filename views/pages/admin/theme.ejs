@@ -375,11 +375,14 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
     +'</div>';
 }
 
-function teArrayLinks(prefix,listId,tplId,items){
-  var rows=items.map(function(l,i){ return '<div class="te4-array-row"><span class="te4-array-drag">⠿</span><div class="te4-array-fields te4-row2">'+teField('text',prefix+'['+i+'].label','Label',l.label,true)+teField('url',prefix+'['+i+'].url','URL',l.url,true)+'</div><button type="button" class="te4-remove-row" title="Remove">×</button></div>'; }).join('');
-  var tpl='<div class="te4-array-row"><span class="te4-array-drag">⠿</span><div class="te4-array-fields te4-row2">'+teField('text',prefix+'[__i__].label','Label','',true)+teField('url',prefix+'[__i__].url','URL','',true)+'</div><button type="button" class="te4-remove-row" title="Remove">×</button></div>';
-  return '<div class="te4-array-list" id="'+listId+'">'+rows+'</div><button type="button" class="te4-add-btn" data-target="'+listId+'" data-tpl="'+tplId+'">+ Add Link</button><template id="'+tplId+'">'+tpl+'</template>';
-}
+/* teArrayLinks() lived here. Its only three callers were the footer Shop /
+   Help / Company link editors, removed 2026-09-13 — footer links now come
+   from the Menu Manager alone. The nav.links panel looks like it would use
+   this helper but does not; it hand-rolls its own rows further down.
+   Deleted rather than left in place: a helper that renders a link editor,
+   sitting unreferenced in the theme editor, is the same shape of trap as
+   the theme-settings link list nothing read. If a future panel needs it,
+   it is in git. */
 %>
 
 <link rel="stylesheet" href="/css/admin-theme-editor.css?v=2">
@@ -1481,15 +1484,32 @@ function teArrayLinks(prefix,listId,tplId,items){
             <% const ftsec=t.footer||{}; %>
             <%- teField('textarea','footer.brand_desc','Brand description',ftsec.brand_desc) %>
             <%- teField('text','footer.copyright_name','Copyright name',ftsec.copyright_name) %>
+            <%# ── Footer LINKS are edited in the Menu Manager, not here ──
+                Removed 2026-09-13. This panel used to carry a link editor per
+                column alongside the heading, and the footer rendered those
+                links only when the Menu Manager menus were empty. Two editors
+                for one fact, which is the Rule 10 violation, and the one
+                nobody used held stale URLs: /pages/about, /pages/contact,
+                /pages/privacy — short slugs that 404 against the long ones
+                migration 012 seeded.
+
+                Nothing read them, so they sat wrong and invisible. If the
+                Menu Manager menus had ever been emptied the fallback would
+                have fired and served six broken links.
+
+                Headings stay here — they are presentation, and renaming
+                "Help" should not mean touching a menu. %>
             <div class="te4-section-label">Shop column</div>
             <%- teField('text','footer.col_shop_heading','Heading',ftsec.col_shop_heading) %>
-            <%- teArrayLinks('footer.col_shop_links','footerShopList','footerShopTpl',ftsec.col_shop_links||[]) %>
             <div class="te4-section-label">Help column</div>
             <%- teField('text','footer.col_help_heading','Heading',ftsec.col_help_heading) %>
-            <%- teArrayLinks('footer.col_help_links','footerHelpList','footerHelpTpl',ftsec.col_help_links||[]) %>
             <div class="te4-section-label">Company column</div>
             <%- teField('text','footer.col_company_heading','Heading',ftsec.col_company_heading) %>
-            <%- teArrayLinks('footer.col_company_links','footerCompanyList','footerCompanyTpl',ftsec.col_company_links||[]) %>
+            <p class="te4-hint" style="margin-top:.75rem">
+              Footer links are managed in
+              <a href="/admin/menus" target="_blank">Menus</a> —
+              footer-shop, footer-help and footer-company.
+            </p>
           </div>
 
         </div><!-- /te4-settings-body -->

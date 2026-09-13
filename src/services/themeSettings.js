@@ -476,38 +476,36 @@ const DEFAULTS = {
   footer: {
     brand_desc: 'Premium vanities, mirrors, faucets & accessories — at prices that make sense. Free shipping on every order.',
     copyright_name: 'BathroomVanitiesOutlet.com',
-    col_shop_heading: 'Shop',
-    col_shop_links: [
-      { label: 'Bathroom Vanities', url: '/collections/bathroom-vanities' },
-      { label: 'Mirrors',           url: '/collections/bathroom-mirrors' },
-      { label: 'Faucets',           url: '/collections/faucets' },
-      { label: 'Sale',              url: '/collections/sale' },
-    ],
-    /* URLs must match the slugs seeded by migration 012, which are the
-       long forms: shipping-policy, returns-policy, privacy-policy,
-       terms-and-conditions, about-us, contact-us.
+    /* ── Footer LINKS are not here ────────────────────────────────
+       col_shop_links / col_help_links / col_company_links were removed
+       2026-09-13. Footer links come from the Menu Manager (nav_menus
+       handles footer-shop, footer-help, footer-company) and from nowhere
+       else. views/partials/footer.ejs reads only `footerMenus`.
 
-       Verified live 8 Sept 2026: the previous short forms — /pages/shipping,
-       /pages/returns, /pages/contact, /pages/about, /pages/privacy — ALL
-       returned 404. Every policy link in the footer was broken, and had
-       been since the footer was built. Nothing errored because a 404 on a
-       footer link is invisible unless somebody clicks it. */
+       Two lists for one footer is what caused the bug. This copy held the
+       pre-migration-012 short slugs — /pages/shipping, /pages/returns,
+       /pages/contact, /pages/about, /pages/privacy — and every one of them
+       404'd, verified live 8 Sept 2026. It had been broken since the footer
+       was built and nobody noticed, because a 404 on a footer link is
+       invisible until somebody clicks it, and because the template preferred
+       the menus whenever they existed. Emptying a menu would have silently
+       swapped working links for broken ones.
+
+       Slug history, kept because it is the trap: migration 012 seeded the
+       LONG forms — shipping-policy, returns-policy, privacy-policy,
+       terms-and-conditions, about-us, contact-us. Any footer or CTA URL
+       using the short form is a 404.
+
+       Terms & Conditions was added to the footer 8 Sept 2026; it had not
+       been linked anywhere on the site, and an unlinked Terms page is close
+       to unenforceable. It now lives in the footer-company menu — if it
+       disappears from the footer, that menu is where to look.
+
+       HEADINGS stay in theme settings (above), so "Help" can be renamed
+       without touching menus. Links do not. ───────────────────────── */
+    col_shop_heading: 'Shop',
     col_help_heading: 'Help',
-    col_help_links: [
-      { label: 'Shipping Policy',   url: '/pages/shipping-policy' },
-      { label: 'Returns & Refunds', url: '/pages/returns-policy' },
-      { label: 'Contact Us',        url: '/pages/contact-us' },
-    ],
     col_company_heading: 'Company',
-    col_company_links: [
-      { label: 'About Us',           url: '/pages/about-us' },
-      { label: 'Privacy Policy',     url: '/pages/privacy-policy' },
-      /* Added 8 Sept 2026. Terms was not linked anywhere on the site.
-         An unlinked Terms page is close to unenforceable — the customer
-         has to be able to find it. The checkout agreement line does the
-         heavier legal work, but the footer link is the baseline. */
-      { label: 'Terms & Conditions', url: '/pages/terms-and-conditions' },
-    ],
   },
 };
 
