@@ -233,8 +233,44 @@ must be added to the ladder or it will reproduce this.
 1. **Never make a code change before the user approves it.** Present what you plan to do and wait for explicit "go ahead / yes / proceed."
 2. **Never assume what the user wants.** Ask. Do not infer intent from prior sessions or partial context.
 3. **Always provide git push commands** in a copyable code block. Never push silently.
+
+   **Present the script in chat, prefixed with `cd`**, in one copyable block:
+
+   ```bash
+   cd "/Users/user/Desktop/ShopPro Project/OnlineSmartPOS/BVO Node.js" && bash git_push_whatever.sh
+   ```
+
+   Sam may be in a fresh terminal, so a bare `bash script.sh` fails. Never
+   paste the script's *contents* into chat for him to run — zsh performs
+   history expansion on `!`, and the shebang alone dies with
+   `zsh: event not found: /usr/bin/env`. Write the file, then give the
+   one-line command that runs it.
 4. **Scope discipline** — only touch files required by the current task. Do not "improve" adjacent code while fixing something else.
-5. **CSS bundle workflow** — two separate pipelines. Do not mix them.
+
+5. **A settings field needs all THREE layers, or it is decoration.**
+
+   | Layer | Where |
+   |---|---|
+   | The storefront template renders it | `views/pages/*.ejs` |
+   | The Theme Editor has an input for it | `views/pages/admin/theme.ejs` — **both** the rendered rows and the `+ Add` `<template>` |
+   | The save path carries it | `_extractIndexedArray(...)` field list in `adminController.js`, and `ARRAY_PREFIXES` for repeaters |
+
+   Two out of three is a control that silently does nothing, or a value the
+   admin types that vanishes on save. Nothing errors. It is found months
+   later, by a customer or a crawler.
+
+   Hit **three times on 2026-09-13 alone**:
+   - `footer.col_*_links` — template read them, nothing current wrote them, and they held pre-migration-012 slugs that all 404'd
+   - `hero_mobile` text fields — defaults held them, no panel field could set them, so every phone string silently resolved to its desktop twin
+   - `testimonials[].avatar` — template read it, no editor field, not in the extractor, so every review card drew an empty circle
+
+   When adding or removing a field, change all three together and gate it.
+   `git_push_testimonial_avatar.sh` G3 is the reusable pattern: render the
+   editor, collect `name="section.items[0].X"`, set-compare against the
+   extractor's field list **in both directions**, and compare the rendered
+   rows against the `+ Add` template. Set comparison, not a grep for one
+   field name — that way it covers fields nobody has added yet.
+6. **CSS bundle workflow** — two separate pipelines. Do not mix them.
 
    **PUBLIC pages** — `site-bundle.css`, linked in `views/layouts/main.ejs`:
    - Source files: `public/css/brand.css`, `site.css`, `site2.css` — **site4.css is NOT one of them**
