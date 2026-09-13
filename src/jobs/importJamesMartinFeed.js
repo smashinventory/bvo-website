@@ -188,6 +188,36 @@ async function upsertCollection(conn, name, brand, description) {
    ours — they are unrelated numbers that happen to live together. */
 const JM_COST_FACTOR = 0.324;
 
+/* updated_at is deliberately NOT in the ON DUPLICATE KEY UPDATE list below.
+   Removed 2026-09-13. Do not add it back.
+
+   products.updated_at is declared
+     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+   (001_initial_schema.sql:22). MySQL fires ON UPDATE only when a row actually
+   CHANGES — an upsert whose values all match the existing row is a no-op and
+   leaves the timestamp alone. That is the behaviour we want: the column means
+   "when this product last changed".
+
+   Setting it explicitly defeated exactly that. It made every row differ from
+   itself on every run, so every JM product's updated_at bumped to the run date
+   whether or not one byte had changed.
+
+   Measured on the live sitemap 2026-09-13: 5,139 of 5,311 URLs carried that
+   day's date. The ER products were the control group — this importer never
+   touches them, and their dates sat still at 5 and 10 September.
+
+   Downstream, sitemap <lastmod> became noise. Google ignores the field on
+   sites where it is not consistently accurate, which costs the ability to say
+   "these 40 pages changed, recrawl them" across 5,311 URLs.
+
+   A date that does not move is the CORRECT output when nothing changed. If a
+   real column edit is not moving the timestamp, the bug is in that column's
+   value, not here.
+
+   Also unblocks searchSync.fetchProducts(deltaHours), whose
+   updated_at >= DATE_SUB(NOW(), INTERVAL ? HOUR) window can now select
+   genuinely-changed rows instead of the whole catalogue. Nothing calls it with
+   a window today, so this changes no current behaviour. */
 async function upsertProduct(conn, data) {
   await conn.query(`
     INSERT INTO products (
@@ -259,8 +289,7 @@ async function upsertProduct(conn, data) {
       custom_label_1          = COALESCE(custom_label_1, VALUES(custom_label_1)),
       custom_label_2          = COALESCE(custom_label_2, VALUES(custom_label_2)),
       custom_label_3          = COALESCE(custom_label_3, VALUES(custom_label_3)),
-      custom_label_4          = COALESCE(custom_label_4, VALUES(custom_label_4)),
-      updated_at            = CURRENT_TIMESTAMP
+      custom_label_4          = COALESCE(custom_label_4, VALUES(custom_label_4))
   `, data);
   const [[row]] = await conn.query('SELECT id FROM products WHERE sku = ?', [data.sku]);
   return row ? row.id : null;

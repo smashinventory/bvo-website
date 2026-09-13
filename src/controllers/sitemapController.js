@@ -21,7 +21,11 @@ const Product     = require('../models/Product');
  */
 exports.xml = async (req, res) => {
   const siteUrl = process.env.SITE_URL || 'https://bathroomvanitiesoutlet.com';
-  const today   = new Date().toISOString().split('T')[0];
+  /* A `today` constant lived here and is deliberately gone. Nothing in a
+     sitemap should be dated from the clock — every <lastmod> now comes from a
+     row's updated_at, or from the newest child for an index page, or is
+     omitted. Reintroducing a "now" here is how this file drifts back to
+     claiming all 5,311 pages changed this morning. */
 
   try {
     /* ── Fetch CMS pages (standard, not inspiration) ─────────── */
@@ -90,15 +94,34 @@ exports.xml = async (req, res) => {
 
     /* ── Build XML ─────────────────────────────────────────────── */
     const escUrl = (u) => u.replace(/&/g, '&amp;');
-    const fmtDate = (d) => d ? new Date(d).toISOString().split('T')[0] : today;
+
+    /* fmtDate used to fall back to `today` when updated_at was NULL, turning
+       "we do not know" into a confident wrong answer. <lastmod> is OPTIONAL in
+       the sitemap protocol, so omitting it costs nothing, while a wrong date
+       teaches Google to distrust the field across the whole site. Returns null
+       now; lastmod() emits nothing for null. */
+    const fmtDate = (d) => (d ? new Date(d).toISOString().split('T')[0] : null);
+    const lastmod = (d) => {
+      const s = fmtDate(d);
+      return s ? `\n    <lastmod>${s}</lastmod>` : '';
+    };
+
+    /* Index pages have no row of their own, so their real last-modified date is
+       the newest thing they list. Stamping them `today` was the same lie as the
+       NULL fallback, and worse here — these four are the highest-priority URLs
+       in the file. Returns null for an empty list, so the tag is omitted rather
+       than invented. */
+    const maxDate = (rows) => (rows || []).reduce((acc, r) => {
+      const t = r && r.updated_at ? new Date(r.updated_at).getTime() : 0;
+      return t > acc ? t : acc;
+    }, 0) || null;
 
     const urls = [];
 
     // Homepage
     urls.push(`
   <url>
-    <loc>${escUrl(siteUrl)}/</loc>
-    <lastmod>${today}</lastmod>
+    <loc>${escUrl(siteUrl)}/</loc>${lastmod(maxDate([...products, ...cmsPages, ...blogPosts, ...inspirationPages, ...categories]))}
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>`);
@@ -107,8 +130,7 @@ exports.xml = async (req, res) => {
     if (blogPosts.length) {
       urls.push(`
   <url>
-    <loc>${escUrl(siteUrl)}/blog</loc>
-    <lastmod>${today}</lastmod>
+    <loc>${escUrl(siteUrl)}/blog</loc>${lastmod(maxDate(blogPosts))}
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>`);
@@ -118,8 +140,7 @@ exports.xml = async (req, res) => {
     if (inspirationPages.length) {
       urls.push(`
   <url>
-    <loc>${escUrl(siteUrl)}/inspiration</loc>
-    <lastmod>${today}</lastmod>
+    <loc>${escUrl(siteUrl)}/inspiration</loc>${lastmod(maxDate(inspirationPages))}
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>`);
@@ -129,8 +150,7 @@ exports.xml = async (req, res) => {
     for (const p of inspirationPages) {
       urls.push(`
   <url>
-    <loc>${escUrl(`${siteUrl}/inspiration/${p.slug}`)}</loc>
-    <lastmod>${fmtDate(p.updated_at)}</lastmod>
+    <loc>${escUrl(`${siteUrl}/inspiration/${p.slug}`)}</loc>${lastmod(p.updated_at)}
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>`);
@@ -140,8 +160,7 @@ exports.xml = async (req, res) => {
     for (const p of cmsPages) {
       urls.push(`
   <url>
-    <loc>${escUrl(`${siteUrl}/pages/${p.slug}`)}</loc>
-    <lastmod>${fmtDate(p.updated_at)}</lastmod>
+    <loc>${escUrl(`${siteUrl}/pages/${p.slug}`)}</loc>${lastmod(p.updated_at)}
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>`);
@@ -151,8 +170,7 @@ exports.xml = async (req, res) => {
     for (const p of blogPosts) {
       urls.push(`
   <url>
-    <loc>${escUrl(`${siteUrl}/blog/${p.slug}`)}</loc>
-    <lastmod>${fmtDate(p.updated_at)}</lastmod>
+    <loc>${escUrl(`${siteUrl}/blog/${p.slug}`)}</loc>${lastmod(p.updated_at)}
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>`);
@@ -161,8 +179,7 @@ exports.xml = async (req, res) => {
     // Collections index
     urls.push(`
   <url>
-    <loc>${escUrl(siteUrl)}/collections</loc>
-    <lastmod>${today}</lastmod>
+    <loc>${escUrl(siteUrl)}/collections</loc>${lastmod(maxDate(categories))}
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>`);
@@ -171,8 +188,7 @@ exports.xml = async (req, res) => {
     for (const cat of categories) {
       urls.push(`
   <url>
-    <loc>${escUrl(`${siteUrl}/collections/${cat.slug}`)}</loc>
-    <lastmod>${fmtDate(cat.updated_at)}</lastmod>
+    <loc>${escUrl(`${siteUrl}/collections/${cat.slug}`)}</loc>${lastmod(cat.updated_at)}
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>`);
@@ -182,8 +198,7 @@ exports.xml = async (req, res) => {
     for (const p of products) {
       urls.push(`
   <url>
-    <loc>${escUrl(`${siteUrl}/products/${p.slug}`)}</loc>
-    <lastmod>${fmtDate(p.updated_at)}</lastmod>
+    <loc>${escUrl(`${siteUrl}/products/${p.slug}`)}</loc>${lastmod(p.updated_at)}
     <changefreq>daily</changefreq>
     <priority>0.6</priority>
   </url>`);
