@@ -120,8 +120,16 @@ async function getFeaturedProducts(opts = {}) {
       -- Pinned first (see the PIN note in models/Product.js): 0 is the column
        -- default meaning "not pinned", so a plain ASC sorted every unset
        -- product above anything deliberately set to 1.
+       /* p.sku last, and it is REQUIRED — JMV_COMBO_DEMAND_DEFINITION.md §6.
+          created_at is not unique, so it does not actually break a tie.
+          Combos that differ only by faucet drilling score identically on
+          purpose: 1WZ and 3WZ are the same top, the suffix is the number of
+          holes, and the estimator buckets them for the share calculation.
+          Marcello 36 Chestnut carries 11.01 on both. Without a unique final
+          key MySQL may return equal rows in any order, so the two listings
+          swap between page loads and paginated pages duplicate or skip. */
        ORDER BY COALESCE(NULLIF(p.sort_order, 0), 999999) ASC,
-                p.demand_score DESC, p.created_at DESC
+                p.demand_score DESC, p.created_at DESC, p.sku ASC
       LIMIT ?
     `, [...f.params, safeLimit]);
     if (!rows.length) return [];
@@ -372,7 +380,12 @@ async function getFeaturedModels(opts = {}) {
            not by how well it sells. A model with many colours beat a
            genuinely popular one. Demand first, SKU count only as the
            tiebreaker among models the rollup has not scored. */
-        ORDER BY SUM(p.demand_score) DESC, COUNT(*) DESC
+           p.model, p.brand last, and REQUIRED — definition §6. COUNT(*) is
+           not unique either, so two models with equal demand and equal SKU
+           counts can still come back in any order. The GROUP BY is on
+           (model, brand), which makes that pair the unique key here — the
+           equivalent of sku ASC for a grouped query. */
+        ORDER BY SUM(p.demand_score) DESC, COUNT(*) DESC, p.model ASC, p.brand ASC
         LIMIT ?
       `, [...f.params, safeLimit]);
     }
