@@ -1100,7 +1100,29 @@ _DEFAULT_ORDER.forEach(function(k) {
 <% } /* end parallax */ %>
 
 <!-- ── TESTIMONIALS (any copy) ────────────────────────────────────── -->
-<% if (_baseKey === 'testimonials' && _d.enabled !== false && _d.items && _d.items.length) { %>
+<%
+  /* Count items with actual review text, not just items.
+     The guard here used to be `_d.items.length`, which asks whether the
+     array exists — not whether anything is in it. On 2026-09-13 production
+     was carrying three testimonial entries with empty text, empty author
+     and empty location, so the homepage rendered three blank review cards
+     under "What Our Customers Say": a bare pair of quote marks, no name,
+     and five gold stars (the star loop uses `ti.rating || 5`, so it draws
+     a full five-star rating for a review that does not exist).
+
+     Nothing errored. An SEO crawler found it first, reporting three empty
+     <strong> tags — which was the smallest symptom of the problem, not the
+     problem. A customer would have seen three hollow reviews on a page
+     asking them to spend thousands of dollars.
+
+     So: an entry with no review text is not a review, and the section with
+     no reviews is not a section. Both are now skipped. If the testimonials
+     ever empty out again the section disappears cleanly instead of
+     rendering its own skeleton. */
+  var _testItems = ((_baseKey === 'testimonials' && _d.items) || [])
+                     .filter(function(ti){ return ti && String(ti.text || '').trim(); });
+%>
+<% if (_baseKey === 'testimonials' && _d.enabled !== false && _testItems.length) { %>
 <%
   var _testTag   = _safeTag(_d.heading_level, 'h2');
   var _testAlign = _d.text_align || 'center';
@@ -1112,7 +1134,7 @@ _DEFAULT_ORDER.forEach(function(k) {
     <% if (_d.subtitle) { %><p class="section-sub"><%= _d.subtitle %></p><% } %>
   </div>
   <div class="testimonials-grid">
-    <% _d.items.forEach(function(ti) { %>
+    <% _testItems.forEach(function(ti) { %>
     <article class="testimonial-card">
       <div class="testimonial-stars">
         <% for (var si=0; si<5; si++) { %>
