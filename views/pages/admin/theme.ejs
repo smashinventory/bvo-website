@@ -1394,6 +1394,15 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
                     <%- teField('text',   pk+'.items['+i+'].location', 'Location', item.location,    true) %>
                     <%- teField('number', pk+'.items['+i+'].rating',   'Stars',    item.rating||5,   true) %>
                   </div>
+                  <%# Photo. index.ejs has always rendered ti.avatar, but no
+                      field here could set it and _extractIndexedArray did not
+                      carry it, so the value could not exist — the homepage
+                      drew an empty circle for every review. Third instance of
+                      that shape today (footer col_*_links, hero_mobile text).
+                      teImageField inside a repeater is proven by the
+                      brand_logos rows above; wireUploadBtns(row) rebinds the
+                      upload button when a row is added. %>
+                  <%- teImageField(pk+'.items['+i+'].avatar', 'Photo (optional)', item.avatar, true) %>
                 </div>
                 <button type="button" class="te4-remove-row">×</button>
               </div>
@@ -1409,6 +1418,10 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
                     <%- teField('text',   pk+'.items[__i__].location', 'Location', '', true) %>
                     <%- teField('number', pk+'.items[__i__].rating',   'Stars',    5,  true) %>
                   </div>
+                  <%# Must mirror the rendered row above field-for-field. A
+                      field present there and missing here means rows added
+                      with "+ Add" silently lack it. %>
+                  <%- teImageField(pk+'.items[__i__].avatar', 'Photo (optional)', '', true) %>
                 </div>
                 <button type="button" class="te4-remove-row">×</button>
               </div>

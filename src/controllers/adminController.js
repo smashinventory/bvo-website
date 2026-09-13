@@ -1848,7 +1848,12 @@ function _buildSettingsFromBody(body) {
      footer.ejs for the full account. */
   const brandLogos    = _extractIndexedArray(body, 'brand_logos.logos',       ['name','image_url','url']);
   const tickerItems   = _extractIndexedArray(body, 'scrolling_ticker.items',  ['text']);
-  const testimonials  = _extractIndexedArray(body, 'testimonials.items',      ['text','author','location','rating']);
+  /* 'avatar' added 2026-09-13. index.ejs had always rendered ti.avatar, but
+     it was missing from this list AND from the editor panel, so the value had
+     no way to exist — every review drew an empty circle. A field the template
+     reads must be settable in the panel and listed here; two of the three is
+     a field that silently does nothing. */
+  const testimonials  = _extractIndexedArray(body, 'testimonials.items',      ['text','author','location','rating','avatar']);
 
   /* footer.col_*_links[ prefixes retained here ON PURPOSE. The editor no
      longer renders those fields, but a browser tab opened before this

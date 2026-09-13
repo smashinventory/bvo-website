@@ -1147,9 +1147,17 @@ _DEFAULT_ORDER.forEach(function(k) {
           <strong class="testimonial-name"><%= ti.author %></strong>
           <% if (ti.location) { %><span class="testimonial-location"><%= ti.location %></span><% } %>
         </div>
+        <%/* The whole avatar div is conditional, not just the <img>. It used
+            to render unconditionally with the image inside the guard, so a
+            review without a photo produced an empty circle that read as a
+            failed image load. Until today no review COULD have a photo —
+            the editor had no field and the save path dropped the key — so
+            every card showed one. No photo, no circle. */%>
+        <% if (ti.avatar) { %>
         <div class="testimonial-avatar">
-          <% if (ti.avatar) { %><img src="<%= ti.avatar %>" alt="<%= ti.author %>"><% } %>
+          <img src="<%= ti.avatar %>" alt="<%= ti.author %>" loading="lazy" width="48" height="48">
         </div>
+        <% } %>
       </footer>
     </article>
     <% }) %>
