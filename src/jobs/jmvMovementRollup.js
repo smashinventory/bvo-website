@@ -29,6 +29,9 @@ const zlib   = require('zlib');
 const readline = require('readline');
 const XLSX   = require('xlsx');
 const { bvoPool } = require('../config/database');
+/* Estimated Combo Demand — shared with jmvReportsController so the nightly
+   score and the admin leaderboard cannot drift apart. Definition §8. */
+const estimator = require('../services/comboDemandEstimator');
 
 const SNAPSHOTS_DIR = process.env.JMV_SNAPSHOTS_PATH
   || path.join(__dirname, '../../../jmv_sync/snapshots');
@@ -795,12 +798,88 @@ async function updateDemandScores(conn) {
     [fromDate, days]
   );
 
+  /* ── Combos: replace observed drawdown with the estimate ───────────
+     DEFINITION §8. Everything above wrote raw drawdown for every SKU. For
+     product_type = 'Vanity' that number is worthless as a ranking: a combo's
+     quantity is min(base, top), computed availability rather than a stock
+     pool, so it moves when either component moves and collapses when a
+     shared top runs short. Measured: Vanity 28,215 units against Cabinet's
+     865, a 33:1 ratio no sales mix produces. 39 of the top 50 SKUs by
+     drawdown were combos, and storefront popularity ranked on those
+     artifacts for 4,212 products.
+
+     So combos are rewritten here with Estimated Combo Demand — the base
+     cabinet's observed drawdown allocated across the tops that base is
+     offered with. Same SQL the admin report runs, from the shared module,
+     because two copies is how the jd.freepower bug happened.
+
+     ORDER MATTERS. This runs AFTER the raw pass, overwriting it. Do not
+     reorder: the raw pass writes every product including combos, and this
+     corrects the subset.
+
+     ZEROING FIRST IS NOT OPTIONAL. 836 of 4,198 combos get no estimate —
+     their base did not move, or the top key resolved to nothing. Left
+     alone they would keep the clamped number from the raw pass and sit at
+     the top of the listing, which is the exact bug this replaces. Every
+     Vanity goes to 0 first; the estimate then lifts the ones that earned it.
+
+     Bellamy (D300) is the single exception — definition §5. It is the only
+     SKU in its group, sells solely as a combo, and its one-off oval Carrara
+     top is not sold separately, so nothing can clamp it. Its own drawdown
+     is real and CAPTIVE_SQL returns it unmodelled. */
+  const [zeroed] = await conn.query(
+    `UPDATE products p
+       JOIN jmv_dimensions d ON d.sku = p.sku
+        SET p.demand_score = 0
+      WHERE d.product_type = 'Vanity'
+        AND p.demand_score <> 0`
+  );
+
+  const fromStr = (fromDate instanceof Date)
+    ? fromDate.toISOString().slice(0, 10)
+    : String(fromDate);
+
+  const [comboRows] = await conn.query(
+    estimator.comboEstimateSql(null),          // null = every combo, no LIMIT
+    estimator.comboEstimateParams(fromStr)
+  );
+  const [captiveRows] = await conn.query(
+    estimator.CAPTIVE_SQL,
+    estimator.captiveParams(fromStr)
+  );
+  const all = [...comboRows, ...captiveRows]
+    .filter(r => r.sku && Number(r.total_drawdown) > 0);
+
+  /* Chunked CASE rather than one UPDATE per row: ~3,500 combos would be
+     3,500 round trips on a nightly job. 500 per statement keeps the
+     statement well inside max_allowed_packet. */
+  let comboScored = 0;
+  for (let i = 0; i < all.length; i += 500) {
+    const chunk = all.slice(i, i + 500);
+    const cases = chunk.map(() => 'WHEN ? THEN ?').join(' ');
+    const params = [];
+    chunk.forEach(r => { params.push(r.sku, Number(r.total_drawdown)); });
+    chunk.forEach(r => { params.push(r.sku); });
+    const [res] = await conn.query(
+      `UPDATE products
+          SET demand_score = CASE sku ${cases} END
+        WHERE sku IN (${chunk.map(() => '?').join(',')})`,
+      params
+    );
+    comboScored += res.affectedRows;
+  }
+
   console.log(`[rollup] demand scores: ${scored.affectedRows} scored, ` +
               `${cleared.affectedRows} cleared, window ${days}d from ${fromDate}`);
+  console.log(`[rollup] combo estimates: ${zeroed.affectedRows} vanities zeroed, ` +
+              `${comboScored} rewritten from ${comboRows.length} modelled + ` +
+              `${captiveRows.length} captive`);
 
   return {
     scored:  scored.affectedRows,
     cleared: cleared.affectedRows,
+    comboZeroed:  zeroed.affectedRows,
+    comboScored,
     days,
     fromDate: String(fromDate).slice(0, 10),
   };
