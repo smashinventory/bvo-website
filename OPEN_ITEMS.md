@@ -57,11 +57,23 @@ Ranked by what they're worth:
   one image is 3,455 KB into a 152×210 card. Fix is tested: inserting
   `w_400,f_auto,q_auto` **after** the Salsify signature gives 29 KB. Before the
   signature returns 404.
-- **`/pages/about` 404** — linked from the homepage. Fix in the Theme Editor,
-  two places. **Not** via SQL: `initFromDb()` pushes the JSON file to the DB on
-  every boot, so a direct `UPDATE` reverts at the next restart.
-- **No `<h1>`** on the homepage or any CMS page.
-- **Sitemap `lastmod`** is `today` for all 5,311 URLs.
+- ~~**`/pages/about` 404**~~ — **done 2026-09-13**, Sam corrected the CTA URLs in
+  the Theme Editor. The short-vs-long slug trap is still live for any new URL:
+  migration 012 seeded the LONG forms (`about-us`, `contact-us`,
+  `privacy-policy`, `shipping-policy`, `returns-policy`,
+  `terms-and-conditions`).
+- ~~**No `<h1>`**~~ — **the finding was wrong**, closed 2026-09-13. The audit
+  grepped templates for the literal `<h1`, which `index.ejs` never contains
+  because the tag is interpolated via `_safeTag(hero.heading_level,'h1')`. The
+  homepage had **two**, not zero: `hero` and `hero_mobile` were separate
+  `<section>`s each carrying the heading, with CSS hiding one. `cms-page.ejs`
+  had exactly one all along, and `page.ejs` — which the audit named — does not
+  exist. Fixed to a single hero, commit `7fdbfe8`.
+- ~~**Sitemap `lastmod`**~~ — **done 2026-09-13**, commit `3333a56`. The stated
+  cause was wrong: only 4 hardcoded lines used `today`, which cannot produce
+  5,139. The real cause was `importJamesMartinFeed.js` setting
+  `updated_at = CURRENT_TIMESTAMP` explicitly, overriding the column's own
+  `ON UPDATE` and bumping every product daily.
 - **Tap targets** — size chips 20×22px, swatches 18×18px, badges at 9px.
 - **CSP stripped at Hostinger's edge** — the app builds a nonce policy, the
   browser receives `upgrade-insecure-requests` only. Support ticket, not code.
@@ -117,6 +129,100 @@ Card handling, the Clover integration, FraudLabs and order creation were
 deliberately left untouched — probing a live payment flow isn't something to do
 without an explicit decision. It is the highest-risk area of the application and
 it currently has no coverage. Needs its own scoped piece of work.
+
+---
+
+### 6. ⚠️ CUTOVER BLOCKER — 14 hotlinked images to replace
+*Logged 2026-09-13 · measured against the live database, not sampled*
+
+Fourteen images on the site are served from hosts we do not control. **All of
+them are hand-entered curation. The product catalogue itself is clean** — 56,811
+`product_images` rows come from `images.salsify.com`, which ships with the JM
+feed, and 341 from your own Cloudinary account. Nothing below is feed data, so
+nothing below gets repaired by a re-import.
+
+**Replace all fourteen before the domain moves.** Every one is editable through
+the admin UI. No code, no migration.
+
+**Category cards — 10** · `/admin/categories` → edit → image field
+
+| Category | Slug | Host |
+|---|---|---|
+| Bathroom Vanities- All Products | `bathroom-vanities` | gstatic |
+| Bathroom Vanities With Tops | `bathroom-vanities-with-tops` | gstatic |
+| Bathroom Vanity Cabinets - Cabinet Only | `bathroom-vanity-cabinets` | gstatic |
+| Bathroom Vanity Tops - Top Only | `bathroom-vanity-tops` | gstatic |
+| Bathroom Mirrors | `bathroom-mirrors` | gstatic |
+| Faucets | `faucets` | gstatic |
+| Storage | `storage` | gstatic |
+| Vanity Models | `vanity-models` | gstatic |
+| Lighting | `lighting` | image.lampsplus.com |
+| Samples | `samples` | www.bathvanityexperts.com |
+
+**Model tile — 1** · `/admin/models` · Brittany / James Martin Vanities ·
+`jamesmartinvanities.com/cdn/shop/...`
+
+**Product — 1** · `/admin/products` · Huntington Brass Sevaun Widespread
+(`huntington-brass-sevaun-widespread`) · `plumbtile.com/cdn/shop/...`
+
+**Hero — 2** · Theme Editor · `hero.mobile_image_url` and
+`hero_mobile.image_url`, both gstatic. These live in `theme_settings.json`, not
+a table, so the SQL below will not show them.
+
+**Two different problems, same list.**
+
+The eight `encrypted-tbn0.gstatic.com` URLs are Google Images *cache keys*, not
+addresses. They rotate and expire on Google's schedule. When they go you get
+blank images on the homepage's main category row with nothing in a log to
+explain it.
+
+The other four are someone else's product photography served from their
+bandwidth — `lampsplus.com`, `bathvanityexperts.com`, `plumbtile.com`,
+`jamesmartinvanities.com`. That is a different kind of exposure on a commercial
+storefront, and independently they can rename a file or block hotlinking at any
+time.
+
+**Practical shortcut:** you already own 56,811 Salsify images. Eight of the ten
+categories can take a product shot from inside that category — nothing to
+source, no licensing question, and a better-matched image than a Google
+thumbnail. Samples and Lighting have thin inventory to draw from.
+
+**Re-run before cutover to confirm the list is empty** (excludes the two hero
+images — check those in the Theme Editor by eye):
+
+```sql
+SELECT 'category' AS what, name AS label, slug AS ref, image_url AS url
+  FROM categories
+ WHERE image_url LIKE 'http%'
+   AND image_url NOT LIKE '%salsify.com%'
+   AND image_url NOT LIKE '%res.cloudinary.com%'
+UNION ALL
+SELECT 'model', model_name, brand, custom_image
+  FROM model_groups
+ WHERE custom_image LIKE 'http%'
+   AND custom_image NOT LIKE '%salsify.com%'
+   AND custom_image NOT LIKE '%res.cloudinary.com%'
+UNION ALL
+SELECT 'model-og', model_name, brand, og_image
+  FROM model_groups
+ WHERE og_image LIKE 'http%'
+   AND og_image NOT LIKE '%salsify.com%'
+   AND og_image NOT LIKE '%res.cloudinary.com%'
+UNION ALL
+SELECT 'product', name, slug, primary_image_url
+  FROM products
+ WHERE primary_image_url LIKE 'http%'
+   AND primary_image_url NOT LIKE '%salsify.com%'
+   AND primary_image_url NOT LIKE '%res.cloudinary.com%';
+```
+
+`model_groups.og_image` returned nothing on 2026-09-13 — kept in the query
+because it is a second image column on that table and would otherwise be a
+blind spot.
+
+**Not chosen, raised once:** nothing prevents this recurring. A warning in the
+admin when an image URL points outside your own hosts would stop the next one
+at entry rather than at cutover. Separate task, not approved.
 
 ---
 
