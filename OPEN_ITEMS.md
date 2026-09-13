@@ -48,40 +48,7 @@ buys 3% of coverage on a figure the document itself insists is labelled
 
 ---
 
-### 3. `demand_score` still ranks combos on clamped drawdown — §8
-*Logged 2026-09-12 · approved in §8 of the combo demand definition · BLOCKED*
-
-`products.demand_score` is raw `SUM(demand_min)` per SKU with no product-type
-distinction, so storefront popularity sorts combos on `min(base, top)` —
-**28,215 units against Cabinet's 865**. The Top Cabinet SKUs report filters to
-cabinets; the storefront does not. That is the whole reason the two disagree.
-§8 authorises repointing `demand_score` at the estimator for the 4,212 vanity
-products.
-
-Confirmed 2026-09-12: the rollup is healthy and running nightly
-(`demand_scored_at` current, `demand_days` 20, 4,273 rows scored). This is not
-a staleness problem.
-
-**Two decisions block it. Both are Sam's.**
-
-1. **Column type.** `demand_score` is `int(10) unsigned`; the estimator produces
-   fractions. 858 units across 4,198 combos averages 0.20 — **92% would round
-   to 0** and fall through to alphabetical. Only 146 clear 1.0. Widen to
-   `DECIMAL(10,2)` (schema migration, `idx_demand_score` rebuilds) or scale ×100
-   and keep the INT.
-2. **Estimator location.** It is a ~90-line CTE inside `jmvReportsController.js`
-   and the rollup needs identical numbers. Extract to a shared module both
-   import, or duplicate into the rollup and accept the drift risk.
-
-**Implementation note, whichever is chosen:** whatever the rollup stores must be
-`ROUND(…, 2)` before anything sorts on it. Floating-point leaves differences
-around 1e-16 that reshuffled 1,448 positions in testing, and a `sku ASC`
-tiebreak cannot fix that because the values are not exactly equal. The report
-query already rounds; the rollup must too.
-
----
-
-### 5. Site audit — outstanding items
+### 3. Site audit — outstanding items
 *Logged 2026-09-12 · full detail in `AUDIT_2026-09-11.md`*
 
 Ranked by what they're worth:
@@ -102,7 +69,7 @@ Ranked by what they're worth:
 
 ---
 
-### 6. Rate limiter — retune AT CUTOVER, not before
+### 4. Rate limiter — retune AT CUTOVER, not before
 *Logged 2026-09-12 · deliberate pre-launch posture, do not "fix" early*
 
 Currently `windowMs 15 min, max 1000`, with `/css`, `/js`, `/images`,
@@ -143,7 +110,7 @@ Those guard credentials and are the ones doing real security work.
 
 ---
 
-### 7. Checkout and payment have never been audited
+### 5. Checkout and payment have never been audited
 *Logged 2026-09-12*
 
 Card handling, the Clover integration, FraudLabs and order creation were
@@ -154,6 +121,43 @@ it currently has no coverage. Needs its own scoped piece of work.
 ---
 
 ## Resolved
+
+### Footer rendered every link twice
+*Found and fixed 2026-09-13 · migration 027*
+
+All three footer columns showed each link doubled — Bathroom Vanities,
+Bathroom Vanities, Mirrors, Mirrors. Spotted by Sam looking at a live
+collections page.
+
+**Cause.** Migration 015 seeds the footer items with `INSERT IGNORE`, which
+only suppresses a UNIQUE KEY violation. `nav_menu_items` had no unique key —
+`PRIMARY KEY (id)` and a non-unique `idx_menu_items_sort` — so there was
+nothing to violate and the insert ran unconditionally. 015 ran twice, ids
+15-24 then 25-34. `nav_menus` escaped because it has `UNIQUE KEY handle`;
+the difference between the two tables is the entire bug.
+
+**Fix.** Deleted the copies keeping the lowest id per (menu_id, label, url),
+then added `UNIQUE KEY uniq_menu_item`. The order is the verification: with
+the constraint added second, a failed dedupe errors with #1062 rather than
+succeeding on bad data. 015 is now genuinely idempotent.
+
+`main-menu` was checked in the same pass and is clean.
+
+**Why the audit missed it.** `AUDIT_2026-09-11.md` collected links into a
+`Set` before status-checking them, so two identical links collapsed to one
+entry and the report said "one broken link in 192" — true, and blind to
+duplication by construction. The 375px pass measured tap targets, font sizes
+and overflow, all numeric properties, and never compared content for
+repetition.
+
+**The gap to close in any future audit:** check the page for sense, not only
+for validity. Duplicate links, repeated blocks and wrong-but-working content
+are invisible to a crawler that deduplicates and to a DOM pass that only
+measures. Look at the rendered page.
+
+**Fourth instance of the same anti-pattern** — a guard that cannot fail is
+not a guard. Migration 021, the information_schema verify in 023, a gate
+written on 2026-09-12, and now `INSERT IGNORE` without a unique key.
 
 ### §8 — `demand_score` now carries Estimated Combo Demand
 *Logged and resolved 2026-09-12 · commit `a16d40b` + migration 026*
