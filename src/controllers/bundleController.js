@@ -305,16 +305,54 @@ async function getMirrors() {
    Initial brand: Huntington Brass. Additional brands added over time.
    NOTE: Do NOT restrict by brand = JM_BRAND — faucets are intentionally
    multi-brand and the bundle builder note explains universal compatibility. */
+/* ── Faucet drilling ─────────────────────────────────────────────────
+   A JM top is drilled one of two ways, and a faucet only fits one of
+   them. Before the Huntington Brass import this step showed a handful of
+   faucets and the mismatch was invisible; the catalogue now holds 669
+   rows under `faucets`, most of them shower parts, so an unfiltered step
+   4 offers shower arms and drain assemblies as "faucets for your vanity".
+
+   HB encodes the drilling in the product NAME, which is the Shopify
+   series title the importer prefers — "Sevaun Widespread", "Joy Single
+   Control", "Isabelle Center Set". Measured across the 154 Bathroom
+   Faucets on 2026-09-14: 60 Single Control, 47 Widespread, 34 Center Set,
+   4 Vessel, 4 Lavatory.
+
+   Classified in SQL rather than JS so the value travels with the row and
+   the client cannot disagree with the server about what fits what.
+
+   CENTER SET IS NOT A MATCH FOR EITHER. It is a 4" three-hole spread; a
+   JM top is drilled single-hole or 8" widespread and nothing else. Center
+   Set and Vessel are therefore classified 'other' and never offered — a
+   4" faucet on an 8" deck is a return, not a near-miss. */
+const FAUCET_DRILLING_SQL = `
+  CASE
+    WHEN p.name LIKE '%Widespread%'                          THEN 'widespread'
+    WHEN p.name LIKE '%Single Control%'
+      OR p.name LIKE '%Single Hole%'
+      OR p.name LIKE '%Single-Hole%'                         THEN 'single'
+    WHEN p.name LIKE '%Center Set%' OR p.name LIKE '%Centerset%'
+      OR p.name LIKE '%Vessel%'                              THEN 'other'
+    ELSE 'unknown'
+  END`;
+
 async function getFaucets() {
   const [rows] = await bvoPool.execute(`
     SELECT
       p.id, p.slug, p.name, p.model, p.brand, p.price, p.compare_price,
       p.width_in, p.color, p.color_family,
+      ${FAUCET_DRILLING_SQL} AS drilling,
       ${IMG_SQL}
     FROM products p
     INNER JOIN categories c ON c.id = p.category_id
-    WHERE c.slug       = 'faucets'
-      AND p.is_active  = 1
+    WHERE c.slug        = 'faucets'
+      AND p.is_active   = 1
+      /* Bathroom Faucets ONLY. The faucets category also carries Shower
+         Fixtures (376), Kitchen Faucets (84) and Tub Fillers (55) since
+         the HB import — none of which belong on a vanity. Filtering on
+         product_type rather than on the name keeps this correct when HB
+         names something unexpectedly. */
+      AND p.product_type = 'Bathroom Faucets'
     ORDER BY p.brand ASC, p.model ASC, p.price ASC
   `);
   return rows;

@@ -460,8 +460,85 @@
     if (step === 'cabinet') return CABINET_MODELS;
     if (step === 'top')     return activeTops();
     if (step === 'mirror')  return activeMirrors();
-    if (step === 'faucet')  return FAUCET_MODELS;
+    if (step === 'faucet')  return activeFaucets();
     return [];
+  }
+
+  /* ── Faucets: match the top's drilling ─────────────────────────────
+     The server already restricted this list to product_type
+     'Bathroom Faucets' and tagged each row with `drilling`:
+       'widespread'  fits an 8" three-hole deck
+       'single'      fits a single-hole deck
+       'other'       Center Set (4") and Vessel — fits NEITHER
+       'unknown'     name did not say; shown rather than hidden
+
+     The top carries faucet_spread from product_attribute_values, where
+     '8' means widespread and anything else means single hole. That is the
+     same test TOP_VARIANT_ATTRS uses to label the drilling chips, so the
+     two cannot drift apart — if one is wrong they are both wrong, and
+     visibly so.
+
+     Center Set is EXCLUDED, not deprioritised. A 4" faucet on an 8" deck
+     does not fit; offering it as a lower-ranked option would be offering a
+     return.
+
+     'unknown' is kept. A faucet whose name does not announce its drilling
+     is a data gap, and hiding it turns that gap into a silently shorter
+     list. Better to show it and let the product page settle it.
+
+     No top selected yet -> everything, so the step is browsable before a
+     top is chosen. Degrades to the full list rather than an empty one if
+     nothing matches, which is the same choice activeTops() makes for an
+     unmapped cabinet. */
+  function topDrilling() {
+    var t = state.top;
+    if (!t) return null;
+    return String(t.faucet_spread) === '8' ? 'widespread' : 'single';
+  }
+
+  function faucetFits(sku, want) {
+    if (!want || !sku) return true;
+    return sku.drilling === want || sku.drilling === 'unknown';
+  }
+
+  function activeFaucets() {
+    var want = topDrilling();
+    if (!want) return FAUCET_MODELS;
+
+    var out = [];
+    FAUCET_MODELS.forEach(function(m) {
+      var skus = m.skus.filter(function(s) { return faucetFits(s, want); });
+      if (skus.length) out.push({ model: m.model, skus: skus });
+    });
+    return out.length ? out : FAUCET_MODELS;
+  }
+
+  /* Called whenever the top selection changes.
+
+     Dropping an already-chosen faucet matters more than re-rendering the
+     list. Pick an 8" widespread faucet, then change your mind and take a
+     single-hole top, and without this the bundle still holds a faucet that
+     will not fit the deck you just bought — and the summary keeps quoting
+     the 15% bundle discount for it. Silent, and only discovered on
+     delivery.
+
+     Resetting the carousel index is not cosmetic either: gIdx.faucet is a
+     position in a list that just got shorter, so leaving it alone can point
+     past the end. */
+  function resyncFaucets() {
+    var want = topDrilling();
+
+    if (state.faucet && !faucetFits(state.faucet, want)) {
+      state.faucet    = null;
+      state.faucetQty = 1;
+      var qtyRow = el('bb-qty-row-faucet');
+      if (qtyRow) qtyRow.style.display = 'none';
+      updateBadge('faucet');
+    }
+
+    gIdx.faucet   = 0;
+    gColor.faucet = null;
+    renderViewer('faucet');
   }
 
   /* Mirrors sorted with same-model mirror first once a cabinet is selected.
@@ -993,6 +1070,9 @@
         gIdx.mirror = 0; gColor.mirror = null;
         renderViewer('mirror');
       }
+      /* Top deselected — the faucet list is no longer constrained by
+         drilling, so rebuild it. */
+      if (step === 'top') resyncFaucets();
       /* Reset qty on deselect */
       if (step === 'mirror' || step === 'faucet') {
         state[step + 'Qty'] = 1;
@@ -1010,6 +1090,9 @@
         gIdx.mirror = 0; gColor.mirror = null;
         renderViewer('mirror');
       }
+      /* Top selected — the faucet list is now constrained to this top's
+         drilling, so rebuild it and drop a faucet that no longer fits. */
+      if (step === 'top') resyncFaucets();
       /* Show qty row on select */
       if (step === 'mirror' || step === 'faucet') {
         var qtyRow = el('bb-qty-row-' + step);
