@@ -372,30 +372,45 @@ async function resolveCategoryIds(conn) {
 /* Product name: the workbook's "Product name" is a bare type ("KITCHEN
    FAUCET", "TOWEL BAR") repeated across every series and finish, so it is
    useless as a title on its own. Shopify's title carries the series name
-   ("Sevaun Widespread"). Prefer theirs, qualify with the finish. */
-function buildName(r) {
+   ("Sevaun Widespread"). Prefer theirs, qualify with the finish.
+
+   That same series title is ALSO the model. products.model is what
+   groupByModel() in bundleController keys on, and what the bundle-builder
+   carousel treats as one card with a finish swatch per SKU. Leaving it
+   NULL does not fail loudly — every row falls into the `|| 'Other'`
+   bucket, so all 768 HB products collapse into a single carousel card
+   called "Other" whose "finish" swatches are 768 unrelated products.
+   That is exactly what shipped on 2026-09-13 and it looked like a
+   filtering bug. Write the model. */
+function buildModel(r) {
   const base = (r.feed && r.feed.shopifyTitle) ? r.feed.shopifyTitle.trim()
              : String(r.name || '').trim();
-  const pretty = base.replace(/\s+/g, ' ');
+  return base.replace(/\s+/g, ' ') || null;
+}
+
+function buildName(r) {
+  const pretty = buildModel(r) || '';
   return r.finish ? `${pretty} — ${r.finish}` : pretty;
 }
 
 async function upsertOne(conn, r, categoryId) {
   const name      = buildName(r);
+  const model     = buildModel(r);
   const shortDesc = r.bullets.length ? r.bullets[0].slice(0, 500) : null;
   const longDesc  = [r.feed.longText, r.bullets.map(b => `• ${b}`).join('\n')]
                       .filter(Boolean).join('\n\n') || null;
 
   await conn.query(`
     INSERT INTO products
-      (category_id, product_type, sku, slug, name, brand, short_desc, long_desc,
+      (category_id, product_type, sku, slug, name, model, brand, short_desc, long_desc,
        price, compare_price, color, upc, weight_lbs, width_in, depth_in, height_in,
        primary_image_url, source_flag, is_active)
-    VALUES (?,?,?,?,?,?,?,?,?,NULL,?,?,?,?,?,?,?,?,1)
+    VALUES (?,?,?,?,?,?,?,?,?,?,NULL,?,?,?,?,?,?,?,?,1)
     ON DUPLICATE KEY UPDATE
       category_id       = VALUES(category_id),
       product_type      = VALUES(product_type),
       name              = VALUES(name),
+      model             = VALUES(model),
       brand             = VALUES(brand),
       short_desc        = VALUES(short_desc),
       long_desc         = VALUES(long_desc),
@@ -415,7 +430,7 @@ async function upsertOne(conn, r, categoryId) {
          change; setting it here bumps every row on every run and turns
          sitemap lastmod into noise. */
   `, [
-    categoryId, r.productType, r.sku, slugify(r.sku), name, BRAND,
+    categoryId, r.productType, r.sku, slugify(r.sku), name, model, BRAND,
     shortDesc, longDesc, r.price, r.finish || null, r.upc,
     r.weightLbs, r.widthIn, r.depthIn, r.heightIn,
     r.feed.primaryImage, SOURCE_FLAG,
@@ -514,23 +529,24 @@ function buildSql(matched, { generatedAt = new Date().toISOString() } = {}) {
 
   for (const r of matched) {
     const name      = buildName(r);
+    const model     = buildModel(r);
     const shortDesc = r.bullets.length ? r.bullets[0].slice(0, 500) : null;
     const longDesc  = [r.feed.longText, r.bullets.map(b => `• ${b}`).join('\n')]
                         .filter(Boolean).join('\n\n') || null;
 
     L.push(`INSERT INTO products`);
-    L.push(`  (category_id, product_type, sku, slug, name, brand, short_desc, long_desc,`);
+    L.push(`  (category_id, product_type, sku, slug, name, model, brand, short_desc, long_desc,`);
     L.push(`   price, compare_price, color, upc, weight_lbs, width_in, depth_in, height_in,`);
     L.push(`   primary_image_url, source_flag, is_active)`);
     L.push(`VALUES ((SELECT id FROM categories WHERE slug = ${sqlStr(r.categorySlug)}),`);
     L.push(`  ${sqlStr(r.productType)}, ${sqlStr(r.sku)}, ${sqlStr(slugify(r.sku))},`);
-    L.push(`  ${sqlStr(name)}, ${sqlStr(BRAND)}, ${sqlStr(shortDesc)}, ${sqlStr(longDesc)},`);
+    L.push(`  ${sqlStr(name)}, ${sqlStr(model)}, ${sqlStr(BRAND)}, ${sqlStr(shortDesc)}, ${sqlStr(longDesc)},`);
     L.push(`  ${sqlNum(r.price)}, NULL, ${sqlStr(r.finish)}, ${sqlStr(r.upc)},`);
     L.push(`  ${sqlNum(r.weightLbs)}, ${sqlNum(r.widthIn)}, ${sqlNum(r.depthIn)}, ${sqlNum(r.heightIn)},`);
     L.push(`  ${sqlStr(r.feed.primaryImage)}, ${sqlStr(SOURCE_FLAG)}, 1)`);
     L.push(`ON DUPLICATE KEY UPDATE`);
     L.push(`  category_id = VALUES(category_id), product_type = VALUES(product_type),`);
-    L.push(`  name = VALUES(name), brand = VALUES(brand),`);
+    L.push(`  name = VALUES(name), model = VALUES(model), brand = VALUES(brand),`);
     L.push(`  short_desc = VALUES(short_desc), long_desc = VALUES(long_desc),`);
     L.push(`  price = VALUES(price), color = VALUES(color),`);
     L.push(`  upc = COALESCE(upc, VALUES(upc)), weight_lbs = VALUES(weight_lbs),`);
