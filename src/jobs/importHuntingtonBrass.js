@@ -441,9 +441,136 @@ async function upsertOne(conn, r, categoryId) {
   return productId;
 }
 
+/* ── SQL emitter ────────────────────────────────────────────────────
+   Writes a .sql file to run through phpMyAdmin instead of connecting.
+
+   Why this exists: the production credentials live in hbuilds/config/.env
+   ON THE SERVER. The repo's .env is a dev template (DB_HOST=localhost,
+   DB_NAME=bvo_website), so --live cannot work from a laptop — it would try
+   to reach a MySQL that is not there. This path needs no database
+   connection at all: the workbook and the Shopify feed are both reachable
+   locally, and phpMyAdmin does the writing.
+
+   It also means the statements can be read before they run, which for 768
+   products on a live catalogue is worth more than the convenience of a
+   direct connection.
+
+   Two things the emitter must get right:
+
+   1. category_id is resolved with a SUBSELECT on the slug, not a hardcoded
+      number. Ids differ between environments and a wrong one would file
+      768 products under whatever category happens to hold that id.
+
+   2. product_images rows are inserted with INSERT..SELECT keyed on the
+      product's SKU, because the product id is not known until the products
+      INSERT has run. The DELETE ahead of them is scoped the same way. */
+
+/* MySQL string literal. Escapes the five characters that can break out of
+   a quoted string or corrupt the statement. NULL for empty values so the
+   column keeps its NULL semantics rather than storing ''. */
+function sqlStr(v) {
+  if (v === null || v === undefined || v === '') return 'NULL';
+  return "'" + String(v)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '')
+    .replace(/\x00/g, '') + "'";
+}
+const sqlNum = v => (v === null || v === undefined || v === '' || !Number.isFinite(Number(v)))
+  ? 'NULL' : String(Number(v));
+
+function buildSql(matched, { generatedAt = new Date().toISOString() } = {}) {
+  const L = [];
+  const skus = matched.map(m => sqlStr(m.sku)).join(', ');
+
+  L.push(`-- ═══════════════════════════════════════════════════════════════`);
+  L.push(`--  Huntington Brass catalogue import`);
+  L.push(`--  generated ${generatedAt}`);
+  L.push(`--  ${matched.length} products`);
+  L.push(`--`);
+  L.push(`--  price = 2026 list price. compare_price stays NULL — HB sells at`);
+  L.push(`--  list; discounting happens in the cart, the trade programme and`);
+  L.push(`--  the bundle builder.`);
+  L.push(`--`);
+  L.push(`--  Safe to re-run: products upsert on the UNIQUE sku, and the image`);
+  L.push(`--  rows are deleted before being re-inserted.`);
+  L.push(`--`);
+  L.push(`--  Wrapped in a transaction. If any statement fails, ROLLBACK and`);
+  L.push(`--  nothing is written. phpMyAdmin stops on the first error.`);
+  L.push(`-- ═══════════════════════════════════════════════════════════════`);
+  L.push('');
+  L.push('START TRANSACTION;');
+  L.push('');
+
+  /* Fail loudly and early if the categories are missing, rather than
+     inserting 768 rows with a NULL category_id. */
+  L.push(`-- Abort unless both categories exist. Returns an error row if not.`);
+  L.push(`SELECT IF(COUNT(*) = 2, 'ok',`);
+  L.push(`  (SELECT CONCAT('ABORT: expected categories faucets+accessories, found ', COUNT(*))`);
+  L.push(`     FROM categories WHERE slug IN ('faucets','accessories'))) AS precheck`);
+  L.push(`  FROM categories WHERE slug IN ('faucets','accessories');`);
+  L.push('');
+
+  for (const r of matched) {
+    const name      = buildName(r);
+    const shortDesc = r.bullets.length ? r.bullets[0].slice(0, 500) : null;
+    const longDesc  = [r.feed.longText, r.bullets.map(b => `• ${b}`).join('\n')]
+                        .filter(Boolean).join('\n\n') || null;
+
+    L.push(`INSERT INTO products`);
+    L.push(`  (category_id, product_type, sku, slug, name, brand, short_desc, long_desc,`);
+    L.push(`   price, compare_price, color, upc, weight_lbs, width_in, depth_in, height_in,`);
+    L.push(`   primary_image_url, source_flag, is_active)`);
+    L.push(`VALUES ((SELECT id FROM categories WHERE slug = ${sqlStr(r.categorySlug)}),`);
+    L.push(`  ${sqlStr(r.productType)}, ${sqlStr(r.sku)}, ${sqlStr(slugify(r.sku))},`);
+    L.push(`  ${sqlStr(name)}, ${sqlStr(BRAND)}, ${sqlStr(shortDesc)}, ${sqlStr(longDesc)},`);
+    L.push(`  ${sqlNum(r.price)}, NULL, ${sqlStr(r.finish)}, ${sqlStr(r.upc)},`);
+    L.push(`  ${sqlNum(r.weightLbs)}, ${sqlNum(r.widthIn)}, ${sqlNum(r.depthIn)}, ${sqlNum(r.heightIn)},`);
+    L.push(`  ${sqlStr(r.feed.primaryImage)}, ${sqlStr(SOURCE_FLAG)}, 1)`);
+    L.push(`ON DUPLICATE KEY UPDATE`);
+    L.push(`  category_id = VALUES(category_id), product_type = VALUES(product_type),`);
+    L.push(`  name = VALUES(name), brand = VALUES(brand),`);
+    L.push(`  short_desc = VALUES(short_desc), long_desc = VALUES(long_desc),`);
+    L.push(`  price = VALUES(price), color = VALUES(color),`);
+    L.push(`  upc = COALESCE(upc, VALUES(upc)), weight_lbs = VALUES(weight_lbs),`);
+    L.push(`  width_in = VALUES(width_in), depth_in = VALUES(depth_in),`);
+    L.push(`  height_in = VALUES(height_in), primary_image_url = VALUES(primary_image_url);`);
+    L.push('');
+  }
+
+  /* Images: clear then repopulate, scoped to the SKUs in this file so no
+     other brand's images are touched. */
+  L.push(`-- Replace image rows for these SKUs only.`);
+  L.push(`DELETE pi FROM product_images pi`);
+  L.push(`  JOIN products p ON p.id = pi.product_id`);
+  L.push(` WHERE p.sku IN (${skus});`);
+  L.push('');
+
+  for (const r of matched) {
+    const name = buildName(r);
+    const urls = [r.feed.primaryImage,
+                  ...r.feed.gallery.filter(u => u !== r.feed.primaryImage)];
+    urls.forEach((url, i) => {
+      L.push(`INSERT INTO product_images (product_id, url, alt_text, sort_order, is_primary)`);
+      L.push(`  SELECT p.id, ${sqlStr(url)}, ${sqlStr(name)}, ${i}, ${i === 0 ? 1 : 0}`);
+      L.push(`    FROM products p WHERE p.sku = ${sqlStr(r.sku)};`);
+    });
+  }
+
+  L.push('');
+  L.push('COMMIT;');
+  L.push('');
+  L.push(`-- Verify — expect ${matched.length}:`);
+  L.push(`-- SELECT COUNT(*) FROM products WHERE brand = 'Huntington Brass' AND source_flag = 'csv';`);
+  L.push(`-- Undo, if needed:`);
+  L.push(`-- DELETE FROM products WHERE brand = 'Huntington Brass' AND source_flag = 'csv';`);
+  return L.join('\n');
+}
+
 /* ── Orchestration ──────────────────────────────────────────────────── */
 
-async function run({ file, dryRun = true, log = console.log } = {}) {
+async function run({ file, dryRun = true, sqlOut = null, log = console.log } = {}) {
   if (!file || !fs.existsSync(file)) throw new Error(`workbook not found: ${file}`);
 
   log(`\nHuntington Brass import  ${dryRun ? '(DRY RUN — nothing will be written)' : '(LIVE)'}`);
@@ -491,6 +618,21 @@ async function run({ file, dryRun = true, log = console.log } = {}) {
     if (unmatched.length > 25) log(`   … and ${unmatched.length - 25} more`);
   }
 
+  /* --sql: write statements to a file instead of connecting. Checked
+     BEFORE the dryRun branch so --sql works on its own; it is a dry run as
+     far as the database is concerned. */
+  if (sqlOut) {
+    const sql = buildSql(matched);
+    fs.writeFileSync(sqlOut, sql, 'utf8');
+    const kb = Math.round(Buffer.byteLength(sql, 'utf8') / 1024);
+    log(`\nSQL written: ${sqlOut}  (${kb} KB, ${matched.length} products)`);
+    log(`Nothing was written to any database.`);
+    log(`\nImport it in phpMyAdmin — Import tab, choose the file, Go.`);
+    log(`It runs inside a transaction, so a failure rolls the whole thing back.`);
+    return { matched: matched.length, unmatched: unmatched.length, written: 0,
+             sqlFile: sqlOut, unmatchedRows: unmatched };
+  }
+
   if (dryRun) {
     log(`\nDRY RUN — would upsert ${matched.length} products. Nothing written.`);
     /* Say up front whether --live would even be able to connect. Finding
@@ -528,7 +670,7 @@ async function run({ file, dryRun = true, log = console.log } = {}) {
 }
 
 module.exports = {
-  run, readWorkbook, joinRows, fetchShopifyFeed, baseOf, buildBaseIndex,
+  run, readWorkbook, joinRows, fetchShopifyFeed, baseOf, buildBaseIndex, buildSql, sqlStr,
   buildName, parseBullets, htmlToText, normSku, slugify,
   CATEGORY_SLUG_BY_HB_CATEGORY, HB_IMAGE_HOST,
 };
@@ -537,13 +679,22 @@ module.exports = {
 if (require.main === module) {
   const args   = process.argv.slice(2);
   const dryRun = !args.includes('--live');
+  const sqlArg = args.find(a => a.startsWith('--sql'));
+  /* --sql            -> default filename next to the workbook
+     --sql=path.sql   -> explicit */
+  const sqlOut = sqlArg
+    ? (sqlArg.includes('=') ? sqlArg.split('=').slice(1).join('=')
+                            : 'huntington_brass_import.sql')
+    : null;
   const file   = args.find(a => !a.startsWith('--'));
   if (!file) {
-    console.error('usage: node src/jobs/importHuntingtonBrass.js <workbook.xlsx> [--live]');
-    console.error('       omit --live for a dry run (default)');
+    console.error('usage: node src/jobs/importHuntingtonBrass.js <workbook.xlsx> [--live|--sql[=out.sql]]');
+    console.error('  (no flag)        dry run — reports what it would do, writes nothing');
+    console.error('  --sql[=out.sql]  write a .sql file to import via phpMyAdmin');
+    console.error('  --live           connect and write directly (server only)');
     process.exit(2);
   }
-  run({ file, dryRun })
+  run({ file, dryRun, sqlOut })
     .then(r => { console.log('\ndone:', JSON.stringify({ matched: r.matched, unmatched: r.unmatched, written: r.written })); process.exit(0); })
     .catch(e => { console.error('\nERROR:', e.message); process.exit(1); });
 }
