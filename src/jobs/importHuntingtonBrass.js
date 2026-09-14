@@ -233,14 +233,76 @@ async function fetchShopifyFeed({ log = console.log } = {}) {
 
 /* ── 3. Join ────────────────────────────────────────────────────────── */
 
+/* Strip a trailing series suffix: W4680201-4 -> W4680201, P0112401-JB ->
+   P0112401. A part number with no dash is returned unchanged. */
+const baseOf = s => String(s || '').replace(/-[A-Z0-9]+$/, '');
+
+/* ── Why a base-number fallback is safe here ─────────────────────────
+   HB's Builder Series carries a -JB suffix on its VARIANT SKUs that the
+   price list does not use. Measured 2026-09-14: of 5 workbook rows with no
+   exact match, 4 had a -JB counterpart in the feed.
+
+   Loose matching is normally how you put a chrome photo on a matte black
+   page. It cannot do that here, because the FINISH IS ENCODED IN THE BASE
+   PART NUMBER, not in the suffix:
+
+       P0112401  Chrome           W4680201-4   Chrome
+       P0112416  PVD Satin Brass  W4680216-4   PVD Satin Brass
+       P0112429  Satin Nickel     W4680229-4   Satin Nickel
+       P0112449  Matte Black      W4680249-4   Matte Black
+
+   So P0112401 can only ever base-match P0112401-JB — same product, same
+   finish. The suffix distinguishes the series, which the price list
+   expresses in a different column.
+
+   Guarded anyway: a base is only used when EXACTLY ONE feed SKU has it. If
+   two did, we could not tell which, and a guess is worse than a gap. Every
+   fallback match is reported as matchedVia:'base' so a run always shows how
+   many rows leaned on this rather than hiding it inside the total. */
+function buildBaseIndex(bySku) {
+  const byBase = new Map();
+  for (const sku of bySku.keys()) {
+    const b = baseOf(sku);
+    if (!byBase.has(b)) byBase.set(b, []);
+    byBase.get(b).push(sku);
+  }
+  return byBase;
+}
+
 function joinRows(rows, bySku) {
+  const byBase = buildBaseIndex(bySku);
   const matched = [];
   const unmatched = [];
+
   for (const r of rows) {
-    const feed = bySku.get(r.sku);
-    if (feed && feed.primaryImage) matched.push({ ...r, feed });
-    else unmatched.push({ ...r, reason: feed ? 'in feed but no variant image' : 'not in feed' });
+    /* 1. Exact SKU. Always preferred. */
+    const exact = bySku.get(r.sku);
+    if (exact && exact.primaryImage) {
+      matched.push({ ...r, feed: exact, matchedVia: 'exact', matchedSku: r.sku });
+      continue;
+    }
+
+    /* 2. Base part number, only when unambiguous. */
+    const candidates = byBase.get(baseOf(r.sku)) || [];
+    if (candidates.length === 1) {
+      const altSku = candidates[0];
+      const alt = bySku.get(altSku);
+      if (alt && alt.primaryImage) {
+        matched.push({ ...r, feed: alt, matchedVia: 'base', matchedSku: altSku });
+        continue;
+      }
+    }
+
+    /* Be precise about WHY. "not in feed" sends someone to look for a
+       product that is there; "no image" sends them to the right place. */
+    let reason;
+    if (exact)                     reason = 'in feed but no variant image';
+    else if (candidates.length > 1) reason = `ambiguous base — feed has ${candidates.join(', ')}`;
+    else if (candidates.length === 1) reason = `in feed as ${candidates[0]} but that variant has no image`;
+    else                            reason = 'not in feed';
+    unmatched.push({ ...r, reason });
   }
+
   return { matched, unmatched };
 }
 
@@ -353,8 +415,21 @@ async function run({ file, dryRun = true, log = console.log } = {}) {
   log(`feed: ${products} products, ${bySku.size} SKUs with a variant`);
 
   const { matched, unmatched } = joinRows(rows, bySku);
+  const viaBase = matched.filter(m => m.matchedVia === 'base');
   log(`\nmatched to an image : ${matched.length}`);
+  log(`   exact SKU        : ${matched.length - viaBase.length}`);
+  log(`   base part number : ${viaBase.length}`);
   log(`unmatched           : ${unmatched.length}`);
+
+  /* Always list the fallback matches. They are correct, but they are an
+     inference, and an inference that is never shown is one nobody checks. */
+  if (viaBase.length) {
+    log('\nmatched on base part number (suffix differs):');
+    for (const m of viaBase.slice(0, 20)) {
+      log(`   ${m.sku.padEnd(16)} -> feed ${m.matchedSku}   [${m.finish}]`);
+    }
+    if (viaBase.length > 20) log(`   … and ${viaBase.length - 20} more`);
+  }
 
   const byCat = {};
   for (const m of matched) byCat[m.hbCategory] = (byCat[m.hbCategory] || 0) + 1;
@@ -398,7 +473,7 @@ async function run({ file, dryRun = true, log = console.log } = {}) {
 }
 
 module.exports = {
-  run, readWorkbook, joinRows, fetchShopifyFeed,
+  run, readWorkbook, joinRows, fetchShopifyFeed, baseOf, buildBaseIndex,
   buildName, parseBullets, htmlToText, normSku, slugify,
   CATEGORY_SLUG_BY_HB_CATEGORY, HB_IMAGE_HOST,
 };
