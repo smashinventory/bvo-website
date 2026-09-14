@@ -40,12 +40,59 @@ const fs    = require('fs');
 const XLSX  = require('xlsx');
 const axios = require('axios');
 
+/* ── Environment ─────────────────────────────────────────────────────
+   src/config/database.js reads process.env.DB_PASS and calls process.exit
+   if it is missing — but it never loads dotenv itself. Only src/server.js
+   does that. So anything run standalone (`node src/jobs/…`) starts with no
+   environment and dies with "DB_PASS is not set in .env" even when the file
+   is sitting right there with a valid password. That is exactly what
+   happened on the first --live attempt, 2026-09-14.
+
+   The candidate list and the reasoning behind it belong to
+   src/jobs/shipmentStatusPoll.js, which hit this on 2026-09-02 and
+   documents WHY the paths are what they are: hPanel injects variables into
+   the managed app process, cron inherits none of that, and the values
+   materialise in a file outside hbuilds/current/ so deploys cannot
+   overwrite them. Read that file before changing these paths — it is the
+   authority, this is a copy.
+
+   Duplicated rather than shared on purpose, for now: extracting it means
+   editing a working production cron job, which is not this task. The
+   duplication is logged as something to collapse later.
+
+   Unlike shipmentStatusPoll, a failure here is NOT fatal at load time. A
+   dry run touches no database and must work on a laptop with no
+   credentials. The error is raised in the write path instead. */
+const BVO_BASE = '/home/u222311468/domains/slategrey-falcon-350174.hostingersite.com';
+const ENV_CANDIDATES = [
+  process.env.BVO_ENV_PATH,                       // explicit override wins
+  `${BVO_BASE}/hbuilds/config/.env`,              // survives deploys
+  `${BVO_BASE}/hbuilds/current/nodejs/.env`,      // if a deploy symlinks it in
+  path.resolve(__dirname, '../../.env'),          // local/dev checkout
+].filter(Boolean);
+
+let ENV_LOADED_FROM = null;
+for (const candidate of ENV_CANDIDATES) {
+  if (!fs.existsSync(candidate)) continue;
+  require('dotenv').config({ path: candidate });
+  if (process.env.DB_PASS) { ENV_LOADED_FROM = candidate; break; }
+}
+
 /* The pool is required LAZILY, inside the write path only.
-   src/config/database.js exits the process when DB_PASS is unset, so a
-   top-level require would make a dry run — which touches no database —
-   demand production credentials, and make this file impossible to unit
-   test. Nothing above the write path may reference bvoPool. */
+   database.js exits the process when DB_PASS is unset, so a top-level
+   require would make a dry run demand production credentials and make this
+   file impossible to unit test. Nothing above the write path may reference
+   bvoPool. */
 function getPool() {
+  if (!ENV_LOADED_FROM) {
+    const looked = ENV_CANDIDATES
+      .map(c => `     ${c}  ${fs.existsSync(c) ? '(exists, no DB_PASS)' : '(missing)'}`)
+      .join('\n');
+    throw new Error(
+      'no .env yielded DB_PASS, so the database cannot be reached. Looked in:\n' +
+      looked + '\n' +
+      '   Set BVO_ENV_PATH to the right file, or run the dry run instead (omit --live).');
+  }
   return require('../config/database').bvoPool;
 }
 
@@ -446,8 +493,16 @@ async function run({ file, dryRun = true, log = console.log } = {}) {
 
   if (dryRun) {
     log(`\nDRY RUN — would upsert ${matched.length} products. Nothing written.`);
+    /* Say up front whether --live would even be able to connect. Finding
+       that out only after a 30-second feed fetch, having already decided to
+       go live, is how the first attempt went. */
+    log(ENV_LOADED_FROM
+      ? `(--live would use credentials from ${ENV_LOADED_FROM})`
+      : `(--live would FAIL here: no .env on this machine yields DB_PASS)`);
     return { matched: matched.length, unmatched: unmatched.length, written: 0, unmatchedRows: unmatched };
   }
+
+  log(`\nenv loaded from: ${ENV_LOADED_FROM || '(none)'}`);
 
   const conn = await getPool().getConnection();
   let written = 0;
