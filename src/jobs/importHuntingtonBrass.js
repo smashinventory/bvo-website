@@ -39,6 +39,11 @@ const path  = require('path');
 const fs    = require('fs');
 const XLSX  = require('xlsx');
 const axios = require('axios');
+/* Finish -> swatch family. The same module the JM importer uses, so an HB
+   Chrome swatch and a JM Chrome swatch are the same grey. normalize() does
+   substring matching longest-first, which is what carries HB's PVD prefix:
+   'PVD Satin Nickel' -> nickel, 'PVD Satin Brass' -> gold. */
+const { normalize: normalizeFinish } = require('../config/colorFamilies');
 
 /* ── Environment ─────────────────────────────────────────────────────
    src/config/database.js reads process.env.DB_PASS and calls process.exit
@@ -114,6 +119,32 @@ const CATEGORY_SLUG_BY_HB_CATEGORY = {
   'Shower Fixtures':      'faucets',
   'Bathroom Accessories': 'accessories',
   'Plumbing Accessories': 'accessories',
+};
+
+/* ── product_type overrides, by SKU ───────────────────────────────────
+   The workbook's Category column becomes product_type (Sam's call), and
+   for 763 of 768 rows that is right. These five are not: HB files them
+   under "Bathroom Faucets" but their own copy calls them otherwise —
+
+     W9110501     "dual handle bar faucet … addition to the bar"
+     W9120601-10  "dual handle bar faucet"
+     W9120629-10  "dual handle bar faucet"
+     W9510501-30  "laundry faucet … addition to the laundry room"
+     W9510501-40  "laundry faucet … addition to the laundry room"
+
+   They are still faucets and still belong in the `faucets` category —
+   only the type is wrong. Left alone they appear in step 4 of the bundle
+   builder as candidate vanity faucets, which is how this was found.
+
+   This override exists because the DB fix alone would not hold: the next
+   import reads Category from the workbook and would put them straight
+   back. Data fix plus importer fix, or neither. */
+const PRODUCT_TYPE_OVERRIDE_BY_SKU = {
+  'W9110501':    'Bar Faucets',
+  'W9120601-10': 'Bar Faucets',
+  'W9120629-10': 'Bar Faucets',
+  'W9510501-30': 'Laundry Faucets',
+  'W9510501-40': 'Laundry Faucets',
 };
 
 /* Workbook column headers, exactly as they appear in row 1. Trailing space
@@ -205,7 +236,7 @@ function readWorkbook(filePath) {
       sku,
       hbCategory:   hbCat,
       categorySlug: slug,
-      productType:  hbCat,                      // Sam: Category becomes Type
+      productType:  PRODUCT_TYPE_OVERRIDE_BY_SKU[sku] || hbCat,  // Sam: Category becomes Type
       name:         String(r[COL.name] || '').trim(),
       finish:       String(r[COL.finish] || '').trim(),
       bullets:      parseBullets(r[COL.description]),
@@ -393,9 +424,16 @@ function buildName(r) {
   return r.finish ? `${pretty} — ${r.finish}` : pretty;
 }
 
+/* 'metal' context, not 'all': in the shared map 'Matte Black' resolves to
+   the cabinet family. A faucet finish is never a cabinet finish. */
+function buildColorFamily(r) {
+  return r.finish ? normalizeFinish(r.finish, 'metal') : null;
+}
+
 async function upsertOne(conn, r, categoryId) {
   const name      = buildName(r);
   const model     = buildModel(r);
+  const colorFam  = buildColorFamily(r);
   const shortDesc = r.bullets.length ? r.bullets[0].slice(0, 500) : null;
   const longDesc  = [r.feed.longText, r.bullets.map(b => `• ${b}`).join('\n')]
                       .filter(Boolean).join('\n\n') || null;
@@ -403,9 +441,9 @@ async function upsertOne(conn, r, categoryId) {
   await conn.query(`
     INSERT INTO products
       (category_id, product_type, sku, slug, name, model, brand, short_desc, long_desc,
-       price, compare_price, color, upc, weight_lbs, width_in, depth_in, height_in,
-       primary_image_url, source_flag, is_active)
-    VALUES (?,?,?,?,?,?,?,?,?,?,NULL,?,?,?,?,?,?,?,?,1)
+       price, compare_price, color, color_family, upc, weight_lbs, width_in, depth_in,
+       height_in, primary_image_url, source_flag, is_active)
+    VALUES (?,?,?,?,?,?,?,?,?,?,NULL,?,?,?,?,?,?,?,?,?,1)
     ON DUPLICATE KEY UPDATE
       category_id       = VALUES(category_id),
       product_type      = VALUES(product_type),
@@ -419,6 +457,7 @@ async function upsertOne(conn, r, categoryId) {
          sold at list, and a previous manual edit should not be wiped by a
          re-import either. */
       color             = VALUES(color),
+      color_family      = VALUES(color_family),
       upc               = COALESCE(upc, VALUES(upc)),
       weight_lbs        = VALUES(weight_lbs),
       width_in          = VALUES(width_in),
@@ -431,7 +470,7 @@ async function upsertOne(conn, r, categoryId) {
          sitemap lastmod into noise. */
   `, [
     categoryId, r.productType, r.sku, slugify(r.sku), name, model, BRAND,
-    shortDesc, longDesc, r.price, r.finish || null, r.upc,
+    shortDesc, longDesc, r.price, r.finish || null, colorFam, r.upc,
     r.weightLbs, r.widthIn, r.depthIn, r.heightIn,
     r.feed.primaryImage, SOURCE_FLAG,
   ]);
@@ -530,18 +569,19 @@ function buildSql(matched, { generatedAt = new Date().toISOString() } = {}) {
   for (const r of matched) {
     const name      = buildName(r);
     const model     = buildModel(r);
+    const colorFam  = buildColorFamily(r);
     const shortDesc = r.bullets.length ? r.bullets[0].slice(0, 500) : null;
     const longDesc  = [r.feed.longText, r.bullets.map(b => `• ${b}`).join('\n')]
                         .filter(Boolean).join('\n\n') || null;
 
     L.push(`INSERT INTO products`);
     L.push(`  (category_id, product_type, sku, slug, name, model, brand, short_desc, long_desc,`);
-    L.push(`   price, compare_price, color, upc, weight_lbs, width_in, depth_in, height_in,`);
-    L.push(`   primary_image_url, source_flag, is_active)`);
+    L.push(`   price, compare_price, color, color_family, upc, weight_lbs, width_in, depth_in,`);
+    L.push(`   height_in, primary_image_url, source_flag, is_active)`);
     L.push(`VALUES ((SELECT id FROM categories WHERE slug = ${sqlStr(r.categorySlug)}),`);
     L.push(`  ${sqlStr(r.productType)}, ${sqlStr(r.sku)}, ${sqlStr(slugify(r.sku))},`);
     L.push(`  ${sqlStr(name)}, ${sqlStr(model)}, ${sqlStr(BRAND)}, ${sqlStr(shortDesc)}, ${sqlStr(longDesc)},`);
-    L.push(`  ${sqlNum(r.price)}, NULL, ${sqlStr(r.finish)}, ${sqlStr(r.upc)},`);
+    L.push(`  ${sqlNum(r.price)}, NULL, ${sqlStr(r.finish)}, ${sqlStr(colorFam)}, ${sqlStr(r.upc)},`);
     L.push(`  ${sqlNum(r.weightLbs)}, ${sqlNum(r.widthIn)}, ${sqlNum(r.depthIn)}, ${sqlNum(r.heightIn)},`);
     L.push(`  ${sqlStr(r.feed.primaryImage)}, ${sqlStr(SOURCE_FLAG)}, 1)`);
     L.push(`ON DUPLICATE KEY UPDATE`);
@@ -549,6 +589,7 @@ function buildSql(matched, { generatedAt = new Date().toISOString() } = {}) {
     L.push(`  name = VALUES(name), model = VALUES(model), brand = VALUES(brand),`);
     L.push(`  short_desc = VALUES(short_desc), long_desc = VALUES(long_desc),`);
     L.push(`  price = VALUES(price), color = VALUES(color),`);
+    L.push(`  color_family = VALUES(color_family),`);
     L.push(`  upc = COALESCE(upc, VALUES(upc)), weight_lbs = VALUES(weight_lbs),`);
     L.push(`  width_in = VALUES(width_in), depth_in = VALUES(depth_in),`);
     L.push(`  height_in = VALUES(height_in), primary_image_url = VALUES(primary_image_url);`);

@@ -325,14 +325,30 @@ async function getMirrors() {
    JM top is drilled single-hole or 8" widespread and nothing else. Center
    Set and Vessel are therefore classified 'other' and never offered — a
    4" faucet on an 8" deck is a return, not a near-miss. */
+/* Branch order is load-bearing: Widespread is tested FIRST, so a future
+   "Somewhere Lavatory Widespread" lands on widespread rather than being
+   caught by the Lavatory test below. Do not reorder these.
+
+   'Lavatory' in the single branch — added 2026-09-14. HB's only Lavatory
+   model is Woodbury, whose own copy reads "Single handle, single hole
+   lavatory faucet"; the name just never says so. The word does not mean
+   single-hole in general, which is why Widespread gets first refusal.
+
+   'Bar Faucet' and 'Laundry' in the other branch are belt-and-braces.
+   Those five SKUs were retyped out of 'Bathroom Faucets' in migration
+   2026-09-14_hb_faucet_types_and_finishes.sql, so they should never reach
+   this CASE. If a future import puts them back, they get excluded here
+   instead of silently reappearing on a vanity. */
 const FAUCET_DRILLING_SQL = `
   CASE
     WHEN p.name LIKE '%Widespread%'                          THEN 'widespread'
     WHEN p.name LIKE '%Single Control%'
       OR p.name LIKE '%Single Hole%'
-      OR p.name LIKE '%Single-Hole%'                         THEN 'single'
+      OR p.name LIKE '%Single-Hole%'
+      OR p.name LIKE '%Lavatory%'                            THEN 'single'
     WHEN p.name LIKE '%Center Set%' OR p.name LIKE '%Centerset%'
-      OR p.name LIKE '%Vessel%'                              THEN 'other'
+      OR p.name LIKE '%Vessel%'
+      OR p.name LIKE '%Bar Faucet%' OR p.name LIKE '%Laundry%' THEN 'other'
     ELSE 'unknown'
   END`;
 
