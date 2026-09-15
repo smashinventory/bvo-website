@@ -138,6 +138,62 @@
       </div>
       <% } %>
 
+      <!-- ── Size buckets (explicit; never via attributeDefs) ────── -->
+      <%/*
+        * MOVED OUT OF THE ATTRIBUTE LOOP 2026-09-15.
+        *
+        * These chips used to render inside attributeDefs.forEach, in the
+        * `range` branch, keyed on def.attr_key === 'size_in'. That made a
+        * load-bearing filter depend on a config row: if the
+        * attribute_definitions row for size_in is missing, is_active = 0,
+        * or has its filter_type changed, the entire group disappears —
+        * heading and all — while availableSizes sits fully populated one
+        * variable away. That is what happened here, and it cost a week of
+        * work to re-find.
+        *
+        * The model-group path never had the problem because it renders
+        * Size explicitly, gated on availableSizes.length. This is the same
+        * treatment for the standard grid path.
+        *
+        * Everything upstream is unchanged and still does the real work:
+        *   SIZE_BUCKETS      src/config/sizeBuckets.js — the ±2" bands
+        *   getAvailableWidths  runs the page's filters WITHOUT size_in, so
+        *                       only buckets that have products appear
+        *                       (CLAUDE.md Rule 10)
+        *   S/D suffixes      60S / 60D when a bucket holds both configs
+        *
+        * name="size_in" is unchanged, so existing links, the megamenu
+        * Shop-By-Size chips and any bookmarked ?size_in= URL keep working.
+        */%>
+      <% var _sizeChips = (typeof availableSizes !== 'undefined' && Array.isArray(availableSizes)) ? availableSizes : []; %>
+      <% if (_sizeChips.length > 0) { %>
+      <%   var _activeSizes = attrFilters['size_in'] || []; %>
+      <%   var _sizeActive  = _activeSizes.length > 0; %>
+      <div class="filter-group">
+        <button type="button" class="filter-group-toggle" aria-expanded="<%= _sizeActive ? 'true' : 'false' %>">
+          Size
+          <% if (_sizeActive) { %><span class="filter-badge"><%= _activeSizes.length %></span><% } %>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="filter-group-body<%= _sizeActive ? '' : ' is-collapsed' %>">
+          <% _sizeChips.forEach(function(sz) {
+               var _szActive = _activeSizes.indexOf(String(sz)) !== -1;
+               var _szLabel  = sz === '20-'         ? '20" & Under'
+                             : sz === '84+'         ? '84" & Over'
+                             : String(sz).endsWith('S') ? String(sz).slice(0, -1) + '" (Single)'
+                             : String(sz).endsWith('D') ? String(sz).slice(0, -1) + '" (Double)'
+                             : sz + '"';
+          %>
+          <label class="filter-option">
+            <input type="checkbox" name="size_in" value="<%= sz %>"
+              <%= _szActive ? 'checked' : '' %>>
+            <span><%= _szLabel %></span>
+          </label>
+          <% }) %>
+        </div>
+      </div>
+      <% } %>
+
       <%
       /*
        * Attribute-driven filter groups.
@@ -156,6 +212,7 @@
 
       <% attributeDefs.forEach(function(def) {
           if (def.attr_key === 'brand')         return; // handled above
+          if (def.attr_key === 'size_in')       return; // handled by the explicit Size group above
           if (def.attr_key === 'sink_count')    return; // handled by custom Configuration filter below
           if (def.attr_key === 'style')         return; // handled by custom Vanity Style filter below
           if (def.attr_key === 'drawer_count')  return; // suppressed — replaced by Configuration filter
@@ -180,6 +237,19 @@
            (or derived from the placeholder array in offline mode). */
         var checkOptions = availableAttrValues[def.attr_key] || [];
         if (!checkOptions.length) return; /* hide groups with no products */
+
+        /* A CHECKBOX facet with one option cannot narrow anything — every
+           product in the category already matches it, so ticking it
+           returns the same grid. Added 2026-09-15 after "Country of
+           Origin" rendered with the single value "Vietnam" and "Shipping
+           Method" with the single value "Yes".
+
+           Scoped to checkbox deliberately. A `boolean` facet is MEANT to
+           be one option: "Sink Included → Yes" is a toggle, and hiding it
+           here would remove a working control. Booleans nobody wants are
+           switched off in attribute_definitions instead, which is a
+           merchandising decision rather than a rendering rule. */
+        if (def.filter_type === 'checkbox' && checkOptions.length < 2) return;
       %>
       <div class="filter-group">
         <button type="button" class="filter-group-toggle" aria-expanded="<%= isExpanded %>">
@@ -371,24 +441,10 @@
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
         <div class="filter-group-body<%= isExpanded ? '' : ' is-collapsed' %>">
-          <% if (def.attr_key === 'size_in') { %>
-          <%
-            var _activeSizes = attrFilters['size_in'] || [];
-            var _chips = (typeof availableSizes !== 'undefined') ? availableSizes : [];
-          %>
-          <% _chips.forEach(function(sz) {
-               var _szActive = _activeSizes.indexOf(String(sz)) !== -1;
-               var _szLabel  = sz === '20-' ? '20" & Under'
-                             : sz === '84+' ? '84" & Over'
-                             : sz + '"';
-          %>
-          <label class="filter-option">
-            <input type="checkbox" name="<%= def.attr_key %>" value="<%= sz %>"
-              <%= _szActive ? 'checked' : '' %>>
-            <span><%= _szLabel %></span>
-          </label>
-          <% }) %>
-          <% } else { %>
+          <%/* size_in is skipped at the top of this loop and rendered as an
+               explicit group above. A second copy of the chip markup here
+               is exactly how the two drift apart, so it is gone rather
+               than left unreachable. */%>
           <div class="filter-price">
             <input type="number" name="<%= def.attr_key %>_min"
               placeholder="Min" value="<%= rangeActive.min != null ? rangeActive.min : '' %>" min="0">
@@ -397,7 +453,6 @@
               placeholder="Max" value="<%= rangeActive.max != null ? rangeActive.max : '' %>" min="0">
           </div>
           <button type="submit" class="btn btn-sage btn-filter-apply">Apply</button>
-          <% } %>
         </div>
       </div>
 
