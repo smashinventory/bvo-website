@@ -697,7 +697,24 @@ async function getSectionData(ts) {
 
 exports.index = async (req, res, next) => {
   try {
-    const ts = themeSettings.get();
+    /* res.locals.settings, NOT themeSettings.get(). Two middlewares have
+       already shaped this object by the time we get here and calling the
+       service directly discards both:
+
+         server.js  swaps in the session draft when ?te_preview=1, so the
+                    Theme Editor preview iframe shows unsaved changes.
+         megaMenuData  replaces nav.links with the Menu Manager rows.
+
+       Passing `settings:` in the render locals OVERRIDES res.locals for
+       that render, so this one line quietly reverted both — on the
+       homepage only. That is why the main menu was correct everywhere
+       except the page most people land on first: click Faucets from the
+       homepage and you got the old link, click it again from the faucets
+       page and you got the new one.
+
+       Fall back to the service for any caller that reaches this without
+       the middleware having run. */
+    const ts = res.locals.settings || themeSettings.get();
 
     const [sectionData, categories, inspirationPages] = await Promise.all([
       getSectionData(ts),
