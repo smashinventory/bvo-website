@@ -61,7 +61,11 @@ const DEFAULTS = {
     links: [
       { label: 'Vanities',    url: '/collections/bathroom-vanities', megaMenu: true },
       { label: 'Mirrors',     url: '/collections/bathroom-mirrors' },
-      { label: 'Faucets',     url: '/collections/faucets' },
+      // ?type= preselects the Type facet so the nav lands on bathroom
+      // faucets rather than all 669 rows (shower, kitchen, tub, bar).
+      // Bare /collections/faucets stays the full catalogue on purpose —
+      // it is the canonical URL and should surface every product.
+      { label: 'Faucets',     url: '/collections/faucets?type=Bathroom+Faucets' },
       { label: 'Accessories', url: '/collections/accessories' },
       { label: 'Sale',        url: '/collections/sale', highlight: true },
     ],

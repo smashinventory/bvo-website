@@ -107,6 +107,7 @@ exports.show = async (req, res, next) => {
         minPrice: undefined, maxPrice: undefined,
         priceRange: { min: 0, max: 9999 },
         availableBrands: [],
+        availableProductTypes: [],   // sale page has no Type facet
         attributeDefs: [],
         availableAttrValues: {},
         hasActiveFilters: false,
@@ -673,6 +674,9 @@ exports.show = async (req, res, next) => {
         attrFilters:           {},
         rangeFilters:          {},
         availableBrands:       mgAllBrands,
+        // Model-group path has its own Configuration facet driven by
+        // mgAvailTypes — it must not render the standard Type group too.
+        availableProductTypes: [],
         attributeDefs:         [],
         availableAttrValues:   {},
         familyHex:             FAMILY_HEX,
@@ -796,6 +800,7 @@ exports.show = async (req, res, next) => {
       availableAttrValues,
       [finishRows],
       [hwFinishRows],
+      [productTypeRows],
       [cfKeyRows],
     ] = await Promise.all([
       Category.getAttributeDefinitions(category.id),
@@ -816,6 +821,23 @@ exports.show = async (req, res, next) => {
          ORDER BY pav.value_text`,
         [category.id]
       ),
+      // Type facet options — distinct product_type in this category.
+      //
+      // Deliberately scoped to the CATEGORY, not to the current result set.
+      // If it were scoped to the filtered rows, selecting "Bathroom Faucets"
+      // would leave Bathroom Faucets as the only option in the list and the
+      // shopper could never switch to Kitchen — a filter that disables its
+      // own alternatives is a dead end. Brand does the same thing for the
+      // same reason (Category.getBrandsForCategory takes category.id only).
+      bvoPool.query(
+        `SELECT product_type, COUNT(*) AS n
+           FROM products
+          WHERE category_id = ? AND is_active = 1
+            AND product_type IS NOT NULL AND product_type <> ''
+          GROUP BY product_type
+          ORDER BY n DESC, product_type ASC`,
+        [category.id]
+      ),
       // Distinct color_family keys present in this category — primary swatch visibility signal.
       // Using color_family directly (not fam.members) means admin-remapped colors like
       // "Silver Oak → gray" cause the Gray swatch to appear even though "Silver Oak"
@@ -825,6 +847,11 @@ exports.show = async (req, res, next) => {
         [category.id]
       ),
     ]);
+    // Type facet options. Hidden when a category has only one type — a filter
+    // with a single choice that is already applied is noise, not a control.
+    const availableProductTypes = productTypeRows.length > 1
+      ? productTypeRows.map(r => ({ value: r.product_type, count: r.n }))
+      : [];
     const availFinishes         = finishRows.map(r => r.color);
     const availHardwareFinishes = hwFinishRows.map(r => r.value_text);
     // Array of BVO family keys that actually have products in this category
@@ -1119,6 +1146,7 @@ exports.show = async (req, res, next) => {
       minPrice, maxPrice,
       priceRange,
       availableBrands,
+      availableProductTypes,
       attributeDefs,
       availableAttrValues,
       hasActiveFilters,

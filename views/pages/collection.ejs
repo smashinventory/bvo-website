@@ -75,6 +75,40 @@
       </div>
       <% } %>
 
+      <!-- ── Type (second; hidden when a category has only one) ──── -->
+      <%/*
+        * availableProductTypes is category-wide, not result-set-wide, so
+        * picking "Bathroom Faucets" still leaves Kitchen, Shower and the
+        * rest selectable. A facet that removes its own alternatives is a
+        * dead end.
+        *
+        * Values are the raw product_type strings, so the label can never
+        * drift from what the filter actually matches on.
+        *
+        * Starts EXPANDED whenever a type is active — landing from the nav
+        * on ?type=Bathroom+Faucets should show the shopper what is applied
+        * and what else is on offer, not hide it behind a collapsed header.
+        */%>
+      <% if (availableProductTypes && availableProductTypes.length > 0) { %>
+      <%   var typeActive = productTypes.length > 0; %>
+      <div class="filter-group">
+        <button type="button" class="filter-group-toggle" aria-expanded="<%= typeActive ? 'true' : 'false' %>">
+          Type
+          <% if (typeActive) { %><span class="filter-badge"><%= productTypes.length %></span><% } %>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="filter-group-body<%= typeActive ? '' : ' is-collapsed' %>">
+          <% availableProductTypes.forEach(function(t) { %>
+          <label class="filter-option">
+            <input type="checkbox" name="type" value="<%= t.value %>"
+              <%= productTypes.includes(t.value) ? 'checked' : '' %>>
+            <span><%= t.value %> <span class="filter-count">(<%= t.count %>)</span></span>
+          </label>
+          <% }) %>
+        </div>
+      </div>
+      <% } %>
+
       <%
       /*
        * Attribute-driven filter groups.
