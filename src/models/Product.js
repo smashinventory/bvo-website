@@ -482,36 +482,66 @@ const Product = {
    * at least one matching product — prevents "dead" filter checkboxes.
    */
   async getAllAttributeValues(categoryId) {
+    /* TWO QUERIES, MERGED IN JS — NOT A UNION. Fixed 2026-09-14.
+     *
+     * This was one query UNION-ing products.product_type with
+     * product_attribute_values.value_text. Those two columns do not share a
+     * collation, so MySQL answered every call with
+     *
+     *     #1271 Illegal mix of collations for operation 'UNION'
+     *
+     * and the catch below turned that into {}. The effect was that EVERY
+     * checkbox attribute facet on EVERY category silently vanished —
+     * Faucet Type, Configuration, Handle Type, Spout Style — while Brand,
+     * Finish and the range filters carried on working because none of them
+     * read this function. A sidebar missing four groups looks like a
+     * merchandising decision, not a SQL error, which is why it survived.
+     *
+     * Deliberately NOT fixed by writing COLLATE into the query: that means
+     * naming a collation, and naming the wrong one swaps this error for a
+     * different one on a server nobody tests against. Two queries cannot
+     * have a collation mismatch with each other at all.               */
+    const result = {};
+
+    /* product_type lives on products, not in the EAV table. */
     try {
-      // UNION: product_type lives in products table (not EAV); everything else in product_attribute_values.
-      // GROUP BY deduplicates the UNION ALL result before ORDER BY.
-      const [rows] = await bvoPool.query(`
-        SELECT attr_key, val FROM (
-          SELECT 'product_type' AS attr_key, product_type AS val
-          FROM products
-          WHERE category_id = ? AND is_active = 1 AND product_type IS NOT NULL
-          UNION ALL
-          SELECT pav.attr_key,
-                 COALESCE(pav.value_text, CAST(pav.value_num AS UNSIGNED)) AS val
-          FROM product_attribute_values pav
-          JOIN products p ON p.id = pav.product_id
+      const [rows] = await bvoPool.query(
+        `SELECT DISTINCT product_type AS val
+           FROM products
+          WHERE category_id = ? AND is_active = 1
+            AND product_type IS NOT NULL AND product_type <> ''
+          ORDER BY product_type`,
+        [categoryId]);
+      const vals = rows.map(r => r.val).filter(v => v != null).map(String);
+      if (vals.length) result.product_type = vals;
+    } catch (err) {
+      console.error('[getAllAttributeValues] product_type query failed:', err.message);
+    }
+
+    /* Everything else is EAV. */
+    try {
+      const [rows] = await bvoPool.query(
+        `SELECT pav.attr_key,
+                COALESCE(pav.value_text, CAST(pav.value_num AS CHAR)) AS val
+           FROM product_attribute_values pav
+           JOIN products p ON p.id = pav.product_id
           WHERE p.category_id = ? AND p.is_active = 1
             AND (pav.value_text IS NOT NULL OR pav.value_num IS NOT NULL)
-        ) t
-        GROUP BY attr_key, val
-        ORDER BY attr_key, val
-      `, [categoryId, categoryId]);
-
-      const result = {};
+          GROUP BY pav.attr_key, val
+          ORDER BY pav.attr_key, val`,
+        [categoryId]);
       for (const row of rows) {
         if (row.val == null) continue;
-        if (!result[row.attr_key]) result[row.attr_key] = [];
-        result[row.attr_key].push(String(row.val));
+        (result[row.attr_key] ||= []).push(String(row.val));
       }
-      return result;
-    } catch {
-      return {};
+    } catch (err) {
+      console.error('[getAllAttributeValues] EAV query failed:', err.message);
     }
+
+    /* Returning {} on failure is still the right behaviour — a collection
+       page that renders without filters beats one that 500s. But it is now
+       logged. The silent version hid a real error for months. */
+    return result;
   },
 
   /**

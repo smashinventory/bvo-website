@@ -61,11 +61,15 @@ const DEFAULTS = {
     links: [
       { label: 'Vanities',    url: '/collections/bathroom-vanities', megaMenu: true },
       { label: 'Mirrors',     url: '/collections/bathroom-mirrors' },
-      // ?type= preselects the Type facet so the nav lands on bathroom
-      // faucets rather than all 669 rows (shower, kitchen, tub, bar).
-      // Bare /collections/faucets stays the full catalogue on purpose —
-      // it is the canonical URL and should surface every product.
-      { label: 'Faucets',     url: '/collections/faucets?type=Bathroom+Faucets' },
+      // ?product_type= preselects the Faucet Type facet so the nav lands on
+      // bathroom faucets rather than all 669 rows (shower, kitchen, tub,
+      // bar). Bare /collections/faucets stays the full catalogue on purpose
+      // — it is the canonical URL and should surface every product.
+      //
+      // product_type, NOT type. Both filter correctly, but the sidebar
+      // checkbox is name="product_type", and arriving on ?type= would show
+      // the shopper a filtered grid with every box unticked.
+      { label: 'Faucets',     url: '/collections/faucets?product_type=Bathroom+Faucets' },
       { label: 'Accessories', url: '/collections/accessories' },
       { label: 'Sale',        url: '/collections/sale', highlight: true },
     ],

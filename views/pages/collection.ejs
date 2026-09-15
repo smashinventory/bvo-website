@@ -101,8 +101,24 @@
         * side by side. Yield to the configured definition rather than
         * compete with it.
         */%>
-      <% var _hasTypeDef = (attributeDefs || []).some(function(d){ return d.attr_key === 'product_type'; }); %>
-      <% if (!_hasTypeDef && availableProductTypes && availableProductTypes.length > 0) { %>
+      <%/*
+        * CORRECTED 2026-09-14. The first version of this guard deferred
+        * whenever a product_type definition EXISTED. It exists on every
+        * category — id 10, "Faucet Type", is_active 1 — but it rendered
+        * nothing, because getAllAttributeValues() was returning {} on a
+        * collation error. So the guard suppressed a working filter in
+        * favour of one that could not appear, and the sidebar lost its
+        * Type group entirely.
+        *
+        * Yield only when the configured definition will ACTUALLY produce
+        * options. Existing is not the same as rendering — that distinction
+        * is the whole bug.
+        */%>
+      <% var _typeDefRenders = (attributeDefs || []).some(function(d){
+           return d.attr_key === 'product_type'
+               && ((availableAttrValues || {})['product_type'] || []).length > 0;
+         }); %>
+      <% if (!_typeDefRenders && availableProductTypes && availableProductTypes.length > 0) { %>
       <%   var typeActive = productTypes.length > 0; %>
       <div class="filter-group">
         <button type="button" class="filter-group-toggle" aria-expanded="<%= typeActive ? 'true' : 'false' %>">
