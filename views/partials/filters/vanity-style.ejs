@@ -1,0 +1,52 @@
+<%/* ── Vanity Style ────────────────────────────────────────────────────
+  * BVO canonical style buckets in canonical order. Values come from EAV
+  * (attr_key='style').
+  *
+  * Extracted to a partial 2026-09-15 for the same reason as Brand: Sam's
+  * approved order puts it fourth on vanities, which is AFTER the
+  * model-group Configuration block, while the grid path needs it before
+  * the attribute loop. Two positions, one definition.
+  *
+  * ⚠ KNOWN GAP — this filter does not filter yet.
+  *   collectionsController.js never reads req.query.style. Grep the whole
+  *   controller for "style" and you get zero hits. Ticking a box posts
+  *   ?style=Modern and the controller drops it on the floor; the page
+  *   reloads identical. The EAV data exists (importJamesMartinFeed.js
+  *   writes attr_key='style') and lookbookController.js reads the same
+  *   param correctly — it is only the collection path that is unwired.
+  *
+  *   CLAUDE.md rule 5, "field with no home": written, stored, NOT read.
+  *   Rendering it in Sam's approved slot is deliberate — the position is
+  *   correct and reserved — but it is inert until the controller learns
+  *   to read it. Do not describe this filter as working.
+  */%>
+<%
+  var _styleVals     = (typeof attrFilters !== 'undefined' && attrFilters['style']) || [];
+  var _styleOpts     = (typeof availableAttrValues !== 'undefined' && availableAttrValues['style']) || [];
+  var _bvoStyleOrder = [
+    'Traditional', 'Transitional', 'Modern', 'Farmhouse', 'Mid-Century Modern',
+    'Industrial', 'Coastal', 'Scandinavian', 'European / Old World'
+  ];
+  /* Show only styles that have products in DB; fall back to full canonical
+     list when EAV data hasn't been populated yet (e.g. before first import). */
+  var _visibleStyles = _styleOpts.length > 0
+    ? _bvoStyleOrder.filter(function(s) { return _styleOpts.includes(s); })
+    : _bvoStyleOrder;
+%>
+<div class="filter-group">
+  <button type="button" class="filter-group-toggle"
+    aria-expanded="<%= _styleVals.length > 0 ? 'true' : 'false' %>">
+    Vanity Style
+    <% if (_styleVals.length) { %><span class="filter-badge"><%= _styleVals.length %></span><% } %>
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+  </button>
+  <div class="filter-group-body<%= _styleVals.length > 0 ? '' : ' is-collapsed' %>">
+    <% _visibleStyles.forEach(function(styleName) { %>
+    <label class="filter-option">
+      <input type="checkbox" name="style" value="<%= styleName %>"
+        <%= _styleVals.includes(styleName) ? 'checked' : '' %>>
+      <span><%= styleName %></span>
+    </label>
+    <% }) %>
+  </div>
+</div>

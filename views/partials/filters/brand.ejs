@@ -1,0 +1,30 @@
+<%/* ── Brand ───────────────────────────────────────────────────────────
+  * Extracted to a partial 2026-09-15 so it can render in a DIFFERENT
+  * POSITION per category without the markup existing twice. Sam's approved
+  * vanity order puts Brand fifth; every other category keeps it first.
+  * One definition, two call sites — duplicating ~18 lines instead would
+  * guarantee the two copies drift apart.
+  *
+  * Reads availableBrands + brands. The model-group render supplies both
+  * under those exact names (availableBrands: mgAllBrands, brands:
+  * mgActiveBrands), so no controller change is needed.
+  */%>
+<% if (availableBrands.length > 0) { %>
+<%   var brandActive = brands.length > 0; %>
+<div class="filter-group">
+  <button type="button" class="filter-group-toggle" aria-expanded="<%= brandActive ? 'true' : 'false' %>">
+    Brand
+    <% if (brandActive) { %><span class="filter-badge"><%= brands.length %></span><% } %>
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+  </button>
+  <div class="filter-group-body<%= brandActive ? '' : ' is-collapsed' %>">
+    <% availableBrands.forEach(function(b) { %>
+    <label class="filter-option">
+      <input type="checkbox" name="brand" value="<%= b %>"
+        <%= brands.includes(b) ? 'checked' : '' %>>
+      <span><%= b %></span>
+    </label>
+    <% }) %>
+  </div>
+</div>
+<% } %>

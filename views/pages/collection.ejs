@@ -54,25 +54,14 @@
        * Brand is always first (comes from availableBrands, not attribute_definitions).
        */%>
 
-      <!-- ── Brand (always first) ──────────────────────────────── -->
-      <% if (availableBrands.length > 0) { %>
-      <%   var brandActive = brands.length > 0; %>
-      <div class="filter-group">
-        <button type="button" class="filter-group-toggle" aria-expanded="<%= brandActive ? 'true' : 'false' %>">
-          Brand
-          <% if (brandActive) { %><span class="filter-badge"><%= brands.length %></span><% } %>
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
-        </button>
-        <div class="filter-group-body<%= brandActive ? '' : ' is-collapsed' %>">
-          <% availableBrands.forEach(function(b) { %>
-          <label class="filter-option">
-            <input type="checkbox" name="brand" value="<%= b %>"
-              <%= brands.includes(b) ? 'checked' : '' %>>
-            <span><%= b %></span>
-          </label>
-          <% }) %>
-        </div>
-      </div>
+      <!-- ── Brand (first everywhere EXCEPT vanities) ──────────── -->
+      <%/* Sam's approved vanity order 2026-09-15 puts Brand FIFTH, not
+           first. On the vanity sidebar this call site is skipped and the
+           same partial is included further down, between Vanity Style and
+           Price Range. Every other category is untouched — Brand stays
+           first, exactly where the comment above says it is. */%>
+      <% if (!isVanityCategory) { %>
+      <%- include('../partials/filters/brand') %>
       <% } %>
 
       <!-- ── Type (second; hidden when a category has only one) ──── -->
@@ -118,7 +107,10 @@
            return d.attr_key === 'product_type'
                && ((availableAttrValues || {})['product_type'] || []).length > 0;
          }); %>
-      <% if (!_typeDefRenders && availableProductTypes && availableProductTypes.length > 0) { %>
+      <%/* Off for vanities — Configuration covers the same ground with
+           friendlier labels, and Sam's approved list has no Vanity Type.
+           Other categories keep it: it is the Faucet Type group. */%>
+      <% if (!isVanityCategory && !_typeDefRenders && availableProductTypes && availableProductTypes.length > 0) { %>
       <%   var typeActive = productTypes.length > 0; %>
       <div class="filter-group">
         <button type="button" class="filter-group-toggle" aria-expanded="<%= typeActive ? 'true' : 'false' %>">
@@ -165,17 +157,36 @@
         * name="size_in" is unchanged, so existing links, the megamenu
         * Shop-By-Size chips and any bookmarked ?size_in= URL keep working.
         */%>
+      <%/* GRID PATH ONLY. The model-group path renders its own Size chips
+           further down (the `size-chips` variant), driven by the same
+           availableSizes array. Both blocks were firing on the vanity page
+           at once, so the sidebar showed Size twice — once as a plain
+           checkbox list, once as chips — both posting name="size_in".
+           Caught 2026-09-15 by rendering the template and counting the
+           headings; reading the source had not caught it, because each
+           block is correct in isolation and only the PAIR is wrong. */%>
+      <% var _isModelGroup = (typeof displayMode !== 'undefined' && displayMode === 'model-group'); %>
       <% var _sizeChips = (typeof availableSizes !== 'undefined' && Array.isArray(availableSizes)) ? availableSizes : []; %>
-      <% if (_sizeChips.length > 0) { %>
+      <% if (_sizeChips.length > 0 && !_isModelGroup) { %>
       <%   var _activeSizes = attrFilters['size_in'] || []; %>
       <%   var _sizeActive  = _activeSizes.length > 0; %>
+      <%/*
+        * ALWAYS EXPANDED. Size is multi-select and every pick reloads the
+        * page, so a group that collapses on render shuts itself the moment
+        * you tick a box — and again on the next one. Picking three sizes
+        * meant re-opening it three times. It is the most-used filter on the
+        * site; it stays open.
+        *
+        * The toggle still works if a shopper wants it shut; it just does
+        * not start that way, and does not reset itself on every reload.
+        */%>
       <div class="filter-group">
-        <button type="button" class="filter-group-toggle" aria-expanded="<%= _sizeActive ? 'true' : 'false' %>">
+        <button type="button" class="filter-group-toggle" aria-expanded="true">
           Size
           <% if (_sizeActive) { %><span class="filter-badge"><%= _activeSizes.length %></span><% } %>
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
-        <div class="filter-group-body<%= _sizeActive ? '' : ' is-collapsed' %>">
+        <div class="filter-group-body">
           <% _sizeChips.forEach(function(sz) {
                var _szActive = _activeSizes.indexOf(String(sz)) !== -1;
                var _szLabel  = sz === '20-'         ? '20" & Under'
@@ -210,7 +221,101 @@
 
       %>
 
+      <%/*
+       * ORDER IS EXPLICIT AND APPROVED, not whatever attribute_definitions
+       * happens to hold. Sam 2026-09-15, vanity sidebar, top to bottom:
+       *
+       *     1. Brand           2. Size (width buckets)
+       *     3. Configuration   4. Vanity Style
+       *     5. Cabinet Color   6. Price Range
+       *
+       * Everything else is off for vanities. Configuration and Vanity Style
+       * were moved ABOVE the attribute loop so Cabinet Color — which renders
+       * from inside that loop as a colour swatch — lands last.
+       *
+       * Other categories are untouched: the gates below all test
+       * isVanityCategory, so Faucets / Mirrors / Accessories keep the
+       * attribute-driven sidebar they have now.
+       */%>
+      <%/* ── Configuration (taxonomy overhaul 2026-07-31) ─────────────
+       * All 4 options use ?type= (product_type). sink_count EAV filter
+       * deprecated from sidebar — the new 4-value product_type system
+       * encodes both form (vanity-with-top vs cabinet-only) and sink count
+       * in a single canonical field, removing the need for EAV cross-join.
+       */%>
+      <%/* GRID PATH ONLY — same duplicate-render bug as Size above. The
+           model-group path has its own Configuration block driven by
+           mgAvailTypes / mgActiveTypes. This one reads productTypes, which
+           the model-group render stubs to [], so on the vanity page it
+           appeared as a SECOND Configuration group that could never show
+           as active. Both rendered; neither knew about the other. */%>
+      <% if (isVanityCategory && !_isModelGroup) { %>
+      <%
+        var _cfAllTypes = ['Single Sink Vanity With Top', 'Double Sink Vanity With Top',
+                           'Single Sink Cabinet Only',    'Double Sink Cabinet Only'];
+        var _cfTypeVals = (typeof productTypes !== 'undefined') ? productTypes : [];
+        var _cfBadge    = _cfTypeVals.filter(function(t) { return _cfAllTypes.indexOf(t) !== -1; }).length;
+        var _cfActive   = _cfBadge > 0;
+      %>
+      <div class="filter-group">
+        <button type="button" class="filter-group-toggle"
+          aria-expanded="<%= _cfActive ? 'true' : 'false' %>">
+          Configuration
+          <% if (_cfActive) { %><span class="filter-badge"><%= _cfBadge %></span><% } %>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="filter-group-body<%= _cfActive ? '' : ' is-collapsed' %>">
+          <label class="filter-option">
+            <input type="checkbox" name="type" value="Single Sink Vanity With Top"
+              <%= _cfTypeVals.includes('Single Sink Vanity With Top') ? 'checked' : '' %>>
+            <span>Single Sink Vanity With Top</span>
+          </label>
+          <label class="filter-option">
+            <input type="checkbox" name="type" value="Double Sink Vanity With Top"
+              <%= _cfTypeVals.includes('Double Sink Vanity With Top') ? 'checked' : '' %>>
+            <span>Double Sink Vanity With Top</span>
+          </label>
+          <label class="filter-option">
+            <input type="checkbox" name="type" value="Single Sink Cabinet Only"
+              <%= _cfTypeVals.includes('Single Sink Cabinet Only') ? 'checked' : '' %>>
+            <span>Single Sink Cabinet Only</span>
+          </label>
+          <label class="filter-option">
+            <input type="checkbox" name="type" value="Double Sink Cabinet Only"
+              <%= _cfTypeVals.includes('Double Sink Cabinet Only') ? 'checked' : '' %>>
+            <span>Double Sink Cabinet Only</span>
+          </label>
+        </div>
+      </div>
+      <% } /* end Configuration */ %>
+
+      <%/* ── Vanity Style (GRID PATH ONLY) ───────────────────────────
+       * Definition now lives in partials/filters/vanity-style.ejs. On the
+       * model-group path it is included further down instead, so it lands
+       * fourth per Sam's approved order — after Configuration rather than
+       * before it.
+       */%>
+      <% if (isVanityCategory && !_isModelGroup) { %>
+      <%- include('../partials/filters/vanity-style') %>
+      <% } %>
+
+      <%/* VANITY ALLOW-LIST. On the vanity category this loop may render
+           exactly one group — Cabinet Color, the primary colour swatch.
+           Everything else Sam approved is a bespoke block above; everything
+           not on his list stays off no matter what attribute_definitions
+           holds.
+
+           An allow-list rather than a deny-list on purpose. A deny-list
+           means every future seed, import or migration that adds a
+           definition appears in the sidebar unannounced — which is exactly
+           how ADA Compliant, Country of Origin and Shipping Method turned
+           up on 2026-09-14 without anyone choosing them.
+
+           hardware_finish is not listed, so Hardware Finish is off here too.
+           Other categories are unaffected: the gate tests isVanityCategory. */%>
+      <% var VANITY_FACETS = ['cabinet_finish', 'finish']; %>
       <% attributeDefs.forEach(function(def) {
+          if (isVanityCategory && VANITY_FACETS.indexOf(def.attr_key) === -1) return;
           if (def.attr_key === 'brand')         return; // handled above
           if (def.attr_key === 'size_in')       return; // handled by the explicit Size group above
           if (def.attr_key === 'sink_count')    return; // handled by custom Configuration filter below
@@ -486,90 +591,6 @@
        * human-friendly labels.
        */%>
 
-      <%/* ── Configuration (taxonomy overhaul 2026-07-31) ─────────────
-       * All 4 options use ?type= (product_type). sink_count EAV filter
-       * deprecated from sidebar — the new 4-value product_type system
-       * encodes both form (vanity-with-top vs cabinet-only) and sink count
-       * in a single canonical field, removing the need for EAV cross-join.
-       */%>
-      <% if (isVanityCategory) { %>
-      <%
-        var _cfAllTypes = ['Single Sink Vanity With Top', 'Double Sink Vanity With Top',
-                           'Single Sink Cabinet Only',    'Double Sink Cabinet Only'];
-        var _cfTypeVals = (typeof productTypes !== 'undefined') ? productTypes : [];
-        var _cfBadge    = _cfTypeVals.filter(function(t) { return _cfAllTypes.indexOf(t) !== -1; }).length;
-        var _cfActive   = _cfBadge > 0;
-      %>
-      <div class="filter-group">
-        <button type="button" class="filter-group-toggle"
-          aria-expanded="<%= _cfActive ? 'true' : 'false' %>">
-          Configuration
-          <% if (_cfActive) { %><span class="filter-badge"><%= _cfBadge %></span><% } %>
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
-        </button>
-        <div class="filter-group-body<%= _cfActive ? '' : ' is-collapsed' %>">
-          <label class="filter-option">
-            <input type="checkbox" name="type" value="Single Sink Vanity With Top"
-              <%= _cfTypeVals.includes('Single Sink Vanity With Top') ? 'checked' : '' %>>
-            <span>Single Sink Vanity With Top</span>
-          </label>
-          <label class="filter-option">
-            <input type="checkbox" name="type" value="Double Sink Vanity With Top"
-              <%= _cfTypeVals.includes('Double Sink Vanity With Top') ? 'checked' : '' %>>
-            <span>Double Sink Vanity With Top</span>
-          </label>
-          <label class="filter-option">
-            <input type="checkbox" name="type" value="Single Sink Cabinet Only"
-              <%= _cfTypeVals.includes('Single Sink Cabinet Only') ? 'checked' : '' %>>
-            <span>Single Sink Cabinet Only</span>
-          </label>
-          <label class="filter-option">
-            <input type="checkbox" name="type" value="Double Sink Cabinet Only"
-              <%= _cfTypeVals.includes('Double Sink Cabinet Only') ? 'checked' : '' %>>
-            <span>Double Sink Cabinet Only</span>
-          </label>
-        </div>
-      </div>
-      <% } /* end Configuration */ %>
-
-      <%/* ── Vanity Style ────────────────────────────────────────────
-       * BVO canonical style buckets in canonical order.
-       * Values come from EAV (attr_key='style') pre-fetched in controller.
-       * Only renders styles that actually have products in this category.
-       */%>
-      <% if (isVanityCategory) { %>
-      <%
-        var _styleVals     = attrFilters['style'] || [];
-        var _styleOpts     = availableAttrValues['style'] || [];
-        var _bvoStyleOrder = [
-          'Traditional', 'Transitional', 'Modern', 'Farmhouse', 'Mid-Century Modern',
-          'Industrial', 'Coastal', 'Scandinavian', 'European / Old World'
-        ];
-        /* Show only styles that have products in DB; fall back to full canonical
-           list when EAV data hasn't been populated yet (e.g. before first import). */
-        var _visibleStyles = _styleOpts.length > 0
-          ? _bvoStyleOrder.filter(function(s) { return _styleOpts.includes(s); })
-          : _bvoStyleOrder;
-      %>
-      <div class="filter-group">
-        <button type="button" class="filter-group-toggle"
-          aria-expanded="<%= _styleVals.length > 0 ? 'true' : 'false' %>">
-          Vanity Style
-          <% if (_styleVals.length) { %><span class="filter-badge"><%= _styleVals.length %></span><% } %>
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
-        </button>
-        <div class="filter-group-body<%= _styleVals.length > 0 ? '' : ' is-collapsed' %>">
-          <% _visibleStyles.forEach(function(styleName) { %>
-          <label class="filter-option">
-            <input type="checkbox" name="style" value="<%= styleName %>"
-              <%= _styleVals.includes(styleName) ? 'checked' : '' %>>
-            <span><%= styleName %></span>
-          </label>
-          <% }) %>
-        </div>
-      </div>
-      <% } /* end Vanity Style */ %>
-
       <%/*
        * ── Model-group extra filter groups ──────────────────────────
        * For model-group categories (displayMode === 'model-group'),
@@ -611,39 +632,20 @@
       </div>
       <% } %>
 
-      <%/* ── Configuration / product_type (model-group) ──────── */%>
-      <% if (typeof mgAvailTypes !== 'undefined' && mgAvailTypes.length > 0) { %>
-      <%
-        var _mgTypeActive = typeof mgActiveTypes !== 'undefined' && mgActiveTypes.length > 0;
-        /* Human-friendly labels for each product_type value (taxonomy overhaul 2026-07-31) */
-        var _mgTypeLabel = {
-          'Single Sink Vanity With Top': 'Single Sink Vanity With Top',
-          'Double Sink Vanity With Top': 'Double Sink Vanity With Top',
-          'Single Sink Cabinet Only':    'Single Sink Cabinet Only',
-          'Double Sink Cabinet Only':    'Double Sink Cabinet Only',
-        };
-      %>
-      <div class="filter-group">
-        <button type="button" class="filter-group-toggle"
-          aria-expanded="<%= _mgTypeActive ? 'true' : 'false' %>">
-          Configuration
-          <% if (_mgTypeActive) { %><span class="filter-badge"><%= mgActiveTypes.length %></span><% } %>
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
-        </button>
-        <div class="filter-group-body<%= _mgTypeActive ? '' : ' is-collapsed' %>">
-          <% mgAvailTypes.forEach(function(t) {
-               var isChecked = _mgTypeActive && mgActiveTypes.indexOf(t) !== -1;
-               var lbl       = _mgTypeLabel[t] || t;
-          %>
-          <label class="filter-option">
-            <input type="checkbox" name="type" value="<%= t %>"
-              <%= isChecked ? 'checked' : '' %>>
-            <span><%= lbl %></span>
-          </label>
-          <% }) %>
-        </div>
-      </div>
-      <% } %>
+      <%/* ── APPROVED VANITY ORDER (Sam, 2026-09-15) ────────────────────
+       *
+       *     1. Size            2. Cabinet Color
+       *     3. Configuration   4. Vanity Style
+       *     5. Brand           6. Price Range
+       *
+       * Cabinet Color and Configuration are SWAPPED relative to how they
+       * sat in this file before, and Vanity Style + Brand are included
+       * below rather than at their old positions higher up. Brand is
+       * first for every other category and fifth only here.
+       *
+       * Change the order HERE — this block is the only place the vanity
+       * sidebar sequence is decided.
+       */%>
 
       <%/* ── Cabinet Color (model-group) ──────────────────────── */%>
       <%
@@ -709,6 +711,55 @@
         </div>
       </div>
       <% } %>
+
+      <%/* ── Configuration / product_type (model-group) ──────── */%>
+      <% if (typeof mgAvailTypes !== 'undefined' && mgAvailTypes.length > 0) { %>
+      <%
+        var _mgTypeActive = typeof mgActiveTypes !== 'undefined' && mgActiveTypes.length > 0;
+        /* Human-friendly labels for each product_type value (taxonomy overhaul 2026-07-31) */
+        var _mgTypeLabel = {
+          'Single Sink Vanity With Top': 'Single Sink Vanity With Top',
+          'Double Sink Vanity With Top': 'Double Sink Vanity With Top',
+          'Single Sink Cabinet Only':    'Single Sink Cabinet Only',
+          'Double Sink Cabinet Only':    'Double Sink Cabinet Only',
+        };
+      %>
+      <div class="filter-group">
+        <button type="button" class="filter-group-toggle"
+          aria-expanded="<%= _mgTypeActive ? 'true' : 'false' %>">
+          Configuration
+          <% if (_mgTypeActive) { %><span class="filter-badge"><%= mgActiveTypes.length %></span><% } %>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="filter-group-body<%= _mgTypeActive ? '' : ' is-collapsed' %>">
+          <% mgAvailTypes.forEach(function(t) {
+               var isChecked = _mgTypeActive && mgActiveTypes.indexOf(t) !== -1;
+               var lbl       = _mgTypeLabel[t] || t;
+          %>
+          <label class="filter-option">
+            <input type="checkbox" name="type" value="<%= t %>"
+              <%= isChecked ? 'checked' : '' %>>
+            <span><%= lbl %></span>
+          </label>
+          <% }) %>
+        </div>
+      </div>
+      <% } %>
+
+      <%/* ── Vanity Style (model-group, position 4) ──────────────
+       * WARNING: renders but does not filter. collectionsController never
+       * reads req.query.style — grep the file for "style" and there are
+       * zero hits. The position is correct and reserved; the wiring is
+       * not done. See partials/filters/vanity-style.ejs for the detail.
+       * Do not report this filter as working.
+       */%>
+      <%- include('../partials/filters/vanity-style') %>
+
+      <%/* ── Brand (model-group, position 5) ─────────────────────
+       * Skipped at the top of the file for vanities precisely so it can
+       * land here instead. Same partial, one definition, two call sites.
+       */%>
+      <%- include('../partials/filters/brand') %>
 
       <% } /* end model-group filter groups */ %>
 

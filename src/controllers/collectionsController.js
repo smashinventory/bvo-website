@@ -863,15 +863,28 @@ exports.show = async (req, res, next) => {
     const attrFilters  = {};
     const rangeFilters = {};
 
+    /* ── size_in: parsed unconditionally, NOT via attributeDefs ───────
+       Size buckets used to be read inside the loop below, which meant the
+       whole feature hung off one attribute_definitions row. With that row
+       missing or inactive, ?size_in=36 was silently dropped: the grid did
+       not filter, the checkbox did not render checked, and the group
+       collapsed on every click. The sidebar chips have the same
+       independence now (collection.ejs), so both halves agree.
+
+       SIZE_BUCKETS, getAvailableWidths and the S/D suffixes are unchanged —
+       this only decides whether the value is read at all.               */
+    {
+      const sizeVals = [].concat(req.query.size_in || []).filter(Boolean);
+      if (sizeVals.length) attrFilters.size_in = sizeVals;
+    }
+
     for (const def of attributeDefs) {
       if (def.attr_key === 'brand')           continue; // handled separately
+      if (def.attr_key === 'size_in')         continue; // handled above, unconditionally
       if (def.filter_type === 'color_swatch') continue; // handled by color filter system
 
       if (def.filter_type === 'range') {
-        if (def.attr_key === 'size_in') {
-          const sizeVals = [].concat(req.query['size_in'] || []).filter(Boolean);
-          if (sizeVals.length) attrFilters['size_in'] = sizeVals;
-        } else {
+        {
           const lo = req.query[`${def.attr_key}_min`];
           const hi = req.query[`${def.attr_key}_max`];
           if (lo != null || hi != null) {
