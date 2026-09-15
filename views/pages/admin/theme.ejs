@@ -721,36 +721,37 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
               <%- teField('text','nav.brand_line2','Line 2 (amber)',nav.brand_line2,true) %>
               <%- teField('text','nav.brand_line3','Line 3',nav.brand_line3,true) %>
             </div>
+            <%/*
+              * Nav Links moved to Menu Manager 2026-09-14.
+              *
+              * These fields used to be the real main menu, while the screen
+              * actually called "Menus" wrote to a table no template read.
+              * Editing Menus did nothing; editing "Logo & Header" changed
+              * the nav. Nobody would guess that, and it cost a support
+              * round trip to work out.
+              *
+              * The inputs are GONE rather than disabled. A disabled field
+              * still posts nothing but still looks like the place to edit,
+              * and the whole problem was a screen that looked authoritative
+              * and wasn't. The pointer below is the entire replacement.
+              *
+              * nav.links is still READ from settings as a fallback — see
+              * megaMenuData.js — for the case where Main Menu is empty.
+              * It is simply no longer editable from two places.
+              */%>
             <div class="te4-array-header">
               <span class="te4-section-label">Nav Links</span>
-              <button type="button" class="te4-add-btn" data-target="navLinksList" data-tpl="navLinkTpl">+ Add</button>
             </div>
-            <div class="te4-array-list" id="navLinksList">
-              <% (nav.links||[]).forEach(function(lnk,i){ %>
-              <div class="te4-array-row">
-                <span class="te4-array-drag">⠿</span>
-                <div class="te4-array-fields te4-nav-link-row">
-                  <%- teField('text','nav.links['+i+'].label','Label',lnk.label,true) %>
-                  <%- teField('url', 'nav.links['+i+'].url',  'URL',  lnk.url,  true) %>
-                  <%- teToggle('nav.links['+i+'].highlight','Highlight',lnk.highlight,true) %>
-                  <%- teToggle('nav.links['+i+'].megaMenu','Mega menu',lnk.megaMenu,true) %>
-                </div>
-                <button type="button" class="te4-remove-row">×</button>
+            <div class="te4-moved-notice" style="padding:12px 14px;border:1px solid var(--te4-border,#dcdcdc);border-radius:8px;background:#fbfbfa;font-size:.85rem;line-height:1.5">
+              <strong>Main menu links now live in Menu Manager.</strong><br>
+              Label, URL, ordering, Highlight and Mega menu are all edited there,
+              alongside the footer columns — one screen for every menu on the site.
+              <div style="margin-top:10px">
+                <a class="te4-btn" href="/admin/menus?menu=main-menu" style="display:inline-block;padding:7px 14px;border-radius:6px;background:var(--te4-accent,#b8862a);color:#fff;text-decoration:none;font-weight:600">
+                  Open Menu Manager →
+                </a>
               </div>
-              <% }) %>
             </div>
-            <template id="navLinkTpl">
-              <div class="te4-array-row">
-                <span class="te4-array-drag">⠿</span>
-                <div class="te4-array-fields te4-nav-link-row">
-                  <%- teField('text','nav.links[__i__].label','Label','',true) %>
-                  <%- teField('url', 'nav.links[__i__].url',  'URL',  '',true) %>
-                  <%- teToggle('nav.links[__i__].highlight','Highlight',false,true) %>
-                  <%- teToggle('nav.links[__i__].megaMenu','Mega menu',false,true) %>
-                </div>
-                <button type="button" class="te4-remove-row">×</button>
-              </div>
-            </template>
 
             <!-- ── MEGA MENU — VANITIES ───────────────────────── -->
             <%

@@ -38,7 +38,7 @@ async function loadCmsData() {
   try {
     const [navItems, footerItems, cmsPages] = await Promise.all([
       bvoPool.query(`
-        SELECT ni.id, ni.label, ni.url, ni.sort_order, ni.is_highlight
+        SELECT ni.id, ni.label, ni.url, ni.sort_order, ni.is_highlight, ni.is_mega
         FROM nav_menu_items ni
         JOIN nav_menus nm ON nm.id = ni.menu_id
         WHERE nm.handle = 'main-menu'
@@ -136,6 +136,14 @@ async function loadMegaMenuData() {
   }
 }
 
+/* Clear the CMS cache so a Menu Manager save shows up immediately instead
+   of up to CMS_TTL_MS later. Exported so menusController can call it —
+   an invalidator nobody calls is just a comment. */
+function bustCmsCache() {
+  _cmsCache     = null;
+  _cmsCacheTime = 0;
+}
+
 module.exports = async function megaMenuData(req, res, next) {
   const [data, cms] = await Promise.all([loadMegaMenuData(), loadCmsData()]);
   res.locals.megaMenuSizes         = data.megaMenuSizes;
@@ -143,5 +151,46 @@ module.exports = async function megaMenuData(req, res, next) {
   res.locals.navMenuItems          = cms.navMenuItems;   // DB-driven main nav
   res.locals.footerMenus           = cms.footerMenus;    // DB-driven footer columns
   res.locals.cmsPages              = cms.cmsPages;       // DB pages (last-resort fallback)
+
+  /* ── Main menu: Menu Manager is the source ─────────────────────────
+     Until 2026-09-14 header.ejs rendered nav.links from THEME SETTINGS
+     while this middleware loaded navMenuItems from the Menu Manager and
+     handed it to a template that read it nowhere. Editing Menus → Main
+     Menu changed nothing on the storefront, and the screen that did work
+     was the one labelled "Logo & Header". Exactly the footer bug
+     described above, still open, one table over.
+
+     header.ejs is deliberately NOT rewritten. It keeps reading
+     nav.links; we swap what nav.links IS. One assignment, and the mega
+     menu / mobile menu / highlight rendering stay byte-identical.
+
+     Falls back to theme settings when Main Menu is empty, so a fresh
+     install or a truncated table degrades to the old behaviour rather
+     than rendering a header with no links at all.
+
+     Override settings.nav.links, NOT res.locals.nav. header.ejs line 1
+     does `const nav = S.nav || {}` off res.locals.settings — setting
+     res.locals.nav would be read by nothing at all.
+
+     CLONED, never mutated in place: res.locals.settings is the object
+     themeSettings.get() hands to every request. Writing through it would
+     corrupt the cached settings process-wide, and the Theme Editor would
+     start showing menu items it does not own.                          */
+  if (Array.isArray(cms.navMenuItems) && cms.navMenuItems.length) {
+    const s = res.locals.settings || {};
+    res.locals.settings = Object.assign({}, s, {
+      nav: Object.assign({}, s.nav || {}, {
+        links: cms.navMenuItems.map(i => ({
+          label:     i.label,
+          url:       i.url,
+          highlight: !!i.is_highlight,
+          megaMenu:  !!i.is_mega,
+        })),
+      }),
+    });
+  }
+
   next();
 };
+
+module.exports.bustCmsCache = bustCmsCache;

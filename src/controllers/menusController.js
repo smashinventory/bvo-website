@@ -26,6 +26,23 @@ const TTL_MS     = 5 * 60 * 1000;
 function _invalidate(handle) {
   delete _menuCache[handle];
   delete _cacheExpiry[handle];
+
+  /* THREE caches existed here and only one was being cleared — this one,
+     which feeds getMenuItems() below, which nothing calls. The header and
+     footer are rendered from megaMenuData's _cmsCache, and that was never
+     invalidated, so a Menu Manager save took up to 5 minutes to appear and
+     looked like it had not saved at all.
+
+     Required lazily, inside the function: menusController is loaded while
+     routes are being wired, and a top-level require of a middleware module
+     here is a cycle waiting to happen. */
+  try {
+    require('../middleware/megaMenuData').bustCmsCache();
+  } catch (err) {
+    /* Never let a cache-clear failure break a save that already committed.
+       Logged, because a silent catch is what hid the collation bug. */
+    console.error('[menusController] bustCmsCache failed:', err.message);
+  }
 }
 
 /* ── Admin: list all menus ───────────────────────────────────── */
@@ -60,7 +77,7 @@ exports.adminList = async (req, res) => {
 /* ── Admin: add item ─────────────────────────────────────────── */
 exports.adminAddItem = async (req, res) => {
   const { handle } = req.params;
-  const { label, url, is_highlight } = req.body;
+  const { label, url, is_highlight, is_mega } = req.body;
 
   try {
     const [[menu]] = await bvoPool.query(`SELECT id FROM nav_menus WHERE handle=?`, [handle]);
@@ -70,9 +87,13 @@ exports.adminAddItem = async (req, res) => {
       `SELECT COALESCE(MAX(sort_order),0) AS maxSort FROM nav_menu_items WHERE menu_id=?`, [menu.id]
     );
     await bvoPool.query(
-      `INSERT INTO nav_menu_items (menu_id, label, url, sort_order, is_highlight) VALUES (?,?,?,?,?)`,
+      `INSERT INTO nav_menu_items (menu_id, label, url, sort_order, is_highlight, is_mega) VALUES (?,?,?,?,?,?)`,
       [menu.id, (label || '').trim(), (url || '').trim(), maxSort + 10,
-       is_highlight === 'true' || is_highlight === '1' ? 1 : 0]
+       is_highlight === 'true' || is_highlight === '1' ? 1 : 0,
+       /* Only main-menu can carry the flag. A footer column has no flyout,
+          and a stray 1 there would be invisible until someone wondered why
+          a footer link behaved oddly. */
+       (handle === 'main-menu' && (is_mega === 'true' || is_mega === '1')) ? 1 : 0]
     );
     _invalidate(handle);
     req.session.flash = { type: 'success', msg: 'Item added.' };
@@ -85,13 +106,15 @@ exports.adminAddItem = async (req, res) => {
 /* ── Admin: update item ──────────────────────────────────────── */
 exports.adminUpdateItem = async (req, res) => {
   const { handle, itemId } = req.params;
-  const { label, url, is_highlight } = req.body;
+  const { label, url, is_highlight, is_mega } = req.body;
 
   try {
     await bvoPool.query(
-      `UPDATE nav_menu_items SET label=?, url=?, is_highlight=? WHERE id=?`,
+      `UPDATE nav_menu_items SET label=?, url=?, is_highlight=?, is_mega=? WHERE id=?`,
       [(label || '').trim(), (url || '').trim(),
-       is_highlight === 'true' || is_highlight === '1' ? 1 : 0, itemId]
+       is_highlight === 'true' || is_highlight === '1' ? 1 : 0,
+       (handle === 'main-menu' && (is_mega === 'true' || is_mega === '1')) ? 1 : 0,
+       itemId]
     );
     _invalidate(handle);
     req.session.flash = { type: 'success', msg: 'Item updated.' };

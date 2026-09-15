@@ -101,7 +101,8 @@
                     data-id="<%= item.id %>"
                     data-label="<%= item.label %>"
                     data-url="<%= item.url %>"
-                    data-hl="<%= item.is_highlight ? '1' : '0' %>">Edit</button>
+                    data-hl="<%= item.is_highlight ? '1' : '0' %>"
+                    data-mega="<%= item.is_mega ? '1' : '0' %>">Edit</button>
             <form method="POST" action="/admin/menus/<%= activeMenu.handle %>/items/<%= item.id %>/delete"
                   onsubmit="return confirm('Remove this menu item?')">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>">
@@ -136,6 +137,15 @@
           <input type="checkbox" name="is_highlight" value="true">
           Highlight link (shown in accent color — useful for "Sale")
         </label>
+        <%/* Mega menu is a main-menu concept only — a footer column has no
+             flyout to open, and offering the toggle there would be a
+             control that does nothing. */%>
+        <% if (activeHandle === 'main-menu') { %>
+        <label class="mn-hl-toggle" style="margin-top:.4rem">
+          <input type="checkbox" name="is_mega" value="true">
+          Opens the mega menu (the large Vanities flyout — one item only)
+        </label>
+        <% } %>
       </form>
     </div>
 
@@ -161,6 +171,12 @@
         <input type="checkbox" id="edit-hl" name="is_highlight" value="true">
         Highlight link
       </label>
+      <% if (activeHandle === 'main-menu') { %>
+      <label class="mn-hl-toggle" id="edit-mega-wrap" style="margin-bottom:.5rem">
+        <input type="checkbox" id="edit-mega" name="is_mega" value="true">
+        Opens the mega menu
+      </label>
+      <% } %>
       <div class="mn-modal-btns">
         <button type="button" class="adm-btn" onclick="closeModal()">Cancel</button>
         <button type="submit" class="adm-btn adm-btn--primary">Save Changes</button>
@@ -185,6 +201,10 @@
       editLabel.value  = this.dataset.label;
       editUrl.value    = this.dataset.url;
       editHl.checked   = this.dataset.hl === '1';
+      /* Only present on main-menu — a footer column has no flyout. Guarded
+         so the footer menus do not throw on a missing element. */
+      var editMega = document.getElementById('edit-mega');
+      if (editMega) editMega.checked = this.dataset.mega === '1';
       editForm.action  = '/admin/menus/' + handle + '/items/' + id;
       modal.classList.add('open');
     });
