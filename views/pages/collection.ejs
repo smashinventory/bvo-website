@@ -89,7 +89,20 @@
         * on ?type=Bathroom+Faucets should show the shopper what is applied
         * and what else is on offer, not hide it behind a collapsed header.
         */%>
-      <% if (availableProductTypes && availableProductTypes.length > 0) { %>
+      <%/*
+        * GUARD — do not render alongside a seeded product_type attribute.
+        * migration 002 seeds attribute_definitions (3,'product_type',
+        * 'Faucet Type','checkbox'). That row is absent on production today,
+        * which is why this group was needed at all. If it is ever restored,
+        * the attribute-driven loop below would render a SECOND type group
+        * — labelled "Faucet Type", posting ?product_type= instead of ?type=,
+        * and filtering through the EAV table where product_type has no rows,
+        * so it would return nothing. One working filter and one broken one,
+        * side by side. Yield to the configured definition rather than
+        * compete with it.
+        */%>
+      <% var _hasTypeDef = (attributeDefs || []).some(function(d){ return d.attr_key === 'product_type'; }); %>
+      <% if (!_hasTypeDef && availableProductTypes && availableProductTypes.length > 0) { %>
       <%   var typeActive = productTypes.length > 0; %>
       <div class="filter-group">
         <button type="button" class="filter-group-toggle" aria-expanded="<%= typeActive ? 'true' : 'false' %>">

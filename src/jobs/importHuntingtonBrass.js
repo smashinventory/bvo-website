@@ -430,6 +430,34 @@ function buildColorFamily(r) {
   return r.finish ? normalizeFinish(r.finish, 'metal') : null;
 }
 
+/* ── Drilling, for the Configuration sidebar facet ────────────────────
+   Bathroom faucets only. HB encodes drilling in the name and nowhere
+   else structured, and these are the same four buckets
+   FAUCET_DRILLING_SQL in bundleController uses — the collection page and
+   step 4 of the bundle builder must not disagree about what a faucet
+   fits.
+
+   Order matters. Widespread is tested first so a future "X Lavatory
+   Widespread" is not caught by the Lavatory test below.
+
+   Kitchen faucets deliberately return null: their names carry no
+   drilling, and their copy says most fit BOTH a single-hole and a
+   three-hole sink. Guessing one value there would be inventing data.
+   Those are tagged by hand in admin.                                   */
+const FAUCET_CONFIG_RULES = [
+  [/widespread/i,                                    'Widespread'],
+  [/single control|single hole|single-hole|lavatory/i,'Single Hole'],
+  [/center ?set/i,                                   'Center Set'],
+  [/vessel/i,                                        'Vessel'],
+];
+
+function buildFaucetConfig(r) {
+  if (r.productType !== 'Bathroom Faucets') return null;
+  const name = buildName(r);
+  for (const [re, val] of FAUCET_CONFIG_RULES) if (re.test(name)) return val;
+  return null;
+}
+
 async function upsertOne(conn, r, categoryId) {
   const name      = buildName(r);
   const model     = buildModel(r);
@@ -478,6 +506,19 @@ async function upsertOne(conn, r, categoryId) {
   const [[row]] = await conn.query('SELECT id FROM products WHERE sku = ?', [r.sku]);
   if (!row) throw new Error(`insert reported success but ${r.sku} is not readable`);
   const productId = row.id;
+
+  /* Configuration facet value. Upsert rather than delete-then-insert:
+     product_attribute_values is keyed (product_id, attr_key) and holds
+     OTHER attributes for this product that this importer knows nothing
+     about. A blanket DELETE by product_id would take those with it. */
+  const cfg = buildFaucetConfig(r);
+  if (cfg) {
+    await conn.query(
+      `INSERT INTO product_attribute_values (product_id, attr_key, value_text)
+       VALUES (?, 'faucet_config', ?)
+       ON DUPLICATE KEY UPDATE value_text = VALUES(value_text)`,
+      [productId, cfg]);
+  }
 
   /* Images: replace wholesale. Merging would accumulate stale URLs every
      time HB re-shoots a product. */
@@ -613,6 +654,21 @@ function buildSql(matched, { generatedAt = new Date().toISOString() } = {}) {
       L.push(`  SELECT p.id, ${sqlStr(url)}, ${sqlStr(name)}, ${i}, ${i === 0 ? 1 : 0}`);
       L.push(`    FROM products p WHERE p.sku = ${sqlStr(r.sku)};`);
     });
+  }
+
+  /* Configuration facet values. Upsert keyed on (product_id, attr_key),
+     never a blanket DELETE by product_id — other attributes live in that
+     table and are not this importer's to remove. */
+  const cfgRows = matched.map(r => [r, buildFaucetConfig(r)]).filter(([, c]) => c);
+  if (cfgRows.length) {
+    L.push('');
+    L.push(`-- Configuration facet (Bathroom Faucets only) — ${cfgRows.length} rows.`);
+    for (const [r, cfg] of cfgRows) {
+      L.push(`INSERT INTO product_attribute_values (product_id, attr_key, value_text)`);
+      L.push(`  SELECT p.id, 'faucet_config', ${sqlStr(cfg)}`);
+      L.push(`    FROM products p WHERE p.sku = ${sqlStr(r.sku)}`);
+      L.push(`  ON DUPLICATE KEY UPDATE value_text = VALUES(value_text);`);
+    }
   }
 
   L.push('');
