@@ -225,7 +225,19 @@
       <!-- Universal compatibility note -->
       <div class="bb-compat-note">
         <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd"/></svg>
-        <span>James Martin vanities use standard single and 8&rdquo; widespread faucet holes &mdash; compatible with any brand. Mix and match freely.</span>
+        <%/* AMENDED TWICE, BOTH TIMES BY SAM. Read before editing.
+
+             2026-09-15 (a): the hole-spacing clause became "standard single
+             and 8&rdquo; widespread faucet holes". I over-edited that pass and
+             also rewrote the ending; Sam put it back. "Mix and match
+             freely" is NOT about faucet holes — it means the shopper can
+             combine any base, top, mirror and faucet. Leave it.
+
+             2026-09-15 (b): 8&rdquo; -> 8-inch, to match the faucet
+             Configuration facet and the top variant labels. Lower-case
+             "widespread" here on purpose: this is prose, and the title-case
+             form belongs on chips and filter options, not mid-sentence. */%>
+        <span>James Martin vanities use standard single and 8-inch widespread faucet holes &mdash; compatible with any brand. Mix and match freely.</span>
       </div>
 
       <div class="bb-mcard" id="bb-mcard-faucet">
@@ -794,9 +806,17 @@
      nothing about drilling, while the pair above names drilling and
      backsplash. Add a SKU to the feed and it labels itself. */
   var TOP_VARIANT_ATTRS = [
+    <%/* Wording matches the faucet Configuration facet on the collection
+         sidebar — Sam 2026-09-15. A shopper comparing a top's drilling to
+         a faucet's spacing should see the same two phrases in both places.
+
+         These are LABELS ONLY. topDrilling() still returns the internal
+         keys 'widespread' / 'single', and faucetFits() still matches on
+         them — renaming those breaks faucet-to-top compatibility, which is
+         silent and only shows up as the wrong faucets being offered. */%>
     { key: 'faucet_spread',
       on:  function(v) { return String(v) === '8'; },
-      yes: '8" widespread', no: 'Single hole' },
+      yes: '8-inch Widespread', no: 'Single Hole' },
     { key: 'backsplash_included',
       on:  function(v) { return String(v) === 'Yes'; },
       yes: 'with backsplash', no: 'no backsplash' },

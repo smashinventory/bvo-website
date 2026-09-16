@@ -323,13 +323,46 @@
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
         <div class="filter-group-body<%= isExpanded ? '' : ' is-collapsed' %>">
+          <%/* ── DISPLAY LABELS ──────────────────────────────────────────
+             * Shopper-facing wording only. The stored value_text and the
+             * posted query param are NEVER touched.
+             *
+             * Sam 2026-09-15: the faucet Configuration facet should read
+             * "4-inch Centerset" and "8-inch Widespread" — the hole
+             * spacing is what a shopper is actually matching to their sink,
+             * and "Center Set" alone does not say 4 inches.
+             *
+             * Done as a MAP, not a data change, deliberately:
+             *   - ?faucet_config=Center+Set links and any saved filters
+             *     keep working
+             *   - 2026-09-14_faucet_config_attribute.sql assigns these
+             *     values from product names on every import; renaming the
+             *     data means keeping that CASE in sync forever, and the
+             *     first import that missed it would silently re-create the
+             *     old values alongside the new ones
+             *
+             * Keys are attr_key → { stored value: label }. Anything not
+             * listed falls through to the raw value unchanged — Single
+             * Hole and Vessel are deliberately left alone.
+             */%>
+          <%
+            var FACET_VALUE_LABELS = {
+              faucet_config: {
+                'Center Set':  '4-inch Centerset',
+                'Widespread':  '8-inch Widespread',
+              },
+            };
+          %>
           <% checkOptions.forEach(function(opt) {
+               var _map  = FACET_VALUE_LABELS[def.attr_key] || {};
                /* Pretty-print product_type slugs */
-               var label = def.attr_key === 'product_type'
+               var label = _map[opt] ? _map[opt]
+                 : def.attr_key === 'product_type'
                  ? opt.replace(/-/g, ' ').replace(/\b\w/g, function(c){ return c.toUpperCase(); })
                  : opt;
           %>
           <label class="filter-option">
+            <%/* value stays `opt` — the stored string. Only the span changes. */%>
             <input type="checkbox" name="<%= def.attr_key %>" value="<%= opt %>"
               <%= activeVals.includes(opt) ? 'checked' : '' %>>
             <span><%= label %></span>
