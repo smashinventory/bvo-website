@@ -1,5 +1,19 @@
 'use strict';
 
+/* ─────────────────────────────────────────────────────────────────────
+ * VANITY SIDEBAR: see VANITY_SIDEBAR_FILTERS.md before changing facets.
+ *
+ * Two render paths below, both vanities:
+ *   display_mode = 'model-group'  → /collections/vanity-models
+ *   everything else (grid)        → /collections/bathroom-vanities
+ * Both must produce the same approved filter order. A change to one that
+ * is not made to the other ships a broken sidebar with green gates.
+ *
+ * NOTE: this controller does NOT read req.query.style. Vanity Style is
+ * rendered but inert — §5 of the document. Do not call it working.
+ * ───────────────────────────────────────────────────────────────────── */
+
+
 const Category                                          = require('../models/Category');
 const Product                                           = require('../models/Product');
 const Customer                                          = require('../models/Customer');

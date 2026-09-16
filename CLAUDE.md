@@ -18,6 +18,7 @@ telling you the reasoning is elsewhere and has already been argued.
 
 | Document | Governs |
 |---|---|
+| `VANITY_SIDEBAR_FILTERS.md` | **Vanity collection sidebar — which filters, in what order, on both render paths.** Open this before touching `collection.ejs`, `collectionsController.js` or any filter facet. |
 | `JMV_COMBO_DEMAND_DEFINITION.md` | Estimated Combo Demand — the estimator, its joins, its four rules, what is in and out of scope |
 | `JMV_REVENUE_DEFINITION.md` | Revenue basis, the warranty haircut |
 | `JMV_CATALOGUE_STRUCTURE.md` | JM catalogue shape — combos, bases, tops, component edges |
