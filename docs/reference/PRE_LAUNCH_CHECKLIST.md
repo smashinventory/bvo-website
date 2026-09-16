@@ -1,5 +1,7 @@
 # Pre-launch checklist — BVO
 
+> Everything that must be true before cutover.
+
 Things that must be done by a human before launch, with why they matter.
 Add to this as items come up rather than letting them scatter.
 

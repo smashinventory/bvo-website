@@ -1,4 +1,6 @@
 # James Martin Etail Feed — BVO Schema Analysis
+
+> The JM feed: its columns, its quirks, and how each maps into the BVO schema.
 *Reference: `James Martin - Etail Feed_2025_08_07.xlsx` · 231 columns · "Etail Products" sheet*
 
 ---

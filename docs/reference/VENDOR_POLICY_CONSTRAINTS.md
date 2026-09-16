@@ -1,5 +1,7 @@
 # Vendor policy constraints — what BVO's policies may promise
 
+> What each vendor permits and forbids — the constraints our policies must sit inside.
+
 Sources reviewed 8 Sept 2026:
 
 - `James_Martin_MAP_Policy_12-05-25.pdf` (revised 5 Dec 2025) — **CONFIDENTIAL**

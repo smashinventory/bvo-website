@@ -1,5 +1,7 @@
 # Trade Account program — outline spec
 
+> Trade program: eligibility, pricing visibility rules and the gating requirement.
+
 Scoped 8 Sept 2026. **Build after the policy pages ship, not before.**
 
 Nothing for trade accounts exists yet: `customers` has no group, tier or

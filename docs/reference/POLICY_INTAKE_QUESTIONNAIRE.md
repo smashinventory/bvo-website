@@ -1,5 +1,7 @@
 # Policy intake — Terms, Privacy, Shipping, Returns & Refunds
 
+> The questionnaire the policy answers came from.
+
 Answer inline. Where I've written **[RECOMMENDED]** you can reply "default"
 and I'll use it. Anything you skip, I'll flag rather than invent.
 

@@ -1,5 +1,7 @@
 # Model & product cards — change journal, 5 Sept 2026
 
+> Product card structure — badges, pricing rows, swatches and size chips.
+
 Written so any of this can be unwound without re-deriving the reasoning.
 Read the **Unwind guide** at the bottom first if you are reverting.
 

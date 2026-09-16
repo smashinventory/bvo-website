@@ -1,5 +1,7 @@
 # Policy decisions — answers of record
 
+> Agreed answers to the store policy questions — returns, damage, freight.
+
 Working answers from the intake session, 8 Sept 2026. This is the input the
 four policy pages get drafted from. Constraints that shaped these answers are
 in `VENDOR_POLICY_CONSTRAINTS.md`; human tasks are in

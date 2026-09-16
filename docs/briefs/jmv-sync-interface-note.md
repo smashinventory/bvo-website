@@ -1,5 +1,7 @@
 # BVO ⇄ JMV Shopify sync — interface note
 
+> Interface contract for the JMV sync — what each side sends and expects.
+
 **Date:** 2026-09-03
 **Re:** proposed changes to `jmv_sync/jmv_shopify_sync.php`
 **From:** BVO side

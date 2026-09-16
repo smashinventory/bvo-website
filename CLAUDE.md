@@ -1,4 +1,26 @@
-# BVO Node.js — Session Rules (Auto-loaded by Claude)
+# CLAUDE.md — BVO
+
+## ⛔ FIRST ACTION OF EVERY SESSION — READ THE INDEX
+
+    docs/00-start/INDEX.md
+
+It lists every document for this project, what each governs, and where new
+notes go. You start each session with a summary of ONE previous thread;
+the index is the accumulated knowledge of all of them.
+
+**The numbered Rules are in `docs/00-start/BVO_AUDIT_BRIEF.md`, not here.**
+Rule 8 (one internal taxonomy), Rule 9 (self-documenting code), Rule 10
+(canonical data sources), Rule 11 (CSS size limit), Rule 13 (swatches and
+chips) are stated in full there. This file holds working rules, brand
+canon and process.
+
+**Do not create a new top-level notes/brief/reference document.** Add to
+the document that already governs the area — the index says which. A new
+file is only correct for a genuinely new area, and it must be added to the
+index in the same edit.
+
+---
+
 
 > **READ THIS FIRST every session.** Also read:
 > - `/Users/user/Desktop/ShopPro Project/OnlineSmartPOS/BVO_AUDIT_BRIEF.md` — full rules & architecture. **Includes the LIVE DATABASE INVENTORY — all 41 tables, and the 16 that have NO migration file. `database/migrations/` is a partial record of the schema. Never conclude a table does not exist because there is no CREATE for it.**
@@ -18,11 +40,11 @@ telling you the reasoning is elsewhere and has already been argued.
 
 | Document | Governs |
 |---|---|
-| `VANITY_SIDEBAR_FILTERS.md` | **Vanity collection sidebar — which filters, in what order, on both render paths.** Open this before touching `collection.ejs`, `collectionsController.js` or any filter facet. |
-| `JMV_COMBO_DEMAND_DEFINITION.md` | Estimated Combo Demand — the estimator, its joins, its four rules, what is in and out of scope |
-| `JMV_REVENUE_DEFINITION.md` | Revenue basis, the warranty haircut |
-| `JMV_CATALOGUE_STRUCTURE.md` | JM catalogue shape — combos, bases, tops, component edges |
-| `CHANGE_LOG_BRIEF.md` | What changed and when |
+| `docs/architecture/VANITY_SIDEBAR_FILTERS.md` | **Vanity collection sidebar — which filters, in what order, on both render paths.** Open this before touching `collection.ejs`, `collectionsController.js` or any filter facet. |
+| `docs/definitions/JMV_COMBO_DEMAND_DEFINITION.md` | Estimated Combo Demand — the estimator, its joins, its four rules, what is in and out of scope |
+| `docs/definitions/JMV_REVENUE_DEFINITION.md` | Revenue basis, the warranty haircut |
+| `docs/definitions/JMV_CATALOGUE_STRUCTURE.md` | JM catalogue shape — combos, bases, tops, component edges |
+| `docs/history/CHANGE_LOG_BRIEF.md` | What changed and when |
 | `BVO_AUDIT_BRIEF.md` | Architecture, rules, live DB inventory |
 
 **The rule, in order:**

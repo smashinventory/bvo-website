@@ -1,5 +1,7 @@
 # Search & ordering — change journal, 6 Sept 2026
 
+> Search relevance scoring and result ordering across the storefront and admin.
+
 Companion to `CARD_CHANGES_2026-09-05.md`, which covers the model and
 product **cards**. This one covers **search and result ordering**.
 Read the Unwind guide at the bottom first if you are reverting.
