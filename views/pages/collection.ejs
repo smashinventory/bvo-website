@@ -225,80 +225,27 @@
        * ORDER IS EXPLICIT AND APPROVED, not whatever attribute_definitions
        * happens to hold. Sam 2026-09-15, vanity sidebar, top to bottom:
        *
-       *     1. Brand           2. Size (width buckets)
+       *     1. Size            2. Cabinet Color
        *     3. Configuration   4. Vanity Style
-       *     5. Cabinet Color   6. Price Range
+       *     5. Brand           6. Price Range
        *
-       * Everything else is off for vanities. Configuration and Vanity Style
-       * were moved ABOVE the attribute loop so Cabinet Color — which renders
-       * from inside that loop as a colour swatch — lands last.
+       * Everything else is off for vanities.
+       *
+       * THE ORDER IS NOT DECIDED HERE. The vanity page is model-group, and
+       * its sequence is set by the APPROVED VANITY ORDER block further down
+       * — search for it. The blocks in THIS part of the file are the grid
+       * path, which vanities do not take. Editing the order here changes
+       * nothing on the live vanity sidebar.
+       *
+       * An earlier version of this comment listed Brand first and stayed
+       * that way after the order changed, which is worse than no comment:
+       * it reads as authoritative and is wrong. If you change the order,
+       * change it in the block named above and fix this text too.
        *
        * Other categories are untouched: the gates below all test
        * isVanityCategory, so Faucets / Mirrors / Accessories keep the
        * attribute-driven sidebar they have now.
        */%>
-      <%/* ── Configuration (taxonomy overhaul 2026-07-31) ─────────────
-       * All 4 options use ?type= (product_type). sink_count EAV filter
-       * deprecated from sidebar — the new 4-value product_type system
-       * encodes both form (vanity-with-top vs cabinet-only) and sink count
-       * in a single canonical field, removing the need for EAV cross-join.
-       */%>
-      <%/* GRID PATH ONLY — same duplicate-render bug as Size above. The
-           model-group path has its own Configuration block driven by
-           mgAvailTypes / mgActiveTypes. This one reads productTypes, which
-           the model-group render stubs to [], so on the vanity page it
-           appeared as a SECOND Configuration group that could never show
-           as active. Both rendered; neither knew about the other. */%>
-      <% if (isVanityCategory && !_isModelGroup) { %>
-      <%
-        var _cfAllTypes = ['Single Sink Vanity With Top', 'Double Sink Vanity With Top',
-                           'Single Sink Cabinet Only',    'Double Sink Cabinet Only'];
-        var _cfTypeVals = (typeof productTypes !== 'undefined') ? productTypes : [];
-        var _cfBadge    = _cfTypeVals.filter(function(t) { return _cfAllTypes.indexOf(t) !== -1; }).length;
-        var _cfActive   = _cfBadge > 0;
-      %>
-      <div class="filter-group">
-        <button type="button" class="filter-group-toggle"
-          aria-expanded="<%= _cfActive ? 'true' : 'false' %>">
-          Configuration
-          <% if (_cfActive) { %><span class="filter-badge"><%= _cfBadge %></span><% } %>
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
-        </button>
-        <div class="filter-group-body<%= _cfActive ? '' : ' is-collapsed' %>">
-          <label class="filter-option">
-            <input type="checkbox" name="type" value="Single Sink Vanity With Top"
-              <%= _cfTypeVals.includes('Single Sink Vanity With Top') ? 'checked' : '' %>>
-            <span>Single Sink Vanity With Top</span>
-          </label>
-          <label class="filter-option">
-            <input type="checkbox" name="type" value="Double Sink Vanity With Top"
-              <%= _cfTypeVals.includes('Double Sink Vanity With Top') ? 'checked' : '' %>>
-            <span>Double Sink Vanity With Top</span>
-          </label>
-          <label class="filter-option">
-            <input type="checkbox" name="type" value="Single Sink Cabinet Only"
-              <%= _cfTypeVals.includes('Single Sink Cabinet Only') ? 'checked' : '' %>>
-            <span>Single Sink Cabinet Only</span>
-          </label>
-          <label class="filter-option">
-            <input type="checkbox" name="type" value="Double Sink Cabinet Only"
-              <%= _cfTypeVals.includes('Double Sink Cabinet Only') ? 'checked' : '' %>>
-            <span>Double Sink Cabinet Only</span>
-          </label>
-        </div>
-      </div>
-      <% } /* end Configuration */ %>
-
-      <%/* ── Vanity Style (GRID PATH ONLY) ───────────────────────────
-       * Definition now lives in partials/filters/vanity-style.ejs. On the
-       * model-group path it is included further down instead, so it lands
-       * fourth per Sam's approved order — after Configuration rather than
-       * before it.
-       */%>
-      <% if (isVanityCategory && !_isModelGroup) { %>
-      <%- include('../partials/filters/vanity-style') %>
-      <% } %>
-
       <%/* VANITY ALLOW-LIST. On the vanity category this loop may render
            exactly one group — Cabinet Color, the primary colour swatch.
            Everything else Sam approved is a bespoke block above; everything
@@ -582,6 +529,93 @@
       <% } %>
 
       <% }) /* end attributeDefs.forEach */ %>
+
+      <%/* ── APPROVED VANITY ORDER, GRID PATH (Sam, 2026-09-15) ─────────
+       *
+       *     1. Size            2. Cabinet Color
+       *     3. Configuration   4. Vanity Style
+       *     5. Brand           6. Price Range
+       *
+       * Configuration, Vanity Style and Brand sit AFTER the attribute
+       * loop on purpose: Cabinet Color renders from inside that loop, and
+       * it has to land second. Putting these three before the loop is what
+       * produced Size | Configuration | Vanity Style | Cabinet Color on
+       * /collections/bathroom-vanities.
+       *
+       * Brand is included HERE for vanities. It is skipped at the top of
+       * the file (which is correct — it must not be first), and the first
+       * fix only re-added it inside the model-group block. This page is
+       * the grid path, so Brand disappeared from the sidebar entirely.
+       * Both vanity paths need their own Brand call site.
+       */%>
+      <%/* ── Configuration (taxonomy overhaul 2026-07-31) ─────────────
+       * All 4 options use ?type= (product_type). sink_count EAV filter
+       * deprecated from sidebar — the new 4-value product_type system
+       * encodes both form (vanity-with-top vs cabinet-only) and sink count
+       * in a single canonical field, removing the need for EAV cross-join.
+       */%>
+      <%/* GRID PATH ONLY — same duplicate-render bug as Size above. The
+           model-group path has its own Configuration block driven by
+           mgAvailTypes / mgActiveTypes. This one reads productTypes, which
+           the model-group render stubs to [], so on the vanity page it
+           appeared as a SECOND Configuration group that could never show
+           as active. Both rendered; neither knew about the other. */%>
+      <% if (isVanityCategory && !_isModelGroup) { %>
+      <%
+        var _cfAllTypes = ['Single Sink Vanity With Top', 'Double Sink Vanity With Top',
+                           'Single Sink Cabinet Only',    'Double Sink Cabinet Only'];
+        var _cfTypeVals = (typeof productTypes !== 'undefined') ? productTypes : [];
+        var _cfBadge    = _cfTypeVals.filter(function(t) { return _cfAllTypes.indexOf(t) !== -1; }).length;
+        var _cfActive   = _cfBadge > 0;
+      %>
+      <div class="filter-group">
+        <button type="button" class="filter-group-toggle"
+          aria-expanded="<%= _cfActive ? 'true' : 'false' %>">
+          Configuration
+          <% if (_cfActive) { %><span class="filter-badge"><%= _cfBadge %></span><% } %>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="filter-group-body<%= _cfActive ? '' : ' is-collapsed' %>">
+          <label class="filter-option">
+            <input type="checkbox" name="type" value="Single Sink Vanity With Top"
+              <%= _cfTypeVals.includes('Single Sink Vanity With Top') ? 'checked' : '' %>>
+            <span>Single Sink Vanity With Top</span>
+          </label>
+          <label class="filter-option">
+            <input type="checkbox" name="type" value="Double Sink Vanity With Top"
+              <%= _cfTypeVals.includes('Double Sink Vanity With Top') ? 'checked' : '' %>>
+            <span>Double Sink Vanity With Top</span>
+          </label>
+          <label class="filter-option">
+            <input type="checkbox" name="type" value="Single Sink Cabinet Only"
+              <%= _cfTypeVals.includes('Single Sink Cabinet Only') ? 'checked' : '' %>>
+            <span>Single Sink Cabinet Only</span>
+          </label>
+          <label class="filter-option">
+            <input type="checkbox" name="type" value="Double Sink Cabinet Only"
+              <%= _cfTypeVals.includes('Double Sink Cabinet Only') ? 'checked' : '' %>>
+            <span>Double Sink Cabinet Only</span>
+          </label>
+        </div>
+      </div>
+      <% } /* end Configuration */ %>
+
+      <%/* ── Vanity Style (GRID PATH ONLY) ───────────────────────────
+       * Definition now lives in partials/filters/vanity-style.ejs. On the
+       * model-group path it is included further down instead, so it lands
+       * fourth per Sam's approved order — after Configuration rather than
+       * before it.
+       */%>
+      <% if (isVanityCategory && !_isModelGroup) { %>
+      <%- include('../partials/filters/vanity-style') %>
+      <% } %>
+
+
+      <%/* ── Brand (vanity grid, position 5) ─────────────────────── */%>
+      <% if (isVanityCategory && !_isModelGroup) { %>
+      <%- include('../partials/filters/brand') %>
+      <% } %>
+
 
       <%/*
        * ── Custom vanity filter groups ───────────────────────────────

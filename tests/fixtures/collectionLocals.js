@@ -36,4 +36,21 @@ module.exports.cases = {
     attributeDefs:[{attr_key:'finish',display_name:'Finish',filter_type:'color_swatch',sort_order:2}],
     availableAttrValues:{finish:['Polished Chrome','Matte Black']},
   }),
+
+  /* THE CASE THAT WAS MISSING.
+     /collections/bathroom-vanities is a vanity category on the GRID path.
+     The first fixture set had vanity+model-group and non-vanity+grid, so
+     vanity+grid — the page Sam actually looks at — was never rendered by
+     any gate. Brand vanished from it and Cabinet Color sat in slot 4, and
+     every gate passed. */
+  'VANITY (grid)': Object.assign({}, base, {
+    category:{slug:'bathroom-vanities',name:'Bathroom Vanities'},
+    displayMode:'grid',
+    isVanityCategory:true,
+    availableSizes:['20-','25','30','36','42','48','60','72','84+'],
+    mgAvailTypes:[], mgActiveTypes:[],
+    availableProductTypes:[],
+    attributeDefs:[{attr_key:'cabinet_finish',display_name:'Cabinet Color',filter_type:'color_swatch',sort_order:4}],
+    availableAttrValues:{cabinet_finish:['Bright White','Chestnut']},
+  }),
 };
