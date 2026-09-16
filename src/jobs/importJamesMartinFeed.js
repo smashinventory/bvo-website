@@ -910,7 +910,30 @@ async function importFromWorkbook(wb, opts = {}) {
         }
 
         // ── Product core data ────────────────────────────────────────
-        const rawColor = clean(row['Vanity Base Color/Finish']);
+        /* ── COLOUR SOURCE: two feed columns, not one ──────────────────
+           JM puts the finish in a DIFFERENT column depending on product:
+
+             Vanity Base Color/Finish   vanities, cabinets
+             Finish/Color of Product    mirrors, faucets, accessories,
+                                        components
+
+           This read only the first, so every product that uses the second
+           landed with color = NULL. 112 of 120 active mirrors, for example:
+           the feed row for 735-M26-BKO carries "Black Onyx" in
+           Finish/Color of Product and nothing in Vanity Base Color/Finish.
+
+           Nothing downstream was broken by that. normalize() already maps
+           Black Onyx to the black family, and the Color Family Report and
+           color_mappings both work. The value simply never reached them —
+           the colour filter on /collections/bathroom-mirrors had almost no
+           data to work with because this line discarded it at the door.
+
+           Vanity column first: on a vanity BOTH can be populated (cabinet
+           paint vs hardware finish) and the cabinet colour is the one
+           products.color means. The fallback only fires when the first is
+           empty, so no vanity changes. */
+        const rawColor = clean(row['Vanity Base Color/Finish'])
+                      || clean(row['Finish/Color of Product']);
         const productData = {
           sku,
           slug:                  slugify(sku),

@@ -770,12 +770,26 @@ exports.show = async (req, res, next) => {
     // Primary: ALL families for vanities (cabinet paint + metallic-finish vanities
     // such as Radiant Gold, Matte Black, Brushed Nickel which are stored in
     // products.color and map to metal family keys).
-    // Metal-only for all other categories (mirrors, faucets, etc.).
+    // Metal-only for faucets, lighting, accessories, storage — those are
+    // genuinely metallic.
     // The template's visibleFamilies check gates display: a family only renders
     // if fam.members.some(m => availFinishesLower.includes(m)) — so metal families
     // with no vanity products stay hidden automatically. See Task #34-C.
-    const primaryFamilyPool = isVanityCategory
-      ? FAMILIES                              // cabinet + metallic-finish vanities
+    //
+    // MIRRORS GET THE FULL POOL (2026-09-16). They were in the metal-only
+    // branch, which is why the Frame Finish filter was useless: mirror frames
+    // are painted and wood — Bright White, Honey Oak, Burnished Mahogany,
+    // Whitewashed Walnut — and every one of those is a CABINET family that
+    // mirrors never received. The sidebar offered seven metal swatches that
+    // matched almost nothing, and no wood-framed mirror was filterable.
+    //
+    // Mirrors carry metal frames too (Champagne Brass, Brushed Nickel,
+    // Radiant Gold), so the answer is the full pool, not a swap to cabinet.
+    // visibleFamilies still hides any family with no matching products, so
+    // this adds no empty swatches.
+    const FULL_POOL_CATEGORIES = new Set(['bathroom-mirrors']);
+    const primaryFamilyPool = (isVanityCategory || FULL_POOL_CATEGORIES.has(slug))
+      ? FAMILIES                              // cabinet + metallic finishes
       : FAMILIES.filter(f => f.type === 'metal');
 
     const colorFamiliesConfig = primaryFamilyPool.map(fam => ({
