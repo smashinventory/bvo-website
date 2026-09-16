@@ -597,7 +597,7 @@ _DEFAULT_ORDER.forEach(function(k) {
       <a href="/products/<%= product.slug %>" class="product-img-link" aria-label="<%= product.name %>">
         <div class="product-img">
           <% if (product.primary_image) { %>
-            <img class="product-img-pri" src="<%= product.primary_image %>" alt="<%= product.name %>" loading="lazy"
+            <img class="product-img-pri" src="<%= product.primary_image %>?width=800" alt="<%= product.name %>" loading="lazy"
                  id="<%= _hpImgId %>">
               <%# No hover image on the homepage. Leaving it in the DOM at
                   opacity:0 would cost a lazy image request per card for

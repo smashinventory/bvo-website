@@ -160,7 +160,7 @@
         <% cart.items.forEach(function(item) { %>
         <div class="co-item">
           <% if (item.image) { %>
-          <img src="<%= item.image %>" alt="<%= item.name %>" class="co-item-img" loading="lazy">
+          <img src="<%= item.image %>?width=200" alt="<%= item.name %>" class="co-item-img" loading="lazy">
           <% } else { %>
           <div class="co-item-img co-item-img--placeholder"></div>
           <% } %>

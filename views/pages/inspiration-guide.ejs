@@ -117,7 +117,7 @@
             <a href="/products/<%= p.slug %>" class="inspo-shop-card">
               <div class="inspo-shop-card-img-wrap">
                 <% if (p.primary_image) { %>
-                <img src="<%= p.primary_image %>" alt="<%= p.name %>" class="inspo-shop-card-img" loading="lazy" width="320" height="280">
+                <img src="<%= p.primary_image %>?width=640" alt="<%= p.name %>" class="inspo-shop-card-img" loading="lazy" width="320" height="280">
                 <% } else { %>
                 <div class="inspo-shop-card-img-placeholder"></div>
                 <% } %>

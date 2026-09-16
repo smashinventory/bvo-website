@@ -27,7 +27,7 @@
         <!-- Image -->
         <div class="cart-item-img">
           <% if (item.image) { %>
-            <img src="<%= item.image %>" alt="<%= item.name %>" loading="lazy">
+            <img src="<%= item.image %>?width=200" alt="<%= item.name %>" loading="lazy">
           <% } else { %>
             <div class="cart-img-placeholder"></div>
           <% } %>
