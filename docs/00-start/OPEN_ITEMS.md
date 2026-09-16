@@ -226,6 +226,75 @@ blind spot.
 admin when an image URL points outside your own hosts would stop the next one
 at entry rather than at cutover. Separate task, not approved.
 
+### 7. `Finish/Color of Product` has two homes
+*Logged 2026-09-16 · Rule 8 violation, deliberately not bundled into the colour work*
+
+`importJamesMartinFeed.js` writes that feed column to EAV `finish` via
+`ATTR_MAP` (line ~623) **and**, since `3a302ab`, to `products.color` as the
+fallback source for the colour family. Two homes for one fact.
+
+Rule 10 names `products.color` as canonical and lists EAV as a prohibited
+alternative. But `docs/briefs/james-martin-feed-analysis.md` §1D says that
+column maps to EAV `finish` with `filter_type: color_swatch`. **Both documents
+are in writing and they disagree** — which under CLAUDE.md §4 is a question for
+Sam, not a judgement call.
+
+Nothing is broken today: the colour filter reads the column, and the EAV row is
+simply unread. The cost is a reader having to work out which one is live.
+
+**Not chosen:** removing `'Finish/Color of Product'` from `ATTR_MAP`. One line,
+but it needs the document conflict settled first and a check that no view reads
+`attr_key = 'finish'`.
+
+---
+
+### 8. 57 vanity products still carry the pre-fix Ash/Shagreen families
+*Logged 2026-09-16*
+
+`Sunwashed Oak` (41) and `Sunwashed Oak with Embossed Shagreen Drawer Fronts`
+(16) sit in `gray` and `green` in the database. The code that produced those
+values is fixed — `Ash` moved to `wood_l` and the substring fallback now
+requires a word boundary — but only the **mirrors** were backfilled by SQL.
+
+They correct themselves on the next full JM import. If that is not soon enough,
+`scripts/gen_mirror_colour_sql.js` takes a category argument's worth of change
+to emit the same shape for vanities.
+
+Visible symptom until then: a Sunwashed Oak vanity appears under the Gray
+swatch and not under Light Wood.
+
+---
+
+### 9. `loadColorMappings()` ignores the context column
+*Logged 2026-09-16*
+
+`color_mappings` has `PRIMARY KEY (vendor_color, context)`, so one colour can
+legitimately hold both a `cabinet` row and a `metal` row.
+`loadColorMappings()` selects only `vendor_color, family_key` and keys its Map
+on the colour alone — so when both exist, whichever MySQL returns last silently
+wins.
+
+Same arbitrariness as the `MIN(color_family)` tie-break that was rejected on
+2026-09-16, already sitting in the code. It only bites if a colour is mapped in
+both contexts; nothing does today.
+
+**Fix if wanted:** select `context` too and key the Map on
+`vendor_color + '|' + context`, with the caller passing the context it wants.
+
+---
+
+### 10. A dry-run import silently skips admin colour mappings
+*Logged 2026-09-16*
+
+`importFromWorkbook(wb, { dry: true })` does
+`const colorMappings = dry ? new Map() : await loadColorMappings(conn)`.
+
+So a dry run reports colours resolved **without** any Color Report overrides —
+the one thing a dry run is meant to preview. Anyone checking a mapping by
+dry-running the import gets a confidently wrong answer.
+
+Loading the map is a single read and harmless in a dry run.
+
 ---
 
 ## Resolved

@@ -1,6 +1,6 @@
 # BVO — Codebase Audit Brief
 
-> The numbered Rules (8, 9, 10, 11, 13), architecture, the category table and the live DB inventory. Open this before any structural work.
+> The numbered Rules (8, 9, 10, 11, 13, 14), architecture, the category table and the live DB inventory. Open this before any structural work.
 ## BathroomVanitiesOutlet.com — Node.js/Express/EJS storefront
 
 > **Purpose:** Persistent audit log — never lose context again.
@@ -31,6 +31,7 @@
 | Rule 11 | CSS goes in `site2.css` first — `site.css` is at the Hostinger CDN 80KB hard limit. Any new CSS blocks must be added to `site2.css`. If `site2.css` also approaches 80KB, create `site3.css` and link it in `main.ejs`. Non-ASCII characters in CSS `content:` properties must use Unicode escapes (e.g. `'\2713'` not `'✓'`) to avoid encoding failures. |
 | Rule 12 | **Canonical category slugs — NEVER change without updating ALL references.** Vanities = `bathroom-vanities`, Mirrors = `bathroom-mirrors`, Faucets = `faucets`, Accessories = `accessories`, Lighting = `lighting`, Storage = `storage`, Vanity Tops = `bathroom-vanity-tops`, Samples = `samples`, Vanity Models = `vanity-models`, Vanities With Tops = `bathroom-vanities-with-tops`, Vanity Cabinets = `bathroom-vanity-cabinets`, Sale = `sale` (virtual). Retired slugs: `vanities` (caused flip-flop bugs), `mirrors` (→ `bathroom-mirrors`), `vanity-tops` (→ `bathroom-vanity-tops`). Any admin editing category slugs must be warned. |
 | Rule 13 | **Size chips and color swatches are UNIVERSAL — identical layout on ALL card types** (collection product cards, model-group/vanity-model cards, homepage featured cards, homepage carousel cards). No card type gets special treatment. See "Rule 13 — Swatch & Chip Standards" section below for exact values. |
+| Rule 14 | **No gate on this project can validate SQL.** Every gate is static — it parses JavaScript, matches strings, and runs pure functions. None connects to MySQL. A query that is valid JS, plausible SQL and *rejected by the server* passes every gate written here. Any query that compares or combines text columns from two different tables must be executed against the real database before it ships. See the section below. |
 
 ---
 
@@ -146,6 +147,67 @@ Both label + chip rows use a flex row with the label on the left (`min-width: 5r
 - Any card that caps chips at 5 and shows `+N more`
 - Any card type where chip padding, label width, or gap differs from the table above
 - Any new card type added to the site without matching this layout
+
+---
+
+### Rule 14 — Gates Cannot Validate SQL
+
+Added 2026-09-16, after the colour-family work took the storefront down.
+
+**What happened.** Commit `19161f0` shipped with nine executing gates, each one
+negative-tested by deliberately breaking the thing it guarded. It added this to
+`collectionsController.js`:
+
+```sql
+SELECT DISTINCT color_family FROM (
+    SELECT p.color_family FROM products p WHERE ...
+  UNION
+    SELECT pav.value_text FROM product_attribute_values pav JOIN ...
+) AS cf
+```
+
+`products.color_family` and `product_attribute_values.value_text` are declared
+with different collations. MySQL refuses to combine them:
+
+    Error: Illegal mix of collations for operation 'UNION'
+
+`exports.show` threw for **every** `/collections/:slug`. Not the one page the
+change was about — all of them.
+
+**Why every gate passed.** The gates on this project do four things: run
+`node --check`, match strings in source files, call pure functions and compare
+the result, and render EJS templates. Not one of them opens a database
+connection. The query was valid JavaScript inside a valid template literal and
+read as correct SQL. There is no static check that could have known the two
+columns disagree about collation, because that fact lives in the schema, not in
+the code.
+
+**This is a limit of the method, not a slip.** Gates verify that the code says
+what it is supposed to say. They cannot verify that MySQL will accept it. Any
+claim that a database change is "gated" should be read narrowly.
+
+**The rule.** Before shipping a query that compares, joins or combines text
+columns from two different tables — `UNION`, `IN (SELECT ...)`, `JOIN ... ON
+a.text = b.text`, `GROUP BY` across a union — run it against the real database
+first. phpMyAdmin is enough. If it cannot be run first, say so plainly rather
+than describing the change as verified.
+
+**Lower-risk shapes, when running it first is not possible:**
+
+- Two separate queries merged in application code. No cross-column comparison
+  happens, so collation is irrelevant. This is what the hotfix did.
+- Comparing a column against a **literal or a placeholder** rather than another
+  column. `WHERE value_text = ?` is fine; `WHERE value_text = color_family` is
+  the risk.
+- `COLLATE` works, but hard-codes into application code a collation the
+  application has no way to know is correct, and breaks again when a column is
+  redeclared. Prefer splitting the query.
+
+**Related, same family of mistake:** the app DB user has **no grant on
+`information_schema`** (`#1044`), and phpMyAdmin reports that denial against the
+*next* statement — which makes an `ALTER` look refused when the verify `SELECT`
+above it was the actual failure. Use `SHOW COLUMNS` / `SHOW INDEX`. Recorded in
+`OPEN_ITEMS.md` after migration 023 and again after 026.
 
 ---
 

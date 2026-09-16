@@ -10,8 +10,8 @@ the index is the accumulated knowledge of all of them.
 
 **The numbered Rules are in `docs/00-start/BVO_AUDIT_BRIEF.md`, not here.**
 Rule 8 (one internal taxonomy), Rule 9 (self-documenting code), Rule 10
-(canonical data sources), Rule 11 (CSS size limit), Rule 13 (swatches and
-chips) are stated in full there. This file holds working rules, brand
+(canonical data sources), Rule 11 (CSS size limit), Rule 13 (swatches and chips) and Rule 14
+(gates cannot validate SQL) are stated in full there. This file holds working rules, brand
 canon and process.
 
 **Do not create a new top-level notes/brief/reference document.** Add to

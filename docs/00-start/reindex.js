@@ -108,7 +108,7 @@ function build() {
   L.push('**New session:** you have a summary of ONE previous thread. This is all of');
   L.push('them. Read what the task touches BEFORE forming a view.');
   L.push('');
-  L.push('**The numbered Rules (8, 9, 10, 11, 13) are in**');
+  L.push('**The numbered Rules (8, 9, 10, 11, 13, 14) are in**');
   L.push('`docs/00-start/BVO_AUDIT_BRIEF.md` — not in CLAUDE.md.');
   L.push('');
   L.push('Descriptions come from each file\'s own `> ` line, so they cannot drift');

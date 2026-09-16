@@ -7,7 +7,7 @@ Every document for this project. Nothing lives outside `BVO Node.js/docs/`.
 **New session:** you have a summary of ONE previous thread. This is all of
 them. Read what the task touches BEFORE forming a view.
 
-**The numbered Rules (8, 9, 10, 11, 13) are in**
+**The numbered Rules (8, 9, 10, 11, 13, 14) are in**
 `docs/00-start/BVO_AUDIT_BRIEF.md` — not in CLAUDE.md.
 
 Descriptions come from each file's own `> ` line, so they cannot drift
@@ -21,7 +21,7 @@ line — add one to the top of that file, under its H1, then reindex.
 | Document | Purpose |
 |---|---|
 | `CLAUDE.md` (repo root) | Working rules, brand canon, process. Auto-loaded by every session. |
-| `docs/00-start/BVO_AUDIT_BRIEF.md` | The numbered Rules (8, 9, 10, 11, 13), architecture, the category table and the live DB inventory. Open this before any structural work. |
+| `docs/00-start/BVO_AUDIT_BRIEF.md` | The numbered Rules (8, 9, 10, 11, 13, 14), architecture, the category table and the live DB inventory. Open this before any structural work. |
 | `docs/00-start/OPEN_ITEMS.md` | Outstanding work, numbered. Check here before starting anything — it may already be logged. |
 | `docs/00-start/PROJECT_BRIEF.md` | What BVO is, its scope and history, and the owner preferences every session should follow. |
 
