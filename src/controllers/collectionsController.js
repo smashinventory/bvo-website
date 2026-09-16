@@ -830,6 +830,7 @@ exports.show = async (req, res, next) => {
       [hwFinishRows],
       [productTypeRows],
       [cfKeyRows],
+      [cfAltRows],
     ] = await Promise.all([
       Category.getAttributeDefinitions(category.id),
       Category.getBrandsForCategory(category.id),
@@ -879,19 +880,26 @@ exports.show = async (req, res, next) => {
          appear and the bleed Sam asked for would be unreachable. The filter
          would exist, match rows, and have no way to be clicked. */
       bvoPool.query(
-        `SELECT DISTINCT color_family FROM (
-             SELECT p.color_family
-               FROM products p
-              WHERE p.category_id = ? AND p.is_active = 1 AND p.color_family IS NOT NULL
-           UNION
-             SELECT pav.value_text AS color_family
-               FROM product_attribute_values pav
-               JOIN products p ON p.id = pav.product_id
-              WHERE p.category_id = ? AND p.is_active = 1
-                AND pav.attr_key = 'color_family_alt'
-                AND pav.value_text IS NOT NULL
-         ) AS cf`,
-        [category.id, category.id]
+        'SELECT DISTINCT color_family FROM products WHERE category_id = ? AND is_active = 1 AND color_family IS NOT NULL',
+        [category.id]
+      ),
+      /* Alt families as a SEPARATE query, merged in JS below.
+         ⚠ DO NOT "tidy" these two back into one UNION. That is what was here
+         on 2026-09-16 and it took every collection page down with
+         "Illegal mix of collations for operation 'UNION'":
+         products.color_family and product_attribute_values.value_text are
+         declared with different collations, so MySQL refuses to combine them.
+         Adding COLLATE would work but hard-codes a collation this code has no
+         business knowing. Two queries and a Set cannot have the problem at
+         all, and the second one is an indexed lookup on a handful of rows. */
+      bvoPool.query(
+        `SELECT DISTINCT pav.value_text
+           FROM product_attribute_values pav
+           JOIN products p ON p.id = pav.product_id
+          WHERE p.category_id = ? AND p.is_active = 1
+            AND pav.attr_key = 'color_family_alt'
+            AND pav.value_text IS NOT NULL`,
+        [category.id]
       ),
     ]);
     // Type facet options. Hidden when a category has only one type — a filter
@@ -901,8 +909,14 @@ exports.show = async (req, res, next) => {
       : [];
     const availFinishes         = finishRows.map(r => r.color);
     const availHardwareFinishes = hwFinishRows.map(r => r.value_text);
-    // Array of BVO family keys that actually have products in this category
-    const availColorFamilies    = cfKeyRows.map(r => r.color_family);
+    /* BVO family keys that actually have products in this category, and so
+       get a clickable swatch. Two sources, merged here rather than in SQL:
+       the primary column, plus the dual-bucket alt rows. See the queries
+       above for why this is not a UNION. */
+    const availColorFamilies    = [...new Set([
+      ...cfKeyRows.map(r => r.color_family),
+      ...cfAltRows.map(r => r.value_text),
+    ])].filter(Boolean);
 
     // ── Parse dynamic attribute filters ──────────────────────────
     // ALL color_swatch attrs are handled by colorFilters / hwColorFilters above —
