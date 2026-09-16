@@ -66,11 +66,17 @@ const FAMILIES = [
     border: '#6e7480',
     members: [
       'Gray', 'Grey', 'Dove Gray', 'Storm Gray', 'Fog',
-      'Slate', 'Ash', 'Light Gray', 'Dark Gray', 'Charcoal Gray', 'Cement',
+      'Slate', 'Light Gray', 'Dark Gray', 'Charcoal Gray', 'Cement',
       'Smoke', 'Steel Gray', 'Moon Gray', 'Mineral Gray', 'Stonehenge Gray',
       'Graphite Gray', 'Metal Gray',
       // NOTE: 'Silver' moved to chrome metal family
       // NOTE: 'Pewter' moved to pewter metal family
+      // NOTE: 'Ash' moved to wood_l, 2026-09-16 (Sam). Ash is a pale hardwood,
+      //   not the grey residue of a fire. It sat here and pulled 44 wood
+      //   products into Gray. The five 'Ash' compounds that had been patched
+      //   into wood_l one at a time were the symptom — see wood_l members.
+      //   'Ash Gray' still resolves to gray: 'Gray' is 4 chars to 'Ash's 3 and
+      //   the longest member wins.
     ],
   },
   {
@@ -126,11 +132,15 @@ const FAMILIES = [
     members: [
       'Gray Oak', 'Natural Oak', 'Oak', 'Blonde', 'Maple', 'Birch',
       'Light Wood', 'Honey Oak', 'Whitewashed Oak', 'Weathered Oak',
-      'Cerused Oak', 'Driftwood', 'Pale Oak', 'White Oak', 'Ash Wood',
-      'White Ash', 'Natural White Ash', 'Whitewashed Ash',
+      'Cerused Oak', 'Driftwood', 'Pale Oak', 'White Oak',
+      /* 'Ash' is the family member that matters — a pale hardwood. Moved here
+         from gray on 2026-09-16. The compounds below it were each added
+         separately to work around its absence; they are kept because an exact
+         match is cheaper than a scan, but none of them is load-bearing now. */
+      'Ash', 'Ash Wood', 'White Ash', 'Natural White Ash', 'Whitewashed Ash',
+      'Natural Ash', 'Rustic Ash', 'Platinum Ash',
       // JM additions — exact matches override partial-match conflicts below
       'Honey Alder', 'Alder',
-      'Natural Ash',       // override: "ash" member maps to gray; exact match wins
       'Silver Apricot',    // override: "silver" member maps to chrome; exact match wins
       'Champagne Tiger',   // override: "champagne" member maps to cream; exact match wins
     ],
@@ -335,10 +345,55 @@ function normalize(rawValue, context = 'all') {
   // 2 — partial match (longer member strings first for specificity)
   const keys = [...lookup.keys()].sort((a, b) => b.length - a.length);
   for (const memberLower of keys) {
-    if (lower.includes(memberLower)) return lookup.get(memberLower);
+    if (_containsWord(lower, memberLower)) return lookup.get(memberLower);
   }
 
   return null;
+}
+
+/**
+ * Does `needle` appear in `haystack` as a whole word (or whole phrase)?
+ *
+ * WHY THIS IS NOT String.includes()
+ *
+ * It was, until 2026-09-16, and a plain substring test matches inside words:
+ *
+ *   'Sunwashed Oak'        contains 'ash'   -> Sunw(ash)ed   -> gray
+ *   'Oyster Shagreen'      contains 'green' -> Sha(green)    -> green
+ *
+ * 57 wood products were filed under Gray and Green by those two matches. The
+ * bug is not that 'ash' or 'green' are wrong members — both are legitimate —
+ * it is that a colour name is a sequence of words and a match that starts
+ * mid-word is not a match at all.
+ *
+ * This is the third appearance of the same mistake on this project: a LIKE
+ * '%LED%' that counted 'contro(lled)' and 'insta(lled)' as lighted mirrors,
+ * and a brand comparison that matched on a fragment. Any new membership or
+ * keyword test should assume word boundaries unless there is a stated reason
+ * not to.
+ *
+ * A boundary is the start of the string, the end of it, or any character that
+ * is not a letter or digit. Hyphens and slashes therefore count as boundaries,
+ * which is intended: 'off-white' must still match the member 'white', and
+ * 'Black Onyx / Antique Black' must still match 'black'.
+ *
+ * Scans every occurrence, not just the first — 'ashen ash' must still match.
+ *
+ * @param  {string} haystack  already lower-cased
+ * @param  {string} needle    already lower-cased
+ * @returns {boolean}
+ */
+function _containsWord(haystack, needle) {
+  if (!needle) return false;
+  let from = 0;
+  for (;;) {
+    const i = haystack.indexOf(needle, from);
+    if (i === -1) return false;
+    const before = i === 0 ? '' : haystack[i - 1];
+    const after  = haystack[i + needle.length] || '';
+    if (!/[a-z0-9]/.test(before) && !/[a-z0-9]/.test(after)) return true;
+    from = i + 1;                      // overlapping occurrences still checked
+  }
 }
 
 /**
@@ -350,4 +405,102 @@ function getFamily(key) {
   return FAMILIES.find(f => f.key === key) || null;
 }
 
-module.exports = { FAMILIES, normalize, getFamily, CABINET_KEYS, METAL_KEYS };
+/* ═══════════════════════════════════════════════════════════════════════
+   DUAL BUCKETS — colours that belong in more than one filter swatch
+   ═══════════════════════════════════════════════════════════════════════
+
+   Approved by Sam, 2026-09-16:
+
+     "a person looking for cream may be presented with a few brass options
+      and like one. I just want a decent balance of options that are very
+      close to what the shopper wants."
+
+   So a product may surface under more than one colour swatch. Two kinds of
+   colour qualify:
+
+     two-tone     the NAME carries two colours — 'Matte White with Gold'
+     ambiguous    one colour that shoppers reasonably look for in two places
+                  — 'Champagne Brass' is brass, but reads cream to some
+
+   WHY THIS LIST IS EXPLICIT AND NOT A RULE
+
+   The obvious rule — "when normalize('cabinet') and normalize('metal')
+   disagree, use both" — was written, measured, and rejected. It gets
+   'Silver Oak' wrong: the contexts disagree (wood_l vs chrome) but it is a
+   wood and chrome would put a wood-framed mirror in the Chrome swatch. No
+   automatic rule can know that. Nine strings is a short enough list to state
+   outright, and a wrong entry here is visible rather than inferred.
+
+   Catalogue-wide this touches 65 products of 4,972. Vanities are untouched
+   except for Matte Black and the Celeste run, so the two-layer cabinet /
+   hardware system on vanities is unaffected.
+
+   ADDING TO THIS LIST
+
+   Key on the vendor colour string, lower-cased. `primary` drives the card
+   swatch and products.color_family — one value, always. `alt` is every
+   ADDITIONAL swatch the product should surface under; [] means "no bleed,
+   deliberately", which is not the same as being absent from this list.
+
+   A colour that arrives ambiguous and is NOT here gets one bucket and shows
+   up in the admin Color Family Report for a decision. That is the intended
+   path: new colours do not quietly bleed somewhere nobody chose.        */
+const DUAL_BUCKET = new Map([
+  // vendor colour (lower-case)                          primary   also shows in
+  ['matte black',                                       { primary: 'black',  alt: ['matte_black'] }],
+  ['sunwashed oak with embossed shagreen drawer fronts',{ primary: 'wood_l', alt: ['cream'] }],
+  ['polished white and light mappa burl',               { primary: 'white',  alt: ['wood_d'] }],
+  ['champagne brass',                                   { primary: 'gold',   alt: ['cream'] }],
+  ['silver gray',                                       { primary: 'gray',   alt: ['chrome'] }],
+  ['matte white with gold',                             { primary: 'white',  alt: ['gold'] }],
+  ['silver with delft blue',                            { primary: 'blue',   alt: ['chrome'] }],
+  ['oyster shagreen',                                   { primary: 'cream',  alt: ['wood_l'] }],
+  /* Silver Oak is a wood. The contexts disagree (wood_l vs chrome) and the
+     disagreement is meaningless — listed here with an empty alt so that a
+     future reader sees it was considered and declined, rather than missed. */
+  ['silver oak',                                        { primary: 'wood_l', alt: [] }],
+]);
+
+/**
+ * The one place that turns a vendor colour string into filter buckets.
+ *
+ * Importers call THIS, not normalize() directly, so that the dual-bucket
+ * decision cannot be implemented differently by two callers (Rule 8).
+ *
+ * Resolution order, highest priority first:
+ *
+ *   1. adminMappings   — the color_mappings table, set through the admin
+ *                        Color Family Report. An explicit human decision
+ *                        outranks everything. Returns no alt: if a mapped
+ *                        colour should also bleed, add it to DUAL_BUCKET.
+ *   2. DUAL_BUCKET     — the curated list above.
+ *   3. normalize()     — context first, then 'all'.
+ *
+ * @param  {string} rawValue        vendor colour string from the feed
+ * @param  {string} [context]       'cabinet' | 'metal' | 'all'
+ * @param  {Map}    [adminMappings] lower-cased vendor_color -> family_key
+ * @returns {{primary: string|null, alt: string[]}}
+ *          primary === null means the colour maps to nothing and the product
+ *          appears under NO swatch. That is intended behaviour, confirmed by
+ *          Sam on 2026-09-15: "If they do not, then they will not appear in
+ *          any bucket. I am fine with that."
+ */
+function resolveBuckets(rawValue, context = 'all', adminMappings = null) {
+  if (!rawValue || typeof rawValue !== 'string') return { primary: null, alt: [] };
+  const lower = rawValue.trim().toLowerCase();
+
+  if (adminMappings && adminMappings.has(lower)) {
+    return { primary: adminMappings.get(lower), alt: [] };
+  }
+
+  const dual = DUAL_BUCKET.get(lower);
+  if (dual) return { primary: dual.primary, alt: [...dual.alt] };
+
+  const primary = normalize(rawValue, context) || normalize(rawValue, 'all');
+  return { primary: primary || null, alt: [] };
+}
+
+module.exports = {
+  FAMILIES, normalize, getFamily, CABINET_KEYS, METAL_KEYS,
+  DUAL_BUCKET, resolveBuckets,
+};

@@ -21,7 +21,10 @@ const { applyProductSeoDefaults, applyGmcDefaults } = require('../utils/seoDefau
 
 const XLSX                               = require('xlsx');
 const { bvoPool }                        = require('../config/database');
-const { normalize: normalizeColor }      = require('../config/colorFamilies');
+/* resolveBuckets() replaced the inline normalize() chain on 2026-09-16. The
+   priority order (admin mappings -> DUAL_BUCKET -> normalize) now lives in
+   one place so two importers cannot drift apart on it — Rule 8. */
+const { resolveBuckets }                 = require('../config/colorFamilies');
 
 // ── BVO Style Map — maps JM raw Theme strings to BVO canonical buckets ─
 // JM stores comma-separated themes in one field (e.g. "Transitional, Traditional").
@@ -324,6 +327,43 @@ async function insertStyleAttrs(conn, productId, rawTheme) {
     await conn.query(
       'INSERT INTO product_attribute_values (product_id, attr_key, value_text, value_num) VALUES (?, ?, ?, NULL)',
       [productId, 'style', styleVal.trim()]
+    );
+  }
+}
+
+/**
+ * Write the ADDITIONAL colour buckets for a product as EAV rows.
+ *
+ * products.color_family holds the ONE primary family — the card swatch, and
+ * the canonical answer to "what colour is this product" (Rule 10). These rows
+ * answer a different question: "which other colour swatches should also show
+ * it". Keeping them apart is what stops this becoming two homes for one fact.
+ *
+ * Approved by Sam 2026-09-16 — a mirror in Champagne Brass surfaces under both
+ * Gold and Cream, because a shopper filtering Cream may well want it.
+ *
+ * Same shape as insertStyleAttrs() above: delete every row for the key, then
+ * insert one per value. The DELETE runs even when there are no alts — a colour
+ * that stops bleeding must lose its old rows, or the product stays in a swatch
+ * nobody can see a reason for.
+ *
+ * Read back by Product.findByCategory(), which ORs these against
+ * p.color_family so either match qualifies the product.
+ *
+ * @param {object}   conn
+ * @param {number}   productId
+ * @param {string[]} altKeys  family keys, may be empty
+ */
+async function insertColorFamilyAlts(conn, productId, altKeys) {
+  await conn.query(
+    'DELETE FROM product_attribute_values WHERE product_id = ? AND attr_key = ?',
+    [productId, 'color_family_alt']
+  );
+  if (!altKeys || !altKeys.length) return;
+  for (const key of altKeys) {
+    await conn.query(
+      'INSERT INTO product_attribute_values (product_id, attr_key, value_text, value_num) VALUES (?, ?, ?, NULL)',
+      [productId, 'color_family_alt', key]
     );
   }
 }
@@ -934,6 +974,11 @@ async function importFromWorkbook(wb, opts = {}) {
            empty, so no vanity changes. */
         const rawColor = clean(row['Vanity Base Color/Finish'])
                       || clean(row['Finish/Color of Product']);
+
+        /* One call, one place. See colorFamilies.resolveBuckets() for the
+           priority order (admin color_mappings, then the curated DUAL_BUCKET
+           list, then normalize). Returns { primary, alt[] }. */
+        const colorBuckets = resolveBuckets(rawColor, 'cabinet', colorMappings);
         const productData = {
           sku,
           slug:                  slugify(sku),
@@ -971,18 +1016,20 @@ async function importFromWorkbook(wb, opts = {}) {
           // Audit Fix #1 (July 2026): width written directly to products.width_in
           // (canonical source — Rule 10). Removed from ATTR_MAP / EAV 'size_in'.
           width_in:             cleanNum(row['Product Width']),
-          // Color family resolution — three-step priority order:
-          //   1. color_mappings DB table (admin-set via Color Report — always wins)
-          //   2. normalize cabinet context (paint/stain finishes in colorFamilies.js)
-          //   3. normalize all contexts (catches metallic-finish vanities)
-          // Admin edits in the Color Report update color_mappings, so they take
-          // effect on the very next import without touching colorFamilies.js.
-          color_family:          rawColor
-                                   ? ( colorMappings.get(rawColor.toLowerCase())
-                                     || normalizeColor(rawColor, 'cabinet')
-                                     || normalizeColor(rawColor, 'all')
-                                     || null )
-                                   : null,
+          /* Colour family — resolved by colorFamilies.resolveBuckets(), which
+             is the ONLY place the priority order lives (Rule 8: one taxonomy,
+             one implementation). It returns a primary plus any additional
+             buckets the product should also surface under.
+
+             .primary goes here and drives the card swatch — one value, always.
+             .alt is written as EAV 'color_family_alt' rows by
+             insertColorFamilyAlts() further down, so the column stays the
+             canonical answer to "what colour is this" (Rule 10) while the EAV
+             answers the different question "which swatches should show it".
+
+             Do not re-implement the order here. If it needs to change, it
+             changes in colorFamilies.js and every caller follows. */
+          color_family:          colorBuckets.primary,
           is_active:             (rowStatus !== 'active' || finalPrice === 0) ? 0 : 1,
           is_new:                0,
           is_featured:           0,
@@ -1019,6 +1066,12 @@ async function importFromWorkbook(wb, opts = {}) {
           }
           await replaceAttr(conn, productId, attrKey, textVal, numVal);
         }
+
+        /* Additional colour swatches this product should also appear under.
+           colorBuckets.primary already went to products.color_family in the
+           upsert above; this writes the rest. Called unconditionally so the
+           DELETE inside clears stale rows when a colour stops bleeding. */
+        await insertColorFamilyAlts(conn, productId, colorBuckets.alt);
 
         /* Radius Cut depth — override JM's wrong value. See RC_DEPTH above.
            Written AFTER the ATTR_MAP loop so it wins over 'Product Depth'

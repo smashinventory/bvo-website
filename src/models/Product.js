@@ -260,6 +260,28 @@ const Product = {
         if (cfFamilies.length) {
           orParts.push(`p.color_family IN (${cfFamilies.map(() => '?').join(',')})`);
           cfParams.push(...cfFamilies);
+
+          /* Dual-bucket colours — a product may surface under more than one
+             swatch. products.color_family is its ONE primary (and its card
+             swatch); EAV 'color_family_alt' rows carry any additional swatch
+             it should also appear under. Written by the importer via
+             colorFamilies.resolveBuckets() — see DUAL_BUCKET there for the
+             list and the reasoning.
+
+             Approved by Sam 2026-09-16: a Champagne Brass mirror is primarily
+             Gold but also shows under Cream, because a shopper filtering Cream
+             may well want it.
+
+             OR, not a second AND — this widens the result set. Without it the
+             alt rows exist and nothing reads them, which is the "written but
+             never read" failure the settings-field rule warns about. */
+          orParts.push(`EXISTS (
+            SELECT 1 FROM product_attribute_values pav_cfa
+            WHERE pav_cfa.product_id = p.id
+              AND pav_cfa.attr_key = 'color_family_alt'
+              AND pav_cfa.value_text IN (${cfFamilies.map(() => '?').join(',')})
+          )`);
+          cfParams.push(...cfFamilies);
         }
         if (cfExact.length) {
           orParts.push(`p.color IN (${cfExact.map(() => '?').join(',')})`);

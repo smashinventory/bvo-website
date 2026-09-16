@@ -866,13 +866,32 @@ exports.show = async (req, res, next) => {
           ORDER BY n DESC, product_type ASC`,
         [category.id]
       ),
-      // Distinct color_family keys present in this category — primary swatch visibility signal.
-      // Using color_family directly (not fam.members) means admin-remapped colors like
-      // "Silver Oak → gray" cause the Gray swatch to appear even though "Silver Oak"
-      // is not in gray's static members array.
+      /* Distinct color_family keys present in this category — primary swatch
+         visibility signal. Using color_family directly (not fam.members) means
+         admin-remapped colors like "Silver Oak → gray" cause the Gray swatch
+         to appear even though "Silver Oak" is not in gray's static members.
+
+         The UNION picks up dual-bucket products (Sam, 2026-09-16). A product's
+         ADDITIONAL swatches live in EAV 'color_family_alt' — see DUAL_BUCKET
+         in colorFamilies.js. Reading only the column would hide any swatch
+         whose products all reach it as an alt: on the mirrors page the eight
+         Champagne Brass mirrors are primarily Gold, so Cream would never
+         appear and the bleed Sam asked for would be unreachable. The filter
+         would exist, match rows, and have no way to be clicked. */
       bvoPool.query(
-        'SELECT DISTINCT color_family FROM products WHERE category_id = ? AND is_active = 1 AND color_family IS NOT NULL',
-        [category.id]
+        `SELECT DISTINCT color_family FROM (
+             SELECT p.color_family
+               FROM products p
+              WHERE p.category_id = ? AND p.is_active = 1 AND p.color_family IS NOT NULL
+           UNION
+             SELECT pav.value_text AS color_family
+               FROM product_attribute_values pav
+               JOIN products p ON p.id = pav.product_id
+              WHERE p.category_id = ? AND p.is_active = 1
+                AND pav.attr_key = 'color_family_alt'
+                AND pav.value_text IS NOT NULL
+         ) AS cf`,
+        [category.id, category.id]
       ),
     ]);
     // Type facet options. Hidden when a category has only one type — a filter

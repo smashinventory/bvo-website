@@ -1,0 +1,393 @@
+{
+  "_source": "James Martin - Etail Feed_2026_07_15.xlsx, Etail Products sheet",
+  "_columns": "col 134 'Vanity Base Color/Finish' falling back to col 135 'Finish/Color of Product' — the same precedence importJamesMartinFeed.js uses",
+  "_why": "Frozen so the colour-family regression gate does not depend on a spreadsheet living at a particular path. Regenerate only when the feed adds colours, and re-run the gate when you do.",
+  "_generated": "2026-09-16",
+  "_total_products": 4972,
+  "colors": [
+    {
+      "value": "Bright White",
+      "products": 674
+    },
+    {
+      "value": "Honey Oak",
+      "products": 387
+    },
+    {
+      "value": "Light Natural Oak",
+      "products": 364
+    },
+    {
+      "value": "Glossy White",
+      "products": 349
+    },
+    {
+      "value": "Mid-Century Walnut",
+      "products": 275
+    },
+    {
+      "value": "Black Onyx",
+      "products": 267
+    },
+    {
+      "value": "Smokey Celadon",
+      "products": 262
+    },
+    {
+      "value": "Whitewashed Walnut",
+      "products": 207
+    },
+    {
+      "value": "Saddle Brown",
+      "products": 194
+    },
+    {
+      "value": "Pecan",
+      "products": 192
+    },
+    {
+      "value": "Whitewashed Oak",
+      "products": 178
+    },
+    {
+      "value": "Walnut Whisper",
+      "products": 121
+    },
+    {
+      "value": "Carbon Oak",
+      "products": 115
+    },
+    {
+      "value": "Burnished Mahogany",
+      "products": 110
+    },
+    {
+      "value": "Urban Gray",
+      "products": 106
+    },
+    {
+      "value": "Mid-Century Acacia",
+      "products": 101
+    },
+    {
+      "value": "Serenity Blue",
+      "products": 100
+    },
+    {
+      "value": "Victory Blue",
+      "products": 90
+    },
+    {
+      "value": "Pebble Oak",
+      "products": 83
+    },
+    {
+      "value": "Amber Birch",
+      "products": 66
+    },
+    {
+      "value": "Sable",
+      "products": 62
+    },
+    {
+      "value": "Seaside Oak",
+      "products": 54
+    },
+    {
+      "value": "Chestnut",
+      "products": 53
+    },
+    {
+      "value": "Sable Oak",
+      "products": 52
+    },
+    {
+      "value": "Weathered Oak",
+      "products": 52
+    },
+    {
+      "value": "Sage Green",
+      "products": 42
+    },
+    {
+      "value": "Sunwashed Oak",
+      "products": 41
+    },
+    {
+      "value": "Coastal Driftwood",
+      "products": 32
+    },
+    {
+      "value": "Brushed Nickel",
+      "products": 31
+    },
+    {
+      "value": "Dune Mist",
+      "products": 31
+    },
+    {
+      "value": "Matte Black",
+      "products": 30
+    },
+    {
+      "value": "Radiant Gold",
+      "products": 29
+    },
+    {
+      "value": "Ash Gray",
+      "products": 22
+    },
+    {
+      "value": "Sunwashed Oak with Embossed Shagreen Drawer Fronts",
+      "products": 16
+    },
+    {
+      "value": "Champagne Brass",
+      "products": 15
+    },
+    {
+      "value": "Silver Oak",
+      "products": 15
+    },
+    {
+      "value": "Pistachio",
+      "products": 14
+    },
+    {
+      "value": "Polished White and Light Mappa Burl",
+      "products": 14
+    },
+    {
+      "value": "Latte Oak",
+      "products": 12
+    },
+    {
+      "value": "Weathered Timber",
+      "products": 7
+    },
+    {
+      "value": "Charcoal Soapstone",
+      "products": 5
+    },
+    {
+      "value": "Eternal Jasmine Pearl",
+      "products": 5
+    },
+    {
+      "value": "Eternal Marfil",
+      "products": 5
+    },
+    {
+      "value": "Ethereal Noctis",
+      "products": 5
+    },
+    {
+      "value": "Lime Delight",
+      "products": 5
+    },
+    {
+      "value": "Parisien Bleu",
+      "products": 5
+    },
+    {
+      "value": "Victorian Silver",
+      "products": 5
+    },
+    {
+      "value": "White Zeus",
+      "products": 5
+    },
+    {
+      "value": "Silver Gray",
+      "products": 5
+    },
+    {
+      "value": "Country Oak",
+      "products": 4
+    },
+    {
+      "value": "Matte black",
+      "products": 3
+    },
+    {
+      "value": "Honey Alder",
+      "products": 3
+    },
+    {
+      "value": "Satin Nickel",
+      "products": 3
+    },
+    {
+      "value": "Natural",
+      "products": 2
+    },
+    {
+      "value": "White Mother of Pearl",
+      "products": 2
+    },
+    {
+      "value": "Modern Iron",
+      "products": 2
+    },
+    {
+      "value": "Platinum Ash",
+      "products": 2
+    },
+    {
+      "value": "Black Matte",
+      "products": 2
+    },
+    {
+      "value": "Rustic Oak",
+      "products": 2
+    },
+    {
+      "value": "Antique Black",
+      "products": 1
+    },
+    {
+      "value": "Limestone",
+      "products": 1
+    },
+    {
+      "value": "Matte White with Gold",
+      "products": 1
+    },
+    {
+      "value": "Natural Ash",
+      "products": 1
+    },
+    {
+      "value": "Modern Grey Glossy",
+      "products": 1
+    },
+    {
+      "value": "Brushed Gold",
+      "products": 1
+    },
+    {
+      "value": "Silver with Delft Blue",
+      "products": 1
+    },
+    {
+      "value": "Mid Century Walnut",
+      "products": 1
+    },
+    {
+      "value": "Rustic Ash",
+      "products": 1
+    },
+    {
+      "value": "Mid Century Acacia",
+      "products": 1
+    },
+    {
+      "value": "Black Matte Sinktop",
+      "products": 1
+    },
+    {
+      "value": "Charcoal Black Sinktop",
+      "products": 1
+    },
+    {
+      "value": "Glossy White/White Glossy Sinktop",
+      "products": 1
+    },
+    {
+      "value": "Arctic Fall Solid Surface",
+      "products": 1
+    },
+    {
+      "value": "Carrara White Marble",
+      "products": 1
+    },
+    {
+      "value": "Charcoal Soapstone Silestone Quartz",
+      "products": 1
+    },
+    {
+      "value": "Eternal Jasmine Pearl Silestone Quartz",
+      "products": 1
+    },
+    {
+      "value": "Eternal Marfil Silestone Quartz",
+      "products": 1
+    },
+    {
+      "value": "Ethereal Noctis Silestone Quartz",
+      "products": 1
+    },
+    {
+      "value": "Eternal Serena Silestone Quartz",
+      "products": 1
+    },
+    {
+      "value": "Grey Expo Quartz",
+      "products": 1
+    },
+    {
+      "value": "Lime Delight Silestone Quartz",
+      "products": 1
+    },
+    {
+      "value": "Parisien Bleu Silestone Quartz",
+      "products": 1
+    },
+    {
+      "value": "Victorian Silver Silestone Quartz",
+      "products": 1
+    },
+    {
+      "value": "White Zeus Silestone Quartz",
+      "products": 1
+    },
+    {
+      "value": "Azure Blue",
+      "products": 1
+    },
+    {
+      "value": "Black Onyx / Antique Black",
+      "products": 1
+    },
+    {
+      "value": "Driftwood",
+      "products": 1
+    },
+    {
+      "value": "Empire Grey",
+      "products": 1
+    },
+    {
+      "value": "Grey Smoke",
+      "products": 1
+    },
+    {
+      "value": "Light Mappa Burl",
+      "products": 1
+    },
+    {
+      "value": "Mineral Gray",
+      "products": 1
+    },
+    {
+      "value": "Navy Blue",
+      "products": 1
+    },
+    {
+      "value": "Oyster Shagreen",
+      "products": 1
+    },
+    {
+      "value": "Polished White",
+      "products": 1
+    },
+    {
+      "value": "Seaside Oak Cane",
+      "products": 1
+    },
+    {
+      "value": "Warm Cherry",
+      "products": 1
+    }
+  ]
+}
