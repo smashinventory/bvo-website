@@ -60,6 +60,47 @@
     <% } %>
 
     <!-- ── Lightbox ──────────────────────────────────────────────── -->
+    <style nonce="<%= cspNonce %>">
+      /* The bundle makes .lb-stage a 920px-wide flex box that centres its
+         child. Both fight a transform-driven viewer, so neutralise them:
+         the stage becomes a plain positioned window, the image is placed
+         absolutely, and one transform does all the work. */
+      #pdp-lightbox .lb-stage{display:block;position:relative;max-width:none;
+        width:100%;padding:0;margin:52px 0 6px;overflow:hidden;touch-action:none;
+        cursor:zoom-in;background:transparent}
+      /* Cursor states the affordance: a magnifier while another zoom rung is
+         still available, the hand only once we are at 100% and panning is
+         the thing left to do. */
+      #pdp-lightbox.at-max .lb-stage{cursor:zoom-out}
+      #pdp-lightbox.at-max.can-pan .lb-stage{cursor:grab}
+      #pdp-lightbox.is-panning .lb-stage{cursor:grabbing}
+      #pdp-lightbox .lb-img{position:absolute;top:0;left:0;max-width:none;
+        max-height:none;transform-origin:0 0;will-change:transform;
+        border-radius:0;user-select:none;-webkit-user-drag:none}
+
+      /* Arrows sat top-right under the close button. Centre them vertically. */
+      #pdp-lightbox .lb-arrow{top:50%;transform:translateY(-50%);bottom:auto}
+      #pdp-lightbox .lb-prev{left:14px;right:auto}
+      #pdp-lightbox .lb-next{right:14px;left:auto}
+      #pdp-lightbox .lb-close{top:14px;right:14px;z-index:4}
+
+      #pdp-lightbox .lb-zoom{position:absolute;top:14px;left:14px;z-index:4;
+        display:flex;align-items:center;gap:2px;
+        background:rgba(0,0,0,.55);border-radius:6px;padding:4px 6px}
+      #pdp-lightbox .lb-zoom button{background:transparent;border:0;color:#fff;
+        font:600 15px/1 system-ui,sans-serif;padding:5px 9px;border-radius:4px;cursor:pointer}
+      #pdp-lightbox .lb-zoom button:hover:not(:disabled){background:rgba(255,255,255,.16)}
+      #pdp-lightbox .lb-zoom button:disabled{opacity:.3;cursor:default}
+      #pdp-lightbox #lb-zoom-reset{font-size:12px;letter-spacing:.02em}
+      #pdp-lightbox #lb-zoom-pct{color:#fff;font:600 12px/1 system-ui,sans-serif;
+        min-width:46px;text-align:center;opacity:.85}
+      @media (max-width:640px){
+        #pdp-lightbox .lb-stage{margin:48px 0 4px}
+        #pdp-lightbox .lb-zoom{top:auto;bottom:100px;left:50%;transform:translateX(-50%)}
+        #pdp-lightbox .lb-arrow{display:none}
+      }
+    </style>
+
     <div class="gallery-lightbox" id="pdp-lightbox"
          role="dialog" aria-modal="true" aria-label="Product image gallery" hidden>
       <button class="lb-close" onclick="pdpLightbox.close()" aria-label="Close gallery" type="button">
@@ -70,8 +111,14 @@
       <button class="lb-arrow lb-prev" onclick="pdpLightbox.prev()" aria-label="Previous image" type="button">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
       </button>
-      <div class="lb-stage">
+      <div class="lb-stage" id="lb-stage">
         <img class="lb-img" id="lb-img" src="" alt="" draggable="false">
+      </div>
+      <div class="lb-zoom" id="lb-zoom" aria-hidden="false">
+        <button type="button" id="lb-zoom-out" aria-label="Zoom out">&minus;</button>
+        <span id="lb-zoom-pct">100%</span>
+        <button type="button" id="lb-zoom-in" aria-label="Zoom in">+</button>
+        <button type="button" id="lb-zoom-reset" aria-label="Reset zoom">Reset</button>
       </div>
       <button class="lb-arrow lb-next" onclick="pdpLightbox.next()" aria-label="Next image" type="button">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
@@ -83,7 +130,8 @@
           <button class="lb-thumb" data-idx="<%= idx %>"
                   onclick="pdpLightbox.goTo(<%= idx %>)" type="button"
                   aria-label="Image <%= idx + 1 %>">
-            <img src="<%= img.url %>" alt="<%= img.alt_text || product.name %>" loading="lazy">
+            <img src="<%= img.url %>?width=160" data-full="<%= img.url %>"
+                 alt="<%= img.alt_text || product.name %>" loading="lazy">
           </button>
           <% }); %>
         </div>
@@ -112,6 +160,189 @@
     function getActive() { return _active; }
     return { select: select, showMore: showMore, getActive: getActive };
   })();
+  </script>
+
+
+  <script nonce="<%= cspNonce %>">
+  /* PDP zoom viewer.
+     Runs on DOMContentLoaded — after site.js parses at the end of <body> —
+     so it replaces the window.pdpLightbox site.js installs. Same API
+     (open/close/prev/next/goTo), so the inline onclick handlers still work.
+
+     Model: the image is absolutely placed at 0,0 with transform-origin 0 0.
+     One transform — translate(tx,ty) scale(s) — is the only thing that
+     positions it. `fit` is the scale at which the whole image is visible;
+     scale 1 is the file's own pixels. Nothing else centres anything. */
+  document.addEventListener('DOMContentLoaded', function () {
+    var box = document.getElementById('pdp-lightbox');
+    if (!box) return;
+    var stage = document.getElementById('lb-stage'),
+        img   = document.getElementById('lb-img'),
+        pct   = document.getElementById('lb-zoom-pct'),
+        cnt   = document.getElementById('lb-counter'),
+        bIn   = document.getElementById('lb-zoom-in'),
+        bOut  = document.getElementById('lb-zoom-out'),
+        bRes  = document.getElementById('lb-zoom-reset'),
+        thumbs= Array.prototype.slice.call(box.querySelectorAll('.lb-thumb')),
+        n     = thumbs.length;
+
+    var cur = 0, fit = 1, scale = 1, tx = 0, ty = 0, ready = false;
+    var MAXF = 1;                       // 1 = stop at the file's native pixels
+
+    function vw() { return stage.clientWidth; }
+    function vh() { return stage.clientHeight; }
+
+    function draw() {
+      var w = img.naturalWidth * scale, h = img.naturalHeight * scale;
+      tx = w <= vw() ? (vw() - w) / 2 : Math.min(0, Math.max(vw() - w, tx));
+      ty = h <= vh() ? (vh() - h) / 2 : Math.min(0, Math.max(vh() - h, ty));
+      img.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + scale + ')';
+      pct.textContent = Math.round(scale * 100) + '%';
+      var zoomed = scale > fit * 1.001;
+      box.classList.toggle('is-zoomed', zoomed);
+      box.classList.toggle('at-max', scale >= MAXF * 0.999);
+      box.classList.toggle('can-pan', w > vw() + 1 || h > vh() + 1);
+      bOut.disabled = scale <= fit * 1.001;
+      bIn.disabled  = scale >= MAXF * 0.999;
+      bRes.disabled = !zoomed;
+    }
+
+    function reset() {
+      if (!img.naturalWidth) return;
+      ready = true;
+      fit = Math.min(vw() / img.naturalWidth, vh() / img.naturalHeight, 1);
+      scale = fit; tx = 0; ty = 0;
+      draw();
+    }
+
+    /* zoom keeping the point under the cursor fixed */
+    function zoomTo(next, cx, cy) {
+      if (!ready) return;
+      next = Math.min(MAXF, Math.max(fit, next));
+      if (Math.abs(next - scale) < 0.0005) return;
+      var r = stage.getBoundingClientRect();
+      var ax = (cx - r.left - tx) / scale, ay = (cy - r.top - ty) / scale;
+      tx = (cx - r.left) - ax * next;
+      ty = (cy - r.top)  - ay * next;
+      scale = next;
+      draw();
+    }
+    function centre() { var r = stage.getBoundingClientRect();
+                        return [r.left + r.width / 2, r.top + r.height / 2]; }
+
+    function show(i) {
+      cur = ((i % n) + n) % n;
+      var t = thumbs[cur], im = t && t.querySelector('img');
+      if (!im) return;
+      ready = false;
+      img.style.transform = 'translate(0,0) scale(0)';   // hide until measured
+      img.src = im.getAttribute('data-full') || im.src;  // native file, never resized
+      img.alt = im.alt || '';
+      if (cnt) cnt.textContent = (cur + 1) + ' / ' + n;
+      thumbs.forEach(function (x) { x.classList.remove('active'); });
+      t.classList.add('active');
+      t.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+      if (img.complete && img.naturalWidth) reset();     // cached: load won't fire
+    }
+    img.addEventListener('load', reset);
+
+    var api = {
+      open:  function (i) { box.removeAttribute('hidden');
+                            document.body.style.overflow = 'hidden';
+                            show(i || 0);
+                            requestAnimationFrame(function(){ if (ready) reset(); }); },
+      close: function () { box.setAttribute('hidden', '');
+                           document.body.style.overflow = '';
+                           box.classList.remove('is-zoomed','at-max','is-panning','can-pan'); },
+      prev:  function () { show(cur - 1); },
+      next:  function () { show(cur + 1); },
+      goTo:  function (i) { show(i); }
+    };
+    window.pdpLightbox = api;
+
+    bIn .addEventListener('click', function (e) { e.stopPropagation(); var c = centre(); zoomTo(scale * 1.5, c[0], c[1]); });
+    bOut.addEventListener('click', function (e) { e.stopPropagation(); var c = centre(); zoomTo(scale / 1.5, c[0], c[1]); });
+    bRes.addEventListener('click', function (e) { e.stopPropagation(); scale = fit; tx = 0; ty = 0; draw(); });
+
+    stage.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      zoomTo(scale * (e.deltaY < 0 ? 1.18 : 1 / 1.18), e.clientX, e.clientY);
+    }, { passive: false });
+
+    /* Click ladder: fit -> mid -> full, then back to fit.
+       `mid` is the geometric mean of fit and full, so each click feels like
+       the same jump. If the image is small enough that mid and full are
+       within a few percent, the ladder collapses to two rungs. */
+    function steps() {
+      var mid = Math.sqrt(fit * MAXF);
+      return (MAXF / fit < 1.6 || mid / fit < 1.25 || MAXF / mid < 1.25)
+        ? [fit, MAXF] : [fit, mid, MAXF];
+    }
+    function nextStep() {
+      var st = steps();
+      for (var i = 0; i < st.length; i++) {
+        if (scale < st[i] * 0.995) return st[i];     // first rung above us
+      }
+      return st[0];                                   // at the top: back to fit
+    }
+    var moved = false;
+    stage.addEventListener('click', function (e) {
+      if (moved) { moved = false; return; }          // that was a drag, not a click
+      var next = nextStep();
+      if (next === fit) { scale = fit; tx = 0; ty = 0; draw(); }
+      else { zoomTo(next, e.clientX, e.clientY); }
+    });
+
+    var pts = {}, last = null, pinch = 0;
+    function keys() { return Object.keys(pts); }
+    function dist() { var k = keys(); if (k.length < 2) return 0;
+                      var a = pts[k[0]], b = pts[k[1]];
+                      return Math.hypot(a.x - b.x, a.y - b.y); }
+    function mid()  { var k = keys(), a = pts[k[0]], b = pts[k[1]];
+                      return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; }
+
+    stage.addEventListener('pointerdown', function (e) {
+      stage.setPointerCapture(e.pointerId);
+      pts[e.pointerId] = { x: e.clientX, y: e.clientY };
+      if (keys().length === 1) { last = { x: e.clientX, y: e.clientY }; moved = false; }
+      if (keys().length === 2) pinch = dist();
+    });
+    stage.addEventListener('pointermove', function (e) {
+      if (!pts[e.pointerId]) return;
+      pts[e.pointerId] = { x: e.clientX, y: e.clientY };
+      if (keys().length === 2 && pinch) {
+        var d = dist(), m = mid();
+        zoomTo(scale * (d / pinch), m.x, m.y);
+        pinch = d; moved = true; return;
+      }
+      if (keys().length === 1 && last && box.classList.contains('can-pan')) {
+        var dx = e.clientX - last.x, dy = e.clientY - last.y;
+        if (Math.abs(dx) + Math.abs(dy) > 3) { moved = true; box.classList.add('is-panning'); }
+        tx += dx; ty += dy;
+        last = { x: e.clientX, y: e.clientY };
+        draw();
+      }
+    });
+    function release(e) {
+      delete pts[e.pointerId];
+      if (!keys().length) { last = null; pinch = 0; box.classList.remove('is-panning'); }
+    }
+    stage.addEventListener('pointerup', release);
+    stage.addEventListener('pointercancel', release);
+
+    box.addEventListener('click', function (e) { if (e.target === box) api.close(); });
+    document.addEventListener('keydown', function (e) {
+      if (box.hasAttribute('hidden')) return;
+      var c;
+      if (e.key === 'Escape')     api.close();
+      if (e.key === 'ArrowLeft')  api.prev();
+      if (e.key === 'ArrowRight') api.next();
+      if (e.key === '+' || e.key === '=') { c = centre(); zoomTo(scale * 1.5, c[0], c[1]); }
+      if (e.key === '-' || e.key === '_') { c = centre(); zoomTo(scale / 1.5, c[0], c[1]); }
+      if (e.key === '0') { scale = fit; tx = 0; ty = 0; draw(); }
+    });
+    window.addEventListener('resize', function () { if (!box.hasAttribute('hidden')) reset(); });
+  });
   </script>
 
   </div><!-- /detail-gallery -->
