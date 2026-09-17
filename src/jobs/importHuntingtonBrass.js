@@ -44,6 +44,7 @@ const axios = require('axios');
    substring matching longest-first, which is what carries HB's PVD prefix:
    'PVD Satin Nickel' -> nickel, 'PVD Satin Brass' -> gold. */
 const { normalize: normalizeFinish } = require('../config/colorFamilies');
+const { loadCdnMap, toBunnyUrl, newStats, logStats } = require('../utils/cdnUrl');
 
 /* ── Environment ─────────────────────────────────────────────────────
    src/config/database.js reads process.env.DB_PASS and calls process.exit
@@ -458,7 +459,7 @@ function buildFaucetConfig(r) {
   return null;
 }
 
-async function upsertOne(conn, r, categoryId) {
+async function upsertOne(conn, r, categoryId, cdnMap, stats) {
   const name      = buildName(r);
   const model     = buildModel(r);
   const colorFam  = buildColorFamily(r);
@@ -521,9 +522,30 @@ async function upsertOne(conn, r, categoryId) {
   }
 
   /* Images: replace wholesale. Merging would accumulate stale URLs every
-     time HB re-shoots a product. */
+     time HB re-shoots a product.
+
+     HOST TRANSLATION — this is the swap HB_IMAGE_HOST has been waiting for
+     since line 33. The feed serves cdn.shopify.com; image_cdn_map carries the
+     Bunny object for each (sku, asset) pair. Without this, re-running the
+     import would revert the 905 HB images to Shopify, exactly as the JM feed
+     was found to be doing on 2026-09-17. See src/utils/cdnUrl.js.
+
+     Which images a product has still comes from the feed. Only the host moves,
+     and an unmapped image keeps its Shopify URL rather than disappearing.
+
+     No diff-before-write here, unlike the JM importer: run() wraps the whole
+     loop in a transaction, so a mid-run failure rolls back rather than
+     leaving a product with partial images. */
   await conn.query('DELETE FROM product_images WHERE product_id = ?', [productId]);
-  const urls = [r.feed.primaryImage, ...r.feed.gallery.filter(u => u !== r.feed.primaryImage)];
+  const feedUrls = [r.feed.primaryImage, ...r.feed.gallery.filter(u => u !== r.feed.primaryImage)];
+  const urls = feedUrls.map(u => {
+    const bunny = toBunnyUrl(cdnMap, u, r.sku);
+    if (stats) {
+      if (bunny && bunny !== u) stats.mapped++;
+      else if (!bunny) { stats.unmapped++; if (r.sku) stats.unmappedSkus.add(r.sku); }
+    }
+    return bunny || u;
+  });
   let sort = 0;
   for (const url of urls) {
     await conn.query(
@@ -532,6 +554,7 @@ async function upsertOne(conn, r, categoryId) {
       [productId, url, name, sort, sort === 0 ? 1 : 0]);
     sort++;
   }
+  if (stats) stats.rewritten++;
 
   return productId;
 }
@@ -760,12 +783,15 @@ async function run({ file, dryRun = true, sqlOut = null, log = console.log } = {
   log(`\nenv loaded from: ${ENV_LOADED_FROM || '(none)'}`);
 
   const conn = await getPool().getConnection();
+  /* One query, reused for every image in the run. */
+  const cdnMap   = await loadCdnMap(conn);
+  const imgStats = newStats();
   let written = 0;
   try {
     const catIds = await resolveCategoryIds(conn);
     await conn.beginTransaction();
     for (const r of matched) {
-      await upsertOne(conn, r, catIds.get(r.categorySlug));
+      await upsertOne(conn, r, catIds.get(r.categorySlug), cdnMap, imgStats);
       written++;
       if (written % 100 === 0) log(`   … ${written}/${matched.length}`);
     }
@@ -779,7 +805,11 @@ async function run({ file, dryRun = true, sqlOut = null, log = console.log } = {
     conn.release();
   }
 
-  return { matched: matched.length, unmatched: unmatched.length, written, unmatchedRows: unmatched };
+  logStats('HB Import', imgStats);
+
+  return { matched: matched.length, unmatched: unmatched.length, written, unmatchedRows: unmatched,
+           images: { mapped: imgStats.mapped, unmapped: imgStats.unmapped,
+                     unmappedSkus: [...imgStats.unmappedSkus] } };
 }
 
 module.exports = {
