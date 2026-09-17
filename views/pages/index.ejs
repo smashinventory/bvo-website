@@ -6,8 +6,13 @@
      lb-size-chip / lb-card-swatch / blog-pg-btn. Nothing above the fold.
      So load it without blocking first paint — it was 570ms of blocking CSS.
      Every other page keeps the plain blocking <link>; do not change those. */%>
+<%/* NO <noscript> fallback here. A <noscript> injected through the layout's
+     style slot into <head> does not survive parsing — verified live
+     2026-09-17, the inner <link> ended up in <head> as a plain blocking
+     stylesheet (inNoscript:false, media:""), which defeated the whole point.
+     Cost of omitting it: a JS-disabled visitor loses styling on the featured
+     save badge and the hp-inspo block, both below the fold. */%>
 <link rel="stylesheet" href="/css/site3.css?v=16" media="print" onload="this.media='all';this.onload=null;">
-<noscript><link rel="stylesheet" href="/css/site3.css?v=16"></noscript>
 <%
 const S    = settings || {};
 const hero = S.hero               || {};
