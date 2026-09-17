@@ -75,6 +75,9 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   <!-- Google Fonts: preconnect + async load (display=swap in URL prevents invisible text) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Bunny pull zone: serves the hero + every product and category image.
+       Largest origin on the page by bytes; it had no hint while fonts had two. -->
+  <link rel="preconnect" href="https://images.bathroomvanitiesoutlet.com" crossorigin>
   <link rel="preload" href="<%- _gfUrl %>" as="style" onload="this.onload=null;this.rel='stylesheet'">
   <noscript><link href="<%- _gfUrl %>" rel="stylesheet"></noscript>
 
@@ -200,14 +203,14 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   </script>
 
   <!-- Site JS -->
-  <script nonce="<%= cspNonce %>" src="/js/site.js?v=9"></script>
+  <script nonce="<%= cspNonce %>" src="/js/site.js?v=9" defer></script>
   <!-- Carousel binding by data attribute — supports duplicated sections.
        site.js still contains the old id-based blocks; they no-op because
        index.ejs no longer emits those ids. See public/js/carousels.js. -->
   <%# v=2 — added variant navigation for product cards. The .htaccess sets
       long cache headers on /js, so returning visitors would keep v=1 and
       their size chips would swap the photo without navigating. %>
-  <script nonce="<%= cspNonce %>" src="/js/carousels.js?v=2"></script>
+  <script nonce="<%= cspNonce %>" src="/js/carousels.js?v=2" defer></script>
 
   <!-- Page-level scripts -->
   <%- script %>

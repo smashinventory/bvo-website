@@ -1,4 +1,13 @@
-<link rel="stylesheet" href="/css/site3.css?v=16"><!-- site3: injected per-page (perf) -->
+<%/* site3.css is loaded per-page via the layout's style slot, not globally.
+     On THIS page everything it styles is below the fold — the featured-card
+     save badge (~L684) and the whole hp-inspo block (~L901-932). Audited
+     2026-09-17: its only .btn rule is ".confirm-actions .btn" (order
+     confirmation), and its .active/.is-active rules are scoped to
+     lb-size-chip / lb-card-swatch / blog-pg-btn. Nothing above the fold.
+     So load it without blocking first paint — it was 570ms of blocking CSS.
+     Every other page keeps the plain blocking <link>; do not change those. */%>
+<link rel="stylesheet" href="/css/site3.css?v=16" media="print" onload="this.media='all';this.onload=null;">
+<noscript><link rel="stylesheet" href="/css/site3.css?v=16"></noscript>
 <%
 const S    = settings || {};
 const hero = S.hero               || {};
@@ -212,7 +221,10 @@ _DEFAULT_ORDER.forEach(function(k) {
           hero_mobile.image_url      swaps the whole layer at <=480px
         Both still work. See HERO_CURRENT_STATE_2026-09-13.md §6. */%>
     <% if (hero.image_url) { %>
+    <%/* fetchpriority: on desktop THIS tag is the LCP element, and it carried
+         loading="eager" with no priority hint. The mobile layer already has one. */%>
     <img class="hero-poster<%= hero.mobile_image_url ? ' hero-img-desktop' : '' %>"
+         fetchpriority="high" decoding="async"
          src="<%= hero.image_url %>"
          alt="<%= hero.image_alt || (S.global || {}).site_name || 'Bathroom Vanities Outlet - Quality Bath Vanity Cabinets and More' %>"
          loading="eager">
