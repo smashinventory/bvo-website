@@ -21,7 +21,11 @@
     <a href="/collections/<%= cat.slug %>" class="cat-card">
       <div class="cat-img">
         <% if (cat.image_url) { %>
-          <img src="<%= cat.image_url %>" alt="<%= cat.name %>" loading="lazy">
+          <% var _catSrc = String(cat.image_url || '');
+             if (_catSrc.indexOf('images.bathroomvanitiesoutlet.com') !== -1) {
+               _catSrc += (_catSrc.indexOf('?') === -1 ? '?' : '&') + 'width=560';
+             } %>
+          <img src="<%= _catSrc %>" alt="Bathroom Vanities Outlet <%= cat.name %>" loading="lazy">
         <% } else { %>
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" aria-hidden="true">
             <rect x="3" y="3" width="18" height="18" rx="2"/>
