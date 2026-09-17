@@ -25,6 +25,8 @@ const { bvoPool }                        = require('../config/database');
    priority order (admin mappings -> DUAL_BUCKET -> normalize) now lives in
    one place so two importers cannot drift apart on it — Rule 8. */
 const { resolveBuckets }                 = require('../config/colorFamilies');
+const { loadCdnMap, toBunnyUrl, newStats, logStats }
+                                         = require('../utils/cdnUrl');
 
 // ── BVO Style Map — maps JM raw Theme strings to BVO canonical buckets ─
 // JM stores comma-separated themes in one field (e.g. "Transitional, Traditional").
@@ -380,17 +382,53 @@ async function replaceBullets(conn, productId, bullets) {
   }
 }
 
-async function replaceImages(conn, productId, images, productName) {
+/* Images come from the feed as images.salsify.com URLs. Rewriting the HOST
+   here — and nowhere else — is what stops every import from undoing the CDN
+   migration. See src/utils/cdnUrl.js for the full history; short version is
+   that on 2026-09-17 an audit found 56,623 of 58,057 rows had reverted.
+
+   WHICH images a product has still comes from the feed. Only the host moves.
+   An image with no Bunny mapping keeps its Salsify URL rather than vanishing.
+
+   The diff before writing matters too: the old code DELETEd then re-INSERTed
+   unconditionally, so a crash mid-loop left a product with partial or zero
+   images, and an unchanged feed still churned every row every night. */
+async function replaceImages(conn, productId, images, productName, sku, cdnMap, stats) {
   const validImages = images.filter(i => i.url && i.url.startsWith('http'));
   if (!validImages.length) return;
-  await conn.query('DELETE FROM product_images WHERE product_id = ?', [productId]);
+
   const altText = (productName || '').replace(/<[^>]*>/g, '').trim() || null;
-  for (const img of validImages) {
+
+  const resolved = validImages.map(img => {
+    const bunny = toBunnyUrl(cdnMap, img.url, sku);
+    if (stats) {
+      if (bunny && bunny !== img.url) stats.mapped++;
+      else if (!bunny) { stats.unmapped++; if (sku) stats.unmappedSkus.add(sku); }
+    }
+    return { url: bunny || img.url, sort_order: img.sort_order };
+  });
+
+  const [existing] = await conn.query(
+    'SELECT url, sort_order FROM product_images WHERE product_id = ? ORDER BY sort_order, id',
+    [productId]
+  );
+  const unchanged =
+    existing.length === resolved.length &&
+    resolved.every((r, i) =>
+      existing[i] &&
+      existing[i].url === r.url &&
+      Number(existing[i].sort_order) === Number(r.sort_order));
+
+  if (unchanged) { if (stats) stats.unchanged++; return; }
+
+  await conn.query('DELETE FROM product_images WHERE product_id = ?', [productId]);
+  for (const img of resolved) {
     await conn.query(
       'INSERT INTO product_images (product_id, url, sort_order, is_primary, alt_text) VALUES (?, ?, ?, ?, ?)',
       [productId, img.url, img.sort_order, img.sort_order === 0 ? 1 : 0, altText]
     );
   }
+  if (stats) stats.rewritten++;
 }
 
 async function replaceShippingBoxes(conn, productId, boxes) {
@@ -742,6 +780,11 @@ async function importFromWorkbook(wb, opts = {}) {
   // Load admin-set color mappings once — checked FIRST during per-product resolution
   // so Color Report edits always override colorFamilies.js static members.
   const colorMappings = dry ? new Map() : await loadColorMappings(conn);
+
+  /* One query, ~57k rows, reused for every image in the run. Doing this
+     per-image would be ~56,000 round trips. */
+  const cdnMap   = dry ? new Map() : await loadCdnMap(conn);
+  const imgStats = newStats();
 
   try {
     for (const rawRow of rows) {
@@ -1128,7 +1171,7 @@ async function importFromWorkbook(wb, opts = {}) {
           const url = clean(row[`Images_${i}`]);
           if (url) images.push({ url, sort_order: i });
         }
-        await replaceImages(conn, productId, images, productData.name);
+        await replaceImages(conn, productId, images, productData.name, sku, cdnMap, imgStats);
 
         // ── Shipping boxes ────────────────────────────────────────────
         const boxMap = {};
@@ -1222,7 +1265,12 @@ async function importFromWorkbook(wb, opts = {}) {
                  `type(s) defaulted to bathroom-vanities: ${unmatchedTypes.join(', ')}`);
   }
 
-  return { imported, skipped, errors, errorList, total, unmatchedTypes };
+  logStats('JM Import', imgStats);
+
+  return { imported, skipped, errors, errorList, total, unmatchedTypes,
+           images: { mapped: imgStats.mapped, unmapped: imgStats.unmapped,
+                     rewritten: imgStats.rewritten, unchanged: imgStats.unchanged,
+                     unmappedSkus: [...imgStats.unmappedSkus] } };
 }
 
 module.exports = { importFromWorkbook, getUnmatchedTypes };
