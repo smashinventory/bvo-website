@@ -658,7 +658,28 @@ _DEFAULT_ORDER.forEach(function(k) {
       <a href="/products/<%= product.slug %>" class="product-img-link" aria-label="<%= product.name %>">
         <div class="product-img">
           <% if (product.primary_image) { %>
-            <img class="product-img-pri" src="<%= product.primary_image %>?width=800" alt="<%= product.name %>" loading="lazy"
+            <%/* Responsive card photo. Measured against the live page: the image is
+       210px tall with a width that moves by breakpoint --
+         1440 dpr1 -> 308x210 (needs 308 device px)
+         1920 dpr1 -> 428x210 (needs 428)
+          820 dpr2 -> 372x210 (needs 744)
+          390 dpr3 -> 340x210 (needs 1020)
+       and every card was hard-coded to ?width=800, so a dpr1 desktop pulled
+       46 KB to paint 308 pixels. Off the pull zone:
+         320w 12.4KB  400w 16.0KB  480w 20.3KB  640w 32.3KB  800w 46.4KB
+       The ladder STOPS at 800 on purpose -- that is what every device gets
+       today, so this can only remove bytes, never add them. A dpr3 phone
+       wants 1020 and would take a 68.6 KB candidate if one existed, making
+       the mobile CWV run worse to satisfy a desktop audit. It keeps 800.
+       sizes is measured, not guessed: 340/390=87vw, 372/820=45vw,
+       308/1440 and 428/1920 = 21-22vw.
+       Guards match the hero and the category cards: Bunny only (nothing
+       else has a resizer) and never touch a URL that already has a query. */%>
+              <% var _pi = String(product.primary_image || '');
+                 var _pcs = (_pi.indexOf('images.bathroomvanitiesoutlet.com') !== -1 && _pi.indexOf('?') === -1)
+                   ? [320,400,480,640,800].map(function(w){ return _pi + '?width=' + w + ' ' + w + 'w'; }).join(', ')
+                   : ''; %>
+              <img class="product-img-pri" src="<%= product.primary_image %>?width=800"<% if (_pcs) { %> srcset="<%= _pcs %>" sizes="(max-width: 600px) 88vw, (max-width: 1024px) 46vw, 23vw"<% } %> alt="<%= product.name %>" loading="lazy"
                  id="<%= _hpImgId %>">
               <%# No hover image on the homepage. Leaving it in the DOM at
                   opacity:0 would cost a lazy image request per card for
