@@ -18,6 +18,36 @@ const S    = settings || {};
 const hero = S.hero               || {};
 const tick = S.scrolling_ticker   || {};
 const bl   = S.brand_logos        || {};
+
+/* ── Responsive hero: one file, many widths ───────────────────────────────
+   The hero is full-bleed at every breakpoint, so sizes="100vw" is exact and
+   the browser picks from the ladder below. Before this, one 1604x927 file
+   (122 KB) went to every device including phones. Measured off the pull zone:
+
+       480w  21.3 KB     1024w  66.8 KB
+       768w  43.6 KB     1280w  87.7 KB
+                         1604w 122.1 KB   (the source, unchanged)
+
+   A 390px phone at dpr2 now takes 1024w instead of 1604w: 66.8 KB against
+   122.1 KB, 45% off the largest asset on the page and the LCP element.
+
+   Two guards, same reasoning as the ?width= guard on the category cards:
+     • non-Bunny URL  -> no srcset. Only the pull zone has a resizer; a local
+       /images/uploads path would 404 every candidate and blank the hero.
+     • URL already carrying a query string -> left alone, so a hand-written
+       Theme Editor URL always wins and we never emit "?a=b?width=".
+
+   The ladder stops at 1604 because that is the source's natural width and
+   Bunny will not invent pixels above it. If the hero is ever replaced with a
+   larger master, extend this list to match, or the widest screens will keep
+   being served 1604w. */
+var _HERO_WIDTHS = [480, 768, 1024, 1280, 1604];
+function _heroSrcset(u) {
+  u = String(u || '');
+  if (u.indexOf('images.bathroomvanitiesoutlet.com') === -1) return '';
+  if (u.indexOf('?') !== -1) return '';
+  return _HERO_WIDTHS.map(function (w) { return u + '?width=' + w + ' ' + w + 'w'; }).join(', ');
+}
 /* Append a section's brand filter to its CTA so "See All Our JM Models"
    lands on the JM-filtered list instead of the mixed one — the reason this
    whole change exists.
@@ -228,16 +258,20 @@ _DEFAULT_ORDER.forEach(function(k) {
     <% if (hero.image_url) { %>
     <%/* fetchpriority: on desktop THIS tag is the LCP element, and it carried
          loading="eager" with no priority hint. The mobile layer already has one. */%>
+    <% var _hsDesk = _heroSrcset(hero.image_url); %>
     <img class="hero-poster<%= hero.mobile_image_url ? ' hero-img-desktop' : '' %>"
          fetchpriority="high" decoding="async"
          src="<%= hero.image_url %>"
+         <% if (_hsDesk) { %>srcset="<%= _hsDesk %>" sizes="100vw"<% } %>
          alt="<%= hero.image_alt || (S.global || {}).site_name || 'Bathroom Vanities Outlet - Quality Bath Vanity Cabinets and More' %>"
          loading="eager">
     <% } %>
     <%/* Mobile image — hidden on desktop, swaps in at ≤860px when set */%>
     <% if (hero.mobile_image_url) { %>
+    <% var _hsMob = _heroSrcset(hero.mobile_image_url); %>
     <img class="hero-img-mobile"
          src="<%= hero.mobile_image_url %>"
+         <% if (_hsMob) { %>srcset="<%= _hsMob %>" sizes="100vw"<% } %>
          alt="<%= hero.mobile_image_alt || hero.image_alt || (S.global || {}).site_name || 'Bathroom Vanities Outlet - Quality Bath Vanity Cabinets and More' %>"
          loading="eager">
     <% } %>
@@ -406,7 +440,10 @@ _DEFAULT_ORDER.forEach(function(k) {
   <div class="hero-image hero-layer--mobile">
     <div class="hero-overlay" aria-hidden="true"></div>
     <% if (_hmImg) { %>
-    <img class="hero-poster" src="<%= _hmImg %>" alt="<%= _hmAlt %>" loading="eager" fetchpriority="high" decoding="async">
+    <% var _hsHm = _heroSrcset(_hmImg); %>
+    <img class="hero-poster" src="<%= _hmImg %>"
+         <% if (_hsHm) { %>srcset="<%= _hsHm %>" sizes="100vw"<% } %>
+         alt="<%= _hmAlt %>" loading="eager" fetchpriority="high" decoding="async">
     <% } else { %>
     <div class="hero-img-placeholder" aria-hidden="true">
       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
