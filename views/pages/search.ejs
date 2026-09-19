@@ -125,7 +125,7 @@
             <span class="card-qty<%= _qtyRaw === 0 ? ' card-qty--zero' : '' %>">QTY: <%= _qtyBand(_qtyRaw) %></span>
           </div>
           <% } %>
-          <a href="/products/<%= product.slug %>" class="btn btn-primary">View Details</a>
+          <a href="/products/<%= product.slug %>" class="btn btn-primary">View Details<span class="sr-only"> — <%= product.name %></span></a>
         </div>
       </article>
       <% }); %>

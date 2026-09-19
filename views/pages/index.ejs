@@ -739,7 +739,7 @@ _DEFAULT_ORDER.forEach(function(k) {
           <% } %>
           <span class="card-qty<%= _fpQtyRaw === 0 ? ' card-qty--zero' : '' %>">QTY: <%= _fpQtyDisplay %></span>
         </div>
-        <a href="/products/<%= product.slug %>" class="btn btn-sage">View Details</a>
+        <a href="/products/<%= product.slug %>" class="btn btn-sage">View Details<span class="sr-only"> — <%= product.name %></span></a>
       </div>
     </article>
     <% }) %>

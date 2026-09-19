@@ -93,3 +93,42 @@
 .parallax-band .btn-amber,
 .site-footer .btn-amber,
 .mega-col--promo .btn-amber{--amber:#926A21;--color-amber:#926A21}
+
+/* ── WCAG 2.2 2.5.8 Target Size (Minimum): 24x24 on touch ──────────────────
+   2026-09-19. Measured on a 390px iPhone render before changing anything:
+
+       .model-card-swatch    18 x 18      gap 5.6px
+       .model-card-size-btn  18.3 x 20.3  gap 3.2px
+
+   Both fail 2.5.8 (level AA, 24x24 CSS px), and they also fail its spacing
+   exception: the chips sit ~21.5px centre-to-centre, under the 24px circle
+   the exception requires. Note this is 2.5.8 AA, not 2.5.5 Enhanced, which
+   is 44x44 and level AAA.
+
+   These are REAL sizes, not an invisible ::after hit area, and that is
+   deliberate. Two reasons the usual pseudo-element trick is wrong here:
+
+     1. The chips are ~21.5px apart centre-to-centre. A 44px invisible target
+        would overlap its neighbours by ~22px, so a tap near an edge would
+        silently select the wrong size. That is worse than a small target,
+        and invisible to whoever ships it.
+     2. .model-card-swatches has overflow:hidden, which clips hit-testing and
+        not just painting, so an oversized pseudo on a swatch is dead area.
+        overflow is relaxed to visible below, which is safe because the row
+        grows with its content rather than being clipped to 18px.
+
+   Stopping at 24 rather than 44 is also deliberate: at 44 the chips wrap
+   onto extra rows and push the price and CTA below the fold on a phone.
+   Verified after the change: swatch 24x24, chip 25.3x24, gap 4.8px, and the
+   same 30 swatches remain visible per viewport - no new truncation.
+
+   Desktop is untouched. */
+@media (max-width: 768px) {
+  .model-card-swatches { overflow: visible; }
+  .model-card-swatch   { width: 24px; height: 24px; }
+  .model-card-size-chips { gap: .35rem .3rem; }
+  .model-card-size-btn {
+    min-width: 24px; min-height: 24px; padding: .2rem .35rem;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+}
