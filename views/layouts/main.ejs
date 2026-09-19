@@ -72,7 +72,9 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   <meta property="og:site_name"   content="<%= _siteName %>">
   <meta name="twitter:card"       content="summary_large_image">
 
-  <!-- Google Fonts: preconnect + async load (display=swap in URL prevents invisible text) -->
+  <!-- Google Fonts: preconnect + async load. The URL carries display=optional, not swap:
+       optional gives the font one short block period and then keeps the fallback for
+       this page view, which is why CLS is 0. Do not "fix" this comment back to swap. -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <!-- Bunny pull zone: serves the hero + every product and category image.
@@ -101,7 +103,7 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
        ADMIN-ONLY and is loaded separately by views/layouts/admin.ejs. Adding
        it here ships ~23KB of admin CSS to every public visitor and grows the
        bundle from 121KB to 137KB for no benefit. Do not add it. -->
-  <link rel="stylesheet" href="/css/site-bundle.css?v=12">
+  <link rel="stylesheet" href="/css/site-bundle.css?v=13">
   <!-- site3.css: Trust signals, checkout, CMS pages, blog, inspiration guides -->
   <!-- Loaded conditionally per-page via <%- style %> slot — not global (perf: saves 37KB blocking CSS on homepage/collections/products) -->
 
