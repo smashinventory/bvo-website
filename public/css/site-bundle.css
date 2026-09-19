@@ -79,3 +79,17 @@
 .parallax-band,
 .site-footer,
 .mega-col--promo{--amber:#B8862A;--color-amber:#B8862A}
+
+/* ── Amber CTA fills inside the dark sections ──────────────────────────────
+   The block above restores the lighter brand amber inside the navy
+   containers, which is right for amber used as TEXT on navy. It is wrong for
+   amber used as a BUTTON FILL: a filled button is its own surface, so the
+   navy behind it is irrelevant and what matters is white-on-amber. The
+   lighter amber gives 3.24 there; the darker gives 4.88. Carve the fills back
+   out. Found on the live page after deploy: "Shop All Vanities" in
+   .parallax-band was the only instance. */
+.ba-section .btn-amber,
+.before-after-section .btn-amber,
+.parallax-band .btn-amber,
+.site-footer .btn-amber,
+.mega-col--promo .btn-amber{--amber:#926A21;--color-amber:#926A21}
