@@ -693,8 +693,8 @@
     var border   = FAMILY_HEX[cfKey + '_border'] || hex;
     var isActive = gColor[step] === sku.color;
     var style    = chipImg
-      ? 'background-image:url(' + esc(chipImg) + ');background-size:cover;background-position:center;border-color:' + (isActive ? 'var(--amber,#B8862A)' : border)
-      : 'background-color:' + hex + ';border-color:' + (isActive ? 'var(--amber,#B8862A)' : border);
+      ? 'background-image:url(' + esc(chipImg) + ');background-size:cover;background-position:center;border-color:' + (isActive ? 'var(--amber,#926A21)' : border)
+      : 'background-color:' + hex + ';border-color:' + (isActive ? 'var(--amber,#926A21)' : border);
     return '<button class="bb-swatch' + (isActive ? ' is-active' : '') + '"'
       + ' type="button"'
       + ' data-step="'  + step         + '"'
@@ -1065,7 +1065,7 @@
         btn.classList.toggle('is-active', isActive);
         /* update border colour inline */
         var cfKey  = ''; /* we don't have cf per-btn; just use amber / default */
-        btn.style.borderColor = isActive ? 'var(--amber,#B8862A)' : '';
+        btn.style.borderColor = isActive ? 'var(--amber,#926A21)' : '';
       });
     }
 

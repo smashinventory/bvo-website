@@ -284,7 +284,7 @@ function teColorBrand(name,label,value){
   var palette=[
     {hex:'',                         tip:'Default'},
     {hex:desC.navy   ||'#182840',    tip:'Navy'},
-    {hex:desC.amber  ||'#B8862A',    tip:'Amber'},
+    {hex:desC.amber  ||'#926A21',    tip:'Amber'},
     {hex:desC.sage   ||'#5A7A5A',    tip:'Sage'},
     {hex:'#486854',                  tip:'Sage Deep'},
     {hex:'#101828',                  tip:'Navy Deep'},
@@ -385,7 +385,7 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
    it is in git. */
 %>
 
-<link rel="stylesheet" href="/css/admin-theme-editor.css?v=3">
+<link rel="stylesheet" href="/css/admin-theme-editor.css?v=4">
 
 <!-- ════════════════════════════════════════════════════════
      THEME EDITOR SHELL
@@ -596,7 +596,7 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
               <div class="te4-accord-body">
                 <div class="te4-colors-grid">
                   <%- teColor('design.colors.navy',   'Navy (text / ink)',    desC.navy   ||'#182840') %>
-                  <%- teColor('design.colors.amber',  'Amber (accent)',       desC.amber  ||'#B8862A') %>
+                  <%- teColor('design.colors.amber',  'Amber (accent)',       desC.amber  ||'#926A21') %>
                   <%- teColor('design.colors.sage',   'Sage (buttons)',       desC.sage   ||'#5A7A5A') %>
                   <%- teColor('design.colors.whisper','Whisper (alt bg)',     desC.whisper||'#F8F6F2') %>
                   <%- teColor('design.colors.white',  'White (main bg)',      desC.white  ||'#FFFFFF') %>
@@ -747,7 +747,7 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
               Label, URL, ordering, Highlight and Mega menu are all edited there,
               alongside the footer columns — one screen for every menu on the site.
               <div style="margin-top:10px">
-                <a class="te4-btn" href="/admin/menus?menu=main-menu" style="display:inline-block;padding:7px 14px;border-radius:6px;background:var(--te4-accent,#b8862a);color:#fff;text-decoration:none;font-weight:600">
+                <a class="te4-btn" href="/admin/menus?menu=main-menu" style="display:inline-block;padding:7px 14px;border-radius:6px;background:var(--te4-accent,#926a21);color:#fff;text-decoration:none;font-weight:600">
                   Open Menu Manager →
                 </a>
               </div>
@@ -965,7 +965,7 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
             </div>
             <%- teField('text','hero.heading_line1','Text',h.heading_line1) %>
 
-            <div class="te4-section-label">Heading Line 2 <span style="color:var(--color-amber,#B8862A);font-weight:400">(amber accent)</span></div>
+            <div class="te4-section-label">Heading Line 2 <span style="color:var(--color-amber,#926A21);font-weight:400">(amber accent)</span></div>
             <%- teTextSize('hero.h2_size',h.h2_size||42,'Size',20,90) %>
             <%- teField('text','hero.heading_line2','Text',h.heading_line2) %>
 
@@ -1122,7 +1122,7 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
             </div>
             <%- teField('text','hero_mobile.heading_line1','Text (blank = desktop)',hm2.heading_line1||'') %>
 
-            <div class="te4-section-label">Heading Line 2 <span style="color:var(--color-amber,#B8862A);font-weight:400">(amber accent)</span></div>
+            <div class="te4-section-label">Heading Line 2 <span style="color:var(--color-amber,#926A21);font-weight:400">(amber accent)</span></div>
             <%- teTextSize('hero_mobile.h2_size',hm2.h2_size||28,'Size',16,90) %>
             <%- teField('text','hero_mobile.heading_line2','Text (blank = desktop)',hm2.heading_line2||'') %>
 

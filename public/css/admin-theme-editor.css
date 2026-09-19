@@ -138,7 +138,7 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--color-amber,#B8862A);
+  background: var(--color-amber,#926A21);
   flex-shrink: 0;
   box-shadow: 0 0 0 2px rgba(184,134,42,.2);
 }
@@ -259,8 +259,8 @@
 .te4-sec-row.is-active .te4-sec-icon { color: var(--color-navy,#182840); }
 .te4-sec-row.is-hidden { opacity: .4; }
 .te4-sec-row.is-dragging { opacity: .35; background: #F0F2F5; }
-.te4-sec-row.drag-over-above { border-top: 2px solid var(--color-amber,#B8862A); }
-.te4-sec-row.drag-over-below { border-bottom: 2px solid var(--color-amber,#B8862A); }
+.te4-sec-row.drag-over-above { border-top: 2px solid var(--color-amber,#926A21); }
+.te4-sec-row.drag-over-below { border-bottom: 2px solid var(--color-amber,#926A21); }
 
 /* Drag handle — hidden until hover */
 .te4-drag-handle {
@@ -764,7 +764,7 @@ details[open] > .te4-accord-head { color: var(--color-navy,#182840); }
 .te4-img-controls { flex:1; display:flex; flex-direction:column; gap:5px; }
 .te4-img-url { border:1.5px solid #E2E4E9; border-radius:7px; padding:.38rem .6rem; font-size:.77rem; width:100%; box-sizing:border-box; outline:none; }
 .te4-img-url:focus { border-color: var(--color-navy,#182840); }
-.te4-upload-label { display:inline-flex; align-items:center; gap:5px; cursor:pointer; font-size:.71rem; font-weight:700; color:var(--color-amber,#B8862A); }
+.te4-upload-label { display:inline-flex; align-items:center; gap:5px; cursor:pointer; font-size:.71rem; font-weight:700; color:var(--color-amber,#926A21); }
 .te4-upload-label svg { width:12px; height:12px; }
 
 /* ── Array rows ──────────────────────────────────────────── */
@@ -1035,13 +1035,13 @@ details[open] > .te4-accord-head { color: var(--color-navy,#182840); }
   font-size: .73rem;
   font-weight: 600;
   cursor: pointer;
-  border: 1px solid var(--color-amber,#B8862A);
+  border: 1px solid var(--color-amber,#926A21);
   background: transparent;
-  color: var(--color-amber,#B8862A);
+  color: var(--color-amber,#926A21);
   transition: all .12s;
   white-space: nowrap;
 }
-.te4-modal-dup-btn:hover { background: var(--color-amber,#B8862A); color: #fff; }
+.te4-modal-dup-btn:hover { background: var(--color-amber,#926A21); color: #fff; }
 .te4-modal-dup-btn:disabled { opacity: .5; cursor: default; }
 
 /* ── Toast notification ──────────────────────────────────── */

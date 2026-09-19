@@ -12,7 +12,7 @@
      stylesheet (inNoscript:false, media:""), which defeated the whole point.
      Cost of omitting it: a JS-disabled visitor loses styling on the featured
      save badge and the hp-inspo block, both below the fold. */%>
-<link rel="stylesheet" href="/css/site3.css?v=16" media="print" onload="this.media='all';this.onload=null;">
+<link rel="stylesheet" href="/css/site3.css?v=17" media="print" onload="this.media='all';this.onload=null;">
 <%
 const S    = settings || {};
 const hero = S.hero               || {};
@@ -1162,7 +1162,7 @@ _DEFAULT_ORDER.forEach(function(k) {
     <article class="testimonial-card">
       <div class="testimonial-stars">
         <% for (var si=0; si<5; si++) { %>
-        <svg viewBox="0 0 20 20" width="16" height="16"><polygon points="10,1 12.9,7 19.5,7.6 14.5,12 16.2,18.5 10,15 3.8,18.5 5.5,12 0.5,7.6 7.1,7" fill="<%= si < (ti.rating||5) ? '#B8862A' : '#D1D5DB' %>"/></svg>
+        <svg viewBox="0 0 20 20" width="16" height="16"><polygon points="10,1 12.9,7 19.5,7.6 14.5,12 16.2,18.5 10,15 3.8,18.5 5.5,12 0.5,7.6 7.1,7" fill="<%= si < (ti.rating||5) ? '#926A21' : '#D1D5DB' %>"/></svg>
         <% } %>
       </div>
       <blockquote class="testimonial-text">"<%= ti.text %>"</blockquote>

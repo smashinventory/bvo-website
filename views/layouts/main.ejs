@@ -22,7 +22,7 @@ const _gfUrl = `https://fonts.googleapis.com/css2?${_gfQuery}&display=optional`;
 const _hexRe = /^#[0-9a-fA-F]{3}$|^#[0-9a-fA-F]{6}$/;
 function _safeColor(val, def) { return (val && _hexRe.test(val.trim())) ? val.trim() : def; }
 const _navyC   = _safeColor(_colors.navy,    '#182840');
-const _amberC  = _safeColor(_colors.amber,   '#B8862A');
+const _amberC  = _safeColor(_colors.amber,   '#926A21');
 const _sageC   = _safeColor(_colors.sage,    '#5A7A5A');
 const _whisperC= _safeColor(_colors.whisper, '#F8F6F2');
 const _whiteC  = _safeColor(_colors.white,   '#FFFFFF');
@@ -101,7 +101,7 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
        ADMIN-ONLY and is loaded separately by views/layouts/admin.ejs. Adding
        it here ships ~23KB of admin CSS to every public visitor and grows the
        bundle from 121KB to 137KB for no benefit. Do not add it. -->
-  <link rel="stylesheet" href="/css/site-bundle.css?v=9">
+  <link rel="stylesheet" href="/css/site-bundle.css?v=10">
   <!-- site3.css: Trust signals, checkout, CMS pages, blog, inspiration guides -->
   <!-- Loaded conditionally per-page via <%- style %> slot — not global (perf: saves 37KB blocking CSS on homepage/collections/products) -->
 
@@ -121,7 +121,7 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
       --sage:      <%= _sageC %>;
       --whisper:   <%= _whisperC %>;
       --white:     <%= _whiteC %>;
-      --muted:     #7A7264;
+      --muted:     #787063;
       --border:    #E8E4DC;
       --hero-bg:   #FAF7F2;
       --sage-deep: #486854;
@@ -131,7 +131,7 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
       --color-sage-deep:    #486854;
       --color-navy-deep:    #101828;
       --color-whisper-hero: #FAF7F2;
-      --text-muted:         #7A7264;
+      --text-muted:         #787063;
       --border-card:        #E8E4DC;
       --bg-promo:           <%= _navyC %>;
       /* Typography + layout */

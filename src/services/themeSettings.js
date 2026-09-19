@@ -20,7 +20,7 @@ const DEFAULTS = {
     body_font:      'Lato',
     base_size_px:   16,
     heading_weight: '600',
-    colors: { navy:'#182840', amber:'#B8862A', sage:'#5A7A5A', whisper:'#F8F6F2', white:'#FFFFFF' },
+    colors: { navy:'#182840', amber:'#926A21', sage:'#5A7A5A', whisper:'#F8F6F2', white:'#FFFFFF' },
     button_radius: '6px',
     card_radius:   '12px',
   },
