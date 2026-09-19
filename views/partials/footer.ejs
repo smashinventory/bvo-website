@@ -7,9 +7,13 @@
       <!-- Brand column -->
       <div class="footer-brand">
         <a href="/" aria-label="<%= gl.site_name || 'BathroomVanitiesOutlet.com' %> — Home">
-          <img src="/images/logos/BVOLOGOSQ_512.png"
+          <%/* Bunny, not the local 512x512 PNG. This slot renders at 52px, so the
+               PNG was shipping 19.2 KB to paint 52 square pixels. The webp on the
+               pull zone is 3.0 KB, and ?width=104 (2x for retina) brings the wire
+               cost to 2.1 KB -- 89% off, pixel-identical at this size. */%>
+          <img src="https://images.bathroomvanitiesoutlet.com/site/logos/BVOLOGOSQ_512.webp?width=104"
                alt="<%= gl.site_name || 'BathroomVanitiesOutlet.com' %>"
-               width="52" height="52" loading="lazy">
+               width="52" height="52" loading="lazy" decoding="async">
         </a>
         <h3><%= nav.brand_line1 || 'BathroomVanities' %><span><%= nav.brand_line2 || 'Outlet' %></span><%= nav.brand_line3 || '.com' %></h3>
         <p><%= ft.brand_desc || 'Premium vanities, mirrors, faucets &amp; accessories — at prices that make sense. Free shipping on every order.' %></p>
