@@ -955,7 +955,7 @@
         <% colorExactActive.forEach(function(e) { %><input type="hidden" name="color_exact" value="<%= e %>"><% }) %>
         <% hwColorFamilyActive.forEach(function(f) { %><input type="hidden" name="hw_color_family" value="<%= f %>"><% }) %>
         <% hwColorExactActive.forEach(function(e) { %><input type="hidden" name="hw_color_exact" value="<%= e %>"><% }) %>
-        <select name="sort" class="sort-select" onchange="this.closest('form').submit()" aria-label="Sort products">
+        <select name="sort" class="sort-select" data-autosubmit aria-label="Sort products">
           <%# Popularity leads the list because it is the default on any page
               with more than 10 results. Ranked by James Martin warehouse
               depletion — market-wide demand, not BVO sales. %>

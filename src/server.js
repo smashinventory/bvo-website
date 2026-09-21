@@ -55,39 +55,60 @@ app.use((req, res, next) => {
   next();
 });
 
+// ── Content-Security-Policy: ONE list, used twice ─────────────────
+// These directives feed BOTH the helmet header below AND the <meta> tag in
+// views/layouts/main.ejs (see buildCspMeta further down), so the two can never
+// drift apart.
+//
+// WHY A META TAG AT ALL (2026-09-21): Hostinger's hCDN injects
+// "Content-Security-Policy: upgrade-insecure-requests" on every site on the
+// account and REPLACES whatever policy the origin sent - confirmed on our two
+// PHP sites too (rflpos.com / rflpos.net), even on a 404. So this header never
+// reaches a browser. A <meta http-equiv> policy is part of the HTML body, which
+// the CDN does not rewrite. Support ticket is open; if it is ever fixed, header
+// and meta are the same policy and simply both apply.
+const CSP_DIRECTIVES = {
+  defaultSrc:     ["'self'"],
+  scriptSrc:      [
+                     // Nonce: CSP3 browsers allow only nonce-bearing scripts +
+                     // scripts they spawn (strict-dynamic). 'unsafe-inline' and
+                     // 'https:' are ignored by CSP3 but serve as CSP2 fallback.
+                     (req, res) => `'nonce-${res.locals.cspNonce}'`,
+                     "'strict-dynamic'",
+                     "'unsafe-inline'",
+                     "https:",
+                   ],
+  styleSrc:       ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://cdnjs.cloudflare.com'],
+  fontSrc:        ["'self'", 'https://fonts.gstatic.com'],
+  imgSrc:         ["'self'", 'data:', 'https:', 'blob:'],
+  connectSrc:     ["'self'",
+                   // Google Analytics 4 / Tag Manager - Google's documented
+                   // hosts. GA4 beacons go to regionN.google-analytics.com, not
+                   // only www., so the wildcards are needed. *.analytics.google.com
+                   // does not match the bare domain, hence both.
+                   'https://*.google-analytics.com',
+                   'https://analytics.google.com', 'https://*.analytics.google.com',
+                   'https://*.googletagmanager.com',
+                   'https://widget.tidio.co',
+                   'https://jstest.authorize.net', 'https://js.authorize.net',
+                   // Accept.js TOKENIZES by sending the card to these hosts, not
+                   // to the js./jstest. hosts it is loaded from. Read out of the
+                   // scripts themselves (window.encryptEndPoint), 2026-09-21.
+                   'https://api2.authorize.net',      // production
+                   'https://apitest.authorize.net'],  // sandbox
+  frameSrc:       ["'self'", 'https://www.youtube-nocookie.com', 'https://www.youtube.com',
+                   // AcceptUI (checkout) opens Authorize.net's hosted card form
+                   // in an iframe from these hosts - read out of AcceptUI.js.
+                   'https://js.authorize.net',        // production
+                   'https://jstest.authorize.net'],   // sandbox
+  objectSrc:      ["'none'"],
+};
+
 // ── Security / performance middleware ────────────────────────────
 app.use(helmet({
   crossOriginEmbedderPolicy: false, // YouTube iframes don't send CORP headers; COEP: require-corp blocks them
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' }, // sends origin to YouTube so it knows the embedding domain
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc:     ["'self'"],
-      scriptSrc:      [
-                         // Nonce: CSP3 browsers allow only nonce-bearing scripts +
-                         // scripts they spawn (strict-dynamic). 'unsafe-inline' and
-                         // 'https:' are ignored by CSP3 but serve as CSP2 fallback.
-                         (req, res) => `'nonce-${res.locals.cspNonce}'`,
-                         "'strict-dynamic'",
-                         "'unsafe-inline'",
-                         "https:",
-                       ],
-      styleSrc:       ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://cdnjs.cloudflare.com'],
-      fontSrc:        ["'self'", 'https://fonts.gstatic.com'],
-      imgSrc:         ["'self'", 'data:', 'https:', 'blob:'],
-      connectSrc:     ["'self'", 'https://www.google-analytics.com',
-                       'https://analytics.google.com', 'https://widget.tidio.co',
-                       'https://jstest.authorize.net', 'https://js.authorize.net',
-                       // Accept.js TOKENIZES by sending the card to these hosts, not
-                       // to the js./jstest. hosts it is loaded from. Read out of the
-                       // scripts themselves (window.encryptEndPoint), 2026-09-21.
-                       // Without them an enforced policy blocks card entry and
-                       // checkout takes no payments.
-                       'https://api2.authorize.net',     // production
-                       'https://apitest.authorize.net'], // sandbox
-      frameSrc:       ["'self'", 'https://www.youtube-nocookie.com', 'https://www.youtube.com'],
-      objectSrc:      ["'none'"],
-    },
-  },
+  contentSecurityPolicy: { directives: CSP_DIRECTIVES },
 }));
 
 // Allow compute-pressure API — Tidio uses it to throttle itself under CPU load.
@@ -264,6 +285,39 @@ app.use((req, res, next) => {
   const isPreview = req.query.te_preview === '1' && req.session.isAdmin && req.session.tePreviewSettings;
   res.locals.settings    = isPreview ? req.session.tePreviewSettings : themeSettings.get();
   res.locals.isTePreview = !!isPreview;
+  next();
+});
+
+// ── CSP as a <meta> tag (see CSP_DIRECTIVES for why) ─────────────
+// Helmet adds these to the header on its own; the meta tag must spell them out.
+// frame-ancestors is deliberately absent: browsers ignore it in <meta>.
+// Clickjacking is still covered by X-Frame-Options: SAMEORIGIN, which the CDN
+// passes through intact.
+const CSP_META_EXTRA = {
+  baseUri:                 ["'self'"],
+  formAction:              ["'self'"],
+  scriptSrcAttr:           ["'none'"],
+  upgradeInsecureRequests: [],
+};
+function buildCspMeta(req, res) {
+  return Object.entries(Object.assign({}, CSP_DIRECTIVES, CSP_META_EXTRA)).map(([k, v]) => {
+    const name = k.replace(/[A-Z]/g, (m) => '-' + m.toLowerCase());
+    const vals = v.map((x) => (typeof x === 'function' ? x(req, res) : x));
+    return vals.length ? `${name} ${vals.join(' ')}` : name;
+  }).join('; ');
+}
+// ROLLOUT SWITCH. The policy has never been enforced here, so it is OFF for
+// visitors until tested:
+//   ?csp=test  -> on for THIS browser session (sticks while you browse)
+//   ?csp=off   -> back off for this session
+//   env CSP_META=on -> on for everyone (the go-live switch)
+app.use((req, res, next) => {
+  if (req.session) {
+    if (req.query.csp === 'test') req.session.cspTest = true;
+    if (req.query.csp === 'off')  delete req.session.cspTest;
+  }
+  const on = process.env.CSP_META === 'on' || !!(req.session && req.session.cspTest);
+  res.locals.cspMeta = on ? buildCspMeta(req, res) : '';
   next();
 });
 

@@ -23,8 +23,7 @@
     <!-- Main image viewer -->
     <div class="gallery-main" id="gallery-main"
          role="button" tabindex="0" aria-label="View full-size image"
-         onclick="pdpLightbox.open(pdpGallery.getActive())"
-         onkeydown="if(event.key==='Enter')pdpLightbox.open(pdpGallery.getActive())">
+         data-pdp="open">
       <img class="gallery-main-img" id="gallery-main-img"
            src="<%= (_imgs[0]||{}).url||'' %>"
            alt="<%= (_imgs[0]||{}).alt_text || product.name %>"
@@ -45,14 +44,14 @@
         <button class="gallery-thumb<%= idx===0?' is-active':'' %><%= idx>=6?' thumb-hidden':'' %>"
                 type="button" data-idx="<%= idx %>"
                 aria-label="Image <%= idx+1 %><%= _total > 1 ? ' of ' + _total : '' %>"
-                onclick="pdpGallery.select(<%= idx %>)">
+                data-pdp="thumb">
           <img src="<%= img.url %>" alt="<%= img.alt_text || product.name %>" loading="lazy" draggable="false">
         </button>
         <% }) %>
       </div>
       <% if (_total > 6) { %>
       <button class="gallery-seemore-btn" id="gallery-seemore-btn" type="button"
-              onclick="pdpGallery.showMore(this)">
+              data-pdp="more">
         See <%= _total - 6 %> more &#8595;
       </button>
       <% } %>
@@ -103,12 +102,12 @@
 
     <div class="gallery-lightbox" id="pdp-lightbox"
          role="dialog" aria-modal="true" aria-label="Product image gallery" hidden>
-      <button class="lb-close" onclick="pdpLightbox.close()" aria-label="Close gallery" type="button">
+      <button class="lb-close" data-pdp="lb-close" aria-label="Close gallery" type="button">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
           <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
         </svg>
       </button>
-      <button class="lb-arrow lb-prev" onclick="pdpLightbox.prev()" aria-label="Previous image" type="button">
+      <button class="lb-arrow lb-prev" data-pdp="lb-prev" aria-label="Previous image" type="button">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
       </button>
       <div class="lb-stage" id="lb-stage">
@@ -120,7 +119,7 @@
         <button type="button" id="lb-zoom-in" aria-label="Zoom in">+</button>
         <button type="button" id="lb-zoom-reset" aria-label="Reset zoom">Reset</button>
       </div>
-      <button class="lb-arrow lb-next" onclick="pdpLightbox.next()" aria-label="Next image" type="button">
+      <button class="lb-arrow lb-next" data-pdp="lb-next" aria-label="Next image" type="button">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
       </button>
       <div class="lb-footer">
@@ -128,7 +127,7 @@
         <div class="lb-thumbs" id="lb-thumbs">
           <% _imgs.forEach((img, idx) => { %>
           <button class="lb-thumb" data-idx="<%= idx %>"
-                  onclick="pdpLightbox.goTo(<%= idx %>)" type="button"
+                  data-pdp="lb-goto" type="button"
                   aria-label="Image <%= idx + 1 %>">
             <img src="<%= img.url %>?width=160" data-full="<%= img.url %>"
                  alt="<%= img.alt_text || product.name %>" loading="lazy">
@@ -388,9 +387,9 @@
 
     <!-- Qty stepper -->
     <div class="detail-qty" role="group" aria-label="Quantity">
-      <button class="qty-btn" type="button" aria-label="Decrease quantity" onclick="changeQty(-1)">−</button>
+      <button class="qty-btn" type="button" aria-label="Decrease quantity" data-qty-step="-1">−</button>
       <span class="qty-val" id="qty-val">1</span>
-      <button class="qty-btn" type="button" aria-label="Increase quantity" onclick="changeQty(1)">+</button>
+      <button class="qty-btn" type="button" aria-label="Increase quantity" data-qty-step="1">+</button>
     </div>
 
     <!-- CTAs -->
@@ -1052,6 +1051,38 @@ if (product.compare_price && product.compare_price > product.price) {
   _pdJsonLd.offers.priceValidUntil = new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0];
 }
 %>
+<%/* PDP controls, delegated. These were ten onclick=""/onkeydown="" attributes,
+     all of which the CSP blocks (script-src-attr 'none') - the gallery, the
+     lightbox and the quantity stepper would all have gone dead the day the
+     policy is enforced. Same calls as before, resolved at click time, so it
+     does not matter that changeQty is defined later by site.js. Thumbs carry
+     their index in data-idx already. */%>
+<script nonce="<%= cspNonce %>">
+(function () {
+  function idx(el) { return parseInt(el.getAttribute('data-idx'), 10) || 0; }
+  function openLb() { if (window.pdpLightbox && window.pdpGallery) pdpLightbox.open(pdpGallery.getActive()); }
+  document.addEventListener('click', function (e) {
+    var q = e.target.closest && e.target.closest('[data-qty-step]');
+    if (q) { if (window.changeQty) window.changeQty(parseInt(q.getAttribute('data-qty-step'), 10)); return; }
+    var t = e.target.closest && e.target.closest('[data-pdp]');
+    if (!t) return;
+    switch (t.getAttribute('data-pdp')) {
+      case 'open':     openLb(); break;
+      case 'thumb':    if (window.pdpGallery) pdpGallery.select(idx(t)); break;
+      case 'more':     if (window.pdpGallery) pdpGallery.showMore(t); break;
+      case 'lb-close': if (window.pdpLightbox) pdpLightbox.close(); break;
+      case 'lb-prev':  if (window.pdpLightbox) pdpLightbox.prev(); break;
+      case 'lb-next':  if (window.pdpLightbox) pdpLightbox.next(); break;
+      case 'lb-goto':  if (window.pdpLightbox) pdpLightbox.goTo(idx(t)); break;
+    }
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter') return;
+    var t = e.target.closest && e.target.closest('[data-pdp="open"]');
+    if (t) openLb();
+  });
+})();
+</script>
 <script type="application/ld+json"><%- JSON.stringify(_pdJsonLd) %></script>
 <%
   var _pdVideos = [];

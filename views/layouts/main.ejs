@@ -41,6 +41,10 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <%/* CSP as a meta tag - see CSP_DIRECTIVES in src/server.js for why. Must be
+       the first thing after charset: a meta policy only governs what comes
+       after it. Empty (not rendered) unless the rollout switch is on. */%>
+  <% if (typeof cspMeta !== 'undefined' && cspMeta) { %><meta http-equiv="Content-Security-Policy" content="<%= cspMeta %>"><% } %>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <!-- SEO -->
@@ -80,7 +84,13 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   <!-- Bunny pull zone: serves the hero + every product and category image.
        Largest origin on the page by bytes; it had no hint while fonts had two. -->
   <link rel="preconnect" href="https://images.bathroomvanitiesoutlet.com" crossorigin>
-  <link rel="preload" href="<%- _gfUrl %>" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <%/* Non-blocking font CSS WITHOUT an inline onload="" attribute. The CSP
+       carries script-src-attr 'none', which blocks every inline event handler,
+       so the old onload swap would leave this link a preload forever and the
+       whole site on fallback fonts the day the policy is enforced. media=print
+       loads it without blocking render; the nonced script flips it to all. */%>
+  <link rel="stylesheet" href="<%- _gfUrl %>" media="print" id="gf-css">
+  <script nonce="<%= cspNonce %>">(function(l){if(!l)return;function on(){l.media='all';}if(l.sheet){on();}else{l.addEventListener('load',on);}})(document.getElementById('gf-css'));</script>
   <noscript><link href="<%- _gfUrl %>" rel="stylesheet"></noscript>
 
   <!-- CSS bundle: brand.css + site.css + site2.css concatenated into one file.
@@ -227,6 +237,9 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   <script nonce="<%= cspNonce %>" src="//code.tidio.co/<%= tidioKey %>.js" async></script>
   <% } %>
 
+  <%/* Sort dropdowns submit their form on change. Delegated here instead of
+       onchange="" attributes, which the CSP (script-src-attr 'none') blocks. */%>
+  <script nonce="<%= cspNonce %>">document.addEventListener('change',function(e){var s=e.target&&e.target.closest?e.target.closest('select[data-autosubmit]'):null;if(s&&s.form)s.form.submit();});</script>
 
 </body>
 </html>
