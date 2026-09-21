@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Checkout Controller — Authorize.net Accept.js integration
+ * Checkout Controller — Authorize.net Accept.js (AcceptUI hosted form) integration
  *
  * Flow:
  *  GET  /checkout         → review + card entry page (Accept.js tokenizes client-side)
@@ -40,12 +40,22 @@ function calcTotal(items) {
   }, 0);
 }
 
-/** Accept.js CDN URL (env-aware) */
+/** AcceptUI.js CDN URL (env-aware).
+ *
+ *  AcceptUI is Authorize.net's HOSTED payment form (2026-09-21). The card
+ *  number, expiry and CVV are typed into an iframe served by Authorize.net,
+ *  not into inputs on our page, so no script on our page can read them.
+ *  That moves the site from PCI SAQ A-EP (Accept.js with our own card
+ *  fields) to SAQ A, and removes card skimming by an injected script as a
+ *  risk.
+ *
+ *  The response is the same opaqueData nonce Accept.js produced, so
+ *  POST /checkout and authorizeNetService are unchanged. */
 function aNetScriptUrl() {
   const env = (process.env.AUTHORIZE_NET_ENV || 'sandbox').toLowerCase();
   return env === 'production'
-    ? 'https://js.authorize.net/v1/Accept.js'
-    : 'https://jstest.authorize.net/v1/Accept.js';
+    ? 'https://js.authorize.net/v3/AcceptUI.js'
+    : 'https://jstest.authorize.net/v3/AcceptUI.js';
 }
 
 /* ── GET /checkout ──────────────────────────────────────────────── */

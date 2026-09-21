@@ -105,52 +105,40 @@
           </div>
         </div>
 
-        <!-- Card Details (card fields have NO name — never submitted to server) -->
+        <!-- Card Details — entered in Authorize.net's hosted form (AcceptUI).
+             There are deliberately NO card inputs on this page. The card is typed
+             into an iframe served by Authorize.net, which scripts on this page
+             cannot read. Keeps the site at PCI SAQ A. -->
         <div class="checkout-card">
           <h2 class="checkout-card-title">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                  stroke-width="2" aria-hidden="true" style="vertical-align:middle;margin-right:6px">
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
             </svg>
-            Card Details
+            Payment
           </h2>
-          <p class="checkout-card-sub">Your card number is encrypted in your browser and never sent to our servers.</p>
-
-          <div class="checkout-field">
-            <label for="cardNumber">Card Number <span class="req">*</span></label>
-            <!-- NO name attribute — PCI requirement -->
-            <input type="text" id="cardNumber" placeholder="1234 5678 9012 3456"
-                   autocomplete="cc-number" maxlength="19" inputmode="numeric">
-          </div>
-          <div class="checkout-field-row">
-            <div class="checkout-field">
-              <label for="expMonth">Expiry Month <span class="req">*</span></label>
-              <select id="expMonth" autocomplete="cc-exp-month" class="checkout-select">
-                <option value="">MM</option>
-                <% for (let m = 1; m <= 12; m++) { %>
-                  <option value="<%= String(m).padStart(2,'0') %>"><%= String(m).padStart(2,'0') %></option>
-                <% } %>
-              </select>
-            </div>
-            <div class="checkout-field">
-              <label for="expYear">Expiry Year <span class="req">*</span></label>
-              <select id="expYear" autocomplete="cc-exp-year" class="checkout-select">
-                <option value="">YYYY</option>
-                <% for (let y = new Date().getFullYear(); y <= new Date().getFullYear() + 10; y++) { %>
-                  <option value="<%= y %>"><%= y %></option>
-                <% } %>
-              </select>
-            </div>
-            <div class="checkout-field">
-              <label for="cardCode">CVV <span class="req">*</span></label>
-              <!-- NO name attribute -->
-              <input type="text" id="cardCode" placeholder="123"
-                     autocomplete="cc-csc" maxlength="4" inputmode="numeric">
-            </div>
-          </div>
-
-          <div id="payment-error" style="display:none;color:var(--red);margin-top:8px;font-size:14px"></div>
+          <p class="checkout-card-sub">When you click <strong>Place Order</strong>, a secure Authorize.net window opens for your card details. Your card number is entered directly with Authorize.net and never touches our website.</p>
+          <div id="payment-error" role="alert" style="display:none;color:var(--red);margin-top:8px;font-size:14px"></div>
         </div>
+
+        <%/* The AcceptUI launcher. AcceptUI.js binds to every element with
+             class="AcceptUI" when it loads, so this must exist in the DOM
+             before the script tag at the bottom of the page. It is hidden:
+             the visible Place Order button validates the form first and then
+             clicks this one, so the popup never opens over a half-filled form.
+             data-billingAddressOptions show:false because the server already
+             sends the full billing address in createTransactionRequest, and
+             Authorize.net uses that ZIP for AVS in preference to the nonce's,
+             so asking for name and ZIP again in the popup would only duplicate
+             fields. */%>
+        <button type="button" id="acceptUIBtn" class="AcceptUI" hidden aria-hidden="true" tabindex="-1"
+                data-billingAddressOptions='{"show":false,"required":false}'
+                data-apiLoginID="<%= aNetApiLoginId %>"
+                data-clientKey="<%= aNetPublicKey %>"
+                data-acceptUIFormBtnTxt="Pay Securely"
+                data-acceptUIFormHeaderTxt="Card Details"
+                data-paymentOptions='{"showCreditCard":true,"showBankAccount":false}'
+                data-responseHandler="responseHandler">Enter card</button>
 
       </form><!-- /checkout-form -->
 
@@ -286,8 +274,9 @@
   </div><!-- /checkout-layout -->
 </div>
 
-<!-- Accept.js (Authorize.net card tokenizer) -->
-<script src="<%= aNetScriptUrl %>" nonce="<%= cspNonce %>"></script>
+<!-- AcceptUI.js (Authorize.net hosted card form). Loaded AFTER #acceptUIBtn
+     exists, which the library requires. -->
+<script src="<%= aNetScriptUrl %>" nonce="<%= cspNonce %>" charset="utf-8"></script>
 
 <script nonce="<%= cspNonce %>">
 /* ── Capture UTM params + referrer for conversion tracking ── */
@@ -303,73 +292,48 @@
   set('order_source', src);
 })();
 
-/* ── Card number auto-format with spaces ── */
-document.getElementById('cardNumber').addEventListener('input', function () {
-  var v = this.value.replace(/\D/g, '').slice(0, 16);
-  this.value = v.replace(/(.{4})/g, '$1 ').trim();
-});
+var payBtn      = document.getElementById('payBtn');
+var payBtnLabel = payBtn.innerHTML;      /* keep the shield icon when resetting */
 
-/* ── Accept.js tokenization ── */
-var authData = {
-  clientKey:   '<%= aNetPublicKey %>',
-  apiLoginID:  '<%= aNetApiLoginId %>',
-};
+function resetPayBtn() {
+  payBtn.disabled  = false;
+  payBtn.innerHTML = payBtnLabel;
+}
 
 function showPayError(msg) {
   var el = document.getElementById('payment-error');
   el.textContent = msg;
   el.style.display = 'block';
-  document.getElementById('payBtn').disabled = false;
-  document.getElementById('payBtn').textContent = 'Place Order';
+  resetPayBtn();
+  el.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 
+/* Called by AcceptUI.js with the nonce. Must be a GLOBAL function: the
+   button names it in data-responseHandler. Same opaqueData shape as the old
+   Accept.dispatchData flow, so the server needs no change. */
 function responseHandler(resp) {
-  if (resp.messages.resultCode === 'Error') {
-    var msg = resp.messages.message.map(function(m) { return m.text; }).join(' ');
+  if (!resp || !resp.messages || resp.messages.resultCode === 'Error') {
+    var msg = (resp && resp.messages && resp.messages.message || [])
+      .map(function (m) { return m.text; }).join(' ') || 'Your card could not be processed. Please try again.';
     showPayError(msg);
     return;
   }
   document.getElementById('dataDescriptor').value = resp.opaqueData.dataDescriptor;
   document.getElementById('dataValue').value      = resp.opaqueData.dataValue;
+  payBtn.disabled    = true;
+  payBtn.textContent = 'Processing…';
   document.getElementById('checkout-form').submit();
 }
+window.responseHandler = responseHandler;
 
-function sendPaymentData() {
-  /* Validate required fields before calling Accept.js */
+/* Place Order: validate contact + billing first, THEN open the card popup.
+   The button is not disabled here - if the customer closes the popup
+   without paying, AcceptUI does not call back, so the button must stay
+   usable for another attempt. */
+payBtn.addEventListener('click', function () {
   var form = document.getElementById('checkout-form');
-  if (!form.checkValidity()) {
-    form.reportValidity();
-    return;
-  }
-  var cardNum  = document.getElementById('cardNumber').value.replace(/\s/g,'');
-  var expMonth = document.getElementById('expMonth').value;
-  var expYear  = document.getElementById('expYear').value;
-  var cardCode = document.getElementById('cardCode').value;
-  var billZip  = document.getElementById('bill-zip').value;
-  var firstName = document.getElementById('co-first').value.trim();
-  var lastName  = document.getElementById('co-last').value.trim();
-
-  if (!cardNum || !expMonth || !expYear || !cardCode) {
-    showPayError('Please fill in all card fields.');
-    return;
-  }
-
+  if (!form.checkValidity()) { form.reportValidity(); return; }
   document.getElementById('payment-error').style.display = 'none';
-  var btn = document.getElementById('payBtn');
-  btn.disabled = true;
-  btn.textContent = 'Processing…';
-
-  var cardData = {
-    cardNumber:  cardNum,
-    month:       expMonth,
-    year:        expYear,
-    cardCode:    cardCode,
-    zip:         billZip,
-    fullName:    firstName + ' ' + lastName,
-  };
-
-  Accept.dispatchData({ authData: authData, cardData: cardData }, responseHandler);
-}
-
-document.getElementById('payBtn').addEventListener('click', sendPaymentData);
+  document.getElementById('acceptUIBtn').click();
+});
 </script>
