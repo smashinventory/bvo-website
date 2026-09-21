@@ -89,6 +89,12 @@ const CSP_DIRECTIVES = {
                    'https://*.google-analytics.com',
                    'https://analytics.google.com', 'https://*.analytics.google.com',
                    'https://*.googletagmanager.com',
+                   // GA4 also beacons to www.google.com/g/collect (Google
+                   // signals / ads features) - seen blocked in the ?csp=test
+                   // sweep, 2026-09-21. *.g.doubleclick.net is Google's
+                   // documented companion host for the same feature.
+                   'https://www.google.com',
+                   'https://*.g.doubleclick.net',
                    'https://widget.tidio.co',
                    'https://jstest.authorize.net', 'https://js.authorize.net',
                    // Accept.js TOKENIZES by sending the card to these hosts, not
