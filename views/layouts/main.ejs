@@ -84,13 +84,20 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   <!-- Bunny pull zone: serves the hero + every product and category image.
        Largest origin on the page by bytes; it had no hint while fonts had two. -->
   <link rel="preconnect" href="https://images.bathroomvanitiesoutlet.com" crossorigin>
-  <%/* Non-blocking font CSS WITHOUT an inline onload="" attribute. The CSP
-       carries script-src-attr 'none', which blocks every inline event handler,
-       so the old onload swap would leave this link a preload forever and the
-       whole site on fallback fonts the day the policy is enforced. media=print
-       loads it without blocking render; the nonced script flips it to all. */%>
-  <link rel="stylesheet" href="<%- _gfUrl %>" media="print" id="gf-css">
-  <script nonce="<%= cspNonce %>">(function(l){if(!l)return;function on(){l.media='all';}if(l.sheet){on();}else{l.addEventListener('load',on);}})(document.getElementById('gf-css'));</script>
+  <%/* Non-blocking font CSS WITHOUT an inline onload="" attribute (the CSP's
+       script-src-attr 'none' blocks those). rel=preload keeps the fetch at HIGH
+       priority; the nonced script swaps it to a stylesheet when it arrives.
+
+       Do NOT "simplify" this to <link rel=stylesheet media=print>: that was
+       tried on 2026-09-21 and browsers fetch print stylesheets at the LOWEST
+       priority. A/B on the live page under Moto G / Slow 4G throttling, 7 runs
+       each: font CSS arrived at ~1,280 ms with media=print vs ~310 ms with
+       preload, costing roughly 0.3-0.6 s of LCP.
+
+       The listener is attached synchronously right after the link is parsed,
+       and a load event always fires as a later task, so it cannot be missed. */%>
+  <link rel="preload" href="<%- _gfUrl %>" as="style" id="gf-css">
+  <script nonce="<%= cspNonce %>">(function(l){if(!l)return;l.addEventListener('load',function(){l.rel='stylesheet';});})(document.getElementById('gf-css'));</script>
   <noscript><link href="<%- _gfUrl %>" rel="stylesheet"></noscript>
 
   <!-- CSS bundle: brand.css + site.css + site2.css concatenated into one file.
