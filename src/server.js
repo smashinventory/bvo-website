@@ -76,7 +76,14 @@ app.use(helmet({
       imgSrc:         ["'self'", 'data:', 'https:', 'blob:'],
       connectSrc:     ["'self'", 'https://www.google-analytics.com',
                        'https://analytics.google.com', 'https://widget.tidio.co',
-                       'https://jstest.authorize.net', 'https://js.authorize.net'],
+                       'https://jstest.authorize.net', 'https://js.authorize.net',
+                       // Accept.js TOKENIZES by sending the card to these hosts, not
+                       // to the js./jstest. hosts it is loaded from. Read out of the
+                       // scripts themselves (window.encryptEndPoint), 2026-09-21.
+                       // Without them an enforced policy blocks card entry and
+                       // checkout takes no payments.
+                       'https://api2.authorize.net',     // production
+                       'https://apitest.authorize.net'], // sandbox
       frameSrc:       ["'self'", 'https://www.youtube-nocookie.com', 'https://www.youtube.com'],
       objectSrc:      ["'none'"],
     },
