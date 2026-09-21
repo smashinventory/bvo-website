@@ -445,9 +445,16 @@ _DEFAULT_ORDER.forEach(function(k) {
     <div class="hero-overlay" aria-hidden="true"></div>
     <% if (_hmImg) { %>
     <% var _hsHm = _heroSrcset(_hmImg); %>
-    <img class="hero-poster" src="<%= _hmImg %>"
-         <% if (_hsHm) { %>srcset="<%= _hsHm %>" sizes="100vw"<% } %>
-         alt="<%= _hmAlt %>" loading="eager" fetchpriority="high" decoding="async">
+    <%/* <picture> so ONLY phones download this. As a plain eager <img> it was
+         fetched on desktop too (display:none does not stop an eager image),
+         at the 1604w rung ~158KB, competing with the real desktop LCP image.
+         The <source> matches the 480px layer breakpoint above; wider screens
+         fall through to the 1x1 GIF and fetch nothing. */%>
+    <picture>
+      <source media="(max-width: 480px)" srcset="<%= _hsHm || _hmImg %>"<% if (_hsHm) { %> sizes="100vw"<% } %>>
+      <img class="hero-poster" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+           alt="<%= _hmAlt %>" loading="eager" fetchpriority="high" decoding="async">
+    </picture>
     <% } else { %>
     <div class="hero-img-placeholder" aria-hidden="true">
       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
