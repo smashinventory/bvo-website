@@ -28,7 +28,16 @@
       var _logoW    = parseInt(_navCfg.logo_width)  || 90;
       var _logoH    = parseInt(_navCfg.logo_height) || 90;
       var _logoAlt  = _navCfg.logo_alt    || ((S.global || {}).site_name || 'BathroomVanitiesOutlet.com') + ' logo';
+      /* Desktop display size. site.css fixes .nav-logo at 90x90 and .site-nav
+         at 106px tall, so the Width/Height fields only ever changed the HTML
+         attributes. From 861px up (the hamburger breakpoint) these now size
+         the logo, and the bar grows to fit it. Phones keep 90px on purpose. */
+      var _logoDW   = Math.min(Math.max(_logoW, 24), 400);
+      var _logoDH   = Math.min(Math.max(_logoH, 24), 400);
     %>
+    <% if (_logoDW !== 90 || _logoDH !== 90) { %>
+    <style>@media (min-width:861px){.nav-logo{width:<%= _logoDW %>px;height:<%= _logoDH %>px}.site-nav{height:<%= Math.max(106, _logoDH + 16) %>px}}</style>
+    <% } %>
     <a href="/" class="nav-logo-link" aria-label="<%= (S.global || {}).site_name || 'BathroomVanitiesOutlet.com' %> — Home">
       <%
         /* Use WebP if the logo is the default square PNG — fall back to original for custom logos */
