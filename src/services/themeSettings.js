@@ -66,10 +66,14 @@ const DEFAULTS = {
       // bar). Bare /collections/faucets stays the full catalogue on purpose
       // — it is the canonical URL and should surface every product.
       //
-      // product_type, NOT type. Both filter correctly, but the sidebar
-      // checkbox is name="product_type", and arriving on ?type= would show
-      // the shopper a filtered grid with every box unticked.
-      { label: 'Faucets',     url: '/collections/faucets?product_type=Bathroom+Faucets' },
+      // type, NOT product_type. Corrected 2026-09-22: the note that used to
+      // sit here had it backwards. The controller reads req.query.type only
+      // (collectionsController.js, both the mega-menu and the listing), and
+      // the sidebar checkbox is name="type" (collection.ejs). ?product_type=
+      // was silently ignored, so the nav landed on the UNFILTERED collection.
+      // Verified live: ?type=Bathroom+Faucets renders the active-filter chip,
+      // ?product_type= does not.
+      { label: 'Faucets',     url: '/collections/faucets?type=Bathroom+Faucets' },
       { label: 'Accessories', url: '/collections/accessories' },
       { label: 'Sale',        url: '/collections/sale', highlight: true },
     ],
