@@ -50,6 +50,7 @@ line — add one to the top of that file, under its H1, then reindex.
 | `docs/briefs/BVO_BRAND_ONBOARDING_PLAYBOOK.md` | Step-by-step playbook for adding a new brand to the catalogue. |
 | `docs/briefs/BVO_ISSUE1_BRIEF.md` | Rollout log for colorFamilies.js — the colour family buckets and normalisation. |
 | `docs/briefs/BVO_RFLPOS_SYNC_BRIEF.md` | Design brief for the BVO to RFLpos inventory sync. |
+| `docs/briefs/HOTLINKED_IMAGES_HANDOFF.md` | The 14 images served from hosts BVO does not control, where each one is edited, and the Bunny path to replace it with. Cutover blocker. |
 | `docs/briefs/SHIPPING_GAP_ANALYSIS.md` | Field-by-field gap analysis between the BVO shipping form and the SpeedShip API. |
 | `docs/briefs/SHIPPING_WWEX_BRIEF.md` | WWEX / SpeedShip V4 integration. Read before touching wwexService, shippingController or the shipping admin views. |
 | `docs/briefs/SHOPIFY_IMPORT_BRIEF.md` | Standing rules for importing the Shopify catalogue. |

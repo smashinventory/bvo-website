@@ -24,3 +24,24 @@ git_push_bundle_cache.sh
 git_push_migration_safety.sh
 git_push_verify_fixes.sh
 git_push_swatches_and_samples.sh
+
+# Editor/scratch copies kept on disk, never in git (2026-09-22 clean-up).
+# Every *.bak-<tag>-<timestamp> file is a hand-made snapshot from an earlier
+# edit; git already holds those versions. The -1 files are working copies of
+# a page or controller, NOT alternates the app loads — adding them once cost
+# a 1,171-line accidental commit.
+*.bak
+*.bak[0-9]
+*.bak-*
+*-1.ejs
+*-1.js
+
+# Admin password hash. Must never enter git.
+config/
+
+# Local scratch only: _to_delete is the holding pen for files this Mac
+# cannot rm, `instant` is stray gate-harness output, git_amend_*.sh is a
+# one-off history-repair script (git_push_*.sh is already ignored above).
+_to_delete/
+instant
+git_amend_*.sh
