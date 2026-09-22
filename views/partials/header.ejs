@@ -58,9 +58,22 @@
         >
       </picture>
       <% } else { %>
+      <%/* Bunny logo: offer a resized copy to 1x screens. The stored file is
+           512px for a 150px slot, so 1x downloads ~2.4x more than it shows.
+           2x deliberately points at the ORIGINAL rather than ?width=300 —
+           the resizer re-encodes, and at 300 the result measured 16KB
+           against the original's 11.4KB. x-descriptors, not w: the slot is a
+           fixed CSS size (150px desktop, 90px phones), not viewport-relative.
+           Only for our own host, and only when the URL carries no query of
+           its own. */%>
+      <% var _logoRaw = String(_logoSrc || ''), _logoSet = '';
+         if (_logoRaw.indexOf('images.bathroomvanitiesoutlet.com') !== -1 && _logoRaw.indexOf('?') === -1) {
+           _logoSet = _logoRaw + '?width=' + _logoDW + ' 1x, ' + _logoRaw + ' 2x';
+         } %>
       <img
         class="nav-logo"
         src="<%= _logoSrc %>"
+        <% if (_logoSet) { %>srcset="<%= _logoSet %>"<% } %>
         alt="<%= _logoAlt %>"
         width="<%= _logoW %>"
         height="<%= _logoH %>"
