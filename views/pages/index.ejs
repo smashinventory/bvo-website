@@ -259,25 +259,54 @@ _DEFAULT_ORDER.forEach(function(k) {
           hero.mobile_image_url      swaps this <img> at <=860px
           hero_mobile.image_url      swaps the whole layer at <=480px
         Both still work. See HERO_CURRENT_STATE_2026-09-13.md §6. */%>
+    <%/* This whole layer is display:none at <=480px whenever the phone layer
+         exists (hero_mobile enabled), but an eager <img> downloads anyway —
+         measured 2026-09-22: 44KB fetched on a phone that never shows it, and
+         it lands mid-LCP, competing with the phone hero for bandwidth on a
+         slow connection. So when the phone layer is on, each image here goes
+         in a <picture> whose <source> is min-width:481px; narrower screens
+         fall through to a 1x1 GIF and fetch nothing. When hero_mobile is OFF
+         this layer IS the phone hero, so it stays a plain <img>.
+         Mirror of the same treatment on the phone layer below. */%>
+    <% var _dkGate = (S.hero_mobile || {}).enabled !== false;
+       var _blankPx = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; %>
     <% if (hero.image_url) { %>
     <%/* fetchpriority: on desktop THIS tag is the LCP element, and it carried
          loading="eager" with no priority hint. The mobile layer already has one. */%>
-    <% var _hsDesk = _heroSrcset(hero.image_url); %>
+    <% var _hsDesk = _heroSrcset(hero.image_url);
+       var _dkAlt  = hero.image_alt || (S.global || {}).site_name || 'Bathroom Vanities Outlet - Quality Bath Vanity Cabinets and More'; %>
+    <% if (_dkGate) { %>
+    <picture>
+      <source media="(min-width: 481px)" srcset="<%= _hsDesk || hero.image_url %>"<% if (_hsDesk) { %> sizes="100vw"<% } %>>
+      <img class="hero-poster<%= hero.mobile_image_url ? ' hero-img-desktop' : '' %>"
+           fetchpriority="high" decoding="async" src="<%= _blankPx %>"
+           alt="<%= _dkAlt %>" loading="eager">
+    </picture>
+    <% } else { %>
     <img class="hero-poster<%= hero.mobile_image_url ? ' hero-img-desktop' : '' %>"
          fetchpriority="high" decoding="async"
          src="<%= hero.image_url %>"
          <% if (_hsDesk) { %>srcset="<%= _hsDesk %>" sizes="100vw"<% } %>
-         alt="<%= hero.image_alt || (S.global || {}).site_name || 'Bathroom Vanities Outlet - Quality Bath Vanity Cabinets and More' %>"
+         alt="<%= _dkAlt %>"
          loading="eager">
+    <% } %>
     <% } %>
     <%/* Mobile image — hidden on desktop, swaps in at ≤860px when set */%>
     <% if (hero.mobile_image_url) { %>
-    <% var _hsMob = _heroSrcset(hero.mobile_image_url); %>
+    <% var _hsMob = _heroSrcset(hero.mobile_image_url);
+       var _mbAlt = hero.mobile_image_alt || hero.image_alt || (S.global || {}).site_name || 'Bathroom Vanities Outlet - Quality Bath Vanity Cabinets and More'; %>
+    <% if (_dkGate) { %>
+    <picture>
+      <source media="(min-width: 481px)" srcset="<%= _hsMob || hero.mobile_image_url %>"<% if (_hsMob) { %> sizes="100vw"<% } %>>
+      <img class="hero-img-mobile" src="<%= _blankPx %>" alt="<%= _mbAlt %>" loading="eager" decoding="async">
+    </picture>
+    <% } else { %>
     <img class="hero-img-mobile"
          src="<%= hero.mobile_image_url %>"
          <% if (_hsMob) { %>srcset="<%= _hsMob %>" sizes="100vw"<% } %>
-         alt="<%= hero.mobile_image_alt || hero.image_alt || (S.global || {}).site_name || 'Bathroom Vanities Outlet - Quality Bath Vanity Cabinets and More' %>"
+         alt="<%= _mbAlt %>"
          loading="eager">
+    <% } %>
     <% } %>
     <%/* Video — only when video_url is set */%>
     <% if (hero.video_url) { %>
