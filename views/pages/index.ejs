@@ -425,7 +425,12 @@ _DEFAULT_ORDER.forEach(function(k) {
      numbers without testing the 481–519 band. */
   #hero-main .hero-layer--mobile{display:none}
   @media (max-width:480px){
-    #hero-main{<%= _hmStyle %>}
+    <%/* !important on every phone declaration: the desktop panel writes the
+         same properties as an inline style="" on #hero-main, and inline beats
+         any stylesheet rule without !important — so every phone field the
+         desktop panel also sets (padding, offsets, max width, colours, box
+         colour, heights) was silently ignored on phones. */%>
+    #hero-main{<%= _hmStyle.split(';').filter(Boolean).map(function (d) { return d + ' !important;'; }).join('') %>}
     #hero-main .hero-layer--desktop{display:none}
     #hero-main .hero-layer--mobile{display:block}
     <%- _hmLayoutCss %>
