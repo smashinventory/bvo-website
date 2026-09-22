@@ -1072,10 +1072,16 @@ _DEFAULT_ORDER.forEach(function(k) {
     <div class="vt-video-col">
       <div class="vt-video-embed">
         <% if (_vtIsYT && _vtYTId) { %>
-        <iframe src="https://www.youtube-nocookie.com/embed/<%= _vtYTId %>?rel=0&cc_load_policy=0&iv_load_policy=3&modestbranding=1"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-          allowfullscreen frameborder="0" loading="lazy" title="<%= _d.heading || 'Video' %>">
-        </iframe>
+        <%/* Facade: a thumbnail + play button. The YouTube player (~0.5–1MB,
+             plus its cookies) loads only when the shopper clicks. The
+             delegated handler at the end of this page swaps in the iframe. */%>
+        <button type="button" class="vt-yt-facade"
+                data-yt-src="https://www.youtube-nocookie.com/embed/<%= _vtYTId %>?rel=0&cc_load_policy=0&iv_load_policy=3&modestbranding=1&autoplay=1"
+                data-yt-title="<%= _d.heading || 'Video' %>"
+                aria-label="Play video<%= _d.heading ? ': ' + _d.heading : '' %>">
+          <img src="https://i.ytimg.com/vi/<%= _vtYTId %>/hqdefault.jpg" alt="" width="480" height="360" loading="lazy" decoding="async">
+          <span class="vt-yt-play" aria-hidden="true"><svg viewBox="0 0 68 48" width="68" height="48"><path d="M66.5 7.7c-.8-2.9-3-5.2-5.9-6C55.3.3 34 .3 34 .3S12.7.3 7.4 1.7c-2.9.8-5.1 3.1-5.9 6C.1 13 .1 24 .1 24s0 11 1.4 16.3c.8 2.9 3 5.2 5.9 6C12.7 47.7 34 47.7 34 47.7s21.3 0 26.6-1.4c2.9-.8 5.1-3.1 5.9-6C67.9 35 67.9 24 67.9 24s0-11-1.4-16.3z" fill="#212121" fill-opacity=".85"/><path d="M45 24 27 14v20z" fill="#fff"/></svg></span>
+        </button>
         <% } else { %>
         <video controls preload="metadata" title="<%= _d.heading || 'Video' %>">
           <source src="<%= _d.video_url %>" type="video/mp4">
@@ -1422,8 +1428,12 @@ _DEFAULT_ORDER.forEach(function(k) {
 /* ── Hero video — defer until after page paint to protect FCP ── */
 (function () {
   function initHeroVideo() {
-    /* YouTube iframe: inject src from data-src so it never blocks initial render */
-    var ytIframe = document.querySelector('.hero-video-iframe[data-hero-video="yt"]');
+    /* YouTube iframe: inject src from data-src so it never blocks initial render.
+       Only the layer that is actually on screen — the desktop and phone layers
+       each have their own iframe, and the hidden one must not load a video. */
+    var ytIframe = Array.prototype.filter.call(
+      document.querySelectorAll('.hero-video-iframe[data-hero-video="yt"]'),
+      function (f) { return f.getClientRects().length > 0; })[0];
     if (ytIframe && ytIframe.dataset.src) {
       ytIframe.addEventListener('load', function () {
         setTimeout(function () {
@@ -1445,12 +1455,51 @@ _DEFAULT_ORDER.forEach(function(k) {
     }
   }
   /* Wait until after the browser has painted the page */
-  if (document.readyState === 'complete') {
+  /* YouTube hero waits for the visitor's first scroll, tap, key or mouse
+     move (~1.7MB of YouTube player otherwise loads with the page). The hero
+     image shows until then. An MP4 hero is unaffected: it has no data-src. */
+  var _started = false;
+  var _evts = ['scroll', 'pointerdown', 'pointermove', 'keydown', 'touchstart', 'wheel'];
+  function startOnce() {
+    if (_started) return;
+    _started = true;
+    _evts.forEach(function (e) { window.removeEventListener(e, startOnce, { passive: true }); });
     initHeroVideo();
+  }
+  function arm() {
+    if (!document.querySelector('.hero-video-iframe[data-hero-video="yt"]')) { initHeroVideo(); return; }
+    _evts.forEach(function (e) { window.addEventListener(e, startOnce, { passive: true }); });
+  }
+  if (document.readyState === 'complete') {
+    arm();
   } else {
-    window.addEventListener('load', initHeroVideo);
+    window.addEventListener('load', arm);
   }
 }());
+</script>
+
+<style>
+  .vt-yt-facade{position:absolute;inset:0;width:100%;height:100%;padding:0;border:0;background:#000;cursor:pointer;display:block}
+  .vt-yt-facade img{width:100%;height:100%;object-fit:cover;display:block}
+  .vt-yt-play{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);line-height:0;transition:transform .15s}
+  .vt-yt-facade:hover .vt-yt-play,.vt-yt-facade:focus-visible .vt-yt-play{transform:translate(-50%,-50%) scale(1.08)}
+  .vt-yt-facade:hover .vt-yt-play path:first-child,.vt-yt-facade:focus-visible .vt-yt-play path:first-child{fill:#f00;fill-opacity:1}
+  .vt-yt-facade:focus-visible{outline:3px solid #fff;outline-offset:-6px}
+</style>
+<script nonce="<%= cspNonce %>">
+/* Video+Text facade: swap the thumbnail button for the real player on click. */
+document.addEventListener('click', function (e) {
+  var b = e.target.closest && e.target.closest('.vt-yt-facade');
+  if (!b) return;
+  var f = document.createElement('iframe');
+  f.src = b.getAttribute('data-yt-src');
+  f.title = b.getAttribute('data-yt-title') || 'Video';
+  f.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+  f.setAttribute('allowfullscreen', '');
+  f.setAttribute('frameborder', '0');
+  b.parentNode.replaceChild(f, b);
+  f.focus();
+});
 </script>
 
 <script nonce="<%= cspNonce %>">
