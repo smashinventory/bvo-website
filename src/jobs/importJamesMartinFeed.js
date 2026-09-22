@@ -25,7 +25,7 @@ const { bvoPool }                        = require('../config/database');
    priority order (admin mappings -> DUAL_BUCKET -> normalize) now lives in
    one place so two importers cannot drift apart on it — Rule 8. */
 const { resolveBuckets }                 = require('../config/colorFamilies');
-const { loadCdnMap, toBunnyUrl, newStats, logStats }
+const { loadCdnMap, toBunnyUrl, newStats, logStats, loadDocMap, toBunnyDocUrl }
                                          = require('../utils/cdnUrl');
 
 // ── BVO Style Map — maps JM raw Theme strings to BVO canonical buckets ─
@@ -458,13 +458,17 @@ async function replaceCerts(conn, productId, certs) {
   }
 }
 
-async function replaceDocs(conn, productId, docs) {
+/* Same host rewrite as replaceImages, for spec sheets and instructions.
+   Only files listed in doc_cdn_map move to Bunny; anything else keeps its
+   Salsify link. See toBunnyDocUrl() in src/utils/cdnUrl.js. */
+async function replaceDocs(conn, productId, docs, docMap) {
   await conn.query('DELETE FROM product_documents WHERE product_id = ?', [productId]);
   for (const doc of docs) {
     if (doc.url && doc.url.startsWith('http')) {
+      const url = toBunnyDocUrl(docMap, doc.url) || doc.url;
       await conn.query(
         'INSERT INTO product_documents (product_id, doc_type, url) VALUES (?, ?, ?)',
-        [productId, doc.doc_type, doc.url]
+        [productId, doc.doc_type, url]
       );
     }
   }
@@ -785,6 +789,8 @@ async function importFromWorkbook(wb, opts = {}) {
      per-image would be ~56,000 round trips. */
   const cdnMap   = dry ? new Map() : await loadCdnMap(conn);
   const imgStats = newStats();
+  /* 475 file names — spec sheets and instructions already copied to Bunny. */
+  const docMap   = dry ? new Set() : await loadDocMap(conn);
 
   try {
     for (const rawRow of rows) {
@@ -1217,7 +1223,7 @@ async function importFromWorkbook(wb, opts = {}) {
           { doc_type: 'component_spec_sheet',    url: clean(row['Component SPEC Sheet']) },
           { doc_type: 'assembly_instructions',   url: clean(row['Assembly Instructions']) },
           { doc_type: 'assembly_instructions_2', url: clean(row['Assembly Instructions_1']) },
-        ]);
+        ], docMap);
 
         // ── Component cross-references ────────────────────────────────
         const components = [
