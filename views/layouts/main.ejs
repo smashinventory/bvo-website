@@ -100,7 +100,7 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   <script nonce="<%= cspNonce %>">(function(l){if(!l)return;l.addEventListener('load',function(){l.rel='stylesheet';});})(document.getElementById('gf-css'));</script>
   <noscript><link href="<%- _gfUrl %>" rel="stylesheet"></noscript>
 
-  <!-- CSS bundle: brand.css + site.css + site2.css concatenated into one file.
+  <%# CSS bundle: brand.css + site.css + site2.css concatenated into one file.
        One blocking request instead of three — eliminates 2 extra HTTP round trips on critical path.
        SOURCE FILES: public/css/brand.css, site.css, site2.css (edit these, then rebuild).
        REBUILD: DO NOT run a plain `cat brand.css site.css site2.css`.
@@ -129,12 +129,21 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
        of the bundle and told you to cat it in. That is WRONG. site4.css is
        ADMIN-ONLY and is loaded separately by views/layouts/admin.ejs. Adding
        it here ships ~23KB of admin CSS to every public visitor and grows the
-       bundle from 121KB to 137KB for no benefit. Do not add it. -->
+       bundle from 121KB to 137KB for no benefit. Do not add it. %>
   <link rel="stylesheet" href="/css/site-bundle.css?v=14">
-  <!-- site3.css: Trust signals, checkout, CMS pages, blog, inspiration guides -->
-  <!-- Loaded conditionally per-page via <%- style %> slot — not global (perf: saves 37KB blocking CSS on homepage/collections/products) -->
+  <%# site3.css: Trust signals, checkout, CMS pages, blog, inspiration guides.
+      Loaded conditionally per-page via the `style` slot below, not globally
+      (perf: saves 37KB blocking CSS on homepage/collections/products).
 
-  <!-- Design tokens: CSS var aliases resolved before external CSS (prevents cascade gaps) -->
+      THIS WAS AN HTML COMMENT UNTIL 2026-09-23 AND IT CONTAINED A LIVE EJS
+      TAG. EJS does not know what an HTML comment is, so the tag was
+      evaluated here as well as in its real slot, and the entire extracted
+      style payload -- the site3 link, all three hero preloads and every
+      inline <style> block, 6933 bytes -- shipped twice on every page.
+      Measured in the served HTML: two copies at a constant 8417-byte
+      offset. Do not write an EJS tag inside a comment; use an EJS comment. %>
+
+  <%# Design tokens: CSS var aliases resolved before external CSS (prevents cascade gaps) %>
   <style>
     :root {
       /* Brand palette — editable in Admin > Theme */
