@@ -155,7 +155,7 @@ _DEFAULT_ORDER.forEach(function(k) {
 %>
 <% if (_visClass) { %><div class="<%= _visClass %>"><% } %>
 
-<!-- ── SCROLLING TICKER ──────────────────────────────────────────── -->
+<%# ── SCROLLING TICKER ──────────────────────────────────────────── %>
 <% if (sectionKey === 'scrolling_ticker' && tick.enabled !== false && tick.items && tick.items.length) { %>
 <%
   var _tickStyle = '';
@@ -173,7 +173,7 @@ _DEFAULT_ORDER.forEach(function(k) {
 </div>
 <% } /* end scrolling_ticker */ %>
 
-<!-- ── HERO ──────────────────────────────────────────────────────── -->
+<%# ── HERO ──────────────────────────────────────────────────────── %>
 <% if (sectionKey === 'hero') { %>
 <%
   var _heroTag    = _safeTag(hero.heading_level, 'h1');
@@ -333,7 +333,7 @@ _DEFAULT_ORDER.forEach(function(k) {
     <% } %>
   </div>
 
-<!-- ── PHONE OVERRIDE LAYER (≤480px) — same section, no second heading ── -->
+<%# ── PHONE OVERRIDE LAYER (≤480px) — same section, no second heading ── %>
 <%
   /* ── The phone hero, as an override layer ──────────────────────
      Every value below used to build a SECOND <section> containing a second
@@ -725,7 +725,7 @@ _DEFAULT_ORDER.forEach(function(k) {
 <% } /* end phone layer */ %>
 </section>
 
-<!-- ── VALUE PROPS (always follows hero) ────────────────────────── -->
+<%# ── VALUE PROPS (always follows hero) ────────────────────────── %>
 <div class="value-bar" aria-label="Why shop with us">
   <div class="value-item">
     <svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
@@ -746,7 +746,7 @@ _DEFAULT_ORDER.forEach(function(k) {
 </div>
 <% } /* end hero */ %>
 
-<!-- ── BRAND LOGOS ───────────────────────────────────────────────── -->
+<%# ── BRAND LOGOS ───────────────────────────────────────────────── %>
 <% if (sectionKey === 'brand_logos' && bl.enabled !== false && bl.logos && bl.logos.length) { %>
 <section class="brand-logos-section" data-section="brand_logos" data-section-label="Brand Logos" aria-label="Brands we carry">
   <% if (bl.eyebrow) { %><p class="brand-logos-eyebrow"><%= bl.eyebrow %></p><% } %>
@@ -765,7 +765,7 @@ _DEFAULT_ORDER.forEach(function(k) {
 </section>
 <% } /* end brand_logos */ %>
 
-<!-- ── CATEGORY CAROUSEL ──────────────────────────────────────────── -->
+<%# ── CATEGORY CAROUSEL ──────────────────────────────────────────── %>
 <%
 /* _baseKey, not sectionKey — an exact-match on 'categories_section' meant a
    duplicated categories_section_2 sat in the order rendering nothing at
@@ -843,7 +843,7 @@ _DEFAULT_ORDER.forEach(function(k) {
 </section>
 <% } /* end categories_section */ %>
 
-<!-- ── FEATURED PRODUCTS ─────────────────────────────────────────── -->
+<%# ── FEATURED PRODUCTS ─────────────────────────────────────────── %>
 <%
 /* Per-slot: _d is this slot's settings, _rows is this slot's OWN products.
    Both copies used to read the single module-scope `fs_` and the single
@@ -1036,7 +1036,7 @@ _DEFAULT_ORDER.forEach(function(k) {
 <% } /* end _fsRows.length */ %>
 <% } /* end featured_section */ %>
 
-<!-- ── FEATURED MODELS ───────────────────────────────────────────── -->
+<%# ── FEATURED MODELS ───────────────────────────────────────────── %>
 <%
 /* Per-slot, same conversion as the two sections above. `_carouselModels`
    comes from sectionData[sectionKey] so a JM band and an ER band each hold
@@ -1235,7 +1235,7 @@ _DEFAULT_ORDER.forEach(function(k) {
 <% } /* end _carouselModels.length */ %>
 <% } /* end featured_models */ %>
 
-<!-- ── INSPIRATION GUIDES ────────────────────────────────────────── -->
+<%# ── INSPIRATION GUIDES ────────────────────────────────────────── %>
 <% if (sectionKey === 'inspiration' && typeof inspirationPages !== 'undefined' && inspirationPages && inspirationPages.length) { %>
 <section class="hp-inspo" id="inspiration-section" data-section="inspiration" data-section-label="Style Guides">
   <div class="hp-inspo-inner">
@@ -1274,8 +1274,8 @@ _DEFAULT_ORDER.forEach(function(k) {
 </section>
 <% } /* end inspiration */ %>
 
-<!-- ── IMAGE WITH TEXT ───────────────────────────────────────────── -->
-<!-- ── IMAGE WITH TEXT (any copy) ────────────────────────────────── -->
+<%# ── IMAGE WITH TEXT ───────────────────────────────────────────── %>
+<%# ── IMAGE WITH TEXT (any copy) ────────────────────────────────── %>
 <% if (_baseKey === 'image_with_text' && _d.enabled !== false) { %>
 <%
   var _iwtTag       = _safeTag(_d.heading_level, 'h2');
@@ -1311,7 +1311,7 @@ _DEFAULT_ORDER.forEach(function(k) {
 </section>
 <% } /* end image_with_text */ %>
 
-<!-- ── VIDEO + TEXT (any copy) ───────────────────────────────────── -->
+<%# ── VIDEO + TEXT (any copy) ───────────────────────────────────── %>
 <% if (_baseKey === 'video_text' && _d.enabled !== false && _d.video_url) { %>
 <%
   var _vtTag   = _safeTag(_d.heading_level, 'h2');
@@ -1352,7 +1352,7 @@ _DEFAULT_ORDER.forEach(function(k) {
 </section>
 <% } /* end video_text */ %>
 
-<!-- ── BEFORE / AFTER (any copy) ─────────────────────────────────── -->
+<%# ── BEFORE / AFTER (any copy) ─────────────────────────────────── %>
 <% if (_baseKey === 'before_after' && _d.enabled !== false) { %>
 <%
   var _baTag     = _safeTag(_d.heading_level, 'h2');
@@ -1401,7 +1401,7 @@ _DEFAULT_ORDER.forEach(function(k) {
 <% } %>
 <% } /* end before_after */ %>
 
-<!-- ── TRUST BAND (any copy) ─────────────────────────────────────── -->
+<%# ── TRUST BAND (any copy) ─────────────────────────────────────── %>
 <% if (_baseKey === 'trust_band' && _d.enabled !== false) { %>
 <%
   var _tbStyle = '';
@@ -1425,7 +1425,7 @@ _DEFAULT_ORDER.forEach(function(k) {
 </section>
 <% } /* end trust_band */ %>
 
-<!-- ── PARALLAX BAND (any copy) ──────────────────────────────────── -->
+<%# ── PARALLAX BAND (any copy) ──────────────────────────────────── %>
 <% if (_baseKey === 'parallax' && _d.enabled !== false) { %>
 <%
   var _parTag   = _safeTag(_d.heading_level, 'h2');
@@ -1451,7 +1451,7 @@ _DEFAULT_ORDER.forEach(function(k) {
 </section>
 <% } /* end parallax */ %>
 
-<!-- ── TESTIMONIALS (any copy) ────────────────────────────────────── -->
+<%# ── TESTIMONIALS (any copy) ────────────────────────────────────── %>
 <%
   /* Count items with actual review text, not just items.
      The guard here used to be `_d.items.length`, which asks whether the
@@ -1517,7 +1517,7 @@ _DEFAULT_ORDER.forEach(function(k) {
 </section>
 <% } /* end testimonials */ %>
 
-<!-- ── BUNDLE TEASER ──────────────────────────────────────────────── -->
+<%# ── BUNDLE TEASER ──────────────────────────────────────────────── %>
 <% if (sectionKey === 'bundle_teaser' && bt_.enabled !== false) { %>
 <section class="section bundle-teaser-section" data-section="bundle_teaser" data-section-label="Bundle Builder Teaser" aria-labelledby="bt-heading">
   <div class="section-header" style="text-align:center">
@@ -1616,7 +1616,7 @@ _DEFAULT_ORDER.forEach(function(k) {
 </section>
 <% } /* end bundle_teaser */ %>
 
-<!-- ── NEWSLETTER ─────────────────────────────────────────────────── -->
+<%# ── NEWSLETTER ─────────────────────────────────────────────────── %>
 <% if (sectionKey === 'newsletter' && news.enabled !== false) { %>
 <section class="newsletter-section" data-section="newsletter" data-section-label="Newsletter" aria-labelledby="news-heading">
   <div class="newsletter-inner">
@@ -1644,7 +1644,7 @@ _DEFAULT_ORDER.forEach(function(k) {
 <% if (_visClass) { %></div><% } %>
 <% }); /* end _sectionOrder.forEach */ %>
 
-<!-- ── THEME EDITOR INTEGRATION — click-to-edit + section scroll ──── -->
+<%# ── THEME EDITOR INTEGRATION — click-to-edit + section scroll ──── %>
 <style>
   /* Only active inside the theme editor preview iframe */
   body.te4-preview-mode [data-section] {
