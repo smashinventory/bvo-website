@@ -51,6 +51,7 @@ line — add one to the top of that file, under its H1, then reindex.
 | `docs/briefs/BVO_ISSUE1_BRIEF.md` | Rollout log for colorFamilies.js — the colour family buckets and normalisation. |
 | `docs/briefs/BVO_RFLPOS_SYNC_BRIEF.md` | Design brief for the BVO to RFLpos inventory sync. |
 | `docs/briefs/HOTLINKED_IMAGES_HANDOFF.md` | Which images are still served from hosts BVO does not control. The original list of 14 is mostly closed; the problem has recurred with new entries. Cutover blocker. |
+| `docs/briefs/REVERT_NOTES_2026-09-23.md` | Everything shipped today, newest first, with the exact command to undo each |
 | `docs/briefs/SHIPPING_GAP_ANALYSIS.md` | Field-by-field gap analysis between the BVO shipping form and the SpeedShip API. |
 | `docs/briefs/SHIPPING_WWEX_BRIEF.md` | WWEX / SpeedShip V4 integration. Read before touching wwexService, shippingController or the shipping admin views. |
 | `docs/briefs/SHOPIFY_IMPORT_BRIEF.md` | Standing rules for importing the Shopify catalogue. |
