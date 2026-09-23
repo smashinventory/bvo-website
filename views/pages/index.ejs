@@ -1619,13 +1619,71 @@ _DEFAULT_ORDER.forEach(function(k) {
      used for RATIO only — CSS sets width:100%;max-width:380px;height:auto
      — so '380x285' and '4:3' reserve the same box. */
   var _iwtBox       = _heroBox(_d.image_url, _d.image_aspect) || { w: 380, h: 285 };
+  /* The alignment control reached the text column and nothing else, so it
+     PARTIALLY applied: copy centred, picture still hard left. Measured live
+     2026-09-23 at 650px, Alignment already set to Center:
+
+         .iwt-text-col    text-align: center     obeys the control
+         .iwt-image-col   text-align: start      ignores it
+         .iwt-img         x=26  w=220  in a 598px column   pinned left
+
+     .iwt-img is display:block with margin:0 (site-bundle.css), and a block
+     box does not respond to text-align at all — only to auto margins. So
+     the fix is margins on the image, not alignment on its column.
+
+     Done inline rather than in CSS on purpose: site-bundle.css cannot be
+     regenerated (OPEN_ITEMS 11), and this has to track a per-section
+     setting the owner changes, which is exactly what a stylesheet cannot
+     do. Nothing is hardcoded — it reads the same _iwtTextAlign the text
+     does, so the two can never disagree again.
+
+     Overlay mode is excluded for the same reason the text is: that layout
+     centres everything regardless. */
+  var _iwtImgStyle  = '';
+  if (!_iwtIsOverlay) {
+    if (_iwtTextAlign === 'center')     _iwtImgStyle = 'margin-left:auto;margin-right:auto';
+    else if (_iwtTextAlign === 'right') _iwtImgStyle = 'margin-left:auto;margin-right:0';
+  }
+  /* THE CONTAINER, not the file. Same fix as the hero grid row.
+
+     width/height attributes only set a DEFAULT aspect ratio: the browser
+     uses them until the bytes arrive, then defers to the file's intrinsic
+     ratio and re-lays out. So a 4:3 reservation for a 1:1 logo shifts by
+     the difference no matter how carefully the attributes are written —
+     that is the 98px drop and the 0.0410 shift.
+
+     A CSS aspect-ratio does NOT defer. It overrides the intrinsic ratio
+     outright, so the box is fixed before the image loads and stays fixed
+     after. Exactly the lesson from the hero's 1x1 GIF, in reverse: there
+     the intrinsic ratio beat the attributes and broke the box; here we
+     use that same precedence deliberately to hold it.
+
+     object-fit:contain is what makes this safe when the stated shape is
+     wrong. The picture letterboxes inside the reserved box instead of
+     resizing it — smaller, never cropped, and NEVER a shift. With the
+     shape stated correctly there is no letterbox at all, so the Image
+     shape field stops being required and becomes a refinement.
+
+     height:auto is dropped on purpose: it and aspect-ratio fight, and
+     site-bundle.css sets it on .iwt-img.
+
+     OVERLAY IS EXCLUDED. In that layout the picture is the backdrop with
+     the copy over it, sized by .iwt-overlay-mode rather than by this box.
+     I have not measured a shift there and the live section is not in that
+     mode, so forcing a ratio onto it would be changing something I have
+     not looked at. G2 fails if it leaks in. */
+  if (!_iwtIsOverlay) {
+    var _iwtImgBoxCss = 'aspect-ratio:' + _iwtBox.w + '/' + _iwtBox.h
+                      + ';object-fit:contain;height:auto';
+    _iwtImgStyle = _iwtImgStyle ? (_iwtImgStyle + ';' + _iwtImgBoxCss) : _iwtImgBoxCss;
+  }
 %>
 <section class="section iwt-section" data-section="<%= sectionKey %>" data-section-label="Image with Text" aria-labelledby="iwt-heading-<%= sectionKey %>">
   <div class="container">
     <div class="<%= _iwtGridCls %>">
       <div class="iwt-image-col"<%= !_iwtIsOverlay ? ' style="flex:0 0 '+_iwtImgW+'; max-width:'+_iwtImgW+'"' : '' %>>
         <% if (_d.image_url) { %>
-        <img src="<%= _d.image_url %>" alt="<%= _d.image_alt || '' %>" loading="lazy" class="iwt-img" width="<%= _iwtBox.w %>" height="<%= _iwtBox.h %>">
+        <img src="<%= _d.image_url %>" alt="<%= _d.image_alt || '' %>" loading="lazy" class="iwt-img" width="<%= _iwtBox.w %>" height="<%= _iwtBox.h %>"<% if (_iwtImgStyle) { %> style="<%= _iwtImgStyle %>"<% } %>>
         <% } %>
       </div>
       <div class="iwt-text-col" style="text-align:<%= _iwtIsOverlay ? 'center' : _iwtTextAlign %>">

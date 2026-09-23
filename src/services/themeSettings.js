@@ -399,6 +399,13 @@ const DEFAULTS = {
        fix is opt-in per section. Same idea and same format as
        hero_mobile.image_aspect. */
     image_aspect: '',
+    /* The Theme Editor has always posted this (teAlignment, theme.ejs), and
+       deepMerge keeps posted keys whether or not they have a default — so
+       the control worked. It had no DEFAULT though, which meant the
+       shipped-state alignment lived only in a `|| 'left'` literal in
+       index.ejs. Recording it here makes the default a fact in one place
+       instead of two. Same gap as hero.text_align, OPEN_ITEMS 12. */
+    text_align: 'left',
     image_position: 'left',
     eyebrow: 'Why Choose Us',
     heading: 'The Bathroom Renovation Experts',
