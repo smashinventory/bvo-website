@@ -1039,7 +1039,16 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
               <select name="hero_mobile.layout" class="te4-select">
                 <option value="bg"    <%=(hm2.layout||'bg')==='bg'   ?'selected':''%>>Background — image behind text (recommended for mobile)</option>
                 <option value="split" <%=hm2.layout==='split'         ?'selected':''%>>Split — text beside image</option>
+                <option value="stacked" <%=hm2.layout==='stacked'     ?'selected':''%>>Stacked — image on top, text below it</option>
               </select>
+            </div>
+            <div class="te4-hint" style="margin-bottom:.75rem">
+              Stacked shows the photo uncovered and puts the copy underneath it.
+              The overlay and its gradient are switched off in this mode — nothing
+              sits over the photo for them to darken. The image keeps its own shape,
+              so crop it in the image URL (Bunny accepts <code>?crop=W,H,X,Y</code>)
+              rather than expecting a fixed ratio here. Text shadow still follows
+              your setting below; over a light background you will usually want it off.
             </div>
             <%- teAlignment('hero_mobile.text_align',hm2.text_align||'center') %>
 

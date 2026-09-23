@@ -392,6 +392,56 @@ _DEFAULT_ORDER.forEach(function(k) {
         'justify-content:flex-start!important;padding:0 5% 0 var(--content-h-offset,5%)!important}' +
       '#hero-main .hero-image{grid-row:1;grid-column:1;position:absolute!important;inset:0!important;z-index:0}';
   }
+  /* ── 'stacked' — photo in row 1, copy in row 2, nothing overlapping ──
+     The other two layouts put the copy ON the image. This one puts it
+     under, so the photo is never covered and the copy never needs a scrim
+     to be readable.
+
+     Three things are switched off because in this layout they have no job,
+     not because a setting is being overruled:
+
+       .hero-overlay        exists to darken the photo UNDER the copy
+       .hero-image::after   a bottom gradient, same purpose
+       height / min-height  the section sizes to its two rows instead
+
+     Everything that is still a real choice is left to the editor. The
+     content box keeps --content-box-bg, side padding keeps
+     --content-h-offset, and hero_mobile.text_shadow is respected exactly
+     as set — a shadow over cream looks muddy, but that is one tick in the
+     Theme Editor and not something to hardcode away here.
+
+     NO ASPECT RATIO IS SET. height:auto on the image plus object-fit:contain
+     means the shape comes from whatever crop the image URL asks Bunny for
+     (?crop=W,H,X,Y). Pin a ratio here and it fights the URL silently.
+
+     content_v_offset is neutralised: it shifts the copy vertically WITHIN
+     the image, and here the copy has its own row.
+
+     EMITTED AT <=860, NOT <=480 — which is why it is its own variable and
+     not part of _hmLayoutCss. _hmLayoutCss goes into the phone-only block;
+     this has to reach the tablet band too.
+
+     Consequence worth knowing: between 481 and 860 the phone image layer is
+     hidden (.hero-layer--mobile) AND its <picture><source> is capped at
+     480px, so the element stacked in that band is the DESKTOP .hero-image
+     carrying hero.image_url. hero_mobile.image_url — and therefore any
+     ?crop= on it — applies at <=480 only. Both are matched by the
+     #hero-main .hero-image selectors below, so both stack correctly; they
+     just show different pictures. */
+  var _hmStackCss = '';
+  if (_hmEna && _hmLayout === 'stacked') {
+    _hmStackCss =
+      '#hero-main{grid-template-columns:1fr!important;grid-template-rows:auto auto!important;' +
+        'height:auto!important;min-height:0!important;max-height:none!important}' +
+      '#hero-main .hero-image{grid-row:1;grid-column:1;position:relative!important;' +
+        'inset:auto!important;z-index:0;width:100%;height:auto!important}' +
+      '#hero-main .hero-image img{height:auto!important;object-fit:contain!important}' +
+      '#hero-main .hero-image::after{display:none!important}' +
+      '#hero-main .hero-overlay{display:none!important}' +
+      '#hero-main .hero-content{grid-row:2;grid-column:1;position:relative!important;' +
+        'z-index:2!important;display:block!important;transform:none!important;' +
+        'padding:var(--content-box-pad,28px) var(--content-h-offset,5%)!important}';
+  }
   /* Font sizes need !important: the desktop values are INLINE styles on each
      element, and an inline style beats a media-query rule of any specificity.
      Without it the phone type sizes silently stop applying. */
@@ -570,6 +620,11 @@ _DEFAULT_ORDER.forEach(function(k) {
   @media (max-width:860px){
     #hero-main .hero-content{text-align:<%= _hmAlign %>!important}
     <% if (_hmCtaAl) { %>#hero-main .hero-ctas{<%= _hmCtaAl %>!important}<% } %>
+    <%/* The stacked layout also lives at <=860, per the same reasoning: the
+         481-860 band is a phone-shaped viewport and wants the same one-column
+         treatment. Emitted after the alignment rules so the padding override
+         below wins over nothing — they touch different properties. */%>
+    <%- _hmStackCss %>
   }
 </style>
 <%/* The phone background layer. Same section, no heading, no CTAs — those

@@ -171,6 +171,13 @@ const DEFAULTS = {
     // Background video (optional)
     video_url:           '',
     // Layout
+    /* 'bg'      image behind the copy, scrim between them
+       'split'   copy beside the image
+       'stacked' image on top, copy in its own row below it — nothing
+                 overlaps, so the overlay and its gradient are switched
+                 off. The image keeps its natural shape; crop it in
+                 image_url (Bunny: ?crop=W,H,X,Y), not with a ratio here.
+                 Added 2026-09-23. */
     layout:              'bg',
     text_col_pct:        50,
     text_align:          'center',

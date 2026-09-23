@@ -1,7 +1,7 @@
 # BVO Change Log Brief
 
 > The running log of every change, with dates and reasons. Search here first when asking when something broke.
-*Last updated: 2026-09-16*
+*Last updated: 2026-09-23*
 
 > **⚠️ This file had a one-month hole.** It stopped at 2026-08-10 while roughly
 > seventy tasks shipped — the whole order-management and fulfilment stack, the
@@ -16,6 +16,70 @@
 >
 > **Companion reference:** `BVO_AUDIT_BRIEF.md` → *LIVE DATABASE INVENTORY* —
 > all 41 live tables, and which 16 of them have no migration file.
+
+---
+
+## Mobile Hero — alignment consolidated, and a `stacked` layout added
+**Date:** 2026-09-23
+**Commits:** `cb8c24c` (alignment), this one (stacked)
+
+### Two alignment settings, neither working
+
+Measured live at 375px before any change:
+
+```
+.hero-content   text-align:      left
+.hero-ctas      justify-content: center
+```
+
+Copy left, buttons centred, on every phone. `hero.text_align_mobile` wrote
+`--hero-mobile-align` onto `.hero` — but `.hero-ctas` is flex and
+`text-align` cannot move flex items. `hero_mobile.text_align` wrote
+`#hero-main .hero-content{text-align:…}` with no `!important` — but
+`.hero-content` carries an **inline** `text-align` from the desktop value,
+which beats any non-important rule. Its CTA rule landed because
+`.hero-ctas` has no inline style. That asymmetry *was* the bug.
+
+Kept `hero_mobile.text_align`, retired the other. Added `!important` so it
+beats the inline style, widened the band from 480 to 860, and moved the
+rule outside the `_hmEna` gate so it still applies with the mobile hero
+switched off. Verified live at 375/500/800 — headline, `.hero-rule` and CTA
+row share a centre to the pixel; 1280 unchanged.
+
+`.hero-rule` needed no code. Already `display:inline-block` inside
+`.hero-content`, already `var(--hero-eyebrow, var(--color-sage,#5a7a5a))`,
+so it follows alignment and colour for free.
+
+### `hero_mobile.layout = 'stacked'`
+
+Third option beside `bg` and `split`: image in grid row 1, copy in row 2,
+nothing overlapping. Also emitted at ≤860.
+
+Switched off in this mode because they have no job when nothing sits over
+the photo — `.hero-overlay`, `.hero-image::after`'s bottom gradient, and
+the fixed section height. **Not** switched off: the content box colour,
+`--content-h-offset`, and `hero_mobile.text_shadow`, all of which remain
+exactly as the editor sets them. A shadow over a light background looks
+muddy; that is one tick in the Theme Editor, not something to hardcode.
+
+**No aspect ratio is set in code.** `height:auto` plus
+`object-fit:contain` means the shape comes from whatever crop the image URL
+requests. Bunny Optimizer honours `?crop=W,H,X,Y` on the existing object —
+verified against the live CDN, distinct SHA-256 per X offset, and
+`crop_gravity=center` proved byte-identical to `x=222` while the hero's
+axis of symmetry is at `x=342`. That 120px is why centre-gravity crops of
+this image look off-balance.
+
+**Band caveat:** between 481 and 860 the phone image layer is hidden and its
+`<picture><source>` is capped at 480px, so the element being stacked there
+is the *desktop* `.hero-image`. `hero_mobile.image_url` and any `?crop=` on
+it apply at ≤480 only.
+
+### Also
+
+`main.ejs` documented a `site-bundle.css` rebuild recipe that does not
+reproduce the file on disk — 4,917 bytes unaccounted for. Measured, flagged
+in place, logged as OPEN_ITEMS item 11. Not fixed; needs a decision.
 
 ---
 

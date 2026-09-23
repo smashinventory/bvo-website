@@ -323,7 +323,84 @@ Loading the map is a single read and harmless in a dry run.
 
 ---
 
+### 11. The `site-bundle.css` rebuild recipe does not reproduce the file
+*Logged 2026-09-23 · measured, not fixed*
+
+`views/layouts/main.ejs` documents how to rebuild the public stylesheet:
+
+```
+cat brand.css site.css site2.css > site-bundle.css
+head -c N site4.css >> site-bundle.css
+```
+
+**It does not produce the file that is on disk.** Measured 2026-09-23:
+
+| | |
+|---|---|
+| `site-bundle.css` | 127,404 bytes |
+| `site4.css` head embedded in it | 7,984 bytes, starting at offset 114,503 |
+| bytes following that, unexplained | **4,917** |
+
+Run the recipe as written and those 4,917 bytes are lost from every public
+page. Nobody knows what they are — they are not accounted for by any of the
+four named source files.
+
+This predates the 2026-09-23 alignment change (it was 8,043 / 4,917 before;
+that commit removed 59 bytes from inside the embedded prefix). The stale
+byte count in `main.ejs` has been replaced with these measured figures and
+a warning not to run the recipe.
+
+**Consequence today:** the two sheets must be patched by hand, in lockstep,
+with the identical edit — which is what `git_push_hero_align_consolidate.sh`
+did, and what its G4 gate enforces. That works but it is a manual invariant
+with no build step behind it.
+
+**Needs a decision, not a guess:** identify the 4,917-byte tail, then either
+correct the recipe or replace it with a real build script. Whoever last
+built the bundle knows what went in after the `site4.css` slice; the file
+history may not.
+
+---
+
 ## Resolved
+
+### Mobile hero alignment had two settings and neither worked
+*Logged and resolved 2026-09-23 · commit `cb8c24c`*
+
+Two Theme Editor controls governed one fact, and the pair produced a visible
+split. Measured on the live page at 375px before the fix:
+
+```
+.hero-content   text-align:      left
+.hero-ctas      justify-content: center
+```
+
+Copy left, buttons centred, on every phone. Each control was half-broken:
+
+- **`hero.text_align_mobile`** wrote `--hero-mobile-align` onto `.hero`, read
+  by `.hero{text-align:…!important}` at ≤860. `.hero-ctas` is flex, and
+  `text-align` does not move flex items — so it could never move the buttons.
+- **`hero_mobile.text_align`** wrote `#hero-main .hero-content{text-align:…}`
+  at ≤480 with no `!important`. `.hero-content` carries an **inline**
+  `style="text-align:left"` from the desktop value, and inline beats any
+  stylesheet rule that is not `!important` — so its text rule never applied.
+  Its sibling CTA rule *did* apply, because `.hero-ctas` has no inline style.
+  That asymmetry is the whole bug.
+
+Kept `hero_mobile.text_align`: it moves the CTA row as well as the copy, its
+control is the three-button `teAlignment()` group rather than a bare select,
+and it sits in the Mobile Hero panel with the other mobile settings. Carried
+over the only advantages the retired one had — the band is now ≤860 rather
+than ≤480, and the rule sits outside the `_hmEna` gate so it still applies
+with the mobile hero disabled.
+
+Verified live at four widths after deploy; headline, `.hero-rule` divider and
+CTA row share a centre to the pixel at 375/500/800, and desktop at 1280 is
+unchanged.
+
+`.hero-rule` needed no code: already `display:inline-block` inside
+`.hero-content`, already `var(--hero-eyebrow, var(--color-sage,#5a7a5a))`, so
+it follows both the alignment and the colour setting for free.
 
 ### Footer rendered every link twice
 *Found and fixed 2026-09-13 · migration 027*
