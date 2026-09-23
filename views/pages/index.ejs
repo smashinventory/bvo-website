@@ -439,6 +439,72 @@ _DEFAULT_ORDER.forEach(function(k) {
   var _hmVid   = _hm.video_url     || '';
   var _hmShad  = (_hm.text_shadow !== false);
 %>
+<%/* ══════════════════════════════════════════════════════════════════
+     LCP PRELOAD — the hero image, requested from <head> instead of from
+     the middle of the body.
+
+     WHY
+
+     Measured on production 2026-09-23: TTFB landed, then nothing was
+     requested for ~490 ms, and the hero — the LCP element — did not start
+     until ~677 ms. Nothing was slow. The browser simply did not know the
+     image existed until the parser reached the <picture> below, behind
+     264 KB of HTML and two render-blocking stylesheets. fetchpriority on
+     the <img> does not help with that: it ranks a request that has not
+     been discovered yet.
+
+     WHY IT CAN LIVE HERE RATHER THAN IN THE LAYOUT
+
+     server.js sets `layout extractStyles`, and express-ejs-layouts'
+     extractor (lib/express-layouts.js:36) matches ANY <link ...>, not only
+     rel=stylesheet. So these are lifted out of the body and emitted at the
+     `style` slot in main.ejs line 168, which sits inside <head>. That keeps
+     the srcset ladder in ONE place — recomputed from _heroSrcset() right
+     here — instead of duplicating it into the controller or the layout.
+
+     ⚠ THE MEDIA QUERIES MUST MATCH THE THREE LAYERS EXACTLY
+
+     A preload whose media does not match what the page shows downloads a
+     file the visitor never sees. That has already happened twice on this
+     hero — see the comments at the desktop layer and the phone layer, both
+     recording eager <img> tags that fetched on viewports where they were
+     display:none. A mismatched preload is the same waste, moved earlier.
+
+     What each viewport actually renders:
+
+       <= 480px   .hero-layer--mobile   _hmImg                (when _hmEna)
+       481-860    .hero-img-mobile      hero.mobile_image_url (CSS swap)
+       >= 861     .hero-img-desktop     hero.image_url
+
+     When mobile_image_url is unset the middle and top bands resolve to the
+     same file, so the second and third links carry the same href. Only one
+     media query can match, so the browser still fetches once.
+
+     imagesizes MUST stay "100vw" to match the sizes= on every <source>. If
+     they disagree the browser picks a different rung for the preload than
+     for the image, and the page downloads the hero twice. */%>
+<%
+  /* Recomputed, not reused: _hsDesk/_hsMob are assigned further down the
+     template and are still undefined at this point. */
+  var _plPhone   = _hmEna ? _hmImg : '';
+  var _plMid     = hero.mobile_image_url || hero.image_url || '';
+  var _plWide    = hero.image_url || '';
+  var _plPhoneSs = _heroSrcset(_plPhone);
+  var _plMidSs   = _heroSrcset(_plMid);
+  var _plWideSs  = _heroSrcset(_plWide);
+%>
+<% if (_plPhone) { %>
+<link rel="preload" as="image" fetchpriority="high" media="(max-width: 480px)"
+      href="<%= _plPhone %>"<% if (_plPhoneSs) { %> imagesrcset="<%= _plPhoneSs %>" imagesizes="100vw"<% } %>>
+<% } %>
+<% if (_plMid) { %>
+<link rel="preload" as="image" fetchpriority="high" media="(min-width: 481px) and (max-width: 860px)"
+      href="<%= _plMid %>"<% if (_plMidSs) { %> imagesrcset="<%= _plMidSs %>" imagesizes="100vw"<% } %>>
+<% } %>
+<% if (_plWide) { %>
+<link rel="preload" as="image" fetchpriority="high" media="(min-width: 861px)"
+      href="<%= _plWide %>"<% if (_plWideSs) { %> imagesrcset="<%= _plWideSs %>" imagesizes="100vw"<% } %>>
+<% } %>
 <% if (_hmEna) { %>
 <style>
   /* Phone overrides for #hero-main. Scoped to the id so nothing else on the
