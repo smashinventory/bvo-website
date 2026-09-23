@@ -153,7 +153,68 @@ revert on a single PageSpeed run — see below.
 
 ---
 
-## Open, unresolved
+## CLOSED — CLS 0.321 is a PageSpeed Insights artifact
+
+> Resolved end of day 2026-09-23, after the whole investigation below.
+> **Do not re-open this on the strength of a PSI number alone.**
+
+Seven independent tools were run against the same deployed code:
+
+| Tool | Device | Connection | CLS |
+|---|---|---|---|
+| GTmetrix | Pixel 8/9 mobile | 4G, 9/5 Mbps, 125 ms | **0** |
+| DebugBear-style | mobile | 12 Mbps, 70 ms | **0** |
+| five others | — | — | **0** |
+| **PSI / Lightrider** | Moto G Power | Slow 4G | **0.321** |
+| **CrUX — real users** | — | — | **98% passing** |
+
+Only PSI reports it, always as *exactly* `0.321`, in roughly three runs of
+four. A genuine layout instability varies continuously with timing; a fixed
+value that either appears or doesn't is deterministic to that harness
+(headless Chromium 153 under Lightrider). It is also independent of load —
+one run measured TBT 190 ms with 2,004 ms of Style & Layout, another TBT
+0 ms with a light main thread, both `0.321`.
+
+**The number that matters for Google is CrUX, not the lab score.** Core Web
+Vitals for ranking come from field data. Ours passes. The PSI lab CLS is a
+diagnostic and is not used for ranking.
+
+Also ruled out by direct test, not reasoning:
+
+- the HTML is **not cached or varied** — the bare URL and a cache-busted URL
+  return byte-identical bodies (208,591 both), `cache-control: no-store`
+- the PSI "culprit" list is **loose attribution**: it changed between runs
+  (image alone, then image + three fonts) while the score stayed identical.
+  It is not a bill of materials, and treating it as one cost most of a day.
+
+### Five hypotheses tested and eliminated
+
+1. hero image had no reserved box — `4ba4897`, CLS unchanged
+2. category cards unsized — they sit at y=1617, below the 823px viewport
+3. centring rule applies after paint — it is in the head, render-blocking
+4. `site3.css` applied late — it IS applied post-paint, but toggling it
+   `print`/`all` on the live page moved **nine hero elements by zero pixels**;
+   its `hero-eyebrow`/`hero-sub` matches were substrings of `.lb-hero-*` and
+   `.blog-hero-*`
+5. desktop/mobile alignment race — tested by setting both to `center` in the
+   Theme Editor; **two runs, both still 0.321**
+
+GTM was eliminated too: gtag starts at 4180 ms, after FCP and LCP, 0 ms main
+thread. And there is no GTM *container* at all — `G-PLBNP2YD9K` is a GA4
+Measurement ID loaded via `gtag/js`, which is merely served from the
+googletagmanager.com domain. Container-level advice (server-side tagging,
+trigger delays, tag audits) has nothing to act on here.
+
+### One real shift was found, and is fixed
+
+Not the 0.321, but genuine. See the hero aspect-ratio note in `index.ejs`:
+the 1x1 GIF placeholder gave the `<img>` a true 1:1 intrinsic ratio, which
+outranks `width`/`height` attributes. Measured 412x412 → 412x329, an 83px
+jump; a CSS `aspect-ratio` fixes it, verified 0.
+
+---
+
+## Historical — the investigation, kept for its eliminations
 
 **CLS 0.321.** Lighthouse attributes all of it to
 `<div class="hero-content">`. It is bimodal — exactly `0.321` or exactly `0`,

@@ -117,6 +117,39 @@ function _heroSrcset(u) {
     return path + '?' + keep.concat(['width=' + w]).join('&') + ' ' + w + 'w';
   }).join(', ');
 }
+/* Responsive ladder for the before/after slider.
+
+   WHY THIS EXISTS. These two images were the only ones on the homepage
+   emitted raw — no ?width=, no srcset, no loading attribute — so they
+   bypassed the Bunny resizer entirely and shipped their full master file,
+   eagerly, from below the fold. GTmetrix 2026-09-23 flagged the same two
+   images under BOTH "Properly size images" and "Defer offscreen images":
+
+       after-bathroom.webp    28.2 KB   19.1 KB oversized
+       before-bathroom.webp   21.2 KB   14.3 KB oversized
+                                        49.4 KB deferrable in full
+
+   The ladder tops out at 1800 because .ba-slider-wrap is max-width:900px,
+   so 1800 covers a 2x screen at full size. Bunny clamps anything wider
+   than the master, so a rung above the source costs nothing.
+
+   Same two guards as _heroSrcset, for the same reasons: only the Bunny
+   pull zone has a resizer, and an existing width= is dropped rather than
+   duplicated. Unlike the hero these URLs carry no ?crop=, so there is no
+   box to derive and the full ladder always applies. */
+var _BA_WIDTHS = [480, 768, 900, 1200, 1800];
+function _baSrcset(u) {
+  u = String(u || '');
+  if (u.indexOf('images.bathroomvanitiesoutlet.com') === -1) return '';
+  var parts = u.split('?');
+  var path  = parts[0];
+  var keep  = (parts[1] || '').split('&').filter(function (p) {
+    return p && !/^width=/i.test(p);
+  });
+  return _BA_WIDTHS.map(function (w) {
+    return path + '?' + keep.concat(['width=' + w]).join('&') + ' ' + w + 'w';
+  }).join(', ');
+}
 /* Append a section's brand filter to its CTA so "See All Our JM Models"
    lands on the JM-filtered list instead of the mixed one — the reason this
    whole change exists.
@@ -600,6 +633,15 @@ _DEFAULT_ORDER.forEach(function(k) {
      every render. They existed only to fill a duplicate copy of the
      heading block. */
   var _hmImg   = _hm.image_url     || hero.image_url     || '';
+  /* Derived ONCE, here, because two separate consumers need it and they sit
+     on opposite sides of the template: the <style> block emits an
+     aspect-ratio from it, and the <img> further down emits width/height
+     from it. It used to be declared down beside the <img>; computing it
+     there and reading it up here would silently yield `undefined` (var
+     hoists the declaration, not the assignment) and the CSS rule would
+     never be emitted — a failure with no error and no visible symptom
+     until a phone hit a cold cache. One fact, one place. */
+  var _hmBox   = _heroBox(_hmImg, _hm.image_aspect);
   var _hmAlt   = _hm.image_alt     || hero.image_alt     || 'Hero';
   var _hmVid   = _hm.video_url     || '';
   var _hmShad  = (_hm.text_shadow !== false);
@@ -737,6 +779,37 @@ _DEFAULT_ORDER.forEach(function(k) {
        to resolve after paint. */%>
   #hero-main .hero-content{text-align:<%= _heroAlign %>}
   <% if (_ctaAlign) { %>#hero-main .hero-ctas{<%= _ctaAlign %>}<% } %>
+  <%/* Reserve the phone hero's box with a CSS aspect-ratio, not just the
+       width/height attributes.
+
+       WHY THE ATTRIBUTES ARE NOT ENOUGH. width/height set
+       `aspect-ratio: auto W/H`, and the `auto` keyword means "defer to the
+       intrinsic ratio whenever the image has one". This <img> carries a 1x1
+       transparent GIF in src (deliberately — the real file comes from
+       <source srcset>, and the blank keeps desktop from downloading the
+       phone image). A data: URI resolves instantly, so the element HAS a
+       real intrinsic ratio of 1:1 from the very first layout, and it beats
+       the attributes.
+
+       MEASURED on the live page at 412px, 2026-09-23:
+           before the real image lands   img 412x412, .hero-content at y=412
+           after                         img 412x329, .hero-content at y=329
+       an 83px jump. A bare `aspect-ratio` (no `auto`) outranks the intrinsic
+       ratio, so the box is correct from first paint. Re-measured with the
+       rule applied: 412x329 both before and after, shift 0.
+
+       This is why 4ba4897 changed nothing — the attributes it added were
+       never going to win. Lighthouse calling this an "Unsized image
+       element" despite visible width/height was correct.
+
+       DERIVED, not hardcoded: same _hmBox as the attributes, read from
+       ?crop= in the image URL with hero_mobile.image_aspect as the stated
+       fallback. One fact, one source. */%>
+  <% if (_hmBox) { %>
+  @media (max-width:480px){
+    #hero-main .hero-layer--mobile .hero-poster{aspect-ratio:<%= _hmBox.w %>/<%= _hmBox.h %>}
+  }
+  <% } %>
   @media (max-width:860px){
     #hero-main .hero-content{text-align:<%= _hmAlign %>!important}
     <% if (_hmCtaAl) { %>#hero-main .hero-ctas{<%= _hmCtaAl %>!important}<% } %>
@@ -780,7 +853,7 @@ _DEFAULT_ORDER.forEach(function(k) {
          at the 1604w rung ~158KB, competing with the real desktop LCP image.
          The <source> matches the 480px layer breakpoint above; wider screens
          fall through to the 1x1 GIF and fetch nothing. */%>
-    <% var _hmBox = _heroBox(_hmImg, _hm.image_aspect); %>
+    <%/* _hmBox is derived once, up beside _hmImg — see the note there. */%>
     <%/* width/height go on the <img>, not the <source>. Per the HTML spec the
          img's attributes establish the default aspect ratio for the whole
          <picture>, and with CSS width:100%;height:auto that reserves a
@@ -1465,7 +1538,8 @@ _DEFAULT_ORDER.forEach(function(k) {
     <div class="ba-slider" data-initial="<%= _baInitPos %>">
       <div class="ba-after">
         <% if (_d.after_image) { %>
-        <img src="<%= _d.after_image %>" alt="<%= _d.after_label || 'After' %>" draggable="false">
+        <% var _baAfterSs = _baSrcset(_d.after_image); %>
+        <img src="<%= _d.after_image %>"<% if (_baAfterSs) { %> srcset="<%= _baAfterSs %>" sizes="(max-width: 940px) 100vw, 900px"<% } %> alt="<%= _d.after_label || 'After' %>" loading="lazy" decoding="async" draggable="false">
         <% } else { %>
         <div class="ba-placeholder"><span><%= _d.after_label || 'After' %></span></div>
         <% } %>
@@ -1473,7 +1547,8 @@ _DEFAULT_ORDER.forEach(function(k) {
       </div>
       <div class="ba-before">
         <% if (_d.before_image) { %>
-        <img src="<%= _d.before_image %>" alt="<%= _d.before_label || 'Before' %>" draggable="false">
+        <% var _baBeforeSs = _baSrcset(_d.before_image); %>
+        <img src="<%= _d.before_image %>"<% if (_baBeforeSs) { %> srcset="<%= _baBeforeSs %>" sizes="(max-width: 940px) 100vw, 900px"<% } %> alt="<%= _d.before_label || 'Before' %>" loading="lazy" decoding="async" draggable="false">
         <% } else { %>
         <div class="ba-placeholder ba-placeholder-dark"><span><%= _d.before_label || 'Before' %></span></div>
         <% } %>
