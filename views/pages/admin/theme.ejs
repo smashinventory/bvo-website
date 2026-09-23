@@ -1000,14 +1000,12 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
             <div class="te4-row2">
               <%- teColorBrand('hero.sub2_color','Brand list line',h.sub2_color||'') %>
             </div>
-            <div class="te4-field">
-              <label>Mobile text alignment</label>
-              <select name="hero.text_align_mobile" class="te4-select">
-                <option value="center" <%=(h.text_align_mobile||'center')==='center'?'selected':''%>>Center</option>
-                <option value="left"   <%=h.text_align_mobile==='left'              ?'selected':''%>>Left</option>
-                <option value="right"  <%=h.text_align_mobile==='right'             ?'selected':''%>>Right</option>
-              </select>
-            </div>
+            <%/* "Mobile text alignment" was here (hero.text_align_mobile).
+                 Retired 2026-09-23 — it could not move the CTA row and could
+                 not beat the inline text-align on .hero-content, so it
+                 produced left-aligned copy with centred buttons. The Mobile
+                 Hero panel's own Alignment control is now the only one, and
+                 it governs copy, divider and buttons together. */%>
 
             <div class="te4-field" style="margin-top:.5rem;padding-top:.75rem;border-top:1px solid var(--te-border)">
               <label>Visible on</label>

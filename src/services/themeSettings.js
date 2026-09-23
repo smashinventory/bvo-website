@@ -135,7 +135,13 @@ const DEFAULTS = {
     heading_color:      '',   // '' = CSS default (white on mobile, navy on desktop)
     h2_color:           '',   // '' = CSS default (amber)
     subtext_color:      '',   // '' = CSS default
-    text_align_mobile:  'center',  // center | left | right
+    /* Mobile alignment lives on hero_mobile.text_align — the single
+       canonical control. It governs the copy, the .hero-rule divider and
+       the CTA row together. The old hero.text_align_mobile was retired
+       2026-09-23: it emitted --hero-mobile-align onto .hero, which could
+       not move the flex CTA row and could not beat the inline
+       text-align on .hero-content, so on phones the text sat left while
+       the buttons sat centred. See CHANGE_LOG_BRIEF.md. */
     // Layout & sizing
     layout: 'split',       // 'split' (text|image side-by-side) | 'bg' (image behind text)
     text_col_pct: 45,      // split layout: text column width %; image gets the remainder

@@ -204,7 +204,6 @@ _DEFAULT_ORDER.forEach(function(k) {
   if (hero.h2_color)         _heroStyle += '--hero-h2:'+hero.h2_color+';';
   if (hero.subtext_color)    _heroStyle += '--hero-sub:'+hero.subtext_color+';';
   if (hero.sub2_color)       _heroStyle += '--hero-sub2:'+hero.sub2_color+';';
-  if (hero.text_align_mobile && hero.text_align_mobile !== 'center') _heroStyle += '--hero-mobile-align:'+hero.text_align_mobile+';';
   /* Content box CSS vars (bg-video layout) */
   var _boxColor = hero.content_box_color || '#0f1f35';
   var _boxOp    = hero.content_box_opacity !== undefined ? hero.content_box_opacity : 60;
@@ -403,7 +402,13 @@ _DEFAULT_ORDER.forEach(function(k) {
   if (+_hm.sub2_size    > 0) _hmFont += '#hero-main .hero-sub2{font-size:'+(+_hm.sub2_size)+'px!important}';
   if (+_hm.eyebrow_size > 0) _hmFont += '#hero-main .hero-eyebrow{font-size:'+(+_hm.eyebrow_size)+'px!important}';
   var _hmStyle  = '';
-  var _hmCtaAl  = '';
+  /* _hmCtaAl is computed OUTSIDE the _hmEna gate on purpose. It is a pure
+     function of _hmAlign, and the <=860 alignment block below runs whether
+     or not the mobile hero is enabled — leave it inside and the disabled
+     case gets aligned text with unaligned buttons, which is the exact
+     split this change was made to remove. */
+  var _hmCtaAl  = _hmAlign==='center' ? 'justify-content:center'
+                : _hmAlign==='right'  ? 'justify-content:flex-end' : '';
   if (_hmEna) {
     var _hmOvClr  = _hm.overlay_color || '#0f1f35';
     var _hmOvOp   = (_hm.overlay_opacity !== undefined) ? (+_hm.overlay_opacity / 100).toFixed(2) : '0.55';
@@ -426,7 +431,6 @@ _DEFAULT_ORDER.forEach(function(k) {
     if (+_hm.content_max_width   > 0)  _hmStyle += '--content-max-w:'+_hm.content_max_width+'px;';
     if (_hm.content_v_offset !== undefined && _hm.content_v_offset !== '') _hmStyle += '--content-v-offset:'+_hm.content_v_offset+'%;';
     if (_hm.content_h_offset !== undefined && _hm.content_h_offset !== '') _hmStyle += '--content-h-offset:'+_hm.content_h_offset+'%;';
-    _hmCtaAl = _hmAlign==='center'?'justify-content:center':_hmAlign==='right'?'justify-content:flex-end':'';
   }
   /* Image and video only. The text variables that used to live here —
      _hmEye, _hmH1, _hmH2, _hmSub, _hmSub2, _hmBadge, _hmC1T/_hmC1U,
@@ -529,13 +533,45 @@ _DEFAULT_ORDER.forEach(function(k) {
     #hero-main .hero-layer--desktop{display:none}
     #hero-main .hero-layer--mobile{display:block}
     <%- _hmLayoutCss %>
-    #hero-main .hero-content{text-align:<%= _hmAlign %>}
-    <% if (_hmCtaAl) { %>#hero-main .hero-ctas{<%= _hmCtaAl %>}<% } %>
+    <%/* Alignment is NOT set here. It is the one declaration that must also
+         cover the 481-860 tablet band, so it lives in its own block below,
+         outside the _hmEna gate. */%>
     <%- _hmFont %>
     <% if (!_hmShad) { %>#hero-main .hero-h1,#hero-main .hero-h2,#hero-main .hero-sub,#hero-main .hero-sub2,#hero-main .hero-eyebrow{text-shadow:none}<% } %>
   }
 </style>
 <% } %>
+<style>
+  <%/* ── Mobile alignment — the single canonical control ───────────────
+       Source: hero_mobile.text_align. Retired 2026-09-23:
+       hero.text_align_mobile, which wrote --hero-mobile-align onto .hero
+       and was read by a `.hero{text-align:…!important}` rule at <=860.
+
+       Why that one lost, measured on the live page at 375px before the
+       change: .hero-content carries an INLINE style="text-align:left"
+       (the desktop value), and an inline declaration beats any stylesheet
+       rule that is not !important — so the copy stayed left. Meanwhile
+       .hero-ctas has no inline style, so the CTA rule DID apply and the
+       buttons sat centred. Text left, buttons centred, on every phone.
+
+       Two things fix it and both are required:
+         1. !important, to beat the inline text-align on .hero-content.
+         2. <=860 rather than <=480, so the tablet band is covered too —
+            this is the one thing the retired setting did better.
+
+       NOT gated on _hmEna. With the mobile hero switched off the desktop
+       markup still renders on a phone and still needs aligning; the old
+       setting covered that case and this must too.
+
+       Deliberately outside the <=480 block above: that block carries the
+       phone-only overrides and widening it to 860 would push padding,
+       offsets, heights and box colours onto tablets. See the note at the
+       top of that block about 480 being load-bearing. */%>
+  @media (max-width:860px){
+    #hero-main .hero-content{text-align:<%= _hmAlign %>!important}
+    <% if (_hmCtaAl) { %>#hero-main .hero-ctas{<%= _hmCtaAl %>!important}<% } %>
+  }
+</style>
 <%/* The phone background layer. Same section, no heading, no CTAs — those
     are in the single .hero-content block above and are shared by both
     viewports. display:none above 480px, so above that width this element
