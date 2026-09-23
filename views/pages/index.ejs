@@ -435,7 +435,19 @@ _DEFAULT_ORDER.forEach(function(k) {
         'height:auto!important;min-height:0!important;max-height:none!important}' +
       '#hero-main .hero-image{grid-row:1;grid-column:1;position:relative!important;' +
         'inset:auto!important;z-index:0;width:100%;height:auto!important}' +
-      '#hero-main .hero-image img{height:auto!important;object-fit:contain!important}' +
+      /* position:relative is the load-bearing one, not height. .hero-poster
+           is position:absolute;inset:0 (site-bundle.css), so the <img> is out
+           of flow and .hero-image{height:auto} collapses to ZERO — measured
+           live at 768px on 54574bb: natural 768x444, rendered 0x0, grid row
+           0px. Releasing height alone does nothing; the image has to be put
+           back in normal flow first.
+
+           Note this layer can hold TWO <img> elements — .hero-poster and,
+           when hero.mobile_image_url is set, .hero-img-mobile which replaces
+           it at <=860. The bare `img` selector is deliberate so it catches
+           whichever one is displayed. */
+      '#hero-main .hero-image img{position:relative!important;inset:auto!important;' +
+        'width:100%!important;height:auto!important;object-fit:contain!important}' +
       '#hero-main .hero-image::after{display:none!important}' +
       '#hero-main .hero-overlay{display:none!important}' +
       '#hero-main .hero-content{grid-row:2;grid-column:1;position:relative!important;' +
