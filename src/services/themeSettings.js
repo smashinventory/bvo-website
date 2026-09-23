@@ -130,6 +130,24 @@ const DEFAULTS = {
     video_on_mobile: true, // false = hide video on ≤860px; poster image shows instead
     mobile_image_url: '',  // separate image shown on ≤860px instead of desktop image
     mobile_image_alt: '',
+    /* Shape of mobile_image_url, as 'W:H' or 'W/H'. ONLY read when
+       mobile_image_url is set, because it describes THAT file — not the
+       ≤480 phone crop, which is hero_mobile.image_aspect.
+
+       Why this exists: 481-860px is the stacked band. The image sits in
+       flow there with nothing holding its height, so an unreserved box
+       measures 1px and everything below it drops when the bytes land.
+       MEASURED 2026-09-23, cold, hero image stripped:
+
+           412px   aspect-ratio 1160/927   box 329px   .hero-content y=474  ok
+           650px   aspect-ratio auto       box   1px   .hero-content y=146  SHIFT
+           820px   aspect-ratio auto       box   1px   .hero-content y=146  SHIFT
+          1000px   fixed 620px height                                       ok
+
+       A ?crop=W,H,x,y on the URL states the shape and wins over this. Blank
+       emits no rule at all — a box from the WRONG file shifts twice, which
+       is worse than not reserving. */
+    mobile_image_aspect: '',
     // Text & Colors — CSS custom props emitted on section element
     eyebrow_color:      '',   // '' = CSS default (sage)
     heading_color:      '',   // '' = CSS default (white on mobile, navy on desktop)

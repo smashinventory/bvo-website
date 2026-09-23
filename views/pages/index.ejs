@@ -872,7 +872,25 @@ _DEFAULT_ORDER.forEach(function(k) {
        When mobile_image_url is unset both resolve to the same file and the
        two rules carry the same ratio. A ratio taken from the wrong file
        would be worse than none — it would shift twice. */%>
-  <% var _mbBox = _heroBox(hero.mobile_image_url || _hmImg, (_hm || {}).image_aspect); %>
+  <%/* FIXED 2026-09-23. The stated-aspect fallback must describe the SAME
+       file the URL argument points at. It did not:
+
+         url      hero.mobile_image_url   the uncropped hero, 1604x927
+         aspect   hero_mobile.image_aspect  describes the ?crop= 1160x927
+
+       Two different files. Because the uncropped URL carries no ?crop= and
+       the aspect handed to it belonged to the other file, _heroBox returned
+       null, no rule was emitted, and 481-860 reserved 1px. MEASURED cold
+       with the hero image stripped: box 1px, .hero-content at y=146 instead
+       of its settled position — the 0.3892 shift 45ff9c9 was meant to end.
+
+       Returning null was luck, not safety. Had hero_mobile.image_aspect been
+       set while mobile_image_url pointed at a differently-shaped file, this
+       would have emitted a box of the WRONG shape, which shifts twice. So
+       each URL is now paired with the aspect that describes it. */%>
+  <% var _mbBox = hero.mobile_image_url
+       ? _heroBox(hero.mobile_image_url, hero.mobile_image_aspect)
+       : _heroBox(_hmImg, (_hm || {}).image_aspect); %>
   <% if (_hmBox) { %>
   @media (max-width:480px){
     #hero-main .hero-image.hero-layer--mobile{aspect-ratio:<%= _hmBox.w %>/<%= _hmBox.h %>}

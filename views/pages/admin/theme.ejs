@@ -859,6 +859,18 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
             <%- teImage('hero.mobile_image_url','hero.mobile_image_alt',h.mobile_image_url,h.mobile_image_alt,'Hero Image — Mobile') %>
             <div class="te4-hint" style="margin-bottom:.75rem">Leave blank to use the desktop image on all devices. Upload a portrait-cropped version for a better mobile experience.</div>
 
+            <div class="te4-field">
+              <label>Mobile image shape <small style="opacity:.6;font-weight:400">(tablets &amp; landscape phones, 481–860px)</small></label>
+              <input type="text" name="hero.mobile_image_aspect" class="te4-input"
+                     value="<%= h.mobile_image_aspect || '' %>" placeholder="e.g. 1604:927 — only if the URL has no ?crop=">
+            </div>
+            <div class="te4-hint" style="margin-bottom:.75rem">
+              Only needed if the Mobile Image URL above has no <code>?crop=</code> on it.
+              With a crop the shape is read straight from the URL and this is ignored.
+              Without either, the 481–860px band reserves 1px for the photo and everything
+              below it jumps down when the image lands.
+            </div>
+
             <div class="te4-section-label">Background Video <small style="opacity:.6;font-weight:400">(optional — plays over the image)</small></div>
             <%- teVideoField('hero.video_url',h.video_url) %>
             <div class="te4-hint" style="margin-bottom:.75rem">Paste a YouTube URL or a direct .mp4 URL (James Martin CDN, Hostinger, etc.). Leave blank to use the image only. Image remains visible until the video loads — good for SEO.</div>
