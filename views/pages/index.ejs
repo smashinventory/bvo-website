@@ -78,8 +78,44 @@ function _heroBox(url, fallbackAspect) {
 function _heroSrcset(u) {
   u = String(u || '');
   if (u.indexOf('images.bathroomvanitiesoutlet.com') === -1) return '';
-  if (u.indexOf('?') !== -1) return '';
-  return _HERO_WIDTHS.map(function (w) { return u + '?width=' + w + ' ' + w + 'w'; }).join(', ');
+
+  /* It used to be `if (u.indexOf('?') !== -1) return '';` — any query string
+     at all and the ladder was abandoned. That made the crop URL and the
+     responsive ladder mutually exclusive: with ?crop= set, EVERY phone
+     downloaded one fixed rung.
+
+     Measured on the CDN 2026-09-23, crop 1160x927:
+         width=750   49.1 KB   <- what every phone was getting
+         width=480   25.1 KB
+         width=375   17.8 KB
+     A small or 1x device was paying roughly double.
+
+     Bunny applies crop and width together, so the two were never actually
+     in conflict. Existing params are carried onto every rung; only `width`
+     is dropped, because this function is the thing that sets it and two
+     conflicting width params is undefined behaviour. */
+  var parts = u.split('?');
+  var path  = parts[0];
+  var keep  = (parts[1] || '').split('&').filter(function (p) {
+    return p && !/^width=/i.test(p);
+  });
+
+  /* Do not offer rungs wider than the source. With ?crop=1160,... the image
+     IS 1160 wide; asking Bunny for 1604 either upscales or silently clamps,
+     and either way the browser may pick a rung that buys nothing and costs
+     bytes. Rungs are capped at the crop width, with the crop width itself
+     kept as the top rung so high-DPR phones still have a real ceiling. */
+  var box    = _heroBox(u, '');
+  var widths = _HERO_WIDTHS.slice();
+  if (box && box.w) {
+    widths = widths.filter(function (w) { return w < box.w; });
+    widths.push(box.w);
+  }
+  if (!widths.length) return '';
+
+  return widths.map(function (w) {
+    return path + '?' + keep.concat(['width=' + w]).join('&') + ' ' + w + 'w';
+  }).join(', ');
 }
 /* Append a section's brand filter to its CTA so "See All Our JM Models"
    lands on the JM-filtered list instead of the mixed one — the reason this
