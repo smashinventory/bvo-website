@@ -62,9 +62,43 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   <!-- Sitemap discovery -->
   <link rel="sitemap" type="application/xml" href="/sitemap.xml">
 
-  <!-- Favicon + touch icon -->
-  <link rel="icon" type="image/png" sizes="512x512" href="/images/logos/BVOLOGOSQ_512.png">
-  <link rel="apple-touch-icon" href="/images/logos/BVOLOGOSQ_512.png">
+  <%# ── Favicon + touch icon ───────────────────────────────────────────
+       Both links used to point at BVOLOGOSQ_512.png — a 512x512, 19 KB
+       master — to draw a 16-32px tab icon. GTmetrix 2026-09-23 caught it
+       as a 22.7 KB request, and it came off the ORIGIN, not Bunny, so it
+       competed with the HTML and CSS on the one connection that already
+       costs ~598 ms to establish.
+
+       Sizes are declared so the browser fetches ONE file, not all of them:
+           favicon-32.png        1.4 KB   what a normal page load takes
+           favicon-16.png        0.6 KB   older/smaller chrome
+           apple-touch-icon.png  9.2 KB   iOS only, and only on "add to
+                                          home screen" — never a page load
+           /favicon.ico          4.6 KB   never referenced; it exists so
+                                          clients that request the root
+                                          path blindly get 200, not 404
+
+       17.5 KB off every page load.
+
+       THE ARTWORK IS NOT THE FULL LOGO. Scaling the badge to 32px turns
+       it to mud: the gold ring, the white frame and "EST. 2019" eat the
+       tile and leave "BVO" a few pixels tall. These are rebuilt — brand
+       navy rgb(29,45,68), with the BVO glyphs lifted from the master at
+       full resolution (crop 147,206-370,283) and set to 80% of the tile.
+       Same colours, same letterforms, legible at 16px.
+
+       All three are rounded. The tab icons have TRANSPARENT corners, so
+       they blend into light or dark browser chrome. The iOS one is
+       rounded too but its corners are filled WHITE, never transparent:
+       iOS discards alpha and composites on black, which would wrap navy
+       artwork in black wedges. At 20% radius those corners fall outside
+       iOS's own ~22.5% superellipse mask, so iOS clips them away and the
+       double-rounding never shows.
+
+       Regenerate from the 512 master with Pillow if the logo changes. %>
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/logos/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/logos/favicon-16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/logos/apple-touch-icon.png">
 
   <!-- Open Graph -->
   <meta property="og:title"       content="<%= _ogTitle %>">
