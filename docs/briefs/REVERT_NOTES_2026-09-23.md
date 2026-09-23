@@ -69,11 +69,44 @@ tried if the homepage looks wrong.
 > `hero_mobile.layout` at all, while production renders `stacked`. Do not treat
 > the local file as a record of production.
 
+### ⚠ `hero.text_align` is `center` ON PURPOSE — and it has no default
+
+It was set to `center` on 2026-09-23 to test whether a desktop/mobile
+alignment mismatch caused the PSI CLS. It did not (two runs, both still
+`0.321`). Sam then looked at it and **kept it — he prefers the hero copy
+centred on desktop.** Do not "restore" it to `left`; that is not a
+rollback, it is undoing a deliberate design choice.
+
+**This value is fragile.** It exists only in `data/theme_settings.json`
+and the DB — `themeSettings.js` has no `text_align` key in its `hero:`
+block. If that file is lost or reset, the hero silently falls back to a
+hardcoded `'left'` in two separate places, `index.ejs:278`
+(`hero.text_align || 'left'`) and `theme.ejs:327` inside `teAlignment()`
+(`value || 'left'`), and nobody will know why the homepage changed.
+
+**It is not just the hero.** Scanned all 29 setting blocks, comments
+stripped so the prose in the hero block does not produce a false match:
+
+```
+real text_align key:  hero_mobile          (1 of 29)
+no key:               hero, newsletter, before_after, testimonials,
+                      parallax, featured_section, image_with_text,
+                      video_text, categories_section … and 19 more
+```
+
+Every one of those gets its alignment default from a literal in
+`theme.ejs` or `index.ejs` instead — mostly `'center'`, but `'left'` for
+the hero and `'left'` again at `theme.ejs:1323`. So the saved value and
+the fallback can disagree, and the fallback is written twice per section
+with no single source. A Rule 10 gap across the whole settings surface,
+not a hero quirk. Fixing it properly means adding the key to each block
+in `themeSettings.js` and deleting the literals.
+
 ### Hero settings, as production currently renders them
 
 | Setting | Current value | Where it shows in the HTML |
 |---|---|---|
-| `hero.text_align` | `left` | `#hero-main .hero-content{text-align:left}` |
+| `hero.text_align` | **`center`** | `#hero-main .hero-content{text-align:center}` |
 | `hero_mobile.text_align` | `center` | `…{text-align:center!important}` in `@media (max-width:860px)` |
 | `hero_mobile.layout` | `stacked` | the stacked override block is present |
 | `hero_mobile.min_height_px` | `450` | `min-height:450px !important` (≤480) |

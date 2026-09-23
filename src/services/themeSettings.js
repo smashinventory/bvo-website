@@ -135,6 +135,25 @@ const DEFAULTS = {
     heading_color:      '',   // '' = CSS default (white on mobile, navy on desktop)
     h2_color:           '',   // '' = CSS default (amber)
     subtext_color:      '',   // '' = CSS default
+    /* DESKTOP alignment (>860px). Added 2026-09-23 — it had no default at
+       all before, which meant the value lived only in
+       data/theme_settings.json and the DB. Lose or reset that file and the
+       hero silently fell back to a literal 'left' written in TWO places
+       (index.ejs and theme.ejs's teAlignment), with nothing to explain why
+       the homepage had changed.
+
+       'center' is the deliberate value, not a guess: Sam set it while
+       testing whether a desktop/mobile alignment mismatch was causing the
+       PageSpeed CLS (it was not — two runs, both still 0.321), looked at
+       the result and kept it. This default now matches what production
+       actually renders, so a fresh install and a saved install agree.
+
+       KNOWN WIDER GAP, not fixed here: of 29 setting blocks only
+       hero_mobile and now hero carry a text_align key. The other 27 still
+       take their alignment default from a literal in theme.ejs or
+       index.ejs, usually written twice per section. Logged in
+       OPEN_ITEMS.md rather than refactored in this commit. */
+    text_align:         'center',
     /* Mobile alignment lives on hero_mobile.text_align — the single
        canonical control. It governs the copy, the .hero-rule divider and
        the CTA row together. The old hero.text_align_mobile was retired

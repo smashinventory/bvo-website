@@ -362,6 +362,45 @@ history may not.
 
 ---
 
+### 12. 27 setting blocks have no `text_align` default
+*Logged 2026-09-23*
+
+Scanned all 29 top-level blocks in `themeSettings.js`, comments stripped so
+prose inside a block cannot produce a false match:
+
+```
+real text_align key:  hero_mobile, hero        (hero added 2026-09-23)
+no key:               newsletter, before_after, testimonials, parallax,
+                      featured_section, featured_models, image_with_text,
+                      video_text, categories_section, trust_band,
+                      brand_logos, scrolling_ticker, bundle_teaser,
+                      cart_drawer, social, footer, promo_strip, nav,
+                      + the _2 duplicates
+```
+
+Each of those takes its alignment default from a **literal written into a
+template instead** — and usually twice, once where the section renders in
+`index.ejs` and once where the Theme Editor draws the control in
+`theme.ejs`. The two can disagree, and there is no single source to check.
+
+Most default to `'center'`, but `theme.ejs:1323` defaults to `'left'`, and
+the shared `teAlignment()` helper at `theme.ejs:327` falls back to
+`'left'` for any caller that passes no value.
+
+**Why it matters, concretely.** The hero hit exactly this on 2026-09-23.
+Sam set the desktop hero to centre and kept it, but the value existed only
+in `data/theme_settings.json` — losing that file would have snapped the
+homepage back to left-aligned with nothing to explain it. Fixed for the
+hero by giving it a real default; the other 27 are still exposed.
+
+**The fix is mechanical but wide:** add `text_align` to each block in
+`themeSettings.js` with the value that block's template currently
+hardcodes, then delete the literals. Wide enough to want its own commit
+and its own render test per section, which is why it was not folded into
+the hero fix.
+
+---
+
 ## Resolved
 
 ### Mobile hero alignment had two settings and neither worked

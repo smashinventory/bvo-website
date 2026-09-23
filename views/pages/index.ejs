@@ -275,7 +275,23 @@ _DEFAULT_ORDER.forEach(function(k) {
 <% if (sectionKey === 'hero') { %>
 <%
   var _heroTag    = _safeTag(hero.heading_level, 'h1');
-  var _heroAlign  = hero.text_align    || 'left';
+  /* No `|| 'left'` here any more. themeSettings.js now carries
+     hero.text_align: 'center' as a real default, so this is the owner's
+     saved value or that default — one source either way. The old literal
+     disagreed with production (which renders centre) AND with the literal
+     in theme.ejs, so losing the settings file changed the homepage with
+     nothing to explain it.
+
+     _safeAlign is a sanitiser, not a second default. This value is
+     interpolated straight into a <style> block, so an unexpected string
+     would emit `text-align:<junk>` — or `text-align:undefined` if the key
+     were ever absent. Same reasoning as _safeColor in main.ejs, which
+     validates hex before injecting colours (MED-3). Only the three values
+     the Theme Editor can produce are allowed through. */
+  function _safeAlign(v) {
+    return (v === 'left' || v === 'center' || v === 'right') ? v : 'center';
+  }
+  var _heroAlign  = _safeAlign(hero.text_align);
   var _heroHSize  = hero.heading_size  ? 'font-size:'+hero.heading_size+'px;' : '';
   var _heroSSize  = hero.subtext_size  ? 'font-size:'+hero.subtext_size+'px;' : '';
   var _heroH2Size = (+hero.h2_size > 0) ? 'font-size:'+hero.h2_size+'px;' : '';
