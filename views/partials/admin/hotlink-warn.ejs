@@ -1,0 +1,125 @@
+<%#
+  Hotlink warning for admin image URL fields.
+  Included ONCE from views/layouts/admin.ejs — see the note there.
+
+  WHY IT MATCHES BY NAME RATHER THAN A data- ATTRIBUTE.
+  Tagging every field would mean editing five admin views today and
+  remembering to tag every image field added later. The point of this
+  control is that it cannot be forgotten, so it finds fields by the naming
+  convention the codebase already follows (*image_url, *_image,
+  primary_image, *image_src). A new image field picks the warning up for
+  free; one that invents a new naming style does not, which is the known
+  limit and is cheaper than the alternative.
+
+  The host list comes from src/utils/cdnUrl.js via res.locals, NOT a copy —
+  that file already owned BUNNY_HOST and is the single source. See the
+  comment there for why i.ytimg.com counts as ours and why this warns
+  instead of blocking.
+%>
+<style nonce="<%= cspNonce %>">
+  .bvo-hotlink-warn{
+    display:flex; align-items:flex-start; gap:.4rem;
+    margin:.35rem 0 .1rem; padding:.4rem .6rem;
+    background:#fff8e6; border:1px solid #e8c97a; border-left:3px solid #926a21;
+    border-radius:4px; font-size:.75rem; line-height:1.45; color:#6b4f14;
+  }
+  .bvo-hotlink-warn strong{ font-weight:700; }
+  .bvo-hotlink-warn code{
+    background:rgba(146,106,33,.1); padding:0 .25rem; border-radius:3px;
+    font-size:.72rem; word-break:break-all;
+  }
+</style>
+<script nonce="<%= cspNonce %>">
+(function () {
+  'use strict';
+
+  var OWNED = <%- JSON.stringify(ownedImageHosts || []) %>;
+  if (!OWNED.length) return;
+
+  /* Same rule as isOwnedImageHost() in src/utils/cdnUrl.js: anything that is
+     not an absolute http(s) URL is ours, and anything unparseable is treated
+     as fine rather than raising a false alarm on a half-typed value. */
+  function isForeign(v) {
+    var s = String(v || '').trim();
+    if (!s) return false;
+    if (!/^https?:\/\//i.test(s)) return false;
+    try {
+      var h = new URL(s).host.toLowerCase();
+      return OWNED.indexOf(h) === -1 ? h : false;
+    } catch (e) { return false; }
+  }
+
+  /* .te4-img-url is the reliable one: every Theme Editor image field is built
+     by teImageField()/teImage() in theme.ejs and carries that class, whatever
+     its name. Matching on it caught nav.logo_url, which ends in "logo_url"
+     and slips past every name pattern below.
+
+     The name patterns cover the surfaces that hand-roll their inputs —
+     product-edit (primary_image_url), category-edit (image_url), model-edit
+     (og_image, custom_image) — and the array-style names the Theme Editor
+     generates for repeatable rows, e.g. brand_logos.logos[0].image_url.
+
+     Deliberately NOT matched: image_file, _cat_image_file and _mg_image_file
+     are file inputs with no URL; image_aspect holds a ratio like "4:3";
+     image_alt is prose. Verified against all five surfaces. */
+  var SEL = 'input.te4-img-url,' +
+            'input[name$="image_url"],input[name$="_image"],' +
+            'input[name="primary_image"],input[name$="image_src"],' +
+            'input[name$="logo_url"],' +
+            'input[name$="image_url]"]';   // array-style: foo[0][image_url]
+
+  function check(el) {
+    if (!el || el.type === 'hidden') return;
+    var host = isForeign(el.value);
+    var warn = el.parentNode && el.parentNode.querySelector(':scope > .bvo-hotlink-warn');
+
+    if (!host) { if (warn) warn.remove(); return; }
+
+    if (!warn) {
+      warn = document.createElement('div');
+      warn.className = 'bvo-hotlink-warn';
+      warn.setAttribute('role', 'status');
+      el.parentNode.insertBefore(warn, el.nextSibling);
+    }
+    /* textContent throughout — the host comes from user input and must never
+       be parsed as HTML. */
+    warn.textContent = '';
+    var b = document.createElement('strong');
+    b.textContent = 'Hotlinked image. ';
+    var c = document.createElement('code');
+    c.textContent = host;
+    var t = document.createTextNode(' is not a host we control, so this image '
+          + 'breaks if they move or remove it. Re-host it to the Bunny zone '
+          + 'unless this is deliberately temporary.');
+    warn.appendChild(b); warn.appendChild(c); warn.appendChild(t);
+  }
+
+  function scan(root) {
+    var els = (root || document).querySelectorAll(SEL);
+    for (var i = 0; i < els.length; i++) check(els[i]);
+  }
+
+  document.addEventListener('input',  function (e) { if (e.target.matches(SEL)) check(e.target); });
+  document.addEventListener('change', function (e) { if (e.target.matches(SEL)) check(e.target); });
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { scan(); });
+  } else { scan(); }
+
+  /* Theme Editor and the model editor add rows after load, so a one-off scan
+     would miss them. Observe rather than re-scan on a timer. */
+  if (window.MutationObserver) {
+    new MutationObserver(function (muts) {
+      for (var i = 0; i < muts.length; i++) {
+        var added = muts[i].addedNodes;
+        for (var j = 0; j < added.length; j++) {
+          if (added[j].nodeType === 1) {
+            if (added[j].matches && added[j].matches(SEL)) check(added[j]);
+            else scan(added[j]);
+          }
+        }
+      }
+    }).observe(document.body, { childList: true, subtree: true });
+  }
+})();
+</script>

@@ -333,6 +333,11 @@ app.use((req, res, next) => {
   res.locals.gtmId      = process.env.GTM_ID      || '';
   res.locals.tidioKey   = process.env.TIDIO_PUBLIC_KEY || '';
   res.locals.gmcId      = process.env.GMC_MERCHANT_ID  || '';
+  /* Hosts the admin hotlink warning treats as ours. Exposed from
+     src/utils/cdnUrl.js rather than written out again here — that module
+     already owned BUNNY_HOST, and a second copy of this list would drift
+     from the first exactly the way OPEN_ITEMS item 6 keeps regrowing. */
+  res.locals.ownedImageHosts = require('./utils/cdnUrl').OWNED_IMAGE_HOSTS;
   // Initialise cart on every page request so the session is "touched" (modified)
   // and express-session writes it to MySQL + sends the session cookie immediately.
   // Without this, saveUninitialized:false delays the cookie until /cart is visited,

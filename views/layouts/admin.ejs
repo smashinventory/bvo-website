@@ -404,6 +404,15 @@
     });
   })();
   </script>
+
+  <%# Hotlink warning on every admin image URL field. Included HERE, once, on
+      purpose: all five surfaces that accept image URLs (product-edit, theme,
+      category-edit, categories, sync) share this layout, and an image field
+      added to a sixth picks the warning up with no extra wiring. OPEN_ITEMS
+      item 6 regrew because the control lived nowhere; putting it in one of
+      the five views would have rebuilt the same gap. %>
+  <%- include('../partials/admin/hotlink-warn') %>
+
   <%- script %>
 
 </body>
