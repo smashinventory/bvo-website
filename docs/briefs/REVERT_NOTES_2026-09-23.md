@@ -57,6 +57,78 @@ tried if the homepage looks wrong.
 
 ---
 
+## Current production values — recorded 2026-09-23, before the `hero.text_align` change
+
+> **Why this section exists.** The next change gives `hero.text_align` a real
+> default in `themeSettings.js`. Settings live in `data/theme_settings.json` and
+> the DB, NOT in git — so `git revert` cannot restore a settings value that gets
+> overwritten. These are the values to type back by hand if that happens.
+>
+> **Every value below was read from the live rendered HTML**, not from the local
+> settings file. `data/theme_settings.json` in this repo is STALE — it has no
+> `hero_mobile.layout` at all, while production renders `stacked`. Do not treat
+> the local file as a record of production.
+
+### Hero settings, as production currently renders them
+
+| Setting | Current value | Where it shows in the HTML |
+|---|---|---|
+| `hero.text_align` | `left` | `#hero-main .hero-content{text-align:left}` |
+| `hero_mobile.text_align` | `center` | `…{text-align:center!important}` in `@media (max-width:860px)` |
+| `hero_mobile.layout` | `stacked` | the stacked override block is present |
+| `hero_mobile.min_height_px` | `450` | `min-height:450px !important` (≤480) |
+| `hero_mobile.max_height_px` | **`40`** | `max-height:40px !important` (≤480) — see warning below |
+| Overlay colour / opacity | `#ffffff` / `0.40` | `--ov-clr` / `--ov-op` (≤480) |
+| Text shadow | off | `text-shadow:none` on all five text classes |
+
+### Image URLs
+
+```
+desktop   https://images.bathroomvanitiesoutlet.com/site/hero/homepage-hero-vanity-with-towers.webp
+mobile    https://images.bathroomvanitiesoutlet.com/site/hero/homepage-hero-vanity-with-towers.webp?crop=1160,927,342,0
+```
+
+The mobile crop `1160,927,342,0` is the **D2** selection — 5:4, full height,
+symmetric about the vanity axis at x=922. Ladder rungs: 480, 768, 1024, 1160.
+
+### Colours
+
+| Token | ≤480px | Desktop |
+|---|---|---|
+| `--hero-eyebrow` | `#486854` | `#5A7A5A` |
+| `--hero-h1` | `#182840` | — |
+| `--hero-sub` | `#182840` | `#182840` |
+| `--hero-bg` | — | `#FAF7F2` |
+
+### Font sizes, ≤480px
+
+```
+eyebrow 11px   h1 23px   h2 42px   sub 16px   sub2 15px
+```
+
+### Content box
+
+| Var | ≤480px | Desktop |
+|---|---|---|
+| `--content-box-bg` | `rgba(255,255,255,0.60)` | `rgba(255,255,255,0.70)` |
+| `--content-box-radius` | `10px` | `6px` |
+| `--content-box-pad` | — | `16px` |
+| `--content-max-w` | `320px` | `320px` |
+| `--content-v-offset` | `0%` | `4%` |
+| `--content-h-offset` | `4%` | `3%` |
+
+### ⚠ `max_height_px: 40` is a landmine
+
+`min-height:450px` and `max-height:40px` are set on the same element in the same
+≤480 block. It is harmless **only** because the stacked layout's
+`max-height:none!important` overrides it at ≤860.
+
+Switching Layout mode back to **Background** — which this very file recommends as
+the fastest rollback — removes that override and squashes the hero to 40px. Fix
+the value before ever using that rollback path.
+
+---
+
 ## What is NOT reverted by any of the above
 
 `cb8c24c` also edited `public/css/site4.css` and `site-bundle.css` and bumped
@@ -88,6 +160,27 @@ revert on a single PageSpeed run — see below.
 never between — so it is one element shifting by one fixed amount, winning or
 losing a race. Not noise.
 
+### `hero.text_align` has no default — a separate defect, found 2026-09-23
+
+Not a CLS cause. A Rule 10 violation, recorded so it is not lost.
+
+`themeSettings.js` has **no `text_align` key in the `hero:` block**, though every
+other section has one. The desktop value is invented twice, independently:
+
+```
+index.ejs:245   var _heroAlign = hero.text_align || 'left';
+theme.ejs:887   teAlignment('hero.text_align', h.text_align)   ← no fallback passed
+theme.ejs       teAlignment():  var v = value || 'left';
+```
+
+The editor *does* post a `hero.text_align` field, and `save()` writes any posted
+key via `setDotPath`, so production most likely holds a saved value with no
+default behind it. A fresh install and a saved install therefore disagree.
+
+Note the asymmetry: every other section defaults to `'center'`
+(theme.ejs:233, 1372, 1409, 1423, 1505). Only the hero defaults to `'left'`,
+in two hardcoded places.
+
 Three hypotheses tested and **wrong**:
 
 1. the hero image had no reserved box — fixed in `4ba4897`, CLS unchanged
@@ -95,6 +188,19 @@ Three hypotheses tested and **wrong**:
    scoring viewport, so they cannot contribute
 3. the centring rule applies after first paint — it is in the head at offset
    9301, render-blocking, so it cannot
+4. **late-applied `site3.css`** — it genuinely IS applied after first paint
+   (loaded `media="print"`, flipped to `all` by an onload script,
+   `index.ejs:15,19`). Eliminated by direct test: toggled `site3-css` between
+   `print` and `all` on the live page at 412px while measuring the hero box,
+   content, content-box, h1, h2, eyebrow, sub, CTAs and value bar. **Zero delta
+   on every element.** Its `hero-eyebrow`/`hero-sub` matches are substrings of
+   `.lb-hero-eyebrow`, `.blog-hero-sub`, `.lb-hero-sub` — lookbook and blog
+   classes, not the homepage's.
+5. **GTM or a slow third party** — gtag starts at 4180 ms, after both FCP and
+   LCP, and reports 0 ms main-thread time. Nor is there any script-driven
+   repositioning: no `matchMedia`, `ResizeObserver`, `offsetWidth`,
+   `clientWidth` or `getBoundingClientRect` anywhere in `public/js/*.js` or
+   `index.ejs`. Nothing reflows the hero after viewport detection.
 
 ### The font hypothesis was tested and is NOT the whole answer
 
@@ -126,11 +232,28 @@ Any single remaining contributor triggers the same 0.321.
 
 Two leads worth taking next, one at a time, five runs after each:
 
-1. **Lighthouse still calls the hero "Unsized image element"** despite
-   `width="1160" height="927"` being present on the `<img>`. Suspected cause:
-   the `<picture>`/`<source>` structure — when a `<source>` matches,
-   the audit may read dimensions from it, and the `<source>` has none.
-   Test: put `width`/`height` on the `<source>` too.
+1. **Lighthouse calls the hero "Unsized image element" — and it is RIGHT.**
+   Corrected 2026-09-23 by reading the live markup. `#hero-main` contains
+   **three** `<img>` elements, and only one of them carries dimensions:
+
+   ```
+   <img class="hero-poster hero-img-desktop" …>          NO width/height
+   <img class="hero-img-mobile" …>                       NO width/height
+   <img class="hero-poster" width="1160" height="927" …> has them
+   ```
+
+   `4ba4897` added `width`/`height` to the third one only. The other two were
+   never touched, which is why that commit moved nothing.
+
+   Compounding it: **all three have `src="data:image/gif;base64,R0lGODlh…"`**
+   — a 1×1 transparent GIF. The real images live only in `<source srcset>`.
+   So until a `<source>` resolves, an `<img>` with no width/height has an
+   intrinsic ratio of **1:1** from that 1px placeholder. On a 412px viewport
+   that is a 412×412 box that then snaps to the true height.
+
+   This is the most specific, best-evidenced CLS lead so far — but it is
+   still a LEAD, not a proven cause. Four hypotheses have already been wrong.
+   Test: add `width`/`height` to the two bare `<img>` tags, then five runs.
 2. **85 KiB of woff2 across four files**, arriving 494–1025 ms. With
    `display=optional` they should never be applied that late, yet Lighthouse
    names them as shift causes — so `optional` is not behaving as intended.
