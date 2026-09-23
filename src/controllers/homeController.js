@@ -667,8 +667,27 @@ async function getSectionData(ts) {
   const slots = order.filter(k => PER_SLOT_BASES.includes(k.replace(/_\d+$/, '')));
 
   const cache = new Map();   // filter signature -> Promise of rows
+  const sigOf = new Map();   // slot key          -> its signature
   const out   = {};
 
+  /* PASS 1 — work out each slot's signature and START its query. There is
+     deliberately no `await` in this loop.
+
+     It used to await inside the loop, which serialised the whole thing:
+     query 2 was not issued until query 1 had come back, query 3 not until
+     2 had. The Promise cache deduplicated identical filters but could not
+     overlap different ones, so N distinct sections cost N round trips
+     back to back.
+
+     Measured on the live site 2026-09-23, six sequential requests:
+
+         static file off disk   51 ms TTFB  (flat)
+         homepage HTML         229 ms TTFB  (147 -> 427, climbing)
+
+     ~178 ms of that is server think time, against three per-slot sections
+     — featured_section, featured_models, featured_models_2 — and
+     getFeaturedModels itself runs two queries internally. Starting them
+     together turns a chain into one parallel batch. */
   for (const slot of slots) {
     const base = slot.replace(/_\d+$/, '');
     const cfg  = ts[slot] || {};
@@ -690,8 +709,17 @@ async function getSectionData(ts) {
         ? getFeaturedModels(opts)
         : getFeaturedProducts(opts));
     }
-    out[slot] = await cache.get(sig);
+    sigOf.set(slot, sig);
   }
+
+  /* PASS 2 — one parallel wait, then hand the same rows to every slot that
+     shares a signature. Rejection behaviour is unchanged: previously the
+     in-loop await threw, now Promise.all rejects with the same error. */
+  const sigs = [...cache.keys()];
+  const rows = await Promise.all(sigs.map(s => cache.get(s)));
+  const bySig = new Map(sigs.map((s, i) => [s, rows[i]]));
+
+  for (const [slot, sig] of sigOf) out[slot] = bySig.get(sig);
   return out;
 }
 
