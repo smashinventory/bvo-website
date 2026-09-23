@@ -891,9 +891,33 @@ _DEFAULT_ORDER.forEach(function(k) {
   <% var _mbBox = hero.mobile_image_url
        ? _heroBox(hero.mobile_image_url, hero.mobile_image_aspect)
        : _heroBox(_hmImg, (_hm || {}).image_aspect); %>
+  <%/* min-height ALONGSIDE aspect-ratio, added 2026-09-23.
+
+       aspect-ratio can only produce a height once the element's own width
+       is resolved. Until then it contributes nothing and the box is ZERO —
+       not wrong, zero. That is the one state consistent with both of the
+       measurements I have, which otherwise contradict each other:
+
+         mine, warm, image stripped   box 329px   .hero-content y=474
+         SpeedVitals, cold, 4G        box   0     .hero-content y=145 @1359ms
+
+       min-height in vw does not depend on width resolution, so it holds a
+       box in exactly the window where aspect-ratio cannot. Both express the
+       same height, so once width resolves they agree and neither wins:
+
+         100vw * 927/1160 = 329.1px at 412w   <- matches the measured box
+
+       SCOPED TO <=480 ON PURPOSE. It is only safe where the wrapper really
+       is viewport-width, and 412px is the only band where I measured that
+       (wrapper width 412 = viewport 412). Applying it to 481-860 without
+       measuring the width there could OVER-reserve, which shifts the other
+       way and is worse than the bug. */%>
   <% if (_hmBox) { %>
   @media (max-width:480px){
-    #hero-main .hero-image.hero-layer--mobile{aspect-ratio:<%= _hmBox.w %>/<%= _hmBox.h %>}
+    #hero-main .hero-image.hero-layer--mobile{
+      aspect-ratio:<%= _hmBox.w %>/<%= _hmBox.h %>;
+      min-height:calc(100vw * <%= _hmBox.h %> / <%= _hmBox.w %>)
+    }
   }
   <% } %>
   <% if (_mbBox) { %>
