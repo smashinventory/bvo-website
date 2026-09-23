@@ -134,8 +134,34 @@ it currently has no coverage. Needs its own scoped piece of work.
 
 ---
 
-### 6. ⚠️ CUTOVER BLOCKER — 14 hotlinked images to replace
-*Logged 2026-09-13 · measured against the live database, not sampled*
+### 6. ⚠️ CUTOVER BLOCKER — hotlinked images
+*Logged 2026-09-13 · **re-measured 2026-09-23** · full detail in `docs/briefs/HOTLINKED_IMAGES_HANDOFF.md`*
+
+> **STATUS 2026-09-23 — the original 14 are largely closed, and the problem
+> has recurred.** Category cards, hero and supporting imagery are now on the
+> Bunny pull zone `images.bathroomvanitiesoutlet.com`. All eight gstatic cache
+> keys are gone, as are lampsplus and bathvanityexperts.
+>
+> Measured on the live homepage DOM — four hosts still not ours:
+>
+> | host | what | on the original list? |
+> |---|---|---|
+> | `jamesmartinvanities.com` | Brittany model tile | yes, never closed |
+> | `ak1.ostkcdn.com` | Overstock product shot | **no — new** |
+> | `bathgems.com` | Allamari vanity | **no — new** |
+> | `usbathstore.com` | Breckenridge vanity | **no — new** |
+>
+> Three appeared *while the list was being worked through*. That is the
+> argument for the control raised at the bottom of this item and never
+> approved — an admin warning when an image URL points outside our own hosts,
+> at the point of entry. Four fixed, three new, one never closed, in ten days.
+>
+> Separately and larger: every Huntington Brass faucet hotlinks
+> `huntingtonbrass.com` by design (`importHuntingtonBrass.js:32`, marked
+> "temporary"). Not counted above — HB products do not appear on the homepage.
+>
+> **The detail below is the 2026-09-13 snapshot, kept for reference.**
+
 
 Fourteen images on the site are served from hosts we do not control. **All of
 them are hand-entered curation. The product catalogue itself is clean** — 56,811
