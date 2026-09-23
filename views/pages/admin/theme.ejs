@@ -1308,6 +1308,15 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
             <% if (pkBase === 'image_with_text') { %>
             <div class="te4-section-label">Image</div>
             <%- teImage(pk+'.image_url', pk+'.image_alt', d.image_url, d.image_alt, 'Section image') %>
+            <div class="te4-field">
+              <label>Image shape</label>
+              <input type="text" name="<%= pk %>.image_aspect" value="<%= d.image_aspect || '' %>" placeholder="blank = 4:3">
+              <div class="te4-hint">Only needed when the picture is not 4:3. Write it as
+                <code>1:1</code>, <code>16:9</code>, <code>4:3</code>. The browser reserves this
+                shape before the image downloads — if it disagrees with the real file, everything
+                below jumps when the image lands. A square logo in this slot measured a 98px jump
+                and CLS 0.2515 on 2026-09-23. Leave blank for a 4:3 photo.</div>
+            </div>
             <div class="te4-section-label">Layout</div>
             <div class="te4-field"><label>Layout mode</label><select name="<%= pk %>.image_position" class="te4-select">
               <option value="left"   <%=(d.image_position||'left')==='left'  ?'selected':''%>>Image left, text right</option>

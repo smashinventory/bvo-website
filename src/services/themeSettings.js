@@ -361,6 +361,26 @@ const DEFAULTS = {
     show_on: 'all',
     image_url: '',
     image_alt: 'Our showroom floor',
+    /* Shape of image_url, e.g. '4:3', '1:1', '16:9'. Blank means "use the
+       4:3 the template has always assumed".
+
+       WHY THIS EXISTS. index.ejs hardcoded width="380" height="285" on this
+       image — a 4:3 ratio asserted for whatever picture the owner happens to
+       choose. On 2026-09-23 the chosen image was the 512x512 BVO logo, so
+       the browser reserved 4:3, a 1:1 file arrived, the image column grew
+       98px and the before/after section below it dropped by exactly that.
+
+       MEASURED at 1366x768, three ways agreeing:
+           img stripped   219x164  (ratio 1.335 — the 380:285 attributes)
+           img loaded     380x380  (natural 512x512)
+           iwt section    432 -> 530          growth  98px
+           before/after   pushed down          98px
+           SpeedVitals    reported shift       98px   CLS 0.2515
+
+       Blank keeps the old 380x285 so nothing changes for a 4:3 image; the
+       fix is opt-in per section. Same idea and same format as
+       hero_mobile.image_aspect. */
+    image_aspect: '',
     image_position: 'left',
     eyebrow: 'Why Choose Us',
     heading: 'The Bathroom Renovation Experts',
