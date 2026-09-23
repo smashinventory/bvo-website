@@ -297,7 +297,18 @@ _DEFAULT_ORDER.forEach(function(k) {
     carries display:none below 480px. Leave it here and the single hero
     vanishes on phones. See HERO_CURRENT_STATE_2026-09-13.md §3. */%>
 <section id="hero-main" class="hero hero--<%= _heroLayout %><%= hero.video_on_mobile === false ? ' hero--no-mobile-video' : '' %><%= hero.mobile_image_url ? ' hero--has-mobile-img' : '' %><%= hero.text_shadow !== false ? ' hero--text-shadow' : '' %>" data-section="hero" data-section-label="Hero Banner" aria-label="Hero" style="<%= _heroStyle %>">
-  <div class="hero-content" style="text-align:<%= _heroAlign %>">
+  <%/* NO inline text-align here. It used to carry an inline
+       style="text-align:..." fed by _heroAlign, which is why the phone
+       override needed !important to beat it — an inline declaration
+       outranks any stylesheet rule without one.
+
+       Both directions are now scoped rules in the <style> block below, so
+       there is no conflict to resolve and no window in which the wrong
+       alignment can paint. Measured at 412px: the copy moves up to 65px
+       sideways between left and centre (h2 worst), and CLS counts
+       horizontal movement exactly like vertical. Same treatment applied
+       to .hero-ctas, which had the same inline pattern. */%>
+  <div class="hero-content">
     <div class="hero-content-box">
       <p class="hero-eyebrow" style="<%= _heroESize %>"><%= hero.eyebrow || 'Curated for Your Bathroom Renovation' %></p>
       <<%- _heroTag %> class="hero-h1" style="<%= _heroHSize %>"><%= hero.heading_line1 || 'Premium Vanities.' %></<%- _heroTag %>>
@@ -305,7 +316,8 @@ _DEFAULT_ORDER.forEach(function(k) {
       <div class="hero-rule" aria-hidden="true"></div>
       <p class="hero-sub" style="<%= _heroSSize %>"><%= hero.subtext || 'Top brands, delivered free to your door.' %></p>
       <p class="hero-sub2" style="<%= _heroS2Size %>"><%= hero.sub2_text || 'James Martin · Kohler · Moen · Delta and more' %></p>
-      <div class="hero-ctas" style="<%= _ctaAlign %>">
+      <%/* inline style removed — see the note on .hero-content above */%>
+      <div class="hero-ctas">
         <a href="<%= hero.cta1_url || '/collections/bathroom-vanities' %>" class="btn btn-navy"><%= hero.cta1_text || 'Shop Vanities' %></a>
         <% if (hero.cta2_text || hero.cta2_url) { %>
         <a href="<%= hero.cta2_url || '/collections/sale' %>" class="btn btn-sage"><%= hero.cta2_text || 'View Sale' %></a>
@@ -716,6 +728,15 @@ _DEFAULT_ORDER.forEach(function(k) {
        phone-only overrides and widening it to 860 would push padding,
        offsets, heights and box colours onto tablets. See the note at the
        top of that block about 480 being load-bearing. */%>
+  <%/* Desktop alignment. This used to be an inline style="" on the element,
+       which is what forced the !important below — inline beats any rule
+       without one. As a scoped rule at (1,0,1) it beats everything in
+       site-bundle.css, which carries no competing text-align for
+       .hero-content (checked), and loses cleanly to the !important in the
+       <=860 block. One declaration wins at every width, with no conflict
+       to resolve after paint. */%>
+  #hero-main .hero-content{text-align:<%= _heroAlign %>}
+  <% if (_ctaAlign) { %>#hero-main .hero-ctas{<%= _ctaAlign %>}<% } %>
   @media (max-width:860px){
     #hero-main .hero-content{text-align:<%= _hmAlign %>!important}
     <% if (_hmCtaAl) { %>#hero-main .hero-ctas{<%= _hmCtaAl %>!important}<% } %>
