@@ -96,9 +96,33 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
 
        The listener is attached synchronously right after the link is parsed,
        and a load event always fires as a later task, so it cannot be missed. */%>
-  <link rel="preload" href="<%- _gfUrl %>" as="style" id="gf-css">
-  <script nonce="<%= cspNonce %>">(function(l){if(!l)return;l.addEventListener('load',function(){l.rel='stylesheet';});})(document.getElementById('gf-css'));</script>
-  <noscript><link href="<%- _gfUrl %>" rel="stylesheet"></noscript>
+  <%# ═══ TEMPORARY DIAGNOSTIC — 2026-09-23 — REVERT AFTER MEASURING ═══
+      Testing one hypothesis: is CLS 0.321 caused by the font applying after
+      first paint?
+
+      The line below replaces the preload+onload pattern with a plain
+      render-blocking stylesheet, so @font-face is known BEFORE first paint
+      and display:optional can do its job.
+
+      THIS IS NOT A FIX AND MUST NOT STAY. The preload pattern above it is a
+      measured optimisation worth 0.3-0.6s of LCP (7 runs each, see the
+      comment at the top of this block). Blocking render gives that back.
+
+      TEST: redeploy, run PageSpeed mobile FIVE times, record CLS each time.
+        all five 0        -> fonts confirmed; pick a real fix (self-host, or
+                             f-mods/size-adjust on a fallback @font-face)
+        any 0.321 appears -> fonts ruled out; revert and look elsewhere
+
+      REVERT: git revert --no-edit <this commit>   then redeploy.
+      Or by hand: delete the <link rel="stylesheet"> line below and restore
+      the three lines kept in the comment beneath it.
+  %>
+  <link rel="stylesheet" href="<%- _gfUrl %>">
+  <%# The three original lines are NOT reproduced here. They contain EJS
+      output tags, and a nested closing delimiter would end this comment
+      early and dump the rest into the page. Get them from git instead:
+          git show HEAD~1:views/layouts/main.ejs | sed -n '99,101p'
+      or revert the whole commit, which is the intended undo.           %>
 
   <%# CSS bundle: brand.css + site.css + site2.css concatenated into one file.
        One blocking request instead of three — eliminates 2 extra HTTP round trips on critical path.
