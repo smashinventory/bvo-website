@@ -46,6 +46,35 @@ const bl   = S.brand_logos        || {};
    larger master, extend this list to match, or the widest screens will keep
    being served 1604w. */
 var _HERO_WIDTHS = [480, 768, 1024, 1280, 1604];
+/* Intrinsic box for the phone hero image, so the browser can reserve the
+   space before a byte of it arrives.
+
+   WHY THIS EXISTS. The stacked layout took the image out of
+   position:absolute and released the section height, which is correct — but
+   the <img> carries a 1x1 transparent GIF as src (the real file comes from
+   <source srcset>), has no width/height attributes and no aspect-ratio. So
+   it occupies one pixel until the image decodes and then jumps to ~300px,
+   shoving the page down. Measured on PageSpeed 2026-09-23: CLS 0 -> 0.321,
+   which cost the whole score. Every other metric was unchanged.
+
+   WHY NOT A HARDCODED RATIO. The shape is chosen in the image URL
+   (?crop=W,H,x,y on Bunny). Pin a constant here and it silently fights
+   whatever the owner set. So the ratio is DERIVED from that URL, and only
+   when the URL does not carry one does hero_mobile.image_aspect supply it.
+   One fact, one source, with an explicit fallback rather than a guess.
+
+   The numbers are used for ratio only — CSS sets width:100%;height:auto —
+   so "1160 x 927" and "4 x 3" reserve the same box. */
+function _heroBox(url, fallbackAspect) {
+  var m = /[?&]crop=(\d+),(\d+)/.exec(String(url || ''));
+  if (m) return { w: +m[1], h: +m[2] };
+  var a  = String(fallbackAspect || '').trim();
+  var am = /^(\d+(?:\.\d+)?)\s*[:\/xX]\s*(\d+(?:\.\d+)?)$/.exec(a);
+  if (am && +am[1] > 0 && +am[2] > 0) {
+    return { w: Math.round(+am[1] * 1000), h: Math.round(+am[2] * 1000) };
+  }
+  return null;
+}
 function _heroSrcset(u) {
   u = String(u || '');
   if (u.indexOf('images.bathroomvanitiesoutlet.com') === -1) return '';
@@ -694,10 +723,17 @@ _DEFAULT_ORDER.forEach(function(k) {
          at the 1604w rung ~158KB, competing with the real desktop LCP image.
          The <source> matches the 480px layer breakpoint above; wider screens
          fall through to the 1x1 GIF and fetch nothing. */%>
+    <% var _hmBox = _heroBox(_hmImg, _hm.image_aspect); %>
+    <%/* width/height go on the <img>, not the <source>. Per the HTML spec the
+         img's attributes establish the default aspect ratio for the whole
+         <picture>, and with CSS width:100%;height:auto that reserves a
+         correctly-shaped box before the bytes land. Omitted entirely when
+         neither the URL nor the setting states a shape — a wrong box is
+         worse than none, because it shifts twice. */%>
     <picture>
       <source media="(max-width: 480px)" srcset="<%= _hsHm || _hmImg %>"<% if (_hsHm) { %> sizes="100vw"<% } %>>
       <img class="hero-poster" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
-           alt="<%= _hmAlt %>" loading="eager" fetchpriority="high" decoding="async">
+           <% if (_hmBox) { %>width="<%= _hmBox.w %>" height="<%= _hmBox.h %>" <% } %>alt="<%= _hmAlt %>" loading="eager" fetchpriority="high" decoding="async">
     </picture>
     <% } else { %>
     <div class="hero-img-placeholder" aria-hidden="true">

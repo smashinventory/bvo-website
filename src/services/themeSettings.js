@@ -168,6 +168,14 @@ const DEFAULTS = {
     // Background image — blank falls back to desktop hero image
     image_url:           '',
     image_alt:           '',
+    /* Shape of the phone hero image, e.g. '4:3'. Blank is correct whenever
+       image_url carries ?crop=W,H,x,y — index.ejs derives the box from
+       those params and this is not consulted. It exists only for an image
+       URL that states no shape: without a reserved box the stacked layout
+       renders a 1px-tall image and then jumps, which measured CLS 0.321 on
+       2026-09-23. Ignored by the bg and split layouts, which reserve space
+       via the section height. */
+    image_aspect:        '',
     // Background video (optional)
     video_url:           '',
     // Layout

@@ -1029,6 +1029,18 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
             <%- teImage('hero_mobile.image_url','hero_mobile.image_alt',hm2.image_url,hm2.image_alt,'Mobile Hero Image') %>
             <div class="te4-hint" style="margin-bottom:.75rem">Leave blank to use the desktop hero image.</div>
 
+            <div class="te4-field">
+              <label>Image shape <small style="opacity:.6;font-weight:400">(Stacked layout only)</small></label>
+              <input type="text" name="hero_mobile.image_aspect" class="te4-input"
+                     value="<%= hm2.image_aspect || '' %>" placeholder="e.g. 4:3 — usually leave blank">
+            </div>
+            <div class="te4-hint" style="margin-bottom:.75rem">
+              Only needed if the image URL above has no <code>?crop=</code> on it.
+              With a crop the shape is read straight from the URL and this is ignored.
+              Without either, the Stacked layout cannot reserve space for the photo and
+              the page jumps as it loads.
+            </div>
+
             <div class="te4-section-label">Background Video <small style="opacity:.6;font-weight:400">(optional)</small></div>
             <%- teVideoField('hero_mobile.video_url',hm2.video_url) %>
             <div class="te4-hint" style="margin-bottom:.75rem">Paste a YouTube or .mp4 URL. Leave blank for image only. Video autoplay on iOS requires muted + playsinline (already set).</div>
