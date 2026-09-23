@@ -821,9 +821,66 @@ _DEFAULT_ORDER.forEach(function(k) {
        DERIVED, not hardcoded: same _hmBox as the attributes, read from
        ?crop= in the image URL with hero_mobile.image_aspect as the stated
        fallback. One fact, one source. */%>
+  <%/* REWRITTEN 2026-09-23, second attempt. The first one did not work and
+       the way it was verified is why.
+
+       WHAT WAS WRONG. The rule was `aspect-ratio` on the <img>, scoped to
+       480px. Two defects:
+
+         1. WRONG BREAKPOINT. The stacked layout runs to 860px, not 480.
+            Between 481 and 860 the image sits in flow with nothing holding
+            its height — every tablet and landscape phone still shifted.
+         2. WRONG ELEMENT. Above 480px the visible image is .hero-img-mobile
+            (see the band table above), which that selector never reached and
+            which carries no width/height either.
+
+       WHY IT ALSO FAILED AT 412px, INSIDE ITS OWN BAND. `aspect-ratio` on
+       the <img> has to beat the intrinsic ratio of whatever is currently
+       loaded — and src is a 1x1 GIF that resolves instantly. That argument
+       is won on a warm load and lost on a cold one.
+
+       HOW IT SLIPPED THROUGH. It was verified in a browser where the hero
+       image was already CACHED. With the image loaded the box is correct
+       from its intrinsic size whether or not this rule does anything — the
+       check proved the box is right when it cannot be wrong. The only state
+       that matters, image absent, was never tested on the real page.
+
+       THE FIX. Reserve on the WRAPPER, not the image. .hero-image is a
+       plain block with a definite width from the 1fr grid track and no
+       intrinsic size of its own, so nothing about image loading can defeat
+       it. The <img> then fills a box that already exists.
+
+       MEASURED, SpeedVitals, cold, 4G, twice:
+
+         412x660   content 412x329 moved y=145 -> y=474
+                   distance 329/660 = 0.4985
+                   impact   (660-145)/660 = 0.780      score 0.389
+                                                    reported 0.3892
+
+         412x823   distance 329/823 = 0.400
+                   impact   (803-145)/823 = 0.799      score 0.3196
+                   (PSI, Moto G Power)              reported 0.321
+
+       One cause, both viewports, to three decimals. The bimodal 0.321-or-0
+       was simply cache hit versus cache miss, which is also why seven
+       warm-running tools reported 0 and were believed over the two cold
+       ones.
+
+       TWO RATIOS, NOT ONE, because the bands show different files:
+         <=480    _hmBox      from _hmImg  (hero_mobile.image_url or hero)
+         481-860  _mbBox      from hero.mobile_image_url
+       When mobile_image_url is unset both resolve to the same file and the
+       two rules carry the same ratio. A ratio taken from the wrong file
+       would be worse than none — it would shift twice. */%>
+  <% var _mbBox = _heroBox(hero.mobile_image_url || _hmImg, (_hm || {}).image_aspect); %>
   <% if (_hmBox) { %>
   @media (max-width:480px){
-    #hero-main .hero-layer--mobile .hero-poster{aspect-ratio:<%= _hmBox.w %>/<%= _hmBox.h %>}
+    #hero-main .hero-image.hero-layer--mobile{aspect-ratio:<%= _hmBox.w %>/<%= _hmBox.h %>}
+  }
+  <% } %>
+  <% if (_mbBox) { %>
+  @media (min-width:481px) and (max-width:860px){
+    #hero-main .hero-image.hero-layer--desktop{aspect-ratio:<%= _mbBox.w %>/<%= _mbBox.h %>}
   }
   <% } %>
   @media (max-width:860px){
