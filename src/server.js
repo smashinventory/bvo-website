@@ -78,8 +78,26 @@ const CSP_DIRECTIVES = {
                      "'unsafe-inline'",
                      "https:",
                    ],
-  styleSrc:       ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://cdnjs.cloudflare.com'],
-  fontSrc:        ["'self'", 'https://fonts.gstatic.com'],
+  /* fonts.googleapis.com and fonts.gstatic.com were removed 2026-09-24 with
+     the webfonts themselves (4f7da63). BVO serves Georgia + system-ui, both
+     already on the device — see docs/briefs/BVO_TYPOGRAPHY_DECISION.md — so
+     no stylesheet and no font file is fetched from Google, and a policy that
+     still permits them advertises a capability the site does not use.
+
+     CHECKED BEFORE REMOVING, not assumed:
+       - no @font-face anywhere in public/css
+       - no data: font URIs, so font-src needs no data:
+       - quill.snow.min.css, the one remaining third-party stylesheet
+         (admin page/blog editors), contains 0 @font-face and 0 url()
+         references in all 22,195 bytes
+
+     cdnjs.cloudflare.com STAYS in style-src: Quill's stylesheet is loaded
+     from there by views/pages/admin/page-edit.ejs and blog-edit.ejs.
+
+     If a self-hosted face is ever added it is same-origin and 'self' already
+     covers it. Re-adding a Google host means re-opening that doc first. */
+  styleSrc:       ["'self'", "'unsafe-inline'", 'https://cdnjs.cloudflare.com'],
+  fontSrc:        ["'self'"],
   imgSrc:         ["'self'", 'data:', 'https:', 'blob:'],
   connectSrc:     ["'self'",
                    // Google Analytics 4 / Tag Manager - Google's documented
