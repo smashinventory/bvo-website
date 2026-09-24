@@ -393,6 +393,73 @@ async function replaceBullets(conn, productId, bullets) {
    The diff before writing matters too: the old code DELETEd then re-INSERTed
    unconditionally, so a crash mid-loop left a product with partial or zero
    images, and an unchanged feed still churned every row every night. */
+/* ── Lead-image overrides ─────────────────────────────────────────────
+   JM's feed decides image order, and image 1 becomes the lead shot in the
+   bundle builder, collection grids, search results and the PDP gallery.
+   For a couple of SKUs that first image is unusable — a flat overhead into
+   an open carcass (503-V30-SC), a shipping crate (655-V36-PCN).
+
+   Editing product_images by hand does not survive: replaceImages() below
+   DELETEs and re-INSERTs every row on each run, so a manual reorder
+   reverts at the next sync with nothing logged. product_image_overrides
+   is the supported expression of "prefer a different lead shot".
+
+   Loaded ONCE per import run. resetImageOverrides() exists so a long-lived
+   process picks up an edit without a restart, and so tests can inject. */
+let _imgOverrides = null;
+
+async function loadImageOverrides(conn) {
+  if (_imgOverrides) return _imgOverrides;
+  _imgOverrides = new Map();
+  try {
+    const [rows] = await conn.query(
+      'SELECT sku, match_suffix, note FROM product_image_overrides WHERE is_active = 1');
+    for (const r of rows) _imgOverrides.set(String(r.sku).toUpperCase(), r);
+    if (rows.length) console.log(`[JM Import] ${rows.length} lead-image override(s) loaded`);
+  } catch (err) {
+    /* Missing table must not stop an import. The override is a refinement;
+       the catalogue matters more. Logged so it is not silent. */
+    console.warn('[JM Import] product_image_overrides unavailable:', err.message);
+  }
+  return _imgOverrides;
+}
+function resetImageOverrides() { _imgOverrides = null; }
+
+/**
+ * Promote the overridden image to the front, renumbering sort_order.
+ *
+ * Matches on the END of the URL so it works whether the file is still on
+ * images.salsify.com or already rewritten to the Bunny CDN — the host
+ * changes, the filename does not.
+ *
+ * Applied to `resolved` BEFORE the unchanged-diff below. That ordering is
+ * deliberate: diffing the un-overridden list against an overridden table
+ * would report a difference every single night and rewrite every affected
+ * product forever.
+ *
+ * @returns {string|null} the note, if an override fired
+ */
+function applyLeadOverride(resolved, sku, overrides) {
+  if (!sku || !overrides || !overrides.size) return null;
+  const ov = overrides.get(String(sku).toUpperCase());
+  if (!ov) return null;
+
+  const idx = resolved.findIndex(r => String(r.url).endsWith(ov.match_suffix));
+  if (idx < 0) {
+    /* The feed no longer contains that file. Leave the order alone — a
+       stale override is a no-op, never a crash and never a wrong image. */
+    console.warn(`[JM Import] override for ${sku} matched nothing ` +
+                 `(looking for "${ov.match_suffix}") — order left as the feed sent it`);
+    return null;
+  }
+  if (idx === 0) return null;   // already first, nothing to do
+
+  const [lead] = resolved.splice(idx, 1);
+  resolved.unshift(lead);
+  resolved.forEach((r, i) => { r.sort_order = i; });
+  return ov.note || 'override applied';
+}
+
 async function replaceImages(conn, productId, images, productName, sku, cdnMap, stats) {
   const validImages = images.filter(i => i.url && i.url.startsWith('http'));
   if (!validImages.length) return;
@@ -407,6 +474,14 @@ async function replaceImages(conn, productId, images, productName, sku, cdnMap, 
     }
     return { url: bunny || img.url, sort_order: img.sort_order };
   });
+
+  /* BEFORE the diff — see applyLeadOverride's comment for why. */
+  const overrides = await loadImageOverrides(conn);
+  const fired = applyLeadOverride(resolved, sku, overrides);
+  if (fired) {
+    if (stats) stats.overridden = (stats.overridden || 0) + 1;
+    console.log(`[JM Import] lead image overridden for ${sku}: ${fired}`);
+  }
 
   const [existing] = await conn.query(
     'SELECT url, sort_order FROM product_images WHERE product_id = ? ORDER BY sort_order, id',
@@ -1279,7 +1354,15 @@ async function importFromWorkbook(wb, opts = {}) {
                      unmappedSkus: [...imgStats.unmappedSkus] } };
 }
 
-module.exports = { importFromWorkbook, getUnmatchedTypes };
+module.exports = {
+  importFromWorkbook,
+  getUnmatchedTypes,
+  /* Exported for the gate in git_push_jm_lead_image_override.sh, which
+     proves the override survives a simulated re-import rather than
+     trusting that it does. */
+  applyLeadOverride,
+  resetImageOverrides,
+};
 
 // ── CLI entrypoint (server-only) ──────────────────────────────────────
 if (require.main === module) {
