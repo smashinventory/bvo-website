@@ -434,6 +434,19 @@ const adminAuthLimiter = rateLimit({
   skipSuccessfulRequests: true,
 });
 
+// ── Legacy Shopify URLs ──────────────────────────────────────────
+// 301s for the 501 old www.bathroomvanitiesoutlet.com URLs that do not
+// exist on this site. Table-driven (url_redirects), so a destination can
+// be re-pointed with an UPDATE rather than a deploy.
+//
+// POSITION IS DELIBERATE — this must run BEFORE the routes, not above the
+// 404 handler where a redirect layer would normally sit. Our controllers
+// render 404 themselves rather than calling next(), so a post-route
+// middleware would never see a dead product URL, which is the whole point
+// of this. Running first is only safe because self-redirects are filtered
+// out at load; see src/middleware/legacyRedirects.js for the full reasoning.
+app.use(require('./middleware/legacyRedirects'));
+
 // ── Routes ───────────────────────────────────────────────────────
 app.use('/',            require('./routes/index'));
 app.use('/products',    require('./routes/products'));
