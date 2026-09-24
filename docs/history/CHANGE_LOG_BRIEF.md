@@ -1,7 +1,7 @@
 # BVO Change Log Brief
 
 > The running log of every change, with dates and reasons. Search here first when asking when something broke.
-*Last updated: 2026-09-23*
+*Last updated: 2026-09-24*
 
 > **⚠️ This file had a one-month hole.** It stopped at 2026-08-10 while roughly
 > seventy tasks shipped — the whole order-management and fulfilment stack, the
@@ -16,6 +16,159 @@
 >
 > **Companion reference:** `BVO_AUDIT_BRIEF.md` → *LIVE DATABASE INVENTORY* —
 > all 41 live tables, and which 16 of them have no migration file.
+
+---
+
+## Homepage CLS eliminated, and the webfonts retired
+**Date:** 2026-09-23 → 2026-09-24
+**Commits:** `45ff9c9` `e112e55` `126b638d` `bfde140` `248e048` `56ab5fb`
+`50b9325` `4f7da63` `d7d5f5c` `117afb9`
+**Result:** PageSpeed mobile **89-90 → 99**, CLS **0.321 → 0**, and zero
+third-party font requests.
+
+### What was actually wrong
+
+Every CLS defect on this page turned out to be the same shape — **a stated
+dimension disagreeing with a real file, or a box nothing was holding.** Not
+fonts, not timing, not tooling.
+
+```
+hero <=480    width/height attributes lost to a 1x1 GIF's intrinsic ratio
+hero 481-860  the band stated no shape at all — reserved 1px
+image+text    template asserted 4:3 for a 1:1 logo — 98px drop
+```
+
+### The hero: reserve the ROW, not the item
+
+Sam's diagnosis, and it is the one that landed. The stacked layout sets
+
+```
+#hero-main{grid-template-rows:auto auto!important}
+```
+
+`auto` means the row is whatever its contents turn out to be — and until the
+image resolves a height, that is **zero**. Everything reserved on
+`.hero-image` (width/height, then `aspect-ratio`, then `min-height`) only
+helps once the ITEM sizes itself. The ROW is what holds `.hero-content` down,
+and an auto row holds nothing. That is why three earlier attempts left the
+number unchanged.
+
+Arithmetic, closed to three decimals at two viewports:
+
+```
+412x660   .hero-content 412x329 moved y=145 -> y=474
+          145 = header + announcement bar
+          474 = 145 + 329, the image row appearing
+          distance 329/660 = 0.4985 | impact (660-145)/660 = 0.780
+          score 0.389                          reported 0.3892
+
+412x823   distance 329/823 = 0.400 | impact 0.799
+          score 0.3196                         reported 0.321  (PSI)
+```
+
+Fixed by giving the row an explicit height derived from the file's real
+shape, per band, since the two bands show different files:
+
+```
+<=480     100vw * 927/1160    the ?crop= phone image
+481-860   100vw * 927/1604    the uncropped hero
+```
+
+The 481-860 ratio was measured at five widths before shipping — 500, 650,
+768, 820, 860 — and the emitted rule now reproduces 289/376/444/474/497px
+against those same measurements.
+
+### Image with Text
+
+Two separate bugs in one section. The alignment control reached the text
+column only: `.iwt-img` is `display:block; margin:0`, and a block box ignores
+`text-align` entirely — only auto margins move it. So copy centred and the
+picture stayed hard left. And the reserved box was a hardcoded `380x285`
+asserted for whatever picture the owner chose, which on 2026-09-23 was the
+512x512 logo.
+
+The second fix uses the same container principle as the hero: `width`/`height`
+attributes only set a *default* ratio and defer to the file once it lands, but
+a CSS `aspect-ratio` **overrides** the intrinsic ratio. With `object-fit:
+contain`, a wrong stated shape letterboxes inside a fixed box instead of
+resizing it — so *Image shape* stopped being required and became a refinement.
+
+```
+attributes only          220x220  ratio 1.000   box GREW  = the shift
++ aspect-ratio 380/285   220x165  ratio 1.333   box HELD
++ aspect-ratio 1/1       220x220  ratio 1.000   held, no letterbox
+```
+
+### Typography: Georgia + system-ui, no webfonts
+
+Sam had made this decision before and it had come undone, because **it was
+never written down** — a search of the whole docs tree found no typography
+decision of any kind. The site was serving Lora + Lato from Google while the
+owner believed it was serving system fonts.
+
+The original reasoning was sound when made: popular families would already be
+in the visitor's cache from other sites. Browsers ended that in 2020 by
+partitioning the HTTP cache per origin, to close a privacy leak. Every
+first-time visitor now pays the full DNS + TLS + download.
+
+Measured before the change, mobile 375x812: 6 font faces, 2 third-party
+origins, font CSS 146 ms at HIGH priority — competing with the hero LCP image.
+
+**Sam's rule is about the options, not the default:** *"a future admin should
+not be able to unknowingly add fonts that negatively impact LCP/FCP."* So the
+webfont machinery was removed rather than gated. `src/utils/fontStacks.js` is
+now the entire set of choices — nine faces, all already on the device — and
+`resolve()` is the enforcement point, not the dropdown, because settings also
+arrive from `theme_settings.json` and the DB without passing through the form.
+A stale `'Lora'` renders as Georgia and cannot produce a request.
+
+Full rationale, the measured side-by-side comparison, and what to do if a
+webfont is ever genuinely needed: **`docs/briefs/BVO_TYPOGRAPHY_DECISION.md`**.
+
+### Two real bugs found on the way
+
+- **Quoting.** The stack emitted the chosen family single-quoted. Once the body
+  font became `system-ui`, `'system-ui'` quoted is a family *name*, not the
+  CSS generic keyword — it matched nothing, and only resolved because an
+  unquoted fallback sat behind it. Correct by luck.
+- **Two paths, one value.** A malformed font name was rejected from the CSS
+  while still producing a Google request. `resolve()` now answers both.
+
+### Also shipped
+
+- Before/after images given the Bunny resizer ladder (`_baSrcset`) — they were
+  bypassing it entirely.
+- Favicons rebuilt from the logo glyph at 16/32/180px: **17.5 KB** off every
+  page load; the tab icon had been a 512x512, 19 KB master.
+- Homepage queries parallelised in `homeController.getSectionData` — 178 ms →
+  77 ms think time.
+- Admin hotlink warning at the point of entry (`hotlink-warn.ejs`).
+- CSP tightened: `fonts.googleapis.com` and `fonts.gstatic.com` removed from
+  `style-src`/`font-src`. Checked first — no `@font-face` in our CSS, no
+  `data:` font URIs, and `quill.snow.min.css` has 0 `@font-face` and 0 `url()`
+  across 22,195 bytes. `cdnjs.cloudflare.com` stays for Quill.
+- `main.ejs` no longer depends on the `fontStacks` local to render: it is the
+  layout for every public page, so a missing local there is a site-wide 500,
+  not a typography bug.
+
+### What this cost, and why
+
+Most of 2026-09-23 went on wrong hypotheses — seven of them, two stated as
+conclusions and acted on. The expensive one was **"CLS 0.321 is a Lightrider
+artifact, stop chasing it."** Seven tools reported 0 because they ran *warm*;
+PSI and SpeedVitals ran *cold*. Agreement in number is not agreement in
+conditions, and the bug was real.
+
+The second pattern: **two fixes were verified on a page where the hero image
+was already cached.** With the image loaded the box is correct whether or not
+the rule does anything — the check proved the box is right when it cannot be
+wrong. The only state that matters, image absent, was never tested.
+
+The lesson worth keeping: for a reserved-box bug, warm-cache verification is
+worthless, and a gate that cannot fail is not a gate. Both now have explicit
+tests — including one that caught *itself*: a guard-removal test passed because
+it blanked a template local instead of deleting it, and EJS only throws on a
+genuinely absent key.
 
 ---
 

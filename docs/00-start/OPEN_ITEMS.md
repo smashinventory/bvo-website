@@ -124,13 +124,92 @@ Those guard credentials and are the ones doing real security work.
 
 ---
 
-### 5. Checkout and payment have never been audited
-*Logged 2026-09-12*
+### 5. Checkout and payment — audited 2026-09-23, fixes DEFERRED
+*Logged 2026-09-12 · **audited 2026-09-23** · Sam: hold the fixes until the
+Authorize.net work is picked up, so they land together rather than as drive-by
+edits to the highest-risk file in the app*
 
-Card handling, the Clover integration, FraudLabs and order creation were
-deliberately left untouched — probing a live payment flow isn't something to do
-without an explicit decision. It is the highest-risk area of the application and
-it currently has no coverage. Needs its own scoped piece of work.
+Static code read only. No test transactions, no probing the live flow, no card
+data touched.
+
+**Note the stack changed:** this item and `routes/checkout.js` both still say
+Clover. The implementation is **Authorize.net AcceptUI**. There are no Clover
+credentials in the codebase.
+
+#### Sound — no action needed
+
+- Card data never reaches the server. AcceptUI is a hosted iframe; we receive
+  only an opaque nonce. That is PCI SAQ A, and the reasoning is documented at
+  `checkoutController.js:43-53`.
+- Prices are read from the DB and explicitly NOT from `req.body`
+  (`cartController.js:62`, with a comment saying why).
+- `bundle_discount_pct` is allowlisted to exactly `[0, 5, 10, 15]`
+  (`cartController.js:98-102`) — the obvious "POST 99" attack is already
+  guarded, and the comment names it.
+- Totals recalculated server-side; CSRF token on the form and verified;
+  order + items in one transaction with rollback; FraudLabs REJECT does not
+  leak its reason; confirmation email fire-and-forget AFTER commit.
+
+#### Findings, in priority order
+
+**F1 — no authorization-expiry handling (highest).** Capture is a deliberate
+manual admin step (`POST /admin/orders/:id/capture`), which is right for
+freight goods captured at ship time. But Authorize.net auths lapse — typically
+~30 days — and nothing tracks it:
+
+```
+RAG logic exists for   shipments (tracking scans, ETA slippage)
+RAG for aging auth_only orders   NONE
+any mention of auth expiry       NONE
+```
+
+With 2-5 days processing plus vendor backorders, an order can sit in
+`auth_only` past the window. `captureTransaction` then fails and the money is
+never collected, possibly after the goods shipped. No alert would fire.
+Needs a decision on mechanism (admin alert, scheduled job, or both) and on the
+threshold.
+
+**F2 — cart merge drops bundle context.** `cartController.js:104`:
+
+```js
+const existing = cart.items.find(i => i.product_id === product_id);
+if (existing) { existing.qty += qty; existing.price = pricef; /* … */ }
+```
+
+`bundle_discount_pct` and `bundle_id` are not reconciled, and the lookup keys
+on `product_id` alone. Both directions are reachable through normal UI use:
+
+- bundle first, then the same item standalone → extra units inherit the
+  discount (revenue leak)
+- standalone first, then via bundle → the customer silently loses their
+  bundle discount
+
+**F3 — `existing.qty += qty` has no clamp**, while the first add clamps to 99
+(`cartController.js:96`). Repeated adds walk past the cap.
+
+**F4 — FraudLabs fails open.** The reject fires only on
+`fraudResult.ok && status === 'REJECT'`, so an API outage lets orders through
+unscreened. Probably the right call — blocking revenue on a third-party
+outage is usually worse — but it is not stated anywhere. `REVIEW` also passes
+straight to `confirmed`, relying on someone reading the admin panel.
+
+**F5 — no idempotency on `POST /checkout`.** A double-submit before the first
+response could produce two authorizations. Cart-clearing mitigates, does not
+prevent.
+
+**F6 — `status: 'confirmed'` is hardcoded** at insert while payment is only
+authorized. "Confirmed" means authorized, not paid. Confirm staff read it
+that way.
+
+**F7 — stale Clover comments** throughout `routes/checkout.js`. Cosmetic, but
+misleading in the highest-risk file in the app.
+
+#### Open question, NOT a finding
+
+`calcTotal` sums line items only — no shipping (free shipping is advertised,
+so likely intentional) and **no sales tax**. Whether that is correct depends
+on nexus and registrations, which is a question for whoever handles tax
+compliance, not something to infer from the code.
 
 ---
 
@@ -362,16 +441,17 @@ history may not.
 
 ---
 
-### 12. 27 setting blocks have no `text_align` default
-*Logged 2026-09-23*
+### 12. 26 setting blocks have no `text_align` default
+*Logged 2026-09-23 · narrowed 2026-09-24*
 
 Scanned all 29 top-level blocks in `themeSettings.js`, comments stripped so
 prose inside a block cannot produce a false match:
 
 ```
 real text_align key:  hero_mobile, hero        (hero added 2026-09-23)
+                      image_with_text          (added 2026-09-24)
 no key:               newsletter, before_after, testimonials, parallax,
-                      featured_section, featured_models, image_with_text,
+                      featured_section, featured_models,
                       video_text, categories_section, trust_band,
                       brand_logos, scrolling_ticker, bundle_teaser,
                       cart_drawer, social, footer, promo_strip, nav,
@@ -386,6 +466,12 @@ template instead** — and usually twice, once where the section renders in
 Most default to `'center'`, but `theme.ejs:1323` defaults to `'left'`, and
 the shared `teAlignment()` helper at `theme.ejs:327` falls back to
 `'left'` for any caller that passes no value.
+
+**It has now bitten twice.** On 2026-09-24 `image_with_text` was reported as
+"the alignment control does not work". The control, the setting and
+`deepMerge` were all fine — the value simply had no default and lived only as
+a `|| 'left'` literal in `index.ejs`, while `theme.ejs` carried its own copy.
+Fixed for that block the same way. The remaining 26 are still exposed.
 
 **Why it matters, concretely.** The hero hit exactly this on 2026-09-23.
 Sam set the desktop hero to centre and kept it, but the value existed only
@@ -402,6 +488,47 @@ the hero fix.
 ---
 
 ## Resolved
+
+### Homepage CLS — hero, tablet band, and image-with-text
+*Logged 2026-09-23 · resolved 2026-09-24 · commits `45ff9c9` `bfde140`
+`248e048` `126b638d` `50b9325` `e112e55` `56ab5fb`*
+
+CLS 0.321 → **0** on PageSpeed mobile; performance 89-90 → **99**.
+
+Three separate defects, one shape: a box nothing was holding.
+
+- **Hero ≤480 and 481-860.** The stacked layout sets
+  `grid-template-rows:auto auto`, and `auto` is zero until the image resolves.
+  Reserving space on `.hero-image` could never hold `.hero-content` down —
+  the ROW had to be sized. Each band now takes an explicit height from the
+  shape of the file it actually shows (`927/1160` phone, `927/1604` tablet),
+  the second verified against measurements at five widths.
+- **Image with Text.** A hardcoded `380x285` asserted 4:3 for a 1:1 logo, and
+  the alignment control reached the text column only — `.iwt-img` is a block
+  box, which ignores `text-align` and answers only to auto margins.
+
+Full arithmetic and the wrong turns: `CHANGE_LOG_BRIEF.md`, 2026-09-23→24.
+
+**Standing lesson.** Warm-cache verification is worthless for a reserved-box
+bug: with the image loaded the box is correct whether or not the rule works.
+Two fixes shipped on that false check before it was caught.
+
+### Typography served Lora + Lato while the owner believed it was system fonts
+*Resolved 2026-09-24 · commits `4f7da63` `d7d5f5c` `117afb9`*
+
+Sam had made this decision before; it came undone because **it was never
+written down**, and a search of the whole docs tree confirmed no typography
+decision existed anywhere.
+
+Now Georgia + System UI, no webfonts, and no option that could reintroduce
+one: `src/utils/fontStacks.js` holds the entire allow-list, and `resolve()`
+enforces it at render time rather than at the dropdown, because settings also
+arrive from `theme_settings.json` and the DB without passing through the form.
+
+Rationale, the 2020 cache-partitioning reason, the measured side-by-side and
+the procedure for adding a face: **`docs/briefs/BVO_TYPOGRAPHY_DECISION.md`**,
+linked from `INDEX.md`.
+
 
 ### Mobile hero alignment had two settings and neither worked
 *Logged and resolved 2026-09-23 · commit `cb8c24c`*
