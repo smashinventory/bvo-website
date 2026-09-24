@@ -272,6 +272,56 @@ app.use('/images/uploads', express.static(uploadDir, {
   },
 }));
 
+// ── robots.txt — BEFORE express.static, deliberately ─────────────
+//
+// This sits above the static middleware because a file at public/robots.txt
+// would otherwise shadow it silently, which is exactly what happened: the
+// live host served
+//
+//     User-agent: Googlebot
+//     Disallow: /
+//
+// while this app's own robots route said Allow. Nothing in the code was
+// wrong and nothing logged; a static file simply won. Serving it here means
+// a stray file cannot take over again, whether or not anyone finds it.
+//
+// HOST-AWARE ON PURPOSE. The staging hostname must stay closed — 6,076
+// indexable URLs on a second hostname is a duplicate of the whole catalogue.
+// The canonical host must be open, or the migration is invisible. Deciding
+// per-request means there is nothing to remember on cutover day: the same
+// deploy serves the right file on both hosts, and DNS flips the behaviour.
+const CANONICAL_HOST = (process.env.SITE_URL || 'https://www.bathroomvanitiesoutlet.com')
+  .replace(/^https?:\/\//, '').replace(/\/+$/, '').toLowerCase();
+
+app.get('/robots.txt', (req, res) => {
+  const host = String(req.hostname || '').toLowerCase();
+  const siteUrl = process.env.SITE_URL || 'https://www.bathroomvanitiesoutlet.com';
+  res.type('text/plain');
+  res.setHeader('Cache-Control', 'public, max-age=300');
+
+  if (host !== CANONICAL_HOST) {
+    // Staging, the bare non-www host, any preview domain: closed.
+    return res.send(
+`# ${host} is not the canonical host for this site.
+# The canonical host is ${CANONICAL_HOST}.
+User-agent: *
+Disallow: /
+`);
+  }
+
+  return res.send(
+`User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /cart
+Disallow: /account/
+Disallow: /checkout
+
+Sitemap: ${siteUrl}/sitemap.xml
+`);
+});
+
 app.use(express.static(path.join(__dirname, '..', 'public'), {
   // All public assets are versioned via ?v= query string — 1 year is safe.
   // Express explicitly sets this header so LiteSpeed/Hostinger CDN honours it
@@ -484,20 +534,10 @@ app.get('/lookbook', lookbookCtrl.index);
 const sitemapCtrl = require('./controllers/sitemapController');
 app.get('/sitemap.xml', sitemapCtrl.xml);
 
-// robots.txt — allow everything except admin and API
-app.get('/robots.txt', (req, res) => {
-  const siteUrl = process.env.SITE_URL || 'https://bathroomvanitiesoutlet.com';
-  res.type('text/plain').send(
-`User-agent: *
-Allow: /
-Disallow: /admin/
-Disallow: /api/
-Disallow: /cart
-Disallow: /account/
-
-Sitemap: ${siteUrl}/sitemap.xml
-`);
-});
+// robots.txt is served ABOVE express.static — see the block near the static
+// middleware. It cannot live here: a file at public/robots.txt would win,
+// which is how the live host came to serve "Disallow: /" for Googlebot while
+// this route claimed otherwise.
 
 // ── 404 handler ──────────────────────────────────────────────────
 app.use((req, res) => {
