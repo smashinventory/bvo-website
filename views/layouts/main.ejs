@@ -27,9 +27,26 @@ const _cardR    = _d.card_radius    || '12px';
    fallback. All removed. If a webfont is ever wanted again, read
    docs/briefs/BVO_TYPOGRAPHY_DECISION.md first — self-hosting is the answer,
    not this. */
-const _fonts      = fontStacks;
-const _serifStack = _fonts.resolve(_hFont, _fonts.DEFAULT_HEADING);
-const _sansStack  = _fonts.resolve(_bFont, _fonts.DEFAULT_BODY);
+/* fontStacks arrives as res.locals (src/server.js, beside ownedImageHosts).
+   If it is ever absent this layout must still render: it is the layout for
+   EVERY public page, so a missing local here is not a typography bug, it is
+   a site-wide 500. Seen for real on 2026-09-24 when a gate rendered this
+   template without the local and every page threw
+   "_fonts.resolve is not a function".
+
+   The two literals below duplicate fontStacks.DEFAULT_* deliberately —
+   normally a Rule 10 violation, but a last-resort fallback cannot import
+   the thing it is a fallback for. They are only ever reached when the
+   module is missing entirely, and G2 asserts the normal path agrees with
+   fontStacks, so the two cannot silently diverge in what actually ships. */
+const _fonts = (typeof fontStacks !== 'undefined' && fontStacks
+                && typeof fontStacks.resolve === 'function') ? fontStacks : null;
+const _serifStack = _fonts
+  ? _fonts.resolve(_hFont, _fonts.DEFAULT_HEADING)
+  : 'Georgia, Cambria, "Times New Roman", serif';
+const _sansStack = _fonts
+  ? _fonts.resolve(_bFont, _fonts.DEFAULT_BODY)
+  : 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 
 // CSS color overrides — validate hex before injecting into <style> block (MED-3)
 const _hexRe = /^#[0-9a-fA-F]{3}$|^#[0-9a-fA-F]{6}$/;
