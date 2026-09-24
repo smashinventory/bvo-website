@@ -621,10 +621,7 @@ exports.productUpdate = async (req, res, next) => {
        background work; a missed one is a day of stale merchandising, and
        "is this SKU in the builder" is a question this handler cannot answer
        without duplicating the six queries' filters. */
-    setImmediate(() => {
-      try { require('./bundleController').bustBundleCache(); }
-      catch (e) { console.warn('[admin] bundle catalogue rebuild failed:', e.message); }
-    });
+    _rebuildBundleCatalogue('product save: id ' + id);
 
     req.session.flash = { type: 'success', msg: 'Product saved.' };
     res.redirect(`/admin/products/${id}/edit`);
@@ -2275,6 +2272,36 @@ exports.syncApproveAll = async (req, res) => {
    POST /admin/products/color-report  — bulk-assign a family + persist to color_mappings
    ════════════════════════════════════════════════════════════════ */
 
+/* ── Ask the bundle builder to rebuild its catalogue ──────────────────
+   Since 2026-09-24 the bundle builder serves a catalogue built nightly and
+   stored in `bundle_catalogue`, rather than a 15-minute in-memory cache.
+   That removed a 12-second wait from the page, and introduced a new way to
+   be wrong: an admin edit lands in `products` immediately, every admin
+   screen reads live and looks correct, and the storefront keeps yesterday's
+   copy until 06:30 UTC. Nothing errors, so it reads as "my change didn't
+   save".
+
+   It bit once already — a Pebble Oak colour remap on 2026-09-24 showed the
+   old swatch on every bundle card.
+
+   Any handler that changes something the catalogue carries — price,
+   colour_family, images, is_active, model — must call this. It is
+   deliberately one named helper rather than an inline require in each
+   caller, so the next one is a one-liner and shows up in a grep.
+
+   Fire-and-forget, AFTER the response is decided: a full rebuild takes
+   ~85ms but the admin must never wait on it, and a failure must never
+   turn a successful save into an error page. */
+function _rebuildBundleCatalogue(reason) {
+  setImmediate(() => {
+    try {
+      require('./bundleController').bustBundleCache();
+    } catch (e) {
+      console.warn(`[admin] bundle catalogue rebuild failed (${reason}):`, e.message);
+    }
+  });
+}
+
 /* GET /admin/products/color-report */
 exports.colorFamilyReport = async (req, res, next) => {
   try {
@@ -2370,6 +2397,12 @@ exports.colorFamilyApply = async (req, res, next) => {
     );
 
     const affected = updateResult.affectedRows ?? 0;
+
+    /* Same reason as colorMappingUpdate below: the bundle builder reads a
+       catalogue built nightly, so a colour change has to ask for a
+       rebuild or the swatch stays stale until 06:30 UTC. */
+    if (affected > 0) _rebuildBundleCatalogue('colour assign: ' + vendorColor);
+
     req.session.flash = {
       type: 'success',
       msg:  `"${vendorColor}" mapped to <strong>${familyKey}</strong> — ${affected} product(s) updated. Mapping saved to color_mappings.`,
@@ -2407,6 +2440,16 @@ exports.colorMappingUpdate = async (req, res, next) => {
     );
 
     const affected = updateResult.affectedRows ?? 0;
+
+    /* color_family drives the swatch on every bundle-builder card, so a
+       remap has to reach the pre-built catalogue. Without this the change
+       lands in `products` immediately — the colour report reads live and
+       looks right — while the builder keeps yesterday's chip until the
+       06:30 UTC rebuild. Reported 2026-09-24: "I changed pebble oak to med
+       wood, however the color chip is not adjusting on the card."
+       See bundleController.bustBundleCache. */
+    if (affected > 0) _rebuildBundleCatalogue('colour remap: ' + vendorColor);
+
     req.session.flash = {
       type: 'success',
       msg:  `"${vendorColor}" remapped to <strong>${familyKey}</strong> — ${affected} product(s) updated.`,
