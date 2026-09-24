@@ -965,6 +965,32 @@ _DEFAULT_ORDER.forEach(function(k) {
     #hero-main{grid-template-rows:calc(100vw * <%= _hmBox.h %> / <%= _hmBox.w %>) auto!important}
   }
   <% } %>
+  <%/* Same treatment for the tablet band. Held back on the first pass
+       because 100vw is only correct where the grid column is
+       viewport-width and I had measured that at 412px only. Now measured
+       across the whole band, hero image stripped:
+
+           width   hero width   full-bleed   image row   row/width
+            500       500          yes          289        1.730
+            650       650          yes          376        1.730
+            768       768          yes          444        1.730
+            820       820          yes          474        1.730
+            860       860          yes          497        1.730
+
+       Full-bleed at every width, so 100vw holds. 1.730 is 1604/927 — the
+       UNCROPPED hero file, which is what this band shows; the <=480 band
+       shows the ?crop=1160,927 version, which is why the two bands carry
+       different ratios and why borrowing one for the other would shift
+       twice.
+
+       aspect-ratio reads `auto` at all five widths, so the row is
+       unreserved here exactly as it was on the phone. Driven by _mbBox so
+       it states the shape of the file this band actually shows. */%>
+  <% if (_hmStackCss && _mbBox) { %>
+  @media (min-width:481px) and (max-width:860px){
+    #hero-main{grid-template-rows:calc(100vw * <%= _mbBox.h %> / <%= _mbBox.w %>) auto!important}
+  }
+  <% } %>
   <% if (_hmStackCss) { %>
   <%/* Line-length cap, stacked only, wide end of the band only.
        Full-bleed is right on a phone. At 860px it is not: the copy would
