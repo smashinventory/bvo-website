@@ -562,7 +562,11 @@ exports.show = async (req, res, next) => {
         console.warn('[collections] default_sku overrides unavailable:', err.message);
       }
 
-      const mgHeroes = await fetchModelHeroes(bvoPool, mgModelRows, mgHeroOverrides);
+      /* mgActiveTypes is passed for the same reason mgCsRows filters on it
+         above: without it the hero is ranked across every product type in
+         the model, and a cabinets-only page leads with a mirror's photo
+         and price. See the block comment in src/utils/modelHero.js. */
+      const mgHeroes = await fetchModelHeroes(bvoPool, mgModelRows, mgHeroOverrides, mgActiveTypes);
 
       let mgModels = mgModelRows.map(r => {
         const _hero  = heroFields(mgHeroes[mk(r)]);

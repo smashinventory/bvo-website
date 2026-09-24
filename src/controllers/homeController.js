@@ -541,7 +541,13 @@ async function getFeaturedModels(opts = {}) {
     curatedModels.forEach(r => {
       if (r.default_sku) heroOverrides[modelKey({ model: r.model_name, brand: r.brand })] = r.default_sku;
     });
-    const defaultBySku = await fetchModelHeroes(bvoPool, modelRows, heroOverrides);
+    /* Pass the section's product_type filter through. A featured-models
+       section scoped to "Single Sink Cabinet Only" had the same latent bug
+       as the collection page — the hero was ranked across all types, so the
+       section could lead with a mirror. Not reported on the homepage, but
+       it is the same function and the same mistake one filter away. */
+    const defaultBySku = await fetchModelHeroes(
+      bvoPool, modelRows, heroOverrides, opts.ptype ? [opts.ptype] : []);
 
     return modelRows.map(r => {
       /* RESOLVED 2026-09-05 — was the last map on the site still keyed on

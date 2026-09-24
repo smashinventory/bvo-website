@@ -30,16 +30,44 @@ const { SIZE_BUCKETS }              = require('../config/sizeBuckets');
 /**
  * Resolve the hero product for each (model, brand) pair.
  *
- * @param pool       mysql2 pool
- * @param rows       rows carrying `model` and `brand`
- * @param overrides  optional { "Model||Brand": "SKU" } from model_groups.default_sku
- * @returns          { "Model||Brand": heroRow } — pairs with no usable
- *                   candidate are simply absent, never a partial object.
+ * @param pool          mysql2 pool
+ * @param rows          rows carrying `model` and `brand`
+ * @param overrides     optional { "Model||Brand": "SKU" } from model_groups.default_sku
+ * @param productTypes  optional string[] — restrict candidates to these
+ *                      product_types. MUST be passed by any caller whose
+ *                      page is scoped to a subset of types; see below.
+ * @returns             { "Model||Brand": heroRow } — pairs with no usable
+ *                      candidate are simply absent, never a partial object.
  */
-async function fetchModelHeroes(pool, rows, overrides = {}) {
+/* ── WHY productTypes IS NOT OPTIONAL IN PRACTICE ──────────────────────
+   Reported 2026-09-24: "mirrors have snuck back into the vanity/cabinet
+   collections", and then "accessory cabinet is also slipping in".
+
+   Neither was a data problem. This function ranked every product in a
+   model by demand across ALL product types, so on
+   /collections/bathroom-vanity-cabinets — filtered to Single/Double Sink
+   Cabinet Only — The Bristol Collection card led with a MIRROR's photo
+   and the mirror's $388 price, and two ER Vanities cards led with an
+   accessory cabinet.
+
+   The collection page already filtered its swatch/size/price map by type
+   (mgCsRows). This file arrived later, took over image AND price AND
+   colour AND size via heroFields(), and knew nothing about that filter —
+   so the fix applied to one half of the card was silently undone by the
+   other. A card showing one product's photo above another product's price
+   is the exact failure this file was written to END; it just reintroduced
+   it along a different axis.
+
+   Callers scoped to a type subset MUST pass it. An empty array keeps the
+   old unfiltered behaviour, which is correct only for a genuinely
+   unscoped surface. */
+async function fetchModelHeroes(pool, rows, overrides = {}, productTypes = []) {
   const out = {};
   const { params, sql } = modelBrandPairs(rows);
   if (!params.length) return out;
+
+  const types    = (productTypes || []).filter(Boolean);
+  const typeSql  = types.length ? ` AND p.product_type IN (${types.map(() => '?').join(',')})` : '';
 
   try {
     /* ROW_NUMBER over (model, brand) picks one winner per card in a single
@@ -82,10 +110,11 @@ async function fetchModelHeroes(pool, rows, overrides = {}) {
           AND (p.model, p.brand) IN (${sql})
           AND p.width_in IS NOT NULL
           AND p.color    IS NOT NULL AND p.color <> ''
+          ${typeSql}
         GROUP BY p.id
       ) ranked
       WHERE rn = 1
-    `, params);
+    `, [...params, ...types]);
 
     for (const r of heroRows) out[modelKey(r)] = r;
   } catch (err) {
@@ -129,8 +158,13 @@ async function fetchModelHeroes(pool, rows, overrides = {}) {
         LEFT JOIN product_attribute_values pav
                ON pav.product_id = p.id AND pav.attr_key = 'primary_material'
         WHERE p.is_active = 1 AND (p.sku, p.model, p.brand) IN (${ph})
+          /* The pin is filtered too. A hand-picked default_sku that is a
+             mirror must not override the correctly-typed demand winner on
+             a cabinets-only page — it would reintroduce the exact bug by
+             the back door, and only on the models someone had curated. */
+          ${typeSql}
         GROUP BY p.id
-      `, wanted.flat());
+      `, [...wanted.flat(), ...types]);
       for (const r of pinned) out[modelKey(r)] = r;
     } catch (err) {
       console.warn('[modelHero] default_sku lookup failed:', err.message);
