@@ -558,6 +558,35 @@ app.use((err, req, res, next) => {
   });
 });
 
+// ── Nightly bundle-builder catalogue build ───────────────────────
+//
+// 06:30 UTC = 02:30 US Eastern, two hours after the JM feed lands at
+// 04:30 and an hour after jmv_rollup. See src/jobs/buildBundleCatalogue.js
+// for why the gap matters.
+//
+// The schedule is UTC EXPLICITLY. node-cron defaults to the server's
+// local zone, and a Hostinger box that is UTC today is not guaranteed to
+// be UTC after a migration — a silent shift would run this mid-import and
+// snapshot a half-written catalogue.
+//
+// bundle_catalogue.sh runs the same job from system cron. That redundancy
+// is deliberate: this timer only fires if the app happens to be awake at
+// 06:30, and system cron only fires if it can find node. Each covers the
+// other's blind spot.
+try {
+  const cron = require('node-cron');
+  const { runBundleCatalogueBuild } = require('./jobs/buildBundleCatalogue');
+  cron.schedule('30 6 * * *', () => {
+    console.log('[bundle-cron] nightly catalogue build starting');
+    runBundleCatalogueBuild('cron');   // resolves on failure, never throws
+  }, { timezone: 'UTC' });
+  console.log('[bundle-cron] scheduled 06:30 UTC daily');
+} catch (e) {
+  // A missing scheduler must not stop the site booting. The page still
+  // serves the last stored row; only the refresh stops.
+  console.error('[bundle-cron] could not schedule the nightly build:', e.message);
+}
+
 // ── Start ────────────────────────────────────────────────────────
 // initFromDb() runs before we accept connections:
 //   • If theme_settings.json exists  → syncs it to DB (so DB stays current).

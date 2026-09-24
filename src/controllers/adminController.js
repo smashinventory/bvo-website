@@ -607,6 +607,25 @@ exports.productUpdate = async (req, res, next) => {
     );
     await _upsertInventory(id, d.qty_on_hand, d.allow_backorder, d.reorder_point);
     await _saveSpecs(id, d.specs);
+
+    /* The bundle builder reads a catalogue built nightly (bundle_catalogue).
+       Without this, a price or photo edited here would not reach the builder
+       until 06:30 UTC the next day — the cost of moving off the old 15-minute
+       TTL, and the reason to pay it back here.
+
+       AFTER the response is decided, never before: this is a rebuild of the
+       whole catalogue and the admin must not wait on it. setImmediate matches
+       how the JM import already does it.
+
+       Not gated on brand. A cheap wrong rebuild is a few seconds of
+       background work; a missed one is a day of stale merchandising, and
+       "is this SKU in the builder" is a question this handler cannot answer
+       without duplicating the six queries' filters. */
+    setImmediate(() => {
+      try { require('./bundleController').bustBundleCache(); }
+      catch (e) { console.warn('[admin] bundle catalogue rebuild failed:', e.message); }
+    });
+
     req.session.flash = { type: 'success', msg: 'Product saved.' };
     res.redirect(`/admin/products/${id}/edit`);
   } catch (err) { next(err); }

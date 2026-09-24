@@ -246,36 +246,103 @@ async function getTops() {
    per part — it was wrong on 51 SKUs until migration 019. It is a label
    for the customer, never a join key. See JMV_CATALOGUE_STRUCTURE.md
    §2.3.                                                                */
+/* The four forms a feed component SKU can take in products.sku.
+   These are the EXACT MySQL expressions this used to run inside a join
+   predicate, ported to JS. Keep them in lockstep with the comment above;
+   scripts/verifyCabinetTopMap.js diffs this against the old SQL and fails
+   if a single pair differs. */
+function topSkuAliases(componentSku) {
+  const s = String(componentSku);
+  const parts = s.split('-');
+  return [
+    // pc.component_sku
+    s,
+    // CONCAT(pc.component_sku, '-SNK')
+    s + '-SNK',
+    // CONCAT(SUBSTRING_INDEX(s,'-',2), '-BS-', SUBSTRING_INDEX(s,'-',-1))
+    //   MySQL's SUBSTRING_INDEX returns the WHOLE string when the delimiter
+    //   appears fewer times than requested; slice/pop behave the same way,
+    //   so a SKU with no dash still produces the same value it did before.
+    parts.slice(0, 2).join('-') + '-BS-' + parts[parts.length - 1],
+    // CONCAT(REPLACE(s,'-S46-','-S46R-'), '-SNK')
+    //   REPLACE swaps EVERY occurrence, so split/join, not String.replace,
+    //   which would only take the first.
+    s.split('-S46-').join('-S46R-') + '-SNK',
+  ];
+}
+
+/* WHY THE PRODUCTS JOIN IS GONE, 2026-09-24.
+   ──────────────────────────────────────────
+   This used to resolve the four alias forms inside the join itself:
+
+       JOIN products t ON t.sku IN (pc.component_sku, CONCAT(...), ...)
+
+   Every one of those is computed per row, so the index on products.sku
+   could not be used. Measured on the live database:
+
+       EXPLAIN  ->  t: type=ALL, key=NULL, rows=5192,
+                       Using join buffer (flat, BNL join)
+       intermediate: 5,452 rows
+       runtime:      12.27 s
+
+   5,452 x 5,192 is ~28M string-function evaluations per rebuild, and
+   because buildCataloguePayload() runs all six queries under Promise.all,
+   the whole catalogue rebuild cost whatever THIS cost. It was the entire
+   11-second rebuild; the cabinets query next to it returns in ~60ms.
+
+   Both halves are cheap on their own — the edge list is index-only across
+   all three tables, and "every active SKU" is one pass. So they are
+   fetched separately and matched here with a hash lookup: ~22,000 Map
+   probes instead of 28M comparisons.
+
+   CASE. The old join compared under the column collation, which is
+   case-insensitive. The Map is therefore keyed on the UPPERCASED sku and
+   stores the real one, so the value returned is still products.sku exactly
+   as stored — matching behaviour, not just matching rows. */
 async function getCabinetTopMap() {
-  const [rows] = await bvoPool.execute(`
-    SELECT cab.sku AS cabinet_sku, t.sku AS top_sku
-      FROM jmv_dimensions cab
-      JOIN jmv_dimensions combo
-        ON combo.product_type  = 'Vanity'
-       AND combo.collection    = cab.collection
-       AND combo.base_finish   = cab.base_finish
-       AND combo.size_nominal  = cab.size_nominal
-      JOIN product_components pc
-        ON pc.parent_sku     = combo.sku
-       AND pc.component_role = 'top'
-      JOIN products t
-        ON t.sku IN (pc.component_sku,
-                     CONCAT(pc.component_sku, '-SNK'),
-                     /* backsplash token: 051-S36-WZ -> 051-S36-BS-WZ. The BS
-                        goes before the FINISH, i.e. before the last dash.
-                        REPLACE(sku,'-S','-BS-S') looks equivalent and is not
-                        — it hits the first '-S' and yields 051-BS-S36-WZ,
-                        which matches nothing and drops all six backsplash
-                        tops from the builder. */
-                     CONCAT(SUBSTRING_INDEX(pc.component_sku, '-', 2), '-BS-',
-                            SUBSTRING_INDEX(pc.component_sku, '-', -1)),
-                     CONCAT(REPLACE(pc.component_sku, '-S46-', '-S46R-'), '-SNK'))
-     WHERE cab.product_type = 'Cabinet'
-       AND t.is_active      = 1
-     GROUP BY cab.sku, t.sku
-  `);
+  const [[edges], [skuRows]] = await Promise.all([
+    bvoPool.execute(`
+      SELECT cab.sku AS cabinet_sku, pc.component_sku AS component_sku
+        FROM jmv_dimensions cab
+        JOIN jmv_dimensions combo
+          ON combo.product_type  = 'Vanity'
+         AND combo.collection    = cab.collection
+         AND combo.base_finish   = cab.base_finish
+         AND combo.size_nominal  = cab.size_nominal
+        JOIN product_components pc
+          ON pc.parent_sku     = combo.sku
+         AND pc.component_role = 'top'
+       WHERE cab.product_type = 'Cabinet'
+       GROUP BY cab.sku, pc.component_sku
+    `),
+    bvoPool.execute(`SELECT sku FROM products WHERE is_active = 1`),
+  ]);
+
+  const bySku = new Map();
+  for (const r of skuRows) bySku.set(String(r.sku).toUpperCase(), r.sku);
+
   const map = Object.create(null);
-  for (const r of rows) (map[r.cabinet_sku] ||= []).push(r.top_sku);
+  const seen = new Map();          // cabinet -> Set(topSku), the old GROUP BY
+
+  for (const e of edges) {
+    const cab = e.cabinet_sku;
+    let set = seen.get(cab);
+    if (!set) { set = new Set(); seen.set(cab, set); map[cab] = []; }
+
+    for (const alias of topSkuAliases(e.component_sku)) {
+      const real = bySku.get(alias.toUpperCase());
+      if (real !== undefined && !set.has(real)) {
+        set.add(real);
+        map[cab].push(real);
+      }
+    }
+  }
+
+  /* A cabinet whose every alias missed used to produce no row at all and
+     therefore no key. Preserve that: an empty array would read as "this
+     cabinet has no compatible tops" rather than "not in the map". */
+  for (const [cab, set] of seen) if (set.size === 0) delete map[cab];
+
   return map;
 }
 
@@ -520,19 +587,66 @@ function enrichTopsWithMaterial(topRows, sampleRows) {
    so the request costs whatever the SLOWEST one costs. Caching five of
    six would save nothing.
 
-   Staleness is the price. A product edited in admin can take up to
-   TTL_MS to appear here. That is acceptable for a merchandising page
-   and NOT acceptable for price or stock at checkout — cart and checkout
-   read the DB directly and must keep doing so.
+   Staleness is the price. A product edited in admin does not appear here
+   until the next build. That is acceptable for a merchandising page and
+   NOT acceptable for price or stock at checkout — cart and checkout read
+   the DB directly and must keep doing so.
 
-   bustBundleCache() is exported so the feed importer can clear it on
-   completion rather than waiting out the clock.                        */
-const TTL_MS = 15 * 60 * 1000;
-let _cache   = null;   // { at: epochMs, payload: {...} }
-let _inflight = null;  // de-dupes concurrent cold requests
+   ── 2026-09-24: BUILT NIGHTLY, STORED IN A TABLE ─────────────────────
 
+   This used to be a module-level object on a 15-minute TTL. Sam's call,
+   and it is the right shape: the catalogue changes when the JM feed
+   lands (04:30 UTC) and at no other time, so rebuild on that EVENT
+   rather than on a clock.
+
+   Two things were wrong with the TTL version:
+
+   1. It rebuilt ~96 times a day to capture one real change.
+
+   2. It did not survive a restart, and that is what was actually hurting.
+      warmCatalogue() kicked off a rebuild at boot, but a request arriving
+      before it finished found an empty cache and waited out the whole
+      rebuild — 12 seconds, measured. Every deploy and every app wake-up
+      opened that window, and on traffic this sparse the window caught
+      close to every real visitor. "Slow to load" was this.
+
+   Now: a nightly job writes one row; the page reads it in ~1ms. Nothing
+   a visitor does can ever trigger a build.
+
+   STALE BEATS SLOW, deliberately. If the nightly build has not run, the
+   last good row is served however old it is — Sam's call. The catalogue
+   going a day stale is a merchandising inconvenience; the page taking 12
+   seconds is a lost customer. The one exception is an EMPTY table (first
+   deploy), where there is nothing to serve and we must build inline.
+
+   Age is logged on every read past 36h so "stale" never becomes
+   "silently stale" — the failure mode that hid the jmv_rollup cron
+   breakage for weeks while node-cron quietly covered for it.           */
+
+const STALE_WARN_MS = 36 * 60 * 60 * 1000;
+
+/* THE OLD TTL, KEPT ON PURPOSE AS THE FALLBACK.
+   This is the 15 minutes the module used before the nightly table existed.
+   It is dead code while the table works — a persisted catalogue is never
+   aged out, because the nightly job owns when it changes. It comes back
+   into play only when persistence FAILS, at which point this process
+   behaves exactly as it did before this change rather than inventing some
+   third, untested mode. Slower, and it dies with the process; but it is a
+   path that ran in production for months, which is what you want from a
+   fallback. */
+const LEGACY_TTL_MS = 15 * 60 * 1000;
+
+let _mem      = null;   // { at, payload, persisted } — per-process copy
+let _inflight = null;   // de-dupes concurrent cold builds
+
+/* Kept for the JM importer, which calls it after an in-process import.
+   It no longer just drops a cache: it rebuilds and PERSISTS, because the
+   import IS the event this catalogue tracks. Fire-and-forget; the caller
+   is already in a setImmediate and must not wait on it. */
 function bustBundleCache() {
-  _cache = null;
+  _mem = null;
+  rebuildAndStore('admin').catch(err =>
+    console.error('[bundle] rebuild after import failed:', err.message));
 }
 exports.bustBundleCache = bustBundleCache;
 
@@ -634,58 +748,205 @@ async function buildCataloguePayload() {
   return payload;
 }
 
-function refreshCatalogue() {
+/* ── Persistence ──────────────────────────────────────────────────── */
+
+const CATALOGUE_DDL = `
+  CREATE TABLE IF NOT EXISTS bundle_catalogue (
+    id          TINYINT UNSIGNED NOT NULL DEFAULT 1,
+    payload     LONGTEXT NOT NULL,
+    built_at    DATETIME NOT NULL,
+    build_ms    INT UNSIGNED NULL,
+    source      VARCHAR(16) NOT NULL DEFAULT 'cron',
+    counts_json VARCHAR(500) NULL,
+    PRIMARY KEY (id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`;
+
+/* Self-heal, same pattern as _ensureModelGroupsTable. The migration is
+   the intended path; this means a deploy that runs ahead of the SQL
+   import still works rather than 500ing on an unknown table. */
+let _ddlDone = false;
+async function ensureTable() {
+  if (_ddlDone) return;
+  await bvoPool.query(CATALOGUE_DDL);
+  _ddlDone = true;
+}
+
+/**
+ * Build the catalogue and write it to bundle_catalogue.
+ * @param {'cron'|'admin'|'boot'|'manual'} source  what triggered this
+ */
+async function rebuildAndStore(source = 'manual') {
   if (_inflight) return _inflight;
-  _inflight = buildCataloguePayload()
-    .then(payload => { _cache = { at: Date.now(), payload }; return payload; })
-    .catch(err => {
-      /* Keep serving the stale copy rather than taking the page down.
-         A catalogue a few minutes old beats a 500. */
-      console.error('[bundle] catalogue refresh failed:', err.message);
-      if (_cache) return _cache.payload;
-      throw err;
-    })
-    .finally(() => { _inflight = null; });
+
+  _inflight = (async () => {
+    const t0 = Date.now();
+    const payload = await buildCataloguePayload();
+    const ms = Date.now() - t0;
+
+    const counts = {
+      cabinets: payload.cabinetModels.reduce((a, m) => a + m.skus.length, 0),
+      tops:     payload.topModels.reduce((a, m) => a + m.skus.length, 0),
+      mirrors:  payload.mirrorModels.reduce((a, m) => a + m.skus.length, 0),
+      faucets:  payload.faucetModels.reduce((a, m) => a + m.skus.length, 0),
+      compat:   Object.keys(payload.topCompat).length,
+    };
+
+    /* REFUSE AN EMPTY CATALOGUE. A build can "succeed" and return nothing
+       — a bad deploy, a truncated import, a category slug renamed. Serving
+       or storing that replaces a working page with an empty one, and the
+       nightly job would do it at 2am with nobody watching. Throw BEFORE
+       touching _mem or the table, so both keep what they already had. */
+    if (counts.cabinets === 0 || counts.tops === 0) {
+      throw new Error(
+        `refusing to store an empty catalogue (cabinets=${counts.cabinets}, ` +
+        `tops=${counts.tops}) — keeping the previous copy`);
+    }
+
+    /* SERVE-ABILITY FIRST, PERSISTENCE SECOND. The payload is good; put it
+       where requests can reach it BEFORE attempting the write. An earlier
+       version wrote first and assigned _mem after, so a failed INSERT threw
+       away a perfectly good catalogue and the page 500d over a storage
+       problem it did not need to care about. */
+    _mem = { at: Date.now(), payload, persisted: false };
+
+    try {
+      await ensureTable();
+      await bvoPool.query(
+        `INSERT INTO bundle_catalogue (id, payload, built_at, build_ms, source, counts_json)
+         VALUES (1, ?, NOW(), ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           payload     = VALUES(payload),
+           built_at    = VALUES(built_at),
+           build_ms    = VALUES(build_ms),
+           source      = VALUES(source),
+           counts_json = VALUES(counts_json)`,
+        [JSON.stringify(payload), ms, source, JSON.stringify(counts)]);
+
+      _mem.persisted = true;
+      console.log(`[bundle] catalogue stored (${source}) in ${ms}ms — ` +
+                  `${counts.cabinets} cabinets, ${counts.tops} tops, ` +
+                  `${counts.compat} cabinets with pairings`);
+    } catch (err) {
+      /* THE OLD BEHAVIOUR IS THE FALLBACK. Persisting failed, so this
+         process reverts to exactly what it did before this change: an
+         in-memory catalogue on a 15-minute TTL, rebuilt on demand. Slower,
+         and it dies with the process — but the page works.
+
+         Deliberately NOT rethrown. The caller is usually a scheduler or a
+         fire-and-forget admin hook; a storage failure must not become a
+         500 for a visitor who only wanted to see some vanities. */
+      console.error(`[bundle] BUILD OK BUT STORE FAILED (${err.message}). ` +
+                    `Falling back to the in-memory ${LEGACY_TTL_MS / 60000}-minute cache ` +
+                    `for this process. The page still works; fix the DB write.`);
+    }
+
+    return payload;
+  })().finally(() => { _inflight = null; });
+
   return _inflight;
 }
+exports.rebuildAndStore = rebuildAndStore;
 
-/* STALE-WHILE-REVALIDATE, and it matters more than it sounds.
+/** Read the stored row. Returns null if the table is empty or unreadable. */
+async function loadStored() {
+  try {
+    await ensureTable();
+    const [rows] = await bvoPool.query(
+      `SELECT payload, built_at, source, counts_json FROM bundle_catalogue WHERE id = 1`);
+    if (!rows.length) return null;
 
-   The first version of this expired at the TTL and made the next
-   request rebuild — 11 seconds, while someone waited. On a busy site
-   that costs one unlucky visitor every 15 minutes. On THIS site it is
-   close to every real visitor: traffic is sparse enough that the cache
-   is almost always cold when someone actually arrives, and the only
-   reason it measured fast during testing was that I was hammering it.
-   "Slow on the first visit of the day" is exactly that bug.
-
-   So a request never waits for a rebuild:
-     · fresh   -> serve it
-     · stale   -> serve the STALE copy now, refresh in the background
-     · empty   -> only then wait, and warmCatalogue() below means this
-                  should only ever happen if a request beats boot.     */
-async function getCataloguePayload() {
-  if (_cache) {
-    if ((Date.now() - _cache.at) >= TTL_MS) refreshCatalogue();  // no await
-    return _cache.payload;
+    const ageMs = Date.now() - new Date(rows[0].built_at).getTime();
+    if (ageMs > STALE_WARN_MS) {
+      /* Loud on purpose. Serving stale is the chosen behaviour; serving
+         stale WITHOUT SAYING SO is how a dead cron goes unnoticed. */
+      console.warn(`[bundle] serving a catalogue built ${Math.round(ageMs / 3600000)}h ago ` +
+                   `(source=${rows[0].source}) — is the nightly job running?`);
+    }
+    return { payload: JSON.parse(rows[0].payload), builtAt: rows[0].built_at, ageMs };
+  } catch (err) {
+    console.error('[bundle] could not read bundle_catalogue:', err.message);
+    return null;
   }
-  return refreshCatalogue();
+}
+exports.loadStored = loadStored;
+
+/* THE READ PATH. Three cases, and only one of them can ever be slow.
+
+     · in-process copy   -> return it, no I/O at all
+     · stored row        -> one indexed SELECT + JSON.parse, ~1ms
+     · nothing stored    -> build inline. THE ONLY slow case, and it can
+                            only happen before the first build has ever
+                            run (fresh deploy, table just created).
+
+   Note what is NOT here: any notion of "expired". The row is replaced by
+   the nightly job and by admin edits, never aged out by a clock. A
+   visitor arriving at 23:59 gets the same row as one arriving at 00:01,
+   and neither waits. Serving a stale catalogue is the deliberate choice
+   over making someone wait 12 seconds — see the block comment above. */
+async function getCataloguePayload() {
+  if (_mem) {
+    /* A PERSISTED copy never expires — the nightly job decides when the
+       catalogue changes, not a clock. An UNPERSISTED one is the legacy
+       fallback and does expire, exactly as it used to, so a process stuck
+       in fallback mode still picks up new data every 15 minutes instead of
+       serving one build until it is restarted. */
+    if (_mem.persisted !== false) return _mem.payload;
+    if ((Date.now() - _mem.at) < LEGACY_TTL_MS) return _mem.payload;
+    // else fall through and try the table again — it may have recovered.
+  }
+
+  const stored = await loadStored();
+  if (stored) {
+    _mem = { at: Date.now(), payload: stored.payload, persisted: true };
+    return stored.payload;
+  }
+
+  /* Nothing stored, or the table is unreadable. Build it. This is the old
+     behaviour and the only slow path left. */
+  console.warn('[bundle] no readable stored catalogue — building inline. ' +
+               'Expected once, on first deploy. Repeatedly means the ' +
+               'nightly job is not writing, or the table is unreachable.');
+  try {
+    return await rebuildAndStore('boot');
+  } catch (err) {
+    /* rebuildAndStore only throws now for a genuinely bad BUILD (empty
+       catalogue, or a query that failed) — a failed WRITE is already
+       swallowed in there. So there is no good payload to fall back to.
+       Serve the last one this process had, however old, rather than 500.
+       An old catalogue is a merchandising problem; a broken page is a
+       lost customer. */
+    if (_mem) {
+      console.error(`[bundle] rebuild failed (${err.message}) — serving the ` +
+                    `previous in-process copy rather than erroring.`);
+      return _mem.payload;
+    }
+    throw err;   // nothing anywhere: let getBundleBuilder render its error page
+  }
 }
 
-/* Build at boot so the first visitor of the day never pays for it, and
-   keep it warm on a timer so it never goes stale in the first place.
+/* Warm the PROCESS from the stored row at boot — a read, not a build, so
+   it costs a millisecond and cannot stampede.
 
-   unref() so this never holds the process open, and a catch so a DB
-   hiccup at boot logs rather than crashing the app. */
+   Deliberately NOT a rebuild. The old version built at boot, which meant
+   every deploy paid 12 seconds and every restart re-ran six heavy
+   queries for data that had not changed. The nightly job owns building.
+
+   unref() so it never holds the process open; catch so a DB hiccup at
+   boot logs rather than crashing the app. */
 function warmCatalogue() {
-  refreshCatalogue().catch(err =>
-    console.error('[bundle] initial catalogue warm-up failed:', err.message));
-  const t = setInterval(() => {
-    refreshCatalogue().catch(() => {});
-  }, Math.max(60000, TTL_MS - 60000));
-  if (t.unref) t.unref();
+  loadStored()
+    .then(s => {
+      if (s) {
+        _mem = { at: Date.now(), payload: s.payload };
+        console.log(`[bundle] catalogue loaded from DB (built ${s.builtAt})`);
+      } else {
+        console.warn('[bundle] no stored catalogue at boot — the first ' +
+                     'request will build one. Run the nightly job.');
+      }
+    })
+    .catch(err => console.error('[bundle] boot load failed:', err.message));
 }
-warmCatalogue();
+setTimeout(warmCatalogue, 0).unref?.();
 
 /* ── GET /bundle-builder ─────────────────────────────────────────────── */
 exports.getBundleBuilder = async (req, res) => {
