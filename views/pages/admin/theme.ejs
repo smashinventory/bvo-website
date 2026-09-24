@@ -3,8 +3,18 @@
    THEME EDITOR — Shopify-style UI
    ════════════════════════════════════════════════════════════════ */
 
-const HEADING_FONTS = ['Lora','Playfair Display','Cormorant Garamond','Libre Baskerville','EB Garamond','Crimson Pro','Fraunces','Bodoni Moda','DM Serif Display','Gilda Display'];
-const BODY_FONTS    = ['Lato','Montserrat','Nunito Sans','Open Sans','Raleway','Jost','DM Sans','Inter','Poppins','Source Sans 3'];
+/* Fonts come from src/utils/fontStacks.js via res.locals — ONE list, and
+   every entry on it is already installed on the visitor's device.
+
+   There are deliberately no webfont options. Sam's rule, 2026-09-24: a
+   future admin should not be able to unknowingly pick something that hurts
+   LCP/FCP, so the heavy options are not offered at all rather than offered
+   with a warning. The dropdowns below are generated from that list, so
+   adding or removing a face is a one-file change and the editor cannot
+   drift from what the renderer will actually honour. */
+const FONTS        = fontStacks.CHOICES;
+const FONT_SERIFS  = FONTS.filter(f => f.kind === 'serif');
+const FONT_SANS    = FONTS.filter(f => f.kind === 'sans');
 
 const t    = ts || {};
 const des  = t.design || {};
@@ -619,15 +629,38 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
                   <div class="te4-field">
                     <label>Heading Font</label>
                     <select name="design.heading_font" class="te4-select">
-                      <% HEADING_FONTS.forEach(function(f){ %><option value="<%= f %>" <%= (des.heading_font||'Lora')===f?'selected':'' %>><%= f %></option><% }) %>
+                      <% var _hSel = fontStacks.isAllowed(des.heading_font) ? des.heading_font : 'Georgia'; %>
+                      <optgroup label="Serif">
+                        <% FONT_SERIFS.forEach(function(f){ %><option value="<%= f.value %>" <%= _hSel===f.value?'selected':'' %> style="font-family:<%= f.stack %>"><%= f.label %></option><% }) %>
+                      </optgroup>
+                      <optgroup label="Sans-serif">
+                        <% FONT_SANS.forEach(function(f){ %><option value="<%= f.value %>" <%= _hSel===f.value?'selected':'' %> style="font-family:<%= f.stack %>"><%= f.label %></option><% }) %>
+                      </optgroup>
                     </select>
                   </div>
                   <div class="te4-field">
                     <label>Body Font</label>
                     <select name="design.body_font" class="te4-select">
-                      <% BODY_FONTS.forEach(function(f){ %><option value="<%= f %>" <%= (des.body_font||'Lato')===f?'selected':'' %>><%= f %></option><% }) %>
+                      <% var _bSel = fontStacks.isAllowed(des.body_font) ? des.body_font : 'system-ui'; %>
+                      <optgroup label="Sans-serif">
+                        <% FONT_SANS.forEach(function(f){ %><option value="<%= f.value %>" <%= _bSel===f.value?'selected':'' %> style="font-family:<%= f.stack %>"><%= f.label %></option><% }) %>
+                      </optgroup>
+                      <optgroup label="Serif">
+                        <% FONT_SERIFS.forEach(function(f){ %><option value="<%= f.value %>" <%= _bSel===f.value?'selected':'' %> style="font-family:<%= f.stack %>"><%= f.label %></option><% }) %>
+                      </optgroup>
                     </select>
                   </div>
+                </div>
+                <div class="te4-hint" style="margin-bottom:.75rem">
+                  <strong>Every font here loads instantly.</strong> All of them are already
+                  installed on the visitor's device, so the storefront downloads no font
+                  files at all — nothing on this list can slow the page down, which is why
+                  downloadable fonts (Google Fonts and the like) are not offered.
+                  <br><br>
+                  <% FONTS.forEach(function(f){ %><span style="display:block;margin-top:3px"><strong style="font-family:<%= f.stack %>"><%= f.label %></strong> — <%= f.note %></span><% }) %>
+                  <br>
+                  Reasoning and the measured comparison:
+                  <code>docs/briefs/BVO_TYPOGRAPHY_DECISION.md</code>.
                 </div>
                 <div class="te4-row2">
                   <div class="te4-field">

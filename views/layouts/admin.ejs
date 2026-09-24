@@ -5,13 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><%= pageTitle %></title>
 
-  <!-- Google Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600&family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
+  <%/* No webfonts. The admin used to load Lora + Lato from Google here as a
+       render-BLOCKING stylesheet (rel=stylesheet, display=swap) — worse than
+       the storefront, which at least used preload + swap.
+
+       Removed 2026-09-24 with the storefront conversion. brand.css below
+       sets --font-serif/--font-sans to Georgia and the system sans, so the
+       admin picks up the same typography with no third-party request and no
+       blocked render. See docs/briefs/BVO_TYPOGRAPHY_DECISION.md. */%>
 
   <!-- Brand tokens -->
-  <link rel="stylesheet" href="/css/brand.css">
+  <link rel="stylesheet" href="/css/brand.css?v=2">
   <!-- Admin CSS (appended to site.css) -->
   <link rel="stylesheet" href="/css/site.css">
   <!-- site4.css is ADMIN-ONLY and is deliberately NOT in site-bundle.css.

@@ -338,6 +338,12 @@ app.use((req, res, next) => {
      already owned BUNNY_HOST, and a second copy of this list would drift
      from the first exactly the way OPEN_ITEMS item 6 keeps regrowing. */
   res.locals.ownedImageHosts = require('./utils/cdnUrl').OWNED_IMAGE_HOSTS;
+  /* The font allow-list, shared by layouts/main.ejs (which resolves a stored
+     setting to a CSS stack) and pages/admin/theme.ejs (which builds the
+     dropdowns from it). One list, two consumers — a second copy would drift,
+     and drift here means an admin is offered a font the renderer will not
+     honour. See src/utils/fontStacks.js. */
+  res.locals.fontStacks = require('./utils/fontStacks');
   // Initialise cart on every page request so the session is "touched" (modified)
   // and express-session writes it to MySQL + sends the session cookie immediately.
   // Without this, saveUninitialized:false delays the cookie until /cart is visited,

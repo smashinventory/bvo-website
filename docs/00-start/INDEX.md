@@ -50,6 +50,7 @@ line — add one to the top of that file, under its H1, then reindex.
 | `docs/briefs/BVO_BRAND_ONBOARDING_PLAYBOOK.md` | Step-by-step playbook for adding a new brand to the catalogue. |
 | `docs/briefs/BVO_ISSUE1_BRIEF.md` | Rollout log for colorFamilies.js — the colour family buckets and normalisation. |
 | `docs/briefs/BVO_RFLPOS_SYNC_BRIEF.md` | Design brief for the BVO to RFLpos inventory sync. |
+| `docs/briefs/BVO_TYPOGRAPHY_DECISION.md` | **Georgia + system-ui, no webfonts.** Read before changing any font or "optimising" font loading — the cache argument for Google Fonts died in 2020 and the obvious reasoning is out of date. This decision was made once before and came undone because it was never written down. |
 | `docs/briefs/HOTLINKED_IMAGES_HANDOFF.md` | Which images are still served from hosts BVO does not control. The original list of 14 is mostly closed; the problem has recurred with new entries. Cutover blocker. |
 | `docs/briefs/REVERT_NOTES_2026-09-23.md` | Everything shipped today, newest first, with the exact command to undo each |
 | `docs/briefs/SHIPPING_GAP_ANALYSIS.md` | Field-by-field gap analysis between the BVO shipping form and the SpeedShip API. |

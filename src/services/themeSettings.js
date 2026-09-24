@@ -16,8 +16,22 @@ const SETTINGS_PATH = path.join(__dirname, '../../data/theme_settings.json');
 /* ── Hardcoded defaults (fallback when file is missing) ──────── */
 const DEFAULTS = {
   design: {
-    heading_font:   'Lora',
-    body_font:      'Lato',
+    /* BVO typography, decided 2026-09-24: Georgia + system-ui, both already
+       present on every device, so the storefront downloads NO webfonts.
+
+       Rationale lives in docs/briefs/BVO_TYPOGRAPHY_DECISION.md — read it
+       before changing these. Short version: the reason to reach for Google
+       Fonts was that visitors would already hold the files in cache from
+       other sites, and browsers ended that in 2020 by partitioning the HTTP
+       cache per origin. Every first-time visitor now pays the full DNS +
+       TLS + download. Sam compared both rendered side by side and chose
+       these.
+
+       Still Theme Editor settings — a Google font can be selected again at
+       any time, and main.ejs brings the whole preconnect + preload + swap
+       apparatus back automatically when one is. */
+    heading_font:   'Georgia',
+    body_font:      'system-ui',
     base_size_px:   16,
     heading_weight: '600',
     colors: { navy:'#182840', amber:'#926A21', sage:'#5A7A5A', whisper:'#F8F6F2', white:'#FFFFFF' },
