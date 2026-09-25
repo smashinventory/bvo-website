@@ -156,7 +156,7 @@ exports.createSession = async (req, res) => {
     const [result] = await conn.query(
       `INSERT INTO orders
          (order_number, customer_id, status,
-          subtotal, tax_amount, total,
+          subtotal, tax, total,
           payment_status,
           customer_ip, order_source, order_referrer,
           order_utm_campaign, order_utm_medium, order_utm_source)
@@ -389,7 +389,7 @@ async function handleSessionCompleted(sessionStub) {
               payment_check_zip     = ?,
               payment_check_line1   = ?,
               subtotal              = COALESCE(?, subtotal),
-              tax_amount            = COALESCE(?, tax_amount),
+              tax            = COALESCE(?, tax),
               total                 = COALESCE(?, total),
               payment_authorized_at = NOW()
         WHERE id = ? AND payment_status = 'pending'`,

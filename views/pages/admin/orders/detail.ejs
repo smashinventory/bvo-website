@@ -236,8 +236,10 @@ const hasPayment    = !!order.payment_transaction_id;
         </div>
         <% } %>
         <div class="detail-meta-row"><span>PaymentIntent</span><span style="font-family:monospace;font-size:12px"><%= order.payment_transaction_id %></span></div>
+        <%/* Sales tax is NOT repeated here — the order totals block above
+             (~line 171) already renders order.tax. Two copies of one figure
+             on one page is how they come to disagree after an edit. */%>
         <% if (order.stripe_charge_id) { %><div class="detail-meta-row"><span>Charge</span><span style="font-family:monospace;font-size:12px"><%= order.stripe_charge_id %></span></div><% } %>
-        <% if (order.tax_amount != null && parseFloat(order.tax_amount) > 0) { %><div class="detail-meta-row"><span>Sales Tax</span><span>$<%= parseFloat(order.tax_amount).toFixed(2) %></span></div><% } %>
       </div>
       <% if (isAuthOnly) { %>
       <p style="margin:10px 0 0;font-size:12px;color:var(--text-muted)">Funds are held on the customer's card but not taken. Capture once the buyer, delivery access and stock are confirmed.</p>

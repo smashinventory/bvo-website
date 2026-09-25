@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════════
---  orders — swap Authorize.net + FraudLabs columns for Stripe
+--  orders - swap Authorize.net + FraudLabs columns for Stripe
 --
 --  CONTEXT
 --  ───────
@@ -7,7 +7,7 @@
 --  empty. There is no data to preserve and no rollback to plan for.
 --  See docs/briefs/BVO_COMMERCE_STACK_BRIEF.md.
 --
---  None of these columns has a migration file — they were added ad hoc,
+--  None of these columns has a migration file - they were added ad hoc,
 --  so their exact definitions are not recorded anywhere in the repo.
 --  Every statement below therefore uses MariaDB's IF EXISTS /
 --  IF NOT EXISTS extensions: the migration is idempotent and does not
@@ -17,12 +17,12 @@
 --  (payment_transaction_id, payment_status, payment_brand,
 --  payment_last4) and should not churn.
 --
---  ⚠️ RUN SECTION 0 FIRST. If either count is non-zero, STOP — something
+--  ⚠️ RUN SECTION 0 FIRST. If either count is non-zero, STOP - something
 --     has been processed and this migration's premise is wrong.
 -- ═══════════════════════════════════════════════════════════════════
 
 
--- ── 0. SAFETY CHECK — run this alone, first ────────────────────────
+-- ── 0. SAFETY CHECK - run this alone, first ────────────────────────
 --
 -- Expected: with_txn = 0 AND with_fraud_screen = 0
 --
@@ -35,12 +35,12 @@
 -- ── 1. Drop the Authorize.net-specific columns ─────────────────────
 --
 -- payment_transaction_id, payment_status, payment_brand and
--- payment_last4 are NOT dropped — they carry over to Stripe unchanged.
+-- payment_last4 are NOT dropped - they carry over to Stripe unchanged.
 --
 --   payment_auth_code   Authorize.net auth code. Stripe has no analogue.
 --   payment_avs_code    ANet letter codes (Y/X/A/Z/W). Stripe reports
 --                       address checks as pass|fail|unavailable|unchecked
---                       inside the charge outcome — different domain, so
+--                       inside the charge outcome - different domain, so
 --                       reusing the column would mix two vocabularies.
 --   payment_cvv_code    Same, for CVV (ANet M/N/P/S/U).
 --   payment_afds_code   Advanced Fraud Detection Suite. An Authorize.net
@@ -67,20 +67,21 @@ ALTER TABLE orders
 
 -- ── 3. Widen / normalise the carried-over columns ──────────────────
 --
--- payment_transaction_id now holds a Stripe PaymentIntent id (pi_…,
+-- payment_transaction_id now holds a Stripe PaymentIntent id (pi_...,
 -- 27 chars today). VARCHAR(64) leaves headroom without being silly.
 --
--- payment_status keeps its existing vocabulary — auth_only / captured /
--- pending — which maps onto Stripe's requires_capture / succeeded /
+-- payment_status keeps its existing vocabulary - auth_only / captured /
+-- pending - which maps onto Stripe's requires_capture / succeeded /
 -- requires_payment_method. 'canceled' is added for released
 -- authorisations, which Authorize.net never had a path for.
+-- payment_last4 is char(4) and payment_brand is varchar(20) already - both
+-- correct. Not touched: an ALTER that changes nothing still rewrites the
+-- table and muddies the diff.
 ALTER TABLE orders
-  MODIFY COLUMN payment_transaction_id VARCHAR(64)  DEFAULT NULL
+  MODIFY COLUMN payment_transaction_id VARCHAR(64) DEFAULT NULL
     COMMENT 'Stripe PaymentIntent id (pi_...). Capture and refund both key on this.',
-  MODIFY COLUMN payment_status         VARCHAR(20)  DEFAULT NULL
-    COMMENT 'pending | auth_only | captured | canceled | refunded | partially_refunded',
-  MODIFY COLUMN payment_brand          VARCHAR(20)  DEFAULT NULL,
-  MODIFY COLUMN payment_last4          VARCHAR(4)   DEFAULT NULL;
+  MODIFY COLUMN payment_status         VARCHAR(20) DEFAULT NULL
+    COMMENT 'pending | auth_only | captured | canceled | refunded | partially_refunded';
 
 
 -- ── 4. Add the Stripe columns ──────────────────────────────────────
@@ -96,7 +97,7 @@ ALTER TABLE orders
   -- dashboard key on the charge, not the PaymentIntent, so a chargeback
   -- investigation starts here.
   ADD COLUMN IF NOT EXISTS stripe_charge_id VARCHAR(64) DEFAULT NULL
-    COMMENT 'Stripe Charge id (ch_...) — what a dispute record references'
+    COMMENT 'Stripe Charge id (ch_...) - what a dispute record references'
     AFTER stripe_session_id,
 
   -- ── Radar ────────────────────────────────────────────────────────
@@ -104,29 +105,38 @@ ALTER TABLE orders
   -- it is absent. NULL and 0 must stay distinguishable: 0 is a perfect
   -- score, NULL means "this tier does not provide one". Never DEFAULT 0.
   ADD COLUMN IF NOT EXISTS payment_risk_score TINYINT UNSIGNED DEFAULT NULL
-    COMMENT 'Stripe Radar 0-99. NULL on Radar Lite/Standard — NULL is not zero',
+    COMMENT 'Stripe Radar 0-99. NULL on Radar Lite/Standard - NULL is not zero',
   ADD COLUMN IF NOT EXISTS payment_risk_level VARCHAR(16) DEFAULT NULL
     COMMENT 'normal | elevated | highest | not_assessed',
   ADD COLUMN IF NOT EXISTS payment_seller_message VARCHAR(255) DEFAULT NULL
-    COMMENT 'Stripe outcome.seller_message — plain-English reason, shown in the admin risk panel',
+    COMMENT 'Stripe outcome.seller_message - plain-English reason, shown in the admin risk panel',
 
   -- ── Card checks ──────────────────────────────────────────────────
   -- Stripe's equivalents of AVS/CVV. Values are
-  -- pass | fail | unavailable | unchecked — NOT the Authorize.net letter
+  -- pass | fail | unavailable | unchecked - NOT the Authorize.net letter
   -- codes the old admin panel decoded. The risk panel must be rewritten
   -- against these, not have the old letters mapped onto them.
   ADD COLUMN IF NOT EXISTS payment_check_cvc   VARCHAR(16) DEFAULT NULL,
   ADD COLUMN IF NOT EXISTS payment_check_zip   VARCHAR(16) DEFAULT NULL,
   ADD COLUMN IF NOT EXISTS payment_check_line1 VARCHAR(16) DEFAULT NULL,
 
-  -- ── Tax ──────────────────────────────────────────────────────────
-  -- BVO has never charged sales tax. Stripe Tax computes it per the
-  -- customer's address, so the figure is Stripe's, not ours:
-  --   subtotal  = our calcTotal(), pre-tax
-  --   tax_amount = session.total_details.amount_tax
-  --   total      = session.amount_total  ← authoritative, never recomputed
-  ADD COLUMN IF NOT EXISTS tax_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00
-    COMMENT 'Stripe Tax calculated amount. Included in total.',
+  -- ── NO tax COLUMN IS ADDED ───────────────────────────────────────
+  -- `orders.tax` DECIMAL(10,2) NOT NULL DEFAULT 0.00 ALREADY EXISTS,
+  -- alongside `shipping_cost` and `discount`.
+  --
+  -- An earlier draft of this migration added `tax_amount`, which would
+  -- have been a second column for the same fact - exactly what CLAUDE.md
+  -- Rule 10 forbids, and how two tax figures come to disagree. Caught on
+  -- 2026-09-25 only because the owner's phpMyAdmin screenshot showed the
+  -- column list; the `orders` DDL is in no local dump, so the migration
+  -- had been written without reading the live schema.
+  --
+  -- The money columns, for the record:
+  --   subtotal       our calcTotal(), pre-tax
+  --   tax            session.total_details.amount_tax   ← Stripe's figure
+  --   shipping_cost  not charged today
+  --   discount       not used by the Stripe path
+  --   total          session.amount_total  ← authoritative, never recomputed
 
   -- ── Authorisation clock ──────────────────────────────────────────
   -- Card authorisations lapse after 7 days. Capture normally happens
@@ -135,7 +145,7 @@ ALTER TABLE orders
   -- and day-7 warnings will be computed from.
   --
   -- Authorisation and order creation are treated as simultaneous, so
-  -- this could be derived from created_at — it is stored explicitly
+  -- this could be derived from created_at - it is stored explicitly
   -- anyway so the alerting never silently depends on that assumption
   -- holding.
   ADD COLUMN IF NOT EXISTS payment_authorized_at DATETIME DEFAULT NULL
