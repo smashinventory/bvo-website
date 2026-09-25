@@ -67,8 +67,22 @@ function client() {
     /* Pinned deliberately. Stripe rolls the default API version with the
        account, so leaving this out means a dashboard-side change can alter
        response shapes under a running deploy. Bump it on purpose, having
-       read the changelog — never by accident. */
-    apiVersion: '2025-08-27.basil',
+       read the changelog — never by accident.
+
+       MUST MATCH THREE OTHER THINGS, or payloads drift apart silently:
+         · the account default (Workbench → Events shows it)
+         · the webhook destination's API version
+         · the client SDK — views/pages/checkout.ejs loads
+           js.stripe.com/dahlia/stripe.js and calls
+           initCheckoutElementsSdk, which is the dahlia generation
+
+       Set to basil on 2026-09-25 from memory rather than from the account,
+       which left the server a year behind the webhook and the browser.
+       paymentDetailsFrom() reads nested charge fields
+       (payment_method_details.card.checks, outcome.risk_score) — if any of
+       those moved between versions it would have written NULLs with no
+       error anywhere. Corrected the same day. */
+    apiVersion: '2026-08-26.dahlia',
     maxNetworkRetries: 2,
     timeout: 20000,
     appInfo: { name: 'BathroomVanitiesOutlet', version: '1.0.0' },
