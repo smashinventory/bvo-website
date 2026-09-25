@@ -87,7 +87,40 @@ function makeOrderNumber(insertId) {
        + `${String(insertId + 106).padStart(5, '0')}`;
 }
 
-function siteUrl() {
+/* Origin for Stripe's return_url.
+ *
+ * NOT process.env.SITE_URL. That is the CANONICAL host — set to
+ * https://www.bathroomvanitiesoutlet.com for sitemaps, canonical tags and
+ * the redirect map. The site is still served from the Hostinger temp
+ * domain until cutover, so a return_url built from SITE_URL sends the
+ * buyer to a domain that does not resolve. The payment authorises, the
+ * webhook fires, and the customer sits on a spinner forever — which is
+ * exactly what happened on the first live test, 2026-09-25.
+ *
+ * Derived from the request instead, so it is correct on the temp domain
+ * now and on the live domain after cutover with no env change.
+ *
+ * `trust proxy` is set (server.js:31), so req.protocol reflects
+ * X-Forwarded-Proto rather than always reading 'http' behind Hostinger's
+ * proxy.
+ *
+ * The Host header is attacker-controllable, so it is checked against an
+ * allowlist before being used to build a URL Stripe will redirect to.
+ * A forged host would only ever redirect the attacker's own session, but
+ * an open redirect on the checkout path is not worth leaving lying about.
+ */
+const ALLOWED_RETURN_HOSTS = new Set([
+  'www.bathroomvanitiesoutlet.com',
+  'bathroomvanitiesoutlet.com',
+  'slategrey-falcon-350174.hostingersite.com',
+]);
+
+function returnOrigin(req) {
+  const host = (req.get('host') || '').toLowerCase();
+  if (ALLOWED_RETURN_HOSTS.has(host)) return `${req.protocol}://${host}`;
+
+  console.warn('[checkout] unrecognised Host header:', host,
+    '— falling back to SITE_URL. Add it to ALLOWED_RETURN_HOSTS if legitimate.');
   return (process.env.SITE_URL || 'https://www.bathroomvanitiesoutlet.com')
     .replace(/\/+$/, '');
 }
@@ -223,7 +256,7 @@ exports.createSession = async (req, res) => {
     orderId,
     orderNumber,
     items:     cart.items,
-    returnUrl: `${siteUrl()}/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
+    returnUrl: `${returnOrigin(req)}/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
   });
 
   if (!session.ok) {

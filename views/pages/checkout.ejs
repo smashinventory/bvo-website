@@ -223,10 +223,26 @@
     errEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }
 
-  var money = function (cents) {
-    return '$' + (Number(cents || 0) / 100).toLocaleString('en-US',
+  /* Stripe's session totals are NOT plain minor-unit integers.
+     `session.total.total.amount` is a DISPLAY STRING, already formatted
+     and currency-symbolled ("$1,649.00"). Passing that through
+     Number()/100 gives NaN, which is what the first live test rendered
+     across Subtotal and Total on 2026-09-25.
+
+     Handles both shapes rather than betting on one: a string is already
+     display-ready and is used verbatim; a number is treated as minor
+     units. Anything else renders an em-dash rather than "NaN" or "$0.00",
+     because a zero total on a checkout page is a worse lie than a
+     visible blank. */
+  function money(v) {
+    if (v == null) return '—';
+    if (typeof v === 'object') v = (v.amount != null ? v.amount : v.value);
+    if (typeof v === 'string') return v.trim() || '—';
+    var n = Number(v);
+    if (!isFinite(n)) return '—';
+    return '$' + (n / 100).toLocaleString('en-US',
       { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  };
+  }
 
   /* Conversion attribution. Read here and posted with the session request,
      because the referrer and the query string are gone by the time the
@@ -293,18 +309,30 @@
     var t = session.total;
     if (!t) return;
 
+    /* One-time shape dump. The SDK's total object is not documented field
+       by field, and guessing at it is what produced $NaN on the first
+       test. Logged once so the real shape is visible in the console
+       instead of being inferred from a broken render. */
+    if (!window.__loggedTotalShape) {
+      window.__loggedTotalShape = true;
+      try { console.log('[checkout] session.total shape:', JSON.stringify(t)); } catch (e) {}
+    }
+
     if (t.subtotal != null) {
-      document.getElementById('sum-subtotal').textContent = money(t.subtotal.amount != null ? t.subtotal.amount : t.subtotal);
+      document.getElementById('sum-subtotal').textContent = money(t.subtotal);
     }
     if (t.tax != null) {
-      var taxAmt = t.tax.amount != null ? t.tax.amount : t.tax;
-      document.getElementById('sum-tax').textContent = money(taxAmt);
+      document.getElementById('sum-tax').textContent = money(t.tax);
       document.getElementById('tax-note').style.display = 'none';
     }
     if (t.total != null) {
-      var totAmt = t.total.amount != null ? t.total.amount : t.total;
-      document.getElementById('sum-total').textContent = money(totAmt);
-      payBtnText.textContent = 'Place Order — ' + money(totAmt);
+      var tot = money(t.total);
+      document.getElementById('sum-total').textContent = tot;
+      /* Only label the button with a real figure. "Place Order — —" is
+         worse than no figure at all. */
+      payBtnText.textContent = (tot === '—')
+        ? 'Place Order'
+        : 'Place Order — ' + tot;
     }
   });
 
@@ -317,10 +345,28 @@
     payBtn.disabled = true;
     payBtnText.textContent = 'Authorizing…';
 
+    /* A successful confirm redirects to return_url and this page goes
+       away, so nothing below should ever run on the happy path. If the
+       redirect does not happen — a return_url that does not resolve, which
+       is exactly what SITE_URL pointing at the un-cutover domain caused on
+       2026-09-25 — the button would otherwise read "Authorizing..."
+       forever while the payment sat authorized in Stripe.
+
+       Tell the customer the truth instead: the payment went through, the
+       page did not. Never invite a retry here — that would double-charge
+       an authorization that already succeeded. */
+    var stuck = setTimeout(function () {
+      payBtnText.textContent = 'Payment submitted';
+      showError('Your payment was submitted, but this page did not finish loading. '
+        + 'DO NOT try again — please contact us with your email address and we '
+        + 'will confirm your order.');
+    }, 20000);
+
     checkout.confirm().then(function (result) {
       /* Only reached on an IMMEDIATE error. On success the browser is
          redirected to return_url, so there is nothing to do here. */
       if (result && result.type === 'error') {
+        clearTimeout(stuck);
         showError(result.error && result.error.message
           ? result.error.message
           : 'Your payment could not be authorized. Please check your details and try again.');
@@ -328,6 +374,7 @@
         payBtnText.textContent = 'Place Order';
       }
     }).catch(function (e) {
+      clearTimeout(stuck);
       showError(e && e.message ? e.message : 'Something went wrong. Nothing has been charged.');
       payBtn.disabled = false;
       payBtnText.textContent = 'Place Order';

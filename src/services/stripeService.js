@@ -172,6 +172,19 @@ exports.createCheckoutSession = async (p) => {
          over a bare PaymentIntent. Requires the address, collected below. */
       automatic_tax: { enabled: true },
 
+      /* OFF, explicitly.
+         Adaptive Pricing converts prices into the buyer's local currency.
+         BVO sells domestic and ships LTL freight within the US, so it can
+         only add a currency selector nobody needs and a conversion spread
+         on the rare international card.
+
+         Set here rather than in the Dashboard because it defaults to ON at
+         the account level — a live session on 2026-09-25 came back with
+         "adaptive_pricing": {"enabled": true} despite nobody turning it on.
+         An explicit false in the request cannot drift when someone changes
+         an account setting. */
+      adaptive_pricing: { enabled: false },
+
       /* Required by automatic_tax: there is no sales tax without a
          jurisdiction. 'required' makes the Address Element mandatory in the
          form rather than letting the confirm fail later. */
