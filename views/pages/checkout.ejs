@@ -318,6 +318,17 @@
       try { console.log('[checkout] session.total shape:', JSON.stringify(t)); } catch (e) {}
     }
 
+    /* TEMPORARY — shows whether the elements are actually feeding the
+       session. If canConfirm never turns true, or the tax status never
+       leaves requires_location_inputs after an address is typed, the
+       address is not reaching Stripe and confirm() can never complete. */
+    console.log('[checkout] change:',
+      'canConfirm=', session.canConfirm,
+      '| status=', session.status,
+      '| taxStatus=', (session.taxAmounts || session.automaticTax || {}).status,
+      '| email=', !!session.email,
+      '| billing=', !!(session.billingAddress || session.billing_address));
+
     if (t.subtotal != null) {
       document.getElementById('sum-subtotal').textContent = money(t.subtotal);
     }
@@ -386,7 +397,26 @@
         + 'will confirm your order.');
     }, 20000);
 
+    /* ── TEMPORARY DIAGNOSTICS — remove once checkout is proven ──────
+       The confirm promise has been staying pending past 20s with no
+       error and no redirect, and there is no way to see why from
+       outside the browser. Everything below logs; none of it changes
+       behaviour. Strip this block once a payment completes cleanly. */
+    console.log('[checkout] confirm() called at', new Date().toISOString());
+    window.addEventListener('unhandledrejection', function (ev) {
+      console.error('[checkout] UNHANDLED REJECTION:', ev.reason);
+    });
+    var confirmStart = Date.now();
+
     checkout.confirm().then(function (result) {
+      /* Log EVERY outcome, not just errors. The previous version only
+         acted on result.type === 'error', so any other shape - including
+         a resolved-but-not-redirecting result - vanished silently. */
+      console.log('[checkout] confirm() resolved after',
+        Date.now() - confirmStart, 'ms. result =',
+        (function () { try { return JSON.stringify(result); }
+                       catch (e) { return String(result); } })());
+
       /* Only reached on an IMMEDIATE error. On success the browser is
          redirected to return_url, so there is nothing to do here. */
       if (result && result.type === 'error') {
@@ -398,6 +428,8 @@
         payBtnText.textContent = 'Place Order';
       }
     }).catch(function (e) {
+      console.error('[checkout] confirm() REJECTED after',
+        Date.now() - confirmStart, 'ms:', e);
       clearTimeout(stuck);
       showError(e && e.message ? e.message : 'Something went wrong. Nothing has been charged.');
       payBtn.disabled = false;
