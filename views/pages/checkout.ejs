@@ -217,6 +217,37 @@
   var payBtnText = document.getElementById('payBtnText');
   var errEl      = document.getElementById('payment-error');
 
+  /* ── TEMPORARY on-page debug panel ───────────────────────────────
+     Only renders with ?debug=1 in the URL, so customers never see it.
+     Exists because confirm() is failing somewhere the server cannot
+     observe, and reading it out of devtools has proved impractical.
+     Everything logged here also goes to the console.
+     DELETE this block, and the calls to dbg(), once checkout works. */
+  var DEBUG = /[?&]debug=1/.test(location.search);
+  var dbgBox;
+  if (DEBUG) {
+    dbgBox = document.createElement('pre');
+    dbgBox.style.cssText =
+      'position:fixed;bottom:0;left:0;right:0;max-height:42vh;overflow:auto;' +
+      'z-index:99999;margin:0;padding:10px 12px;background:#101418;color:#9ef;' +
+      'font:11px/1.45 ui-monospace,Menlo,monospace;white-space:pre-wrap;' +
+      'border-top:3px solid #0074d4';
+    dbgBox.textContent = 'checkout debug — select all and copy\n';
+    document.body.appendChild(dbgBox);
+  }
+  function dbg(label, value) {
+    var line = '[checkout] ' + label +
+      (value === undefined ? '' : ' ' + (function () {
+        try { return typeof value === 'string' ? value : JSON.stringify(value); }
+        catch (e) { return String(value); }
+      })());
+    console.log(line);
+    if (dbgBox) dbgBox.textContent += line + '\n';
+  }
+  window.addEventListener('error', function (ev) {
+    dbg('WINDOW ERROR:', (ev.message || '') + ' @ ' + (ev.filename || '') + ':' + (ev.lineno || ''));
+  });
+
   function showError(msg) {
     errEl.textContent = msg;
     errEl.style.display = 'block';
@@ -315,19 +346,18 @@
        instead of being inferred from a broken render. */
     if (!window.__loggedTotalShape) {
       window.__loggedTotalShape = true;
-      try { console.log('[checkout] session.total shape:', JSON.stringify(t)); } catch (e) {}
+      dbg('session.total shape:', t);
     }
 
     /* TEMPORARY — shows whether the elements are actually feeding the
        session. If canConfirm never turns true, or the tax status never
        leaves requires_location_inputs after an address is typed, the
        address is not reaching Stripe and confirm() can never complete. */
-    console.log('[checkout] change:',
-      'canConfirm=', session.canConfirm,
-      '| status=', session.status,
-      '| taxStatus=', (session.taxAmounts || session.automaticTax || {}).status,
-      '| email=', !!session.email,
-      '| billing=', !!(session.billingAddress || session.billing_address));
+    dbg('change: canConfirm=' + session.canConfirm +
+        ' status=' + session.status +
+        ' email=' + !!session.email +
+        ' billing=' + !!(session.billingAddress || session.billing_address) +
+        ' keys=' + Object.keys(session).join(','));
 
     if (t.subtotal != null) {
       document.getElementById('sum-subtotal').textContent = money(t.subtotal);
@@ -402,9 +432,16 @@
        error and no redirect, and there is no way to see why from
        outside the browser. Everything below logs; none of it changes
        behaviour. Strip this block once a payment completes cleanly. */
-    console.log('[checkout] confirm() called at', new Date().toISOString());
+    /* The check never made: does the SDK actually expose confirm()?
+       If the method name is wrong for this Stripe.js generation, calling
+       it throws a TypeError that the .catch swallows into a generic
+       message, and no network request is ever made - which matches the
+       Stripe API log showing session creations and zero PaymentIntents. */
+    dbg('sdk methods:', Object.keys(checkout || {}).join(','));
+    dbg('typeof checkout.confirm =', typeof (checkout && checkout.confirm));
+    dbg('confirm() called at ' + new Date().toISOString());
     window.addEventListener('unhandledrejection', function (ev) {
-      console.error('[checkout] UNHANDLED REJECTION:', ev.reason);
+      dbg('UNHANDLED REJECTION: ' + (ev.reason && ev.reason.message ? ev.reason.message : String(ev.reason)));
     });
     var confirmStart = Date.now();
 
@@ -412,10 +449,7 @@
       /* Log EVERY outcome, not just errors. The previous version only
          acted on result.type === 'error', so any other shape - including
          a resolved-but-not-redirecting result - vanished silently. */
-      console.log('[checkout] confirm() resolved after',
-        Date.now() - confirmStart, 'ms. result =',
-        (function () { try { return JSON.stringify(result); }
-                       catch (e) { return String(result); } })());
+      dbg('confirm() RESOLVED after ' + (Date.now() - confirmStart) + 'ms. result =', result);
 
       /* Only reached on an IMMEDIATE error. On success the browser is
          redirected to return_url, so there is nothing to do here. */
@@ -428,8 +462,8 @@
         payBtnText.textContent = 'Place Order';
       }
     }).catch(function (e) {
-      console.error('[checkout] confirm() REJECTED after',
-        Date.now() - confirmStart, 'ms:', e);
+      dbg('confirm() REJECTED after ' + (Date.now() - confirmStart) + 'ms: ' +
+          (e && e.message ? e.message : String(e)));
       clearTimeout(stuck);
       showError(e && e.message ? e.message : 'Something went wrong. Nothing has been charged.');
       payBtn.disabled = false;
