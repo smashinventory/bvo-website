@@ -1,4 +1,4 @@
-<link rel="stylesheet" href="/css/site3.css?v=18"><!-- site3: injected per-page (perf) -->
+<link rel="stylesheet" href="/css/site3.css?v=19"><!-- site3: injected per-page (perf) -->
 <div class="checkout-page">
   <div class="checkout-header">
     <h1>Checkout</h1>
@@ -17,130 +17,52 @@
 
   <div class="checkout-layout">
 
-    <!-- ── Left: Contact + Billing + Card ────────────────────────── -->
+    <!-- ── Left: Stripe-collected details + payment ──────────────── -->
     <div class="checkout-form-section">
 
-      <form action="/checkout" method="POST" id="checkout-form" class="checkout-form">
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <%/* THERE ARE NO CARD INPUTS ON THIS PAGE, AND THERE MUST NEVER BE.
 
-        <!-- Hidden nonce fields (populated by Accept.js) -->
-        <input type="hidden" name="dataDescriptor" id="dataDescriptor">
-        <input type="hidden" name="dataValue"      id="dataValue">
+           Every field below is rendered by Stripe inside an iframe served
+           from js.stripe.com. Card data never enters a DOM node this site
+           controls, which is what keeps BVO at PCI SAQ A. Hand-rolling card
+           fields against Stripe.js tokenisation would work, and would move
+           the site to SAQ A-EP — a materially longer compliance burden.
+           This is the same reasoning that chose Authorize.net's AcceptUI
+           before it. See docs/briefs/BVO_COMMERCE_STACK_BRIEF.md §4.
 
-        <!-- Hidden conversion tracking fields -->
-        <input type="hidden" name="order_source"   id="order_source">
-        <input type="hidden" name="order_referrer" id="order_referrer">
-        <input type="hidden" name="utm_campaign"   id="utm_campaign">
-        <input type="hidden" name="utm_medium"     id="utm_medium">
-        <input type="hidden" name="utm_source"     id="utm_source">
+           Contact and billing are Stripe elements rather than our own
+           fields because `automatic_tax` computes from the address Stripe
+           holds. Collecting it ourselves and pushing it across means two
+           copies of the address that can drift, and the failure mode is
+           silently wrong sales tax. */%>
 
-        <!-- Contact Information -->
-        <div class="checkout-card">
-          <h2 class="checkout-card-title">Contact Information</h2>
-          <div class="checkout-field-row">
-            <div class="checkout-field">
-              <label for="co-first">First Name <span class="req">*</span></label>
-              <input type="text" id="co-first" name="first_name" placeholder="First name"
-                     autocomplete="given-name" required>
-            </div>
-            <div class="checkout-field">
-              <label for="co-last">Last Name <span class="req">*</span></label>
-              <input type="text" id="co-last" name="last_name" placeholder="Last name"
-                     autocomplete="family-name" required>
-            </div>
-          </div>
-          <div class="checkout-field">
-            <label for="co-email">Email Address <span class="req">*</span></label>
-            <input type="email" id="co-email" name="email" placeholder="you@example.com"
-                   autocomplete="email" required>
-            <span class="checkout-field-hint">Your order confirmation will be sent here.</span>
-          </div>
-          <div class="checkout-field">
-            <label for="co-phone">Phone (optional)</label>
-            <input type="tel" id="co-phone" name="phone" placeholder="(555) 000-0000"
-                   autocomplete="tel">
-          </div>
-        </div>
+      <!-- Contact -->
+      <div class="checkout-card">
+        <h2 class="checkout-card-title">Contact Information</h2>
+        <div id="contact-details-element"></div>
+        <span class="checkout-field-hint">Your order confirmation will be sent here.</span>
+      </div>
 
-        <!-- Billing Address (for AVS fraud protection) -->
-        <div class="checkout-card">
-          <h2 class="checkout-card-title">Billing Address</h2>
-          <p class="checkout-card-sub">Used for card verification. Your order ships to the address you provide after checkout.</p>
-          <div class="checkout-field">
-            <label for="bill-address1">Street Address <span class="req">*</span></label>
-            <input type="text" id="bill-address1" name="bill_address1" placeholder="123 Main St"
-                   autocomplete="billing street-address" required>
-          </div>
-          <div class="checkout-field-row">
-            <div class="checkout-field" style="flex:2">
-              <label for="bill-city">City <span class="req">*</span></label>
-              <input type="text" id="bill-city" name="bill_city" placeholder="City"
-                     autocomplete="billing address-level2" required>
-            </div>
-            <div class="checkout-field" style="flex:1">
-              <label for="bill-state">State <span class="req">*</span></label>
-              <select id="bill-state" name="bill_state" autocomplete="billing address-level1" required
-                      class="checkout-select">
-                <option value="">— State —</option>
-                <% [['AL','Alabama'],['AK','Alaska'],['AZ','Arizona'],['AR','Arkansas'],['CA','California'],
-                    ['CO','Colorado'],['CT','Connecticut'],['DE','Delaware'],['FL','Florida'],['GA','Georgia'],
-                    ['HI','Hawaii'],['ID','Idaho'],['IL','Illinois'],['IN','Indiana'],['IA','Iowa'],
-                    ['KS','Kansas'],['KY','Kentucky'],['LA','Louisiana'],['ME','Maine'],['MD','Maryland'],
-                    ['MA','Massachusetts'],['MI','Michigan'],['MN','Minnesota'],['MS','Mississippi'],['MO','Missouri'],
-                    ['MT','Montana'],['NE','Nebraska'],['NV','Nevada'],['NH','New Hampshire'],['NJ','New Jersey'],
-                    ['NM','New Mexico'],['NY','New York'],['NC','North Carolina'],['ND','North Dakota'],['OH','Ohio'],
-                    ['OK','Oklahoma'],['OR','Oregon'],['PA','Pennsylvania'],['RI','Rhode Island'],['SC','South Carolina'],
-                    ['SD','South Dakota'],['TN','Tennessee'],['TX','Texas'],['UT','Utah'],['VT','Vermont'],
-                    ['VA','Virginia'],['WA','Washington'],['WV','West Virginia'],['WI','Wisconsin'],['WY','Wyoming']
-                   ].forEach(([abbr, name]) => { %>
-                  <option value="<%= abbr %>"><%= name %></option>
-                <% }); %>
-              </select>
-            </div>
-            <div class="checkout-field" style="flex:1">
-              <label for="bill-zip">ZIP <span class="req">*</span></label>
-              <input type="text" id="bill-zip" name="bill_zip" placeholder="00000"
-                     autocomplete="billing postal-code" maxlength="10" required>
-            </div>
-          </div>
-        </div>
+      <!-- Billing -->
+      <div class="checkout-card">
+        <h2 class="checkout-card-title">Billing Address</h2>
+        <p class="checkout-card-sub">Used for card verification and to calculate tax. Your order ships to the address you provide after checkout.</p>
+        <div id="billing-address-element"></div>
+      </div>
 
-        <!-- Card Details — entered in Authorize.net's hosted form (AcceptUI).
-             There are deliberately NO card inputs on this page. The card is typed
-             into an iframe served by Authorize.net, which scripts on this page
-             cannot read. Keeps the site at PCI SAQ A. -->
-        <div class="checkout-card">
-          <h2 class="checkout-card-title">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                 stroke-width="2" aria-hidden="true" style="vertical-align:middle;margin-right:6px">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-            </svg>
-            Payment
-          </h2>
-          <p class="checkout-card-sub">When you click <strong>Place Order</strong>, a secure Authorize.net window opens for your card details. Your card number is entered directly with Authorize.net and never touches our website.</p>
-          <div id="payment-error" role="alert" style="display:none;color:var(--red);margin-top:8px;font-size:14px"></div>
-        </div>
-
-        <%/* The AcceptUI launcher. AcceptUI.js binds to every element with
-             class="AcceptUI" when it loads, so this must exist in the DOM
-             before the script tag at the bottom of the page. It is hidden:
-             the visible Place Order button validates the form first and then
-             clicks this one, so the popup never opens over a half-filled form.
-             data-billingAddressOptions show:false because the server already
-             sends the full billing address in createTransactionRequest, and
-             Authorize.net uses that ZIP for AVS in preference to the nonce's,
-             so asking for name and ZIP again in the popup would only duplicate
-             fields. */%>
-        <button type="button" id="acceptUIBtn" class="AcceptUI" hidden aria-hidden="true" tabindex="-1"
-                data-billingAddressOptions='{"show":false,"required":false}'
-                data-apiLoginID="<%= aNetApiLoginId %>"
-                data-clientKey="<%= aNetPublicKey %>"
-                data-acceptUIFormBtnTxt="Pay Securely"
-                data-acceptUIFormHeaderTxt="Card Details"
-                data-paymentOptions='{"showCreditCard":true,"showBankAccount":false}'
-                data-responseHandler="responseHandler">Enter card</button>
-
-      </form><!-- /checkout-form -->
+      <!-- Payment -->
+      <div class="checkout-card">
+        <h2 class="checkout-card-title">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" aria-hidden="true" style="vertical-align:middle;margin-right:6px">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+          Payment
+        </h2>
+        <p class="checkout-card-sub">Your card is entered directly with Stripe and never touches our website. <strong>Placing your order authorizes the payment — we do not charge your card until we have confirmed availability.</strong></p>
+        <div id="payment-element"></div>
+        <div id="payment-error" role="alert" style="display:none;color:var(--red);margin-top:8px;font-size:14px"></div>
+      </div>
 
       <!-- Order items -->
       <div class="checkout-card checkout-items-card">
@@ -172,18 +94,26 @@
 
         <div class="co-sum-row">
           <span>Subtotal (<%= cart.count %> <%= cart.count === 1 ? 'item' : 'items' %>)</span>
-          <span>$<%= (parseFloat(cart.subtotal)||0).toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
+          <span id="sum-subtotal">$<%= (parseFloat(cart.subtotal)||0).toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
         </div>
         <div class="co-sum-row">
           <span>Shipping</span>
           <span class="free-label">FREE</span>
         </div>
+        <%/* Tax starts as a dash and is filled by the checkout 'change'
+             event once Stripe has an address to compute against. The row is
+             rendered up front rather than injected so the summary does not
+             jump when the figure arrives. */%>
+        <div class="co-sum-row">
+          <span>Sales Tax</span>
+          <span id="sum-tax">—</span>
+        </div>
         <div class="co-sum-row co-sum-total">
           <span>Total</span>
-          <span>$<%= (parseFloat(cart.subtotal)||0).toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
+          <span id="sum-total">$<%= (parseFloat(cart.subtotal)||0).toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
         </div>
 
-        <p class="co-sum-note">Taxes calculated at next step</p>
+        <p class="co-sum-note" id="tax-note">Tax is calculated once you enter your billing address.</p>
 
         <%
           /* Agreement line — must sit IMMEDIATELY above the Place Order button.
@@ -199,11 +129,7 @@
              the footer menus in migration 015. They are NOT guesses: an
              earlier draft of the policy migration invented `terms`,
              `privacy` and `returns-refunds`, which would have 404'd here in
-             exactly the place a 404 does the most damage. Verified by gate 1
-             in git_push_checkout_agreement.sh.
-
-             Reuses .co-sum-note (site3.css, already used by the taxes note
-             directly above) — no new class, no CSS change, no ?v= bump. */
+             exactly the place a 404 does the most damage. */
         %>
         <p class="co-sum-note">
           By placing your order you agree to our
@@ -213,14 +139,17 @@
           <a href="/pages/returns-policy">Returns &amp; Refunds</a>.
         </p>
 
-        <button type="button" id="payBtn" class="btn btn-amber checkout-submit-btn">
+        <%/* Disabled until Stripe reports canConfirm — i.e. every required
+             field across all three elements is valid. Enabling it earlier
+             means a click that can only fail. */%>
+        <button type="button" id="payBtn" class="btn btn-amber checkout-submit-btn" disabled>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2" aria-hidden="true" style="margin-right:6px;vertical-align:middle">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
           </svg>
-          Place Order
+          <span id="payBtnText">Place Order</span>
         </button>
-        <p class="co-sum-redirect-note">Payment is encrypted and processed securely by Authorize.net.</p>
+        <p class="co-sum-redirect-note">Payment is encrypted and processed securely by Stripe. Your card is authorized now and charged only once we confirm availability.</p>
 
         <!-- Trust row -->
         <div class="cart-trust-row" style="margin-top:1rem">
@@ -274,66 +203,135 @@
   </div><!-- /checkout-layout -->
 </div>
 
-<!-- AcceptUI.js (Authorize.net hosted card form). Loaded AFTER #acceptUIBtn
-     exists, which the library requires. -->
-<script src="<%= aNetScriptUrl %>" nonce="<%= cspNonce %>" charset="utf-8"></script>
+<%/* Stripe.js must be loaded from js.stripe.com on every page that touches
+     payment — self-hosting it breaks PCI compliance and Stripe blocks it.
+     The CSP allows this host under frame-src; script-src uses
+     strict-dynamic with a nonce, so the nonce below is what admits it. */%>
+<script src="https://js.stripe.com/dahlia/stripe.js" nonce="<%= cspNonce %>"></script>
 
 <script nonce="<%= cspNonce %>">
-/* ── Capture UTM params + referrer for conversion tracking ── */
 (function () {
-  var p   = new URLSearchParams(window.location.search);
-  var set = function (id, val) { var el = document.getElementById(id); if (el && val) el.value = val; };
-  set('utm_campaign',   p.get('utm_campaign'));
-  set('utm_medium',     p.get('utm_medium'));
-  set('utm_source',     p.get('utm_source'));
-  set('order_referrer', document.referrer || '');
-  var src = p.get('utm_source') ||
-    (document.referrer ? (function(){ try { return new URL(document.referrer).hostname; } catch(e) { return document.referrer; } })() : 'direct');
-  set('order_source', src);
-})();
+  'use strict';
 
-var payBtn      = document.getElementById('payBtn');
-var payBtnLabel = payBtn.innerHTML;      /* keep the shield icon when resetting */
+  var payBtn     = document.getElementById('payBtn');
+  var payBtnText = document.getElementById('payBtnText');
+  var errEl      = document.getElementById('payment-error');
 
-function resetPayBtn() {
-  payBtn.disabled  = false;
-  payBtn.innerHTML = payBtnLabel;
-}
-
-function showPayError(msg) {
-  var el = document.getElementById('payment-error');
-  el.textContent = msg;
-  el.style.display = 'block';
-  resetPayBtn();
-  el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-}
-
-/* Called by AcceptUI.js with the nonce. Must be a GLOBAL function: the
-   button names it in data-responseHandler. Same opaqueData shape as the old
-   Accept.dispatchData flow, so the server needs no change. */
-function responseHandler(resp) {
-  if (!resp || !resp.messages || resp.messages.resultCode === 'Error') {
-    var msg = (resp && resp.messages && resp.messages.message || [])
-      .map(function (m) { return m.text; }).join(' ') || 'Your card could not be processed. Please try again.';
-    showPayError(msg);
-    return;
+  function showError(msg) {
+    errEl.textContent = msg;
+    errEl.style.display = 'block';
+    errEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }
-  document.getElementById('dataDescriptor').value = resp.opaqueData.dataDescriptor;
-  document.getElementById('dataValue').value      = resp.opaqueData.dataValue;
-  payBtn.disabled    = true;
-  payBtn.textContent = 'Processing…';
-  document.getElementById('checkout-form').submit();
-}
-window.responseHandler = responseHandler;
 
-/* Place Order: validate contact + billing first, THEN open the card popup.
-   The button is not disabled here - if the customer closes the popup
-   without paying, AcceptUI does not call back, so the button must stay
-   usable for another attempt. */
-payBtn.addEventListener('click', function () {
-  var form = document.getElementById('checkout-form');
-  if (!form.checkValidity()) { form.reportValidity(); return; }
-  document.getElementById('payment-error').style.display = 'none';
-  document.getElementById('acceptUIBtn').click();
-});
+  var money = function (cents) {
+    return '$' + (Number(cents || 0) / 100).toLocaleString('en-US',
+      { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  /* Conversion attribution. Read here and posted with the session request,
+     because the referrer and the query string are gone by the time the
+     webhook runs — and the webhook is where the order is finalised. */
+  function attribution() {
+    var p = new URLSearchParams(window.location.search);
+    var ref = document.referrer || '';
+    var host = '';
+    try { host = ref ? new URL(ref).hostname : ''; } catch (e) { host = ref; }
+    return {
+      utm_campaign:   p.get('utm_campaign')  || null,
+      utm_medium:     p.get('utm_medium')    || null,
+      utm_source:     p.get('utm_source')    || null,
+      order_referrer: ref || null,
+      order_source:   p.get('utm_source') || host || 'direct',
+    };
+  }
+
+  /* The SDK takes clientSecret as a PROMISE and resolves it during init.
+     POST /checkout/session writes the order row first and only then calls
+     Stripe — so if this rejects, nothing was charged and no session exists.
+     The CSRF token is required: the endpoint sits behind the same
+     validator as every other non-GET route. */
+  var clientSecretPromise = fetch('/checkout/session', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': '<%= csrfToken %>',
+      'X-Requested-With': 'XMLHttpRequest',
+    },
+    body: JSON.stringify(attribution()),
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d.ok) throw new Error(d.error || 'Could not start checkout.');
+      return d.clientSecret;
+    });
+
+  clientSecretPromise.catch(function (e) {
+    showError(e.message || 'Could not start checkout. Please refresh and try again.');
+  });
+
+  var stripe   = Stripe('<%= stripePublishableKey %>');
+  var checkout = stripe.initCheckoutElementsSdk({
+    clientSecret: clientSecretPromise,
+    elementsOptions: {
+      appearance: {
+        variables: {
+          fontFamily: 'Georgia, serif',
+          colorText:  '#182840',
+          borderRadius: '4px',
+        },
+      },
+    },
+  });
+
+  /* Fires whenever any element changes. Two jobs: keep the summary in step
+     with Stripe's own totals (tax only exists once there is an address),
+     and gate the button on canConfirm so it is never clickable in a state
+     that can only fail. */
+  checkout.on('change', function (session) {
+    payBtn.disabled = !session.canConfirm;
+
+    var t = session.total;
+    if (!t) return;
+
+    if (t.subtotal != null) {
+      document.getElementById('sum-subtotal').textContent = money(t.subtotal.amount != null ? t.subtotal.amount : t.subtotal);
+    }
+    if (t.tax != null) {
+      var taxAmt = t.tax.amount != null ? t.tax.amount : t.tax;
+      document.getElementById('sum-tax').textContent = money(taxAmt);
+      document.getElementById('tax-note').style.display = 'none';
+    }
+    if (t.total != null) {
+      var totAmt = t.total.amount != null ? t.total.amount : t.total;
+      document.getElementById('sum-total').textContent = money(totAmt);
+      payBtnText.textContent = 'Place Order — ' + money(totAmt);
+    }
+  });
+
+  checkout.createContactDetailsElement().mount('#contact-details-element');
+  checkout.createBillingAddressElement().mount('#billing-address-element');
+  checkout.createPaymentElement().mount('#payment-element');
+
+  payBtn.addEventListener('click', function () {
+    errEl.style.display = 'none';
+    payBtn.disabled = true;
+    payBtnText.textContent = 'Authorizing…';
+
+    checkout.confirm().then(function (result) {
+      /* Only reached on an IMMEDIATE error. On success the browser is
+         redirected to return_url, so there is nothing to do here. */
+      if (result && result.type === 'error') {
+        showError(result.error && result.error.message
+          ? result.error.message
+          : 'Your payment could not be authorized. Please check your details and try again.');
+        payBtn.disabled = false;
+        payBtnText.textContent = 'Place Order';
+      }
+    }).catch(function (e) {
+      showError(e && e.message ? e.message : 'Something went wrong. Nothing has been charged.');
+      payBtn.disabled = false;
+      payBtnText.textContent = 'Place Order';
+    });
+  });
+})();
 </script>

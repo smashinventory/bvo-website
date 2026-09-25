@@ -114,17 +114,28 @@ const CSP_DIRECTIVES = {
                    'https://www.google.com',
                    'https://*.g.doubleclick.net',
                    'https://widget.tidio.co',
-                   'https://jstest.authorize.net', 'https://js.authorize.net',
-                   // Accept.js TOKENIZES by sending the card to these hosts, not
-                   // to the js./jstest. hosts it is loaded from. Read out of the
-                   // scripts themselves (window.encryptEndPoint), 2026-09-21.
-                   'https://api2.authorize.net',      // production
-                   'https://apitest.authorize.net'],  // sandbox
+                   /* Stripe (2026-09-25, replacing Authorize.net).
+                      Stripe.js posts the payment confirmation here. One host
+                      covers test and live — unlike Authorize.net, Stripe does
+                      not use a separate sandbox domain, so there is no
+                      env-dependent entry to keep in sync. */
+                   'https://api.stripe.com'],
   frameSrc:       ["'self'", 'https://www.youtube-nocookie.com', 'https://www.youtube.com',
-                   // AcceptUI (checkout) opens Authorize.net's hosted card form
-                   // in an iframe from these hosts - read out of AcceptUI.js.
-                   'https://js.authorize.net',        // production
-                   'https://jstest.authorize.net'],   // sandbox
+                   /* The Payment Element renders inside an iframe served by
+                      js.stripe.com — the same hosted-field model AcceptUI used,
+                      and what keeps BVO at PCI SAQ A.
+
+                      OMITTING THESE IS THE CLASSIC FAILURE: the checkout works
+                      locally, then renders an empty box in production with
+                      nothing but a console error.
+
+                      hooks.stripe.com  — 3D Secure / bank authentication step.
+                      m.stripe.network  — Radar's device fingerprinting. Without
+                                          it fraud scoring silently degrades
+                                          rather than erroring. */
+                   'https://js.stripe.com',
+                   'https://hooks.stripe.com',
+                   'https://m.stripe.network'],
   objectSrc:      ["'none'"],
 };
 
@@ -244,6 +255,27 @@ app.use((req, res, next) => {
   res.locals.csrfToken = _makeCsrf(req.sessionID);
   next();
 });
+
+/* ── Stripe webhook — MOUNTED BEFORE EVERYTHING ELSE ──────────────
+   Two separate reasons this cannot live with the other routes:
+
+   1. RAW BODY. Stripe signs the exact bytes it sent. express.json()
+      parses and discards them, and every signature check then fails with
+      a misleading "No signatures found matching the expected signature".
+      express.raw() hands the Buffer through untouched.
+
+   2. CSRF. The validator below (~line 445) rejects every non-GET request
+      that is not under /api/ and carries no session token. Stripe is a
+      server calling us — it has no session and no token, so a webhook
+      mounted after that middleware is answered with 403 and Stripe
+      retries into the same wall for days.
+
+   Mounting here clears both at once. Signature verification is what
+   authenticates this endpoint; it does not need, and must not have, the
+   session-based protections the browser routes rely on. */
+app.post('/checkout/webhook',
+  express.raw({ type: 'application/json' }),
+  require('./controllers/checkoutController').webhook);
 
 // ── Body parsers ─────────────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));

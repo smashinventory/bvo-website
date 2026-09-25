@@ -24,7 +24,7 @@ const { buildSearch } = require('../utils/searchQuery');
 const { ORDER_STATUSES, VALID_ORDER_STATUSES } = require('../config/orderStatuses');
 const brevo          = require('../services/brevoService');
 const wwex           = require('../services/wwexService');
-const authorizeNet   = require('../services/authorizeNetService');
+const stripePay      = require('../services/stripeService');
 const path        = require('path');
 const fs          = require('fs');
 const multer      = require('multer');
@@ -117,9 +117,29 @@ exports.list = async (req, res, next) => {
     const status  = req.query.status || '';
     const search  = (req.query.search || '').trim();
 
+    /* ── Abandoned checkouts are hidden, not deleted ─────────────────
+       A `pending` row is written the moment someone opens /checkout —
+       the Stripe session has to exist before the payment form can
+       render, and the order id is what ties the two together. Most of
+       those are never completed.
+
+       They stay in the table: they are the abandoned-checkout record,
+       with cart contents, UTM attribution and referrer attached, which
+       is worth having. They just must not clutter the working order
+       list, where every row should be something a human has to act on.
+
+       A row leaves `pending` the moment Stripe confirms the hold
+       (checkoutController webhook), so nothing real is ever hidden by
+       this. Explicitly filtering on ?status=pending still shows them,
+       for anyone deliberately looking. */
     let where = 'WHERE 1=1';
     const params = [];
-    if (status) { where += ' AND o.status = ?'; params.push(status); }
+    if (status) {
+      where += ' AND o.status = ?';
+      params.push(status);
+    } else {
+      where += " AND o.status <> 'pending'";
+    }
 
     /* Word-by-word matching — see src/utils/searchQuery.js.
        Was a single `%${search}%` across all three expressions, so the whole
@@ -532,7 +552,16 @@ exports.addNote = async (req, res) => {
 };
 
 /* ═══════════════════════════════════════════════════════════════
-   CAPTURE PAYMENT (Prior Auth → Capture)
+   CAPTURE PAYMENT — take the funds held at checkout
+   ───────────────────────────────────────────────────────────────
+   Step 3 of the order lifecycle. Staff have verified the buyer, the
+   delivery access and the stock; this collects the money, and the vendor
+   PO follows. See docs/briefs/BVO_COMMERCE_STACK_BRIEF.md §2.
+
+   Captures the FULL authorised amount. Stripe allows exactly one capture
+   per authorisation and a partial capture permanently releases the
+   remainder — there is no topping up afterwards. Until the admin has a
+   deliberate partial-capture workflow, full is the only safe default.
    ═══════════════════════════════════════════════════════════════ */
 exports.capturePayment = async (req, res) => {
   const conn = await bvoPool.getConnection();
@@ -546,31 +575,102 @@ exports.capturePayment = async (req, res) => {
       return res.status(400).json({ ok: false, error: `Payment status is '${order.payment_status}' — can only capture 'auth_only' transactions` });
     }
     if (!order.payment_transaction_id) {
-      return res.status(400).json({ ok: false, error: 'No transaction ID on record' });
+      return res.status(400).json({ ok: false, error: 'No PaymentIntent on record' });
     }
 
-    const result = await authorizeNet.captureTransaction(
-      order.payment_transaction_id,
-      order.total
-    );
+    /* Full capture — amount omitted deliberately, see the note above. */
+    const result = await stripePay.capturePayment(order.payment_transaction_id);
 
     if (!result.ok) {
+      /* An expired authorisation is terminal, not transient. Retrying
+         will never work, so say what actually has to happen instead of
+         showing a generic gateway error. */
+      if (result.expired) {
+        await conn.query(
+          `UPDATE orders SET payment_status = 'canceled' WHERE id = ? AND payment_status = 'auth_only'`,
+          [id]
+        );
+        await logEvent(conn, id, 'payment_auth_expired', 'auth_only', 'canceled',
+          req.session?.adminUser || 'admin',
+          `Authorization lapsed before capture — ${order.payment_transaction_id}`);
+        return res.status(409).json({
+          ok: false,
+          error: 'This authorization has expired and can no longer be captured. '
+               + 'Contact the customer to take payment again.',
+        });
+      }
       return res.status(502).json({ ok: false, error: result.error });
     }
 
     await conn.query(
-      'UPDATE orders SET payment_status = ? WHERE id = ?',
-      ['captured', id]
+      `UPDATE orders SET payment_status = 'captured', payment_captured_at = NOW() WHERE id = ?`,
+      [id]
     );
     await logEvent(conn, id, 'payment_captured', 'auth_only', 'captured',
       req.session?.adminUser || 'admin',
-      `Captured $${parseFloat(order.total).toFixed(2)} — TxID: ${order.payment_transaction_id}`
+      `Captured $${result.amountCaptured} — ${order.payment_transaction_id}`
     );
 
-    return res.json({ ok: true, message: `$${parseFloat(order.total).toFixed(2)} captured successfully` });
+    return res.json({ ok: true, message: `$${result.amountCaptured} captured successfully` });
   } catch (err) {
     console.error('[ordersController.capturePayment]', err);
     return res.status(500).json({ ok: false, error: 'Server error during capture' });
+  } finally {
+    conn.release();
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════
+   CANCEL AUTHORIZATION — release the hold without charging
+   ───────────────────────────────────────────────────────────────
+   For an order rejected during Step 2 validation: the buyer could not be
+   verified, the address is undeliverable, or the stock is gone.
+
+   THIS IS NOT A REFUND. Before capture no charge exists, so there is
+   nothing to refund — Stripe's refund API would reject it. Cancelling
+   the PaymentIntent releases the hold and the money never leaves the
+   customer's account. Refund only applies after capture.
+   ═══════════════════════════════════════════════════════════════ */
+exports.cancelAuthorization = async (req, res) => {
+  const conn = await bvoPool.getConnection();
+  try {
+    const id     = parseInt(req.params.id);
+    const reason = (req.body?.reason || '').toString().trim();
+
+    const [[order]] = await conn.query(
+      'SELECT id, payment_transaction_id, payment_status FROM orders WHERE id = ?', [id]
+    );
+    if (!order) return res.status(404).json({ ok: false, error: 'Order not found' });
+
+    if (order.payment_status === 'captured') {
+      /* Guard rather than silently doing the wrong thing. A captured
+         payment needs a refund, partial refund or write-off decision —
+         which is a different screen and a different permission. */
+      return res.status(400).json({
+        ok: false,
+        error: 'Payment has already been captured. Use refund, partial refund or write-off instead.',
+      });
+    }
+    if (order.payment_status !== 'auth_only') {
+      return res.status(400).json({ ok: false, error: `Payment status is '${order.payment_status}' — nothing to release` });
+    }
+
+    const result = await stripePay.cancelAuthorization(order.payment_transaction_id);
+    if (!result.ok) return res.status(502).json({ ok: false, error: result.error });
+
+    await conn.query(
+      `UPDATE orders SET payment_status = 'canceled', status = 'cancelled' WHERE id = ?`,
+      [id]
+    );
+    await logEvent(conn, id, 'payment_canceled', 'auth_only', 'canceled',
+      req.session?.adminUser || 'admin',
+      reason ? `Authorization released — ${reason}` : 'Authorization released'
+    );
+
+    return res.json({ ok: true, message: 'Authorization released. The customer was not charged.' });
+  } catch (err) {
+    console.error('[ordersController.cancelAuthorization]', err);
+    return res.status(500).json({ ok: false, error: 'Server error during cancellation' });
   } finally {
     conn.release();
   }

@@ -66,7 +66,8 @@ line — add one to the top of that file, under its H1, then reindex.
 |---|---|
 | `docs/reference/POLICY_ANSWERS.md` | Agreed answers to the store policy questions — returns, damage, freight. |
 | `docs/reference/POLICY_INTAKE_QUESTIONNAIRE.md` | The questionnaire the policy answers came from. |
-| `docs/reference/PRE_LAUNCH_CHECKLIST.md` | Everything that must be true before cutover. |
+| `docs/reference/PRE_LAUNCH_CHECKLIST.md` | Everything that must be true before cutover — business, legal, marketing. |
+| `docs/reference/URL_CUTOVER_CHECKLIST.md` | The DNS cutover itself: redirects, robots.txt, sitemap submission, what to watch after. Same-domain migration — **no Change of Address tool**. |
 | `docs/reference/TRADE_PROGRAM_SPEC.md` | Trade program: eligibility, pricing visibility rules and the gating requirement. |
 | `docs/reference/VENDOR_POLICY_CONSTRAINTS.md` | What each vendor permits and forbids — the constraints our policies must sit inside. |
 

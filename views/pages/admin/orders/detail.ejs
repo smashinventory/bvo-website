@@ -5,37 +5,50 @@ const noteEvents = events.filter(e => e.event_type === 'note_added');
 /* ── Build fraud checklist ───────────────────────────────────── */
 const checks = [];
 
-if (order.payment_avs_code) {
-  const avsGood = ['Y','X'].includes(order.payment_avs_code);
-  const avsMid  = ['A','Z','W'].includes(order.payment_avs_code);
+/* Stripe card checks.
+   Values are pass | fail | unavailable | unchecked — NOT Authorize.net's
+   letter codes (Y/X/A/Z/W for AVS, M/N/P/S/U for CVV), which this panel
+   decoded until 2026-09-25. Mapping the old letters onto these would read
+   every check as a failure.
+
+   'unavailable' and 'unchecked' are NOT warnings: plenty of issuers
+   simply do not return a result, and treating silence as a red flag
+   trains staff to ignore the panel. */
+const CHECK_OK   = 'pass';
+const CHECK_BAD  = 'fail';
+
+if (order.payment_check_zip) {
+  const v = order.payment_check_zip;
   checks.push({
-    icon:  avsGood ? 'ok' : avsMid ? 'info' : 'warn',
-    label: avsGood  ? 'Billing address matches card on file'
-         : avsMid   ? 'Billing address partially matched card on file'
-                    : 'Billing address did NOT match card on file',
+    icon:  v === CHECK_OK ? 'ok' : v === CHECK_BAD ? 'warn' : 'info',
+    label: v === CHECK_OK  ? 'Billing ZIP matches the card on file'
+         : v === CHECK_BAD ? 'Billing ZIP did NOT match the card on file'
+                           : 'Billing ZIP was not verified by the issuer',
   });
 } else if (order.payment_status) {
-  checks.push({ icon: 'info', label: 'Billing address verification not available' });
+  checks.push({ icon: 'info', label: 'Billing ZIP verification not available' });
 }
 
-if (order.payment_cvv_code) {
+if (order.payment_check_line1) {
+  const v = order.payment_check_line1;
   checks.push({
-    icon:  order.payment_cvv_code === 'M' ? 'ok' : order.payment_cvv_code === 'N' ? 'warn' : 'info',
-    label: order.payment_cvv_code === 'M' ? 'Card security code (CVV) matched'
-         : order.payment_cvv_code === 'N' ? 'Card security code (CVV) did not match'
-                                          : 'Card security code (CVV) was not verified',
+    icon:  v === CHECK_OK ? 'ok' : v === CHECK_BAD ? 'warn' : 'info',
+    label: v === CHECK_OK  ? 'Billing street address matches the card on file'
+         : v === CHECK_BAD ? 'Billing street address did NOT match the card on file'
+                           : 'Billing street address was not verified by the issuer',
+  });
+}
+
+if (order.payment_check_cvc) {
+  const v = order.payment_check_cvc;
+  checks.push({
+    icon:  v === CHECK_OK ? 'ok' : v === CHECK_BAD ? 'warn' : 'info',
+    label: v === CHECK_OK  ? 'Card security code (CVC) matched'
+         : v === CHECK_BAD ? 'Card security code (CVC) did not match'
+                           : 'Card security code (CVC) was not verified',
   });
 } else if (order.payment_status) {
-  checks.push({ icon: 'info', label: 'Card security code (CVV) not available' });
-}
-
-if (order.payment_afds_code) {
-  const held = ['252','253'].includes(String(order.payment_afds_code));
-  checks.push({
-    icon:  held ? 'warn' : 'ok',
-    label: held ? 'Transaction was held by fraud filter for review'
-                : 'Transaction cleared all fraud filters',
-  });
+  checks.push({ icon: 'info', label: 'Card security code (CVC) not available' });
 }
 
 const orderAmt = parseFloat(order.total || 0);
@@ -50,30 +63,35 @@ if (order.customer_ip) {
   checks.push({ icon: 'info', label: `Order placed from IP ${order.customer_ip}` });
 }
 
-/* ── FraudLabs Pro checks ────────────────────────────────────── */
-if (order.fraudlabs_status) {
-  const flIcon = order.fraudlabs_status === 'REJECT' ? 'warn'
-               : order.fraudlabs_status === 'REVIEW' ? 'warn'
-               : 'ok';
-  const scoreStr = order.fraudlabs_score != null ? ` (Score: ${order.fraudlabs_score}/100)` : '';
+/* ── Stripe Radar ────────────────────────────────────────────────
+   Replaced FraudLabs Pro on 2026-09-25.
+
+   payment_risk_score is 0-99 and is ONLY populated on Radar Plus/Pro.
+   On Lite and Standard it is null — which is not the same as zero. Zero
+   would be a perfect score; null means the tier does not provide one, so
+   the row is skipped rather than shown as a flawless result.
+
+   Thresholds are Stripe's own defaults: 65+ elevated, 75+ high. */
+if (order.payment_risk_level) {
+  const lvl = order.payment_risk_level;
+  const scoreStr = order.payment_risk_score != null
+    ? ` (score ${order.payment_risk_score}/99)` : '';
   checks.push({
-    icon:  flIcon,
-    label: `FraudLabs: ${order.fraudlabs_status}${scoreStr}`,
+    icon:  lvl === 'highest' ? 'warn' : lvl === 'elevated' ? 'warn' : 'ok',
+    label: lvl === 'highest'  ? `Stripe Radar: HIGH risk${scoreStr}`
+         : lvl === 'elevated' ? `Stripe Radar: elevated risk${scoreStr}`
+         : lvl === 'normal'   ? `Stripe Radar: normal risk${scoreStr}`
+                              : `Stripe Radar: ${lvl}${scoreStr}`,
   });
+} else if (order.payment_transaction_id) {
+  /* A payment exists but Radar returned nothing. Worth surfacing: it
+     usually means the tier has no scoring, and staff should not read an
+     empty panel as "screened and clean". */
+  checks.push({ icon: 'info', label: 'Stripe Radar: no risk assessment returned for this payment' });
 }
-if (order.fraudlabs_email_risk != null && order.fraudlabs_email_risk > 40) {
-  checks.push({
-    icon:  order.fraudlabs_email_risk > 65 ? 'warn' : 'info',
-    label: `Email risk score: ${order.fraudlabs_email_risk}/100`,
-  });
-}
-if (order.fraudlabs_ip_vpn || order.fraudlabs_ip_tor || order.fraudlabs_ip_proxy) {
-  const flags = [
-    order.fraudlabs_ip_vpn   && 'VPN',
-    order.fraudlabs_ip_tor   && 'Tor',
-    order.fraudlabs_ip_proxy && 'Proxy',
-  ].filter(Boolean).join(' / ');
-  checks.push({ icon: 'warn', label: `IP anonymizer detected: ${flags}` });
+
+if (order.payment_seller_message) {
+  checks.push({ icon: 'info', label: order.payment_seller_message });
 }
 
 const hasWarn  = checks.some(c => c.icon === 'warn');
@@ -162,11 +180,20 @@ const hasPayment    = !!order.payment_transaction_id;
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <h3 class="admin-card-title" style="margin:0">Payment</h3>
         <% if (isAuthOnly) { %>
-        <button class="btn btn-sage btn-sm" onclick="doCapture()">
-          Capture $<%= parseFloat(order.total).toFixed(2) %>
-        </button>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sage btn-sm" onclick="doCapture()">
+            Capture $<%= parseFloat(order.total).toFixed(2) %>
+          </button>
+          <%/* Release, not refund. Before capture there is no charge to
+               refund — cancelling the PaymentIntent gives the money back
+               without one ever leaving the customer's account. */%>
+          <button class="btn btn-outline btn-sm" style="color:#c53030;border-color:#c53030"
+                  onclick="doReleaseAuth()">Release Hold</button>
+        </div>
         <% } else if (isCaptured) { %>
         <span class="rag-pill rag-pill--green">Captured</span>
+        <% } else if (order.payment_status === 'canceled') { %>
+        <span class="rag-pill rag-pill--red">Authorization Released</span>
         <% } %>
       </div>
       <div class="detail-meta">
@@ -175,6 +202,32 @@ const hasPayment    = !!order.payment_transaction_id;
           <span>Status</span>
           <span style="color:#F59E0B;font-weight:600">⏳ Auth Hold — pending capture</span>
         </div>
+        <%
+          /* Authorisation expiry countdown.
+             Cards hold for 7 days. Capture normally happens within 48
+             hours, so an order still sitting here on day 5 has stalled
+             and needs attention — after day 7 the hold lapses, the money
+             is released, and it cannot be captured at all.
+
+             Computed from payment_authorized_at rather than created_at:
+             they are the same today, but reading the payment's own
+             timestamp means this stays correct if that ever changes. */
+          const authAt = order.payment_authorized_at ? new Date(order.payment_authorized_at) : null;
+          const ageDays = authAt ? Math.floor((Date.now() - authAt.getTime()) / 86400000) : null;
+          const daysLeft = ageDays == null ? null : 7 - ageDays;
+        %>
+        <% if (daysLeft != null) { %>
+        <div class="detail-meta-row">
+          <span>Authorization</span>
+          <% if (daysLeft <= 0) { %>
+            <span style="color:var(--red);font-weight:700">EXPIRED — cannot be captured</span>
+          <% } else if (daysLeft <= 2) { %>
+            <span style="color:var(--red);font-weight:700">Expires in <%= daysLeft %> day<%= daysLeft === 1 ? '' : 's' %> — capture now</span>
+          <% } else { %>
+            <span style="color:var(--text-muted)">Expires in <%= daysLeft %> days</span>
+          <% } %>
+        </div>
+        <% } %>
         <% } %>
         <% if (order.payment_brand || order.payment_last4) { %>
         <div class="detail-meta-row">
@@ -182,13 +235,12 @@ const hasPayment    = !!order.payment_transaction_id;
           <span><%= order.payment_brand || '' %> ····<%= order.payment_last4 || '' %></span>
         </div>
         <% } %>
-        <div class="detail-meta-row"><span>Transaction ID</span><span style="font-family:monospace;font-size:12px"><%= order.payment_transaction_id %></span></div>
-        <% if (order.payment_auth_code) { %><div class="detail-meta-row"><span>Auth Code</span><span style="font-family:monospace"><%= order.payment_auth_code %></span></div><% } %>
-        <% if (order.payment_avs_code) { %><div class="detail-meta-row"><span>AVS</span><span><%= order.payment_avs_code %></span></div><% } %>
-        <% if (order.payment_cvv_code) { %><div class="detail-meta-row"><span>CVV</span><span><%= order.payment_cvv_code %></span></div><% } %>
+        <div class="detail-meta-row"><span>PaymentIntent</span><span style="font-family:monospace;font-size:12px"><%= order.payment_transaction_id %></span></div>
+        <% if (order.stripe_charge_id) { %><div class="detail-meta-row"><span>Charge</span><span style="font-family:monospace;font-size:12px"><%= order.stripe_charge_id %></span></div><% } %>
+        <% if (order.tax_amount != null && parseFloat(order.tax_amount) > 0) { %><div class="detail-meta-row"><span>Sales Tax</span><span>$<%= parseFloat(order.tax_amount).toFixed(2) %></span></div><% } %>
       </div>
       <% if (isAuthOnly) { %>
-      <p style="margin:10px 0 0;font-size:12px;color:var(--text-muted)">Funds are reserved on the customer's card. Capture when ready to fulfill.</p>
+      <p style="margin:10px 0 0;font-size:12px;color:var(--text-muted)">Funds are held on the customer's card but not taken. Capture once the buyer, delivery access and stock are confirmed.</p>
       <% } %>
     </div>
     <% } %>
@@ -556,6 +608,35 @@ async function doCapture() {
   const d = await r.json();
   if (d.ok) { alert(d.message); location.reload(); }
   else alert('Capture error: ' + d.error);
+}
+
+/* ── Release the authorization ──
+   For an order rejected during validation. This is NOT a refund: no
+   charge exists yet, so the hold is simply cancelled and the customer
+   is never debited. Irreversible — a released hold cannot be
+   re-captured, the customer would have to pay again — hence the
+   explicit confirm and the required reason. */
+async function doReleaseAuth() {
+  const reason = prompt(
+    'Release the authorization and cancel this order?\n\n' +
+    'The customer will NOT be charged. This cannot be undone — taking\n' +
+    'payment again means asking them for their card a second time.\n\n' +
+    'Reason (required):'
+  );
+  if (reason === null) return;
+  if (!reason.trim()) {
+    alert('A reason is required before releasing an authorization.');
+    return;
+  }
+
+  const r = await fetch(`/admin/orders/${ORDER_ID}/cancel-authorization`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason: reason.trim() })
+  });
+  const d = await r.json();
+  if (d.ok) { alert(d.message); location.reload(); }
+  else alert('Could not release the hold: ' + d.error);
 }
 
 /* ── Vendor PO ── */

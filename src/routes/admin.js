@@ -98,6 +98,9 @@ router.post('/orders/:id/shipping/book',            ordersCtrl.bookShipment);
 router.post('/orders/:id/notes',                    ordersCtrl.addNote);
 router.post('/orders/:id/documents',  ordersCtrl.documentUploadMiddleware, ordersCtrl.uploadDocument);
 router.post('/orders/:id/capture',                  ordersCtrl.capturePayment);
+// Release a hold on an order rejected during validation. NOT a refund —
+// before capture there is no charge to refund. See the controller.
+router.post('/orders/:id/cancel-authorization',     ordersCtrl.cancelAuthorization);
 router.post('/orders/:orderId/returns',             returnsCtrl.openReturn);
 
 /* ── Returns ─────────────────────────────────────────────────── */

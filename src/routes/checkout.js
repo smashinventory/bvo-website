@@ -1,19 +1,39 @@
 'use strict';
 
+/* Checkout routes — Stripe, embedded Payment Element.
+ *
+ * The comments here described a Clover flow until 2026-09-25. Clover was
+ * never built; Authorize.net replaced it and was never activated; Stripe
+ * replaces that. See docs/briefs/BVO_COMMERCE_STACK_BRIEF.md §1.
+ *
+ * NOTE: POST /checkout/webhook is NOT mounted here. It lives in
+ * server.js, before the body parsers and before CSRF validation, because
+ * it needs the raw request body for signature verification and carries no
+ * session token. Mounting it in this router would break both. */
+
 const express  = require('express');
 const router   = express.Router();
 const ctrl     = require('../controllers/checkoutController');
 
-// GET  /checkout          — order review + email form
-router.get('/',         ctrl.show);
+// GET  /checkout           — review page; mounts the Payment Element
+router.get ('/',        ctrl.show);
 
-// POST /checkout          — create Clover session → redirect to payment page
-router.post('/',        ctrl.process);
+// POST /checkout/session   — AJAX. Writes the order, returns a client_secret.
+//                            Named /session rather than / because it creates
+//                            a Stripe Checkout Session, not an order in the
+//                            old submit-the-form sense — nothing is charged
+//                            and the browser does not navigate.
+router.post('/session', ctrl.createSession);
 
-// GET  /checkout/success  — Clover redirects here after successful payment
-router.get('/success',  ctrl.success);
+// GET  /checkout/return    — where Stripe sends the buyer back. Read-only:
+//                            decides which page to show. The webhook, not
+//                            this, is what advances the order.
+router.get ('/return',  ctrl.returnFromStripe);
 
-// GET  /checkout/cancel   — Clover redirects here on cancel or failure
-router.get('/cancel',   ctrl.cancel);
+// GET  /checkout/success   — confirmation
+router.get ('/success', ctrl.success);
+
+// GET  /checkout/cancel    — abandoned or failed
+router.get ('/cancel',  ctrl.cancel);
 
 module.exports = router;
