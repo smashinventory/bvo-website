@@ -321,9 +321,33 @@
     if (t.subtotal != null) {
       document.getElementById('sum-subtotal').textContent = money(t.subtotal);
     }
-    if (t.tax != null) {
-      document.getElementById('sum-tax').textContent = money(t.tax);
-      document.getElementById('tax-note').style.display = 'none';
+
+    /* There is NO `t.tax`. The real shape, logged from a live session on
+       2026-09-25, is:
+
+         subtotal      {amount:"$1,049.99", minorUnitsAmount:104999}
+         taxExclusive  {amount:"$0.00",     minorUnitsAmount:0}
+         taxInclusive  {amount:"$0.00",     minorUnitsAmount:0}
+         shippingRate  discount  total  appliedBalance  surcharge
+
+       The account's default tax behaviour is EXCLUSIVE (tax added on top
+       of our prices), so taxExclusive is the figure to show. taxInclusive
+       is the fallback in case that setting is ever changed, and `tax` is
+       kept last purely in case the SDK shape shifts again. */
+    var taxObj   = t.taxExclusive || t.taxInclusive || t.tax;
+    var taxMinor = (taxObj && taxObj.minorUnitsAmount != null)
+      ? taxObj.minorUnitsAmount : null;
+
+    if (taxObj != null) {
+      document.getElementById('sum-tax').textContent = money(taxObj);
+      /* Only retire the "calculated once you enter your address" note once
+         there is real tax to show. taxExclusive exists from the very first
+         change event reading $0.00, so its mere presence proves nothing —
+         hiding on that would tell the customer tax was calculated before
+         they had typed an address. */
+      if (taxMinor > 0) {
+        document.getElementById('tax-note').style.display = 'none';
+      }
     }
     if (t.total != null) {
       var tot = money(t.total);
