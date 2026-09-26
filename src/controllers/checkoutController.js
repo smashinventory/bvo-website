@@ -287,37 +287,60 @@ exports.createSession = async (req, res) => {
   return res.json({ ok: true, clientSecret: session.clientSecret, orderNumber });
 };
 
-/* ── POST /checkout/delivery-type ───────────────────────────────── */
+/* ── POST /checkout/order-details ───────────────────────────────── */
 /**
- * Residential or commercial. Not a Stripe field, so it is written straight
- * to our own order row instead of riding along as session metadata, which
- * is writable by anyone holding the publishable key.
+ * The two facts Stripe has no field for: the delivery type and the phone
+ * extension. Written straight to our own order row rather than riding
+ * along as session metadata, which is writable by anyone holding the
+ * publishable key.
+ *
+ * Either key may be sent on its own — the page saves the extension and the
+ * radio independently — so each is applied only when present. Sending
+ * neither is a no-op rather than an error.
  *
  * Fire-and-forget from the page: the buyer must never be blocked from
- * paying because this did not save. An unanswered value stays NULL, which
- * reads as "never asked" and is honestly different from either answer.
+ * paying because this did not save. An unanswered delivery type stays
+ * NULL, which reads as "never asked" and is honestly different from
+ * either answer.
  */
-exports.setDeliveryType = async (req, res) => {
-  const type = String(req.body?.type || '');
-  if (type !== 'residential' && type !== 'commercial') {
-    return res.status(400).json({ ok: false });
+exports.setOrderDetails = async (req, res) => {
+  const sets = [];
+  const args = [];
+
+  if (req.body?.type !== undefined) {
+    const type = String(req.body.type || '');
+    if (type !== 'residential' && type !== 'commercial') {
+      return res.status(400).json({ ok: false });
+    }
+    sets.push('ship_address_type = ?');
+    args.push(type);
   }
+
+  if (req.body?.phone_ext !== undefined) {
+    /* Digits only, capped at the column width. An extension is never
+       anything else, and this value is read by a human dialling a phone. */
+    const ext = String(req.body.phone_ext || '').replace(/\D/g, '').slice(0, 8);
+    sets.push('ship_phone_ext = ?');
+    args.push(ext || null);
+  }
+
+  if (!sets.length) return res.json({ ok: true });
 
   const orderId = req.session.pendingOrderId;
   if (!orderId) return res.status(409).json({ ok: false });
 
   try {
-    /* Guarded on pending: once the webhook has authorised the order this
+    /* Guarded on pending: once the webhook has authorised the order these
        must not move, or a buyer could change the delivery class of an
        order already booked with the carrier. */
     await bvoPool.query(
-      `UPDATE orders SET ship_address_type = ?
+      `UPDATE orders SET ${sets.join(', ')}
         WHERE id = ? AND payment_status = 'pending'`,
-      [type, orderId]
+      [...args, orderId]
     );
     return res.json({ ok: true });
   } catch (e) {
-    console.error('[checkout.setDeliveryType]', e.message);
+    console.error('[checkout.setOrderDetails]', e.message);
     return res.status(500).json({ ok: false });
   }
 };

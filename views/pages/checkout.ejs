@@ -1,4 +1,4 @@
-<link rel="stylesheet" href="/css/site3.css?v=20"><!-- site3: injected per-page (perf) -->
+<link rel="stylesheet" href="/css/site3.css?v=21"><!-- site3: injected per-page (perf) -->
 <div class="checkout-page">
   <div class="checkout-header">
     <h1>Checkout</h1>
@@ -53,13 +53,25 @@
              the session on change and arrives as customer_details.phone in the
              webhook like every other contact field. No card data is involved,
              so this does not affect PCI scope. */%>
-        <div class="checkout-field" style="margin-top:.85rem">
-          <label for="ship-phone">Phone Number <span class="req">*</span></label>
-          <input type="tel" id="ship-phone" name="ship_phone" autocomplete="tel"
-                 inputmode="tel" placeholder="(404) 555-1234">
-          <span class="checkout-field-hint">Required. The freight carrier calls this number to schedule your delivery.</span>
-          <span id="phone-error" role="alert" style="display:none;color:var(--red,#c00);font-size:.78rem"></span>
+        <div class="checkout-phone-row">
+          <div class="checkout-field">
+            <label for="ship-phone">Phone Number <span class="req">*</span></label>
+            <input type="tel" id="ship-phone" name="ship_phone" autocomplete="tel"
+                   inputmode="tel" placeholder="(404) 555-1234">
+          </div>
+          <%/* Optional, and shown to everyone rather than only on commercial
+               delivery - people give a work number for a home delivery too.
+               Its own field because an extension is a different fact from the
+               number: ship_phone has to stay dialable E.164 for the carrier
+               and for Stripe, and "+14045551234 x22" is neither. */%>
+          <div class="checkout-field">
+            <label for="ship-phone-ext">Ext.</label>
+            <input type="text" id="ship-phone-ext" name="ship_phone_ext"
+                   inputmode="numeric" maxlength="8" placeholder="Optional">
+          </div>
         </div>
+        <span class="checkout-field-hint">Required. The freight carrier calls this number to schedule your delivery.</span>
+        <span id="phone-error" role="alert" style="display:none;color:var(--red,#c00);font-size:.78rem"></span>
       </div>
 
       <!-- Billing -->
@@ -557,17 +569,30 @@
      starting 1 is the same number with the country code already typed.
      Anything else is handed over as-is and Stripe decides. */
   var phoneEl  = document.getElementById('ship-phone');
+  var extEl    = document.getElementById('ship-phone-ext');
   var phoneErr = document.getElementById('phone-error');
 
-  function e164(raw) {
+  /* Split a trailing extension off the number.
+     Returns { number, ext }.
+
+     This runs BEFORE punctuation is stripped. After that point "ext 22" is
+     indistinguishable from the rest of the digit run, which is how
+     "404-555-1234 ext 22" became +404555123422 - twelve digits that passed
+     a loose length check and could not be dialled.
+
+     The extension is MOVED to its own field, not discarded. Throwing away
+     digits the buyer typed, without telling them, is its own bug: the
+     carrier would ring the main line and nobody would know why. */
+  function splitExt(raw) {
     var s = String(raw || '').trim();
+    var m = /[\s,;]*(?:ext|extension|xt|x|#)\.?\s*(\d{1,8})\s*$/i.exec(s);
+    return m
+      ? { number: s.slice(0, m.index), ext: m[1] }
+      : { number: s, ext: '' };
+  }
 
-    /* Drop a trailing extension BEFORE stripping punctuation. Otherwise
-       "404-555-1234 ext 22" becomes +404555123422 - twelve digits, passes
-       a loose length check, and hands the carrier a number that does not
-       dial. An extension is no use to an LTL dispatcher anyway. */
-    s = s.replace(/[\s,;]*(?:ext|extension|xt|x|#)\.?\s*\d+\s*$/i, '');
-
+  function e164(raw) {
+    var s = splitExt(raw).number;
     var d = s.replace(/[^\d+]/g, '');
     if (d.charAt(0) === '+') return d;
     d = d.replace(/\D/g, '');
@@ -589,8 +614,34 @@
     return String(phoneEl.value).trim().charAt(0) === '+' && /^\+\d{10,15}$/.test(v);
   }
 
+  /* If the buyer typed the extension into the number box, move it across
+     rather than silently eating it. Only when the extension box is empty -
+     never overwrite something they typed there deliberately. */
+  function harvestExt() {
+    var parts = splitExt(phoneEl.value);
+    if (parts.ext && !extEl.value.trim()) {
+      extEl.value  = parts.ext;
+      phoneEl.value = parts.number.replace(/[\s,;]+$/, '');
+    }
+  }
+
+  function saveExt() {
+    var v = extEl.value.replace(/\D/g, '').slice(0, 8);
+    extEl.value = v;
+    /* Stripe has no field for this, so it goes straight to our own order
+       row like the delivery type. */
+    return fetch('/checkout/order-details', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json',
+                 'X-CSRF-Token': '<%= csrfToken %>' },
+      body:    JSON.stringify({ phone_ext: v }),
+    }).catch(function () {});
+  }
+
   function pushPhone() {
     phoneErr.style.display = 'none';
+    harvestExt();
+    saveExt();
     if (!phoneEl.value.trim()) return Promise.resolve();
     if (!phoneValid()) {
       phoneErr.textContent = 'Please enter a 10-digit phone number, e.g. (404) 555-1234.';
@@ -607,6 +658,8 @@
   }
   phoneEl.addEventListener('change', pushPhone);
   phoneEl.addEventListener('blur', pushPhone);
+  extEl.addEventListener('change', saveExt);
+  extEl.addEventListener('blur', saveExt);
 
   /* Residential vs commercial. Written to our own order row - Stripe has
      no field for it. Fire and forget: a buyer must never be stopped from
@@ -614,7 +667,7 @@
   function saveDeliveryType() {
     var picked = document.querySelector('input[name="delivery_type"]:checked');
     if (!picked) return;
-    fetch('/checkout/delivery-type', {
+    fetch('/checkout/order-details', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json',
                  'X-CSRF-Token': '<%= csrfToken %>' },

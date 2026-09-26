@@ -376,7 +376,10 @@ const hasPayment    = !!order.payment_transaction_id;
         <%/* ship_phone, not customer_phone — there has never been a
              customer_phone column, so this row simply never rendered. */%>
         <% if (order.ship_phone) { %>
-        <div class="detail-meta-row"><span>Phone Number</span><span><a href="tel:<%= order.ship_phone %>" style="color:var(--color-amber)"><%= order.ship_phone %></a></span></div>
+        <%/* tel: carries the extension as a ,, pause then digits, which is
+             what a softphone or mobile dialler expects. The visible text
+             stays human-readable. */%>
+        <div class="detail-meta-row"><span>Phone Number</span><span><a href="tel:<%= order.ship_phone %><%= order.ship_phone_ext ? ',,' + order.ship_phone_ext : '' %>" style="color:var(--color-amber)"><%= order.ship_phone %><% if (order.ship_phone_ext) { %> ext. <%= order.ship_phone_ext %><% } %></a></span></div>
         <% } %>
       </div>
 
