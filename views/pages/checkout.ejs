@@ -560,7 +560,15 @@
   var phoneErr = document.getElementById('phone-error');
 
   function e164(raw) {
-    var d = String(raw || '').replace(/[^\d+]/g, '');
+    var s = String(raw || '').trim();
+
+    /* Drop a trailing extension BEFORE stripping punctuation. Otherwise
+       "404-555-1234 ext 22" becomes +404555123422 - twelve digits, passes
+       a loose length check, and hands the carrier a number that does not
+       dial. An extension is no use to an LTL dispatcher anyway. */
+    s = s.replace(/[\s,;]*(?:ext|extension|xt|x|#)\.?\s*\d+\s*$/i, '');
+
+    var d = s.replace(/[^\d+]/g, '');
     if (d.charAt(0) === '+') return d;
     d = d.replace(/\D/g, '');
     if (d.length === 10) return '+1' + d;
@@ -568,13 +576,24 @@
     return d ? '+' + d : '';
   }
 
-  function phoneValid() { return /^\+\d{10,15}$/.test(e164(phoneEl.value)); }
+  /* US: +1 and exactly ten digits. Anything else the buyer typed with an
+     explicit + is treated as international and allowed through at 10-15
+     digits - a foreign mobile on a US delivery address is unusual but
+     real, and Stripe validates it properly either way.
+
+     Deliberately NOT a loose /\+\d{10,15}/ on everything: that is what let
+     the extension case through. */
+  function phoneValid() {
+    var v = e164(phoneEl.value);
+    if (/^\+1\d{10}$/.test(v)) return true;
+    return String(phoneEl.value).trim().charAt(0) === '+' && /^\+\d{10,15}$/.test(v);
+  }
 
   function pushPhone() {
     phoneErr.style.display = 'none';
     if (!phoneEl.value.trim()) return Promise.resolve();
     if (!phoneValid()) {
-      phoneErr.textContent = 'Please enter a 10-digit phone number.';
+      phoneErr.textContent = 'Please enter a 10-digit phone number, e.g. (404) 555-1234.';
       phoneErr.style.display = 'block';
       return Promise.resolve();
     }
@@ -646,7 +665,7 @@
        nothing about this field. */
     if (!phoneValid()) {
       phoneErr.textContent = phoneEl.value.trim()
-        ? 'Please enter a 10-digit phone number.'
+        ? 'Please enter a 10-digit phone number, e.g. (404) 555-1234.'
         : 'A phone number is required — the freight carrier needs it to schedule delivery.';
       phoneErr.style.display = 'block';
       phoneEl.focus();
