@@ -405,70 +405,125 @@
   checkout.createBillingAddressElement().mount('#billing-address-element');
   checkout.createPaymentElement().mount('#payment-element');
 
-  payBtn.addEventListener('click', function () {
-    errEl.style.display = 'none';
+  /* Spinner + honest status. A dead button with static text for 30-60s
+     reads as broken, and a customer who thinks it is broken clicks again.
+     The button is disabled from the first click, so a second click cannot
+     submit - but the copy has to say so, because the customer cannot see
+     the disabled state on a filled button. */
+  function busy(label) {
     payBtn.disabled = true;
-    payBtnText.textContent = 'Authorizing…';
+    payBtnText.innerHTML =
+      '<span style="display:inline-block;width:13px;height:13px;margin-right:8px;' +
+      'vertical-align:-2px;border:2px solid currentColor;border-right-color:transparent;' +
+      'border-radius:50%;animation:bvo-spin .7s linear infinite"></span>' + label;
+  }
+  function idle(label) {
+    payBtn.disabled = false;
+    payBtnText.textContent = label || 'Place Order';
+  }
+  (function () {
+    var st = document.createElement('style');
+    st.textContent = '@keyframes bvo-spin{to{transform:rotate(360deg)}}';
+    document.head.appendChild(st);
+  })();
+
+  payBtn.addEventListener('click', async function () {
+    errEl.style.display = 'none';
+    busy('Authorizing your payment…');
+
+    var note = document.querySelector('.co-sum-redirect-note');
+    var noteWas = note ? note.innerHTML : null;
+    if (note) {
+      note.innerHTML = '<strong>Please don’t close this page or click again.</strong> ' +
+        'Authorizing with your bank — this can take up to a minute.';
+    }
 
     /* A successful confirm redirects to return_url and this page goes
-       away, so nothing below should ever run on the happy path. If the
-       redirect does not happen — a return_url that does not resolve, which
-       is exactly what SITE_URL pointing at the un-cutover domain caused on
-       2026-09-25 — the button would otherwise read "Authorizing..."
-       forever while the payment sat authorized in Stripe.
+       away, so nothing after it should run on the happy path. If the
+       redirect does not happen, the button would otherwise spin forever
+       while the payment sat authorized in Stripe.
 
-       Tell the customer the truth instead: the payment went through, the
-       page did not. Never invite a retry here — that would double-charge
-       an authorization that already succeeded. */
+       60s, not 20s: an authorization that has to clear 3D Secure can
+       legitimately take that long, and the earlier 20s fuse fired
+       mid-flight and mislabelled working payments as stuck.
+
+       Never invite a retry here - that would double-authorize a payment
+       that already succeeded. */
     var stuck = setTimeout(function () {
+      payBtn.disabled = true;
       payBtnText.textContent = 'Payment submitted';
+      if (note) note.innerHTML = noteWas;
       showError('Your payment was submitted, but this page did not finish loading. '
         + 'DO NOT try again — please contact us with your email address and we '
         + 'will confirm your order.');
-    }, 20000);
+    }, 60000);
 
-    /* ── TEMPORARY DIAGNOSTICS — remove once checkout is proven ──────
-       The confirm promise has been staying pending past 20s with no
-       error and no redirect, and there is no way to see why from
-       outside the browser. Everything below logs; none of it changes
-       behaviour. Strip this block once a payment completes cleanly. */
-    /* The check never made: does the SDK actually expose confirm()?
-       If the method name is wrong for this Stripe.js generation, calling
-       it throws a TypeError that the .catch swallows into a generic
-       message, and no network request is ever made - which matches the
-       Stripe API log showing session creations and zero PaymentIntents. */
-    dbg('sdk methods:', Object.keys(checkout || {}).join(','));
-    dbg('typeof checkout.confirm =', typeof (checkout && checkout.confirm));
-    dbg('confirm() called at ' + new Date().toISOString());
-    window.addEventListener('unhandledrejection', function (ev) {
-      dbg('UNHANDLED REJECTION: ' + (ev.reason && ev.reason.message ? ev.reason.message : String(ev.reason)));
-    });
-    var confirmStart = Date.now();
+    function fail(msg) {
+      clearTimeout(stuck);
+      if (note) note.innerHTML = noteWas;
+      showError(msg);
+      idle('Place Order');
+    }
 
-    checkout.confirm().then(function (result) {
-      /* Log EVERY outcome, not just errors. The previous version only
-         acted on result.type === 'error', so any other shape - including
-         a resolved-but-not-redirecting result - vanished silently. */
-      dbg('confirm() RESOLVED after ' + (Date.now() - confirmStart) + 'ms. result =', result);
+    try {
+      /* THE FIX.
 
-      /* Only reached on an IMMEDIATE error. On success the browser is
-         redirected to return_url, so there is nothing to do here. */
+         checkout.confirm() does not exist. The SDK returned by
+         initCheckoutElementsSdk exposes createPaymentElement, on,
+         loadActions and friends - and nothing called confirm. Calling it
+         threw a TypeError that the catch below turned into a generic
+         "something went wrong", so no network request was ever made.
+         Stripe's API log showed six session creations and zero
+         PaymentIntents, which is exactly that signature.
+
+         confirm() lives on the object returned by loadActions():
+             const { actions } = await checkout.loadActions();
+             await actions.confirm();
+
+         Verified on 2026-09-25 by enumerating the live SDK object rather
+         than reading it out of a docs example - the same mistake that
+         produced $NaN and the non-existent `tax` key. */
+      var loaded = await checkout.loadActions();
+      var actions = (loaded && loaded.actions) ? loaded.actions : loaded;
+      dbg('loadActions ->', Object.keys(actions || {}).join(','));
+
+      if (!actions || typeof actions.confirm !== 'function') {
+        fail('Checkout could not start. Please refresh and try again.');
+        return;
+      }
+
+      /* Validate before confirming. Without this a missing or malformed
+         field fails inside confirm with a generic message instead of
+         marking the offending field. */
+      if (typeof actions.validateElements === 'function') {
+        var v = await actions.validateElements();
+        dbg('validateElements ->', v);
+        if (v && v.type === 'error') {
+          fail((v.error && v.error.message)
+            ? v.error.message
+            : 'Please check the highlighted fields and try again.');
+          return;
+        }
+      }
+
+      var t0 = Date.now();
+      var result = await actions.confirm();
+      dbg('confirm RESOLVED after ' + (Date.now() - t0) + 'ms ->', result);
+
+      /* Only reached on an immediate error - success redirects away. */
       if (result && result.type === 'error') {
-        clearTimeout(stuck);
-        showError(result.error && result.error.message
+        fail((result.error && result.error.message)
           ? result.error.message
           : 'Your payment could not be authorized. Please check your details and try again.');
-        payBtn.disabled = false;
-        payBtnText.textContent = 'Place Order';
       }
-    }).catch(function (e) {
-      dbg('confirm() REJECTED after ' + (Date.now() - confirmStart) + 'ms: ' +
-          (e && e.message ? e.message : String(e)));
-      clearTimeout(stuck);
-      showError(e && e.message ? e.message : 'Something went wrong. Nothing has been charged.');
-      payBtn.disabled = false;
-      payBtnText.textContent = 'Place Order';
-    });
+    } catch (e) {
+      dbg('confirm THREW: ' + (e && e.message ? e.message : String(e)));
+      fail(e && e.message ? e.message : 'Something went wrong. Nothing has been charged.');
+    }
+  });
+
+  window.addEventListener('unhandledrejection', function (ev) {
+    dbg('UNHANDLED REJECTION: ' + (ev.reason && ev.reason.message ? ev.reason.message : String(ev.reason)));
   });
 })();
 </script>
