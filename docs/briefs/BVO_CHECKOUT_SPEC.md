@@ -128,46 +128,62 @@ Under this flow:
 
 ---
 
-## 4. Delivery options — copy
+## 4. Delivery — copy
 
-The point is that the buyer knows what will physically happen and what is
-expected of them. Wayfair's wording is the model; these are BVO's, subject
-to what WWEX actually offers.
+**Decision 2026-09-26: BVO offers one delivery level — curbside — and no
+paid upgrade.** Wayfair's tiering is not copied. What *is* copied is the
+discipline of saying exactly what will physically happen and what is
+expected of the buyer.
 
-### Service level
+This matters more for BVO than it does for Wayfair. "Inside your
+entryway" is a generous outcome that rarely surprises anyone. Curbside is
+the opposite: a buyer who pictures two people carrying a vanity into the
+bathroom and instead watches a lift-gate lower a crate onto the driveway
+will refuse the delivery, file a damage claim, or leave the review that
+costs the next ten orders. Every one of those is cheaper to prevent here,
+in one paragraph, than to resolve afterwards.
 
-> **Free — Inside your entryway**
-> We bring your item to the first secure area inside your front door.
-> It stays in its packaging. One person, no stairs, no assembly.
+So this copy is not marketing text to be softened. Vagueness here is the
+expensive option.
 
-> **$XX — Room of choice**
-> We carry your item to whichever room you choose, including upstairs.
-> It stays in its packaging.
+### Service level — shown on the delivery page and again at review
 
-Each says what happens, where it stops, and what it does not include.
-"Threshold" and "white glove" are carrier words — they mean nothing to a
-buyer and hide the parts that cause complaints.
+> **Free curbside delivery**
+>
+> Your vanity ships by freight truck. The driver brings it to your
+> driveway or the curb and lowers it with a lift gate. **They do not
+> bring it inside, up steps, into a garage, or unpack it.**
+>
+> Please arrange help to move it from there. A 60" vanity in its crate
+> can weigh over 200 lb.
+>
+> **Need it brought inside?** [Contact us](/pages/contact) before you
+> order and we will quote it.
+
+Three things that copy does deliberately: it says where the driver stops
+*in the negative* (buyers skim the positive), it gives a weight so
+"arrange help" means something concrete, and it offers a route out rather
+than a flat no.
 
 ### Timing
 
-> **First available**
-> Estimated arrival Mon Oct 5 – Sun Oct 11.
-> **We call you after it ships to arrange the delivery appointment.**
+> **We call you to arrange a delivery appointment once your order ships.**
+> Freight is not left unattended. Someone aged 18 or older must be there
+> to receive it and sign.
 
-> **Scheduled delivery**
-> Choose a date from Sun Oct 11.
-> You can reschedule up to 24 hours before.
+### At the point of signing — state before payment, repeat in the email
 
-The bolded sentence is the one that prevents support tickets: freight is
-not a doorstep drop, someone must be home, and the buyer needs to know a
-call is coming.
+- **Inspect the crate before you sign.** Note any damage on the delivery
+  receipt, however minor.
+- A signed clean receipt is the carrier's evidence that it arrived
+  undamaged. **It is the buyer's only protection on a freight claim.**
+- Photograph anything that looks wrong before the driver leaves.
 
-### Also state before payment
+### Not offered
 
-- Someone aged 18+ must be present to sign
-- Inspect for damage before signing; note any damage on the delivery
-  receipt (this is the buyer's only protection on a freight claim)
-- Doorway and stairwell clearances are the buyer's responsibility
+Room-of-choice and white-glove are not offered at checkout. If demand
+appears through the contact route, price it from real WWEX quotes rather
+than guessing a flat fee.
 
 ---
 
@@ -203,23 +219,37 @@ behaviour from its documentation is what produced the bug in §0.
 
 ---
 
-## 7. Open decisions
+## 7. Decisions — settled 2026-09-26
 
-**7.1 Guest checkout.** Wayfair requires an account. Requiring one costs
-first-time orders; BVO has no existing customer base to sign in. Proposed:
-guest by default, with an opt-in "create an account to track this order"
-after the order is placed. Owner's call.
+**7.1 Sign in, register, or guest.** All three offered side by side on
+page 1. The buyer chooses.
 
-**7.2 Email verification.** A six-digit code before checkout adds
-friction that only pays off if accounts are mandatory. If guest checkout
-stays, verification belongs at account creation, not in the buy flow.
+**7.2 Email verification before checkout.** Six-digit code, ten-minute
+expiry, as Wayfair does.
 
-**7.3 Delivery pricing.** Room-of-choice implies a surcharge. Shipping is
-currently free and address-independent, and the owner has asked for
-policy language covering the right to pass a shipping upcharge before an
-order is consummated. Those two need to agree.
+*Consequence to be aware of:* combined with 7.1, a guest is verified too.
+That is the right call for a freight retailer — email is the only channel
+for the delivery appointment, and a typo'd address means an order that
+cannot be delivered or refunded cleanly — but it does narrow the
+difference between guest and account to "we did not keep a password".
+Flagged so nobody later removes it as redundant.
 
-**7.4 Two pages or three.** Delivery options could fold into page 1.
+**7.3 One delivery level, curbside, free.** No surcharge, no paid
+upgrade. Buyers needing more are routed to contact. See §4.
+
+**7.4 Three pages.** Information, delivery, payment.
+
+### Still open
+
+**7.5 Resend and rate limits on the verification code.** How many
+resends, how often, and what happens after repeated failures. Needs a
+decision before build, because getting it wrong either locks buyers out
+or turns the endpoint into a free email cannon.
+
+**7.6 What a returning buyer skips.** A signed-in buyer with a saved
+address should not retype it, which implies saved addresses and a
+default — the "Set as default delivery address" box in Wayfair's flow.
+Scope this explicitly rather than letting it grow during the build.
 
 ---
 
