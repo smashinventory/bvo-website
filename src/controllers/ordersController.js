@@ -146,10 +146,15 @@ exports.list = async (req, res, next) => {
        string had to appear contiguously. Searching a customer as
        "Smith John" found nothing, because the CONCAT produces "John Smith". */
     const searchQ = buildSearch(search, {
+      /* The order's own ship_* name is searchable too. Without it a guest
+         order could only be found by email or order number - the staff
+         member looking at "Sam Nazer" on screen could not search for it. */
       columns: ['o.order_number', 'o.guest_email',
-                'CONCAT(c.first_name," ",c.last_name)'],
+                'CONCAT(c.first_name," ",c.last_name)',
+                'CONCAT(o.ship_first_name," ",o.ship_last_name)'],
       weights: { 'o.order_number': 5,
                  'CONCAT(c.first_name," ",c.last_name)': 3,
+                 'CONCAT(o.ship_first_name," ",o.ship_last_name)': 3,
                  'o.guest_email': 2 },
       exact:   ['o.order_number'],
       prefix:  'o.order_number',
@@ -166,7 +171,11 @@ exports.list = async (req, res, next) => {
 
     const orders = await safeQuery(
       `SELECT o.id, o.order_number, o.status, o.total, o.created_at, o.shipped_at, o.delivered_at,
-              COALESCE(CONCAT(c.first_name,' ',c.last_name), o.guest_email) AS customer_name,
+              COALESCE(
+                NULLIF(TRIM(CONCAT(COALESCE(c.first_name,''),' ',COALESCE(c.last_name,''))),''),
+                NULLIF(TRIM(CONCAT(COALESCE(o.ship_first_name,''),' ',COALESCE(o.ship_last_name,''))),''),
+                o.guest_email
+              ) AS customer_name,
               vpo.status AS vpo_status, vpo.sent_at AS vpo_sent_at, vpo.confirmed_at AS vpo_confirmed_at,
               s.status AS ship_status, s.estimated_delivery, s.last_tracking_scan,
               (SELECT COUNT(*) FROM order_returns r WHERE r.order_id = o.id AND r.status NOT IN ('resolved','denied')) AS open_returns,
@@ -218,7 +227,11 @@ exports.detail = async (req, res, next) => {
     const id = parseInt(req.params.id);
     const [[order]] = await bvoPool.query(
       `SELECT o.*,
-              COALESCE(CONCAT(c.first_name,' ',c.last_name), o.guest_email) AS customer_name,
+              COALESCE(
+                NULLIF(TRIM(CONCAT(COALESCE(c.first_name,''),' ',COALESCE(c.last_name,''))),''),
+                NULLIF(TRIM(CONCAT(COALESCE(o.ship_first_name,''),' ',COALESCE(o.ship_last_name,''))),''),
+                o.guest_email
+              ) AS customer_name,
               c.email AS customer_email, c.phone AS customer_phone
        FROM orders o
        LEFT JOIN customers c ON c.id = o.customer_id
@@ -308,7 +321,11 @@ exports.sendVendorOrder = async (req, res) => {
     const id = parseInt(req.params.id);
 
     const [[order]] = await conn.query(
-      `SELECT o.*, COALESCE(CONCAT(c.first_name,' ',c.last_name), o.guest_email) AS customer_name
+      `SELECT o.*, COALESCE(
+                NULLIF(TRIM(CONCAT(COALESCE(c.first_name,''),' ',COALESCE(c.last_name,''))),''),
+                NULLIF(TRIM(CONCAT(COALESCE(o.ship_first_name,''),' ',COALESCE(o.ship_last_name,''))),''),
+                o.guest_email
+              ) AS customer_name
        FROM orders o LEFT JOIN customers c ON c.id = o.customer_id WHERE o.id = ?`, [id]
     );
     if (!order) return res.status(404).json({ ok: false, error: 'Order not found' });
@@ -460,7 +477,11 @@ exports.bookShipment = async (req, res) => {
     const { rate_id, carrier, service_level, ship_type, rate_amount, estimated_delivery } = req.body;
 
     const [[order]] = await conn.query(
-      `SELECT o.*, COALESCE(CONCAT(c.first_name,' ',c.last_name), o.guest_email) AS customer_name,
+      `SELECT o.*, COALESCE(
+                NULLIF(TRIM(CONCAT(COALESCE(c.first_name,''),' ',COALESCE(c.last_name,''))),''),
+                NULLIF(TRIM(CONCAT(COALESCE(o.ship_first_name,''),' ',COALESCE(o.ship_last_name,''))),''),
+                o.guest_email
+              ) AS customer_name,
               c.email AS customer_email
        FROM orders o LEFT JOIN customers c ON c.id = o.customer_id WHERE o.id = ?`, [id]
     );
@@ -705,7 +726,11 @@ exports.shipmentsView = async (req, res, next) => {
   try {
     const shipments = await safeQuery(
       `SELECT s.*, o.order_number, o.id AS order_id,
-              COALESCE(CONCAT(c.first_name,' ',c.last_name), o.guest_email) AS customer_name
+              COALESCE(
+                NULLIF(TRIM(CONCAT(COALESCE(c.first_name,''),' ',COALESCE(c.last_name,''))),''),
+                NULLIF(TRIM(CONCAT(COALESCE(o.ship_first_name,''),' ',COALESCE(o.ship_last_name,''))),''),
+                o.guest_email
+              ) AS customer_name
        FROM shipments s
        JOIN orders o ON o.id = s.order_id
        LEFT JOIN customers c ON c.id = o.customer_id

@@ -60,7 +60,11 @@ exports.list = async (req, res, next) => {
 
     const returns = await safeQuery(
       `SELECT r.*, o.order_number, o.id AS order_id,
-              COALESCE(CONCAT(c.first_name,' ',c.last_name), o.guest_email) AS customer_name
+              COALESCE(
+                NULLIF(TRIM(CONCAT(COALESCE(c.first_name,''),' ',COALESCE(c.last_name,''))),''),
+                NULLIF(TRIM(CONCAT(COALESCE(o.ship_first_name,''),' ',COALESCE(o.ship_last_name,''))),''),
+                o.guest_email
+              ) AS customer_name
        FROM order_returns r
        JOIN orders o ON o.id = r.order_id
        LEFT JOIN customers c ON c.id = o.customer_id
@@ -119,7 +123,11 @@ exports.approve = async (req, res) => {
 
     const [[ret]] = await conn.query(
       `SELECT r.*, o.guest_email, c.email AS customer_email,
-              COALESCE(CONCAT(c.first_name,' ',c.last_name), o.guest_email) AS customer_name,
+              COALESCE(
+                NULLIF(TRIM(CONCAT(COALESCE(c.first_name,''),' ',COALESCE(c.last_name,''))),''),
+                NULLIF(TRIM(CONCAT(COALESCE(o.ship_first_name,''),' ',COALESCE(o.ship_last_name,''))),''),
+                o.guest_email
+              ) AS customer_name,
               oi.name AS product_name
        FROM order_returns r
        JOIN orders o ON o.id = r.order_id
@@ -211,7 +219,11 @@ exports.resolve = async (req, res) => {
 
     const [[ret]] = await conn.query(
       `SELECT r.*, o.guest_email, c.email AS customer_email,
-              COALESCE(CONCAT(c.first_name,' ',c.last_name), o.guest_email) AS customer_name,
+              COALESCE(
+                NULLIF(TRIM(CONCAT(COALESCE(c.first_name,''),' ',COALESCE(c.last_name,''))),''),
+                NULLIF(TRIM(CONCAT(COALESCE(o.ship_first_name,''),' ',COALESCE(o.ship_last_name,''))),''),
+                o.guest_email
+              ) AS customer_name,
               oi.name AS product_name
        FROM order_returns r
        JOIN orders o ON o.id = r.order_id

@@ -255,7 +255,21 @@ exports.dashboard = async (req, res, next) => {
       safeQueryOne('SELECT COUNT(*) AS n FROM orders WHERE DATE(created_at) = CURDATE()'),
       safeQueryOne('SELECT COALESCE(SUM(total),0) AS rev FROM orders WHERE MONTH(created_at)=MONTH(CURDATE()) AND YEAR(created_at)=YEAR(CURDATE())'),
       safeQueryOne('SELECT COUNT(*) AS n FROM customers'),
-      safeQuery('SELECT o.id, o.order_number, o.status, o.total, o.created_at, CONCAT(c.first_name," ",c.last_name) AS customer_name FROM orders o LEFT JOIN customers c ON c.id=o.customer_id ORDER BY o.created_at DESC LIMIT 8'),
+      /* Name priority: registered customer, then the name captured on the
+         order itself, then the email. Guest checkouts have no customers row,
+         so joining customers alone rendered every one of them as "Guest"
+         even though Stripe had supplied a name and the webhook had stored
+         it in ship_first_name/ship_last_name. NULLIF collapses the
+         ' ' a CONCAT of two NULLs produces. */
+      safeQuery(`SELECT o.id, o.order_number, o.status, o.total, o.created_at,
+                        COALESCE(
+                          NULLIF(TRIM(CONCAT(COALESCE(c.first_name,''),' ',COALESCE(c.last_name,''))),''),
+                          NULLIF(TRIM(CONCAT(COALESCE(o.ship_first_name,''),' ',COALESCE(o.ship_last_name,''))),''),
+                          o.guest_email
+                        ) AS customer_name
+                   FROM orders o
+                   LEFT JOIN customers c ON c.id = o.customer_id
+                  ORDER BY o.created_at DESC LIMIT 8`),
     ]);
 
     const stats = {
@@ -1697,7 +1711,12 @@ exports.orderList = async (req, res, next) => {
 
     const orders = await safeQuery(
       `SELECT o.id, o.order_number, o.status, o.total, o.created_at,
-              CONCAT(c.first_name,' ',c.last_name) AS customer_name, c.email,
+              COALESCE(
+                NULLIF(TRIM(CONCAT(COALESCE(c.first_name,''),' ',COALESCE(c.last_name,''))),''),
+                NULLIF(TRIM(CONCAT(COALESCE(o.ship_first_name,''),' ',COALESCE(o.ship_last_name,''))),''),
+                o.guest_email
+              ) AS customer_name,
+              COALESCE(c.email, o.guest_email) AS email,
               COUNT(oi.id) AS item_count
        FROM orders o
        LEFT JOIN customers c  ON c.id = o.customer_id

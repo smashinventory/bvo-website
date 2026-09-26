@@ -101,7 +101,11 @@ async function createForm(req, res) {
       `SELECT o.id, o.order_number, o.status, o.total,
               o.ship_first_name, o.ship_last_name,
               o.ship_address1, o.ship_city, o.ship_state, o.ship_zip,
-              COALESCE(CONCAT(c.first_name,' ',c.last_name), o.guest_email) AS customer_name,
+              COALESCE(
+                NULLIF(TRIM(CONCAT(COALESCE(c.first_name,''),' ',COALESCE(c.last_name,''))),''),
+                NULLIF(TRIM(CONCAT(COALESCE(o.ship_first_name,''),' ',COALESCE(o.ship_last_name,''))),''),
+                o.guest_email
+              ) AS customer_name,
               c.email AS email,
               c.phone AS phone
        FROM orders o
@@ -1589,7 +1593,11 @@ async function openOrders(req, res) {
   try {
     const rows = await safeQuery(`
       SELECT o.id, o.order_number, o.total, o.status, o.created_at,
-             COALESCE(CONCAT(c.first_name,' ',c.last_name), o.guest_email) AS customer_name
+             COALESCE(
+                NULLIF(TRIM(CONCAT(COALESCE(c.first_name,''),' ',COALESCE(c.last_name,''))),''),
+                NULLIF(TRIM(CONCAT(COALESCE(o.ship_first_name,''),' ',COALESCE(o.ship_last_name,''))),''),
+                o.guest_email
+              ) AS customer_name
       FROM orders o
       LEFT JOIN customers c ON c.id = o.customer_id
       WHERE o.status NOT IN ('cancelled','shipped','delivered','refunded')
