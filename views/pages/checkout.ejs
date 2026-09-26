@@ -330,6 +330,21 @@
     },
   });
 
+  /* TEMPORARY — goes out with the rest of the ?debug=1 panel.
+     Enumerating the live SDK is the only reliable way to learn what it
+     exposes: confirm() was written from a docs example, does not exist on
+     this object, and cost an evening of zero PaymentIntents. Read the
+     object, then write the shipping code. */
+  if (DEBUG) {
+    window.__ck = checkout;
+    dbg('sdk methods:', Object.keys(checkout).filter(function (k) {
+      return typeof checkout[k] === 'function';
+    }).sort().join(','));
+    dbg('sdk non-fn keys:', Object.keys(checkout).filter(function (k) {
+      return typeof checkout[k] !== 'function';
+    }).sort().join(','));
+  }
+
   /* Fires whenever any element changes. Two jobs: keep the summary in step
      with Stripe's own totals (tax only exists once there is an address),
      and gate the button on canConfirm so it is never clickable in a state
