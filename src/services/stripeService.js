@@ -207,7 +207,18 @@ exports.createCheckoutSession = async (p) => {
       /* Needed for the delivery appointment. LTL carriers will not schedule
          residential delivery without a consignee phone, so an order without
          one cannot be dispatched however complete the rest of it is.
-         Arrives as customer_details.phone on the same webhook. */
+         Arrives as customer_details.phone on the same webhook.
+
+         THIS DOES NOT RENDER A PHONE FIELD IN ELEMENTS MODE. Verified on
+         the live page 2026-09-26: with this enabled, the Contact Details
+         Element still renders email and nothing else, and it accepts
+         {phone:'always'} without complaint while ignoring it. The flag
+         renders a field in Stripe's HOSTED checkout only.
+
+         So checkout.ejs renders its own phone input and pushes the value
+         in with actions.updatePhoneNumber(), which does work. This stays
+         enabled because that is what permits the session to carry a phone
+         at all. */
       phone_number_collection: { enabled: true },
 
       /* customer_email is deliberately NOT set.
