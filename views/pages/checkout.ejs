@@ -80,19 +80,6 @@
         <p class="checkout-card-sub">The address on your card. Used for card verification and to calculate sales tax.</p>
         <div id="billing-address-element"></div>
 
-        <%/* Default is ship-to-billing, which is the overwhelming majority.
-             Phrased as the EXCEPTION ("a different address") so the common
-             case is a no-op and only the minority types anything. */%>
-        <label class="checkout-check" for="ship-different">
-          <input type="checkbox" id="ship-different">
-          <span>Ship to a different address</span>
-        </label>
-
-        <div id="shipping-address-wrap" hidden>
-          <h3 class="checkout-card-title" style="font-size:16px;margin-top:18px">Shipping Address</h3>
-          <div id="shipping-address-element"></div>
-        </div>
-
         <%/* Freight carriers price residential and commercial delivery
              differently and guess when nobody declares it. Guessing wrong
              produces a surcharge after the fact that cannot be passed on. */%>
@@ -438,9 +425,7 @@
         ' status=' + (session.status && session.status.type ? session.status.type : session.status) +
         ' email=' + !!session.email +
         ' billing=' + !!(session.billingAddress || session.billing_address) +
-        ' shipping=' + !!session.shippingAddress +
-        ' phone=' + !!session.phoneNumber +
-        ' shipDiff=' + (shipDiff ? shipDiff.checked : 'n/a'));
+        ' phone=' + !!session.phoneNumber);
 
     if (t.subtotal != null) {
       document.getElementById('sum-subtotal').textContent = money(t.subtotal);
@@ -483,92 +468,11 @@
         : 'Place Order — ' + tot;
     }
 
-    /* Keep ship-to in step with billing while the checkbox is unticked.
-       Declared below; function declarations hoist, and the guard inside
-       covers a change that fires before the elements are wired. */
-    mirrorBillingToShipping(session);
   });
 
   checkout.createContactDetailsElement().mount('#contact-details-element');
   checkout.createBillingAddressElement().mount('#billing-address-element');
   checkout.createPaymentElement().mount('#payment-element');
-
-  /* ── Ship-to ──────────────────────────────────────────────────────
-     Two states, one source of truth.
-
-     UNCHECKED (the default, and the overwhelming majority): the billing
-     address is mirrored to shipping on every change, so the buyer types
-     one address and the freight still has a destination. Without this the
-     ship_* columns stay null and the order cannot be booked at all - which
-     is exactly what happened to every order before today.
-
-     CHECKED: Stripe's own Shipping Address Element is mounted and owns the
-     value. The mirror stops immediately, or it would overwrite what the
-     buyer just typed on their next billing keystroke.
-
-     updateShippingAddress() and createShippingAddressElement() were both
-     confirmed present on the live SDK before this was written. */
-  /* loadActions() is async and returns a fresh object each call. Memoised
-     so the mirror does not re-load it on every keystroke, and normalised
-     because the actions live under .actions on this SDK - the shape that
-     cost an evening when confirm() was called on the wrapper instead. */
-  var _actionsPromise = null;
-  function loadActionsOnce() {
-    if (!_actionsPromise) {
-      _actionsPromise = checkout.loadActions().then(function (loaded) {
-        return (loaded && loaded.actions) ? loaded.actions : loaded;
-      });
-    }
-    return _actionsPromise;
-  }
-
-  var shipDiff  = document.getElementById('ship-different');
-  var shipWrap  = document.getElementById('shipping-address-wrap');
-  var shipEl    = null;
-  var lastMirror = '';
-
-  function mirrorBillingToShipping(session) {
-    /* change can fire during init, before the lines below have run.
-       Reading .checked off undefined there would throw inside Stripe's
-       own listener, where nothing surfaces it. */
-    if (!session || !shipDiff || shipDiff.checked) return;
-    var b = session.billingAddress;
-    if (!b || !b.address || !b.address.line1 || !b.address.postal_code) return;
-
-    /* Stripe fires change on every keystroke. Sending an identical address
-       each time would be a network call per character. */
-    var sig = JSON.stringify(b.address) + '|' + (b.name || '');
-    if (sig === lastMirror) return;
-    lastMirror = sig;
-
-    loadActionsOnce().then(function (actions) {
-      return actions.updateShippingAddress({ name: b.name || '', address: b.address });
-    }).then(function () {
-      dbg('mirror ok: billing copied to shipping');
-    }).catch(function (e) {
-      /* Never block the buyer. A failed mirror leaves ship_* to the
-         webhook's billing fallback, which lands on the same address. */
-      dbg('mirror failed: ' + (e && e.message ? e.message : String(e)));
-    });
-  }
-
-  shipDiff.addEventListener('change', function () {
-    shipWrap.hidden = !shipDiff.checked;
-    if (shipDiff.checked) {
-      if (!shipEl) {
-        shipEl = checkout.createShippingAddressElement();
-        shipEl.mount('#shipping-address-element');
-      }
-    } else {
-      /* Back to mirroring. Cleared so the next billing change is treated
-         as new and re-sent rather than skipped by the signature check. */
-      lastMirror = '';
-      loadActionsOnce()
-        .then(function (actions) { return actions.getSession(); })
-        .then(mirrorBillingToShipping)
-        .catch(function () {});
-    }
-  });
 
   /* ── Phone ────────────────────────────────────────────────────────
      Stripe wants E.164. A buyer types "(404) 555-1234". Normalise rather

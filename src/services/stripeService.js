@@ -190,19 +190,32 @@ exports.createCheckoutSession = async (p) => {
          form rather than letting the confirm fail later. */
       billing_address_collection: 'required',
 
-      /* SHIP-TO, which is not the same fact as bill-to.
-         BVO ships LTL freight. The carrier books against a destination
-         address, and until this was enabled the webhook wrote only bill_*
-         while shippingController read ship_address1/city/state/zip — so
-         every Stripe order reached the ship screen with a null destination
-         and could not be booked at all.
+      /* NO shipping_address_collection. Enabled 2026-09-26 and removed the
+         same day.
 
-         Enabling this also moves the tax basis. Sales tax on tangible goods
-         is owed where the goods are DELIVERED, not where the card bills, so
-         a Florida cardholder shipping to Georgia owes Georgia tax. The
-         session previously reported automatic_tax_address_source
-         "session.billing"; it is asserted below rather than assumed. */
-      shipping_address_collection: { allowed_countries: ['US'] },
+         It moves the tax basis to the delivery address, which is correct
+         for tangible goods, but it also makes canConfirm depend on a
+         MOUNTED, COMPLETE Shipping Address Element. Measured on the live
+         page:
+
+           - actions.updateShippingAddress() sets session.shippingAddress
+             but leaves the mounted element empty and complete:false
+           - createShippingAddressElement() rejects defaultValues outright:
+             "options.defaultValues is not an accepted parameter"
+
+         So there is no way to satisfy it without the buyer typing a second
+         address by hand. With the "different address" box unticked, the
+         element was never mounted, canConfirm stayed false forever, and
+         Place Order could not be clicked however complete the card was.
+
+         Ship-to is collected by BVO instead and written to ship_* directly;
+         shippingFrom() falls back to the billing address when no separate
+         one was given, which is the overwhelming majority.
+
+         Keeping the billing address as the only thing Stripe sees is also
+         the safer side of the AVS trade: what goes to the card network is
+         the cardholder's own address, so a delivery to a jobsite cannot
+         cause a mismatch decline. */
 
       /* Needed for the delivery appointment. LTL carriers will not schedule
          residential delivery without a consignee phone, so an order without
