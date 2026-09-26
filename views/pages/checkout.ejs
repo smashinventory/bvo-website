@@ -428,11 +428,19 @@
        session. If canConfirm never turns true, or the tax status never
        leaves requires_location_inputs after an address is typed, the
        address is not reaching Stripe and confirm() can never complete. */
+    /* shipping= is the one that matters now. Enabling
+       shipping_address_collection means Stripe wants a ship-to before it
+       will confirm, and with the checkbox unticked that address only
+       arrives via the billing->shipping mirror. If billing goes true and
+       shipping stays false, the mirror is the fault and canConfirm can
+       never turn true however complete the card is. */
     dbg('change: canConfirm=' + session.canConfirm +
-        ' status=' + session.status +
+        ' status=' + (session.status && session.status.type ? session.status.type : session.status) +
         ' email=' + !!session.email +
         ' billing=' + !!(session.billingAddress || session.billing_address) +
-        ' keys=' + Object.keys(session).join(','));
+        ' shipping=' + !!session.shippingAddress +
+        ' phone=' + !!session.phoneNumber +
+        ' shipDiff=' + (shipDiff ? shipDiff.checked : 'n/a'));
 
     if (t.subtotal != null) {
       document.getElementById('sum-subtotal').textContent = money(t.subtotal);
@@ -535,6 +543,8 @@
 
     loadActionsOnce().then(function (actions) {
       return actions.updateShippingAddress({ name: b.name || '', address: b.address });
+    }).then(function () {
+      dbg('mirror ok: billing copied to shipping');
     }).catch(function (e) {
       /* Never block the buyer. A failed mirror leaves ship_* to the
          webhook's billing fallback, which lands on the same address. */
