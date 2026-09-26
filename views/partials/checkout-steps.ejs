@@ -1,0 +1,31 @@
+<%
+/* Step indicator. `step` is 1, 2 or 3.
+ *
+ * Completed steps link backwards so a buyer can correct an address
+ * without starting over. Future steps are not links - they depend on
+ * data this one has not collected yet. */
+const steps = [
+  { n: 1, label: 'Your information', href: '/checkout' },
+  { n: 2, label: 'Delivery',         href: '/checkout/delivery' },
+  { n: 3, label: 'Payment',          href: '/checkout/payment' },
+];
+%>
+<ol class="checkout-steps" aria-label="Checkout progress">
+  <% steps.forEach(function (s) {
+       const state = s.n < step ? 'done' : (s.n === step ? 'current' : 'todo'); %>
+    <li class="checkout-step checkout-step--<%= state %>"
+        <%= state === 'current' ? 'aria-current="step"' : '' %>>
+      <% if (state === 'done') { %>
+        <a href="<%= s.href %>">
+          <span class="checkout-step-num" aria-hidden="true">&#10003;</span>
+          <span class="checkout-step-label"><%= s.label %></span>
+        </a>
+      <% } else { %>
+        <span>
+          <span class="checkout-step-num" aria-hidden="true"><%= s.n %></span>
+          <span class="checkout-step-label"><%= s.label %></span>
+        </span>
+      <% } %>
+    </li>
+  <% }); %>
+</ol>

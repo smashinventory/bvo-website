@@ -251,9 +251,19 @@ exports.dashboard = async (req, res, next) => {
     ] = await Promise.all([
       safeQueryOne('SELECT COUNT(*) AS n FROM products'),
       safeQueryOne('SELECT COUNT(*) AS n FROM products WHERE is_active = 1'),
-      safeQueryOne('SELECT COUNT(*) AS n FROM orders'),
-      safeQueryOne('SELECT COUNT(*) AS n FROM orders WHERE DATE(created_at) = CURDATE()'),
-      safeQueryOne('SELECT COALESCE(SUM(total),0) AS rev FROM orders WHERE MONTH(created_at)=MONTH(CURDATE()) AND YEAR(created_at)=YEAR(CURDATE())'),
+      /* Drafts and pending rows are not orders. A draft is a checkout in
+         progress; a pending row has a Stripe session open and may never be
+         paid. Counting either inflated Orders Today and, worse, Revenue
+         This Month - which read $33,707.88 on 2026-09-25 against zero
+         captured payments.
+
+         Drafts carry status='pending' (the ENUM has no 'draft' member) and
+         payment_status='draft', so the pending exclusion already catches
+         them. 'draft' is listed anyway: harmless, and it stays correct if
+         the ENUM ever gains the member. */
+      safeQueryOne("SELECT COUNT(*) AS n FROM orders WHERE status NOT IN ('draft','pending')"),
+      safeQueryOne("SELECT COUNT(*) AS n FROM orders WHERE DATE(created_at) = CURDATE() AND status NOT IN ('draft','pending')"),
+      safeQueryOne("SELECT COALESCE(SUM(total),0) AS rev FROM orders WHERE MONTH(created_at)=MONTH(CURDATE()) AND YEAR(created_at)=YEAR(CURDATE()) AND status NOT IN ('draft','pending')"),
       safeQueryOne('SELECT COUNT(*) AS n FROM customers'),
       /* Name priority: registered customer, then the name captured on the
          order itself, then the email. Guest checkouts have no customers row,
@@ -269,6 +279,7 @@ exports.dashboard = async (req, res, next) => {
                         ) AS customer_name
                    FROM orders o
                    LEFT JOIN customers c ON c.id = o.customer_id
+                  WHERE o.status NOT IN ('draft','pending')
                   ORDER BY o.created_at DESC LIMIT 8`),
     ]);
 

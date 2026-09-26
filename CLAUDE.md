@@ -254,6 +254,10 @@ must be added to the ladder or it will reproduce this.
 ## ⛔ NON-NEGOTIABLE PROCESS RULES
 
 1. **Never make a code change before the user approves it.** Present what you plan to do and wait for explicit "go ahead / yes / proceed."
+
+   **Approval is scoped to the whole plan, not to each step.** Approving a plan, a spec or a staged build approves everything described in it. Do NOT re-ask per stage, per file, per page or per subtask — that is not caution, it is delay. Ask again only when (a) you hit something the plan did not cover, (b) you are below 90% confident in an assumption, or (c) the work would change something outside the approved scope.
+
+   Added 2026-09-26 after the multi-page checkout spec was approved and then re-confirmed twice more before any code was written.
 2. **Never assume what the user wants.** Ask. Do not infer intent from prior sessions or partial context.
 3. **Always provide git push commands** in a copyable code block. Never push silently.
 

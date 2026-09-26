@@ -1,0 +1,227 @@
+<link rel="stylesheet" href="/css/site3.css?v=22"><!-- site3: injected per-page (perf) -->
+
+<%
+/* Page 1 of 3 — who you are, where it goes.
+ *
+ * No Stripe on this page at all. The order row is written from here with
+ * a real email attached, which is what turns an abandoned checkout into
+ * something we can follow up. See docs/briefs/BVO_CHECKOUT_SPEC.md §3.
+ *
+ * STAGE 1 is guest-only. Sign in / register arrive in stage 2; no dead
+ * buttons for them are rendered.
+ */
+const val = (k, fallback) =>
+  (old && old[k] != null && old[k] !== '') ? old[k]
+  : (draft && draft[k] != null ? draft[k] : (fallback || ''));
+
+const draftName = draft
+  ? [draft.ship_first_name, draft.ship_last_name].filter(Boolean).join(' ')
+  : '';
+const STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','DC','FL','GA','HI','ID','IL','IN','IA',
+  'KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND',
+  'OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'];
+const money = n => '$' + Number(n || 0).toLocaleString('en-US',
+  { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+%>
+
+<div class="checkout-page">
+
+  <div class="checkout-header">
+    <h1>Checkout</h1>
+    <a href="/cart" class="checkout-back">&larr; Back to cart</a>
+  </div>
+
+  <%- include('../partials/checkout-steps', { step: 1 }) %>
+
+  <% if (checkoutError) { %>
+    <div class="checkout-error-banner" role="alert">
+      <span><%= checkoutError %></span>
+    </div>
+  <% } %>
+
+  <div class="checkout-layout">
+    <form method="POST" action="/checkout/info" novalidate id="info-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+      <!-- Contact -->
+      <div class="checkout-card">
+        <h2 class="checkout-card-title">Contact information</h2>
+        <p class="checkout-card-sub">We send your receipt and delivery updates here.</p>
+
+        <div class="checkout-field">
+          <label for="email">Email address <span class="req">*</span></label>
+          <input type="email" id="email" name="email" autocomplete="email"
+                 value="<%= val('email', draft && draft.guest_email) %>"
+                 <%= errors.email ? 'aria-invalid="true"' : '' %>>
+          <% if (errors.email) { %><span class="checkout-field-error"><%= errors.email %></span><% } %>
+        </div>
+      </div>
+
+      <!-- Shipping -->
+      <div class="checkout-card">
+        <h2 class="checkout-card-title">Delivery address</h2>
+        <p class="checkout-card-sub">Where the freight truck is going. You'll enter the address on your card at the payment step.</p>
+
+        <div class="checkout-field">
+          <label for="ship_name">Full name <span class="req">*</span></label>
+          <input type="text" id="ship_name" name="ship_name" autocomplete="name"
+                 value="<%= val('ship_name', draftName) %>">
+          <% if (errors.ship_name) { %><span class="checkout-field-error"><%= errors.ship_name %></span><% } %>
+          <span class="checkout-field-hint">Who the carrier asks for at the door.</span>
+        </div>
+
+        <div class="checkout-field">
+          <label for="ship_address1">Street address <span class="req">*</span></label>
+          <input type="text" id="ship_address1" name="ship_address1" autocomplete="address-line1"
+                 value="<%= val('ship_address1') %>">
+          <% if (errors.ship_address1) { %><span class="checkout-field-error"><%= errors.ship_address1 %></span><% } %>
+        </div>
+
+        <div class="checkout-field">
+          <label for="ship_address2">Apartment, suite, unit</label>
+          <input type="text" id="ship_address2" name="ship_address2" autocomplete="address-line2"
+                 placeholder="Optional" value="<%= val('ship_address2') %>">
+        </div>
+
+        <div class="checkout-field-row">
+          <div class="checkout-field">
+            <label for="ship_city">City <span class="req">*</span></label>
+            <input type="text" id="ship_city" name="ship_city" autocomplete="address-level2"
+                   value="<%= val('ship_city') %>">
+            <% if (errors.ship_city) { %><span class="checkout-field-error"><%= errors.ship_city %></span><% } %>
+          </div>
+          <div class="checkout-field-row">
+            <div class="checkout-field">
+              <label for="ship_state">State <span class="req">*</span></label>
+              <select id="ship_state" name="ship_state" autocomplete="address-level1">
+                <option value="">Choose</option>
+                <% STATES.forEach(function (s) { %>
+                  <option value="<%= s %>" <%= val('ship_state', draft && draft.ship_state) === s ? 'selected' : '' %>><%= s %></option>
+                <% }); %>
+              </select>
+              <% if (errors.ship_state) { %><span class="checkout-field-error"><%= errors.ship_state %></span><% } %>
+            </div>
+            <div class="checkout-field">
+              <label for="ship_zip">ZIP <span class="req">*</span></label>
+              <input type="text" id="ship_zip" name="ship_zip" inputmode="numeric"
+                     autocomplete="postal-code" maxlength="10" value="<%= val('ship_zip') %>">
+              <% if (errors.ship_zip) { %><span class="checkout-field-error"><%= errors.ship_zip %></span><% } %>
+            </div>
+          </div>
+        </div>
+
+        <%/* The delivery phone is its own fact, separate from whatever
+             phone the cardholder gives Stripe later. This is the number
+             the carrier dials to book the appointment, and without it a
+             freight order cannot be dispatched at all. */%>
+        <div class="checkout-phone-row">
+          <div class="checkout-field">
+            <label for="ship_phone">Phone number <span class="req">*</span></label>
+            <input type="tel" id="ship_phone" name="ship_phone" inputmode="tel"
+                   autocomplete="tel" placeholder="(404) 555-1234"
+                   value="<%= val('ship_phone') %>">
+          </div>
+          <div class="checkout-field">
+            <label for="ship_phone_ext">Ext.</label>
+            <input type="text" id="ship_phone_ext" name="ship_phone_ext"
+                   inputmode="numeric" maxlength="8" placeholder="Optional"
+                   value="<%= val('ship_phone_ext') %>">
+          </div>
+        </div>
+        <span class="checkout-field-hint">The freight carrier calls this number to schedule your delivery.</span>
+        <% if (errors.ship_phone) { %><span class="checkout-field-error"><%= errors.ship_phone %></span><% } %>
+
+        <fieldset class="checkout-radio-group">
+          <legend>Delivery location <span class="req">*</span></legend>
+          <label class="checkout-check" for="dt-res">
+            <input type="radio" name="ship_address_type" id="dt-res" value="residential"
+                   <%= val('ship_address_type', draft && draft.ship_address_type) !== 'commercial' ? 'checked' : '' %>>
+            <span>Residential &mdash; a house or apartment</span>
+          </label>
+          <label class="checkout-check" for="dt-com">
+            <input type="radio" name="ship_address_type" id="dt-com" value="commercial"
+                   <%= val('ship_address_type', draft && draft.ship_address_type) === 'commercial' ? 'checked' : '' %>>
+            <span>Commercial &mdash; a business with a loading dock or forklift</span>
+          </label>
+          <span class="checkout-field-hint">This tells the carrier what kind of truck and crew to send.</span>
+          <% if (errors.ship_address_type) { %><span class="checkout-field-error"><%= errors.ship_address_type %></span><% } %>
+        </fieldset>
+      </div>
+
+      <button type="submit" class="btn btn-primary checkout-submit-btn">
+        Continue to delivery
+      </button>
+    </form>
+
+    <!-- Summary -->
+    <aside class="checkout-summary">
+      <div class="checkout-card">
+        <h2 class="checkout-card-title">Order summary</h2>
+        <% cart.items.forEach(function (item) { %>
+          <div class="co-item">
+            <% if (item.image) { %>
+              <img src="<%= item.image %>" alt="" class="co-item-img" width="56" height="56">
+            <% } else { %>
+              <div class="co-item-img co-item-img--placeholder"></div>
+            <% } %>
+            <div>
+              <p class="co-item-name"><%= item.name %></p>
+              <p class="co-item-meta">Qty: <%= item.qty || 1 %></p>
+            </div>
+            <span class="co-item-price"><%= money((item.price || 0) * (item.qty || 1)) %></span>
+          </div>
+        <% }); %>
+
+        <div class="co-sum-row"><span>Subtotal</span><span><%= money(subtotal) %></span></div>
+        <div class="co-sum-row"><span>Shipping</span><span>FREE</span></div>
+        <div class="co-sum-row co-sum-total"><span>Total</span><span><%= money(subtotal) %></span></div>
+        <p class="co-sum-note">Sales tax is calculated at the payment step.</p>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script nonce="<%= cspNonce %>">
+(function () {
+  'use strict';
+
+  /* Mirrors toE164() in checkoutController.js. The server is what decides
+     what enters the column; this only spares the buyer a round trip. */
+  function e164(raw) {
+    var s = String(raw || '').trim()
+      .replace(/[\s,;]*(?:ext|extension|xt|x|#)\.?\s*\d+\s*$/i, '');
+    var d = s.replace(/[^\d+]/g, '');
+    if (d.charAt(0) === '+') return d;
+    d = d.replace(/\D/g, '');
+    if (d.length === 10) return '+1' + d;
+    if (d.length === 11 && d.charAt(0) === '1') return '+' + d;
+    return d ? '+' + d : '';
+  }
+
+  var phone = document.getElementById('ship_phone');
+  var ext   = document.getElementById('ship_phone_ext');
+
+  /* An extension typed into the number box moves across rather than being
+     eaten. Only when the Ext box is empty - never overwrite a deliberate
+     entry. */
+  function harvestExt() {
+    var m = /[\s,;]*(?:ext|extension|xt|x|#)\.?\s*(\d{1,8})\s*$/i.exec(phone.value);
+    if (m && !ext.value.trim()) {
+      ext.value   = m[1];
+      phone.value = phone.value.slice(0, m.index).replace(/[\s,;]+$/, '');
+    }
+  }
+  phone.addEventListener('blur', harvestExt);
+
+  /* Block a submit that the server would only bounce back. Same rules,
+     stated to the buyer where they are looking. */
+  document.getElementById('info-form').addEventListener('submit', function (ev) {
+    harvestExt();
+    if (!/^\+1\d{10}$/.test(e164(phone.value))) {
+      ev.preventDefault();
+      phone.focus();
+      phone.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+  });
+})();
+</script>

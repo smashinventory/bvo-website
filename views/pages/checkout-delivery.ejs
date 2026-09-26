@@ -1,0 +1,153 @@
+<link rel="stylesheet" href="/css/site3.css?v=22"><!-- site3: injected per-page (perf) -->
+
+<%
+/* Page 2 of 3 — what will physically happen.
+ *
+ * This page exists because curbside is the single biggest expectation gap
+ * in this business. A buyer who pictures two people carrying a vanity to
+ * the bathroom, and watches a crate come off a lift gate onto the
+ * driveway, refuses the delivery — and a refused freight delivery costs
+ * the outbound freight, the return freight and the sale.
+ *
+ * So the copy states where the driver stops IN THE NEGATIVE, gives a
+ * weight so "arrange help" means something, and requires a tick. The
+ * timestamp on that tick is the record that they were told.
+ *
+ * See docs/briefs/BVO_CHECKOUT_SPEC.md §4.
+ */
+const money = n => '$' + Number(n || 0).toLocaleString('en-US',
+  { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+%>
+
+<div class="checkout-page">
+
+  <div class="checkout-header">
+    <h1>Delivery</h1>
+    <a href="/checkout" class="checkout-back">&larr; Back to your information</a>
+  </div>
+
+  <%- include('../partials/checkout-steps', { step: 2 }) %>
+
+  <div class="checkout-layout">
+    <form method="POST" action="/checkout/delivery" novalidate>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+      <!-- Where it's going -->
+      <div class="checkout-card">
+        <h2 class="checkout-card-title">Delivering to</h2>
+        <p class="checkout-addr">
+          <%= order.ship_first_name %> <%= order.ship_last_name || '' %><br>
+          <%= order.ship_address1 %><% if (order.ship_address2) { %><br><%= order.ship_address2 %><% } %><br>
+          <%= order.ship_city %>, <%= order.ship_state %> <%= order.ship_zip %><br>
+          <%= order.ship_phone %><% if (order.ship_phone_ext) { %> ext. <%= order.ship_phone_ext %><% } %>
+        </p>
+        <p class="checkout-addr-meta">
+          <%= order.ship_address_type === 'commercial' ? 'Commercial address' : 'Residential address' %>
+          &middot; <a href="/checkout">Change</a>
+        </p>
+      </div>
+
+      <!-- What happens -->
+      <div class="checkout-card checkout-card--notice">
+        <h2 class="checkout-card-title">Free curbside delivery</h2>
+
+        <p class="checkout-notice-lead">
+          Your vanity ships by freight truck. The driver brings it to your
+          driveway or the curb and lowers it with a lift gate.
+          <strong>They do not bring it inside, up steps, into a garage, or
+          unpack it.</strong>
+        </p>
+
+        <p>
+          Please arrange help to move it from there. A 60&Prime; vanity in its
+          crate can weigh over 200&nbsp;lb.
+        </p>
+
+        <p class="checkout-notice-alt">
+          <strong>Need it brought inside?</strong>
+          <a href="/pages/contact">Contact us</a> before you order and we'll quote it.
+        </p>
+      </div>
+
+      <!-- When -->
+      <div class="checkout-card">
+        <h2 class="checkout-card-title">When it arrives</h2>
+        <p>
+          <strong>We call you to arrange a delivery appointment once your
+          order ships.</strong> Freight is never left unattended. Someone
+          aged 18 or older must be there to receive it and sign.
+        </p>
+        <p class="checkout-field-hint">
+          Most orders ship within 5–10 business days. We'll email tracking
+          as soon as it leaves the warehouse.
+        </p>
+      </div>
+
+      <!-- Signing -->
+      <div class="checkout-card">
+        <h2 class="checkout-card-title">When you sign for it</h2>
+        <ul class="checkout-list">
+          <li><strong>Inspect the crate before you sign.</strong> Note any
+              damage on the delivery receipt, however minor it looks.</li>
+          <li>A signed clean receipt is the carrier's evidence that it
+              arrived undamaged. <strong>It is your only protection on a
+              freight claim.</strong></li>
+          <li>Photograph anything that looks wrong before the driver leaves.</li>
+        </ul>
+      </div>
+
+      <!-- Instructions -->
+      <div class="checkout-card">
+        <h2 class="checkout-card-title">Anything the driver should know?</h2>
+        <div class="checkout-field">
+          <label for="ship_instructions">Delivery notes</label>
+          <textarea id="ship_instructions" name="ship_instructions" rows="3"
+                    maxlength="500"
+                    placeholder="Gate code, steep or narrow driveway, best time to call&hellip;"><%= order.ship_instructions || '' %></textarea>
+          <span class="checkout-field-hint">Optional. Passed to the carrier with the booking.</span>
+        </div>
+      </div>
+
+      <!-- Acknowledgement -->
+      <div class="checkout-card">
+        <label class="checkout-check checkout-check--ack" for="delivery_ack">
+          <input type="checkbox" id="delivery_ack" name="delivery_ack" value="1"
+                 <%= order.delivery_terms_ack_at ? 'checked' : '' %>>
+          <span>I understand delivery is to my driveway or curb, and that I
+                need to arrange help to move it from there.</span>
+        </label>
+        <% if (errors.delivery_ack) { %>
+          <span class="checkout-field-error"><%= errors.delivery_ack %></span>
+        <% } %>
+      </div>
+
+      <button type="submit" class="btn btn-primary checkout-submit-btn">
+        Continue to payment
+      </button>
+    </form>
+
+    <aside class="checkout-summary">
+      <div class="checkout-card">
+        <h2 class="checkout-card-title">Order summary</h2>
+        <% cart.items.forEach(function (item) { %>
+          <div class="co-item">
+            <% if (item.image) { %>
+              <img src="<%= item.image %>" alt="" class="co-item-img" width="56" height="56">
+            <% } else { %>
+              <div class="co-item-img co-item-img--placeholder"></div>
+            <% } %>
+            <div>
+              <p class="co-item-name"><%= item.name %></p>
+              <p class="co-item-meta">Qty: <%= item.qty || 1 %></p>
+            </div>
+            <span class="co-item-price"><%= money((item.price || 0) * (item.qty || 1)) %></span>
+          </div>
+        <% }); %>
+        <div class="co-sum-row"><span>Subtotal</span><span><%= money(subtotal) %></span></div>
+        <div class="co-sum-row"><span>Curbside delivery</span><span>FREE</span></div>
+        <div class="co-sum-row co-sum-total"><span>Total</span><span><%= money(subtotal) %></span></div>
+        <p class="co-sum-note">Sales tax is calculated at the payment step.</p>
+      </div>
+    </aside>
+  </div>
+</div>

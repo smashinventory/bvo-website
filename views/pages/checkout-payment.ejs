@@ -1,7 +1,7 @@
-<link rel="stylesheet" href="/css/site3.css?v=21"><!-- site3: injected per-page (perf) -->
+<link rel="stylesheet" href="/css/site3.css?v=22"><!-- site3: injected per-page (perf) -->
 <div class="checkout-page">
   <div class="checkout-header">
-    <h1>Checkout</h1>
+    <h1>Payment</h1>
     <a href="/cart" class="checkout-back">← Back to cart</a>
   </div>
 
@@ -36,65 +36,32 @@
            copies of the address that can drift, and the failure mode is
            silently wrong sales tax. */%>
 
-      <!-- Contact -->
+      <%/* Contact and ship-to were collected on page 1 and live on the
+           order row. Shown read-only here so the buyer can check them
+           before paying, without creating a second editable copy of the
+           same fact. */%>
       <div class="checkout-card">
-        <h2 class="checkout-card-title">Contact Information</h2>
-        <div id="contact-details-element"></div>
-        <span class="checkout-field-hint">Your order confirmation will be sent here.</span>
-
-        <%/* OUR OWN INPUT, deliberately.
-             phone_number_collection on the session renders a phone field in
-             Stripe's HOSTED checkout. In elements mode it does not - verified
-             on the live page 2026-09-26: the Contact Details Element renders
-             email and nothing else, whatever options it is handed (it accepts
-             {phone:'always'} without complaint and ignores it).
-
-             actions.updatePhoneNumber() does work, so the value is pushed into
-             the session on change and arrives as customer_details.phone in the
-             webhook like every other contact field. No card data is involved,
-             so this does not affect PCI scope. */%>
-        <div class="checkout-phone-row">
-          <div class="checkout-field">
-            <label for="ship-phone">Phone Number <span class="req">*</span></label>
-            <input type="tel" id="ship-phone" name="ship_phone" autocomplete="tel"
-                   inputmode="tel" placeholder="(404) 555-1234">
-          </div>
-          <%/* Optional, and shown to everyone rather than only on commercial
-               delivery - people give a work number for a home delivery too.
-               Its own field because an extension is a different fact from the
-               number: ship_phone has to stay dialable E.164 for the carrier
-               and for Stripe, and "+14045551234 x22" is neither. */%>
-          <div class="checkout-field">
-            <label for="ship-phone-ext">Ext.</label>
-            <input type="text" id="ship-phone-ext" name="ship_phone_ext"
-                   inputmode="numeric" maxlength="8" placeholder="Optional">
-          </div>
-        </div>
-        <span class="checkout-field-hint">Required. The freight carrier calls this number to schedule your delivery.</span>
-        <span id="phone-error" role="alert" style="display:none;color:var(--red,#c00);font-size:.78rem"></span>
+        <h2 class="checkout-card-title">Delivering to</h2>
+        <p class="checkout-addr">
+          <%= order.ship_first_name %> <%= order.ship_last_name || '' %><br>
+          <%= order.ship_address1 %><% if (order.ship_address2) { %><br><%= order.ship_address2 %><% } %><br>
+          <%= order.ship_city %>, <%= order.ship_state %> <%= order.ship_zip %><br>
+          <%= order.ship_phone %><% if (order.ship_phone_ext) { %> ext. <%= order.ship_phone_ext %><% } %><br>
+          <%= order.guest_email %>
+        </p>
+        <p class="checkout-addr-meta">
+          Free curbside delivery &middot;
+          <%= order.ship_address_type === 'commercial' ? 'Commercial' : 'Residential' %>
+          &middot; <a href="/checkout">Change</a>
+        </p>
       </div>
 
       <!-- Billing -->
       <div class="checkout-card">
         <h2 class="checkout-card-title">Billing Address</h2>
-        <p class="checkout-card-sub">The address on your card. Used for card verification and to calculate sales tax.</p>
+        <p class="checkout-card-sub">The address your card is registered to. Used for card verification and to calculate sales tax &mdash; it does not change where your order is delivered.</p>
         <div id="billing-address-element"></div>
 
-        <%/* Freight carriers price residential and commercial delivery
-             differently and guess when nobody declares it. Guessing wrong
-             produces a surcharge after the fact that cannot be passed on. */%>
-        <fieldset class="checkout-radio-group">
-          <legend>Delivery location</legend>
-          <label class="checkout-check" for="dt-res">
-            <input type="radio" name="delivery_type" id="dt-res" value="residential" checked>
-            <span>Residential &mdash; a house or apartment</span>
-          </label>
-          <label class="checkout-check" for="dt-com">
-            <input type="radio" name="delivery_type" id="dt-com" value="commercial">
-            <span>Commercial &mdash; a business with a loading dock or forklift</span>
-          </label>
-          <span class="checkout-field-hint">Your vanity ships by freight. This tells the carrier what kind of truck and crew to send.</span>
-        </fieldset>
       </div>
 
       <!-- Payment -->
@@ -470,135 +437,17 @@
 
   });
 
-  checkout.createContactDetailsElement().mount('#contact-details-element');
+  /* No Contact Details Element here. Email, name and phone are collected
+     on page 1 and shown read-only above; mounting a second, editable copy
+     would give one fact two sources that drift apart.
+
+     The mount call outlived its <div> for one commit: Stripe threw
+     IntegrationError, which aborted the whole script, so the billing and
+     payment elements below never mounted either and the page rendered
+     with two empty cards. */
   checkout.createBillingAddressElement().mount('#billing-address-element');
   checkout.createPaymentElement().mount('#payment-element');
 
-  /* ── Phone ────────────────────────────────────────────────────────
-     Stripe wants E.164. A buyer types "(404) 555-1234". Normalise rather
-     than reject: a validation error on a field the customer filled in
-     correctly by any human standard is a lost order.
-
-     10 digits is assumed US (+1) - BVO ships domestic LTL only. 11 digits
-     starting 1 is the same number with the country code already typed.
-     Anything else is handed over as-is and Stripe decides. */
-  var phoneEl  = document.getElementById('ship-phone');
-  var extEl    = document.getElementById('ship-phone-ext');
-  var phoneErr = document.getElementById('phone-error');
-
-  /* Split a trailing extension off the number.
-     Returns { number, ext }.
-
-     This runs BEFORE punctuation is stripped. After that point "ext 22" is
-     indistinguishable from the rest of the digit run, which is how
-     "404-555-1234 ext 22" became +404555123422 - twelve digits that passed
-     a loose length check and could not be dialled.
-
-     The extension is MOVED to its own field, not discarded. Throwing away
-     digits the buyer typed, without telling them, is its own bug: the
-     carrier would ring the main line and nobody would know why. */
-  function splitExt(raw) {
-    var s = String(raw || '').trim();
-    var m = /[\s,;]*(?:ext|extension|xt|x|#)\.?\s*(\d{1,8})\s*$/i.exec(s);
-    return m
-      ? { number: s.slice(0, m.index), ext: m[1] }
-      : { number: s, ext: '' };
-  }
-
-  function e164(raw) {
-    var s = splitExt(raw).number;
-    var d = s.replace(/[^\d+]/g, '');
-    if (d.charAt(0) === '+') return d;
-    d = d.replace(/\D/g, '');
-    if (d.length === 10) return '+1' + d;
-    if (d.length === 11 && d.charAt(0) === '1') return '+' + d;
-    return d ? '+' + d : '';
-  }
-
-  /* US: +1 and exactly ten digits. Anything else the buyer typed with an
-     explicit + is treated as international and allowed through at 10-15
-     digits - a foreign mobile on a US delivery address is unusual but
-     real, and Stripe validates it properly either way.
-
-     Deliberately NOT a loose /\+\d{10,15}/ on everything: that is what let
-     the extension case through. */
-  function phoneValid() {
-    var v = e164(phoneEl.value);
-    if (/^\+1\d{10}$/.test(v)) return true;
-    return String(phoneEl.value).trim().charAt(0) === '+' && /^\+\d{10,15}$/.test(v);
-  }
-
-  /* If the buyer typed the extension into the number box, move it across
-     rather than silently eating it. Only when the extension box is empty -
-     never overwrite something they typed there deliberately. */
-  function harvestExt() {
-    var parts = splitExt(phoneEl.value);
-    if (parts.ext && !extEl.value.trim()) {
-      extEl.value  = parts.ext;
-      phoneEl.value = parts.number.replace(/[\s,;]+$/, '');
-    }
-  }
-
-  function saveExt() {
-    var v = extEl.value.replace(/\D/g, '').slice(0, 8);
-    extEl.value = v;
-    /* Stripe has no field for this, so it goes straight to our own order
-       row like the delivery type. */
-    return fetch('/checkout/order-details', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json',
-                 'X-CSRF-Token': '<%= csrfToken %>' },
-      body:    JSON.stringify({ phone_ext: v }),
-    }).catch(function () {});
-  }
-
-  function pushPhone() {
-    phoneErr.style.display = 'none';
-    harvestExt();
-    saveExt();
-    if (!phoneEl.value.trim()) return Promise.resolve();
-    if (!phoneValid()) {
-      phoneErr.textContent = 'Please enter a 10-digit phone number, e.g. (404) 555-1234.';
-      phoneErr.style.display = 'block';
-      return Promise.resolve();
-    }
-    return loadActionsOnce()
-      .then(function (actions) { return actions.updatePhoneNumber(e164(phoneEl.value)); })
-      .catch(function (e) {
-        /* Do not block the sale. The number is still submitted with the
-           order below; this only means Stripe's copy is missing. */
-        dbg('updatePhoneNumber failed: ' + (e && e.message ? e.message : String(e)));
-      });
-  }
-  phoneEl.addEventListener('change', pushPhone);
-  phoneEl.addEventListener('blur', pushPhone);
-  extEl.addEventListener('change', saveExt);
-  extEl.addEventListener('blur', saveExt);
-
-  /* Residential vs commercial. Written to our own order row - Stripe has
-     no field for it. Fire and forget: a buyer must never be stopped from
-     paying because this did not save. */
-  function saveDeliveryType() {
-    var picked = document.querySelector('input[name="delivery_type"]:checked');
-    if (!picked) return;
-    fetch('/checkout/order-details', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json',
-                 'X-CSRF-Token': '<%= csrfToken %>' },
-      body:    JSON.stringify({ type: picked.value }),
-    }).catch(function () {});
-  }
-  Array.prototype.forEach.call(
-    document.querySelectorAll('input[name="delivery_type"]'),
-    function (r) { r.addEventListener('change', saveDeliveryType); }
-  );
-
-  /* Persist the DEFAULT too, once the order row exists - otherwise a buyer
-     who accepts "Residential" without touching it leaves the column NULL,
-     and NULL is reserved for "never asked". The order row is created by
-     POST /checkout/session, so this waits on that promise rather than
-     racing it. */
-  clientSecretPromise.then(saveDeliveryType).catch(function () {});
 
   /* Spinner + honest status. A dead button with static text for 30-60s
      reads as broken, and a customer who thinks it is broken clicks again.
@@ -624,22 +473,6 @@
 
   payBtn.addEventListener('click', async function () {
     errEl.style.display = 'none';
-
-    /* Checked BEFORE the card is authorised, not after. A freight order
-       without a consignee phone cannot be dispatched, and chasing the
-       number afterwards means either an email the buyer may not read or a
-       hold expiring while we wait. Stripe's own canConfirm gate knows
-       nothing about this field. */
-    if (!phoneValid()) {
-      phoneErr.textContent = phoneEl.value.trim()
-        ? 'Please enter a 10-digit phone number, e.g. (404) 555-1234.'
-        : 'A phone number is required — the freight carrier needs it to schedule delivery.';
-      phoneErr.style.display = 'block';
-      phoneEl.focus();
-      phoneEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      return;
-    }
-    await pushPhone();
 
     busy('Authorizing your payment…');
 

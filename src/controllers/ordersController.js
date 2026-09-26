@@ -138,7 +138,11 @@ exports.list = async (req, res, next) => {
       where += ' AND o.status = ?';
       params.push(status);
     } else {
-      where += " AND o.status <> 'pending'";
+      /* Neither drafts nor pending rows are orders yet. A draft is a
+         checkout in progress - real contact details, no payment attempted.
+         A pending row has a Stripe session open. Both would read to staff
+         as work to do, and both would be counted as revenue. */
+      where += " AND o.status NOT IN ('draft','pending')";
     }
 
     /* Word-by-word matching — see src/utils/searchQuery.js.

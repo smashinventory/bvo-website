@@ -1,10 +1,18 @@
 'use strict';
 
-/* Checkout routes — Stripe, embedded Payment Element.
+/* Checkout routes — three pages, Stripe on the last one only.
  *
- * The comments here described a Clover flow until 2026-09-25. Clover was
- * never built; Authorize.net replaced it and was never activated; Stripe
- * replaces that. See docs/briefs/BVO_COMMERCE_STACK_BRIEF.md §1.
+ *   1  GET  /checkout            who you are, where it goes
+ *      POST /checkout/info       writes the DRAFT order
+ *   2  GET  /checkout/delivery   curbside terms, notes, acknowledgement
+ *      POST /checkout/delivery
+ *   3  GET  /checkout/payment    Stripe session created here
+ *      POST /checkout/session    AJAX; returns the client_secret
+ *
+ * Why the split: Stripe's Shipping Address Element cannot be pre-filled
+ * or satisfied from the API, so BVO has to own the ship-to field — which
+ * means collecting it before Stripe exists.
+ * See docs/briefs/BVO_CHECKOUT_SPEC.md.
  *
  * NOTE: POST /checkout/webhook is NOT mounted here. It lives in
  * server.js, before the body parsers and before CSRF validation, because
@@ -15,32 +23,32 @@ const express  = require('express');
 const router   = express.Router();
 const ctrl     = require('../controllers/checkoutController');
 
-// GET  /checkout           — review page; mounts the Payment Element
-router.get ('/',        ctrl.show);
+// ── 1. Your information ──────────────────────────────────────────
+router.get ('/',          ctrl.show);
+router.post('/info',      ctrl.saveInfo);
 
-// POST /checkout/session   — AJAX. Writes the order, returns a client_secret.
-//                            Named /session rather than / because it creates
-//                            a Stripe Checkout Session, not an order in the
-//                            old submit-the-form sense — nothing is charged
-//                            and the browser does not navigate.
-router.post('/session', ctrl.createSession);
+// ── 2. Delivery ──────────────────────────────────────────────────
+router.get ('/delivery',  ctrl.deliveryPage);
+router.post('/delivery',  ctrl.saveDelivery);
 
-// POST /checkout/order-details — AJAX. The delivery type and the phone
-//                            extension: the two facts Stripe has no field
-//                            for, so they go straight to our own order row.
-//                            Writes through the order id held in the server
-//                            session, never one from the body.
+// ── 3. Payment ───────────────────────────────────────────────────
+router.get ('/payment',   ctrl.paymentPage);
+
+// AJAX. Assigns the order number, flips draft -> pending, creates the
+// Stripe Checkout Session. Named /session because that is what it makes;
+// nothing is charged and the browser does not navigate.
+router.post('/session',   ctrl.createSession);
+
+// The delivery type and phone extension: the two facts Stripe has no
+// field for. Writes through the order id held in the server session,
+// never one from the body.
 router.post('/order-details', ctrl.setOrderDetails);
 
-// GET  /checkout/return    — where Stripe sends the buyer back. Read-only:
-//                            decides which page to show. The webhook, not
-//                            this, is what advances the order.
-router.get ('/return',  ctrl.returnFromStripe);
-
-// GET  /checkout/success   — confirmation
-router.get ('/success', ctrl.success);
-
-// GET  /checkout/cancel    — abandoned or failed
-router.get ('/cancel',  ctrl.cancel);
+// GET /checkout/return — where Stripe sends the buyer back. Read-only:
+//                        decides which page to show. The webhook, not
+//                        this, is what advances the order.
+router.get ('/return',    ctrl.returnFromStripe);
+router.get ('/success',   ctrl.success);
+router.get ('/cancel',    ctrl.cancel);
 
 module.exports = router;

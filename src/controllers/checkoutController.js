@@ -52,6 +52,7 @@
      SITE_URL                 absolute, for the return URL
    ═══════════════════════════════════════════════════════════════════════ */
 
+const crypto      = require('crypto');
 const { bvoPool } = require('../config/database');
 const stripe      = require('../services/stripeService');
 const brevo       = require('../services/brevoService');
@@ -125,97 +126,221 @@ function returnOrigin(req) {
     .replace(/\/+$/, '');
 }
 
-/* ── GET /checkout ──────────────────────────────────────────────── */
-exports.show = (req, res) => {
+/* ═══ THREE-PAGE CHECKOUT ═══════════════════════════════════════════
+   1  GET  /checkout            who you are, where it goes
+      POST /checkout/info       -> writes the DRAFT order
+   2  GET  /checkout/delivery   what will physically happen
+      POST /checkout/delivery   -> instructions + curbside acknowledgement
+   3  GET  /checkout/payment    Stripe session created HERE
+      POST /checkout/session
+
+   Why three pages rather than one: Stripe's Shipping Address Element
+   cannot be pre-filled or satisfied from the API, so the only way to
+   collect a ship-to without forcing the buyer to type a second address
+   is to own the field ourselves — which means collecting it before
+   Stripe exists. See docs/briefs/BVO_CHECKOUT_SPEC.md §0.
+
+   The order row is created on page 1, with a real email attached. That
+   is the difference between an abandoned checkout we can follow up and
+   the nine anonymous `pending` rows of 2026-09-25.
+
+   STAGE 1 is guest-only. Sign-in and registration are stage 2; no dead
+   UI for them is rendered here.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/** E.164 for storage. Mirrors e164() in checkout-info.ejs — the client
+ *  normalises for display, this one is what actually reaches the column,
+ *  because a form post can arrive without ever running the page's JS. */
+function toE164(raw) {
+  const s = String(raw || '').trim()
+    .replace(/[\s,;]*(?:ext|extension|xt|x|#)\.?\s*\d+\s*$/i, '');
+  let d = s.replace(/[^\d+]/g, '');
+  if (d.charAt(0) === '+') return d;
+  d = d.replace(/\D/g, '');
+  if (d.length === 10) return '+1' + d;
+  if (d.length === 11 && d.charAt(0) === '1') return '+' + d;
+  return d ? '+' + d : '';
+}
+
+const US_STATES = new Set(('AL AK AZ AR CA CO CT DE FL GA HI ID IL IN IA KS KY LA ME MD MA MI '
+  + 'MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY DC')
+  .split(' '));
+
+/** Server-side validation. The page validates too, for the buyer's sake;
+ *  this is the copy that decides what enters the database. */
+function validateInfo(b) {
+  const errors = {};
+  const v = k => String(b[k] || '').trim();
+
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(v('email')))
+    errors.email = 'Enter a valid email address.';
+  if (v('ship_name').length < 2)
+    errors.ship_name = 'Enter the name of the person receiving the delivery.';
+  if (!v('ship_address1'))
+    errors.ship_address1 = 'Enter a street address.';
+  if (!v('ship_city'))
+    errors.ship_city = 'Enter a city.';
+  if (!US_STATES.has(v('ship_state').toUpperCase()))
+    errors.ship_state = 'Choose a state.';
+  if (!/^\d{5}(-\d{4})?$/.test(v('ship_zip')))
+    errors.ship_zip = 'Enter a 5-digit ZIP code.';
+  if (!/^\+1\d{10}$/.test(toE164(v('ship_phone'))))
+    errors.ship_phone = 'Enter a 10-digit phone number, e.g. (404) 555-1234.';
+  if (!['residential', 'commercial'].includes(v('ship_address_type')))
+    errors.ship_address_type = 'Choose residential or commercial.';
+
+  /* PO boxes cannot take a freight delivery. Catching it here saves a
+     cancelled order and a refund three days from now. */
+  if (/\bP\.?\s*O\.?\s*BOX\b/i.test(v('ship_address1')))
+    errors.ship_address1 = 'We ship by freight truck and cannot deliver to a PO box.';
+
+  return errors;
+}
+
+/** Splits "Mary Anne Fitzgerald-Smith" on the LAST space. A single word
+ *  is a first name — a mononym is not a surname. */
+function splitName(full) {
+  const s = String(full || '').trim();
+  const cut = s.lastIndexOf(' ');
+  return cut > 0
+    ? { first: s.slice(0, cut), last: s.slice(cut + 1) }
+    : { first: s, last: '' };
+}
+
+/* ── GET /checkout — page 1 ─────────────────────────────────────── */
+exports.show = async (req, res) => {
   const cart = getCart(req);
   if (cart.items.length === 0) return res.redirect('/cart');
 
-  res.render('pages/checkout', {
-    pageTitle:     'Checkout | BathroomVanitiesOutlet.com',
-    metaDesc:      '',
-    noindex:       true,
+  /* Coming back to edit: repopulate from the draft rather than making
+     them retype. */
+  let draft = null;
+  if (req.session.checkoutDraft?.orderId) {
+    const [[row]] = await bvoPool.query(
+      `SELECT guest_email, ship_first_name, ship_last_name, ship_phone,
+              ship_phone_ext, ship_address1, ship_address2, ship_city,
+              ship_state, ship_zip, ship_address_type
+         FROM orders WHERE id = ? AND ${EDITABLE}`,
+      [req.session.checkoutDraft.orderId]
+    ).catch(() => [[null]]);
+    draft = row || null;
+  }
+
+  res.render('pages/checkout-info', {
+    pageTitle: 'Checkout | BathroomVanitiesOutlet.com',
+    metaDesc:  '',
+    noindex:   true,
     cart,
+    subtotal:  calcTotal(cart.items),
+    draft,
+    errors:    req.session.checkoutErrors || {},
+    old:       req.session.checkoutOld    || {},
     checkoutError: req.session.checkoutError || null,
-    /* Publishable key is public by design — it identifies the account and
-       can only create, never read or charge. The secret key must never
-       reach a template. */
-    stripePublishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
   });
 
+  delete req.session.checkoutErrors;
+  delete req.session.checkoutOld;
   delete req.session.checkoutError;
 };
 
-/* ── POST /checkout/session ─────────────────────────────────────── */
+/* ── POST /checkout/info ────────────────────────────────────────── */
 /**
- * Write the order, then ask Stripe for a session.
- *
- * Returns JSON — the page mounts the Element against `clientSecret`
- * rather than navigating.
+ * Creates or updates the DRAFT order. No Stripe, no order number, no
+ * money — just the facts about the buyer and the destination.
  */
-exports.createSession = async (req, res) => {
+exports.saveInfo = async (req, res) => {
   const cart = getCart(req);
-  if (cart.items.length === 0) {
-    return res.status(400).json({ ok: false, error: 'Your cart is empty.' });
+  if (cart.items.length === 0) return res.redirect('/cart');
+
+  const errors = validateInfo(req.body);
+  if (Object.keys(errors).length) {
+    req.session.checkoutErrors = errors;
+    req.session.checkoutOld    = req.body;
+    return res.redirect('/checkout');
   }
 
-  /* NOTE: no contact or billing fields arrive here.
-     Stripe's Contact Details and Billing Address Elements collect them on
-     the page, and this endpoint runs BEFORE the customer has filled them
-     in — it is what produces the client_secret those elements mount
-     against. The name, email and address are read off
-     session.customer_details in the webhook.
-
-     This is why the order row below is written with nulls for all of
-     them. A `pending` row with no customer is an abandoned checkout, not
-     a broken one. */
-
-  /* Conversion attribution — captured at the moment of intent, because
-     the session that carries it is gone by the time the webhook runs. */
+  const name  = splitName(req.body.ship_name);
+  const phone = toE164(req.body.ship_phone);
+  const ext   = String(req.body.ship_phone_ext || '').replace(/\D/g, '').slice(0, 8) || null;
   const customerIp = (req.headers['x-forwarded-for'] || '').split(',')[0].trim()
                      || req.ip || null;
 
-  const subtotal = calcTotal(cart.items);
+  const fields = {
+    guest_email:       String(req.body.email).trim().toLowerCase(),
+    ship_first_name:   name.first,
+    ship_last_name:    name.last || null,
+    ship_phone:        phone,
+    ship_phone_ext:    ext,
+    ship_address1:     String(req.body.ship_address1).trim(),
+    ship_address2:     String(req.body.ship_address2 || '').trim() || null,
+    ship_city:         String(req.body.ship_city).trim(),
+    ship_state:        String(req.body.ship_state).trim().toUpperCase(),
+    ship_zip:          String(req.body.ship_zip).trim(),
+    ship_address_type: req.body.ship_address_type,
+    /* The buyer typed this address themselves — it is not a copy of the
+       billing address, which is what the flag distinguishes. */
+    ship_address_confirmed: 1,
+  };
 
   const conn = await bvoPool.getConnection();
-  let orderId, orderNumber;
-
   try {
     await conn.beginTransaction();
 
-    /* status 'pending' and payment_status 'pending' — NOT 'confirmed'.
-       The old code hardcoded 'confirmed' at insert while the card had
-       only been authorised (OPEN_ITEMS F6), which read to staff as paid.
-       Nothing here is confirmed until Stripe says the hold exists. */
-    const [result] = await conn.query(
-      `INSERT INTO orders
-         (order_number, customer_id, status,
-          subtotal, tax, total,
-          payment_status,
-          customer_ip, order_source, order_referrer,
-          order_utm_campaign, order_utm_medium, order_utm_source)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [
-        'PENDING',
-        req.session.customer?.id || null,
-        'pending',
-        subtotal.toFixed(2),
-        0,                       // Stripe Tax fills this in the webhook
-        subtotal.toFixed(2),     // provisional; replaced by amount_total
-        'pending',
-        customerIp,
-        req.body.order_source   || null,
-        req.body.order_referrer || null,
-        req.body.utm_campaign   || null,
-        req.body.utm_medium     || null,
-        req.body.utm_source     || null,
-      ]
-    );
+    let orderId = req.session.checkoutDraft?.orderId || null;
 
-    orderId     = result.insertId;
-    orderNumber = makeOrderNumber(orderId);
+    /* Only ever reuse a row that is still a draft. Once payment has been
+       attempted the row belongs to the webhook, and editing it from a
+       stale browser tab would rewrite an authorised order. */
+    if (orderId) {
+      const [[still]] = await conn.query(
+        `SELECT id FROM orders WHERE id = ? AND ${EDITABLE}`, [orderId]);
+      if (!still) orderId = null;
+    }
 
-    await conn.query('UPDATE orders SET order_number = ? WHERE id = ?',
-      [orderNumber, orderId]);
+    const cols = Object.keys(fields);
+    if (orderId) {
+      await conn.query(
+        `UPDATE orders SET ${cols.map(c => `${c} = ?`).join(', ')} WHERE id = ?`,
+        [...cols.map(c => fields[c]), orderId]
+      );
+      await conn.query('DELETE FROM order_items WHERE order_id = ?', [orderId]);
+    } else {
+      const subtotal = calcTotal(cart.items);
+      const [result] = await conn.query(
+        `INSERT INTO orders
+           (order_number, customer_id, status, payment_status,
+            subtotal, tax, total, customer_ip,
+            order_source, order_referrer,
+            order_utm_campaign, order_utm_medium, order_utm_source,
+            ${cols.join(', ')})
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,${cols.map(() => '?').join(',')})`,
+        [
+          /* A throwaway placeholder, NOT a real order number. order_number
+             is NOT NULL UNIQUE, so it cannot be left empty - and the real
+             BVO-YYYY-MM-DD-NNNNN is not assigned until the Stripe session
+             is created, so a buyer who never reaches payment does not
+             consume one. Nine were burned in one evening by a buyer
+             retrying against the old page-load behaviour. */
+          'DRAFT-' + crypto.randomUUID(),
+          req.session.customer?.id || null,
+          /* status is an ENUM and has no 'draft' member. The draft marker
+             lives on payment_status, which is a plain varchar - and this
+             way drafts inherit the status='pending' exclusion the admin
+             already applies, rather than needing a second one. */
+          'pending',
+          'draft',
+          subtotal.toFixed(2), 0, subtotal.toFixed(2),
+          customerIp,
+          req.body.order_source   || null,
+          req.body.order_referrer || null,
+          req.body.utm_campaign   || null,
+          req.body.utm_medium     || null,
+          req.body.utm_source     || null,
+          ...cols.map(c => fields[c]),
+        ]
+      );
+      orderId = result.insertId;
+    }
 
     for (const item of cart.items) {
       const disc      = parseFloat(item.bundle_discount_pct) || 0;
@@ -224,34 +349,208 @@ exports.createSession = async (req, res) => {
         `INSERT INTO order_items
            (order_id, product_id, sku, name, qty, unit_price, line_total)
          VALUES (?,?,?,?,?,?,?)`,
-        [
-          orderId,
-          item.product_id || null,
-          item.slug       || '',
-          item.name       || 'Product',
-          item.qty        || 1,
-          unitPrice.toFixed(2),
-          (unitPrice * (item.qty || 1)).toFixed(2),
-        ]
+        [orderId, item.product_id || null, item.slug || '',
+         item.name || 'Product', item.qty || 1,
+         unitPrice.toFixed(2), (unitPrice * (item.qty || 1)).toFixed(2)]
       );
     }
 
     await conn.commit();
-  } catch (dbErr) {
+    req.session.checkoutDraft = { orderId };
+    return res.redirect('/checkout/delivery');
+  } catch (err) {
     await conn.rollback();
+    console.error('[checkout.saveInfo]', err.message);
+    req.session.checkoutError =
+      'We could not save your details. Nothing has been charged. Please try again.';
+    req.session.checkoutOld = req.body;
+    return res.redirect('/checkout');
+  } finally {
+    conn.release();
+  }
+};
+
+/* The checkout owns the order row while payment_status is 'draft' or
+   'pending', and loses it the moment the webhook writes 'auth_only'.
+
+   Both states, not just 'draft': createSession flips draft -> pending, so
+   a guard that demands 'draft' disqualifies the payment page the instant
+   it creates its own Stripe session. Every reload, back-navigation and
+   retry then threw the buyer back to step 1 with their details gone. */
+const EDITABLE = "payment_status IN ('draft','pending')";
+
+/** Loads the in-progress order or sends the buyer back to step 1.
+ *  Every page after the first depends on this. */
+async function requireDraft(req, res) {
+  const id = req.session.checkoutDraft?.orderId;
+  if (!id) { res.redirect('/checkout'); return null; }
+
+  const [[order]] = await bvoPool.query(
+    `SELECT * FROM orders WHERE id = ? AND ${EDITABLE}`, [id]);
+  if (!order) {
+    delete req.session.checkoutDraft;
+    res.redirect('/checkout');
+    return null;
+  }
+  return order;
+}
+
+/* ── GET /checkout/delivery — page 2 ────────────────────────────── */
+exports.deliveryPage = async (req, res) => {
+  const cart = getCart(req);
+  if (cart.items.length === 0) return res.redirect('/cart');
+
+  const order = await requireDraft(req, res);
+  if (!order) return;
+
+  res.render('pages/checkout-delivery', {
+    pageTitle: 'Delivery | BathroomVanitiesOutlet.com',
+    metaDesc:  '', noindex: true,
+    cart, subtotal: calcTotal(cart.items), order,
+    errors: req.session.checkoutErrors || {},
+  });
+  delete req.session.checkoutErrors;
+};
+
+/* ── POST /checkout/delivery ────────────────────────────────────── */
+exports.saveDelivery = async (req, res) => {
+  const order = await requireDraft(req, res);
+  if (!order) return;
+
+  /* The acknowledgement is required. Curbside is the single biggest
+     expectation gap in this business - a buyer who pictures two people
+     carrying a vanity to the bathroom, and watches a crate come off a
+     lift gate onto the driveway, refuses the delivery. A ticked box with
+     a timestamp is the record that they were told. */
+  if (!req.body.delivery_ack) {
+    req.session.checkoutErrors = {
+      delivery_ack: 'Please confirm you understand how curbside delivery works.',
+    };
+    return res.redirect('/checkout/delivery');
+  }
+
+  /* NOT fire-and-forget. This write is what lets the buyer reach payment:
+     the payment page refuses to render without delivery_terms_ack_at, so
+     a swallowed failure sends them back here with an empty checkbox and
+     no explanation, forever. That is exactly what happened before the
+     columns existed - the error went to the log and the buyer saw a page
+     that simply would not advance. */
+  try {
+    const [upd] = await bvoPool.query(
+      `UPDATE orders
+          SET ship_instructions = ?, delivery_terms_ack_at = NOW()
+        WHERE id = ? AND ${EDITABLE}`,
+      [String(req.body.ship_instructions || '').trim().slice(0, 500) || null, order.id]
+    );
+    if (upd.affectedRows === 0) throw new Error('in-progress order row not updated');
+  } catch (e) {
+    console.error('[checkout.saveDelivery]', e.message);
+    req.session.checkoutErrors = {
+      delivery_ack: 'We could not save your delivery preferences. '
+                  + 'Nothing has been charged. Please try again, or contact us if it keeps happening.',
+    };
+    return res.redirect('/checkout/delivery');
+  }
+
+  return res.redirect('/checkout/payment');
+};
+
+/* ── GET /checkout/payment — page 3 ─────────────────────────────── */
+exports.paymentPage = async (req, res) => {
+  const cart = getCart(req);
+  if (cart.items.length === 0) return res.redirect('/cart');
+
+  const order = await requireDraft(req, res);
+  if (!order) return;
+
+  /* Page 2 must have been completed. Without the acknowledgement the
+     buyer has not seen the curbside terms, and this page is the last
+     point before money moves. */
+  if (!order.delivery_terms_ack_at) return res.redirect('/checkout/delivery');
+
+  res.render('pages/checkout-payment', {
+    pageTitle: 'Payment | BathroomVanitiesOutlet.com',
+    metaDesc:  '', noindex: true,
+    cart, subtotal: calcTotal(cart.items), order,
+    checkoutError: req.session.checkoutError || null,
+    /* Publishable key is public by design — it identifies the account and
+       can only create, never read or charge. The secret key must never
+       reach a template. */
+    stripePublishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
+  });
+  delete req.session.checkoutError;
+};
+
+/* ── POST /checkout/session ─────────────────────────────────────── */
+/**
+ * Turn the draft into a payable order and ask Stripe for a session.
+ *
+ * The order row already exists - page 1 created it with the buyer's
+ * email, name, phone and ship-to. This step only:
+ *   - assigns the order number (so a buyer who never got here did not
+ *     consume one)
+ *   - flips draft -> pending, which is what hands the row to the webhook
+ *   - creates the Stripe session
+ *
+ * Returns JSON; the page mounts the Payment Element against
+ * `clientSecret` rather than navigating.
+ */
+exports.createSession = async (req, res) => {
+  const cart = getCart(req);
+  if (cart.items.length === 0) {
+    return res.status(400).json({ ok: false, error: 'Your cart is empty.' });
+  }
+
+  const orderId = req.session.checkoutDraft?.orderId;
+  if (!orderId) {
+    return res.status(409).json({
+      ok: false, error: 'Your checkout session expired. Please start again.',
+    });
+  }
+
+  /* Guarded on draft, and on the acknowledgement from page 2. A request
+     that skips straight here - stale tab, hand-rolled POST - must not
+     produce a payable order that never saw the curbside terms. */
+  const [[order]] = await bvoPool.query(
+    `SELECT id, order_number, delivery_terms_ack_at
+       FROM orders WHERE id = ? AND ${EDITABLE}`, [orderId]);
+
+  if (!order) {
+    delete req.session.checkoutDraft;
+    return res.status(409).json({
+      ok: false, error: 'Your checkout session expired. Please start again.',
+    });
+  }
+  if (!order.delivery_terms_ack_at) {
+    return res.status(409).json({
+      ok: false, error: 'Please confirm the delivery terms first.',
+    });
+  }
+
+  /* Reuse the number if this is a retry - a buyer who fails 3DS and tries
+     again should not walk the sequence forward each time. The DRAFT-
+     placeholder is not a number, so it is replaced rather than reused. */
+  const orderNumber = (order.order_number && !order.order_number.startsWith('DRAFT-'))
+    ? order.order_number
+    : makeOrderNumber(orderId);
+
+  try {
+    await bvoPool.query(
+      `UPDATE orders SET order_number = ?, status = 'pending',
+                         payment_status = 'pending'
+        WHERE id = ? AND ${EDITABLE}`,
+      [orderNumber, orderId]
+    );
+  } catch (dbErr) {
     console.error('[checkout.createSession] DB error BEFORE payment:', dbErr.message);
-    /* Nothing was charged — Stripe has not been called yet. This is the
-       whole point of writing the order first: the customer can simply
-       try again. */
+    /* Nothing was charged - Stripe has not been called yet. This is the
+       whole point of writing the order first: the buyer can try again. */
     return res.status(500).json({
       ok: false,
       error: 'We could not start your order. Nothing has been charged. Please try again.',
     });
-  } finally {
-    conn.release();
   }
 
-  /* ── Stripe ──────────────────────────────────────────────────────── */
   const session = await stripe.createCheckoutSession({
     orderId,
     orderNumber,
@@ -260,14 +559,12 @@ exports.createSession = async (req, res) => {
   });
 
   if (!session.ok) {
-    /* The order row exists but has no session. Mark it so it is visible
-       as a failure rather than sitting as a silent 'pending' forever.
-       Not rolled back — the row is evidence that someone tried, and the
-       admin can see the attempt. */
+    /* Back to draft rather than cancelled: the buyer is still standing at
+       the payment page and can retry without retyping anything. */
     await bvoPool.query(
-      `UPDATE orders SET status = 'cancelled', payment_status = 'failed'
+      `UPDATE orders SET payment_status = 'draft'
         WHERE id = ? AND payment_status = 'pending'`, [orderId]
-    ).catch(e => console.error('[checkout] could not mark failed order:', e.message));
+    ).catch(e => console.error('[checkout] could not revert to draft:', e.message));
 
     return res.status(502).json({
       ok: false,
@@ -279,9 +576,9 @@ exports.createSession = async (req, res) => {
     [session.sessionId, orderId])
     .catch(e => console.error('[checkout] could not store session id:', e.message));
 
-  /* Server-side handle on the row being paid for. setDeliveryType() below
-     writes through this rather than an id from the request body — a posted
-     order id would let anyone edit any order by guessing integers. */
+  /* Server-side handle on the row being paid for. setOrderDetails() writes
+     through this rather than an id from the request body - a posted order
+     id would let anyone edit any order by guessing integers. */
   req.session.pendingOrderId = orderId;
 
   return res.json({ ok: true, clientSecret: session.clientSecret, orderNumber });
@@ -456,16 +753,22 @@ async function handleSessionCompleted(sessionStub) {
       `UPDATE orders
           SET payment_status        = ?,
               status                = ?,
-              guest_email           = ?,
-              ship_first_name       = ?,
-              ship_last_name        = ?,
-              ship_phone            = ?,
-              ship_address1         = ?,
-              ship_address2         = ?,
-              ship_city             = ?,
-              ship_state            = ?,
-              ship_zip              = ?,
-              ship_address_confirmed= ?,
+              /* COALESCE(NULLIF(col,''), ?) - the buyer typed these on
+                 page 1 and they are the destination the freight is booked
+                 to. Stripe's copy comes from the BILLING address and must
+                 only ever fill a gap, never overwrite. Before the
+                 three-page flow these were plain assignments, which was
+                 correct then and would be data loss now. */
+              guest_email     = COALESCE(NULLIF(guest_email,''), ?),
+              ship_first_name = COALESCE(NULLIF(ship_first_name,''), ?),
+              ship_last_name  = COALESCE(NULLIF(ship_last_name,''), ?),
+              ship_phone      = COALESCE(NULLIF(ship_phone,''), ?),
+              ship_address1   = COALESCE(NULLIF(ship_address1,''), ?),
+              ship_address2   = COALESCE(NULLIF(ship_address2,''), ?),
+              ship_city       = COALESCE(NULLIF(ship_city,''), ?),
+              ship_state      = COALESCE(NULLIF(ship_state,''), ?),
+              ship_zip        = COALESCE(NULLIF(ship_zip,''), ?),
+              ship_address_confirmed = GREATEST(ship_address_confirmed, ?),
               bill_address1         = ?,
               bill_city             = ?,
               bill_state            = ?,
@@ -615,6 +918,11 @@ exports.returnFromStripe = async (req, res) => {
   /* Cleared only once the payment is known good, so an abandoned attempt
      leaves the customer's basket intact. */
   req.session.cart = { items: [], count: 0, subtotal: 0 };
+
+  /* And the draft handle, or the next visit to /checkout would reopen the
+     order that was just paid for and let it be edited. */
+  delete req.session.checkoutDraft;
+  delete req.session.pendingOrderId;
 
   return res.redirect('/checkout/success');
 };
