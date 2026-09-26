@@ -25,6 +25,12 @@ router.get ('/',        ctrl.show);
 //                            and the browser does not navigate.
 router.post('/session', ctrl.createSession);
 
+// POST /checkout/delivery-type — AJAX. Residential or commercial, written
+//                            to our own order row because Stripe has no
+//                            field for it. Writes through the order id held
+//                            in the server session, never one from the body.
+router.post('/delivery-type', ctrl.setDeliveryType);
+
 // GET  /checkout/return    — where Stripe sends the buyer back. Read-only:
 //                            decides which page to show. The webhook, not
 //                            this, is what advances the order.

@@ -1,4 +1,4 @@
-<link rel="stylesheet" href="/css/site3.css?v=19"><!-- site3: injected per-page (perf) -->
+<link rel="stylesheet" href="/css/site3.css?v=20"><!-- site3: injected per-page (perf) -->
 <div class="checkout-page">
   <div class="checkout-header">
     <h1>Checkout</h1>
@@ -46,8 +46,37 @@
       <!-- Billing -->
       <div class="checkout-card">
         <h2 class="checkout-card-title">Billing Address</h2>
-        <p class="checkout-card-sub">Used for card verification and to calculate tax. Your order ships to the address you provide after checkout.</p>
+        <p class="checkout-card-sub">The address on your card. Used for card verification and to calculate sales tax.</p>
         <div id="billing-address-element"></div>
+
+        <%/* Default is ship-to-billing, which is the overwhelming majority.
+             Phrased as the EXCEPTION ("a different address") so the common
+             case is a no-op and only the minority types anything. */%>
+        <label class="checkout-check" for="ship-different">
+          <input type="checkbox" id="ship-different">
+          <span>Ship to a different address</span>
+        </label>
+
+        <div id="shipping-address-wrap" hidden>
+          <h3 class="checkout-card-title" style="font-size:16px;margin-top:18px">Shipping Address</h3>
+          <div id="shipping-address-element"></div>
+        </div>
+
+        <%/* Freight carriers price residential and commercial delivery
+             differently and guess when nobody declares it. Guessing wrong
+             produces a surcharge after the fact that cannot be passed on. */%>
+        <fieldset class="checkout-radio-group">
+          <legend>Delivery location</legend>
+          <label class="checkout-check" for="dt-res">
+            <input type="radio" name="delivery_type" id="dt-res" value="residential" checked>
+            <span>Residential &mdash; a house or apartment</span>
+          </label>
+          <label class="checkout-check" for="dt-com">
+            <input type="radio" name="delivery_type" id="dt-com" value="commercial">
+            <span>Commercial &mdash; a business with a loading dock or forklift</span>
+          </label>
+          <span class="checkout-field-hint">Your vanity ships by freight. This tells the carrier what kind of truck and crew to send.</span>
+        </fieldset>
       </div>
 
       <!-- Payment -->
@@ -414,11 +443,116 @@
         ? 'Place Order'
         : 'Place Order — ' + tot;
     }
+
+    /* Keep ship-to in step with billing while the checkbox is unticked.
+       Declared below; function declarations hoist, and the guard inside
+       covers a change that fires before the elements are wired. */
+    mirrorBillingToShipping(session);
   });
 
   checkout.createContactDetailsElement().mount('#contact-details-element');
   checkout.createBillingAddressElement().mount('#billing-address-element');
   checkout.createPaymentElement().mount('#payment-element');
+
+  /* ── Ship-to ──────────────────────────────────────────────────────
+     Two states, one source of truth.
+
+     UNCHECKED (the default, and the overwhelming majority): the billing
+     address is mirrored to shipping on every change, so the buyer types
+     one address and the freight still has a destination. Without this the
+     ship_* columns stay null and the order cannot be booked at all - which
+     is exactly what happened to every order before today.
+
+     CHECKED: Stripe's own Shipping Address Element is mounted and owns the
+     value. The mirror stops immediately, or it would overwrite what the
+     buyer just typed on their next billing keystroke.
+
+     updateShippingAddress() and createShippingAddressElement() were both
+     confirmed present on the live SDK before this was written. */
+  /* loadActions() is async and returns a fresh object each call. Memoised
+     so the mirror does not re-load it on every keystroke, and normalised
+     because the actions live under .actions on this SDK - the shape that
+     cost an evening when confirm() was called on the wrapper instead. */
+  var _actionsPromise = null;
+  function loadActionsOnce() {
+    if (!_actionsPromise) {
+      _actionsPromise = checkout.loadActions().then(function (loaded) {
+        return (loaded && loaded.actions) ? loaded.actions : loaded;
+      });
+    }
+    return _actionsPromise;
+  }
+
+  var shipDiff  = document.getElementById('ship-different');
+  var shipWrap  = document.getElementById('shipping-address-wrap');
+  var shipEl    = null;
+  var lastMirror = '';
+
+  function mirrorBillingToShipping(session) {
+    /* change can fire during init, before the lines below have run.
+       Reading .checked off undefined there would throw inside Stripe's
+       own listener, where nothing surfaces it. */
+    if (!session || !shipDiff || shipDiff.checked) return;
+    var b = session.billingAddress;
+    if (!b || !b.address || !b.address.line1 || !b.address.postal_code) return;
+
+    /* Stripe fires change on every keystroke. Sending an identical address
+       each time would be a network call per character. */
+    var sig = JSON.stringify(b.address) + '|' + (b.name || '');
+    if (sig === lastMirror) return;
+    lastMirror = sig;
+
+    loadActionsOnce().then(function (actions) {
+      return actions.updateShippingAddress({ name: b.name || '', address: b.address });
+    }).catch(function (e) {
+      /* Never block the buyer. A failed mirror leaves ship_* to the
+         webhook's billing fallback, which lands on the same address. */
+      dbg('mirror failed: ' + (e && e.message ? e.message : String(e)));
+    });
+  }
+
+  shipDiff.addEventListener('change', function () {
+    shipWrap.hidden = !shipDiff.checked;
+    if (shipDiff.checked) {
+      if (!shipEl) {
+        shipEl = checkout.createShippingAddressElement();
+        shipEl.mount('#shipping-address-element');
+      }
+    } else {
+      /* Back to mirroring. Cleared so the next billing change is treated
+         as new and re-sent rather than skipped by the signature check. */
+      lastMirror = '';
+      loadActionsOnce()
+        .then(function (actions) { return actions.getSession(); })
+        .then(mirrorBillingToShipping)
+        .catch(function () {});
+    }
+  });
+
+  /* Residential vs commercial. Written to our own order row - Stripe has
+     no field for it. Fire and forget: a buyer must never be stopped from
+     paying because this did not save. */
+  function saveDeliveryType() {
+    var picked = document.querySelector('input[name="delivery_type"]:checked');
+    if (!picked) return;
+    fetch('/checkout/delivery-type', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json',
+                 'X-CSRF-Token': '<%= csrfToken %>' },
+      body:    JSON.stringify({ type: picked.value }),
+    }).catch(function () {});
+  }
+  Array.prototype.forEach.call(
+    document.querySelectorAll('input[name="delivery_type"]'),
+    function (r) { r.addEventListener('change', saveDeliveryType); }
+  );
+
+  /* Persist the DEFAULT too, once the order row exists - otherwise a buyer
+     who accepts "Residential" without touching it leaves the column NULL,
+     and NULL is reserved for "never asked". The order row is created by
+     POST /checkout/session, so this waits on that promise rather than
+     racing it. */
+  clientSecretPromise.then(saveDeliveryType).catch(function () {});
 
   /* Spinner + honest status. A dead button with static text for 30-60s
      reads as broken, and a customer who thinks it is broken clicks again.

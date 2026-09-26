@@ -190,6 +190,26 @@ exports.createCheckoutSession = async (p) => {
          form rather than letting the confirm fail later. */
       billing_address_collection: 'required',
 
+      /* SHIP-TO, which is not the same fact as bill-to.
+         BVO ships LTL freight. The carrier books against a destination
+         address, and until this was enabled the webhook wrote only bill_*
+         while shippingController read ship_address1/city/state/zip — so
+         every Stripe order reached the ship screen with a null destination
+         and could not be booked at all.
+
+         Enabling this also moves the tax basis. Sales tax on tangible goods
+         is owed where the goods are DELIVERED, not where the card bills, so
+         a Florida cardholder shipping to Georgia owes Georgia tax. The
+         session previously reported automatic_tax_address_source
+         "session.billing"; it is asserted below rather than assumed. */
+      shipping_address_collection: { allowed_countries: ['US'] },
+
+      /* Needed for the delivery appointment. LTL carriers will not schedule
+         residential delivery without a consignee phone, so an order without
+         one cannot be dispatched however complete the rest of it is.
+         Arrives as customer_details.phone on the same webhook. */
+      phone_number_collection: { enabled: true },
+
       /* customer_email is deliberately NOT set.
          The Contact Details Element collects the address and the email on
          the page. Pre-setting customer_email here locks that field, so the
@@ -323,6 +343,68 @@ exports.paymentDetailsFrom = (session) => {
     total: session.amount_total != null
       ? (session.amount_total / 100).toFixed(2) : null,
     currency: session.currency || 'usd',
+  };
+};
+
+/**
+ * Who the order is for, and where it physically goes.
+ *
+ * Kept apart from paymentDetailsFrom() on purpose: that function answers
+ * "what happened to the money", this one answers "who and where", and the
+ * two have different failure modes. A missing card brand is cosmetic; a
+ * missing ship-to address means the freight cannot be booked.
+ *
+ * Stripe has moved shipping between shapes across API versions —
+ * `shipping_details` on older ones, `collected_information.shipping_details`
+ * on newer. Both are read rather than picking one, because the wrong guess
+ * writes NULL silently and nothing surfaces until someone tries to ship.
+ *
+ * Falls back to the billing address when no shipping address came back.
+ * That is the correct default here: the checkbox defaults to ship-to-billing,
+ * and an order with a null destination is useless. `shippingWasCollected`
+ * records which of the two it was, so nobody later mistakes a copied
+ * address for one the customer actually confirmed.
+ */
+exports.shippingFrom = (session) => {
+  const cd = session.customer_details || {};
+  const ci = session.collected_information || {};
+
+  const shipDetails = session.shipping_details
+                   || ci.shipping_details
+                   || session.shipping
+                   || null;
+
+  const shipAddr = shipDetails?.address || null;
+  const billAddr = cd.address || {};
+  const addr     = shipAddr || billAddr;
+
+  /* One name string, two columns. Split on the LAST space so multi-part
+     given names survive: "Mary Anne Fitzgerald-Smith" gives
+     "Mary Anne" / "Fitzgerald-Smith". A single word is a first name — a
+     mononym is not a surname. */
+  const full  = (shipDetails?.name || cd.name || '').trim();
+  const cut   = full.lastIndexOf(' ');
+
+  return {
+    email:     cd.email || null,
+    /* Stripe returns E.164 (+14045551234). Stored as given — reformatting
+       for display is the view's job, and the carrier API wants the digits. */
+    phone:     cd.phone || null,
+    firstName: (cut > 0 ? full.slice(0, cut) : full) || null,
+    lastName:  (cut > 0 ? full.slice(cut + 1) : '') || null,
+
+    shipAddress1: addr.line1      || null,
+    shipAddress2: addr.line2      || null,
+    shipCity:     addr.city       || null,
+    shipState:    addr.state      || null,
+    shipZip:      addr.postal_code|| null,
+
+    billAddress1: billAddr.line1       || null,
+    billCity:     billAddr.city        || null,
+    billState:    billAddr.state       || null,
+    billZip:      billAddr.postal_code || null,
+
+    shippingWasCollected: !!shipAddr,
   };
 };
 

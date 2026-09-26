@@ -279,7 +279,47 @@ exports.createSession = async (req, res) => {
     [session.sessionId, orderId])
     .catch(e => console.error('[checkout] could not store session id:', e.message));
 
+  /* Server-side handle on the row being paid for. setDeliveryType() below
+     writes through this rather than an id from the request body — a posted
+     order id would let anyone edit any order by guessing integers. */
+  req.session.pendingOrderId = orderId;
+
   return res.json({ ok: true, clientSecret: session.clientSecret, orderNumber });
+};
+
+/* ── POST /checkout/delivery-type ───────────────────────────────── */
+/**
+ * Residential or commercial. Not a Stripe field, so it is written straight
+ * to our own order row instead of riding along as session metadata, which
+ * is writable by anyone holding the publishable key.
+ *
+ * Fire-and-forget from the page: the buyer must never be blocked from
+ * paying because this did not save. An unanswered value stays NULL, which
+ * reads as "never asked" and is honestly different from either answer.
+ */
+exports.setDeliveryType = async (req, res) => {
+  const type = String(req.body?.type || '');
+  if (type !== 'residential' && type !== 'commercial') {
+    return res.status(400).json({ ok: false });
+  }
+
+  const orderId = req.session.pendingOrderId;
+  if (!orderId) return res.status(409).json({ ok: false });
+
+  try {
+    /* Guarded on pending: once the webhook has authorised the order this
+       must not move, or a buyer could change the delivery class of an
+       order already booked with the carrier. */
+    await bvoPool.query(
+      `UPDATE orders SET ship_address_type = ?
+        WHERE id = ? AND payment_status = 'pending'`,
+      [type, orderId]
+    );
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error('[checkout.setDeliveryType]', e.message);
+    return res.status(500).json({ ok: false });
+  }
 };
 
 /* ── POST /checkout/webhook ─────────────────────────────────────── */
@@ -378,22 +418,11 @@ async function handleSessionCompleted(sessionStub) {
   const authorized = typeof pi === 'object' && pi?.status === 'requires_capture';
 
   /* The customer's details arrive HERE, not at session creation — the
-     Contact Details and Billing Address Elements collect them on the page
-     after the session exists. This is the only point at which we learn
-     who placed the order. */
-  const cd   = fetched.session.customer_details || {};
-  const addr = cd.address || {};
+     Contact Details, Billing Address and Shipping Address Elements collect
+     them on the page after the session exists. This is the only point at
+     which we learn who placed the order and where it goes. */
+  const who = stripe.shippingFrom(fetched.session);
 
-  /* Stripe returns one `name` string; the orders table has two columns.
-     Split on the LAST space so multi-part given names stay intact —
-     "Mary Anne Fitzgerald-Smith" gives "Mary Anne" / "Fitzgerald-Smith"
-     rather than "Mary" / "Anne Fitzgerald-Smith". Single-word names put
-     everything in first and leave last empty, which is correct: a
-     mononym is a first name, not a surname. */
-  const fullName = (cd.name || '').trim();
-  const cut      = fullName.lastIndexOf(' ');
-  const firstName = cut > 0 ? fullName.slice(0, cut) : fullName;
-  const lastName  = cut > 0 ? fullName.slice(cut + 1) : '';
 
   const conn = await bvoPool.getConnection();
   try {
@@ -407,6 +436,13 @@ async function handleSessionCompleted(sessionStub) {
               guest_email           = ?,
               ship_first_name       = ?,
               ship_last_name        = ?,
+              ship_phone            = ?,
+              ship_address1         = ?,
+              ship_address2         = ?,
+              ship_city             = ?,
+              ship_state            = ?,
+              ship_zip              = ?,
+              ship_address_confirmed= ?,
               bill_address1         = ?,
               bill_city             = ?,
               bill_state            = ?,
@@ -432,13 +468,23 @@ async function handleSessionCompleted(sessionStub) {
            on", which is what staff act from. It does NOT mean paid —
            payment_status is the field that says that. */
         authorized ? 'confirmed' : 'pending',
-        cd.email || null,
-        firstName || null,
-        lastName  || null,
-        addr.line1       || null,
-        addr.city        || null,
-        addr.state       || null,
-        addr.postal_code || null,
+        who.email,
+        who.firstName,
+        who.lastName,
+        who.phone,
+        /* SHIP-TO. Previously never written, while shippingController read
+           these four columns to book the freight — so every order arrived
+           at the ship screen with a null destination. */
+        who.shipAddress1,
+        who.shipAddress2,
+        who.shipCity,
+        who.shipState,
+        who.shipZip,
+        who.shippingWasCollected ? 1 : 0,
+        who.billAddress1,
+        who.billCity,
+        who.billState,
+        who.billZip,
         d.paymentIntentId, d.chargeId,
         d.brand, d.last4,
         d.riskScore, d.riskLevel, d.sellerMessage,
@@ -534,7 +580,11 @@ exports.returnFromStripe = async (req, res) => {
 
   req.session.lastOrder = {
     orderNumber: s.metadata?.order_number || '',
-    email:       s.customer_email || '',
+    /* customer_details, not customer_email. The latter is only populated
+       when the session was CREATED with an email, and this one deliberately
+       is not — so it is always null here and the success page was greeting
+       an empty string. */
+    email:       s.customer_details?.email || '',
     firstName:   (s.customer_details?.name || '').split(' ')[0] || '',
     total:       s.amount_total != null ? s.amount_total / 100 : 0,
   };
