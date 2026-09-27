@@ -159,6 +159,16 @@ const money = n => '$' + Number(n || 0).toLocaleString('en-US',
                  value="<%= val('ship_address1') %>">
           <ul class="checkout-ac-list" id="ac-list" role="listbox" aria-label="Address suggestions" hidden></ul>
           <span class="checkout-ac-status" id="ac-status" role="status" aria-live="polite"></span>
+          <%/* ONLY when a key exists, and removed by giveUp() if the
+               library fails at runtime. A field that says "choose from
+               the list" and then never shows one reads as broken - which
+               is exactly how the 4-character minimum read before this
+               line existed. Suggestions are poor below 5-6 characters, so
+               the answer is to set the expectation rather than fire
+               earlier and return noise. */%>
+          <% if (mapsKey) { %>
+            <span class="checkout-field-hint" id="ac-hint">Start typing and choose your address from the list.</span>
+          <% } %>
           <% if (errors.ship_address1) { %><span class="checkout-field-error"><%= errors.ship_address1 %></span><% } %>
         </div>
 
@@ -540,6 +550,9 @@ const money = n => '$' + Number(n || 0).toLocaleString('en-US',
   function giveUp() {
     close();
     say('');
+    /* The hint promised a list. There is not going to be one. */
+    var hint = document.getElementById('ac-hint');
+    if (hint) hint.remove();
     input.removeAttribute('role');
     input.removeAttribute('aria-autocomplete');
     input.removeAttribute('aria-expanded');
