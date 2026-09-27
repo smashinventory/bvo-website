@@ -487,6 +487,58 @@ the hero fix.
 
 ---
 
+### 13. The three dirty `scripts/*RedirectMap.js` files are FINE — leave them
+*Logged 2026-09-26 · read this before investigating them again*
+
+`git status` shows three files permanently modified and uncommitted:
+
+```
+modified:   scripts/buildRedirectMap.js
+modified:   scripts/gateRedirectMap.js
+modified:   scripts/loadRedirectMap.js
+```
+
+**Do not spend time on these.** The whole diff is three path strings and
+one explanatory comment. It has now cost two investigations.
+
+**What the diff is.** The URL-migration scripts originally wrote to a
+`migration/` folder created as a SIBLING of the repo — outside it. Sam
+instructed that everything move into the existing `BVO Node.js/migrations/`
+folder, to stop the multi-folder confusion. The files were moved; the three
+scripts that point at them were edited to match and never committed. So:
+
+- Committed code still says `../../migration/` — a path that **no longer
+  exists**. Re-running any of the three from a clean clone crashes.
+- The working copy says `../migrations/` — which resolves, and where
+  `redirect_map.csv` actually lives.
+
+The fourth change, in `loadRedirectMap.js`, renames its output to
+`url_redirects_DATA_501rows.sql` because the old name was one character
+from the schema file `2026-09-24_url_redirects.sql`, and the schema got
+imported by mistake — "1 query executed", an empty table, no error.
+
+**Why they cannot break anything running.** Verified 2026-09-26:
+
+- Not `require()`d anywhere in `src/`. The two hits in
+  `src/middleware/legacyRedirects.js` (lines 23, 114) are **comments**
+  naming the script in prose.
+- Not in `package.json` scripts — only `start`, `dev`, `migrate`, `seed`,
+  `test`.
+- No cron or workflow invokes them.
+- At runtime the middleware reads the **`url_redirects` table**, already
+  populated with 501 rows. These scripts only *generated* the CSV and the
+  SQL that was imported. They never run in production.
+
+**Status: Sam has seen the diff and chosen to leave them uncommitted.**
+That is a deliberate decision, not an oversight. Respect it.
+
+Committing them would also be safe, and would fix the broken path for
+anyone cloning fresh — but it needs Sam's word, and it is not worth
+raising a third time unless he brings it up or someone actually needs to
+re-run the redirect build.
+
+---
+
 ## Resolved
 
 ### Homepage CLS — hero, tablet band, and image-with-text
