@@ -251,12 +251,32 @@ exports.createCheckoutSession = async (p) => {
          at all. */
       phone_number_collection: { enabled: true },
 
-      /* customer_email is deliberately NOT set.
-         The Contact Details Element collects the address and the email on
-         the page. Pre-setting customer_email here locks that field, so the
-         customer cannot correct a typo, and the session is created before
-         we know their email anyway. Read it back off
-         session.customer_details in the webhook instead. */
+      /* customer_email IS set, from the order written on checkout page 1.
+
+         It used to be deliberately omitted, and the reasoning was sound at
+         the time: the page mounted a Contact Details Element that collected
+         the email, pre-setting customer_email LOCKS that field so a typo
+         could not be corrected, and the session was created before we knew
+         the address anyway.
+
+         All three premises died with the three-page rewrite. Page 1 now
+         collects the email and writes it to the draft, so the session is
+         created knowing it. Page 3 mounts no Contact Details Element, so
+         there is no field left to lock.
+
+         WHAT BREAKS WITHOUT IT - measured on the live page 2026-09-26:
+
+           change: canConfirm=false ... email=false billing=false phone=false
+
+         `canConfirm` gates on the session carrying an email. Nothing on
+         page 3 supplies one, so it stayed false forever, Place Order stayed
+         disabled, and because the gold button has no :disabled styling it
+         looked clickable and simply did nothing. No error, no network call,
+         no PaymentIntent - the order sat at payment_status 'pending'.
+
+         The three-page checkout could not take a payment at all between
+         482a465 and this commit. */
+      customer_email: p.email || undefined,
 
       /* Both, deliberately. client_reference_id is what shows in the Stripe
          dashboard and in exports, so a human reconciling a payment sees the

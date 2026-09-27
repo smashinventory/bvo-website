@@ -557,7 +557,8 @@ exports.createSession = async (req, res) => {
      that skips straight here - stale tab, hand-rolled POST - must not
      produce a payable order that never saw the curbside terms. */
   const [[order]] = await bvoPool.query(
-    `SELECT id, order_number, delivery_terms_ack_at
+    `SELECT id, order_number, delivery_terms_ack_at,
+            guest_email, ship_phone
        FROM orders WHERE id = ? AND ${EDITABLE}`, [orderId]);
 
   if (!order) {
@@ -599,6 +600,11 @@ exports.createSession = async (req, res) => {
   const session = await stripe.createCheckoutSession({
     orderId,
     orderNumber,
+    /* REQUIRED for canConfirm. Page 3 has no email field - page 1 owns
+       that fact - so without this the session's email is never set,
+       canConfirm never turns true, and Place Order is permanently dead
+       while looking enabled. See stripeService.customer_email. */
+    email:     order.guest_email || '',
     items:     cart.items,
     returnUrl: `${returnOrigin(req)}/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
   });

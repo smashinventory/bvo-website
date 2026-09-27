@@ -1,4 +1,4 @@
-<link rel="stylesheet" href="/css/site3.css?v=22"><!-- site3: injected per-page (perf) -->
+<link rel="stylesheet" href="/css/site3.css?v=23"><!-- site3: injected per-page (perf) -->
 <div class="checkout-page">
   <div class="checkout-header">
     <h1>Payment</h1>
@@ -470,6 +470,41 @@
   checkout.createBillingAddressElement({ contacts: billingContacts })
     .mount('#billing-address-element');
   checkout.createPaymentElement().mount('#payment-element');
+
+  /* Push the DELIVERY PHONE from page 1 into the session.
+
+     `canConfirm` gates on the session carrying a phone, and page 3 has no
+     phone field - page 1 owns that fact, and re-asking would undo the
+     whole point of the three-page split. The old single-page checkout
+     rendered its own input and pushed the value with
+     actions.updatePhoneNumber(); this does the same thing, fed from the
+     database instead of an input.
+
+     phone_number_collection renders NO field in elements mode (verified
+     2026-09-26), so this call is the ONLY way a phone reaches the session.
+     Without it the trace reads phone=false forever and Place Order is
+     permanently disabled.
+
+     Fire-and-forget on purpose: a failure here must not stop the elements
+     from mounting. It is logged, and canConfirm staying false is itself
+     the visible symptom. */
+  var shipPhone = <%- JSON.stringify(String(order.ship_phone || '')) %>;
+  if (shipPhone) {
+    checkout.loadActions()
+      .then(function (loaded) {
+        var a = (loaded && loaded.actions) ? loaded.actions : loaded;
+        if (a && typeof a.updatePhoneNumber === 'function') {
+          return a.updatePhoneNumber(shipPhone);
+        }
+        dbg('updatePhoneNumber MISSING from actions');
+      })
+      .then(function (r) { dbg('updatePhoneNumber ->', r); })
+      .catch(function (e) {
+        dbg('updatePhoneNumber failed: ' + (e && e.message ? e.message : String(e)));
+      });
+  } else {
+    dbg('no ship_phone on the order - phone will stay false');
+  }
 
 
   /* Spinner + honest status. A dead button with static text for 30-60s
