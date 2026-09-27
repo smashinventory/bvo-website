@@ -253,6 +253,56 @@ outbound DNS and had never once reached the live Census service. It
 resolved a real Georgia address to the right point on the first live
 call.
 
+### 2026-09-27 — order detail page, order 00164
+
+| Checked | Result |
+|---|---|
+| Customer name | "Mish Mish" — a name, not the email address |
+| Phone and email shown | Yes |
+| Ship-to block | Page 1 address, "Residential delivery" |
+| Authorisation countdown (item 11) | "Auth Hold — pending capture · Expires in 7 days" |
+| Risk panel | AVS/CVC checks, IP, **Radar: normal risk (score 1/99)** |
+| 3DS row | **Absent** — correct, 3DS not invoked |
+| Ship-to vs bill-to row | **Absent** — correct, addresses matched |
+| EFW / chargeback banners | **Absent** — correct, no issuer activity |
+| Timeline | `Payment Authorized · pending → auth_only` |
+
+`payment_risk_score` DOES populate in sandbox (1/99), so the "null on
+Lite/Standard" note in `detail.ejs` is about plan tier, not a bug.
+
+### 2026-09-27 — WWEX shipping form, order 00164 (item 37)
+
+`/admin/shipping/create?orderId=58`
+
+| Checked | Result |
+|---|---|
+| Destination phone | **`+14046555079` pre-filled** — empty on every guest order before this |
+| Contact name | `Mish Mish` |
+| Address / city / state / ZIP | Carried from page 1 |
+| "Residential address" checkbox | **Pre-ticked** from `ship_address_type` |
+| Delivery Location Type | **`Residential`** |
+| **Liftgate Delivery** | **Ticked** — the load-time sync fired |
+| Residential Delivery accessorial | Ticked |
+| Reference 1 | `Order BVO-2026-09-27-00164` |
+| Rate returned | XPO Logistics, $186.29, 1 business day |
+
+**Not booked.** Confirm & Book sends a real pickup request to the carrier
+and was deliberately not pressed on a test order.
+
+**Appointment handling — settled.** "Appointment Delivery" and "Notify Me
+Before Delivery" are left OFF by choice. The appointment is arranged
+through the delivery instruction *"Call receiver 24 hours in advance with
+delivery window"* rather than by paying the carrier accessorial. That is
+consistent with the page 2 curbside copy. Do not "fix" this.
+
+⚠️ **Destination EMAIL was blank on this run.** Same defect the phone had:
+`prefill.email` read `c.email`, which is NULL on every guest order. Fixed
+in `8956fed` — `order.guest_email` first — but **not yet proven**: that
+form was rendered before the fix deployed, and it only affects NEW
+orders. `SHIPPING_WWEX_BRIEF.md` is explicit that `emailList` is required
+and does not fall back to the contact email, so without it the customer
+gets no carrier delivery alerts at all.
+
 ---
 
 ## KNOWN GAPS — cannot be closed by gates
@@ -260,6 +310,7 @@ call.
 | # | Gap | Why it stayed open | Closes when |
 |---|---|---|---|
 | ~~1~~ | ~~Census geocode round trip~~ | **CLOSED 2026-09-27** — resolved `34.027618, -84.377445` live on order 00164 | — |
-| 2 | WWEX booking payload | No shipment booked with the new phone/residential fields | A test booking is accepted |
+| 2 | WWEX booking payload | Form verified 2026-09-27 (phone, residential, liftgate, rate returned) but **no booking placed** — Confirm & Book sends a real carrier pickup request | A real shipment is booked |
+| 2b | Destination email on the shipping form | Fixed in `8956fed`, not yet deployed or seen. Without it WWEX sends NO delivery alerts | A NEW order's shipping form shows the email pre-filled |
 | 3 | EFW and dispute banners | Fire only on real issuer activity | Stripe test event, or a real warning |
 | 4 | `order_confirmed` email body | Deferred by Sam; live copy is a rejected draft | See `PRE_LAUNCH_CHECKLIST.md` |
