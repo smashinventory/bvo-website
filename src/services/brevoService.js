@@ -19,7 +19,31 @@ const axios      = require('axios');
 const { bvoPool } = require('../config/database');
 
 const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
-const FROM_EMAIL    = process.env.BREVO_FROM_EMAIL || 'orders@bathroomvanitiesoutlet.com';
+/* support@, NOT orders@.
+
+   Brevo refuses ANY send from an address that is not on its
+   verified-senders list, however valid the API key is and however well
+   the domain is authenticated — DKIM and DMARC are checked on the
+   DOMAIN, the sender ADDRESS is verified separately.
+
+   As of 2026-09-27 the only verified sender on this account is
+   support@bathroomvanitiesoutlet.com. The old default here was orders@,
+   which is NOT verified — a trap for anyone who runs this without
+   BREVO_FROM_EMAIL set, since every send would be rejected silently
+   (sendTemplate returns {skipped:true} rather than throwing).
+
+   ⚠️ THIS WAS NOT THE CAUSE OF THE 2026-09-27 FAILURE. BREVO_FROM_EMAIL
+   has always been set to support@, and it overrides this line, so the
+   bad default was never reached. It is corrected here as a latent trap,
+   not as a fix. The real cause of mail not sending was still open when
+   this was written — see the pre-launch checklist.
+
+   BEFORE CHANGING THIS, ADD THE NEW ADDRESS AS A VERIFIED SENDER IN
+   BREVO FIRST. The domain being authenticated is not enough.
+
+   NOTE: BREVO_FROM_EMAIL overrides this. If that variable is set to an
+   unverified address, editing this line changes nothing. */
+const FROM_EMAIL    = process.env.BREVO_FROM_EMAIL || 'support@bathroomvanitiesoutlet.com';
 const FROM_NAME     = process.env.BREVO_FROM_NAME  || 'BVO — Bathroom Vanities Outlet';
 
 /* ── Variable substitution ────────────────────────────────────── */

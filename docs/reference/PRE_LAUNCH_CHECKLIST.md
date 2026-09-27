@@ -595,3 +595,41 @@ to look.
   questionnaire. Determines what the Terms can state about tax.
 - **Cookie banner** — see P4. Not strictly required today for a US-only
   business, but expected, and it is what a CCPA opt-out link attaches to.
+
+
+---
+
+## 🔴 Send ONE real email end to end before cutover
+
+Logged 2026-09-27. **No email has ever left this site**, and the cause is
+still open as of this entry.
+
+Confirmed set and correct: `BREVO_API_KEY`, `BREVO_FROM_NAME`, and
+`BREVO_FROM_EMAIL` = `support@BathroomVanitiesOutlet.com`, which IS the
+verified sender in Brevo. The domain is authenticated, DKIM and DMARC
+both green. Brevo's transactional log shows nothing at all, which means
+the request is most likely not reaching Brevo rather than being rejected
+by it.
+
+**Four theories were wrong before this was written.** Do not add a fifth
+from the armchair — deploy `e1676ac` (which logs the actual failure) and
+read `[account.sendCode] NOT SENT` in the Hostinger runtime log.
+
+**Why it stayed invisible so long.** `brevoService` never throws — it
+returns `{skipped:true}` or `{ok:false}`. And `checkoutController`
+deliberately ignores that result, because a Brevo outage must never fail
+an order whose card has already been authorised. That is still the right
+call. Its cost is exactly this: a dead email channel looks identical to a
+healthy one until something depends on a message actually arriving.
+
+A login screen was the first thing that did. Otherwise the first person to
+find out would have been a customer who paid and heard nothing.
+
+**Before cutover, actually send one.** Place a test order and confirm the
+confirmation lands in a real inbox. Not "the config looks right" — an
+email you can open.
+
+**If the from-address is ever changed,** add it as a verified sender in
+Brevo FIRST (Settings → Senders, Domains & Dedicated IPs). Changing
+`BREVO_FROM_EMAIL`, or the code default, to an unverified address
+silently kills every email the site sends.
