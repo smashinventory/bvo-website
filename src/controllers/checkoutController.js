@@ -246,8 +246,51 @@ function splitName(full) {
     : { first: s, last: '' };
 }
 
+/**
+ * Consume the one-shot checkout messages. READ AND DELETE IN ONE STEP.
+ *
+ * THE BUG THIS FIXES (2026-09-27)
+ * Both checkout GET handlers used to read these into the render call and
+ * delete them on the line AFTER res.render(). Both handlers also begin
+ * with early returns - an empty cart redirects to /cart, and page 2's
+ * requireDraft() bails when there is no draft order. On any of those paths
+ * the function returned before the deletes ran, so the message was never
+ * consumed.
+ *
+ * The cart is emptied on a completed purchase, so the commonest way to
+ * reach that state is to finish an order. Sessions live seven days. The
+ * result: a buyer who hit any error, or who simply completed a purchase
+ * after one, came back days later to buy a mirror and was shown the old
+ * banner - plus their previously typed address prefilled and red
+ * validation errors on a form they had not submitted.
+ *
+ * It presents as a caching problem because the page looks stale. It is
+ * not: Cache-Control is already 'no-store' on every HTML response. It was
+ * a flash message that nothing ever cleared.
+ *
+ * Called at the TOP of both handlers, before any early return, so the
+ * messages are consumed whether or not the page renders. A message
+ * discarded on an empty-cart redirect is the right outcome: "we could not
+ * save your details" is meaningless once there is nothing in the cart.
+ */
+function takeCheckoutFlash(req) {
+  const s = req.session || {};
+  const flash = {
+    errors: s.checkoutErrors || {},
+    old:    s.checkoutOld    || {},
+    error:  s.checkoutError  || null,
+  };
+  delete req.session.checkoutErrors;
+  delete req.session.checkoutOld;
+  delete req.session.checkoutError;
+  return flash;
+}
+
 /* ── GET /checkout — page 1 ─────────────────────────────────────── */
 exports.show = async (req, res) => {
+  /* FIRST, before the empty-cart return below can skip it. */
+  const flash = takeCheckoutFlash(req);
+
   const cart = getCart(req);
   if (cart.items.length === 0) return res.redirect('/cart');
 
@@ -272,19 +315,15 @@ exports.show = async (req, res) => {
     cart,
     subtotal:  calcTotal(cart.items),
     draft,
-    errors:    req.session.checkoutErrors || {},
-    old:       req.session.checkoutOld    || {},
-    checkoutError: req.session.checkoutError || null,
+    errors:    flash.errors,
+    old:       flash.old,
+    checkoutError: flash.error,
     /* Empty string, never undefined: the page branches on truthiness to
        decide whether to load the Places library at all, and an undefined
        would throw inside the template instead of quietly degrading to a
        plain text input. */
     mapsKey:   process.env.GOOGLE_MAPS_API_KEY || '',
   });
-
-  delete req.session.checkoutErrors;
-  delete req.session.checkoutOld;
-  delete req.session.checkoutError;
 };
 
 /* ── POST /checkout/info ────────────────────────────────────────── */
@@ -450,6 +489,11 @@ async function requireDraft(req, res) {
 
 /* ── GET /checkout/delivery — page 2 ────────────────────────────── */
 exports.deliveryPage = async (req, res) => {
+  /* FIRST. This handler has TWO early returns below - an empty cart and a
+     missing draft - and the delete used to sit after res.render(), so
+     either one left the errors in the session for up to seven days. */
+  const flash = takeCheckoutFlash(req);
+
   const cart = getCart(req);
   if (cart.items.length === 0) return res.redirect('/cart');
 
@@ -460,9 +504,8 @@ exports.deliveryPage = async (req, res) => {
     pageTitle: 'Delivery | BathroomVanitiesOutlet.com',
     metaDesc:  '', noindex: true,
     cart, subtotal: calcTotal(cart.items), order,
-    errors: req.session.checkoutErrors || {},
+    errors: flash.errors,
   });
-  delete req.session.checkoutErrors;
 };
 
 /* ── POST /checkout/delivery ────────────────────────────────────── */
