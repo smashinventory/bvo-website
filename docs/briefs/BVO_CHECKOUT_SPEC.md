@@ -237,6 +237,14 @@ Flagged so nobody later removes it as redundant.
 **7.3 One delivery level, curbside, free.** No surcharge, no paid
 upgrade. Buyers needing more are routed to contact. See §4.
 
+> ⛔ **CLOSED. Do not re-open, do not "note the gap", do not compare to a
+> competitor's tiers.** Wayfair offers two free levels on a comparable
+> vanity — front door and inside entryway. That is known, it was weighed,
+> and the answer is still one level. It was raised again on 2026-09-27
+> against this settled decision and the owner had to close it a second
+> time. A settled decision does not need re-litigating every time new
+> evidence about someone else's business appears.
+
 **7.4 Three pages.** Information, delivery, payment.
 
 ### Still open
@@ -269,3 +277,56 @@ scope and must not gate a first-time checkout.
 | 2026-09-26 | `updateShippingAddress()` to satisfy the element | Sets session, element stays empty and incomplete |
 | 2026-09-26 | `createShippingAddressElement({defaultValues})` | Rejected: not an accepted parameter |
 | 2026-09-26 | Remove `shipping_address_collection` | Checkout unblocked; tax reverts to billing source |
+
+---
+
+## 8. Authentication emails — captured from Wayfair, 2026-09-27
+
+Owner-supplied screenshots of the real emails. Captured as **structure and
+intent**, to be mirrored in BVO's own voice and brand — not copied as
+copy. Two separate emails, two separate jobs. Do not merge them.
+
+### 8.1 Verification code (item 23)
+
+Sent when an email address is entered at checkout. Carries the code.
+
+| Element | What Wayfair does | Why it matters |
+|---|---|---|
+| Subject | **"Your verification code is 803935"** — the code is IN the subject | Readable on a lock screen. The buyer never opens the mail, which is the fastest possible path back to checkout. Copy this. |
+| Greeting | "Hi Sam," — first name when known | |
+| Lead | "Below is the secure verification code you requested. Enter the 6-digit code on Wayfair to verify it's you!" | States what to do with it before showing it. |
+| The code | Large, centred, alone on its line | Nothing competes with it. No button, no link beside it. |
+| Warning | "Do not share this code with anyone or forward this email to anyone. This code will expire in 10 minutes." | Anti-social-engineering. The expiry is stated in the body, not only enforced server-side. |
+| Wasn't me | "If you didn't request this code:" → a **Secure My Account** link | **The part most implementations omit.** Someone can be mailed a code because a stranger typed their address. This gives them somewhere to go. |
+| Link expiry | "This link will expire 24 hours after you receive this email... click here to receive a new secure email." | The escape hatch has its own lifetime, separate from the 10-minute code. |
+
+### 8.2 New device sign-in (item 26)
+
+Sent when an account signs in from a device that has no "remember this
+device" cookie. **Notification only — carries no code and no credential.**
+
+| Element | What Wayfair does | Why it matters |
+|---|---|---|
+| Title | "Review Device Sign-In" | Neutral. Not "Security alert", which reads as a breach and causes support calls. |
+| Greeting | "Hi," — no name | Notable: they personalise the code email and not this one. |
+| Body | "We noticed your account, **sam.elnazer@gmail.com**, was just used to sign in on a new device." | The account address is printed in the body so the reader can tell WHICH account, and spot immediately if it is not theirs. |
+| Facts | "**Time:** September 27, 2026, 2:06 PM -0400  **Device:** Mac (Web)" | Timezone offset included. Device is deliberately coarse — no IP, no city. Enough to recognise yourself, not enough to alarm or to dox. |
+| All clear | "If this was you, no action is required!" | Reassurance BEFORE the warning. Most recipients are the legitimate user. |
+| Wasn't me | "If this wasn't you: **Please secure your account** immediately." | |
+| Anti-phishing box | "How do you know this email is secure? Links sent from us will always start with `https://www.wayfair.com`." | The strongest element in either email. It teaches the reader to verify every future mail from you. Worth copying outright, with the BVO domain. |
+
+### 8.3 What BVO must decide when building these
+
+- **Do we have a "secure my account" destination at all?** BVO is
+  passwordless — there is no password to change. The equivalent is
+  probably: invalidate all outstanding codes for that email, drop every
+  remembered-device cookie, and tell the owner. That endpoint does not
+  exist and must be designed, not assumed.
+- **Device string.** "Mac (Web)" comes from a user-agent parse. Decide the
+  vocabulary before writing the template; a raw user-agent in an email is
+  both unreadable and a privacy smell.
+- **Where these live.** These are NEW templates for the auth flow, not
+  among the nine transactional templates deferred to cutover in
+  `docs/reference/PRE_LAUNCH_CHECKLIST.md`. Building them is part of items
+  23 and 26. That boundary is deliberate — confirm it with the owner
+  before writing either, rather than assuming which bucket applies.
