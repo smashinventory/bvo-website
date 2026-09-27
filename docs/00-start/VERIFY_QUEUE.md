@@ -166,7 +166,46 @@ accept them. Booking a real test shipment is the only way to close this.
 
 ---
 
-## 7. Stripe webhooks
+## 7. Does the Stripe session still carry an email?
+
+**Open question, do not assume either way.** Answer it with the order from
+step 1 — it must be a session created AFTER the three-page rewrite.
+
+🌐 Stripe → sandbox → Developers → Workbench → **Events** → the newest
+`checkout.session.completed` → JSON panel → `customer_details`.
+
+- [ ] `customer_details.email` — populated, or null?
+- [ ] `customer_details.phone` — should be populated via
+      `actions.updatePhoneNumber()`. Null here means the delivery phone is
+      not reaching Stripe either.
+
+**Why it is open.** Page 3 mounts only the Billing Address Element and the
+Payment Element. The Contact Details Element — which used to collect the
+email — was removed in the rewrite. Nothing obviously populates
+`customer_details.email` now, but that was not confirmed against a live
+session.
+
+`stripeService.js:254` still explains why `customer_email` is not set by
+saying *"The Contact Details Element collects the address and the email on
+the page."* **That comment is stale** — it describes a UI that no longer
+exists. Whatever the answer, the comment needs correcting.
+
+**Checked 2026-09-26 and found inconclusive:** the newest event available
+was order 43 (`BVO-2026-09-26-00149`), created with the OLD single-page
+checkout — identifiable by `billing_address_collection: "required"` and a
+present `shipping_address_collection`, both since changed. It showed email,
+phone and name populated, but by the element that has since been removed.
+
+**If email is null:** set `customer_email` from the draft order at session
+creation. There is no email field on page 3 for it to lock any more, so the
+original objection no longer applies, and without it Stripe has no email for
+receipts or dashboard search. The ORDER is unaffected either way — the
+webhook's `COALESCE` keeps the page 1 email, which is why this cannot be
+answered from the database.
+
+---
+
+## 8. Stripe webhooks
 
 🌐 Stripe → sandbox → Workbench → Webhooks → `energetic-jubilee` → Event
 deliveries.
