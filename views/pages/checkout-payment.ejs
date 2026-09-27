@@ -227,7 +227,20 @@
      Exists because confirm() is failing somewhere the server cannot
      observe, and reading it out of devtools has proved impractical.
      Everything logged here also goes to the console.
-     DELETE this block, and the calls to dbg(), once checkout works. */
+     WHAT WAS REMOVED 2026-09-27 (item 34, first half): the SDK method
+     enumeration, window.__ck, the session.total shape dump and the
+     loadActions key dump. All four were one-off probes whose questions
+     are answered and recorded in the comments around the code they
+     explain.
+
+     WHAT REMAINS, and why: canConfirm, updatePhoneNumber, confirm
+     RESOLVED/THREW, validateElements, WINDOW ERROR and UNHANDLED
+     REJECTION. Every one of them watches a failure that produces NO
+     error by design. On 2026-09-26 the checkout could not take a payment
+     at all - canConfirm was false, the button was correctly disabled,
+     and nothing anywhere said so. The `change:` line is what found it.
+
+     These go out after Sam's full review, not before. */
   var DEBUG = /[?&]debug=1/.test(location.search);
   var dbgBox;
   if (DEBUG) {
@@ -335,20 +348,12 @@
     },
   });
 
-  /* TEMPORARY — goes out with the rest of the ?debug=1 panel.
-     Enumerating the live SDK is the only reliable way to learn what it
-     exposes: confirm() was written from a docs example, does not exist on
-     this object, and cost an evening of zero PaymentIntents. Read the
-     object, then write the shipping code. */
-  if (DEBUG) {
-    window.__ck = checkout;
-    dbg('sdk methods:', Object.keys(checkout).filter(function (k) {
-      return typeof checkout[k] === 'function';
-    }).sort().join(','));
-    dbg('sdk non-fn keys:', Object.keys(checkout).filter(function (k) {
-      return typeof checkout[k] !== 'function';
-    }).sort().join(','));
-  }
+  /* The SDK enumeration and window.__ck that lived here are REMOVED.
+     They existed to answer one question - what does this object actually
+     expose - because confirm() had been written from a docs example and
+     does not exist on it. Answered: confirm() lives on the object
+     returned by loadActions(). Keeping a global handle on the Stripe SDK
+     after that is a liability, not a diagnostic. */
 
   /* Fires whenever any element changes. Two jobs: keep the summary in step
      with Stripe's own totals (tax only exists once there is an address),
@@ -359,15 +364,6 @@
 
     var t = session.total;
     if (!t) return;
-
-    /* One-time shape dump. The SDK's total object is not documented field
-       by field, and guessing at it is what produced $NaN on the first
-       test. Logged once so the real shape is visible in the console
-       instead of being inferred from a broken render. */
-    if (!window.__loggedTotalShape) {
-      window.__loggedTotalShape = true;
-      dbg('session.total shape:', t);
-    }
 
     /* TEMPORARY — shows whether the elements are actually feeding the
        session. If canConfirm never turns true, or the tax status never
@@ -588,7 +584,6 @@
          produced $NaN and the non-existent `tax` key. */
       var loaded = await checkout.loadActions();
       var actions = (loaded && loaded.actions) ? loaded.actions : loaded;
-      dbg('loadActions ->', Object.keys(actions || {}).join(','));
 
       if (!actions || typeof actions.confirm !== 'function') {
         fail('Checkout could not start. Please refresh and try again.');
