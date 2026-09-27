@@ -582,6 +582,12 @@ app.use('/cart',        require('./routes/cart'));
 app.use('/checkout',    require('./routes/checkout'));
 app.use('/account/login',    authLimiter);
 app.use('/account/register', authLimiter);
+/* Passwordless endpoints carry their own per-email and per-IP caps in
+   authCodeService, but those are about EMAIL VOLUME - stopping BVO being
+   used to mail a stranger repeatedly. This limiter is about request
+   volume and is a different job. Both are needed. */
+app.use('/account/code',     authLimiter);
+app.use('/account/verify',   authLimiter);
 app.use('/account',     require('./routes/account'));
 app.use('/admin/login',      adminAuthLimiter);
 app.use('/admin',       require('./routes/admin'));

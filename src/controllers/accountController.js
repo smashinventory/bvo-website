@@ -2,6 +2,132 @@
 
 const Customer         = require('../models/Customer');
 const { bvoPool }      = require('../config/database');
+const authCode         = require('../services/authCodeService');
+const brevo            = require('../services/brevoService');
+
+/* ═══════════════════════════════════════════════════════════════════
+   PASSWORDLESS LOGIN — the six-digit code IS the login.
+
+   Spec: docs/briefs/BVO_CHECKOUT_SPEC.md 7.2, amended 2026-09-27. This
+   REPLACES the bcrypt password system; it is not a second factor on top
+   of one. The password system had no reset route at all, so keeping it
+   meant building one. This deletes that requirement instead — the code
+   is the reset.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Client IP, one canonical expression. Mirrors clientIp() in
+   checkoutController — behind Hostinger's proxy req.ip is the proxy. */
+function clientIp(req) {
+  const fwd = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  return (fwd || req.ip || '').slice(0, 45) || null;
+}
+
+/* Every refusal a buyer can actually cause, in plain words. Deliberately
+   NOT distinguishing "no account" from "wrong code" anywhere — see the
+   service header on enumeration. */
+const CODE_ERRORS = {
+  invalid_email:     'Enter a valid email address.',
+  cooldown:          'We just sent a code. Give it a minute before asking for another.',
+  too_many_resends:  'That is as many codes as we can send right now. Wait ten minutes and try again.',
+  email_hour_cap:    'Too many codes for this address in the last hour. Try again later.',
+  ip_hour_cap:       'Too many sign-in attempts from this connection. Try again later.',
+  bad_code:          'That code is not right. Check it and try again.',
+  too_many_attempts: 'That code is now dead after too many tries. Ask for a new one.',
+  send_failed:       'We could not send the code. Please try again in a moment.',
+};
+
+/* Fallback wording, used ONLY if the editable template is missing or
+   inactive. An auth email that silently does not send is a login outage,
+   so this never depends on a database row existing.
+
+   The code is in the SUBJECT deliberately — a buyer reads it off a lock
+   screen and never opens the mail, which is the shortest path back to
+   checkout. See spec 8.1. */
+function fallbackCodeEmail(code) {
+  return {
+    subject: `Your BVO code is ${code}`,
+    html: `<p>Here is your sign-in code for BathroomVanitiesOutlet.com.</p>
+<p style="font-size:30px;font-weight:700;letter-spacing:4px;margin:20px 0">${code}</p>
+<p>It works for ten minutes, once. Do not share it or forward this email —
+anyone with this code can sign in as you.</p>
+<p>If you did not ask to sign in, you can ignore this. Nobody can get in
+without the code, and it expires shortly.</p>`,
+  };
+}
+
+/* ── POST /account/code ── Send a sign-in code ──────────────────── */
+/* Behaves IDENTICALLY for a known and an unknown address. The account is
+   created on successful verification, not here — so this endpoint has no
+   "does that account exist" answer to leak. */
+exports.sendCode = async (req, res) => {
+  const email = String(req.body.email || '').trim().toLowerCase();
+  const ip    = clientIp(req);
+
+  const issued = await authCode.issueCode(email, ip, 'login');
+  if (!issued.ok) {
+    return res.status(429).json({
+      ok: false,
+      error: CODE_ERRORS[issued.reason] || CODE_ERRORS.send_failed,
+      retryAfter: issued.retryAfter || null,
+    });
+  }
+
+  /* The template is editable in admin; the fallback is what guarantees
+     the mail goes out regardless. */
+  let sent;
+  try {
+    sent = await brevo.sendTemplate('auth_login_code', email, { code: issued.code });
+    if (!sent || sent.skipped) {
+      const f = fallbackCodeEmail(issued.code);
+      sent = await brevo.sendRaw(email, f.subject, f.html);
+    }
+  } catch (err) {
+    /* The code itself is NEVER logged. */
+    console.error('[account.sendCode] send failed:', err && err.message);
+    return res.status(502).json({ ok: false, error: CODE_ERRORS.send_failed });
+  }
+
+  /* Opportunistic housekeeping - no cron to configure and forget. */
+  authCode.purgeExpired().catch(() => {});
+
+  return res.json({ ok: true, resendAfter: authCode._limits.RESEND_COOLDOWN_SEC });
+};
+
+/* ── POST /account/verify ── The code IS the login ──────────────── */
+exports.verifyCode = async (req, res, next) => {
+  try {
+    const email = String(req.body.email || '').trim().toLowerCase();
+    const code  = String(req.body.code  || '').trim();
+
+    const check = await authCode.verifyCode(email, code, 'login');
+    if (!check.ok) {
+      return res.status(401).json({
+        ok: false,
+        error: CODE_ERRORS[check.reason] || CODE_ERRORS.bad_code,
+        attemptsLeft: check.attemptsLeft,
+      });
+    }
+
+    /* Proven address. Sign in or create, one step. */
+    const customer = await Customer.findOrCreateByEmail(email);
+    if (!customer) return res.status(500).json({ ok: false, error: CODE_ERRORS.send_failed });
+
+    /* Same session-fixation guard the password login used. */
+    await new Promise((resolve, reject) =>
+      req.session.regenerate(err => err ? reject(err) : resolve())
+    );
+    req.session.customerId = customer.id;
+    req.session.customer   = { id: customer.id, firstName: customer.first_name || '', email };
+    await Customer.updateLastLogin(customer.id);
+
+    /* Rejects protocol-relative URLs like //evil.com, which pass a naive
+       startsWith('/'). Same guard as the password login. */
+    const rt = req.body.return_to;
+    const safeReturn = rt && /^\/(?!\/)/.test(rt) ? rt : '/account';
+
+    return res.json({ ok: true, created: customer.created, redirect: safeReturn });
+  } catch (err) { next(err); }
+};
 
 /* ── GET /account/login ─────────────────────────────────────────── */
 exports.loginPage = (req, res) => {
@@ -14,119 +140,30 @@ exports.loginPage = (req, res) => {
   });
 };
 
-/* ── POST /account/login ────────────────────────────────────────── */
-exports.login = async (req, res, next) => {
-  try {
-    const { email, password, return_to } = req.body;
-    const customer = await Customer.findByEmail(email);
+/* ── POST /account/login ── GONE ────────────────────────────────── */
+/* Passwords were removed 2026-09-27 — spec 7.2. The system had no reset
+   route, so a forgotten password locked a customer out permanently.
+   Keeping passwords meant building reset; passwordless deletes the
+   requirement instead.
 
-    if (!customer || !customer.password_hash) {
-      return res.render('pages/account/login', {
-        pageTitle: 'Sign In | BathroomVanitiesOutlet.com',
-        metaDesc:  '',
-        error: 'Invalid email or password.',
-        returnTo: return_to || '/account',
-      });
-    }
-
-    const valid = await Customer.verifyPassword(password, customer.password_hash);
-    if (!valid) {
-      return res.render('pages/account/login', {
-        pageTitle: 'Sign In | BathroomVanitiesOutlet.com',
-        metaDesc:  '',
-        error: 'Invalid email or password.',
-        returnTo: return_to || '/account',
-      });
-    }
-
-    // Regenerate session ID to prevent session fixation attacks
-    await new Promise((resolve, reject) =>
-      req.session.regenerate(err => err ? reject(err) : resolve())
-    );
-    req.session.customerId = customer.id;
-    req.session.customer   = { id: customer.id, firstName: customer.first_name, email: customer.email };
-    await Customer.updateLastLogin(customer.id);
-
-    // /^\/(?!\/)/ rejects protocol-relative URLs like //evil.com that pass startsWith('/')
-    const safeReturn = return_to && /^\/(?!\/)/.test(return_to) ? return_to : '/account';
-    res.redirect(safeReturn);
-  } catch (err) { next(err); }
+   The route is kept and answers plainly rather than 404ing, because a
+   bookmarked form or a password manager will still POST here. */
+exports.login = (req, res) => {
+  res.status(410).redirect('/account/login');
 };
 
-/* ── GET /account/register ──────────────────────────────────────── */
+/* ── /account/register ── FOLDED INTO SIGN-IN ───────────────────── */
+/* There is no separate registration any more. Entering an address and
+   proving it with a code either signs you in or creates the account —
+   one action, spec 7.2. Both routes stay so old links and bookmarks land
+   somewhere sensible instead of 404ing. */
 exports.registerPage = (req, res) => {
   if (req.session.customerId) return res.redirect('/account');
-  res.render('pages/account/register', {
-    pageTitle: 'Create Account | BathroomVanitiesOutlet.com',
-    metaDesc:  '',
-    error: null,
-    query: req.query,
-  });
+  res.redirect('/account/login');
 };
 
-/* ── POST /account/register ─────────────────────────────────────── */
-exports.register = async (req, res, next) => {
-  try {
-    const { email, first_name, last_name, password, password2, accepts_marketing } = req.body;
-
-    // Guard missing / non-string fields before any .length or .toLowerCase() call
-    const emailStr    = (email    || '').trim();
-    const passwordStr = (password || '');
-    const password2Str= (password2|| '');
-
-    if (!emailStr || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailStr)) {
-      return res.render('pages/account/register', {
-        pageTitle: 'Create Account | BathroomVanitiesOutlet.com',
-        metaDesc:  '',
-        error: 'Please enter a valid email address.',
-        query: req.query,
-      });
-    }
-    if (passwordStr !== password2Str) {
-      return res.render('pages/account/register', {
-        pageTitle: 'Create Account | BathroomVanitiesOutlet.com',
-        metaDesc:  '',
-        error: 'Passwords do not match.',
-        query: req.query,
-      });
-    }
-    // LOW-5: Require min 12 chars + at least one digit + one non-alphanumeric character
-    if (
-      passwordStr.length < 12 ||
-      !/[0-9]/.test(passwordStr) ||
-      !/[^a-zA-Z0-9]/.test(passwordStr)
-    ) {
-      return res.render('pages/account/register', {
-        pageTitle: 'Create Account | BathroomVanitiesOutlet.com',
-        metaDesc:  '',
-        error: 'Password must be at least 12 characters and include at least one number and one special character (e.g. !@#$%).',
-        query: req.query,
-      });
-    }
-
-    const existing = await Customer.findByEmail(emailStr);
-    if (existing) {
-      // Generic message — does not reveal whether the email is registered (MED-2)
-      return res.render('pages/account/register', {
-        pageTitle: 'Create Account | BathroomVanitiesOutlet.com',
-        metaDesc:  '',
-        error: 'We were unable to create an account with that email. If you already have an account, please sign in.',
-        query: req.query,
-      });
-    }
-
-    const firstNameStr = (first_name || '').trim().slice(0, 100);
-    const lastNameStr  = (last_name  || '').trim().slice(0, 100);
-
-    const id = await Customer.create({
-      email: emailStr, firstName: firstNameStr, lastName: lastNameStr,
-      password: passwordStr, acceptsMarketing: !!accepts_marketing,
-    });
-
-    req.session.customerId = id;
-    req.session.customer   = { id, firstName: firstNameStr, email: emailStr };
-    res.redirect('/account');
-  } catch (err) { next(err); }
+exports.register = (req, res) => {
+  res.status(410).redirect('/account/login');
 };
 
 /* ── GET /account ── Dashboard ──────────────────────────────────── */

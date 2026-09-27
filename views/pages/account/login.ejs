@@ -1,34 +1,201 @@
+<%/* Passwordless sign-in. The six-digit code IS the login — there is no
+     password field, no reset link, and no separate "register" path.
+
+     Spec: docs/briefs/BVO_CHECKOUT_SPEC.md §7.2, amended 2026-09-27.
+
+     ONE SCREEN, TWO STEPS. Sign in and create an account are the same
+     action, which is why the heading does not promise one or the other —
+     we genuinely do not know yet, and the endpoint deliberately does not
+     find out. Telling the buyer "no account found" would be the thing
+     that enumerates the customer list. */%>
 <div class="auth-page">
   <div class="auth-card">
     <div class="auth-logo">
       <img src="/images/logos/BVOLOGOSQ_512.png" alt="BVO" width="60" height="60">
     </div>
-    <h1 class="auth-title">Sign In</h1>
-    <p class="auth-sub">Welcome back</p>
 
-    <% if (error) { %>
-    <div class="auth-error" role="alert"><%= error %></div>
-    <% } %>
+    <%/* Step 1 — the address. */%>
+    <div id="auth-step-email">
+      <h1 class="auth-title">Sign in</h1>
+      <p class="auth-sub">Enter your email and we'll send you a six-digit code. No password to remember.</p>
 
-    <form action="/account/login" method="POST" class="auth-form" novalidate>
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <input type="hidden" name="return_to" value="<%= returnTo %>">
+      <% if (error) { %><div class="auth-error" role="alert"><%= error %></div><% } %>
+      <div class="auth-error" id="auth-err-email" role="alert" hidden></div>
 
-      <div class="form-group">
-        <label for="email">Email address</label>
-        <input type="email" id="email" name="email" required autocomplete="email" placeholder="you@example.com">
-      </div>
+      <form class="auth-form" id="auth-email-form" novalidate>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="return_to" value="<%= returnTo %>">
+        <div class="form-group">
+          <label for="email">Email address</label>
+          <input type="email" id="email" name="email" required autocomplete="email"
+                 placeholder="you@example.com">
+        </div>
+        <button type="submit" class="btn btn-amber" id="auth-send-btn"
+                style="width:100%;padding:.85rem">Continue</button>
+      </form>
+    </div>
 
-      <div class="form-group">
-        <label for="password">Password</label>
-        <input type="password" id="password" name="password" required autocomplete="current-password" placeholder="••••••••">
-      </div>
+    <%/* Step 2 — the code. Hidden until one has been sent. */%>
+    <div id="auth-step-code" hidden>
+      <h1 class="auth-title">Check your email</h1>
+      <p class="auth-sub">We sent a six-digit code to <strong id="auth-sent-to"></strong>.
+        It works for ten minutes.</p>
 
-      <button type="submit" class="btn btn-amber" style="width:100%;padding:.85rem">Sign In</button>
-    </form>
+      <div class="auth-error" id="auth-err-code" role="alert" hidden></div>
 
-    <p class="auth-switch">
-      Don't have an account? <a href="/account/register">Create one</a>
-    </p>
+      <form class="auth-form" id="auth-code-form" novalidate>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div class="form-group">
+          <label for="code">Six-digit code</label>
+          <%/* inputmode numeric + autocomplete one-time-code lets iOS and
+               Android offer the code straight from the notification, which
+               is most of the reason this flow feels fast. */%>
+          <input type="text" id="code" name="code" required
+                 inputmode="numeric" autocomplete="one-time-code"
+                 maxlength="6" pattern="[0-9]{6}" placeholder="000000"
+                 style="letter-spacing:.4em;font-size:1.3rem;text-align:center">
+        </div>
+        <button type="submit" class="btn btn-amber" id="auth-verify-btn"
+                style="width:100%;padding:.85rem">Sign in</button>
+      </form>
+
+      <p class="auth-switch">
+        <button type="button" class="link-button" id="auth-resend" disabled>Send another code</button>
+        &nbsp;·&nbsp;
+        <button type="button" class="link-button" id="auth-change-email">Use a different address</button>
+      </p>
+    </div>
   </div>
 </div>
+
+<script nonce="<%= cspNonce %>">
+(function () {
+  'use strict';
+
+  var stepEmail = document.getElementById('auth-step-email');
+  var stepCode  = document.getElementById('auth-step-code');
+  var emailForm = document.getElementById('auth-email-form');
+  var codeForm  = document.getElementById('auth-code-form');
+  var sendBtn   = document.getElementById('auth-send-btn');
+  var verifyBtn = document.getElementById('auth-verify-btn');
+  var resendBtn = document.getElementById('auth-resend');
+  var errEmail  = document.getElementById('auth-err-email');
+  var errCode   = document.getElementById('auth-err-code');
+  var sentTo    = document.getElementById('auth-sent-to');
+  var csrf      = emailForm.querySelector('[name="_csrf"]').value;
+  var returnTo  = emailForm.querySelector('[name="return_to"]').value;
+
+  var currentEmail = '';
+  var cooldownTimer = null;
+
+  function show(el, msg) { el.textContent = msg; el.hidden = !msg; }
+
+  function post(url, body) {
+    return fetch(url, {
+      method: 'POST',
+      /* X-CSRF-Token, NOT CSRF-Token. The validator in server.js reads
+         req.headers['x-csrf-token'] and nothing else, so the shorter name
+         403s every request with no clue why. */
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+      body: JSON.stringify(body),
+      credentials: 'same-origin',
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; })
+        .then(function (j) { return { status: r.status, body: j }; });
+    });
+  }
+
+  /* Counts the resend button down rather than leaving it dead. A disabled
+     control with no explanation reads as broken. */
+  function startCooldown(seconds) {
+    var left = seconds || 60;
+    resendBtn.disabled = true;
+    clearInterval(cooldownTimer);
+    cooldownTimer = setInterval(function () {
+      left--;
+      if (left <= 0) {
+        clearInterval(cooldownTimer);
+        resendBtn.disabled = false;
+        resendBtn.textContent = 'Send another code';
+      } else {
+        resendBtn.textContent = 'Send another code in ' + left + 's';
+      }
+    }, 1000);
+    resendBtn.textContent = 'Send another code in ' + left + 's';
+  }
+
+  function requestCode(email, errBox, btn, btnLabel) {
+    btn.disabled = true;
+    show(errBox, '');
+    return post('/account/code', { email: email })
+      .then(function (r) {
+        btn.disabled = false;
+        btn.textContent = btnLabel;
+        if (!r.body.ok) { show(errBox, r.body.error || 'Something went wrong.'); return false; }
+        startCooldown(r.body.resendAfter);
+        return true;
+      })
+      .catch(function () {
+        btn.disabled = false;
+        btn.textContent = btnLabel;
+        show(errBox, 'We could not reach the server. Check your connection and try again.');
+        return false;
+      });
+  }
+
+  emailForm.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var email = document.getElementById('email').value.trim();
+    if (!email) { show(errEmail, 'Enter your email address.'); return; }
+    sendBtn.textContent = 'Sending…';
+    requestCode(email, errEmail, sendBtn, 'Continue').then(function (ok) {
+      if (!ok) return;
+      currentEmail = email;
+      sentTo.textContent = email;
+      stepEmail.hidden = true;
+      stepCode.hidden = false;
+      document.getElementById('code').focus();
+    });
+  });
+
+  codeForm.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var code = document.getElementById('code').value.trim();
+    if (!/^\d{6}$/.test(code)) { show(errCode, 'Enter the six digits from the email.'); return; }
+    verifyBtn.disabled = true;
+    verifyBtn.textContent = 'Checking…';
+    show(errCode, '');
+    post('/account/verify', { email: currentEmail, code: code, return_to: returnTo })
+      .then(function (r) {
+        if (r.body.ok) { window.location.href = r.body.redirect || '/account'; return; }
+        verifyBtn.disabled = false;
+        verifyBtn.textContent = 'Sign in';
+        var msg = r.body.error || 'That code is not right.';
+        if (typeof r.body.attemptsLeft === 'number' && r.body.attemptsLeft > 0) {
+          msg += ' ' + r.body.attemptsLeft + ' ' +
+                 (r.body.attemptsLeft === 1 ? 'try' : 'tries') + ' left.';
+        }
+        show(errCode, msg);
+        document.getElementById('code').select();
+      })
+      .catch(function () {
+        verifyBtn.disabled = false;
+        verifyBtn.textContent = 'Sign in';
+        show(errCode, 'We could not reach the server. Check your connection and try again.');
+      });
+  });
+
+  resendBtn.addEventListener('click', function () {
+    requestCode(currentEmail, errCode, resendBtn, 'Send another code');
+  });
+
+  document.getElementById('auth-change-email').addEventListener('click', function () {
+    clearInterval(cooldownTimer);
+    stepCode.hidden = true;
+    stepEmail.hidden = false;
+    show(errEmail, '');
+    show(errCode, '');
+    document.getElementById('email').focus();
+  });
+})();
+</script>

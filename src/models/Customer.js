@@ -39,6 +39,35 @@ const Customer = {
     return bcrypt.compare(plaintext, hash);
   },
 
+  /**
+   * Find the customer for a VERIFIED email, creating one if there is none.
+   *
+   * Only ever called after authCodeService.verifyCode() has returned ok,
+   * so the address is proven. That is what lets this both sign in and
+   * register in a single step — and it is why the code endpoint cannot
+   * enumerate customers: there is no "does this account exist" question
+   * for it to answer, because the answer stops mattering.
+   *
+   * No password is written. password_hash stays NULL on every account
+   * created this way; the column survives only until nothing reads it.
+   * See docs/briefs/BVO_CHECKOUT_SPEC.md 7.2.
+   */
+  async findOrCreateByEmail(rawEmail) {
+    const email = String(rawEmail || '').toLowerCase().trim();
+    if (!email) return null;
+
+    const existing = await this.findByEmail(email);
+    if (existing) return { id: existing.id, email: existing.email,
+                           first_name: existing.first_name, created: false };
+
+    const [result] = await bvoPool.query(
+      `INSERT INTO customers (email, first_name, last_name, password_hash, accepts_marketing)
+       VALUES (?, '', '', NULL, 0)`,
+      [email]
+    );
+    return { id: result.insertId, email, first_name: '', created: true };
+  },
+
   async updateLastLogin(id) {
     try {
       await bvoPool.query('UPDATE customers SET last_login_at = NOW() WHERE id = ?', [id]);
