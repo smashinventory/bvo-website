@@ -315,13 +315,43 @@ device" cookie. **Notification only — carries no code and no credential.**
 | Wasn't me | "If this wasn't you: **Please secure your account** immediately." | |
 | Anti-phishing box | "How do you know this email is secure? Links sent from us will always start with `https://www.wayfair.com`." | The strongest element in either email. It teaches the reader to verify every future mail from you. Worth copying outright, with the BVO domain. |
 
-### 8.3 What BVO must decide when building these
+### 8.3 TWO ACCOUNT TYPES, TWO RISK PROFILES
 
-- **Do we have a "secure my account" destination at all?** BVO is
-  passwordless — there is no password to change. The equivalent is
-  probably: invalidate all outstanding codes for that email, drop every
-  remembered-device cookie, and tell the owner. That endpoint does not
-  exist and must be designed, not assumed.
+**Corrected 2026-09-27.** An earlier draft of this section called BVO
+"passwordless" without qualification. BVO has **retail accounts and trade
+accounts**, and they do not hold the same things. See
+`docs/reference/TRADE_PROGRAM_SPEC.md`.
+
+| | Retail account | Trade account |
+|---|---|---|
+| Holds | Order history, saved addresses | All of that, **plus an uploaded business licence, a tax ID, a resale certificate, and confidential trade pricing** |
+| Worst case if the inbox is compromised | Someone sees past orders and an address | Someone downloads a document that, for a sole proprietor, **may carry an SSN as the tax ID** |
+
+Email-code login is a sound trade-off for the retail case. For trade it is
+a much larger claim, and "we sent a six-digit code" is thin protection for
+a tax document.
+
+**The cheapest fix is architectural, not authentication.** Make uploaded
+business documents **write-only from the customer side** — the buyer
+uploads at application and can never download or view them again; only
+admin can. An email-code session then cannot leak the document, because
+there is no route to it. That removes the worst exposure without adding a
+password, a second factor, or any friction to a trade buyer who just wants
+to place an order.
+
+Trade *pricing* visible in an email-code session is a different matter and
+is acceptable: seeing trade prices is the entire point of the account.
+
+**Still to decide, and not to be assumed:**
+
+- Does a trade account need a second factor for anything at all, once
+  documents are write-only? Probably not — but it is a decision.
+- **"Secure my account" has a real meaning for BVO and it is not "change
+  your password".** It is: invalidate every outstanding code for that
+  email, drop every remembered-device cookie, and — for a trade account —
+  notify the owner, because a compromised trade login is a pricing leak
+  that points back at BVO's MAP position. That endpoint does not exist and
+  must be designed, not assumed.
 - **Device string.** "Mac (Web)" comes from a user-agent parse. Decide the
   vocabulary before writing the template; a raw user-agent in an email is
   both unreadable and a privacy smell.
