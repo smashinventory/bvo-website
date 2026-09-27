@@ -325,7 +325,7 @@ orders/month.
 | Referrer restriction | 3 patterns: the hostingersite temp domain, apex, and `*.` subdomain |
 | API restriction | 4 APIs — Places (New), Address Validation, Maps Embed, Street View Static |
 | Budget alert | $10/month, 50/90/100% on actual spend |
-| Quota cap | Places API: **2,000 requests/day, 100/minute** |
+| Quota cap | Places API (New): see the full table below — all 21 quotas set |
 
 **Two billing accounts exist** — `01476C-094F74-9E406B`
 ("My Maps Billing Account - BVO") and `01ED66-7F8A4D-ABDA90`
@@ -335,13 +335,47 @@ watches nothing and never fires; two budgets cost nothing and remove the
 guesswork. Do not "tidy up" by deleting one without first confirming the
 project's linked account.
 
-**Quota maths, recorded so the numbers are not re-derived:** 2,000/day is
-60,000/month against a 10,000 free cap, so a loop running at the daily
-ceiling all month would cost about $141. Real usage at 100 shoppers/month
-with debouncing is 10–30 requests/day, so the cap is 60–200× actual. A
-tighter 500/day would bound the worst case near $14 and still leave 15–50×
-headroom — worth lowering if volume stays flat. 350/day would stay entirely
-inside the free cap.
+**QUOTAS ARE PER-API, AND THE NEW API HAS ITS OWN SET.** The caps first
+set on 2026-09-27 were on the *legacy* Places API and protected nothing:
+the code calls Places API (New), whose 21 quotas were still at their
+defaults of 150,000+ or unlimited. Found by the owner, not by me. Every
+Google API added from here starts wide open and needs its own pass —
+**Address Validation will too, when §5.1 ships.**
+
+**All 21 Places API (New) quotas, as set 2026-09-27:**
+
+| Quota | Per day | Per minute | Per min/user |
+|---|---|---|---|
+| AutocompletePlacesRequest | 1,000 | 100 | 60 |
+| GetPlaceRequest | 500 | 30 | 10 |
+| GetPhotoMediaRequest | 20 | 20 | 20 |
+| SearchMediaRequest | 20 | 20 | 20 |
+| SearchNearbyRequest | 20 | 20 | 20 |
+| SearchReviewPostsRequest | 20 | 20 | 20 |
+| SearchTextRequest | 20 | 20 | 20 |
+
+**Only the first two are reachable from BVO code.** Autocomplete fires on
+a 300ms debounce from checkout page 1; GetPlace (Place Details) fires once
+per address selected and is what terminates the billing session.
+
+**The other five are set to 20, NOT 0, deliberately.** Twenty a day on an
+endpoint nothing calls is a trivial blast radius even with a scraped key,
+and a hard 0 has a real downside: a feature added later that touches one
+of them fails in a way that looks like a bug rather than a limit. Do not
+"tighten" these to 0 without a reason.
+
+**Quota maths, recorded so the numbers are not re-derived:** autocomplete
+at 1,000/day is 30,000/month against a 10,000 free cap, so a loop running
+at the ceiling all month costs roughly $57 at $2.83/1,000. Real usage at
+100 shoppers/month with debouncing is 10–30 requests/day, so the cap sits
+30–100× above actual. GetPlace at 500/day against a real 3–7/day survives a
+very good sales day while bounding the damage.
+
+**If a cap ever trips, checkout still works.** Autocomplete stops
+suggesting and the field reverts to plain typing; a selection stops
+filling. The order completes either way. That is why the field was built
+to degrade rather than block — a tripped quota costs convenience, not the
+sale.
 
 ⚠️ **Street View Static API is enabled for its METADATA endpoint, not for
 images.** Metadata is the free, unlimited call that reports whether a
