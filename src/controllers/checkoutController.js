@@ -56,6 +56,7 @@ const crypto      = require('crypto');
 const { bvoPool } = require('../config/database');
 const stripe      = require('../services/stripeService');
 const brevo       = require('../services/brevoService');
+const geocode     = require('../services/geocodeService');
 
 /* ── Helpers ────────────────────────────────────────────────────── */
 
@@ -1029,6 +1030,36 @@ async function handleSessionCompleted(sessionStub) {
     );
 
     if (upd.affectedRows === 0) return;   // replay — already handled
+
+    /* Geocode the delivery address. Deliberately NOT awaited.
+
+       This is a convenience for the admin delivery screen, not part of
+       taking the order: the Census service is free and has no SLA, and a
+       slow or dead lookup must never delay the confirmation email or
+       leave this handler half-finished. Failure writes nothing, so
+       ship_geocoded_at stays null and the columns can be filled later.
+
+       Guarded on the ship-to actually existing. The guard matters: on an
+       order where nothing was collected, shippingFrom() falls back to the
+       billing address, and geocoding that would silently pin the map to
+       the cardholder's home rather than the delivery address. */
+    if (who.shipAddress1 && (who.shipZip || (who.shipCity && who.shipState))) {
+      geocode.geocodeUsAddress({
+        address1: who.shipAddress1,
+        city:     who.shipCity,
+        state:    who.shipState,
+        zip:      who.shipZip,
+      })
+        .then(g => g && bvoPool.query(
+          `UPDATE orders
+              SET ship_lat = ?, ship_lng = ?,
+                  ship_geocode_source = ?, ship_geocoded_at = NOW()
+            WHERE id = ? AND ship_lat IS NULL`,
+          [g.lat, g.lng, g.source, orderId]
+        ))
+        .catch(err => console.error('[checkout] geocode failed for order',
+          orderId, '—', err && err.message));
+    }
 
     await conn.query(
       `INSERT INTO order_events (order_id, event_type, from_status, to_status, actor, notes)

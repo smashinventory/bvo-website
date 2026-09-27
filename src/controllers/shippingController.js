@@ -100,7 +100,14 @@ async function createForm(req, res) {
     const order = await safeQueryOne(
       `SELECT o.id, o.order_number, o.status, o.total,
               o.ship_first_name, o.ship_last_name,
-              o.ship_address1, o.ship_city, o.ship_state, o.ship_zip,
+              o.ship_address1, o.ship_address2,
+              o.ship_city, o.ship_state, o.ship_zip,
+              /* The DELIVERY facts, collected on checkout page 1 and
+                 never read here until 2026-09-26. ship_phone is the
+                 number the buyer was told the carrier would call to
+                 schedule; c.phone is the account holder's and is NULL on
+                 every guest order. */
+              o.ship_phone, o.ship_phone_ext, o.ship_address_type,
               COALESCE(
                 NULLIF(TRIM(CONCAT(COALESCE(c.first_name,''),' ',COALESCE(c.last_name,''))),''),
                 NULLIF(TRIM(CONCAT(COALESCE(o.ship_first_name,''),' ',COALESCE(o.ship_last_name,''))),''),
@@ -124,11 +131,27 @@ async function createForm(req, res) {
         company:    '',
         name:       fullName,
         address1:   order.ship_address1 || '',
+        address2:   order.ship_address2 || '',
         city:       order.ship_city     || '',
         state:      order.ship_state    || '',
         zip:        order.ship_zip      || '',
-        phone:      order.phone         || '',
+        /* DELIVERY phone first, account phone second.
+
+           This read `order.phone` alone, which is c.phone from the
+           customers table - NULL on every guest order, so the field
+           arrived empty and WWEX rejects a booking with
+           "Destination Phone is required". Worse, when it was filled it
+           was the wrong number: the buyer is told on checkout page 1
+           that ship_phone is what the carrier calls to schedule. */
+        phone:      order.ship_phone || order.phone || '',
+        phoneExt:   order.ship_phone_ext || '',
         email:      order.email         || '',
+        /* Residential is the buyer's own answer from page 1, not a guess
+           from the address. Checking the box auto-sets locationType
+           RESIDENTIAL plus liftgate delivery - see onResidentialChange()
+           in create.ejs. Note there is NO residentialDeliveryFlag in the
+           WWEX API; residential delivery IS the locationType. */
+        residential: order.ship_address_type === 'residential',
         reference1: `Order ${order.order_number || '#'+order.id}`,
       };
 

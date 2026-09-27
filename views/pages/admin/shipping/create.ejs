@@ -140,7 +140,13 @@ const meta = orderMeta           || null;
         </div>
         <div class="adm-field">
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:6px">
-            <input type="checkbox" id="dest_residential" onchange="onResidentialChange(this.checked)"> Residential address
+            <%/* Pre-ticked from the buyer's own answer on checkout page 1
+                 (orders.ship_address_type), not inferred from the address.
+                 onResidentialChange() is fired on load further down so
+                 locationType and liftgate follow - setting `checked` here
+                 does NOT raise a change event. */%>
+            <input type="checkbox" id="dest_residential" <%= pre.residential ? 'checked' : '' %>
+                   onchange="onResidentialChange(this.checked)"> Residential address
           </label>
           <small style="color:#718096;font-size:.75rem">Auto-sets Residential + Liftgate Delivery</small>
         </div>
@@ -652,6 +658,17 @@ function toggleInsureVal(v) {
 }
 
 /* ── Residential address sync ─────────────────────────────────── */
+/* Prefilled residential needs the sync run once on load.
+
+   Setting the `checked` attribute in HTML does not fire a change event,
+   so without this the box would show ticked while locationType stayed
+   empty and liftgate stayed off - the shipment books to a house with no
+   lift gate, and the driver cannot get a 300 lb crate off the truck. */
+document.addEventListener('DOMContentLoaded', function () {
+  var r = document.getElementById('dest_residential');
+  if (r && r.checked) onResidentialChange(true);
+});
+
 function onResidentialChange(checked) {
   // Auto-check Residential Delivery + Liftgate Delivery when address is residential
   var rd = document.getElementById('acc_residentialDelivery');
