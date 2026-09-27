@@ -456,14 +456,22 @@
      shipping element unsatisfiable. `contacts` IS accepted, so the buyer
      picks their delivery address in one click. Because THEY selected it,
      the element reports complete and canConfirm is satisfied. */
+  /* EVERY value a string. Stripe rejects null outright:
+
+       "options.contacts.0.address.line2 should be a string.
+        You specified: null."
+
+     and the throw aborts the rest of this script, so the payment element
+     below never mounts and the page renders with empty cards. ship_address2
+     is NULL for most orders, which made this fire on the common path. */
   var billingContacts = <%- JSON.stringify([{
         name: [order.ship_first_name, order.ship_last_name].filter(Boolean).join(' '),
         address: {
-          line1:       order.ship_address1 || '',
-          line2:       order.ship_address2 || null,
-          city:        order.ship_city     || '',
-          state:       order.ship_state    || '',
-          postal_code: order.ship_zip      || '',
+          line1:       String(order.ship_address1 || ''),
+          line2:       String(order.ship_address2 || ''),
+          city:        String(order.ship_city     || ''),
+          state:       String(order.ship_state    || ''),
+          postal_code: String(order.ship_zip      || ''),
           country:     'US',
         },
       }]).replace(/</g, '\\u003c') %>;
