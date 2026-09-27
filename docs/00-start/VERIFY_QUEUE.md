@@ -397,3 +397,31 @@ autocomplete still returns nothing after deploying, the console error will
 now be a Google error (`REQUEST_DENIED`, `PERMISSION_DENIED`,
 `RefererNotAllowedMapError`) rather than a transport error, and that names
 the cause directly.
+
+### 2026-09-27 — three separate causes, one feature, all gates green
+
+Autocomplete had never worked once. Three independent faults, each hiding
+the next, none findable by reading code:
+
+1. **CSP** — `connect-src` allowed `maps.googleapis.com` (the library) but
+   not `places.googleapis.com` (the requests).
+2. **Cloud project** — Places API (New) was not enabled. "Places API" and
+   "Places API (New)" are separate products; the legacy one was on.
+3. **Loader race** — the promise resolved on `script.onload`, which fires
+   BEFORE the API installs `google.maps.importLibrary`. Measured:
+   `importLibrary type at onload: undefined` → TypeError. Fixed with
+   Google's documented `&callback=`.
+
+Fault 3 is the instructive one. The library kept loading after the
+rejection, so within ~300ms `google.maps` was fully present and every
+outward sign said healthy. The only evidence was a rejected promise that
+`giveUp()` swallowed — correctly, since a buyer can do nothing about it.
+Graceful degradation and silent failure are the same mechanism seen from
+two sides.
+
+**What this cost:** three deploys. Every gate was green throughout.
+
+**The rule that would have caught all three:** a feature that talks to a
+third party is not verified until someone opens the page and reads the
+actual response or the actual error. Gates prove the code says what we
+meant. They cannot prove the other end agrees.

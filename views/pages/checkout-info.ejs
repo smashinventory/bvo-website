@@ -375,14 +375,35 @@ const money = n => '$' + Number(n || 0).toLocaleString('en-US',
     if (loading) return loading;
     loading = new Promise(function (resolve, reject) {
       if (window.google && window.google.maps && window.google.maps.importLibrary) return resolve();
+
+      /* &callback=, NOT script.onload. THIS IS A RACE AND onload LOSES.
+         Measured on the live site 2026-09-27:
+           onload fired
+           google.maps exists at onload:     true
+           importLibrary type at onload:     undefined
+           -> TypeError: google.maps.importLibrary is not a function
+         onload fires when the bootstrap script finishes executing, which
+         is BEFORE the API finishes installing importLibrary. The callback
+         is Google's documented signal that the API is actually ready, and
+         it is the only one that is true at the moment it fires.
+
+         The failure was invisible: the library went on loading normally,
+         so google.maps was present a few hundred ms later and everything
+         looked healthy. Only the one rejected promise - already swallowed
+         by giveUp() - knew anything had gone wrong. */
+      window.bvoPlacesReady = function () { resolve(); };
+
       var s = document.createElement('script');
-      /* loading=async is what Google's own loader sets; without it the
-         library logs a performance warning on every page. */
       s.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(KEY)
-            + '&libraries=places&loading=async&v=weekly';
+            + '&libraries=places&loading=async&v=weekly&callback=bvoPlacesReady';
       s.async = true;
-      s.onload = resolve;
+      /* onerror still matters: it is what catches a blocked or offline
+         script, where the callback simply never fires. */
       s.onerror = function () { reject(new Error('script blocked')); };
+      /* And a ceiling, because a callback that never fires would otherwise
+         leave the promise pending forever and the field in a state that
+         never resolves either way. */
+      setTimeout(function () { reject(new Error('maps callback never fired')); }, 10000);
       document.head.appendChild(s);
     }).then(function () {
       return google.maps.importLibrary('places');
