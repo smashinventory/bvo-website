@@ -72,8 +72,16 @@ exports.sendCode = async (req, res) => {
     });
   }
 
-  /* The template is editable in admin; the fallback is what guarantees
-     the mail goes out regardless. */
+  /* The template is editable in admin; the fallback covers a missing or
+     inactive row.
+
+     BOTH RESULTS ARE CHECKED. brevoService NEVER THROWS — it returns
+     {skipped:true} with no API key and {ok:false, error} when Brevo
+     rejects. An earlier version of this handler checked neither and
+     reported success regardless, so the buyer saw "Check your email"
+     while nothing had been sent. For a login that is the worst possible
+     failure: the one screen where the user cannot tell the difference
+     between "wait longer" and "this is broken". */
   let sent;
   try {
     sent = await brevo.sendTemplate('auth_login_code', email, { code: issued.code });
@@ -83,7 +91,19 @@ exports.sendCode = async (req, res) => {
     }
   } catch (err) {
     /* The code itself is NEVER logged. */
-    console.error('[account.sendCode] send failed:', err && err.message);
+    console.error('[account.sendCode] send threw:', err && err.message);
+    return res.status(502).json({ ok: false, error: CODE_ERRORS.send_failed });
+  }
+
+  if (!sent || !sent.ok) {
+    /* Detail to the server log, generic message to the browser — a Brevo
+       error body can carry account and sender information that has no
+       business in a response. Same rule as the three AJAX handlers fixed
+       earlier for leaking err.message. */
+    console.error('[account.sendCode] NOT SENT to', email,
+      '— skipped:', !!(sent && sent.skipped),
+      '— error:', (sent && sent.error) ? JSON.stringify(sent.error).slice(0, 300) : 'none',
+      '— BREVO_API_KEY set:', !!process.env.BREVO_API_KEY);
     return res.status(502).json({ ok: false, error: CODE_ERRORS.send_failed });
   }
 
