@@ -538,9 +538,44 @@ send a test event and confirm a 2xx. The signing secret is per-endpoint —
 if the endpoint is recreated rather than edited, `STRIPE_WEBHOOK_SECRET` in
 hPanel must be updated to match or every event fails signature verification.
 
-**Also confirm a LIVE-mode destination exists at all.** As of 2026-09-26
-only the sandbox one had been seen. Without a live endpoint, the three
-failures above apply to every real order from the first day.
+**Live destination now exists** — `energetic-sensation`, created
+2026-09-26, same `/checkout/webhook` path, all 7 events. Sandbox keeps
+`energetic-jubilee`. Both are Active.
+
+### 🔑 Env vars are still SANDBOX on purpose — swap at cutover
+
+Deliberate, decided 2026-09-26: testing continues in the sandbox, so the
+app still holds sandbox credentials. That is safe today — the live
+endpoint cannot be reached while the app transacts against the sandbox.
+
+**The code reads exactly three names.** Anything else is inert:
+
+| Name the code reads | Where |
+|---|---|
+| `STRIPE_SECRET_KEY` | `src/services/stripeService.js:64` |
+| `STRIPE_WEBHOOK_SECRET` | `src/services/stripeService.js:349` |
+| `STRIPE_PUBLISHABLE_KEY` | `src/controllers/checkoutController.js:524` |
+
+At cutover, in hPanel → Environment variables:
+
+1. `STRIPE_SECRET_KEY` ← `sk_live_…` (Stripe → Developers → API keys)
+2. `STRIPE_PUBLISHABLE_KEY` ← value held in `STRIPE_PUBLISHABLE_KEY_LIVE`
+3. `STRIPE_WEBHOOK_SECRET` ← signing secret from **`energetic-sensation`**,
+   not the sandbox endpoint. It is per-endpoint.
+4. **Delete** `STRIPE_PUBLISHABLE_KEY_LIVE` and `STRIPE_WEBHOOK_SECRET_LIVE`.
+   They were created on 2026-09-26 because the plain names were taken, and
+   they do nothing. Leaving them is how the wrong one gets used later.
+5. Redeploy, then send a test event and confirm a 2xx.
+
+**Do not "fix" this by teaching the code to prefer a `_LIVE` suffix.**
+That makes which account takes real money depend on which variables
+happen to exist, so a single leftover variable silently redirects live
+payments. One canonical name per fact — Rule 10.
+
+A mismatched `STRIPE_WEBHOOK_SECRET` fails every event at signature
+verification: orders authorise the customer's card, then sit at
+`pending` with no ship-to address and no confirmation email, and nothing
+surfaces it on our side.
 
 ---
 
