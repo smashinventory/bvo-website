@@ -377,6 +377,20 @@ exports.paymentDetailsFrom = (session) => {
     riskLevel:       charge.outcome?.risk_level || null,
     sellerMessage:   charge.outcome?.seller_message || null,
 
+    /* 3DS outcome, recorded as EVIDENCE and nothing more.
+
+       Stripe's own documentation is explicit that a successful 3DS
+       authentication does not GUARANTEE a liability shift, so nothing
+       built on these three columns may tell staff the order is safe.
+
+       All three are null whenever 3DS was not invoked, which is the
+       normal case on a low-risk card under `automatic`. Null therefore
+       means "not attempted", never "failed" — a screen that renders the
+       absence as a failure will have staff cancelling good orders. */
+    tdsResult: card.three_d_secure?.result || null,
+    tdsFlow:   card.three_d_secure?.authentication_flow || null,
+    tdsEci:    card.three_d_secure?.electronic_commerce_indicator || null,
+
     subtotal: session.amount_subtotal != null
       ? (session.amount_subtotal / 100).toFixed(2) : null,
     tax: session.total_details?.amount_tax != null
@@ -446,6 +460,38 @@ exports.shippingFrom = (session) => {
     billZip:      billAddr.postal_code || null,
 
     shippingWasCollected: !!shipAddr,
+
+    /* Does the freight go somewhere other than the cardholder's own
+       address?
+
+       On its own this is NOT fraud — gifts, job sites, second homes and
+       contractors buying for a client are all ordinary. It earns its place
+       because it is the single strongest correlate of card-not-present
+       fraud, and because `billing_address_collection: 'auto'` means Stripe
+       often gives us only country + postal code, so AVS is checking less
+       than it used to. This flag is what is left.
+
+       Compared on line1 + postal code only. City and state are derivable
+       from a ZIP and add nothing; line2 is an apartment number that buyers
+       routinely type in a different place each time and would produce a
+       stream of false positives.
+
+       Returns FALSE, not null, when there is nothing to compare — no
+       shipping was collected, or Stripe withheld the billing line1. An
+       unknown must not read as a mismatch, because a mismatch is what
+       blocks the Capture button. */
+    shipBillMismatch: (() => {
+      if (!shipAddr) return false;               // ship-to IS the bill-to
+      if (!billAddr.line1 || !addr.line1) return false;  // nothing to compare
+      const norm = v => String(v || '')
+        .toLowerCase()
+        .replace(/[.,#]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const zip = v => String(v || '').replace(/\D/g, '').slice(0, 5);
+      return norm(addr.line1) !== norm(billAddr.line1)
+          || zip(addr.postal_code) !== zip(billAddr.postal_code);
+    })(),
   };
 };
 

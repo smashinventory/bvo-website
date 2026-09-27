@@ -690,6 +690,23 @@ exports.webhook = async (req, res) => {
           'failed', ['pending']);
         break;
 
+      /* The issuer says the card was used fraudulently — BEFORE any
+         chargeback exists. Under manual capture this is the most valuable
+         event Stripe sends us: the money is still only held, so cancelling
+         the authorisation costs nothing and there is no dispute to fight.
+         Captured first, and the same facts arrive later as a dispute. */
+      case 'radar.early_fraud_warning.created':
+        await handleEarlyFraudWarning(event.data.object);
+        break;
+
+      /* Disputes. All three types land in one handler because they write
+         the same row; `status` is what distinguishes them. */
+      case 'charge.dispute.created':
+      case 'charge.dispute.updated':
+      case 'charge.dispute.closed':
+        await handleDispute(event.data.object, event.type);
+        break;
+
       default:
         /* Unhandled types are normal — the endpoint may be subscribed to
            more than it acts on. Logged at debug volume, not as an error. */
@@ -699,6 +716,143 @@ exports.webhook = async (req, res) => {
     console.error('[checkout.webhook]', event.type, '—', err.message);
   }
 };
+
+/**
+ * Which order does this charge belong to?
+ *
+ * EFW and dispute events identify the transaction by CHARGE id, not by our
+ * order id, and they carry no metadata — the metadata we set lives on the
+ * PaymentIntent, and Stripe does not copy it onto these events. So the only
+ * route back to an order is the id we stored at authorisation.
+ *
+ * Two columns are tried because they are written at different moments and
+ * either can be the one that is populated:
+ *   stripe_charge_id       written by handleSessionCompleted
+ *   payment_transaction_id the PaymentIntent, written at the same time
+ *
+ * Returns null rather than throwing when nothing matches. An unmatched
+ * event is not necessarily a bug — it may belong to a test-mode charge, or
+ * to an order placed before these columns existed — but it IS logged,
+ * because a fraud warning we cannot attach to an order is a fraud warning
+ * nobody will see.
+ */
+async function orderIdForCharge(chargeId, paymentIntentId) {
+  if (!chargeId && !paymentIntentId) return null;
+
+  const [rows] = await bvoPool.query(
+    `SELECT id FROM orders
+      WHERE (? IS NOT NULL AND stripe_charge_id = ?)
+         OR (? IS NOT NULL AND payment_transaction_id = ?)
+      ORDER BY id DESC LIMIT 1`,
+    [chargeId || null, chargeId || null,
+     paymentIntentId || null, paymentIntentId || null]
+  );
+  return rows[0]?.id || null;
+}
+
+/**
+ * Early Fraud Warning.
+ *
+ * Writes the flag and nothing else. It deliberately does NOT cancel the
+ * authorisation automatically, for two reasons: Stripe's Chargeback
+ * Protection terms void coverage on a transaction a merchant manually
+ * intervenes in, and a false positive that auto-cancels a good order costs
+ * a customer. A human decides; this makes sure the human can see it.
+ *
+ * Guarded on payment_efw_at IS NULL so a Stripe redelivery is a no-op and
+ * cannot overwrite the first warning's timestamp with a later one.
+ */
+async function handleEarlyFraudWarning(efw) {
+  const chargeId = typeof efw.charge === 'string' ? efw.charge : efw.charge?.id;
+  const piId     = typeof efw.payment_intent === 'string'
+                 ? efw.payment_intent : efw.payment_intent?.id;
+
+  const orderId = await orderIdForCharge(chargeId, piId);
+  if (!orderId) {
+    console.error('[checkout.webhook] EFW with no matching order —',
+      'efw:', efw.id, 'charge:', chargeId, 'pi:', piId);
+    return;
+  }
+
+  await bvoPool.query(
+    `UPDATE orders
+        SET payment_efw_at     = NOW(),
+            payment_efw_id     = ?,
+            payment_efw_reason = ?
+      WHERE id = ? AND payment_efw_at IS NULL`,
+    [efw.id || null, efw.fraud_type || null, orderId]
+  );
+
+  /* Loud on purpose. There is no admin alert channel in this codebase yet,
+     so the server log is the only place this surfaces until someone opens
+     the order. */
+  console.error('[FRAUD] Early Fraud Warning on order', orderId,
+    '— reason:', efw.fraud_type || 'unknown',
+    '— if still auth_only, cancel the authorisation rather than capturing.');
+}
+
+/**
+ * Dispute created, updated or closed.
+ *
+ * `evidence_details.due_by` is the field that costs real money: Stripe
+ * closes a dispute as LOST when the deadline passes with nothing submitted,
+ * and a default loss cannot be appealed. It arrives as a unix timestamp in
+ * SECONDS — multiplying by 1000 is not optional, and getting it wrong dates
+ * the deadline to 1970 and hides it.
+ *
+ * Not guarded on a null check: unlike EFW, a dispute legitimately changes
+ * over its life (needs_response to under_review to won or lost), so each
+ * event overwrites. dispute_opened_at is written once via COALESCE so the
+ * original date survives every later update.
+ */
+async function handleDispute(dispute, eventType) {
+  const chargeId = typeof dispute.charge === 'string'
+                 ? dispute.charge : dispute.charge?.id;
+  const piId     = typeof dispute.payment_intent === 'string'
+                 ? dispute.payment_intent : dispute.payment_intent?.id;
+
+  const orderId = await orderIdForCharge(chargeId, piId);
+  if (!orderId) {
+    console.error('[checkout.webhook] dispute with no matching order —',
+      'dispute:', dispute.id, 'charge:', chargeId, 'pi:', piId);
+    return;
+  }
+
+  /* Unix SECONDS to a MySQL DATETIME. Null-safe: `due_by` is absent on some
+     statuses (a won dispute has no deadline left to meet). */
+  const dueBy = dispute.evidence_details?.due_by
+    ? new Date(dispute.evidence_details.due_by * 1000)
+    : null;
+
+  const closed = eventType === 'charge.dispute.closed';
+
+  await bvoPool.query(
+    `UPDATE orders
+        SET dispute_id              = ?,
+            dispute_status          = ?,
+            dispute_reason          = ?,
+            dispute_amount          = ?,
+            dispute_evidence_due_at = ?,
+            dispute_opened_at       = COALESCE(dispute_opened_at, NOW()),
+            dispute_closed_at       = ?
+      WHERE id = ?`,
+    [
+      dispute.id     || null,
+      dispute.status || null,
+      dispute.reason || null,
+      /* Stripe amounts are in the currency's minor unit. */
+      dispute.amount != null ? (dispute.amount / 100).toFixed(2) : null,
+      dueBy,
+      closed ? new Date() : null,
+      orderId,
+    ]
+  );
+
+  console.error('[DISPUTE]', eventType, 'on order', orderId,
+    '— status:', dispute.status,
+    '— reason:', dispute.reason,
+    dueBy ? `— evidence due ${dueBy.toISOString().slice(0, 10)}` : '');
+}
 
 /** Narrow status write, guarded on the states it is allowed to move from. */
 async function markPaymentStatus(orderId, next, allowedFrom) {
@@ -785,6 +939,14 @@ async function handleSessionCompleted(sessionStub) {
               payment_check_cvc     = ?,
               payment_check_zip     = ?,
               payment_check_line1   = ?,
+              /* 3DS. All three stay NULL when 3DS was not invoked, which is
+                 the normal case. NULL means "not attempted", not "failed". */
+              payment_3ds_result    = ?,
+              payment_3ds_flow      = ?,
+              payment_3ds_eci       = ?,
+              /* Recorded at authorisation on purpose, so a later edit to
+                 either address cannot rewrite what was true at the time. */
+              ship_bill_mismatch    = ?,
               subtotal              = COALESCE(?, subtotal),
               tax            = COALESCE(?, tax),
               total                 = COALESCE(?, total),
@@ -817,6 +979,8 @@ async function handleSessionCompleted(sessionStub) {
         d.brand, d.last4,
         d.riskScore, d.riskLevel, d.sellerMessage,
         d.cvcCheck, d.avsZip, d.avsLine1,
+        d.tdsResult, d.tdsFlow, d.tdsEci,
+        who.shipBillMismatch ? 1 : 0,
         d.subtotal, d.tax, d.total,
         orderId,
       ]
