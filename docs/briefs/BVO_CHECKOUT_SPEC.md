@@ -224,8 +224,70 @@ behaviour from its documentation is what produced the bug in §0.
 **7.1 Sign in, register, or guest.** All three offered side by side on
 page 1. The buyer chooses.
 
+> ⛔ **SUPERSEDED 2026-09-27 — NO GUEST. An account is required.**
+>
+> Owner decision, after reviewing the live Wayfair flow: Wayfair has no
+> guest path at all. Its first screen is "Enter your email address to sign
+> in or to create an account", and nothing else.
+>
+> His reasoning, recorded in his own terms: guest checkout "sets up for
+> questions about where is my order", the buyer is "already going to be
+> entering the data to set up an account anyway during the checkout
+> process", and an account gives them order history.
+>
+> The supporting fact: §7.2 already requires email verification for
+> guests too. So a guest was going to type a six-digit code regardless —
+> "guest" only ever bought them the right to NOT have their address saved.
+> That is worse for both sides.
+>
+> **Trade accounts require an account by definition** (see
+> `docs/reference/TRADE_PROGRAM_SPEC.md`), so this only ever concerned
+> retail buyers.
+>
+> Order history already exists and works at `/account/orders`. It is
+> simply not reachable from checkout, which is why it may as well not.
+
 **7.2 Email verification before checkout.** Six-digit code, ten-minute
 expiry, as Wayfair does.
+
+> ✅ **AMENDED 2026-09-27 — PASSWORDLESS REPLACES THE EXISTING PASSWORD
+> SYSTEM. The code is not an extra step on top of a password. It IS the
+> login.**
+>
+> **What was found.** A complete password-based account system already
+> exists and was never mentioned in this spec: `/account/login`,
+> `/account/register`, `/account` dashboard, `/account/orders`,
+> `/account/favorites`, bcrypt `password_hash` on `customers`, and views
+> for all of it. Checkout contains zero links to any of it.
+>
+> **And it has no password reset.** The routes are login, register,
+> logout, dashboard, orders, favorites, newsletter. There is no forgot or
+> reset route. A customer who forgets their password today is locked out
+> permanently with no self-service route back. That is a live defect in
+> shipped code, not a design question.
+>
+> **Why that decided it.** Keeping passwords looked cheaper only until the
+> reset flow was priced — email token, expiry, single use, its own
+> template — which is not optional once real customers exist. Passwordless
+> does not satisfy that requirement, it DELETES it. The code is the reset.
+>
+> Three supporting reasons: email already has to work (a buyer who cannot
+> receive email has a failed freight delivery regardless, so identity is
+> aligned with the channel that must work anyway); one mechanism serves
+> registration, login and checkout identification instead of two systems;
+> and there are no hashes to leak, which matters more once trade accounts
+> hold uploaded business documents — see §8.3.
+>
+> **Safe to do now:** as of 2026-09-27 every account is a test account and
+> the owner has confirmed all passwords may be deleted. No customer
+> migration, no notice to send.
+>
+> **Keep:** `customers`, `/account` dashboard, `/account/orders`,
+> favourites, the session middleware, `customer_addresses`.
+> **Replace:** the login and register handlers.
+> **Drop:** `password_hash`, once nothing reads it.
+> **Add:** a `customer_auth_codes` table storing codes HASHED, plus the two
+> emails specified in §8.
 
 *Consequence to be aware of:* combined with 7.1, a guest is verified too.
 That is the right call for a freight retailer — email is the only channel
@@ -360,3 +422,103 @@ is acceptable: seeing trade prices is the entire point of the account.
   `docs/reference/PRE_LAUNCH_CHECKLIST.md`. Building them is part of items
   23 and 26. That boundary is deliberate — confirm it with the owner
   before writing either, rather than assuming which bucket applies.
+
+---
+
+## 9. Marketing consent — decided 2026-09-27
+
+### 9.1 No rewards programme. The reason to opt in is what they just bought.
+
+Wayfair gates its checkout on answering a membership question, and the
+marketing consent arrives as a by-product of joining a real paid product
+($29/year, 5% back, free shipping, member sales). **BVO is not building a
+rewards programme** — so copying the gate would buy the friction and none
+of the value.
+
+The offer is instead about the purchase, not about BVO. A newsletter is
+about the seller. This is about the buyer:
+
+> *"Tell me when the matching mirror for my Marcello in Chestnut goes on
+> sale."*
+
+The order already carries `model`, `brand` and finish. BVO sells vanities,
+tops, mirrors, faucets, storage and accessories in matching lines, and a
+buyer is mid-renovation: they will buy two or three more pieces in the
+following months, from BVO or from somebody else. That is a list with a
+reason to exist, and specific enough that people open it.
+
+### 9.2 The approved copy — owner-approved verbatim, 2026-09-27
+
+**Marketing, on the account step:**
+
+> ☐ **Email me about my vanity.**
+> Matching pieces in your finish when they go on sale, new sizes in your
+> model line, replacement parts when we stock them, and how to care for
+> your countertop. Nothing else, and one click to stop.
+
+**Transactional, with the delivery phone:**
+
+> ☐ **Text me about my delivery.**
+> The carrier calls to book your appointment. We'll also text the window
+> and let you know when the truck is out.
+
+Both boxes **unchecked by default** and neither a condition of purchase.
+
+### 9.3 Promises that can be kept — and two that were cut
+
+Everything in 9.2 is deliverable with data BVO already holds: matching
+pieces on sale, new finishes or sizes in a model line, replacement parts,
+care instructions per countertop material. Warranty and recall notices go
+out regardless of any opt-in.
+
+⛔ **Price-drop alerts and manufacturer rebates were CUT by the owner on
+2026-09-27. Do not reintroduce them into this copy.** A promise to tell
+someone their vanity got cheaper implies a price-adjustment policy; with
+no such window that email is a taunt, and the first buyer who finds out
+independently trusts BVO less than if nothing had been said. Rebates need
+rebates to exist on the line. Either could be added later — but only
+behind a policy decision, never as copy.
+
+### 9.4 NO MARKETING SMS. Delivery texts only.
+
+Deliberate, not an oversight.
+
+A vanity is a once-a-decade purchase; text is the wrong channel for a
+slow, considered buy. Marketing SMS needs prior express written consent
+under the TCPA, carries $500–$1,500 statutory damages per message, is a
+standing target for class-action firms, and obliges four years of consent
+record-keeping. It buys very little here and costs a permanent compliance
+surface.
+
+Delivery texts are transactional, genuinely useful, and low-risk.
+**Conflating the two is where retailers get sued** — keep the boxes, the
+consent records and the sending paths separate.
+
+Email is the lighter regime: CAN-SPAM is opt-out, not opt-in, so
+commercial email to customers is lawful with a working unsubscribe. BVO
+asks properly anyway, because a list built on explicit opt-in protects
+Brevo deliverability — the same channel that carries order confirmations
+and delivery appointments.
+
+*Context checked 2026-09-27: the FCC's stricter "one-to-one consent" rule
+was vacated by the Eleventh Circuit in January 2025 and the prior rules
+reinstated. Not a licence to relax — the express-written-consent
+requirement for marketing SMS is unchanged.*
+
+**Not legal advice.** If marketing SMS is ever added, the disclosure
+wording specifically should get a lawyer's eye first.
+
+### 9.5 Consent evidence — reuse the delivery-terms pattern
+
+`delivery_terms_ack_at` / `delivery_terms_ip` / `delivery_terms_version`
+is already exactly the shape consent record-keeping wants. Mirror it on
+`customers`:
+
+    marketing_email_opt_in      TINYINT(1)
+    marketing_email_at          DATETIME
+    marketing_email_ip          VARCHAR(45)
+    marketing_email_version     VARCHAR(32)
+
+**The version string is not optional.** The promise in 9.2 will change,
+and "what did this customer actually agree to" is unanswerable without it.
+Same four columns for the delivery-text consent, stored separately.

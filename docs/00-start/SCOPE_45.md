@@ -105,7 +105,12 @@ says what was asked for, not what was built.
 ## Checkout — stage 2
 
 22. ⬜ Sign in / register / guest on page 1
+    ⚠️ **AMENDED 2026-09-27: NO GUEST.** Account required, Wayfair-style.
+    See `docs/briefs/BVO_CHECKOUT_SPEC.md` §7.1. The owner's list wording
+    is left as he wrote it; the decision supersedes it.
 23. ⬜ Passwordless login — six-digit email code, no passwords stored
+    ⚠️ **This REPLACES a password system that already exists** —
+    `/account/login`, bcrypt hashes, and no reset route at all. Spec §7.2.
 24. ⬜ Code limits — 10-minute expiry, 5 attempts, 60-second resend,
     3 resends, 5 codes per email per hour, 10 per IP
 25. ⬜ Identical response whether or not an email has an account
