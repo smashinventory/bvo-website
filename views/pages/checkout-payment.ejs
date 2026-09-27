@@ -59,7 +59,7 @@
       <!-- Billing -->
       <div class="checkout-card">
         <h2 class="checkout-card-title">Billing Address</h2>
-        <p class="checkout-card-sub">The address your card is registered to. Used for card verification and to calculate sales tax &mdash; it does not change where your order is delivered.</p>
+        <p class="checkout-card-sub">The address your card is registered to. Pick your delivery address below if they match, or enter a different one. Used for card verification and to calculate sales tax &mdash; it does not change where your order is delivered.</p>
         <div id="billing-address-element"></div>
 
       </div>
@@ -445,7 +445,31 @@
      IntegrationError, which aborted the whole script, so the billing and
      payment elements below never mounted either and the page rendered
      with two empty cards. */
-  checkout.createBillingAddressElement().mount('#billing-address-element');
+  /* The delivery address is offered as a selectable contact rather than
+     silently prefilled. Stripe rejects defaultValues on this element:
+
+       createBillingAddressElement({defaultValues:...})
+         -> "options.defaultValues is not an accepted parameter"
+
+     and updateBillingAddress() sets the session while leaving the element
+     empty and complete:false - which is the same trap that made the
+     shipping element unsatisfiable. `contacts` IS accepted, so the buyer
+     picks their delivery address in one click. Because THEY selected it,
+     the element reports complete and canConfirm is satisfied. */
+  var billingContacts = <%- JSON.stringify([{
+        name: [order.ship_first_name, order.ship_last_name].filter(Boolean).join(' '),
+        address: {
+          line1:       order.ship_address1 || '',
+          line2:       order.ship_address2 || null,
+          city:        order.ship_city     || '',
+          state:       order.ship_state    || '',
+          postal_code: order.ship_zip      || '',
+          country:     'US',
+        },
+      }]).replace(/</g, '\\u003c') %>;
+
+  checkout.createBillingAddressElement({ contacts: billingContacts })
+    .mount('#billing-address-element');
   checkout.createPaymentElement().mount('#payment-element');
 
 

@@ -22,13 +22,12 @@ payment), Stripe payments end to end, manual capture, guest only.
 **Not built:** everything in §2 through §7 below.
 
 **Uncommitted / undeployed:**
-- `contacts` on the Billing Address Element (#43) — written, gates pass,
-  NOT pushed
-- `billing_address_collection: 'auto'` (#41) — written then **reverted**;
-  the owner had approved `'required'` in the spec and it was changed
-  without asking. Currently `'required'`.
+- `contacts` on the Billing Address Element (§6.3) — written, gates pass
+- `billing_address_collection: 'auto'` (§6.1) — approved 2026-09-26, built
 
-**Owner has not yet done:** Link off in the Stripe dashboard (#42).
+**Done by owner, 2026-09-26:**
+- Link disabled in the Stripe dashboard (§6.2)
+- Stripe confirmed cancellation after six months is possible (§4.4)
 
 ---
 
@@ -186,14 +185,15 @@ of thinnest reserves, not on expected value.
    switch off on the calendar date while recent months are unresolved
 2. Cash reserve sufficient to self-insure
 
-### 4.4 Confirm with Stripe in writing BEFORE enabling
-1. **Does coverage persist on transactions placed while active, after
-   cancellation?** This is the whole question for a fixed-term trial. If
-   coverage follows the subscription rather than the transaction, the
-   final months are uninsured while being paid for.
-2. Minimum term? Re-enrolment restrictions?
+### 4.4 Confirmed with Stripe, 2026-09-26
+Cancellation after six months is possible — owner confirmed with Stripe.
 
-Keep the reply with this document.
+Still worth holding the written reply on the narrower question: whether
+coverage persists on transactions **placed while active** but disputed
+after cancellation. Fraud codes commonly surface 75-120 days after the
+sale, so a meaningful share of the protected period's disputes will land
+post-cancellation. If that answer is not already in writing, get it before
+the exit rather than at it.
 
 ---
 
@@ -256,19 +256,16 @@ contacts / display / autocomplete
   → ACCEPTED
 ```
 
-### 6.1 `billing_address_collection` → `'auto'`  [OWNER DECISION PENDING]
+### 6.1 `billing_address_collection` → `'auto'`  [APPROVED 2026-09-26, BUILT]
 Collects country + postcode instead of a seven-field address.
-**Cost:** drops street-level AVS to postcode AVS + CVC.
-**Status:** changed without approval on 2026-09-26 and **reverted**. It is
-`'required'` today, per the approved spec. Supersedes the entry in
-`BVO_CHECKOUT_SPEC.md` §5 if and when the owner approves.
+**Cost, accepted deliberately:** street-level AVS drops to postcode AVS +
+CVC. Compensating controls are §2.1, §2.3, §2.4, §2.5.
+**Supersedes** `BVO_CHECKOUT_SPEC.md` §5, which says `'required'`.
 
-### 6.2 Link off  [OWNER ACTION — dashboard]
-Stripe dashboard → Settings → Payment methods → Link.
+### 6.2 Link off  [DONE 2026-09-26 by owner, dashboard]
 Removes "Save my information", the duplicate email field and the duplicate
-mobile-number field from the Payment card. Link is not activated in live
-mode anyway. Flipping it is free and reversible; do it before judging the
-page.
+mobile-number field from the Payment card. Reversible from the same place
+if BVO later wants one-tap for returning Link users.
 
 ### 6.3 `contacts` on the Billing Address Element  [BUILT, NOT PUSHED]
 Offers the delivery address as a one-click pick. The only prefill route

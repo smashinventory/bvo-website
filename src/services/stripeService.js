@@ -185,10 +185,27 @@ exports.createCheckoutSession = async (p) => {
          an account setting. */
       adaptive_pricing: { enabled: false },
 
-      /* Required by automatic_tax: there is no sales tax without a
-         jurisdiction. 'required' makes the Address Element mandatory in the
-         form rather than letting the confirm fail later. */
-      billing_address_collection: 'required',
+      /* 'auto', not 'required'. Owner-approved 2026-09-26.
+
+         Under the three-page checkout the buyer gives their name and full
+         delivery address on page 1. 'required' then asks the same person
+         the same seven questions again on page 3, and there is no way to
+         prefill the answer: the billing element is a cross-origin iframe
+         on js.stripe.com, and Stripe rejects defaultValues on it outright.
+         The only lever is to ask for less.
+
+         'auto' collects the minimum automatic_tax needs - country and
+         postcode - which is two fields instead of seven.
+
+         AVS TRADE, made deliberately: street-level AVS needs line1, so
+         this drops to postcode AVS plus CVC. That is what most
+         card-not-present retail runs on. The compensating controls are in
+         BVO_PAYMENT_RISK_AND_CHECKOUT_SCOPE.md - EFW webhook, 3DS outcome
+         captured, ship-to/bill-to comparison, and a capture checklist
+         that blocks the click on a failed check.
+
+         Reverting is one word here. */
+      billing_address_collection: 'auto',
 
       /* NO shipping_address_collection. Enabled 2026-09-26 and removed the
          same day.
