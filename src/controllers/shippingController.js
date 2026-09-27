@@ -108,6 +108,9 @@ async function createForm(req, res) {
                  schedule; c.phone is the account holder's and is NULL on
                  every guest order. */
               o.ship_phone, o.ship_phone_ext, o.ship_address_type,
+              /* guest_email is the ONLY email on a guest order. c.email
+                 below is NULL for them - the same defect the phone had. */
+              o.guest_email,
               COALESCE(
                 NULLIF(TRIM(CONCAT(COALESCE(c.first_name,''),' ',COALESCE(c.last_name,''))),''),
                 NULLIF(TRIM(CONCAT(COALESCE(o.ship_first_name,''),' ',COALESCE(o.ship_last_name,''))),''),
@@ -145,7 +148,15 @@ async function createForm(req, res) {
            that ship_phone is what the carrier calls to schedule. */
         phone:      order.ship_phone || order.phone || '',
         phoneExt:   order.ship_phone_ext || '',
-        email:      order.email         || '',
+        /* Same trap as the phone, one field over. This read c.email
+           alone, which is NULL on every guest order.
+           
+           It is not cosmetic: SHIPPING_WWEX_BRIEF.md is explicit that
+           `emailList` is REQUIRED and does NOT fall back to
+           destinationAddress.contactList[].email. No email here means the
+           customer gets no delivery notifications from the carrier at
+           all - and freight delivery is appointment-based. */
+        email:      order.guest_email || order.email || '',
         /* Residential is the buyer's own answer from page 1, not a guess
            from the address. Checking the box auto-sets locationType
            RESIDENTIAL plus liftgate delivery - see onResidentialChange()
