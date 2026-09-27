@@ -24,6 +24,7 @@ line — add one to the top of that file, under its H1, then reindex.
 | `docs/00-start/BVO_AUDIT_BRIEF.md` | The numbered Rules (8, 9, 10, 11, 13, 14), architecture, the category table and the live DB inventory. Open this before any structural work. |
 | `docs/00-start/OPEN_ITEMS.md` | Outstanding work, numbered. Check here before starting anything — it may already be logged. |
 | `docs/00-start/PROJECT_BRIEF.md` | What BVO is, its scope and history, and the owner preferences every session should follow. |
+| `docs/00-start/VERIFY_QUEUE.md` | Built, gated and pushed, but NOT yet seen working by Sam. One list, run in one pass. Append here as work ships; tick and move to Verified when it passes. |
 
 ## ARCHITECTURE — how a thing is built and why
 
@@ -48,9 +49,12 @@ line — add one to the top of that file, under its H1, then reindex.
 | Document | Purpose |
 |---|---|
 | `docs/briefs/BVO_BRAND_ONBOARDING_PLAYBOOK.md` | Step-by-step playbook for adding a new brand to the catalogue. |
+| `docs/briefs/BVO_CHECKOUT_SPEC.md` | ⚠ NO DESCRIPTION — titled "BVO Checkout — Multi-Page Specification" |
+| `docs/briefs/BVO_COMMERCE_STACK_BRIEF.md` | The canonical record of how BVO takes money, what happens to an order between |
 | `docs/briefs/BVO_ISSUE1_BRIEF.md` | Rollout log for colorFamilies.js — the colour family buckets and normalisation. |
+| `docs/briefs/BVO_PAYMENT_RISK_AND_CHECKOUT_SCOPE.md` | ⚠ NO DESCRIPTION — titled "BVO — Payment Risk & Checkout Scope" |
 | `docs/briefs/BVO_RFLPOS_SYNC_BRIEF.md` | Design brief for the BVO to RFLpos inventory sync. |
-| `docs/briefs/BVO_TYPOGRAPHY_DECISION.md` | **Georgia + system-ui, no webfonts.** Read before changing any font or "optimising" font loading — the cache argument for Google Fonts died in 2020 and the obvious reasoning is out of date. This decision was made once before and came undone because it was never written down. |
+| `docs/briefs/BVO_TYPOGRAPHY_DECISION.md` | ⚠ NO DESCRIPTION — titled "BVO Typography — the decision, and why it keeps coming undone" |
 | `docs/briefs/HOTLINKED_IMAGES_HANDOFF.md` | Which images are still served from hosts BVO does not control. The original list of 14 is mostly closed; the problem has recurred with new entries. Cutover blocker. |
 | `docs/briefs/REVERT_NOTES_2026-09-23.md` | Everything shipped today, newest first, with the exact command to undo each |
 | `docs/briefs/SHIPPING_GAP_ANALYSIS.md` | Field-by-field gap analysis between the BVO shipping form and the SpeedShip API. |
@@ -66,9 +70,9 @@ line — add one to the top of that file, under its H1, then reindex.
 |---|---|
 | `docs/reference/POLICY_ANSWERS.md` | Agreed answers to the store policy questions — returns, damage, freight. |
 | `docs/reference/POLICY_INTAKE_QUESTIONNAIRE.md` | The questionnaire the policy answers came from. |
-| `docs/reference/PRE_LAUNCH_CHECKLIST.md` | Everything that must be true before cutover — business, legal, marketing. |
-| `docs/reference/URL_CUTOVER_CHECKLIST.md` | The DNS cutover itself: redirects, robots.txt, sitemap submission, what to watch after. Same-domain migration — **no Change of Address tool**. |
+| `docs/reference/PRE_LAUNCH_CHECKLIST.md` | Everything that must be true before cutover. |
 | `docs/reference/TRADE_PROGRAM_SPEC.md` | Trade program: eligibility, pricing visibility rules and the gating requirement. |
+| `docs/reference/URL_CUTOVER_CHECKLIST.md` | ⚠ NO DESCRIPTION — titled "URL cutover checklist — Shopify → Node.js" |
 | `docs/reference/VENDOR_POLICY_CONSTRAINTS.md` | What each vendor permits and forbids — the constraints our policies must sit inside. |
 
 ## AUDITS
