@@ -135,7 +135,25 @@ const CSP_DIRECTIVES = {
                       consulted, and omitting it fails the way the Stripe
                       frame-src entries warn about: the field looks normal
                       and silently never suggests anything. */
-                   'https://maps.googleapis.com'],
+                   'https://maps.googleapis.com',
+                   /* TWO HOSTS, NOT ONE. This cost a deploy on 2026-09-27.
+                      maps.googleapis.com serves the LIBRARY (the loader
+                      script and its modules). Places API (New) sends its
+                      actual requests somewhere else entirely:
+                        POST https://places.googleapis.com/$rpc/
+                             google.maps.places.v1.Places/AutocompletePlaces
+                      Allow only the first and the library loads perfectly,
+                      the field looks normal, and every keystroke dies with
+                      "RpcError: Rpc failed due to xhr error" - which reads
+                      like a network fault, not a policy block. Verified
+                      live in the browser, not inferred.
+
+                      Address Validation, when it ships, is a THIRD host:
+                      addressvalidation.googleapis.com. Not added here yet
+                      because the site does not call it, and a policy that
+                      permits an unused host advertises a capability we do
+                      not have. Add it with that feature, not before. */
+                   'https://places.googleapis.com'],
   frameSrc:       ["'self'", 'https://www.youtube-nocookie.com', 'https://www.youtube.com',
                    /* The Payment Element renders inside an iframe served by
                       js.stripe.com — the same hosted-field model AcceptUI used,

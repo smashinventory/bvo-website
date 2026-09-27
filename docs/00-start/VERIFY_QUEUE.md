@@ -364,3 +364,36 @@ gets no carrier delivery alerts at all.
 - `token = null` matched the `var` declaration, so the gate passed while the
   post-selection reset was missing — the state that bills every request.
   Scoped to the code after `fetchFields(`.
+
+### 2026-09-27, later — autocomplete was dead on arrival. CSP host.
+
+Nine gates passed and the feature had never worked once, because none of
+them opened the page.
+
+**Places API (New) uses two hosts.** `maps.googleapis.com` serves the
+library; `places.googleapis.com` receives the actual requests. G3 asserted
+the first and proved nothing about the second. Asserting the host a SCRIPT
+comes from says nothing about the host its REQUESTS go to.
+
+The failure is quiet by design: library loads, classes exist, then every
+keystroke returns `RpcError: Rpc failed due to xhr error ... error code: 6`
+— which reads like a network fault. The page's own error handling then
+degrades the field to a plain input and says nothing, which is correct
+behaviour and also why nothing on screen explains it.
+
+**Address Validation will be a THIRD host:
+`addressvalidation.googleapis.com`.** Not in the CSP yet, deliberately —
+nothing calls it. Add it with that feature or item 16 fails identically.
+
+**Rule going forward:** a gate on a third-party integration asserts the
+host the *requests* go to, verified from a real response or a real console
+error. Not the host in the script tag.
+
+### Still unproven after this fix
+The CSP block is proven. What is behind it is not — the key's referrer
+restriction and whether Places API (New) is enabled on the project have
+never been exercised, because the request never left the browser. If
+autocomplete still returns nothing after deploying, the console error will
+now be a Google error (`REQUEST_DENIED`, `PERMISSION_DENIED`,
+`RefererNotAllowedMapError`) rather than a transport error, and that names
+the cause directly.
