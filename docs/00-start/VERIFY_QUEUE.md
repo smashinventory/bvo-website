@@ -425,3 +425,52 @@ two sides.
 third party is not verified until someone opens the page and reads the
 actual response or the actual error. Gates prove the code says what we
 meant. They cannot prove the other end agrees.
+
+---
+
+## 2026-09-27 — Address Validation (item 16) VERIFIED LIVE
+
+Three submits on the temp host, order id 56, key live. Not inferred.
+
+| Test | Result |
+|---|---|
+| `554 Pine Grove Rd, Roswell GA 30075`, no unit | `pass` — straight to Delivery, no panel |
+| Same + `Apt 99` | `fix` — panel rendered, order still saved, submit enabled |
+| Resubmit `Apt 99` unchanged | Proceeded to Delivery, **no second warning** |
+
+Columns written:
+
+    ship_validation_verdict      fix
+    ship_usps_dpv                S          building confirmed, unit not
+    ship_validation_granularity  PREMISE
+    ship_validation_flags        unconfirmed,inferred
+    ship_usps_carrier_route      C077       C = city carrier route
+    ship_lat / ship_lng          34.027490 / -84.378003
+    ship_geocode_source          google     rooftop upgrade over Census
+    ship_address_source          typed      fields filled programmatically
+
+### The two things the data proved that gates could not
+
+**One row, not three.** All three submits updated the same draft, so the
+columns are demonstrably written on the UPDATE path and not only the
+INSERT. A verdict that only landed on new orders would have looked fine
+in testing and been absent on every returning buyer.
+
+**The third submit did not blank the verdict.** When validation is
+skipped, the fields are never added to the update object, so they keep
+their values. The naive version — always assigning, null when skipped —
+wipes the verdict on every resubmit and leaves a real order with an empty
+one. Nothing in the gates would have caught that; it needed a second
+submit against a live row.
+
+**Cost guard confirmed by absence:** the third submit produced no warning.
+A re-validation of the same address would have returned `fix` again and
+warned again. It did not, so the acked list held.
+
+### Still unproven
+- `suspect` has never been produced by a real address — no vacant or CMRA
+  address was tested. The reduction logic is unit-tested; the live path
+  to that branch is not.
+- "Use this version" has never been clicked on a live page.
+- `ship_address_source = autocomplete` has never been written by a real
+  dropdown selection followed by a submit.
