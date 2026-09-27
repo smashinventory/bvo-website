@@ -510,6 +510,40 @@ a Stripe hold expires in about 7 days and a human then has to ask again.
 
 ---
 
+## 🔴 Stripe webhook endpoint is pointed at the temporary host
+
+Logged 2026-09-26, from the Stripe Workbench screen.
+
+The sandbox event destination `energetic-jubilee` posts to:
+
+    https://slategrey-falcon-350174.hostingersite.com/checkout/webhook
+
+At cutover that host stops being the site. Stripe will keep posting to it,
+retry for a few days, and then give up — **silently, as far as BVO is
+concerned**, because the failure is on Stripe's side of the call.
+
+What breaks when it does, in order of cost:
+
+1. `checkout.session.completed` never arrives, so `handleSessionCompleted`
+   never runs. Orders sit at `payment_status = 'pending'` with **no ship-to
+   address, no phone and no card details**, and the buyer gets no
+   confirmation email. The money is authorised on their card regardless.
+2. `radar.early_fraud_warning.created` never arrives, so a stolen-card
+   warning never reaches the order and the hold gets captured anyway.
+3. `charge.dispute.*` never arrives, so the evidence deadline is invisible
+   and disputes are lost by default.
+
+**At cutover:** update the endpoint URL in both **test and live** mode, then
+send a test event and confirm a 2xx. The signing secret is per-endpoint —
+if the endpoint is recreated rather than edited, `STRIPE_WEBHOOK_SECRET` in
+hPanel must be updated to match or every event fails signature verification.
+
+**Also confirm a LIVE-mode destination exists at all.** As of 2026-09-26
+only the sandbox one had been seen. Without a live endpoint, the three
+failures above apply to every real order from the first day.
+
+---
+
 ## Also outstanding before launch
 
 Carried from earlier sessions — unchanged, listed here so there is one place

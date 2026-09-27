@@ -94,6 +94,80 @@ if (order.payment_seller_message) {
   checks.push({ icon: 'info', label: order.payment_seller_message });
 }
 
+/* ── 3DS outcome ─────────────────────────────────────────────────
+   Only rendered when Stripe actually returned a result.
+
+   All three 3DS columns are null whenever 3DS was not invoked, which is
+   the NORMAL case under request_three_d_secure 'automatic' — most
+   low-risk cards never see it. Adding a row for the absence would put an
+   'info' on almost every order and flip the whole panel to Medium, which
+   is precisely how a panel stops being read.
+
+   Never described as shifting liability. Stripe's own documentation is
+   explicit that successful 3DS does not guarantee a liability shift, so
+   this says what was authenticated and nothing about who pays. */
+if (order.payment_3ds_result) {
+  const r    = order.payment_3ds_result;
+  const flow = order.payment_3ds_flow
+    ? ` (${order.payment_3ds_flow})` : '';
+  checks.push({
+    icon:  r === 'authenticated'         ? 'ok'
+         : r === 'attempt_acknowledged'  ? 'info'
+         : r === 'exempted'              ? 'info'
+                                         : 'warn',
+    label: r === 'authenticated'        ? `Cardholder passed 3-D Secure${flow}`
+         : r === 'attempt_acknowledged' ? `3-D Secure attempted; the issuer did not complete it${flow}`
+         : r === 'exempted'             ? `3-D Secure exempted by the issuer${flow}`
+         : r === 'not_authenticated'    ? `Cardholder FAILED 3-D Secure${flow}`
+         : r === 'failed'               ? `3-D Secure failed${flow}`
+                                        : `3-D Secure: ${r}${flow}`,
+  });
+}
+
+/* ── Ship-to vs bill-to ──────────────────────────────────────────
+   'info', deliberately not 'warn'.
+
+   Shipping somewhere other than the cardholder's address is ordinary —
+   gifts, job sites, second homes, a contractor buying for a client. It is
+   the strongest single correlate of card-not-present fraud, so it must be
+   visible, but on its own it is not evidence of anything and must not
+   turn the panel red by itself. Combined with a failed check or an
+   elevated Radar level it will. */
+if (order.ship_bill_mismatch) {
+  checks.push({
+    icon:  'info',
+    label: 'Delivering to a different address than the cardholder’s '
+         + '— normal for a gift or job site, worth a call on a first order',
+  });
+}
+
+/* ── Early Fraud Warning ─────────────────────────────────────────
+   The issuer has told us this card was used fraudulently. Nothing else on
+   this page outranks it, and it also gets a full-width banner above the
+   page — a row in a sidebar card is not enough for the one signal that
+   should stop a shipment. */
+if (order.payment_efw_at) {
+  const reasonMap = {
+    made_with_stolen_card:      'the card was reported stolen',
+    made_with_counterfeit_card: 'the card was counterfeit',
+    unauthorized_use_of_card:   'the cardholder did not authorise it',
+    misc:                       'reason not specified by the issuer',
+  };
+  checks.push({
+    icon:  'warn',
+    label: 'EARLY FRAUD WARNING from the card issuer — '
+         + (reasonMap[order.payment_efw_reason] || order.payment_efw_reason || 'reason not given'),
+  });
+}
+
+if (order.dispute_id) {
+  checks.push({
+    icon:  'warn',
+    label: `Chargeback ${order.dispute_status === 'won' ? 'WON' : order.dispute_status === 'lost' ? 'LOST' : 'open'}`
+         + (order.dispute_reason ? ` — ${String(order.dispute_reason).replace(/_/g, ' ')}` : ''),
+  });
+}
+
 const hasWarn  = checks.some(c => c.icon === 'warn');
 const infoOnly = !hasWarn && checks.some(c => c.icon === 'info');
 const riskPct   = hasWarn ? 90 : infoOnly ? 45 : 18;
@@ -106,6 +180,115 @@ const isAuthOnly    = order.payment_status === 'auth_only';
 const isCaptured    = order.payment_status === 'captured';
 const hasPayment    = !!order.payment_transaction_id;
 %>
+
+<%
+/* ══ Issuer alerts ═══════════════════════════════════════════════
+   Above the toolbar, full width, before anything else on the page.
+
+   A row in the sidebar risk card is not sufficient for these two. An
+   Early Fraud Warning is the issuer stating the card was used
+   fraudulently, and the whole value of it under manual capture is that
+   someone sees it BEFORE pressing Capture. If it can be scrolled past,
+   it will be. */
+const efwAt = order.payment_efw_at ? new Date(order.payment_efw_at) : null;
+const dueAt = order.dispute_evidence_due_at ? new Date(order.dispute_evidence_due_at) : null;
+/* FLOOR, not ceil, and "passed" decided by the clock rather than by the
+   day count.
+
+   ceil() rounds a deadline 2 days and 1 hour away up to "3 days left",
+   which overstates the time remaining on the one field where running out
+   loses the money by default. floor() understates it, which is the safe
+   direction. floor() alone would then report 0 for anything inside the
+   last 24 hours, so "passed" is tested against the actual timestamp and
+   0 is rendered as "due today" rather than as already lost. */
+const duePassed = dueAt ? dueAt.getTime() <= Date.now() : false;
+const dueDays   = dueAt ? Math.floor((dueAt.getTime() - Date.now()) / 86400000) : null;
+const disputeOpen = order.dispute_id
+  && !['won','lost','warning_closed'].includes(order.dispute_status || '');
+%>
+
+<% if (efwAt) { %>
+<div style="border:2px solid var(--red);background:#fff5f5;border-radius:6px;padding:14px 18px;margin-bottom:16px">
+  <p style="margin:0 0 6px;font-weight:700;color:var(--red);font-size:15px">
+    Early Fraud Warning from the card issuer
+  </p>
+  <p style="margin:0 0 8px;font-size:13px">
+    Reported <%= efwAt.toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' }) %><%
+    if (order.payment_efw_reason) { %> &mdash; <%=
+      String(order.payment_efw_reason).replace(/_/g, ' ') %><% } %>.
+    The issuer is saying this card was used without authority.
+  </p>
+  <% if (isAuthOnly) { %>
+    <%/* The whole point of manual capture. Nothing has been taken yet, so
+         releasing costs nothing and there is no chargeback to defend. */%>
+    <p style="margin:0;font-size:13px;font-weight:600">
+      Funds are still only held. Release the hold rather than capturing &mdash;
+      do not ship.
+    </p>
+  <% } else if (isCaptured) { %>
+    <p style="margin:0;font-size:13px;font-weight:600">
+      This order was already captured. Expect a chargeback. Refunding now is
+      usually cheaper than losing a dispute, and stops the shipment if it has
+      not gone out.
+    </p>
+  <% } %>
+</div>
+<% } %>
+
+<% if (order.dispute_id) { %>
+<div style="border:2px solid <%= disputeOpen ? 'var(--red)' : '#7a7264' %>;background:<%= disputeOpen ? '#fff5f5' : '#faf9f7' %>;border-radius:6px;padding:14px 18px;margin-bottom:16px">
+  <p style="margin:0 0 6px;font-weight:700;font-size:15px;color:<%= disputeOpen ? 'var(--red)' : 'inherit' %>">
+    Chargeback &mdash;
+    <%= order.dispute_status === 'won'  ? 'WON'
+      : order.dispute_status === 'lost' ? 'LOST'
+      : String(order.dispute_status || 'open').replace(/_/g, ' ') %>
+  </p>
+  <div class="detail-meta" style="margin:0">
+    <% if (order.dispute_reason) { %>
+    <div class="detail-meta-row"><span>Reason</span><span><%= String(order.dispute_reason).replace(/_/g, ' ') %></span></div>
+    <% } %>
+    <% if (order.dispute_amount != null) { %>
+    <div class="detail-meta-row"><span>Amount</span><span>$<%= parseFloat(order.dispute_amount).toFixed(2) %></span></div>
+    <% } %>
+    <% if (order.dispute_opened_at) { %>
+    <div class="detail-meta-row"><span>Opened</span><span><%= new Date(order.dispute_opened_at).toLocaleDateString('en-US') %></span></div>
+    <% } %>
+    <%/* The deadline is the only field here that costs money on its own.
+         Stripe closes a dispute as LOST when it passes with nothing
+         submitted, and a default loss cannot be appealed. */%>
+    <% if (dueAt && disputeOpen) { %>
+    <div class="detail-meta-row">
+      <span>Evidence due</span>
+      <% if (duePassed) { %>
+        <span style="color:var(--red);font-weight:700">
+          PASSED <%= dueAt.toLocaleDateString('en-US') %> &mdash; lost by default if nothing was submitted
+        </span>
+      <% } else if (dueDays === 0) { %>
+        <span style="color:var(--red);font-weight:700">
+          <%= dueAt.toLocaleDateString('en-US') %> &mdash; DUE TODAY, under 24 hours left
+        </span>
+      <% } else if (dueDays <= 3) { %>
+        <span style="color:var(--red);font-weight:700">
+          <%= dueAt.toLocaleDateString('en-US') %> &mdash; <%= dueDays %> day<%= dueDays === 1 ? '' : 's' %> left
+        </span>
+      <% } else { %>
+        <span><%= dueAt.toLocaleDateString('en-US') %> (<%= dueDays %> days)</span>
+      <% } %>
+    </div>
+    <% } %>
+    <div class="detail-meta-row">
+      <span>Dispute</span>
+      <span style="font-family:monospace;font-size:12px"><%= order.dispute_id %></span>
+    </div>
+  </div>
+  <% if (disputeOpen) { %>
+  <p style="margin:10px 0 0;font-size:12px;color:var(--text-muted)">
+    Evidence is submitted in the Stripe Dashboard, not here. This panel
+    exists so the deadline is visible next to the order it belongs to.
+  </p>
+  <% } %>
+</div>
+<% } %>
 
 <!-- ══ Toolbar ══════════════════════════════════════════════════════ -->
 <div class="adm-toolbar" style="flex-wrap:wrap">

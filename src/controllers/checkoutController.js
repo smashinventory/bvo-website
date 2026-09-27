@@ -151,6 +151,41 @@ function returnOrigin(req) {
 /** E.164 for storage. Mirrors e164() in checkout-info.ejs — the client
  *  normalises for display, this one is what actually reaches the column,
  *  because a form post can arrive without ever running the page's JS. */
+/**
+ * The buyer's IP, as one canonical expression.
+ *
+ * Rule 10: one source per fact. This was written inline in saveInfo and was
+ * about to be written a second time in saveDelivery, which is how two
+ * copies of one rule come to disagree.
+ *
+ * x-forwarded-for first, leftmost entry: `trust proxy` is set
+ * (server.js:31) and Hostinger fronts the app, so req.ip alone would record
+ * the proxy rather than the customer. The leftmost entry is the closest
+ * thing to the real client available, and it IS client-supplied and
+ * therefore spoofable — which is acceptable for evidence of what we
+ * recorded at the time, and would not be acceptable for access control.
+ */
+function clientIp(req) {
+  return (req.headers['x-forwarded-for'] || '').split(',')[0].trim()
+      || req.ip
+      || null;
+}
+
+/**
+ * Version of the curbside delivery terms the buyer ticks on page 2.
+ *
+ * WHY A VERSION AND NOT JUST A TIMESTAMP
+ * A timestamp proves someone ticked a box. It does not prove WHAT they
+ * agreed to, which is the only question that matters in a dispute over a
+ * refused delivery. Pairing the two makes the record defensible.
+ *
+ * BUMP THIS whenever the curbside copy in views/pages/checkout-delivery.ejs
+ * changes in substance - what the driver does, where they stop, who must be
+ * present, or what signing the receipt means. Do not bump it for typos or
+ * styling. A stale version silently attributes new terms to old orders.
+ */
+const DELIVERY_TERMS_VERSION = '2026-09-26.curbside.v1';
+
 function toE164(raw) {
   const s = String(raw || '').trim()
     .replace(/[\s,;]*(?:ext|extension|xt|x|#)\.?\s*\d+\s*$/i, '');
@@ -262,8 +297,7 @@ exports.saveInfo = async (req, res) => {
   const name  = splitName(req.body.ship_name);
   const phone = toE164(req.body.ship_phone);
   const ext   = String(req.body.ship_phone_ext || '').replace(/\D/g, '').slice(0, 8) || null;
-  const customerIp = (req.headers['x-forwarded-for'] || '').split(',')[0].trim()
-                     || req.ip || null;
+  const customerIp = clientIp(req);
 
   const fields = {
     guest_email:       String(req.body.email).trim().toLowerCase(),
@@ -438,9 +472,17 @@ exports.saveDelivery = async (req, res) => {
   try {
     const [upd] = await bvoPool.query(
       `UPDATE orders
-          SET ship_instructions = ?, delivery_terms_ack_at = NOW()
+          SET ship_instructions      = ?,
+              delivery_terms_ack_at  = NOW(),
+              delivery_terms_ip      = ?,
+              delivery_terms_version = ?
         WHERE id = ? AND ${EDITABLE}`,
-      [String(req.body.ship_instructions || '').trim().slice(0, 500) || null, order.id]
+      [
+        String(req.body.ship_instructions || '').trim().slice(0, 500) || null,
+        clientIp(req),
+        DELIVERY_TERMS_VERSION,
+        order.id,
+      ]
     );
     if (upd.affectedRows === 0) throw new Error('in-progress order row not updated');
   } catch (e) {
