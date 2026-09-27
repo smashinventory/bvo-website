@@ -60,6 +60,9 @@ const geocode     = require('../services/geocodeService');
 /* Pure function, own module — see src/utils/addressProvenance.js for why
    the delivery address's origin is decided here and not sent by the page. */
 const { addressProvenance } = require('../utils/addressProvenance');
+/* Server-side, own key — a verdict the page could set is one a fraudster
+   could forge. See src/services/addressValidationService.js. */
+const addrVal = require('../services/addressValidationService');
 
 /* ── Helpers ────────────────────────────────────────────────────── */
 
@@ -236,6 +239,20 @@ function validateInfo(b) {
   return errors;
 }
 
+/**
+ * One address, one string — the key that decides whether we have already
+ * validated and already warned about this exact address.
+ *
+ * Normalised the same way addressProvenance normalises, so retyping the
+ * same address in capitals is not a different address and does not buy a
+ * second billable validation call.
+ */
+function addressKey(f) {
+  return ['ship_address1', 'ship_address2', 'ship_city', 'ship_state', 'ship_zip']
+    .map(k => String(f[k] || '').trim().toLowerCase().replace(/\s+/g, ' '))
+    .join('|');
+}
+
 /** Splits "Mary Anne Fitzgerald-Smith" on the LAST space. A single word
  *  is a first name — a mononym is not a surname. */
 function splitName(full) {
@@ -279,10 +296,17 @@ function takeCheckoutFlash(req) {
     errors: s.checkoutErrors || {},
     old:    s.checkoutOld    || {},
     error:  s.checkoutError  || null,
+    /* The address warning is one-shot for exactly the same reason as the
+       rest of these: left behind on an early-return path it would greet a
+       returning buyer weeks later with a caution about an address they
+       already delivered to. Same bug, same fix - consumed here, before
+       anything can bail out. */
+    addrWarning: s.addrWarning || null,
   };
   delete req.session.checkoutErrors;
   delete req.session.checkoutOld;
   delete req.session.checkoutError;
+  delete req.session.addrWarning;
   return flash;
 }
 
@@ -323,6 +347,9 @@ exports.show = async (req, res) => {
        would throw inside the template instead of quietly degrading to a
        plain text input. */
     mapsKey:   process.env.GOOGLE_MAPS_API_KEY || '',
+    /* Null unless the previous submit produced a fix/suspect verdict.
+       The page renders nothing at all when it is null. */
+    addrWarning: flash.addrWarning,
   });
 };
 
@@ -373,6 +400,57 @@ exports.saveInfo = async (req, res) => {
     ship_formatted_address: prov.formatted,
     ship_address_source:    prov.source,
   };
+
+  /* ── Address Validation (item 16) ──────────────────────────────────
+     ONE CALL PER DISTINCT ADDRESS, and never on a resubmit of an address
+     the buyer has already been warned about. The free allowance is 1,000
+     a month — the tightest cap in the Google stack — and re-validating on
+     every submit would burn it on the same address twice.
+
+     acked holds the address keys already settled: the one they typed AND
+     the corrected one we offered. Accepting our suggestion must not cost
+     a second call to be told the corrected address is fine.
+
+     Never throws, never blocks. A null result means NOT ASKED — no key,
+     quota tripped, Google down — and the order proceeds untouched. */
+  const key   = addressKey(fields);
+  const acked = Array.isArray(req.session.addrValAcked) ? req.session.addrValAcked : [];
+  let val = null;
+
+  if (!acked.includes(key)) {
+    val = await addrVal.validateUsAddress({
+      address1: fields.ship_address1,
+      address2: fields.ship_address2,
+      city:     fields.ship_city,
+      state:    fields.ship_state,
+      zip:      fields.ship_zip,
+      /* Live token only. The page clears it once a suggestion is picked,
+         because Place Details has already terminated that session. */
+      sessionToken: req.body.ship_autocomplete_session,
+    });
+  }
+
+  if (val) {
+    fields.ship_validated_at           = new Date();
+    fields.ship_validation_verdict     = val.verdict;
+    fields.ship_validation_granularity = val.granularity;
+    fields.ship_validation_flags       = val.flags;
+    fields.ship_usps_dpv               = val.uspsDpv;
+    fields.ship_usps_flags             = val.uspsFlags;
+    fields.ship_usps_carrier_route     = val.uspsRoute;
+
+    /* Google's rooftop point beats the Census street interpolation, and
+       the service only offers it at PREMISE or finer. Written here so the
+       admin delivery panel is centred on the building rather than the
+       street, and so the fire-and-forget Census call at authorisation —
+       guarded on ship_lat IS NULL — never overwrites it. */
+    if (val.lat != null && val.lng != null) {
+      fields.ship_lat             = val.lat;
+      fields.ship_lng             = val.lng;
+      fields.ship_geocode_source  = 'google';
+      fields.ship_geocoded_at     = new Date();
+    }
+  }
 
   const conn = await bvoPool.getConnection();
   try {
@@ -449,6 +527,44 @@ exports.saveInfo = async (req, res) => {
 
     await conn.commit();
     req.session.checkoutDraft = { orderId };
+
+    /* WARN, NEVER BLOCK — and warn exactly once.
+       The order is already written and the verdict already stored, so
+       this is purely a chance for the buyer to correct a typo before a
+       freight truck is booked. Whatever they do next, the second submit
+       proceeds: both the typed key and the corrected one are marked
+       settled, so neither re-validates and neither warns again.
+
+       A prompt that reappears after the buyer has said "keep mine" is a
+       loop, and at 1,000 free calls a month it would be an expensive one. */
+    if (val && (val.verdict === 'fix' || val.verdict === 'suspect')) {
+      const settled = [key];
+      if (val.corrected) settled.push(addressKey({
+        ship_address1: val.corrected.address1,
+        ship_address2: fields.ship_address2,
+        ship_city:     val.corrected.city,
+        ship_state:    val.corrected.state,
+        ship_zip:      val.corrected.zip,
+      }));
+      req.session.addrValAcked = acked.concat(settled).slice(-8);
+
+      req.session.addrWarning = {
+        verdict:   val.verdict,
+        flags:     val.flags,
+        uspsFlags: val.uspsFlags,
+        dpv:       val.uspsDpv,
+        corrected: val.corrected,
+        typed: {
+          address1: fields.ship_address1,
+          address2: fields.ship_address2 || '',
+          city:     fields.ship_city,
+          state:    fields.ship_state,
+          zip:      fields.ship_zip,
+        },
+      };
+      return res.redirect('/checkout');
+    }
+
     return res.redirect('/checkout/delivery');
   } catch (err) {
     await conn.rollback();

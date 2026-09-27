@@ -1,4 +1,4 @@
-<link rel="stylesheet" href="/css/site3.css?v=24"><!-- site3: injected per-page (perf) -->
+<link rel="stylesheet" href="/css/site3.css?v=25"><!-- site3: injected per-page (perf) -->
 
 <%
 /* Page 1 of 3 — who you are, where it goes.
@@ -36,6 +36,76 @@ const money = n => '$' + Number(n || 0).toLocaleString('en-US',
   <% if (checkoutError) { %>
     <div class="checkout-error-banner" role="alert">
       <span><%= checkoutError %></span>
+    </div>
+  <% } %>
+
+  <%/* ── Address check (item 16) ───────────────────────────────────────
+       Shown once, after a submit whose address came back fix or suspect.
+       The order is ALREADY SAVED by the time this renders and the buyer
+       is never blocked - submitting again proceeds whatever they choose.
+
+       Tone matters here more than anywhere else on the page. This appears
+       after someone has typed their own address, so it cannot read as an
+       accusation. It is a typo check offered once, in the buyer's
+       interest, because a wrong apartment number on a freight delivery
+       costs them a redelivery fee and a second day at home.
+
+       No jargon reaches the buyer. DPV codes, CMRA, granularity and the
+       USPS flags are for the admin order screen; here it is plain English
+       about what to look at. */%>
+  <% if (typeof addrWarning !== 'undefined' && addrWarning) { %>
+    <%
+      const w  = addrWarning;
+      const fl = String(w.flags || '');
+      const uf = String(w.uspsFlags || '');
+      /* Most specific true thing first. A buyer told "check the apartment
+         number" fixes it; one told "we could not verify this address"
+         shrugs and carries on. */
+      let headline, detail;
+      if (fl.includes('missing_subpremise') || w.dpv === 'D') {
+        headline = 'Is there an apartment, suite or unit number?';
+        detail   = 'The post office has this building but no unit. Freight is delivered to a door, so without it the driver may not find you.';
+      } else if (w.dpv === 'S') {
+        headline = 'Double-check the apartment or suite number.';
+        detail   = 'The street address checks out, but the post office does not recognise that unit at this building.';
+      } else if (uf.includes('vacant')) {
+        headline = 'Please confirm this address is occupied.';
+        detail   = 'The post office currently lists it as vacant. If you have just moved in, that is normal and you can carry on.';
+      } else if (uf.includes('cmra') || uf.includes('no_secure_location') || uf.includes('door_not_accessible')) {
+        headline = 'This may not be a good address for a freight delivery.';
+        detail   = 'It looks like a mailbox or a location where a driver cannot leave a large crate. A street address where someone can receive a pallet works best.';
+      } else {
+        headline = 'Please double-check this address.';
+        detail   = 'We could not fully confirm it with the post office. It may still be correct — a new build often is.';
+      }
+    %>
+    <div class="checkout-addr-check" role="region" aria-labelledby="addr-check-h">
+      <h2 class="checkout-addr-check-h" id="addr-check-h"><%= headline %></h2>
+      <p class="checkout-addr-check-sub"><%= detail %></p>
+
+      <% if (w.corrected) { %>
+        <div class="checkout-addr-opts">
+          <div class="checkout-addr-opt">
+            <p class="checkout-addr-opt-label">You entered</p>
+            <p class="checkout-addr-opt-body"><%= w.typed.address1 %><% if (w.typed.address2) { %><br><%= w.typed.address2 %><% } %><br><%= w.typed.city %>, <%= w.typed.state %> <%= w.typed.zip %></p>
+          </div>
+          <div class="checkout-addr-opt checkout-addr-opt--suggested">
+            <p class="checkout-addr-opt-label">Post office version</p>
+            <p class="checkout-addr-opt-body"><%= w.corrected.address1 %><% if (w.typed.address2) { %><br><%= w.typed.address2 %><% } %><br><%= w.corrected.city %>, <%= w.corrected.state %> <%= w.corrected.zip %></p>
+            <%/* Fills the form rather than submitting. The buyer still
+                 presses Continue themselves - nothing is decided for
+                 them, and the apartment line is theirs either way. */%>
+            <button type="button" class="btn btn-secondary checkout-addr-use"
+                    id="addr-use"
+                    data-a1="<%= w.corrected.address1 %>"
+                    data-city="<%= w.corrected.city %>"
+                    data-state="<%= w.corrected.state %>"
+                    data-zip="<%= w.corrected.zip %>">Use this version</button>
+          </div>
+        </div>
+      <% } %>
+
+      <p class="checkout-addr-check-foot">Edit the address below if you need to, or just press Continue to keep what you entered.</p>
     </div>
   <% } %>
 
@@ -101,6 +171,15 @@ const money = n => '$' + Number(n || 0).toLocaleString('en-US',
         <input type="hidden" name="ship_place_id" id="ship_place_id" value="">
         <input type="hidden" name="ship_formatted_address" id="ship_formatted_address" value="">
         <input type="hidden" name="ship_autofill_snapshot" id="ship_autofill_snapshot" value="">
+
+        <%/* The LIVE autocomplete session token, or empty.
+             Server-side Address Validation can terminate an unfinished
+             autocomplete session, which makes every keystroke in it free.
+             Only useful while the session is still live: picking a
+             suggestion already terminates it via Place Details, and a
+             spent token is both invalid and billed separately. So this is
+             cleared the moment a suggestion is chosen. */%>
+        <input type="hidden" name="ship_autocomplete_session" id="ship_autocomplete_session" value="">
 
         <div class="checkout-field">
           <label for="ship_address2">Apartment, suite, unit</label>
@@ -238,6 +317,25 @@ const money = n => '$' + Number(n || 0).toLocaleString('en-US',
   }
   phone.addEventListener('blur', harvestExt);
 
+  /* "Use this version" on the address check panel. Fills the four fields
+     and nothing else - the apartment line stays the buyer's, and they
+     still press Continue themselves. Lives in THIS script block, not the
+     autocomplete one, because the panel must work with no Places key and
+     with the Maps library blocked. */
+  var addrUse = document.getElementById('addr-use');
+  if (addrUse) {
+    addrUse.addEventListener('click', function () {
+      var map = { ship_address1: 'a1', ship_city: 'city', ship_state: 'state', ship_zip: 'zip' };
+      Object.keys(map).forEach(function (id) {
+        var el = document.getElementById(id);
+        var v  = addrUse.getAttribute('data-' + map[id]);
+        if (el && v) { el.value = v; el.dispatchEvent(new Event('change', { bubbles: true })); }
+      });
+      addrUse.disabled = true;
+      addrUse.textContent = 'Filled in below';
+    });
+  }
+
   /* Block a submit that the server would only bounce back. Same rules,
      stated to the buyer where they are looking. */
   document.getElementById('info-form').addEventListener('submit', function (ev) {
@@ -290,7 +388,26 @@ const money = n => '$' + Number(n || 0).toLocaleString('en-US',
   var fPlace = document.getElementById('ship_place_id');
   var fFmt   = document.getElementById('ship_formatted_address');
   var fSnap  = document.getElementById('ship_autofill_snapshot');
+  var fSess  = document.getElementById('ship_autocomplete_session');
   if (!input || !list || !fPlace) return;
+
+  /* Publish the live session token so the server can terminate the
+     session with its Address Validation call, making every autocomplete
+     request in it free.
+
+     GUARDED, because this reads an UNDOCUMENTED internal. Google's
+     AutocompleteSessionToken is an opaque class; the underlying string
+     sits on a `token` property that is not part of the public API.
+     Verified on the live site 2026-09-27 - a 36-character value, matching
+     the documented maximum. If Google ever renames it, the regex fails,
+     the field stays empty, and we quietly lose the saving. That is the
+     correct failure: a cost optimisation degrading is fine, a checkout
+     breaking over one is not. */
+  function publishToken() {
+    if (!fSess) return;
+    var raw = (token && typeof token.token === 'string') ? token.token : '';
+    fSess.value = /^[A-Za-z0-9_-]{1,36}$/.test(raw) ? raw : '';
+  }
 
   /* ── Cost guards, in code ──────────────────────────────────────────
      DEBOUNCE_MS is the approved ~300ms. MIN_CHARS skips the first few
@@ -436,7 +553,7 @@ const money = n => '$' + Number(n || 0).toLocaleString('en-US',
     if (spent >= MAX_REQUESTS) { close(); return; }
 
     load().then(function () {
-      if (!token) token = new SessionToken();
+      if (!token) { token = new SessionToken(); publishToken(); }
       var mine = ++seq;
       spent++;
       return Suggestion.fetchAutocompleteSuggestions({
@@ -538,9 +655,14 @@ const money = n => '$' + Number(n || 0).toLocaleString('en-US',
           ship_zip:      document.getElementById('ship_zip').value,
         });
 
-        /* Session is spent. The next keystroke starts a new one; reusing
-           this token would bill each of its requests separately. */
+        /* Session is spent - Place Details terminated it, so every
+           autocomplete request in it is already free. The next keystroke
+           starts a new one; reusing this token would bill each of its
+           requests separately AND Google treats a concluded token as
+           invalid. Clearing the hidden field stops the server sending a
+           spent token to Address Validation. */
         token = null;
+        publishToken();
         say('Address filled in. Check it and add an apartment or suite number if you have one.');
         var a2 = document.getElementById('ship_address2');
         if (a2 && !a2.value) a2.focus();

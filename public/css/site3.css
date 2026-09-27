@@ -58,3 +58,28 @@
   .checkout-ac-item{padding:12px}
   .checkout-ac-list{max-height:220px}
 }
+
+/* ── Checkout address check panel (item 16) ────────────────────────────
+   Amber, not red. This appears after someone has typed their own address
+   and is a typo check offered once, not an error they made - red reads as
+   an accusation and makes people abandon rather than correct. */
+.checkout-addr-check{margin:0 0 20px;padding:16px 18px;border:1px solid #e0c06a;
+  border-left:4px solid #d9a441;border-radius:6px;background:#fdf8ec}
+.checkout-addr-check-h{margin:0 0 6px;font-size:1.02rem;font-weight:600;color:#6b4e12}
+.checkout-addr-check-sub{margin:0 0 12px;font-size:.9rem;line-height:1.45;color:#5a4a2c}
+.checkout-addr-check-foot{margin:12px 0 0;font-size:.82rem;color:#7a6a4c}
+.checkout-addr-opts{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.checkout-addr-opt{padding:11px 13px;background:#fff;border:1px solid #e6dcc4;border-radius:5px}
+.checkout-addr-opt--suggested{border-color:#d9a441}
+.checkout-addr-opt-label{margin:0 0 5px;font-size:.72rem;font-weight:700;letter-spacing:.04em;
+  text-transform:uppercase;color:#8a7856}
+.checkout-addr-opt-body{margin:0 0 10px;font-size:.9rem;line-height:1.4;color:#1a1a1a}
+.checkout-addr-use{font-size:.85rem;padding:7px 12px}
+.checkout-addr-use:disabled{opacity:.55;cursor:default}
+
+/* Stacked on a phone: two address blocks side by side at 375px are two
+   unreadable columns, and this is the screen where a mis-tap costs the
+   order. */
+@media (max-width:640px){
+  .checkout-addr-opts{grid-template-columns:1fr}
+}
