@@ -291,9 +291,22 @@ exports.createCheckoutSession = async (p) => {
         },
         /* What the customer sees on their card statement. A descriptor that
            does not look like the site they bought from is a leading cause of
-           "I don't recognise this charge" disputes. Card networks cap the
-           suffix at 22 chars and reject most punctuation. */
-        statement_descriptor_suffix: 'BVOUTLET',
+           "I don't recognise this charge" disputes.
+
+           This is the SUFFIX only. Stripe builds the full descriptor as
+           `PREFIX* SUFFIX` from the account's shortened descriptor, and caps
+           the WHOLE thing at 22 characters including the asterisk and space.
+
+           Account settings, set 2026-09-26 during activation:
+             Statement descriptor (static, non-card)  BVO BATHROOM VANITIES
+             Shortened descriptor (card prefix)       BVO
+
+           So a card charge reads: BVO* BATH VANITIES  (18 chars).
+
+           Was 'BVOUTLET', which rendered as "BVO* BVOUTLET" - the brand
+           twice and the product never. If the prefix is ever lengthened,
+           this must shrink to match: prefix + 2 + suffix <= 22. */
+        statement_descriptor_suffix: 'BATH VANITIES',
       },
 
       return_url: p.returnUrl,
