@@ -472,13 +472,15 @@ exports.paymentPage = async (req, res) => {
     pageTitle: 'Payment | BathroomVanitiesOutlet.com',
     metaDesc:  '', noindex: true,
     cart, subtotal: calcTotal(cart.items), order,
-    checkoutError: req.session.checkoutError || null,
+    /* NO checkoutError here. It belongs to page 1 - "We could not save
+       your details" - and a stale one rendered above the card form telling
+       a buyer a payment failed when none had been attempted. Page 1 sets
+       it, page 1 shows it, page 1 clears it. */
     /* Publishable key is public by design — it identifies the account and
        can only create, never read or charge. The secret key must never
        reach a template. */
     stripePublishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
   });
-  delete req.session.checkoutError;
 };
 
 /* ── POST /checkout/session ─────────────────────────────────────── */

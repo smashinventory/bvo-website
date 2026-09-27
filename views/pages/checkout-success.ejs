@@ -7,7 +7,7 @@
     </svg>
   </div>
 
-  <h1 class="confirm-heading">Order Confirmed!</h1>
+  <h1 class="confirm-heading">Order received</h1>
 
   <% if (typeof firstName !== 'undefined' && firstName) { %>
   <p class="confirm-sub">Thank you, <strong><%= firstName %></strong>.</p>
@@ -20,15 +20,24 @@
   <% } %>
 
   <% if (typeof email !== 'undefined' && email) { %>
-  <p class="confirm-email">A confirmation will be sent to <strong><%= email %></strong>.</p>
+  <p class="confirm-email">A confirmation is on its way to <strong><%= email %></strong>.</p>
   <% } %>
 
   <% if (typeof subtotal !== 'undefined' && subtotal > 0) { %>
-  <p class="confirm-total">Order total: <strong>$<%= (parseFloat(subtotal)||0).toLocaleString('en-US',{minimumFractionDigits:2}) %></strong></p>
+  <p class="confirm-total">Order total (authorised): <strong>$<%= (parseFloat(subtotal)||0).toLocaleString('en-US',{minimumFractionDigits:2}) %></strong></p>
   <% } %>
 
   <div class="confirm-next">
-    <p>Your order is being processed. You'll receive an email receipt shortly.</p>
+    <%/* The card is AUTHORISED, not charged. Saying "receipt" here is a
+         plain inaccuracy - no money has moved, and a buyer who checks
+         their statement will see a pending hold, not a payment. Telling
+         them that up front prevents the "why is there a charge / why is
+         there no charge" email. */%>
+    <p><strong>Your card is authorised, not yet charged.</strong> We place a
+       hold while we confirm availability, and only take payment once your
+       vanity is confirmed and ready to ship.</p>
+    <p>We'll email you when that happens. After it ships, we'll call to
+       arrange your curbside delivery appointment.</p>
     <p>Questions? <a href="mailto:<%= (settings && settings.global && settings.global.contact_email) ? settings.global.contact_email : 'info@bathroomvanitiesoutlet.com' %>">Contact us</a> — we're happy to help.</p>
   </div>
 
