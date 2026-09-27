@@ -219,9 +219,39 @@ side.
 
 ---
 
-## VERIFIED — move items here with the date
+## VERIFIED
 
-*(nothing yet)*
+### 2026-09-27 — order `BVO-2026-09-27-00164`, one run, everything below passed
+
+First order EVER to complete through the three-page checkout. Until
+commit `2fb6a76` the flow could not take a payment at all — see
+`OPEN_ITEMS` and that commit message.
+
+| Checked | Result |
+|---|---|
+| Pages 1 → 2 → 3, card, success page | Completed |
+| `payment_status` / `status` | `auth_only` / `confirmed` |
+| Ship-to written as typed on page 1 | `554 Pine Grove Rd, Roswell, GA 30075` |
+| `ship_phone` E.164 | `+14046555079` |
+| `ship_address_type` | `residential` |
+| `delivery_terms_ip` | populated — **IPv6**, `2600:1702:…`, so the 45-char column was the right call |
+| `delivery_terms_version` | `2026-09-26.curbside.v1` |
+| **Census geocode, LIVE** | **`34.027618, -84.377445`** — Roswell GA, `source=census` |
+| `ship_geocoded_at` | `2026-09-27 03:17:19` |
+| Success page copy | "Order received", "authorised, not yet charged", no receipt promise |
+| Webhook fired | Yes — `auth_only` is only written by `handleSessionCompleted` |
+
+**Correctly null / zero, not faults:**
+
+- `payment_3ds_result` — 3DS is not invoked on a test card. Null means
+  "not attempted", never "failed".
+- `ship_bill_mismatch = 0` — billing matched the delivery address.
+- `ship_phone_ext` — no extension was entered on this run.
+
+**KNOWN GAP 1 IS CLOSED.** The geocoder was written in a sandbox with no
+outbound DNS and had never once reached the live Census service. It
+resolved a real Georgia address to the right point on the first live
+call.
 
 ---
 
@@ -229,7 +259,7 @@ side.
 
 | # | Gap | Why it stayed open | Closes when |
 |---|---|---|---|
-| 1 | Census geocode round trip | Sandbox has no outbound DNS; live service never called | Step 2 shows a non-null `ship_lat` |
+| ~~1~~ | ~~Census geocode round trip~~ | **CLOSED 2026-09-27** — resolved `34.027618, -84.377445` live on order 00164 | — |
 | 2 | WWEX booking payload | No shipment booked with the new phone/residential fields | A test booking is accepted |
 | 3 | EFW and dispute banners | Fire only on real issuer activity | Stripe test event, or a real warning |
 | 4 | `order_confirmed` email body | Deferred by Sam; live copy is a rejected draft | See `PRE_LAUNCH_CHECKLIST.md` |
