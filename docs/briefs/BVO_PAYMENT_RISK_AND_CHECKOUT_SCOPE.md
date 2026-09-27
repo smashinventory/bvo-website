@@ -315,7 +315,63 @@ and call Pro separately, losing free autocomplete on completers but gaining
 a 5× larger validation cap. Do not build this now; revisit at 1,000
 orders/month.
 
-### 5A.6 Cost guards — APPROVED 2026-09-27, build alongside 5.1
+### 5A.6 Cost guards — BUILT 2026-09-27 ✅
+
+**All four are live.** Project `bathroom-vanities-outlet`, key
+"BVO Storefront — Maps".
+
+| Guard | Setting as built |
+|---|---|
+| Referrer restriction | 3 patterns: the hostingersite temp domain, apex, and `*.` subdomain |
+| API restriction | 4 APIs — Places (New), Address Validation, Maps Embed, Street View Static |
+| Budget alert | $10/month, 50/90/100% on actual spend |
+| Quota cap | Places API: **2,000 requests/day, 100/minute** |
+
+**Two billing accounts exist** — `01476C-094F74-9E406B`
+("My Maps Billing Account - BVO") and `01ED66-7F8A4D-ABDA90`
+("My Billing Account"). It was not obvious which one the project bills to,
+so **the $10 budget was created on BOTH**. A budget on the wrong account
+watches nothing and never fires; two budgets cost nothing and remove the
+guesswork. Do not "tidy up" by deleting one without first confirming the
+project's linked account.
+
+**Quota maths, recorded so the numbers are not re-derived:** 2,000/day is
+60,000/month against a 10,000 free cap, so a loop running at the daily
+ceiling all month would cost about $141. Real usage at 100 shoppers/month
+with debouncing is 10–30 requests/day, so the cap is 60–200× actual. A
+tighter 500/day would bound the worst case near $14 and still leave 15–50×
+headroom — worth lowering if volume stays flat. 350/day would stay entirely
+inside the free cap.
+
+⚠️ **Street View Static API is enabled for its METADATA endpoint, not for
+images.** Metadata is the free, unlimited call that reports whether a
+panorama exists at given coordinates — that is what powers the §5.7
+fallback. Aerial View API was deliberately NOT enabled; see 5A.7.
+
+### 5A.6b Three unrestricted keys found and deleted — 2026-09-27
+
+The project carried four API keys dating from Nov 2021, Nov 2022 and Feb
+2023. **Three had no restrictions at all.**
+
+Until billing was enabled that was a nuisance — an unrestricted key on a
+project with no card simply gets denied. Enabling billing turned them into
+a live liability: an unrestricted key is usable by anyone who holds it,
+from anywhere, against any API enabled on the project, billed to the card.
+
+Verified before acting: `grep` across `src/`, `views/`, `public/`,
+`server.js` and `package.json` found **zero** references to any Google API
+key or `maps.googleapis` URL. The BVO codebase does not use one. Metrics
+showed zero traffic on all four. All were tied to old projects.
+
+**All four deleted, one fresh restricted key created.**
+
+If a key ever shows traffic, do NOT delete it blind — it may belong to the
+Shopify store, which stays live until cutover. Restrict it to that domain
+instead.
+
+---
+
+### 5A.6c The original approved list, for reference
 
 All four, not a subset:
 
