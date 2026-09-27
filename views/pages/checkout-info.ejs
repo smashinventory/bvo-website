@@ -1,4 +1,4 @@
-<link rel="stylesheet" href="/css/site3.css?v=23"><!-- site3: injected per-page (perf) -->
+<link rel="stylesheet" href="/css/site3.css?v=24"><!-- site3: injected per-page (perf) -->
 
 <%
 /* Page 1 of 3 — who you are, where it goes.
@@ -70,12 +70,37 @@ const money = n => '$' + Number(n || 0).toLocaleString('en-US',
           <span class="checkout-field-hint">Who the carrier asks for at the door.</span>
         </div>
 
-        <div class="checkout-field">
+        <%/* Street address. The input is a PLAIN TEXT INPUT that happens to
+             have suggestions attached — it is not a widget. With JS off, the
+             Places key absent, the library blocked or the quota tripped, it
+             is still typable and the form still submits. That is the whole
+             design constraint: a degraded address field is acceptable, a
+             broken one loses the order.
+
+             role/aria-* are set here rather than in script so a screen
+             reader gets the same markup whether or not the library loads;
+             aria-expanded flips to true only when there is a list to
+             expand. */%>
+        <div class="checkout-field checkout-ac" id="ac-wrap">
           <label for="ship_address1">Street address <span class="req">*</span></label>
           <input type="text" id="ship_address1" name="ship_address1" autocomplete="address-line1"
+                 role="combobox" aria-autocomplete="list" aria-expanded="false"
+                 aria-controls="ac-list" aria-describedby="ac-status"
                  value="<%= val('ship_address1') %>">
+          <ul class="checkout-ac-list" id="ac-list" role="listbox" aria-label="Address suggestions" hidden></ul>
+          <span class="checkout-ac-status" id="ac-status" role="status" aria-live="polite"></span>
           <% if (errors.ship_address1) { %><span class="checkout-field-error"><%= errors.ship_address1 %></span><% } %>
         </div>
+
+        <%/* Provenance, decided by the server from these three (item 17).
+             ship_autofill_snapshot carries what autocomplete actually wrote,
+             so saveInfo can tell 'picked and left alone' from 'picked then
+             edited' by comparing it to what was submitted. There is
+             deliberately NO ship_address_source field here: a source string
+             the page could set is a fraud signal the fraudster controls. */%>
+        <input type="hidden" name="ship_place_id" id="ship_place_id" value="">
+        <input type="hidden" name="ship_formatted_address" id="ship_formatted_address" value="">
+        <input type="hidden" name="ship_autofill_snapshot" id="ship_autofill_snapshot" value="">
 
         <div class="checkout-field">
           <label for="ship_address2">Apartment, suite, unit</label>
@@ -225,3 +250,302 @@ const money = n => '$' + Number(n || 0).toLocaleString('en-US',
   });
 })();
 </script>
+
+<% if (mapsKey) { %>
+<%/* ── Places Autocomplete (New) — item 15 ──────────────────────────────
+     Rendered ONLY when GOOGLE_MAPS_API_KEY is set. No key, no script tag,
+     no console error, and the street field above is an ordinary text input
+     that works exactly as it did before.
+
+     WHY THE PROGRAMMATIC API AND NOT THE WIDGET
+     google.maps.places.Autocomplete (the legacy widget) would be a
+     fraction of this code, and it is the wrong tool twice over:
+       1. It fires a request per KEYSTROKE with no debounce hook. Ten
+          keystrokes is ten billable requests. Debouncing is the single
+          most effective cost control available and the widget forbids it.
+       2. Address Validation can only share a billing session with
+          Autocomplete (NEW) - confirmed in Google's sessionToken reference,
+          2026-09-27. Pairing the legacy widget with validation means the
+          autocomplete requests are billed separately AND the validation is
+          billed separately.
+     So: our own debounce, our own session token, our own dropdown.
+
+     HOW THE MONEY WORKS
+     One session = many autocomplete requests + ONE terminating call
+     (Place Details or Address Validation). Terminated, the autocomplete
+     requests in it are free. Abandoned, every request is billed on its
+     own. So the session token must persist across keystrokes and be
+     replaced only after a selection - a fresh token per keystroke would
+     bill every single one. */%>
+<script nonce="<%= cspNonce %>">
+(function () {
+  'use strict';
+
+  var KEY = <%- JSON.stringify(String(mapsKey)) %>;
+
+  var input  = document.getElementById('ship_address1');
+  var list   = document.getElementById('ac-list');
+  var status = document.getElementById('ac-status');
+  var wrap   = document.getElementById('ac-wrap');
+  var fPlace = document.getElementById('ship_place_id');
+  var fFmt   = document.getElementById('ship_formatted_address');
+  var fSnap  = document.getElementById('ship_autofill_snapshot');
+  if (!input || !list || !fPlace) return;
+
+  /* ── Cost guards, in code ──────────────────────────────────────────
+     DEBOUNCE_MS is the approved ~300ms. MIN_CHARS skips the first few
+     keystrokes, which can never produce a useful street suggestion but
+     would each be billed. MAX_REQUESTS is the backstop: a bug that
+     re-fires in a loop stops at a bounded cost instead of an invoice.
+     The Cloud quota cap (2,000/day, 100/min) sits behind all three. */
+  var DEBOUNCE_MS   = 300;
+  var MIN_CHARS     = 4;
+  var MAX_REQUESTS  = 40;
+
+  var timer = null, seq = 0, spent = 0, token = null, items = [], active = -1;
+  var Suggestion = null, SessionToken = null;
+
+  function say(msg) { status.textContent = msg || ''; }
+
+  function close() {
+    list.hidden = true;
+    list.innerHTML = '';
+    items = []; active = -1;
+    input.setAttribute('aria-expanded', 'false');
+    input.removeAttribute('aria-activedescendant');
+  }
+
+  /* Suggestion text is inserted with textContent, never innerHTML. It is
+     third-party data arriving over the network and it lands next to a
+     payment flow. */
+  function draw() {
+    list.innerHTML = '';
+    items.forEach(function (it, i) {
+      var li = document.createElement('li');
+      li.className = 'checkout-ac-item';
+      li.id = 'ac-opt-' + i;
+      li.setAttribute('role', 'option');
+      li.setAttribute('aria-selected', i === active ? 'true' : 'false');
+      if (i === active) li.classList.add('is-active');
+
+      var main = document.createElement('span');
+      main.className = 'checkout-ac-main';
+      main.textContent = it.main;
+      li.appendChild(main);
+
+      if (it.secondary) {
+        var sec = document.createElement('span');
+        sec.className = 'checkout-ac-sec';
+        sec.textContent = it.secondary;
+        li.appendChild(sec);
+      }
+
+      /* mousedown, not click: the input's blur handler closes the list, and
+         blur fires before click. */
+      li.addEventListener('mousedown', function (ev) { ev.preventDefault(); choose(i); });
+      list.appendChild(li);
+    });
+
+    /* Google Maps Platform terms require attribution when Places data is
+       shown outside a Google map. */
+    var cred = document.createElement('li');
+    cred.className = 'checkout-ac-credit';
+    cred.setAttribute('role', 'presentation');
+    cred.textContent = 'Powered by Google';
+    list.appendChild(cred);
+
+    list.hidden = false;
+    input.setAttribute('aria-expanded', 'true');
+  }
+
+  function move(delta) {
+    if (list.hidden || !items.length) return;
+    active = (active + delta + items.length) % items.length;
+    draw();
+    input.setAttribute('aria-activedescendant', 'ac-opt-' + active);
+  }
+
+  /* ── Library load, once, lazily ──────────────────────────────────────
+     Not on page load: a buyer who arrives with the address already
+     prefilled from a draft never touches this field, and loading the
+     library for them is a download they did not need. Triggered by the
+     first focus instead. */
+  var loading = null;
+  function load() {
+    if (loading) return loading;
+    loading = new Promise(function (resolve, reject) {
+      if (window.google && window.google.maps && window.google.maps.importLibrary) return resolve();
+      var s = document.createElement('script');
+      /* loading=async is what Google's own loader sets; without it the
+         library logs a performance warning on every page. */
+      s.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(KEY)
+            + '&libraries=places&loading=async&v=weekly';
+      s.async = true;
+      s.onload = resolve;
+      s.onerror = function () { reject(new Error('script blocked')); };
+      document.head.appendChild(s);
+    }).then(function () {
+      return google.maps.importLibrary('places');
+    }).then(function (places) {
+      Suggestion   = places.AutocompleteSuggestion;
+      SessionToken = places.AutocompleteSessionToken;
+      if (!Suggestion || !SessionToken) throw new Error('places (new) unavailable');
+    });
+    return loading;
+  }
+
+  /* Every failure path lands here. The field stays usable and the buyer is
+     told nothing, because there is nothing for them to do about it - they
+     were always able to just type the address. An ad blocker, a tripped
+     quota, a revoked key and an offline phone all look the same from here
+     and all have the same correct response. */
+  function giveUp() {
+    close();
+    say('');
+    input.removeAttribute('role');
+    input.removeAttribute('aria-autocomplete');
+    input.removeAttribute('aria-expanded');
+    input.removeAttribute('aria-controls');
+    ask = function () {};
+  }
+
+  var ask = function () {
+    var q = input.value.trim();
+    if (q.length < MIN_CHARS) { close(); return; }
+    if (spent >= MAX_REQUESTS) { close(); return; }
+
+    load().then(function () {
+      if (!token) token = new SessionToken();
+      var mine = ++seq;
+      spent++;
+      return Suggestion.fetchAutocompleteSuggestions({
+        input: q,
+        sessionToken: token,
+        /* US only, and street-level types only. A buyer cannot take
+           freight delivery in another country, and suggesting cities or
+           regions invites a selection that fills nothing useful. */
+        includedRegionCodes: ['us'],
+        includedPrimaryTypes: ['street_address', 'premise', 'subpremise'],
+      }).then(function (res) {
+        /* A slower earlier request must not overwrite a faster later one.
+           Without this the list can settle on suggestions for a prefix the
+           buyer has already typed past. */
+        if (mine !== seq) return;
+
+        items = (res.suggestions || []).map(function (s) {
+          var p = s.placePrediction;
+          if (!p) return null;
+          return {
+            placeId:   p.placeId,
+            main:      p.mainText ? p.mainText.toString() : p.text.toString(),
+            secondary: p.secondaryText ? p.secondaryText.toString() : '',
+            place:     p.toPlace(),
+          };
+        }).filter(Boolean).slice(0, 5);
+
+        active = -1;
+        if (items.length) { draw(); say(items.length + ' address suggestions. Use arrow keys to review.'); }
+        else { close(); say(''); }
+      });
+    }).catch(giveUp);
+  };
+
+  function debounced() {
+    /* Typing invalidates a previous selection. Clearing the hidden fields
+       here is what makes 'edited' detectable: the snapshot survives so the
+       server can compare, but a half-typed address never keeps a Place ID
+       that no longer describes it. */
+    fPlace.value = '';
+    fFmt.value   = '';
+    clearTimeout(timer);
+    timer = setTimeout(function () { ask(); }, DEBOUNCE_MS);
+  }
+
+  function setField(id, value) {
+    var el = document.getElementById(id);
+    if (!el || !value) return;
+    el.value = value;
+    /* The state field is a <select>; anything watching it needs the event. */
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function choose(i) {
+    var it = items[i];
+    if (!it) return;
+    close();
+
+    /* THE TERMINATING CALL. fetchFields is the Place Details request that
+       closes the billing session, which makes every autocomplete request in
+       it free. Only the four location fields are asked for - the cheapest
+       tier. Adding a field from a richer tier here would silently reprice
+       every selection. */
+    it.place.fetchFields({ fields: ['addressComponents', 'formattedAddress', 'id'] })
+      .then(function () {
+        var p = it.place;
+        var get = function (type, useShort) {
+          var c = (p.addressComponents || []).find(function (comp) {
+            return (comp.types || []).indexOf(type) !== -1;
+          });
+          return c ? (useShort ? c.shortText : c.longText) : '';
+        };
+
+        var num    = get('street_number');
+        var street = get('route');
+        var line1  = [num, street].filter(Boolean).join(' ');
+
+        /* A suggestion with no house number would blank a line the buyer
+           had already typed correctly. Leave theirs alone instead. */
+        if (line1) setField('ship_address1', line1);
+        setField('ship_city', get('locality') || get('sublocality') || get('postal_town'));
+        setField('ship_state', get('administrative_area_level_1', true));
+        setField('ship_zip', get('postal_code'));
+
+        /* ship_address2 is DELIBERATELY not written. Google can return a
+           subpremise, but it is the buyer who knows whether the crate goes
+           to apartment 4B, and overwriting what they typed there is how a
+           freight delivery ends up at the wrong door. */
+
+        fPlace.value = p.id || it.placeId || '';
+        fFmt.value   = p.formattedAddress || '';
+
+        /* Snapshot of exactly what was written, for the server to compare
+           against what is submitted. */
+        fSnap.value = JSON.stringify({
+          ship_address1: document.getElementById('ship_address1').value,
+          ship_city:     document.getElementById('ship_city').value,
+          ship_state:    document.getElementById('ship_state').value,
+          ship_zip:      document.getElementById('ship_zip').value,
+        });
+
+        /* Session is spent. The next keystroke starts a new one; reusing
+           this token would bill each of its requests separately. */
+        token = null;
+        say('Address filled in. Check it and add an apartment or suite number if you have one.');
+        var a2 = document.getElementById('ship_address2');
+        if (a2 && !a2.value) a2.focus();
+      })
+      .catch(giveUp);
+  }
+
+  input.addEventListener('input', debounced);
+  input.addEventListener('focus', function () { load().catch(giveUp); }, { once: true });
+  input.addEventListener('blur', function () { setTimeout(close, 150); });
+
+  input.addEventListener('keydown', function (ev) {
+    if (ev.key === 'ArrowDown') { ev.preventDefault(); move(1); }
+    else if (ev.key === 'ArrowUp') { ev.preventDefault(); move(-1); }
+    else if (ev.key === 'Enter') {
+      /* Enter only commits when a suggestion is highlighted. Otherwise it
+         must submit the form as it always has - swallowing Enter on a text
+         field is the kind of change that makes a checkout feel broken. */
+      if (!list.hidden && active >= 0) { ev.preventDefault(); choose(active); }
+    }
+    else if (ev.key === 'Escape') { close(); }
+  });
+
+  document.addEventListener('click', function (ev) {
+    if (!wrap.contains(ev.target)) close();
+  });
+})();
+</script>
+<% } %>

@@ -57,6 +57,9 @@ const { bvoPool } = require('../config/database');
 const stripe      = require('../services/stripeService');
 const brevo       = require('../services/brevoService');
 const geocode     = require('../services/geocodeService');
+/* Pure function, own module — see src/utils/addressProvenance.js for why
+   the delivery address's origin is decided here and not sent by the page. */
+const { addressProvenance } = require('../utils/addressProvenance');
 
 /* ── Helpers ────────────────────────────────────────────────────── */
 
@@ -272,6 +275,11 @@ exports.show = async (req, res) => {
     errors:    req.session.checkoutErrors || {},
     old:       req.session.checkoutOld    || {},
     checkoutError: req.session.checkoutError || null,
+    /* Empty string, never undefined: the page branches on truthiness to
+       decide whether to load the Places library at all, and an undefined
+       would throw inside the template instead of quietly degrading to a
+       plain text input. */
+    mapsKey:   process.env.GOOGLE_MAPS_API_KEY || '',
   });
 
   delete req.session.checkoutErrors;
@@ -299,6 +307,7 @@ exports.saveInfo = async (req, res) => {
   const phone = toE164(req.body.ship_phone);
   const ext   = String(req.body.ship_phone_ext || '').replace(/\D/g, '').slice(0, 8) || null;
   const customerIp = clientIp(req);
+  const prov  = addressProvenance(req.body);
 
   const fields = {
     guest_email:       String(req.body.email).trim().toLowerCase(),
@@ -315,6 +324,15 @@ exports.saveInfo = async (req, res) => {
     /* The buyer typed this address themselves — it is not a copy of the
        billing address, which is what the flag distinguishes. */
     ship_address_confirmed: 1,
+
+    /* Provenance (item 17). Written on every save, including the re-edit
+       path: a buyer who comes back and retypes the address by hand must
+       flip from 'autocomplete' to 'typed', so these cannot be left out of
+       the UPDATE or a stale verdict would outlive the address it
+       described. */
+    ship_place_id:          prov.placeId,
+    ship_formatted_address: prov.formatted,
+    ship_address_source:    prov.source,
   };
 
   const conn = await bvoPool.getConnection();

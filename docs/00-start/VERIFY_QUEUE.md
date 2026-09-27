@@ -314,3 +314,53 @@ gets no carrier delivery alerts at all.
 | 2b | Destination email on the shipping form | Fixed in `8956fed`, not yet deployed or seen. Without it WWEX sends NO delivery alerts | A NEW order's shipping form shows the email pre-filled |
 | 3 | EFW and dispute banners | Fire only on real issuer activity | Stripe test event, or a real warning |
 | 4 | `order_confirmed` email body | Deferred by Sam; live copy is a rejected draft | See `PRE_LAUNCH_CHECKLIST.md` |
+
+---
+
+## 2026-09-27 — Places autocomplete + address provenance (items 15, 17)
+
+### Proven
+- Ten address-intel columns exist on `orders` with the right types — confirmed
+  by `SHOW COLUMNS` against the live database.
+- 28 negative tests: every gate fails when the thing it claims to protect is
+  broken, and the baseline is silent. Includes the two gate defects found by
+  negative-testing rather than by reading (below).
+- `addressProvenance` executed on 30 inputs: clean selection, edited house
+  number, case/whitespace-only change, hand-typed, JS-off empty strings,
+  forged `ship_address_source`, four junk Place IDs, five malformed snapshots,
+  over-long formatted address.
+- Field-by-field comparison demonstrated necessary: a joined-string version
+  reports `autocomplete` for an address whose value moved between two fields.
+
+### NOT proven — needs a browser
+1. **A suggestion has never been fetched.** No live Places request has been
+   made from this code. The request shape, the response field names
+   (`placePrediction.mainText`, `.toPlace()`, `fetchFields`) and the
+   `addressComponents` types are from Google's reference, not from a response
+   we have seen. First real keystroke is the test.
+2. **The referrer restriction has never been exercised.** The key is
+   restricted to the hostingersite temp domain, the apex and `*.` subdomain.
+   If the deployed host is not one of those three, every request returns
+   `REQUEST_DENIED` and the field silently degrades — which looks exactly
+   like "the library did not load".
+3. **Whether the session actually terminates.** The billing claim — that
+   autocomplete requests inside a terminated session are free — is untested.
+   Check Cloud metrics after a handful of real checkouts: Autocomplete
+   Requests billed should be near zero while Place Details matches the
+   number of selections.
+4. **The dropdown has never been rendered.** Positioning, z-index over the
+   City/State row, and touch target size are unverified visually.
+5. **`ship_address_source` has never been written by a real submit.** Expect
+   `autocomplete` on a clean pick, `edited` after changing the house number,
+   `typed` with JS off.
+
+### Gate defects found by negative-testing, not by reading
+- `<script[^>]*>` stops at the `>` inside `nonce="<%= cspNonce %>"`, slicing
+  two characters of HTML onto the front of every script body and failing
+  working code. Fixed by stripping EJS before locating script tags.
+- An unanchored `/\/\/.*$/gm` comment-stripper eats the `//` in every
+  `https://` URL, deleting the exact CSP entries the gate exists to find.
+  Anchored to line-leading `//`.
+- `token = null` matched the `var` declaration, so the gate passed while the
+  post-selection reset was missing — the state that bills every request.
+  Scoped to the code after `fetchFields(`.

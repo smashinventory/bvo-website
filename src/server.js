@@ -119,7 +119,23 @@ const CSP_DIRECTIVES = {
                       covers test and live — unlike Authorize.net, Stripe does
                       not use a separate sandbox domain, so there is no
                       env-dependent entry to keep in sync. */
-                   'https://api.stripe.com'],
+                   'https://api.stripe.com',
+                   /* Google Maps JS API — Places Autocomplete (New) on
+                      checkout page 1, and Address Validation behind it
+                      (scope 5A). The library fetches its own modules and
+                      posts every autocomplete and validation request to
+                      this host.
+
+                      SCRIPT-SRC NEEDS NO ENTRY. scriptSrc carries
+                      'strict-dynamic', so the nonce-bearing inline loader
+                      on checkout-info.ejs is trusted to inject the
+                      maps.googleapis.com <script> it creates. Adding a
+                      host to scriptSrc would be ignored by CSP3 browsers
+                      anyway. connect-src is the one that is actually
+                      consulted, and omitting it fails the way the Stripe
+                      frame-src entries warn about: the field looks normal
+                      and silently never suggests anything. */
+                   'https://maps.googleapis.com'],
   frameSrc:       ["'self'", 'https://www.youtube-nocookie.com', 'https://www.youtube.com',
                    /* The Payment Element renders inside an iframe served by
                       js.stripe.com — the same hosted-field model AcceptUI used,
