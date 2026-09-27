@@ -442,6 +442,74 @@ without a developer.
 
 ---
 
+## 🔴 Email templates — 8 of 9 are the wrong copy, and `order_confirmed` is a rejected draft
+
+Logged 2026-09-26. Deferred by Sam to a later session. **Do not start this
+inside another task** — it is a session of its own.
+
+### What is actually live, verified in the DB not assumed
+
+| `trigger_key` | `updated_at` | Length | State |
+|---|---|---|---|
+| `order_confirmed` | 2026-09-09 | 3,842 | The **rejected** "Six things worth knowing" draft |
+| `vanity_in_preparation` | 2026-08-19 | 487 | Original August copy |
+| `order_shipped` | 2026-08-19 | 520 | Original August copy |
+| `out_for_delivery` | 2026-08-19 | 347 | Original August copy |
+| `order_delivered` | 2026-08-19 | 403 | Original August copy |
+| `review_request` | 2026-08-19 | 553 | Original August copy |
+| `cross_sell` | 2026-08-19 | 440 | Original August copy |
+| `return_approved` | 2026-08-19 | 475 | Original August copy |
+| `return_resolved` | 2026-08-19 | 471 | Original August copy |
+
+`database/migrations/016_email_templates.sql` holds the approved rewrite of
+all nine in BVO voice. **It never fully applied.** phpMyAdmin aborts an
+entire paste at the first error, and only statement 1 landed — and even that
+landed an earlier draft than the file now contains. The eight August rows
+have no wrapper `<div>`, no footer policy links, and 0-1 style attributes
+between them.
+
+### Why this is on the cutover list and not the backlog
+
+The eight August templates never received the freight-claim language.
+`order_shipped` and `out_for_delivery` are the two that reach a customer
+nearest the moment they sign a delivery receipt, and a clean signature is
+the point past which **neither the carrier nor the manufacturer will
+entertain a claim** on a damaged vanity. That is not styling. It decides who
+absorbs a $2,500 loss.
+
+`order_confirmed` separately tells the customer the card **will be charged
+when the order is confirmed**, in an email whose own label is "Order
+Confirmed". Capture is manual (`capture_method: 'manual'`), so nothing has
+been charged at that point. It also promises *"we will re-confirm before
+capture of payment"*, an automatic re-authorization that no code performs —
+a Stripe hold expires in about 7 days and a human then has to ask again.
+
+### Traps for whoever picks this up
+
+1. **`016` on disk is not what is live.** Read the DB row first. A
+   `REPLACE()` written against the file silently matches nothing — that
+   already happened once on 26 Sept, twice, reporting `0 rows affected`.
+2. **`016`'s warm `order_confirmed` uses `{{estimated_ship_window}}`, which
+   `checkoutController` does not supply.** `brevoService.substituteVars()`
+   renders an unknown `{{var}}` as an empty string with no error. The
+   variables actually passed are `customer_first_name`, `order_number`,
+   `order_date`, `order_items_html`, `order_total`.
+3. **Apply one statement at a time and verify each**, or a mid-paste failure
+   leaves the same partial state that caused this.
+4. `out_for_delivery`, `order_delivered`, `review_request` and `cross_sell`
+   have **no code path calling them**. Wrong copy there is not yet reaching
+   anyone.
+5. The voice is recorded in `016`'s header: subject is a feeling not a
+   status, "dream bathroom" motif, present-tense momentum, a real person
+   promised, short emotional sign-off then "The BVO Team". Legal content is
+   framed as protecting the customer's outcome, never as protecting us.
+
+**Owner:** Sam, later session. Blocking cutover on the claim language in
+`order_shipped` and `out_for_delivery`, and on the payment wording in
+`order_confirmed`.
+
+---
+
 ## Also outstanding before launch
 
 Carried from earlier sessions — unchanged, listed here so there is one place
