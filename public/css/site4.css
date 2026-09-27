@@ -301,3 +301,19 @@
 .dv-tab{flex:1;padding:.45rem .6rem;border:0;background:var(--color-whisper,#f8f6f2);color:var(--text-muted,#787063);font-size:.75rem;font-weight:700;letter-spacing:.03em;cursor:pointer;transition:background .15s,color .15s}
 .dv-tab:hover{color:var(--color-navy,#182840)}
 .dv-tab--on{background:#fff;color:var(--color-navy,#182840);box-shadow:inset 0 -2px 0 var(--color-amber,#926a21)}
+
+/* ── Email diagnostics (admin) ─────────────────────────────────────────
+   One verdict at the top in plain language. The page exists to answer a
+   question, not to present data for the reader to interpret — five wrong
+   theories came from interpreting. */
+.dg-verdict{margin:0 0 16px;padding:12px 15px;border-radius:6px;font-weight:600;line-height:1.45}
+.dg-ok{background:#eaf6ec;border:1px solid #9fce9f;color:#1e5b2a}
+.dg-warn{background:#fdf8ec;border:1px solid #e0c06a;color:#6b4e12}
+.dg-bad{background:#fdecec;border:1px solid #e3a0a0;color:#8a1f1f}
+.dg-bad-text{color:#8a1f1f;font-weight:600}
+/* Brevo's reply, unedited and wrapped. Paraphrasing an API error is how
+   this took five rounds. */
+.dg-raw{background:#1d2330;color:#e6e9ef;padding:12px 14px;border-radius:5px;
+  font-size:.78rem;line-height:1.5;overflow-x:auto;white-space:pre-wrap;word-break:break-word;
+  max-height:340px}
+.dg-form{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}

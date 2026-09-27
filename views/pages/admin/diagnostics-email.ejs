@@ -1,0 +1,164 @@
+<%/* Email diagnostics. Asks Brevo directly rather than inferring.
+
+     Built after five wrong theories about why no email was sending. Every
+     value on this page comes from Brevo's own API response — nothing here
+     is derived, assumed, or paraphrased. */%>
+
+<div class="adm-head">
+  <h1>Email diagnostics</h1>
+  <p class="adm-sub">Asks Brevo directly. Nothing on this page is inferred.</p>
+</div>
+
+<%
+  /* One verdict at the top, because the whole point is to answer a
+     question, not to present data for interpretation. */
+  let verdict, verdictClass;
+  if (!key.present) {
+    verdict = 'BREVO_API_KEY is not set. Nothing can send.';
+    verdictClass = 'dg-bad';
+  } else if (key.hasWhitespace) {
+    verdict = 'BREVO_API_KEY has leading or trailing whitespace — almost certainly a copy-paste newline. This alone will make every request fail.';
+    verdictClass = 'dg-bad';
+  } else if (account && !account.ok && account.noResponse) {
+    verdict = 'The server could not reach Brevo at all. This is not a Brevo problem — it is DNS, TLS, or blocked outbound traffic from the host.';
+    verdictClass = 'dg-bad';
+  } else if (account && !account.ok && account.status === 401) {
+    verdict = 'Brevo rejected the API key (401). The key is present but not valid for this account.';
+    verdictClass = 'dg-bad';
+  } else if (account && !account.ok) {
+    verdict = 'Brevo returned an error on a simple account read. See the raw response below.';
+    verdictClass = 'dg-bad';
+  } else if (!fromMatches) {
+    verdict = 'The key works, but the from-address is NOT in Brevo\'s sender list. Brevo refuses sends from an address it does not hold.';
+    verdictClass = 'dg-warn';
+  } else {
+    verdict = 'Key authenticates and the from-address is a known sender. If mail still is not arriving, run the test send below and read Brevo\'s reply.';
+    verdictClass = 'dg-ok';
+  }
+%>
+
+<div class="dg-verdict <%= verdictClass %>"><%= verdict %></div>
+
+<div class="adm-card">
+  <h2>1 · API key</h2>
+  <table class="adm-table">
+    <tr><td>Present in environment</td><td><strong><%= key.present ? 'yes' : 'NO' %></strong></td></tr>
+    <% if (key.present) { %>
+      <tr><td>Length</td><td><%= key.length %> characters</td></tr>
+      <tr><td>Ends with</td><td><code>…<%= key.endsWith %></code></td></tr>
+      <%/* A trailing newline pasted into a control panel field is a real
+           cause and a baffling one: the key looks correct and every
+           request 401s. */%>
+      <tr><td>Leading/trailing whitespace</td>
+          <td><strong><%= key.hasWhitespace ? 'YES — this will break every request' : 'no' %></strong></td></tr>
+    <% } %>
+  </table>
+  <p class="adm-note">The key itself is never displayed. Length and last four are enough to tell
+    "not set" from "wrong value" from "damaged by a stray newline".</p>
+</div>
+
+<div class="adm-card">
+  <h2>2 · Does the key authenticate?</h2>
+  <p class="adm-note"><code>GET /v3/account</code> — sends no email and costs nothing.</p>
+  <% if (!account) { %>
+    <p>Not attempted — no API key.</p>
+  <% } else if (account.ok) { %>
+    <table class="adm-table">
+      <tr><td>Result</td><td><strong>HTTP <%= account.status %> — the key is valid</strong></td></tr>
+      <% if (account.data && account.data.companyName) { %>
+        <tr><td>Account</td><td><%= account.data.companyName %></td></tr>
+      <% } %>
+      <% if (account.data && account.data.email) { %>
+        <tr><td>Account email</td><td><%= account.data.email %></td></tr>
+      <% } %>
+      <% if (account.data && account.data.plan && account.data.plan.length) { %>
+        <tr><td>Plan</td>
+            <td><%= account.data.plan.map(p => `${p.type}${p.credits != null ? ' — ' + p.credits + ' credits' : ''}`).join(', ') %></td></tr>
+      <% } %>
+    </table>
+    <%/* Credits at zero is a silent killer: the key is valid, the sender
+         is valid, and every send is refused. */%>
+  <% } else { %>
+    <p class="dg-bad-text">
+      <% if (account.noResponse) { %>
+        No response at all — the request never reached Brevo.
+      <% } else { %>
+        HTTP <%= account.status %>
+      <% } %>
+    </p>
+    <pre class="dg-raw"><%= typeof account.body === 'string' ? account.body : JSON.stringify(account.body, null, 2) %></pre>
+  <% } %>
+</div>
+
+<div class="adm-card">
+  <h2>3 · Sender addresses Brevo will accept</h2>
+  <p class="adm-note">The app sends as <code><%= fromEmail %></code>
+    (<code>BREVO_FROM_EMAIL</code>, or the code default when that is unset).</p>
+
+  <% if (!senders) { %>
+    <p>Not attempted — no API key.</p>
+  <% } else if (!senders.ok) { %>
+    <p class="dg-bad-text">Could not read the sender list.</p>
+    <pre class="dg-raw"><%= typeof senders.body === 'string' ? senders.body : JSON.stringify(senders.body, null, 2) %></pre>
+  <% } else if (!senderList.length) { %>
+    <p class="dg-bad-text">Brevo returned no senders at all. Nothing can send until one is added.</p>
+  <% } else { %>
+    <table class="adm-table">
+      <thead><tr><th>Address</th><th>Name</th><th>Active</th><th></th></tr></thead>
+      <tbody>
+        <% senderList.forEach(function (s) { %>
+          <tr>
+            <td><code><%= s.email %></code></td>
+            <td><%= s.name %></td>
+            <td><%= s.active ? 'yes' : 'no' %></td>
+            <td><% if (s.email.toLowerCase() === fromEmail.toLowerCase()) { %>
+              <strong>← what the app uses</strong><% } %></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+    <% if (!fromMatches) { %>
+      <p class="dg-bad-text"><strong><%= fromEmail %> is not in that list.</strong>
+        Either add it as a sender in Brevo, or point <code>BREVO_FROM_EMAIL</code>
+        at one that is.</p>
+    <% } %>
+  <% } %>
+</div>
+
+<div class="adm-card">
+  <h2>4 · Send a real test</h2>
+  <p class="adm-note">Actually sends. Reports Brevo's unedited reply either way.</p>
+
+  <% if (testResult) { %>
+    <div class="dg-verdict <%= testResult.ok ? 'dg-ok' : 'dg-bad' %>"><%= testResult.summary %></div>
+    <% if (testResult.messageId) { %>
+      <p class="adm-note">Message ID: <code><%= testResult.messageId %></code></p>
+    <% } %>
+    <% if (testResult.body) { %>
+      <pre class="dg-raw"><%= testResult.body %></pre>
+    <% } %>
+  <% } %>
+
+  <form method="POST" action="/admin/diagnostics/email/test" class="dg-form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="email" name="to" placeholder="you@example.com" required style="min-width:260px">
+    <button type="submit" class="btn btn-primary">Send test email</button>
+  </form>
+</div>
+
+<div class="adm-card">
+  <h2>Why this page exists</h2>
+  <p class="adm-note">
+    <code>brevoService</code> never throws — it returns <code>{skipped:true}</code> or
+    <code>{ok:false}</code>. And <code>checkoutController</code> deliberately ignores that,
+    because a Brevo outage must never fail an order whose card has already been
+    authorised. That is the right call, and its cost is that a dead email channel
+    looks exactly like a healthy one.
+  </p>
+  <p class="adm-note">
+    Nothing else in the system will tell you. On 2026-09-27 that meant no email had
+    ever left this site — not one order confirmation — and it was only noticed
+    because a login screen started depending on one arriving. <strong>Do not delete
+    this page as temporary.</strong>
+  </p>
+</div>

@@ -176,6 +176,14 @@ router.post('/upload',        ctrl.uploadMiddleware,      ctrl.uploadImage);
 router.post('/upload/video',  ctrl.uploadVideoMiddleware, ctrl.uploadVideo);
 router.get ('/upload/probe',  ctrl.uploadProbe);  // diagnostic: check upload dir
 
+/* Email diagnostics. brevoService never throws and checkoutController
+   ignores its result by design, so a dead email channel is invisible
+   everywhere else. This page asks Brevo directly. See the controller
+   header — do not remove it as temporary. */
+const emailDiag = require('../controllers/emailDiagnosticsController');
+router.get ('/diagnostics/email',      emailDiag.page);
+router.post('/diagnostics/email/test', emailDiag.sendTest);
+
 /* ══════════════════════════════════════════════════════════════════════
    RFLPOS SYNC — PARKED, NOT ABANDONED
 
