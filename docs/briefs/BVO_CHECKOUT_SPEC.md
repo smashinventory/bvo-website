@@ -462,7 +462,41 @@ reason to exist, and specific enough that people open it.
 > The carrier calls to book your appointment. We'll also text the window
 > and let you know when the truck is out.
 
-Both boxes **unchecked by default** and neither a condition of purchase.
+### 9.2a Placement and defaults — decided 2026-09-27
+
+**Inline in the form. NOT a screen, NOT a gate, and NO skip button.**
+
+The delivery-text box sits directly under the phone field it governs; the
+marketing box sits in the contact block. Two lines in a form the buyer is
+already completing. Nothing to answer before continuing, so nothing needs
+a "next" or "just delivery" escape.
+
+Wayfair gives consent its own screen because it is selling a $29
+membership. A screen implies a decision worth stopping for, which invites
+"no". A checkbox beside the number it governs explains itself.
+
+| Box | Default | Why |
+|---|---|---|
+| Email me about my vanity | **UNCHECKED** | Genuinely marketing. A pre-checked marketing box is weaker evidence of consent and off-tone for a site that otherwise tells people plainly what it does. |
+| Text me about my delivery | **PRE-CHECKED** | Transactional. The buyer hands over that number precisely so the carrier can reach them about this delivery; texting the window is the same purpose done better. The carrier calls regardless. |
+
+Neither is a condition of purchase.
+
+⛔ **THE CONDITION ON THE PRE-CHECKED BOX — this is what makes it lawful
+and it is not optional.**
+
+**That channel carries delivery information ONLY. Forever. No promotion,
+no "while we're here", no cross-sell, not once.**
+
+Pre-checking is defensible because the message is transactional: the
+customer supplied the number for this shipment. The moment a promotion
+goes down that path it stops being transactional consent and becomes
+precisely what gets retailers sued under the TCPA — and the box would then
+have to revert to unchecked with consent re-collected from everyone who
+ever ticked it.
+
+If the content of delivery texts is ever widened, **unset the default and
+re-consent.** Do not reason that "they already agreed".
 
 ### 9.3 Promises that can be kept — and two that were cut
 
