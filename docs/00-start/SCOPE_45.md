@@ -22,6 +22,8 @@ says what was asked for, not what was built.
 
 **Status: 23 of 45 done.**
 
+✅ done · ⬜ open · ⛔ **deferred by the owner — do not start**
+
 ---
 
 ## Payment risk — build
@@ -49,9 +51,15 @@ says what was asked for, not what was built.
 
 9. ⬜ Phone first-time orders over a threshold before capture
    *Blocked: needs the threshold.*
-10. ⬜ Order confirmation email stating clearly what was ordered and where
+10. ⛔ Order confirmation email stating clearly what was ordered and where
     it's going
-    *Overlaps 36. Both are email-template work.*
+    **DEFERRED TO CUTOVER BY THE OWNER, 2026-09-26. Do not start this
+    inside another task.** See the red section in
+    `docs/reference/PRE_LAUNCH_CHECKLIST.md`. Email-template work is a
+    session of its own: the live DB copy is not the disk copy, and the
+    voice has to be agreed before nine templates are written, not after.
+    This was re-proposed in error on 2026-09-27 as part of a batch; the
+    owner had to say no twice.
 11. ✅ Documented capture window, with authorisation expiry shown on the
     order
 12. ✅ Keep terms-acceptance evidence — timestamp, IP, version of the copy
@@ -117,14 +125,18 @@ says what was asked for, not what was built.
     *Spec says this must be tested against a live session first.*
 33. ⬜ Policy language — right to decline an order, right to pass a
     shipping upcharge before consummation
+    *Site policy copy, NOT an email template — not covered by the cutover
+    deferral. Still owner-voice copy and still needs his decisions on what
+    the policy actually is.*
 34. ⬜ Strip the `?debug=1` panel and SDK enumeration
     *The only remaining item doable unsupervised. MUST wait until after
     the owner's full review: the debug panel is what diagnosed the
     checkout outage, and removing it before the review removes the tool
     that would diagnose the next one.*
 35. ✅ Success page copy — was inaccurate under authorise-then-capture
-36. ⬜ `order_confirmed` email rewrite — authorised, not charged
-    *Part of the email-template work blocking cutover.*
+36. ⛔ `order_confirmed` email rewrite — authorised, not charged
+    **DEFERRED TO CUTOVER BY THE OWNER, 2026-09-26.** Same session as 10.
+    Do not start it inside another task.
 37. ✅ WWEX booking payload — send the phone and residential flag
 
 ## Deferred
