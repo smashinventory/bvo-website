@@ -135,7 +135,18 @@ const CSP_DIRECTIVES = {
                                           rather than erroring. */
                    'https://js.stripe.com',
                    'https://hooks.stripe.com',
-                   'https://m.stripe.network'],
+                   'https://m.stripe.network',
+                   /* Maps Embed API — the aerial and Street View panel on the
+                      admin order detail page (scope 5A.7). Both modes are
+                      served from www.google.com/maps/embed/v1/...
+
+                      Same failure mode as the Stripe entries above: omit this
+                      and the panel renders as an empty box with nothing but a
+                      console error. www.google.com is already in connectSrc
+                      for reCAPTCHA, but connect-src does not cover iframes -
+                      frame-src is a separate directive and needs its own
+                      entry. */
+                   'https://www.google.com'],
   objectSrc:      ["'none'"],
 };
 

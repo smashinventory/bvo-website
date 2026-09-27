@@ -283,6 +283,15 @@ exports.detail = async (req, res, next) => {
       documents,
       rag,
       wwexMode:   wwex.apiMode,
+      /* Maps Embed key for the delivery panel. Client-side visible by
+         design — it ships in the iframe URL and anyone can read it. The
+         HTTP referrer restriction is what makes that safe, not secrecy.
+         See BVO_PAYMENT_RISK_AND_CHECKOUT_SCOPE.md §5A.6.
+
+         Empty string rather than undefined so the template can test it
+         plainly; an unset key renders the panel's fallback instead of an
+         iframe pointing at `key=undefined`. */
+      mapsKey:    process.env.GOOGLE_MAPS_API_KEY || '',
     });
   } catch (err) { next(err); }
 };
