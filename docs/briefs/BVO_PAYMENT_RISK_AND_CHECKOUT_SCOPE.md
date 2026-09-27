@@ -231,7 +231,133 @@ whether the approach is steep, whether there are steps from the curb.
 Those are the conditions that become refused deliveries and surcharges.
 
 ### 5.7 Fallback when imagery does not exist
-Rural and new-build addresses often have none.
+Rural and new-build addresses often have none. **Street View Metadata API
+is free with unlimited usage** — call it first and render the aerial alone
+with an explanatory line rather than an empty grey box.
+
+---
+
+## 5A. SETTLED 2026-09-27 — Google vs Mapbox, costed. Do not re-open.
+
+Mapbox was evaluated seriously and rejected on the numbers below. The
+earlier note that Mapbox offers "100,000 free requests/month" is WRONG —
+Address Autofill is **1,000 free sessions/month**, then $12.50/1,000.
+
+### 5A.1 How each one bills — this is the whole argument
+
+**Mapbox** bills per SESSION, and a session is billable **even when nobody
+selects anything**: `/suggest` followed by `/retrieve`, OR `/suggest` with
+no `/retrieve` within 180 seconds. Keystroke count is irrelevant. Every
+shopper who touches the field costs one session.
+
+**Google** bills per REQUEST, but the session terminator decides whether
+those requests are free:
+
+| Session outcome | Autocomplete requests |
+|---|---|
+| Terminated by **Address Validation** | **FREE** (SKU: Autocomplete Session Usage) |
+| Terminated by Place Details Essentials | first 12 billed, rest free |
+| Terminated by Place Details **IDs Only** | ALL billed — the free terminator poisons the session |
+| **Abandoned** (no terminator) | ALL billed per-request |
+
+So under the "Autocomplete for checkout and delivery" pattern, **buyers who
+complete cost nothing for autocomplete**. Only abandoners do. That inverts
+the usual intuition: abandonment is the cost driver, not orders.
+
+### 5A.2 The prices that matter (Google global list, 2026-09-27)
+
+| SKU | Free cap/month | Then |
+|---|---|---|
+| Autocomplete Requests | 10,000 | $2.83/1,000 |
+| Autocomplete Session Usage | **Unlimited** | — |
+| Address Validation **Enterprise** | **1,000** | $25.00/1,000 |
+| Address Validation **Pro** | 5,000 | $17.00/1,000 |
+| Place Details Essentials | 10,000 | $5.00/1,000 |
+| **Maps Embed** | **Unlimited** | — |
+| **Street View Metadata** | **Unlimited** | — |
+
+### 5A.3 Modelled: 100 shoppers/month, 25 complete, 75 abandon after 10 keystrokes
+
+| Line | Volume | Cost |
+|---|---|---|
+| 25 completers, autocomplete | ~250 req | $0 (Session Usage) |
+| 25 completers, Address Validation | 25 | $0 (cap 1,000) |
+| 75 abandoners, autocomplete | 750 req | $0 (cap 10,000) |
+| **TOTAL** | | **$0** |
+
+At list price with no free caps at all: **$2.75/month.** Mapbox on the same
+scenario is $1.25 at list. A one-dollar difference decided nothing.
+
+### 5A.4 Can it exceed $50 under 200 shoppers/month? Only via a fault.
+
+$50 on Autocomplete Requests needs 27,668 requests — the 10,000 free cap
+plus 17,668 billable. That is **138 requests per shopper at 200/month**, or
+277 at 100/month. A long US address is 35–45 keystrokes, so even with zero
+debouncing and no session tokens, 200 shoppers cannot reach the free cap.
+
+Every other per-order SKU is inside its cap at 200 shoppers, including the
+most expensive ones.
+
+**The two real risks are a request loop and a scraped key** — neither
+related to traffic volume. See 5A.6.
+
+### 5A.5 Where it genuinely starts to cost
+
+Not autocomplete. **Address Validation Enterprise, whose free cap is 1,000/
+month** — the smallest cap in the Places stack, and the one tied directly to
+order count. Crossed at 1,000 orders/month, then $25/1,000.
+
+**Arbitrage for later:** Address Validation **Pro** is $17/1,000 with a
+5,000 free cap, but Pro rates only apply when it is called OUTSIDE a
+session — terminating a session with Address Validation always bills at
+Enterprise. Past ~1,000 orders/month it becomes cheaper to break the session
+and call Pro separately, losing free autocomplete on completers but gaining
+a 5× larger validation cap. Do not build this now; revisit at 1,000
+orders/month.
+
+### 5A.6 Cost guards — APPROVED 2026-09-27, build alongside 5.1
+
+All four, not a subset:
+
+1. **HTTP referrer restriction** on the key — `bathroomvanitiesoutlet.com/*`
+   only. The key ships in client-side JavaScript and is visible to anyone
+   viewing source; this is what stops a scraped key being billed to us.
+2. **API restriction** — Places API, Address Validation and Maps Embed only.
+3. **Budget alert** at $10/month, so a fault surfaces within a day instead
+   of on the invoice.
+4. **Cloud quota cap** — a hard daily ceiling on the Autocomplete Requests
+   SKU. Bounds a runaway loop to one day's quota.
+
+**Debounce from the start.** Fire on a ~300ms pause, not per keystroke. Ten
+requests becomes three, which triples the headroom before the free cap and
+costs the buyer nothing. This is the single most effective control and it is
+free.
+
+### 5A.7 Aerial + Street View — both free, one product
+
+The admin delivery panel needs no paid SKU:
+
+- **Aerial** — Maps Embed `/embed/v1/view` with `maptype=satellite`, centred
+  on the `ship_lat`/`ship_lng` already stored from Census. No geocoding
+  call, no Places call.
+- **Street View** — Maps Embed `/embed/v1/streetview` at the same
+  coordinates, offered as a toggle beside the aerial.
+- **Availability** — Street View Metadata, unlimited free, called first.
+
+⚠️ **Do not use the "Aerial View" SKU** (Pro, $16/1,000, cap 5,000) in the
+price list. That is Google's cinematic 3D flyover VIDEO product, not
+satellite imagery of a house. Satellite imagery is just `maptype=satellite`
+on an ordinary free embed. The names are close enough to pick wrong.
+
+### 5A.8 Two implementation traps
+
+**CSP.** Embeds are iframes from `https://www.google.com`. BVO sends a
+Content-Security-Policy, so `frame-src` needs that origin or the panel
+renders blank with only a console error — no other symptom.
+
+**Key scope.** The same key needs Maps Embed enabled alongside Places and
+Address Validation. Referrer restriction still works; the admin pages are on
+the same domain.
 
 ---
 
