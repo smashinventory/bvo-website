@@ -37,9 +37,20 @@ const val = (k, fallback) =>
 
    The *_consent_at timestamps are the only thing that distinguishes
    "never asked" from "asked and declined", which is exactly why they
-   are in the schema. */
+   are in the schema.
+
+   ⚠️ `old` IS ALWAYS AN OBJECT, NEVER NULL. takeCheckoutFlash returns
+   `s.checkoutOld || {}`, and {} is TRUTHY — so a bare `if (old)` takes
+   the was-submitted branch on a first render too, returns false for
+   every box, and the pre-checked default reaches nobody. That shipped
+   in e613af5 and was visible on the live page within the hour.
+
+   The gate did not catch it because the fixture passed `old: null`,
+   which the controller never produces. A test of a state that cannot
+   occur proves nothing. Emptiness is the discriminator, not existence. */
+const submitted = old && Object.keys(old).length > 0;
 const checked = (k, dflt, stored, answered) => {
-  if (old) return old[k] === '1' || old[k] === 1 || old[k] === true;
+  if (submitted) return old[k] === '1' || old[k] === 1 || old[k] === true;
   if (answered) return !!Number(stored);
   return !!dflt;
 };

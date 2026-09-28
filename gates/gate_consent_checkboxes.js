@@ -32,7 +32,12 @@ const base = {
   cart: { items: [{ product_id: 1, name: 'Amberly 60"', price: 1599, quantity: 1, image: '' }],
           count: 1, subtotal: 1599 },
   subtotal: 1599,
-  draft: null, errors: {}, old: null, checkoutError: null,
+  /* old is {} — NOT null. takeCheckoutFlash returns `s.checkoutOld || {}`,
+     so the view never sees null. The first version of this fixture used
+     null, which let a real bug through: {} is truthy, so `if (old)` took
+     the was-submitted branch on every first render. Fixtures must mirror
+     what the controller actually passes. */
+  draft: null, errors: {}, old: {}, checkoutError: null,
   mapsKey: '', addrWarning: null,
   /* A BRAND-NEW customer, as created seconds earlier at
      /checkout/identify. Both flags are 0 because the columns are NOT
@@ -76,6 +81,23 @@ ok('marketing is UNCHECKED by default',
 ok('delivery SMS is PRE-CHECKED by default',
    isChecked(html, 'delivery_sms_opt_in') === true,
    'transactional; the buyer gave the number for this delivery');
+
+console.log('--- an EMPTY flash object is not a submission ---');
+{
+  /* The exact shape a first render produces. If this regresses, the
+     pre-checked default silently reaches nobody. */
+  const h = render({ old: {} });
+  ok('old:{} still gets the pre-checked default',
+     isChecked(h, 'delivery_sms_opt_in') === true,
+     'an empty flash object was read as "they submitted and unticked it"');
+  ok('old:{} leaves marketing unchecked',
+     isChecked(h, 'marketing_opt_in') === false, 'wrong default');
+}
+{
+  const h = render({ old: undefined });
+  ok('old:undefined also gets the default',
+     isChecked(h, 'delivery_sms_opt_in') === true, 'undefined mishandled');
+}
 
 console.log('--- THE VALIDATION BOUNCE ---');
 /* `old` present = the form was submitted and came back. An unchecked
@@ -195,7 +217,16 @@ ok('checkboxes do NOT use val()',
    !/val\('(marketing_opt_in|delivery_sms_opt_in)'/.test(src),
    'val() treats missing as the default and re-ticks cleared boxes');
 ok('the helper reads presence, not truthiness',
-   /if \(old\) return old\[k\] === '1'/.test(src), 'wrong test');
+   /if \(submitted\) return old\[k\] === '1'/.test(src), 'wrong test');
+/* The specific regression: `if (old)` rather than `if (submitted)`.
+   takeCheckoutFlash returns {} on a first render and {} is truthy, so
+   the bare form reads every first render as a submission and no default
+   ever applies. */
+ok('submitted is derived from EMPTINESS, not existence',
+   /const submitted = old && Object\.keys\(old\)\.length > 0/.test(src),
+   'a truthy {} would be read as a submission');
+ok('no bare `if (old)` left in the checkbox helper',
+   !/if \(old\)\s*return old\[k\]/.test(src), 'the e613af5 bug is back');
 
 console.log(fail ? '\n*** ' + fail + ' GATE(S) FAILED ***' : '\nALL GATES PASS');
 process.exit(fail ? 1 : 0);
