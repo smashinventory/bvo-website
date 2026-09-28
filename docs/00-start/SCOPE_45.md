@@ -228,9 +228,7 @@ they lack is brand voice. Moved to POST-CUTOVER in OPEN_ITEMS.md.*
 1. **Stripe live-key swap** — three env vars, plus deleting the two inert
    `_LIVE` variables. Unblocked since the account reached Verified.
 2. **Webhook endpoint** — still pointed at the temporary host.
-3. **Hotlinked images** — four hosts on the live homepage are still not
-   ours. See OPEN_ITEMS item 6.
-4. **Re-test the confirm-email link after DNS moves.** `SITE_URL` builds
+3. **Re-test the confirm-email link after DNS moves.** `SITE_URL` builds
    `/orders/confirm?t=…` in order emails, so it 404s until the domain
    points at this app — confirmed live on BVO-2026-09-28-00110. Nothing
    on our side reports it: the email sends, the token is valid, and the

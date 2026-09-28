@@ -270,7 +270,42 @@ compliance, not something to infer from the code.
 
 ---
 
-### 6. ⚠️ CUTOVER BLOCKER — hotlinked images
+### 6. Hotlinked images — OWNER-OWNED, NOT A BLOCKER, DO NOT ACT ON THIS
+*Reclassified 2026-09-28 at the owner's instruction: "Take it off the
+list completely. I will handle it when time permits."*
+
+> **Do not attempt to fix this.** It is off the cutover list and off the
+> work list entirely.
+>
+> An attempt on 2026-09-28 repointed nine inspiration-guide images at
+> catalogue product photography, matched by SKU. It was reverted the same
+> day, by hand, and the migration deleted from the repo.
+>
+> **Why it failed, so nobody repeats it.** The guides sit under *Ideas &
+> Inspiration* and carried LIFESTYLE ROOM SHOTS. The catalogue only holds
+> product photography on white. Cropped to a wide hero, one of the
+> replacements rendered as a close-up of a drawer front. The section
+> exists to inspire; product cutouts defeat it.
+>
+> The instruction had been "find the exact image on Bunny, else upload
+> it". Matching by SKU returns a DIFFERENT IMAGE OF THE SAME PRODUCT,
+> which is not the same thing — there was never a match to find, and the
+> upload path was the only correct one.
+>
+> **The lesson is general: look at what an image is DOING on the page
+> before proposing to replace it.** Hosting correctness does not justify
+> degrading the page.
+>
+> Only surviving change: the Brittany model tile now uses `650-V36-SC`
+> from our own CDN. That one sits in *Featured Models*, where a product
+> shot is correct. Owner left it in place.
+>
+> `scripts/auditImageHosts.js` still reports these ten and that is fine —
+> it is a report, not a queue.
+>
+> The original analysis is kept below for whenever the owner picks it up.
+
+### 6a. Original analysis — reference only
 *Logged 2026-09-13 · **re-measured 2026-09-23** · full detail in `docs/briefs/HOTLINKED_IMAGES_HANDOFF.md`*
 
 > **STATUS 2026-09-23 — the original 14 are largely closed, and the problem
