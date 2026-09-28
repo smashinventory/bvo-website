@@ -122,33 +122,63 @@ UPDATE customers c
 -- bare URL. If the token could not be minted, the variable is '' and the
 -- email renders clean rather than showing a dead button.
 --
--- Anchored on the order-total line so the button lands directly under
--- the order summary, above the long delivery guidance. Guarded by the
--- NOT LIKE so a second run cannot insert it twice.
+-- ANCHORED ON THE SHORTEST FRAGMENT THAT STILL IDENTIFIES THE SPOT, and
+-- that is a correction, not a style choice.
+--
+-- The first version of this anchored on the whole paragraph INCLUDING
+-- its opening tag, copied from
+-- database/migrations/016_email_templates.sql:
+--
+--   <p style="font-size:17px;margin:14px 0 24px"><strong>Order total: …
+--
+-- It matched nothing on the live database and reported "0 rows
+-- affected". The live body is 3842 characters; the one in 016_ is about
+-- three times that, because the templates were rewritten in the
+-- BVO-voice pass and that rewrite was never captured back into a
+-- migration. The repo's record of these emails is stale, so 016_ is not
+-- a safe source for anything but history.
+--
+-- The lesson generalises: anchor on the smallest fragment that is
+-- unambiguous — here the <strong> and its closing </p> — never on
+-- styling attributes, which are exactly what a copy rewrite changes.
+--
+-- Guarded by NOT LIKE so a second run cannot insert it twice.
 UPDATE email_templates
    SET body_html = REPLACE(
          body_html,
-         '<p style="font-size:17px;margin:14px 0 24px"><strong>Order total: {{order_total}}</strong></p>',
-         '<p style="font-size:17px;margin:14px 0 24px"><strong>Order total: {{order_total}}</strong></p>
+         '<strong>Order total: {{order_total}}</strong></p>',
+         '<strong>Order total: {{order_total}}</strong></p>
 {{confirm_button_html}}'
        )
  WHERE trigger_key = 'order_confirmed'
-   AND body_html LIKE '%Order total: {{order_total}}%'
    AND body_html NOT LIKE '%confirm_button_html%';
 
--- Expect 1. If it reports 0, the template body has drifted from
--- database/migrations/016_email_templates.sql and the anchor above no
--- longer matches — fix the anchor rather than assuming it worked.
+-- Expect 1 on a first run, 0 on a re-run. ROW_COUNT() alone cannot tell
+-- those apart, so the real check is the LIKE below, which asserts the
+-- END STATE rather than the effect of one statement.
 SELECT ROW_COUNT() AS templates_updated;
+
+-- THIS is the one that matters. 0 here means the Confirm button will
+-- silently never appear in any order confirmation — a feature that
+-- looks built and does nothing.
+SELECT body_html LIKE '%{{confirm_button_html}}%' AS has_confirm_button
+  FROM email_templates WHERE trigger_key = 'order_confirmed';
 
 -- ── VERIFY ──────────────────────────────────────────────────────────
 -- Expect: verified_customers > 0 if anyone has ever signed in.
 SELECT COUNT(*) AS verified_customers
   FROM customers WHERE email_verified_at IS NOT NULL;
 
-SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE
-  FROM INFORMATION_SCHEMA.COLUMNS
- WHERE TABLE_SCHEMA = DATABASE()
-   AND ((TABLE_NAME = 'customers' AND COLUMN_NAME LIKE 'email_verified%')
-     OR (TABLE_NAME = 'orders'    AND COLUMN_NAME LIKE 'email_verif%'))
- ORDER BY TABLE_NAME, COLUMN_NAME;
+-- SHOW COLUMNS, *NOT* INFORMATION_SCHEMA.
+--
+-- This host denies it outright:
+--   #1044 - Access denied for user 'u222311468_Admin1'@'127.0.0.1'
+--           to database 'information_schema'
+--
+-- That is unusual — most MySQL installs grant everyone a row-filtered
+-- view of information_schema — and it is not something to rediscover
+-- halfway through a migration, because the failure aborts the rest of
+-- the file. SHOW COLUMNS needs no special grant and returns the same
+-- facts. Do not reintroduce INFORMATION_SCHEMA in any migration here.
+SHOW COLUMNS FROM customers LIKE 'email_verified%';
+SHOW COLUMNS FROM orders    LIKE 'email_verif%';

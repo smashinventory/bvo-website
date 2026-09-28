@@ -809,3 +809,27 @@ key, blocklist, credits — before the Brevo UI showed the answer in one
 screen. A read-only section 6 on `/admin/diagnostics/email` would answer
 this whole class of question in one click. Offered; owner did not take it
 up.
+
+### email_templates in the repo no longer match production — 2026-09-28
+`database/migrations/016_email_templates.sql` is **stale**. The live
+`order_confirmed` body is 3,842 characters; the copy in `016_` is roughly
+three times that. The templates were rewritten in the BVO-voice pass and
+that rewrite was never captured back into a migration file.
+
+This is not cosmetic. It cost a real defect on 2026-09-28: the migration
+adding the Confirm-your-email button anchored its `REPLACE` on markup
+copied from `016_`, matched nothing, and reported "0 rows affected". Had
+the verification `SELECT` not been there, the button would have shipped
+looking built and done nothing in every order confirmation.
+
+Two things follow:
+- **Do not read `016_` to find out what an email says.** Read the
+  `email_templates` table, or the admin editor at
+  `/admin/email-templates`.
+- **Anchor template edits on the smallest unambiguous fragment** — a
+  `{{variable}}` and its immediately enclosing tag — never on `style`
+  attributes, which are the first thing a copy rewrite changes.
+
+Fix, when someone has an hour: dump the nine live bodies into a dated
+migration so the repo has a truthful record again, and add a note at the
+top of `016_` saying it is history, not current state.
