@@ -49,13 +49,13 @@ const siblingQuery = model.slice(model.indexOf('const ph ='),
                                  model.indexOf('siblings = rowsOut'));
 ok('the sibling query block was found', siblingQuery.length > 200,
    'every assertion in this section would pass on an empty string');
-for (const f of ['id', 'price', 'compare_price', 'primary_image_url', 'qty_on_hand']) {
+for (const f of ['id', 'price', 'compare_price', 'primary_image_url', 'qty_on_hand', 'name']) {
   ok(`sibling query selects ${f}`, new RegExp(`\\b${f}\\b`).test(siblingQuery),
      'the card cannot repaint that field');
 }
 ok('colorVariants is exported',
    /r\.colorVariants\s*=/.test(model), 'the template has nothing to emit');
-for (const k of ['slug', 'id', 'price', 'compare_price', 'image', 'qty']) {
+for (const k of ['slug', 'id', 'price', 'compare_price', 'image', 'qty', 'name']) {
   ok(`colorVariants carries ${k}`,
      new RegExp(`\\b${k}:`).test(model.slice(model.indexOf('r.colorVariants'),
                                              model.indexOf('r.sizeKey'))),
@@ -91,7 +91,7 @@ ok('and guarded, because not every page defines it',
    honestly in place, so that swatch — not the whole card — keeps the
    old navigate behaviour. */
 ok('an incomplete variant does NOT get data-variant',
-   /_pSwVar\.price != null && _pSwVar\.image/.test(col),
+   /_pSwVar\.price != null[\s\S]{0,60}_pSwVar\.image && _pSwVar\.name/.test(col),
    'a colour with no price would repaint using the PREVIOUS colour\'s figure');
 ok('and falls back to navigation instead',
    /if \(_pSwSwap\) \{ %>data-variant=[\s\S]{0,140}\} else if \(_pSwHref\) \{ %>data-variant-href=/.test(col),
@@ -126,6 +126,19 @@ ok('the photo',        /\.product-img-pri/.test(swap),        'photo not swapped
 ok('and its srcset, or the swap is invisible',
    /setAttribute\('srcset'/.test(swap) && /removeAttribute\('srcset'\)/.test(swap),
    'the browser keeps serving the candidate it already picked');
+/* Found live, after the first push: the photo and price had swapped to
+   Matte Black while the heading still said "PVD Satin Brass". The name
+   carries the colour on this catalogue — it is part of the SKU. */
+ok('the heading',      /titleLink\.textContent = v\.name/.test(swap),
+   'a Matte Black photo under a PVD Satin Brass heading');
+ok('the heading is set as TEXT, never innerHTML',
+   !/titleLink\.innerHTML/.test(swap),
+   'database text parsed as markup');
+ok('the image alt',    /img\.setAttribute\('alt', v\.name\)/.test(swap), 'alt names the old SKU');
+ok('the img link aria-label', /imgLink\.setAttribute\('aria-label', v\.name\)/.test(swap),
+   'a screen reader announces the previous colour');
+ok('the View Details sr-only label', /\.btn-sage \.sr-only/.test(swap),
+   'a screen reader announces the previous colour');
 ok('the price block', /\[data-card-price\]/.test(swap),       'price left on the old colour');
 ok('the price block is rebuilt whole, not patched',
    /price\.innerHTML =/.test(swap),
@@ -189,7 +202,7 @@ console.log('\n--- the browser actually gets the new file ---');
 /* .htaccess sets long cache headers on /js. Without a bump, returning
    visitors keep the navigating version and the bug "is not fixed". */
 ok('carousels.js is cache-busted past v=2',
-   /carousels\.js\?v=([3-9]|\d\d)/.test(layout), 'returning visitors keep the old file');
+   /carousels\.js\?v=([4-9]|\d\d)/.test(layout), 'returning visitors keep the old file');
 
 console.log(fail ? `\n*** ${fail} GATE(S) FAILED ***` : '\nALL GATES PASS');
 process.exit(fail ? 1 : 0);

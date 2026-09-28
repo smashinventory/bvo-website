@@ -274,11 +274,26 @@
     }
     card.classList.toggle('product-card--no-stock', Number(v.qty || 0) === 0);
 
+    /* ── the heading, which NAMES the colour ──
+       "Supply Elbow & Holder — PVD Satin Brass". Caught on the live
+       page: photo and price had moved to Matte Black while the heading
+       still read PVD Satin Brass. textContent, never innerHTML — the
+       name is database text and must not be parsed as markup. */
+    var titleLink = card.querySelector('.product-title a');
+    if (titleLink && v.name) titleLink.textContent = v.name;
+    if (img && v.name) img.setAttribute('alt', v.name);
+
     /* ── every link that points at a SKU ── */
     ['.product-img-link', '.product-title a', '.btn-sage'].forEach(function (sel) {
       var a = card.querySelector(sel);
       if (a) a.setAttribute('href', v.slug);
     });
+
+    /* Screen-reader labels name the product too, so they move with it. */
+    var imgLink = card.querySelector('.product-img-link');
+    if (imgLink && v.name) imgLink.setAttribute('aria-label', v.name);
+    var srOnly = card.querySelector('.btn-sage .sr-only');
+    if (srOnly && v.name) srOnly.textContent = ' — ' + v.name;
 
     /* ── favourites ── */
     var heart = card.querySelector('.heart-btn');

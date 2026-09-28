@@ -49,6 +49,11 @@ async function attachVariantLinks(rows) {
          navigate-instead behaviour existed to avoid. */
       SELECT p.id, p.model, p.brand, p.slug, p.width_in, p.color,
              p.price, p.compare_price,
+             /* The NAME carries the colour on this catalogue -- "Supply
+                Elbow & Holder - PVD Satin Brass". Caught live: the photo
+                and price swapped to Matte Black while the heading still
+                said PVD Satin Brass. The title is part of the SKU. */
+             p.name,
              /* Same COALESCE the listing itself uses. Reading
                 primary_image_url alone made every sibling whose photo
                 lives only in product_images look image-less, and an
@@ -112,6 +117,12 @@ async function attachVariantLinks(rows) {
              navigation for that one swatch. */
           id: s.id, price: s.price, compare_price: s.compare_price,
           image: s.primary_image_url || null,
+          /* Cleaned the same way the listing cleans its own name, so a
+             swap cannot introduce raw markup or entity noise the
+             original row never showed. */
+          name: s.name ? String(s.name).replace(/<[^>]*>/g, '')
+                           .replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim()
+                       : null,
           /* The QTY line is part of the card. Leaving it on the previous
              colour's stock is the same class of lie as leaving the
              price there. */
@@ -129,6 +140,7 @@ async function attachVariantLinks(rows) {
     r.colorVariants = Object.fromEntries(Object.entries(colorLinks).map(([k, v]) => [k, {
       slug: v.slug, id: v.id, price: v.price,
       compare_price: v.compare_price, image: v.image, qty: v.qty,
+      name: v.name,
     }]));
 
     /* This product's OWN size-chip key, so the card can highlight the

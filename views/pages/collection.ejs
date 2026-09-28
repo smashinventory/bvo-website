@@ -1330,7 +1330,8 @@
               var _pSwActive = product.color ? (f.color === product.color) : (i === 0);
               var _pSwHref   = (product.colorLinks && product.colorLinks[f.color]) || null;
               var _pSwVar    = (product.colorVariants && product.colorVariants[f.color]) || null;
-              var _pSwSwap   = (_pSwVar && _pSwVar.slug && _pSwVar.price != null && _pSwVar.image)
+              var _pSwSwap   = (_pSwVar && _pSwVar.slug && _pSwVar.price != null
+                                && _pSwVar.image && _pSwVar.name)
                                  ? { slug: '/products/' + _pSwVar.slug,
                                      id:    _pSwVar.id,
                                      price: Number(_pSwVar.price),
@@ -1338,6 +1339,11 @@
                                              Number(_pSwVar.compare_price) > Number(_pSwVar.price))
                                               ? Number(_pSwVar.compare_price) : null,
                                      image: _pSwVar.image,
+                                     /* The product NAME names the colour on
+                                        this catalogue. Without it the card
+                                        showed a Matte Black photo under a
+                                        "PVD Satin Brass" heading. */
+                                     name:  _pSwVar.name,
                                      qty:   _pSwVar.qty == null ? null : _pSwVar.qty,
                                      /* Resolved server-side because the
                                         favourites set is server state; the
