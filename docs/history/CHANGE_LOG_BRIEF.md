@@ -1,7 +1,7 @@
 # BVO Change Log Brief
 
 > The running log of every change, with dates and reasons. Search here first when asking when something broke.
-*Last updated: 2026-09-24*
+*Last updated: 2026-09-28*
 
 > **⚠️ This file had a one-month hole.** It stopped at 2026-08-10 while roughly
 > seventy tasks shipped — the whole order-management and fulfilment stack, the
@@ -16,6 +16,360 @@
 >
 > **Companion reference:** `BVO_AUDIT_BRIEF.md` → *LIVE DATABASE INVENTORY* —
 > all 41 live tables, and which 16 of them have no migration file.
+
+---
+
+## Email channel resurrection, the identity gate, and consent capture
+**Date:** 2026-09-27 → 2026-09-28
+**Commits:** `8e46d74` `10fd107` `e613af5` `64b336e`
+**Migrations run by hand:** `2026-09-27_identity_and_consent_RUNME.sql`,
+`2026-09-27_wipe_test_data_RUNME.sql`
+**Spec:** `BVO_CHECKOUT_SPEC.md` §7.1 (superseded), §7.2, §8, §9.2, §9.2a, §9.4
+
+> **The single most important fact in this entry:** before this session,
+> **no email had ever left this site.** Not one order confirmation, not one
+> login code, across every order ever placed. It went unnoticed for weeks
+> because `brevoService` never throws and `checkoutController` deliberately
+> ignores its result. A dead email channel looked exactly like a healthy one.
+
+---
+
+### 1. Why no email had ever sent — and the five wrong theories
+
+The symptom: a passwordless login screen was built, and the code never
+arrived. Brevo's transactional log was completely empty.
+
+Five plausible explanations were tested and **all five were wrong**:
+
+| # | Theory | Why it was wrong |
+|---|---|---|
+| 1 | `BREVO_API_KEY` not set | It was set — 90 chars, present in hPanel |
+| 2 | Sending as unverified `orders@` | `BREVO_FROM_EMAIL` was always `support@` |
+| 3 | The env var was wrong | It was correct |
+| 4 | Domain unauthenticated | DKIM and DMARC were both green |
+| 5 | Empty Brevo log proves non-delivery | Ambiguous — an empty log is also what a rejected key produces |
+
+Each wrong theory cost a round trip. The fix was to **stop theorising and
+ask Brevo directly** — which is what `/admin/diagnostics/email` exists for
+(`8e46d74`).
+
+#### THE ACTUAL CAUSE (two of them, stacked)
+
+**Cause 1 — an SMTP relay key in an API-key slot.**
+`BREVO_API_KEY` held `xsmtpsib-…`, not `xkeysib-…`. Brevo issues both on
+the same settings screen and they look near-identical. A valid SMTP key
+presented to the **v3 REST API** returns:
+
+```
+401  {"message":"Key not found","code":"unauthorized"}
+```
+
+That message reads like a *deleted* credential. It is not. It means
+"this key is real but wrong for this interface." **If you see
+`Key not found`, check the key's PREFIX before anything else.**
+
+**Cause 2 — Brevo's Authorised IPs feature.**
+Immediately behind the first, the new API key was refused because the
+Hostinger outbound address was not on Brevo's allowlist
+(Settings → Security → Authorized IPs). That error at least names itself:
+it prints the offending IP. Brevo auto-authorised `2a02:4780:2b:2204:…`
+(Hostinger, IPv6) once added.
+
+**Standing risk, recorded deliberately:** that is an IPv6 address on shared
+hosting and is not ours to pin. A migration or a switch to IPv4 could
+silently kill email again. `/admin/diagnostics/email` will name the IP in
+one glance if it happens. Do not delete that page.
+
+---
+
+### 2. `/admin/diagnostics/email` — the page that must not be deleted
+
+`8e46d74`. Four checks, each eliminating a whole class of cause:
+
+1. Is `BREVO_API_KEY` present? Reports **length, last four, and trailing
+   whitespace** — never the key itself. A pasted newline makes a
+   valid-looking key 401 on every request; that is the third state and it
+   is invisible any other way.
+2. `GET /v3/account` — does the key *authenticate*? Sends nothing, costs
+   nothing. Distinguishes "Brevo refused it" from "the request never
+   reached Brevo" (`noResponse: !err.response` → DNS, TLS, blocked egress).
+3. `GET /v3/senders` — which addresses does Brevo actually hold, compared
+   against `BREVO_FROM_EMAIL`. A mismatch here is invisible everywhere else.
+4. An optional real test send, reporting Brevo's **unedited** error body.
+
+**Why it exists at all:** `brevoService` never throws — it returns
+`{skipped:true}` or `{ok:false}` — and `checkoutController` ignores that
+*by design*, because a Brevo outage must never fail an order whose card is
+already authorised. That is the right call. Its unavoidable cost is that
+nothing else in the system can tell you the channel is dead.
+
+---
+
+### 3. Deliverability — `10fd107`
+
+First successful send landed in **Gmail's junk folder**. On a passwordless
+site that is not cosmetic: a sign-in code nobody finds is an account nobody
+can reach.
+
+- **`textContent` on all three send functions.** Every send was HTML-only,
+  a long-standing spam signal. The plain-text part is **derived** from the
+  HTML by `htmlToText()`, never authored — a second body column on
+  `email_templates` would drift out of sync the first time someone edited
+  the HTML, and would have meant editing all nine templates, which are
+  deferred to cutover.
+- **`replyTo`** (defaults to the verified sender).
+- **`tags: [trigger_key]`** on `sendTemplate`, so Brevo's log can answer
+  "are login codes going out?" separately from "are order confirmations
+  going out?" — the exact question that took a full day.
+
+#### ⚠️ The ordering trap in `htmlToText()`
+
+Entities must be decoded **AFTER** tag-stripping. Decode `&lt;` first and
+escaped text becomes a fake tag, deleting everything up to the next `>`.
+Likewise `<style>`/`<script>` **bodies** must be stripped before tags, or
+CSS survives into the plain-text part — which looks exactly like the
+obfuscation spam filters hunt for, making the problem worse.
+
+---
+
+### 4. The `List-Unsubscribe` account lockout — `10fd107`
+
+Gmail displayed **"This message is from a mailing list — Unsubscribe"**
+above a six-digit sign-in code.
+
+Researched and confirmed against Brevo's own docs:
+
+- Brevo attaches `List-Unsubscribe` to **every** message on non-Enterprise
+  plans. **There is no toggle.** The `List-Help` alternative that renders
+  no clickable button is Enterprise-only.
+- Unsubscribing from a transactional email **blocklists that contact
+  against that sender**.
+
+Everything leaves from `support@`, so **one click on a login code would
+also have killed that customer's order confirmations and delivery
+notices — and, on a passwordless site, locked them out of their account
+permanently.** Brevo keeps accepting the sends and returns a message ID;
+it simply delivers nothing.
+
+**Mitigations built:**
+
+- `brevo.isBlocked()` — paged, cached 5 min, and **FAILS OPEN**. If Brevo
+  is unreachable or the list is truncated it answers "not blocked". A
+  wrong refusal turns a working login into a dead end with a confusing
+  explanation; a missed block leaves the buyer exactly where they are
+  today. The failure direction is deliberate.
+- `accountController.sendCode` checks it **before `issueCode`**, so a
+  blocked address does not burn a rate-limit slot on mail that cannot
+  arrive, and the customer is told plainly instead of waiting forever on
+  "Check your email".
+- `/admin/diagnostics/email` **section 5** lists blocked contacts with a
+  per-address **Unblock** — the only route back for someone who clicked
+  that button.
+
+---
+
+### 5. The identity gate — `e613af5`
+
+Guest checkout is gone (§7.1 superseded). Owner, 2026-09-27: *"on cart page
+and they select checkout — if they do not have an account, we take them
+through a quick account setup or sign in."*
+
+- **`GET /checkout/identify`** — email, then six-digit code. It posts to the
+  **existing** `/account/code` and `/account/verify`. No second auth path:
+  those already carry the rate limits, the timing-safe comparison, the
+  no-enumeration property and the blocklist check, and duplicating them
+  would create somewhere for them to drift apart.
+- **`requireIdentity`** is **router-level middleware**, not a check inside
+  page 1. Checkout is six routes; a guard on one is walked around by a
+  bookmark straight to `/checkout/delivery`. As middleware the guarantee is
+  structural — past that line `req.session.customerId` exists, and
+  downstream handlers stop defending against its absence.
+
+#### ⛔ `/return`, `/success`, `/cancel` ARE REGISTERED **ABOVE** THE GUARD
+
+They are where Stripe sends the buyer back, and by then **the card is
+charged**. A session that expired during a slow 3DS challenge would bounce
+a *paying customer* to a sign-in screen with no way to tell whether their
+order went through. Express runs router middleware in declaration order —
+**if anyone moves `router.use(requireIdentity)` above those three lines,
+that breaks.** The gate asserts it two ways: a live request, and route
+ordering in the real file.
+
+---
+
+### 6. Consent capture — `e613af5`
+
+Spec §9.2 / §9.2a, owner-approved copy **verbatim**.
+
+| Box | Default | Why |
+|---|---|---|
+| Email me about my vanity | **UNCHECKED** | Genuinely marketing; a pre-ticked box is weaker consent evidence |
+| Text me about my delivery | **PRE-CHECKED** | Transactional — the buyer gave that number so the carrier can reach them about this shipment |
+
+Both **inline in the form**, each next to the field it governs. No screen,
+no gate, no skip button. (Wayfair gives consent its own screen because it
+is selling a $29 membership; a screen implies a decision worth stopping
+for, which invites "no".)
+
+#### ⛔ THE CONDITION ON THE PRE-CHECKED BOX
+
+**That SMS channel carries delivery information ONLY. Forever.** No
+promotion, no "while we're here", no cross-sell, not once. The moment a
+promotion goes down that path it stops being transactional consent and
+becomes exactly what gets retailers sued under the TCPA — and the box would
+have to revert to unchecked with consent **re-collected from everyone who
+ever ticked it**. If the content is ever widened: unset the default and
+re-consent. Do not reason that "they already agreed."
+
+#### Evidence, not a boolean
+
+Eight columns on `customers`: `marketing_consent_at/_source/_ip`,
+`delivery_sms_consent` + `_at/_source/_ip`, and `consent_copy_version`
+(currently `2026-09-27a` — **bump it whenever the copy changes**).
+
+The TCPA obliges four years of records and puts the burden of proof on the
+sender. `accepts_marketing = 1` proves nothing about who ticked what, when,
+or against which wording. Email (CAN-SPAM, opt-out) and delivery SMS (TCPA,
+express consent) are kept in **separate columns** — conflating them is
+where retailers get sued (§9.4).
+
+Both `*_at` are stamped **even on a NO**: the date they declined is as much
+a record as the date they agreed, and it is what tells the page not to
+re-tick a box they cleared.
+
+---
+
+### 7. Passwords removed — `e613af5`
+
+`password_hash` was dropped from `customers`. The old system had **no reset
+route at all**, so a forgotten password locked a customer out permanently —
+keeping passwords meant *building* a reset flow. Passwordless deletes that
+requirement: the code IS the reset.
+
+- `Customer.js` no longer selects, inserts or compares it;
+  `verifyPassword()` is gone.
+- **`bcryptjs` STAYS in `package.json`** — `adminController` still uses it
+  for the ADMIN login (`ADMIN_PW_B64`), a separate system with a different
+  threat model.
+
+---
+
+### 8. Five bugs found by reading, not by customers
+
+1. **`session.regenerate()` destroyed the cart.** The session-fixation guard
+   at sign-in wipes everything, and the cart lives on the session. Already
+   live; *fatal* once a sign-in sits in front of every checkout — sign in,
+   arrive at checkout, cart empty, no order possible. Cart and checkout
+   drafts are now carried across; `customerId` deliberately is **not**
+   (establishing it fresh is the point of regenerating).
+2. **Sign-in was broken the moment the migration ran.** `findByEmail` still
+   selected the dropped `password_hash`, and its `catch` returns `null` —
+   so it would have failed *silently*, exactly like the email channel.
+3. **`customer_id` would have duplicated.** The orders INSERT already names
+   it explicitly *and* appends `${cols.join(', ')}`. Putting it in the
+   `fields` object too produces `Duplicate column name` on every draft
+   order. It is set once, in the INSERT.
+4. **`validateInfo` required a body `email`** that page 1 no longer submits —
+   would have rejected every checkout submission. The address now comes from
+   the **session, never the body**: reading it from the body would let
+   anyone past the gate substitute an address they never proved.
+5. **Unchecking was not durable.** An unchecked box submits *nothing*, and
+   the existing `val()` helper treats missing as "use the fallback" — so a
+   cleared delivery-SMS box was **silently re-ticked** on any validation
+   bounce and the record would have claimed consent.
+
+---
+
+### 9. `64b336e` — the regression, and why the gate lied
+
+Shipped in `e613af5`: **"Text me about my delivery" rendered UNCHECKED** on
+the live site.
+
+**Cause.** `takeCheckoutFlash` returns `old: s.checkoutOld || {}` — always
+an object, **never null**. `{}` is truthy, so the helper's `if (old)` took
+the was-submitted branch on *every first render*, returned false for every
+box, and no default could ever apply. A returning customer's stored
+preference was ignored for the same reason.
+
+**Fix.** Emptiness, not existence:
+```js
+const submitted = old && Object.keys(old).length > 0;
+```
+
+**Two testing failures worth remembering:**
+
+- The gate's fixture passed **`old: null`**, a shape the controller never
+  produces. *A test of a state that cannot occur proves nothing* — and it
+  is worse than no test, because it bought false confidence.
+- The **mutation harness was also wrong**: it copied one `.ejs` into `/tmp`,
+  where `include('../partials/checkout-steps')` cannot resolve. Every run
+  failed at render, so **every mutation looked "caught"** — including an
+  unmutated baseline. It now copies the whole `views/` tree and verifies a
+  clean baseline before trusting any result.
+
+**Rule going forward: fixtures must mirror what the controller actually
+passes, and a mutation harness must prove its unmutated baseline is green
+before any "CAUGHT" result means anything.**
+
+Related: `delivery_sms_consent` is `NOT NULL DEFAULT 0`, so a customer
+created seconds earlier is indistinguishable from one who declined. The
+`*_consent_at` timestamps are the **only** discriminator, which is why
+`checked()` takes a separate `answered` argument.
+
+---
+
+### 10. Test data wiped
+
+`2026-09-27_wipe_test_data_RUNME.sql`. Owner confirmed all customers and all
+orders were tests. 142 rows across seven tables. Products untouched (6,079).
+The "did this take money?" pre-check returned zero rows.
+
+Children before parents — there are **no foreign keys on this schema**, so
+nothing enforces the order and nothing warns you either. `DELETE` not
+`TRUNCATE` (cannot be rolled back, ignores `WHERE`). Auto-increments reset,
+so the first real order is id 1. `order_number` is `insertId + 106`, hence
+`BVO-2026-09-28-00107`.
+
+---
+
+### 11. Verified live, end to end
+
+Against a clean database, on the deployed site:
+
+- `/checkout`, `/checkout/delivery`, `/checkout/payment` → redirect to
+  `/checkout/identify` while signed out
+- `/checkout/success` **serves** while signed out ← the paying-customer case
+- Cart survived sign-in (2 items, $4,100)
+- Page 1: no email field at all, marketing unticked, delivery-SMS ticked
+- Untick + validation bounce → **stayed unticked**
+- Order `BVO-2026-09-28-00107`, `customer_id = 1`, `auth_only`, $4,100
+- Consent row complete, `consent_copy_version = 2026-09-27a`,
+  IP `2600:1702:…` — the **buyer's** residential address, not Hostinger's,
+  confirming `clientIp()` reads `X-Forwarded-For` correctly. A consent
+  record showing the server's own IP would be worthless as evidence, and
+  that is the default failure behind a reverse proxy.
+
+---
+
+### How to reverse
+
+1. `git revert 64b336e e613af5 10fd107` (leave `8e46d74` — diagnostics only).
+2. Re-add `password_hash VARCHAR(255) NULL` to `customers` **only if** you
+   also restore the bcrypt paths in `Customer.js`. Nothing writes it.
+3. The eight consent columns and `orders.customer_id` are additive — leave
+   them; nothing breaks with them unread.
+4. The wiped data **cannot be reversed.** Restore from the dump taken before
+   the wipe, if one exists.
+
+### Gate files added
+
+`gates/gate_email_plaintext.js`, `gate_email_blocklist.js`,
+`gate_identify_gate.js`, `gate_consent_checkboxes.js`,
+`gate_consent_migration.py`. Mutation-tested 8/8, 12/12, 11/11, 4/4, 11/11.
+**Two gate assertions were wrong on correct code** and were caught by
+mutation testing rather than by trusting a green run.
+
+*End of brief*
 
 ---
 

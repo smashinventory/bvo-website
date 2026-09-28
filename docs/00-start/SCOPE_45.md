@@ -104,17 +104,30 @@ says what was asked for, not what was built.
 
 ## Checkout — stage 2
 
-22. ⬜ Sign in / register / guest on page 1
+22. ✅ Sign in / register / guest on page 1  *(`e613af5`)*
+    **Built as `/checkout/identify`, a step BEFORE page 1** — not on page 1
+    itself. `requireIdentity` guards the whole checkout router.
+    ⛔ `/return`, `/success`, `/cancel` are registered ABOVE the guard:
+    Stripe returns there AFTER the card is charged.
     ⚠️ **AMENDED 2026-09-27: NO GUEST.** Account required, Wayfair-style.
     See `docs/briefs/BVO_CHECKOUT_SPEC.md` §7.1. The owner's list wording
     is left as he wrote it; the decision supersedes it.
-23. ⬜ Passwordless login — six-digit email code, no passwords stored
+23. ✅ Passwordless login — six-digit email code, no passwords stored
+    *(`83e81b4` `e613af5`)* `password_hash` DROPPED from `customers`
+    2026-09-27. bcryptjs stays in package.json — adminController still
+    uses it for the ADMIN login, a separate system.
     ⚠️ **This REPLACES a password system that already exists** —
     `/account/login`, bcrypt hashes, and no reset route at all. Spec §7.2.
-24. ⬜ Code limits — 10-minute expiry, 5 attempts, 60-second resend,
+24. ✅ Code limits — 10-minute expiry, 5 attempts, 60-second resend,
     3 resends, 5 codes per email per hour, 10 per IP
-25. ⬜ Identical response whether or not an email has an account
+25. ✅ Identical response whether or not an email has an account
+    Not by matching response bodies — `issueCode` sends a code either
+    way and the account is created on VERIFICATION, so the endpoint has
+    no 'does this exist' answer to leak.
 26. ⬜ "Remember this device" cookie, 90 days
+    **NEXT UP.** Pairs with the new-device email captured in spec §8.2
+    (the Wayfair 'Review Device Sign-In' structure, incl. the
+    anti-phishing box).
 
 ## Checkout — stage 3
 
