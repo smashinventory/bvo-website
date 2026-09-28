@@ -1190,3 +1190,56 @@ Not payment code. `src/controllers/cartController.js` only.
   `existing.qty += qty`, so repeated adds walk past the cap.
 
 Small, self-contained, gateable. No longer blocked by anything.
+
+## Analytics and measurement — set up AFTER the URL migration
+Raised by the owner 2026-09-28, and deliberately deferred by them:
+**"most of this is needing to be set up after url migration as we do not need
+it set up for the temp url we are working with anyways."**
+
+That is the right call and it is not merely a scheduling preference. GA4
+property and data-stream configuration, Search Console verification, ad
+platform tags and any consent tooling are all keyed to a HOSTNAME. Anything
+configured against `slategrey-falcon-350174.hostingersite.com` has to be
+redone against `www.bathroomvanitiesoutlet.com`, and the test traffic
+recorded in the meantime pollutes the first weeks of real data — which is
+exactly the baseline the launch will be judged on.
+
+### What is capturing data today (audited 2026-09-28)
+
+| | Status |
+|---|---|
+| GA4 | Live — property `G-PLBNP2YD9K`, via `gtag.js` in `views/layouts/main.ejs` |
+| GTM | Supported but NOT configured — `GTM_ID` env var is empty, no container |
+| Enhanced measurement | Default only: page_view, scroll, outbound click, site search, file download |
+| Ecommerce events | **NONE.** The only `dataLayer.push` in the codebase is the gtag shim |
+| First-party analytics tables | **NONE.** No page_views, no product-view log, no search-term log |
+| Sessions | `sessions` table (MySQL store), 7-day expiry, httpOnly + sameSite=lax + secure in prod |
+| Session contents | Functional only — cart, checkoutDraft, customerId, flash, isAdmin. No visit trail |
+| Cookies set | `_ga`, `_ga_PLBNP2YD9K`, `__stripe_mid` |
+| Consent banner | **NONE.** Cookies drop on first load, unconditionally |
+
+Orders are the ONLY behavioural record the business owns. Everything else
+lives in Google's property and can be lost with the account.
+
+### The work, when it is picked up
+
+1. **GA4 ecommerce events** — `view_item`, `add_to_cart`, `begin_checkout`,
+   `purchase`. Without `purchase` there is no conversion rate, no revenue
+   attribution, and no way to tell which channel produced a sale. On this
+   AOV that is the item with real money attached. Cannot be backfilled:
+   every day without it is a day of unattributable traffic.
+2. **Point GA4 and Search Console at the live hostname**, and re-verify.
+3. **Consider a first-party event table.** GA4 is sampled, aggregated and
+   not yours. A narrow own-table (product views, searches with zero results,
+   cart adds) is cheap and survives losing the Google account. Zero-result
+   searches in particular are a direct catalogue-gap signal.
+4. **Cookie consent.** GA4 and Stripe cookies drop before any consent today.
+   Defensible for US-only traffic under most readings; not for EU/UK, and
+   California has its own rules. Decide deliberately rather than by default.
+5. **Know the GA4 loading trade.** `gtag.js` is fetched on first interaction
+   or 3 seconds, whichever comes first — a deliberate choice made
+   2026-09-22 worth ~250ms of LCP on throttled mobile, documented in
+   `main.ejs`. The cost: a visitor who leaves inside 3s without touching
+   anything is never counted. **Sessions will under-report and bounce rate
+   will read better than reality.** That is a real trade, not a bug — but
+   do not compare these numbers to Shopify's without accounting for it.
