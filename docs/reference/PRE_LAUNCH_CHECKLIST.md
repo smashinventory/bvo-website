@@ -633,3 +633,25 @@ email you can open.
 Brevo FIRST (Settings → Senders, Domains & Dedicated IPs). Changing
 `BREVO_FROM_EMAIL`, or the code default, to an unverified address
 silently kills every email the site sends.
+
+## Order-email links point at the live domain — verify after DNS cutover
+`SITE_URL` builds every absolute link in transactional mail, including
+the **Confirm my email** button added 2026-09-28
+(`/orders/confirm?t=…`).
+
+Before cutover that domain is still served by Shopify, so the link 404s —
+confirmed live on order `BVO-2026-09-28-00109`. **This is expected and
+needs no code change**, but it does need re-testing the moment DNS moves,
+because nothing else will tell you: the email sends successfully, the
+token is valid, and the 404 happens in the customer's browser.
+
+After cutover:
+1. Place a test order with an address that has never signed in.
+2. Click **Confirm my email** in the confirmation message.
+3. Expect a page with a *"Yes, this is my email"* button — NOT an instant
+   confirmation. The two-step is the mail-scanner defence.
+4. Press it, then check the order shows a green **✓ email** badge on
+   `/admin/orders`.
+
+Tokens live 7 days, so any link sent shortly before cutover will still
+work afterwards.
