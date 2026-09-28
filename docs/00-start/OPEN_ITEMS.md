@@ -835,11 +835,25 @@ migration so the repo has a truthful record again, and add a note at the
 top of `016_` saying it is history, not current state.
 
 ### The schema is split across two collations — 2026-09-28
-Tables predating the MariaDB 11 upgrade are `utf8mb4_unicode_ci`.
-Anything created after it took the newer server default,
-`utf8mb4_uca1400_ai_ci` — confirmed for `customer_auth_codes`
-(2026-09-27), and likely `customer_addresses` and `customer_devices`
-(2026-09-28).
+**MEASURED, not guessed** — `SHOW TABLE STATUS`, 2026-09-28:
+
+| table                | collation               |
+|----------------------|-------------------------|
+| customers            | `utf8mb4_unicode_ci`    |
+| orders               | `utf8mb4_unicode_ci`    |
+| customer_addresses   | `utf8mb4_unicode_ci`    |
+| customer_devices     | `utf8mb4_unicode_ci`    |
+| **customer_auth_codes** | **`utf8mb4_uca1400_ai_ci`** |
+
+**Exactly one table is out of step.** An earlier version of this note
+claimed `customer_addresses` and `customer_devices` were "likely"
+affected too. That was an assumption and it was wrong: both name their
+collation explicitly in their `CREATE TABLE`, so they inherited nothing.
+`customer_auth_codes` (2026-09-27) did not, and so took the MariaDB 11
+server default.
+
+The lesson for any new table here: **name the collation explicitly**.
+The server default is not what the rest of this schema uses.
 
 Comparing a text column across that line raises:
 
@@ -862,11 +876,16 @@ Two ways out:
   side of the comparison (`a.email = c.email COLLATE utf8mb4_unicode_ci`).
   EXPLICIT beats IMPLICIT, so one side settles it. Has to be remembered
   every single time.
-- **Real fix, not yet approved:** one statement per new table —
-  `ALTER TABLE <t> CONVERT TO CHARACTER SET utf8mb4
-   COLLATE utf8mb4_unicode_ci` — aligning them with the rest of the
-  schema so the trap stops existing. Small, and it removes a whole class
-  of future runtime error.
+- **Real fix, not yet approved:** ONE statement, because only one table
+  is wrong —
+
+      ALTER TABLE customer_auth_codes
+        CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+  Nine rows, sub-second, and the whole class of `#1267` leaves the
+  schema. The `COLLATE` already written into the verification backfill
+  stays regardless: it is harmless once both sides agree, and it records
+  why it was ever needed.
 
 Check current state with `SHOW TABLE STATUS` and read the `Collation`
 column. Do NOT use `information_schema.TABLES`: this host denies that
