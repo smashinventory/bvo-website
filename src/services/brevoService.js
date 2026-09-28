@@ -35,8 +35,19 @@ const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
    ⚠️ THIS WAS NOT THE CAUSE OF THE 2026-09-27 FAILURE. BREVO_FROM_EMAIL
    has always been set to support@, and it overrides this line, so the
    bad default was never reached. It is corrected here as a latent trap,
-   not as a fix. The real cause of mail not sending was still open when
-   this was written — see the pre-launch checklist.
+   not as a fix.
+
+   THE ACTUAL CAUSE, RESOLVED 2026-09-27, recorded so it is never
+   re-investigated: BREVO_API_KEY held an SMTP RELAY key (xsmtpsib-…)
+   rather than a REST API key (xkeysib-…). Brevo answers a valid SMTP key
+   on the v3 REST API with `401 {"message":"Key not found"}` — an error
+   message that reads like a deleted credential and is nothing of the
+   sort. Five plausible theories were tested and discarded before
+   /admin/diagnostics/email asked Brevo directly.
+
+   The second cause, uncovered immediately behind it: Brevo's Authorised
+   IPs security feature was active and the Hostinger outbound address was
+   not on the list. That one at least names itself in the error body.
 
    BEFORE CHANGING THIS, ADD THE NEW ADDRESS AS A VERIFIED SENDER IN
    BREVO FIRST. The domain being authenticated is not enough.
@@ -46,12 +57,194 @@ const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
 const FROM_EMAIL    = process.env.BREVO_FROM_EMAIL || 'support@bathroomvanitiesoutlet.com';
 const FROM_NAME     = process.env.BREVO_FROM_NAME  || 'BVO — Bathroom Vanities Outlet';
 
+/* A from-address with no reply path is both a filter signal and a real
+   discourtesy: a buyer who hits Reply on an order confirmation deserves
+   to reach a human rather than a bounce. Defaults to the sender, which
+   is a mailbox we actually read. */
+const REPLY_TO      = process.env.BREVO_REPLY_TO   || FROM_EMAIL;
+
 /* ── Variable substitution ────────────────────────────────────── */
 function substituteVars(template, vars = {}) {
   return template.replace(/\{\{(\w+)\}\}/g, (_, key) =>
     vars[key] !== undefined ? String(vars[key]) : ''
   );
 }
+
+/* ── HTML → plain text ────────────────────────────────────────────
+   Every send used to be HTML-only. A message with no text/plain
+   alternative is a long-standing spam signal, and on 2026-09-27 the
+   first real send landed in Gmail's junk folder — which on a
+   passwordless site is not cosmetic, because a sign-in code nobody
+   finds is an account nobody can reach.
+
+   DERIVED, NEVER AUTHORED. The alternative was a second body column on
+   email_templates for staff to fill in, which guarantees the two drift
+   apart the first time someone edits the HTML and forgets. It also
+   would have meant editing all nine templates, and template edits are
+   deferred to cutover. Deriving costs a little fidelity and cannot go
+   stale.
+
+   Order matters below: strip script/style bodies BEFORE stripping
+   tags, or their contents survive as visible text — CSS rules in the
+   plain-text part of an email look exactly like the obfuscation that
+   spam filters hunt for, so getting this backwards would make the
+   problem it is meant to fix worse. */
+function htmlToText(html) {
+  return String(html || '')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    /* Block-level boundaries become real line breaks, so the result
+       reads as prose rather than one unbroken paragraph. */
+    .replace(/<\/(p|div|tr|h[1-6]|li|blockquote)>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    /* Entities last: decoding &lt; before tag-stripping would invent
+       tags out of escaped text and delete the content after them. */
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi,  '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi,   '<')
+    .replace(/&gt;/gi,   '>')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .split('\n').map(l => l.trim()).join('\n')
+    .trim();
+}
+
+/* Brevo rejects an empty textContent, and a template that is nothing
+   but an image would derive to ''. Falling back to the subject keeps
+   the part present and truthful. */
+function textFor(html, subject) {
+  const t = htmlToText(html);
+  return t || String(subject || '').trim() || 'This message requires an HTML-capable email client.';
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   TRANSACTIONAL BLOCKLIST
+
+   Brevo attaches a List-Unsubscribe header to EVERY message. On non-
+   Enterprise plans this cannot be turned off, and the List-Help
+   alternative that produces no clickable button is Enterprise-only. So
+   Gmail shows "This message is from a mailing list — Unsubscribe" above
+   a six-digit sign-in code, and one click blocklists that contact
+   AGAINST THIS SENDER.
+
+   On a passwordless site that is an account lockout. Every message
+   leaves from one address, so the same click also stops their order
+   confirmations and delivery appointments. Nothing in the send path
+   reveals it: Brevo accepts the request and simply does not deliver.
+
+   WHY A CACHED LIST RATHER THAN A LOOKUP
+
+   GET /v3/smtp/blockedContacts has no by-address filter — it returns a
+   paginated list. Fetching it on every sign-in would put a network round
+   trip in front of the login button. The list is small for a shop this
+   size and changes rarely, so it is fetched in pages and memoised
+   briefly.
+
+   AND WHY IT FAILS OPEN
+
+   If Brevo is unreachable, the list is truncated at the page cap, or
+   anything else is uncertain, isBlocked() answers FALSE. A wrong "you
+   are blocked" turns a working login into a dead end with a confusing
+   explanation. A missed block leaves the buyer exactly where they are
+   today — no worse — and the attempt is logged either way.
+   ═══════════════════════════════════════════════════════════════════ */
+
+const BLOCKLIST_TTL_MS   = 5 * 60 * 1000;
+const BLOCKLIST_PAGE      = 100;    // Brevo's per-request maximum
+const BLOCKLIST_MAX_PAGES = 20;     // 2000 addresses; beyond that, partial
+
+let _blocklistCache = { at: 0, set: null, partial: false };
+
+/**
+ * Every blocked/unsubscribed transactional contact, paged.
+ * @returns {Promise<{ok:boolean, contacts?:Array, partial?:boolean, error?:*}>}
+ */
+async function fetchBlockedContacts() {
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) return { ok: false, error: 'BREVO_API_KEY not set' };
+
+  const contacts = [];
+  let partial = false;
+
+  try {
+    for (let page = 0; page < BLOCKLIST_MAX_PAGES; page++) {
+      const r = await axios.get('https://api.brevo.com/v3/smtp/blockedContacts', {
+        params:  { limit: BLOCKLIST_PAGE, offset: page * BLOCKLIST_PAGE },
+        headers: { 'api-key': apiKey, Accept: 'application/json' },
+        timeout: 8000,
+      });
+      const batch = (r.data && r.data.contacts) || [];
+      contacts.push(...batch);
+      if (batch.length < BLOCKLIST_PAGE) break;
+      /* Hit the cap with a full final page — there may be more. Marked
+         partial so isBlocked() knows not to trust a negative answer. */
+      if (page === BLOCKLIST_MAX_PAGES - 1) partial = true;
+    }
+    return { ok: true, contacts, partial };
+  } catch (err) {
+    return { ok: false, error: err.response?.data || err.message };
+  }
+}
+exports.fetchBlockedContacts = fetchBlockedContacts;
+
+/**
+ * Is this address blocked from receiving our transactional mail?
+ * FAILS OPEN — see the header above. Never throws.
+ */
+exports.isBlocked = async function isBlocked(email) {
+  const addr = String(email || '').trim().toLowerCase();
+  if (!addr) return false;
+
+  try {
+    const fresh = _blocklistCache.set && (Date.now() - _blocklistCache.at) < BLOCKLIST_TTL_MS;
+    if (!fresh) {
+      const r = await fetchBlockedContacts();
+      /* A failed fetch does NOT poison the cache — the previous good
+         list, if any, keeps serving until its TTL runs out. */
+      if (!r.ok) return false;
+      _blocklistCache = {
+        at: Date.now(),
+        set: new Set(r.contacts.map(c => String(c.email || '').toLowerCase())),
+        partial: !!r.partial,
+      };
+    }
+    return _blocklistCache.set.has(addr);
+  } catch (err) {
+    console.error('[brevo] isBlocked failed (failing open):', err && err.message);
+    return false;
+  }
+};
+
+/** Remove an address from the transactional blocklist. */
+exports.unblockContact = async function unblockContact(email) {
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) return { ok: false, error: 'BREVO_API_KEY not set' };
+  const addr = String(email || '').trim().toLowerCase();
+  if (!addr) return { ok: false, error: 'No address supplied' };
+
+  try {
+    await axios.delete(
+      /* URL-encoded: a '+' in an address is legal and would otherwise
+         arrive at Brevo decoded as a space. */
+      `https://api.brevo.com/v3/smtp/blockedContacts/${encodeURIComponent(addr)}`,
+      { headers: { 'api-key': apiKey, Accept: 'application/json' }, timeout: 8000 }
+    );
+    _blocklistCache = { at: 0, set: null, partial: false };   // force a refetch
+    return { ok: true };
+  } catch (err) {
+    return {
+      ok: false,
+      status: err.response?.status || null,
+      error: err.response?.data || err.message,
+    };
+  }
+};
+
+/** Exposed so the diagnostics page can show a stale-free view. */
+exports.clearBlocklistCache = () => { _blocklistCache = { at: 0, set: null, partial: false }; };
 
 /* ── Fetch template from DB by trigger key ────────────────────── */
 async function getTemplate(triggerKey) {
@@ -91,9 +284,17 @@ exports.sendTemplate = async (triggerKey, toEmail, vars = {}, toName = '') => {
       BREVO_API_URL,
       {
         sender:      { name: FROM_NAME, email: FROM_EMAIL },
+        replyTo:     { name: FROM_NAME, email: REPLY_TO },
         to:          [{ email: toEmail, name: toName || toEmail }],
         subject,
         htmlContent: htmlBody,
+        textContent: textFor(htmlBody, subject),
+        /* Brevo segments its transactional log by tag. Without this the
+           log is one undifferentiated stream, so "are login codes
+           going out?" cannot be answered separately from "are order
+           confirmations going out?" — which is exactly the question
+           that took all of 2026-09-27 to answer. */
+        tags:        [String(triggerKey)],
       },
       {
         headers: {
@@ -125,9 +326,11 @@ exports.sendRaw = async (toEmail, subject, htmlBody, toName = '') => {
       BREVO_API_URL,
       {
         sender:      { name: FROM_NAME, email: FROM_EMAIL },
+        replyTo:     { name: FROM_NAME, email: REPLY_TO },
         to:          [{ email: toEmail, name: toName || toEmail }],
         subject,
         htmlContent: htmlBody,
+        textContent: textFor(htmlBody, subject),
       },
       {
         headers: {
@@ -191,9 +394,11 @@ exports.sendWithAttachments = async (toEmails, subject, htmlBody, attachments = 
       BREVO_API_URL,
       {
         sender:      { name: FROM_NAME, email: FROM_EMAIL },
+        replyTo:     { name: FROM_NAME, email: REPLY_TO },
         to:          list.map(email => ({ email })),
         subject,
         htmlContent: htmlBody,
+        textContent: textFor(htmlBody, subject),
         attachment:  files.map(f => ({ content: f.content, name: f.name })),
       },
       {

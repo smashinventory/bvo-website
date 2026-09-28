@@ -114,15 +114,24 @@ exports.page = async (req, res, next) => {
       s => s.email.toLowerCase() === String(FROM_EMAIL).toLowerCase()
     );
 
+    /* The blocklist. Anyone on it cannot receive a sign-in code, which on
+       a passwordless site means they cannot reach their account — and
+       nothing else in the admin surfaces it. */
+    const brevo = require('../services/brevoService');
+    brevo.clearBlocklistCache();          // an admin looking at this wants it fresh
+    const blocked = key.present ? await brevo.fetchBlockedContacts() : null;
+
     res.render('pages/admin/diagnostics-email', {
       pageTitle: 'Email diagnostics',
-      key, account, senders, senderList, fromMatches,
+      key, account, senders, senderList, fromMatches, blocked,
       fromEmail: FROM_EMAIL,
       fromName:  FROM_NAME,
-      testResult: req.session.emailTestResult || null,
+      testResult:    req.session.emailTestResult    || null,
+      unblockResult: req.session.emailUnblockResult || null,
       csrfToken: res.locals.csrfToken,
     });
     delete req.session.emailTestResult;
+    delete req.session.emailUnblockResult;
   } catch (err) { next(err); }
 };
 
@@ -148,11 +157,22 @@ exports.sendTest = async (req, res, next) => {
       const r = await axios.post(`${BREVO_BASE}/smtp/email`, {
         sender:      { name: FROM_NAME, email: FROM_EMAIL },
         to:          [{ email: to }],
+        replyTo:     { name: FROM_NAME, email: process.env.BREVO_REPLY_TO || FROM_EMAIL },
         subject:     `BVO email test — ${stamp}`,
         htmlContent: `<p>This is a test from the BVO admin email diagnostics page.</p>
 <p>If you are reading this, the email channel works: the API key authenticates,
 the sender is accepted, and Brevo delivered it.</p>
 <p>Sent ${stamp} from ${FROM_EMAIL}.</p>`,
+        /* Mirrors brevoService: a test that omits the plain-text part is
+           a WORSE sample than real mail, so a junk-folder result here
+           would over-report the problem. */
+        textContent: `This is a test from the BVO admin email diagnostics page.
+
+If you are reading this, the email channel works: the API key authenticates,
+the sender is accepted, and Brevo delivered it.
+
+Sent ${stamp} from ${FROM_EMAIL}.`,
+        tags:        ['diagnostics_test'],
       }, {
         headers: { 'api-key': key, 'Content-Type': 'application/json', Accept: 'application/json' },
         timeout: TIMEOUT_MS,
@@ -178,6 +198,40 @@ the sender is accepted, and Brevo delivered it.</p>
           : String(err.code || err.message || 'unknown'),
       };
     }
+
+    return res.redirect('/admin/diagnostics/email');
+  } catch (err) { next(err); }
+};
+
+/* ── POST /admin/diagnostics/email/unblock ──────────────────────── */
+/* Removes an address from Brevo's transactional blocklist, which is the
+   only way a customer who clicked Unsubscribe on a sign-in code gets
+   back into their account. Deliberately one address at a time and
+   explicitly clicked: unblocking someone who genuinely asked to stop
+   hearing from us is not a bulk operation. */
+exports.unblock = async (req, res, next) => {
+  try {
+    const email = String(req.body.email || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+      req.session.emailUnblockResult = { ok: false, summary: 'That is not a valid email address.' };
+      return res.redirect('/admin/diagnostics/email');
+    }
+
+    const brevo = require('../services/brevoService');
+    const r = await brevo.unblockContact(email);
+
+    req.session.emailUnblockResult = r.ok
+      ? { ok: true, summary: `${email} removed from the blocklist. They can receive mail and sign in again.` }
+      : {
+          ok: false,
+          /* 404 means Brevo has no such entry — worth saying plainly
+             rather than as a raw error, because it usually means someone
+             already unblocked them. */
+          summary: r.status === 404
+            ? `Brevo has no blocklist entry for ${email}. Nothing to remove.`
+            : `Brevo refused the unblock${r.status ? ` — HTTP ${r.status}` : ''}.`,
+          body: r.error ? JSON.stringify(r.error, null, 2) : null,
+        };
 
     return res.redirect('/admin/diagnostics/email');
   } catch (err) { next(err); }

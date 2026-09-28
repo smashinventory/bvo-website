@@ -34,6 +34,11 @@ const CODE_ERRORS = {
   bad_code:          'That code is not right. Check it and try again.',
   too_many_attempts: 'That code is now dead after too many tries. Ask for a new one.',
   send_failed:       'We could not send the code. Please try again in a moment.',
+  /* Not an enumeration leak. Reaching this requires the address to be on
+     OUR blocklist, which only happens because that person clicked
+     Unsubscribe on mail we sent them or marked it as spam — they already
+     know the address exists and is theirs. */
+  blocked:           'This email address has unsubscribed from our messages, so we cannot send a sign-in code to it. Call us on the number at the foot of the page and we will restore it, or sign in with a different address.',
 };
 
 /* Fallback wording, used ONLY if the editable template is missing or
@@ -62,6 +67,25 @@ without the code, and it expires shortly.</p>`,
 exports.sendCode = async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase();
   const ip    = clientIp(req);
+
+  /* BLOCKLIST CHECK, BEFORE issueCode.
+     Brevo puts an Unsubscribe button above every message — including a
+     sign-in code — and cannot be told not to on this plan. One click
+     blocklists the address against our sender, and Brevo then ACCEPTS
+     every later send and quietly delivers nothing. Without this check the
+     buyer sits on "Check your email" forever, resends until the hourly
+     cap, and has no way to learn why.
+
+     Checked BEFORE the code is issued so a blocked address does not burn
+     a rate-limit slot on mail that cannot arrive.
+
+     isBlocked() fails open: if Brevo is unreachable or the answer is
+     uncertain it returns false and the normal path runs. A wrong refusal
+     here would be worse than the problem it fixes. */
+  if (await brevo.isBlocked(email)) {
+    console.warn('[account.sendCode] BLOCKED address attempted sign-in:', email);
+    return res.status(403).json({ ok: false, error: CODE_ERRORS.blocked });
+  }
 
   const issued = await authCode.issueCode(email, ip, 'login');
   if (!issued.ok) {

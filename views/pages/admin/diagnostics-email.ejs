@@ -147,6 +147,68 @@
 </div>
 
 <div class="adm-card">
+  <h2>5 · Blocked &amp; unsubscribed contacts</h2>
+  <p class="adm-note">
+    Brevo puts an <strong>Unsubscribe</strong> button above every message on this plan,
+    including sign-in codes — it cannot be switched off below the Enterprise tier.
+    One click blocklists that person against <code><%= fromEmail %></code>, and because
+    every message leaves from that one address they stop receiving order confirmations
+    and delivery notices too.
+  </p>
+  <p class="adm-note">
+    <strong>On a passwordless site this is an account lockout.</strong> Brevo still accepts
+    each send and returns a message ID; it simply delivers nothing. The sign-in page now
+    checks this list before issuing a code and tells the customer plainly, rather than
+    leaving them on "Check your email" forever.
+  </p>
+
+  <% if (unblockResult) { %>
+    <div class="dg-verdict <%= unblockResult.ok ? 'dg-ok' : 'dg-bad' %>"><%= unblockResult.summary %></div>
+    <% if (unblockResult.body) { %><pre class="dg-raw"><%= unblockResult.body %></pre><% } %>
+  <% } %>
+
+  <% if (!blocked) { %>
+    <p>Not attempted — no API key.</p>
+  <% } else if (!blocked.ok) { %>
+    <p class="dg-bad-text">Could not read the blocklist.</p>
+    <pre class="dg-raw"><%= typeof blocked.error === 'string' ? blocked.error : JSON.stringify(blocked.error, null, 2) %></pre>
+  <% } else if (!blocked.contacts.length) { %>
+    <p class="dg-ok-text"><strong>Nobody is blocked.</strong> Every address can receive mail and sign in.</p>
+  <% } else { %>
+    <% if (blocked.partial) { %>
+      <p class="dg-bad-text">More than 2,000 blocked contacts — this list is truncated.</p>
+    <% } %>
+    <table class="adm-table">
+      <thead><tr><th>Address</th><th>Reason</th><th>Blocked</th><th></th></tr></thead>
+      <tbody>
+        <% blocked.contacts.forEach(function (c) { %>
+          <tr>
+            <td><code><%= c.email %></code></td>
+            <%/* Brevo's own reason object: unsubscribedViaMA, hardBounce,
+                 adminBlocked, contactFlaggedAsSpam and so on. Shown raw —
+                 paraphrasing it would hide why someone is on the list. */%>
+            <td><%= (c.reason && (c.reason.message || c.reason.code)) || '—' %></td>
+            <td><%= c.blockedAt ? String(c.blockedAt).slice(0, 10) : '—' %></td>
+            <td>
+              <form method="POST" action="/admin/diagnostics/email/unblock" style="margin:0">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <input type="hidden" name="email" value="<%= c.email %>">
+                <button type="submit" class="btn btn-sm">Unblock</button>
+              </form>
+            </td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+    <p class="adm-note">
+      Unblocking restores delivery to that address. Someone who genuinely wanted to stop
+      hearing from us is still entitled to that — unblock when the person has asked to get
+      back in, not to clear the list.
+    </p>
+  <% } %>
+</div>
+
+<div class="adm-card">
   <h2>Why this page exists</h2>
   <p class="adm-note">
     <code>brevoService</code> never throws — it returns <code>{skipped:true}</code> or

@@ -181,8 +181,11 @@ router.get ('/upload/probe',  ctrl.uploadProbe);  // diagnostic: check upload di
    everywhere else. This page asks Brevo directly. See the controller
    header — do not remove it as temporary. */
 const emailDiag = require('../controllers/emailDiagnosticsController');
-router.get ('/diagnostics/email',      emailDiag.page);
-router.post('/diagnostics/email/test', emailDiag.sendTest);
+router.get ('/diagnostics/email',         emailDiag.page);
+router.post('/diagnostics/email/test',    emailDiag.sendTest);
+/* Unblocking is the only route back for a customer who clicked the
+   Unsubscribe button Brevo puts above every sign-in code. */
+router.post('/diagnostics/email/unblock', emailDiag.unblock);
 
 /* ══════════════════════════════════════════════════════════════════════
    RFLPOS SYNC — PARKED, NOT ABANDONED
