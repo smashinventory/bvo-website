@@ -24,6 +24,18 @@ def ok(name, cond, detail=''):
     print(('  ok   ' if cond else '  FAIL ') + name + ('' if cond else '   <- ' + str(detail)))
     if not cond: fail += 1
 
+def executable(text):
+    """SQL with -- comment lines removed.
+
+    Every scan below must use this. Assertions that read raw file text
+    have produced THREE false failures in this gate alone: 'CREATE
+    TABLE', 'UPDATE' and 'DEFAULT' all appear in this migration's own
+    explanatory comments. A gate that flags the prose explaining why
+    something is absent is worse than no gate - it trains you to edit
+    the assertion until it passes."""
+    return '\n'.join(l for l in text.split('\n')
+                     if not l.strip().startswith('--'))
+
 src   = open(SQL).read()
 lines = src.split('\n')
 code  = [l for l in lines if not l.strip().startswith('--')]
@@ -42,7 +54,7 @@ print('--- it is an ALTER, not a CREATE ---')
 # file's own warning text, and scanning raw `src` flagged the warning
 # as the thing it warns against. Same class of bug as scanning comments
 # for quote parity - fixed there first, missed here.
-exec_sql = '\n'.join(code)
+exec_sql = executable(src)
 ok('NO CREATE TABLE statement',
    not re.search(r'CREATE TABLE', exec_sql, re.I),
    'the table already exists - this is the email_templates mistake')
@@ -56,7 +68,7 @@ ok('ADD COLUMN statements found', len(adds) >= 12, f'found {len(adds)}')
 unguarded = [a for a in adds if not re.search(r'IF NOT EXISTS', a, re.I)]
 ok('every ADD COLUMN is IF NOT EXISTS', not unguarded, f'{len(unguarded)} unguarded')
 ok('the unique index is IF NOT EXISTS',
-   re.search(r'CREATE UNIQUE INDEX IF NOT EXISTS', src, re.I) is not None, 'unguarded')
+   re.search(r'CREATE UNIQUE INDEX IF NOT EXISTS', exec_sql, re.I) is not None, 'unguarded')
 
 print('--- nothing destructive ---')
 # Again: executable lines only. `ON DUPLICATE KEY UPDATE` is documented
@@ -167,7 +179,37 @@ print('--- the FK stays CASCADE, and orders stays unconstrained ---')
 ok('initial schema still has ON DELETE CASCADE here',
    'ON DELETE CASCADE' in m.group(0), 'the FK changed')
 ok('the migration does not touch the FK',
-   not re.search(r'FOREIGN KEY|DROP CONSTRAINT', src, re.I), 'it does')
+   not re.search(r'FOREIGN KEY|DROP CONSTRAINT', exec_sql, re.I), 'it does')
+
+print('--- address_key cannot be NULL ---')
+# A UNIQUE index does NOT constrain NULLs in MariaDB: three rows with a
+# NULL key for one customer are all legal, which silently disables the
+# dedup the key exists for. Proven on 2026-09-28, not assumed.
+FOLLOWUP = os.path.join(ROOT, 'migrations',
+                        '2026-09-28_customer_addresses_key_notnull_RUNME.sql')
+ok('the NOT NULL follow-up migration exists', os.path.exists(FOLLOWUP), 'missing')
+if os.path.exists(FOLLOWUP):
+    f = open(FOLLOWUP).read()
+    ok('it makes address_key NOT NULL',
+       re.search(r'MODIFY COLUMN address_key CHAR\(64\) NOT NULL', f) is not None,
+       'wrong statement')
+    ok('it gives address_key NO default',
+       not re.search(r'address_key[^;]*DEFAULT', executable(f), re.I),
+       'a default lets a forgotten key collide with every other row')
+    ok('the first migration points at it',
+       'key_notnull_RUNME' in src, 'a reader would run only the first file')
+
+# And prove the constraint actually blocks it.
+db.execute('DELETE FROM customer_addresses')
+db.execute('''CREATE TABLE probe (
+  customer_id INT, kind TEXT, address_key CHAR(64) NOT NULL)''')
+db.execute('CREATE UNIQUE INDEX pu ON probe (customer_id, kind, address_key)')
+blocked = False
+try:
+    db.execute("INSERT INTO probe VALUES (1,'shipping',NULL)")
+except Exception:
+    blocked = True
+ok('NOT NULL rejects a missing key', blocked, 'a NULL key was accepted')
 
 print(f'\n*** {fail} GATE(S) FAILED ***' if fail else '\nALL GATES PASS')
 sys.exit(1 if fail else 0)

@@ -167,9 +167,15 @@ ALTER TABLE customer_addresses
 CREATE UNIQUE INDEX IF NOT EXISTS uniq_addr_customer_kind_key
   ON customer_addresses (customer_id, kind, address_key);
 
+-- ⚠️ address_key is created NULLable above, and MariaDB treats NULLs as
+-- DISTINCT in a unique index -- so NULL keys are NOT deduped. Run
+-- 2026-09-28_customer_addresses_key_notnull_RUNME.sql straight after
+-- this file. It is separate only because this one had already been run
+-- when the hole was found.
+
 
 -- ======================================================================
--- VERIFY. Expect 25 columns and the unique key present.
+-- VERIFY. Expect 26 columns (14 original + 12 new) and the key.
 -- ======================================================================
 
 SHOW COLUMNS FROM customer_addresses;
