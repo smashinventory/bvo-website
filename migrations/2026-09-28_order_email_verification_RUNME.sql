@@ -94,11 +94,31 @@ CREATE INDEX IF NOT EXISTS idx_customers_email_verified_at
 -- consumed_at IS NOT NULL is the proof: the code was not merely sent,
 -- it was typed back correctly. purpose='login' excludes secure_account
 -- tokens, which share this table and prove nothing about the mailbox.
+-- COLLATE utf8mb4_unicode_ci IS LOAD-BEARING. Without it this fails:
+--
+--   #1267 - Illegal mix of collations
+--           (utf8mb4_uca1400_ai_ci,IMPLICIT) and
+--           (utf8mb4_unicode_ci,IMPLICIT) for operation '='
+--
+-- The schema is split. Tables predating the MariaDB 11 upgrade are
+-- utf8mb4_unicode_ci; anything created after it — customer_auth_codes
+-- (2026-09-27), customer_addresses and customer_devices (2026-09-28) —
+-- took the newer server default. Comparing an email column across that
+-- line is illegal until one side is forced.
+--
+-- Nothing else in the app hits this yet, because every other cross-table
+-- link is on customer_id (an integer) and every single-table filter
+-- compares a column to a bound parameter, which adopts that column's
+-- collation. This backfill is the first query to join text across the
+-- two eras. It will not be the last — see OPEN_ITEMS.
+--
+-- EXPLICIT beats IMPLICIT, so naming it on one side settles the whole
+-- comparison.
 UPDATE customers c
    SET c.email_verified_at = (
          SELECT MIN(a.consumed_at)
            FROM customer_auth_codes a
-          WHERE a.email = c.email
+          WHERE a.email = c.email COLLATE utf8mb4_unicode_ci
             AND a.purpose = 'login'
             AND a.consumed_at IS NOT NULL
        ),
@@ -106,7 +126,7 @@ UPDATE customers c
  WHERE c.email_verified_at IS NULL
    AND EXISTS (
          SELECT 1 FROM customer_auth_codes a
-          WHERE a.email = c.email
+          WHERE a.email = c.email COLLATE utf8mb4_unicode_ci
             AND a.purpose = 'login'
             AND a.consumed_at IS NOT NULL
        );

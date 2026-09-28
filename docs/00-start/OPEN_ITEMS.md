@@ -833,3 +833,41 @@ Two things follow:
 Fix, when someone has an hour: dump the nine live bodies into a dated
 migration so the repo has a truthful record again, and add a note at the
 top of `016_` saying it is history, not current state.
+
+### The schema is split across two collations — 2026-09-28
+Tables predating the MariaDB 11 upgrade are `utf8mb4_unicode_ci`.
+Anything created after it took the newer server default,
+`utf8mb4_uca1400_ai_ci` — confirmed for `customer_auth_codes`
+(2026-09-27), and likely `customer_addresses` and `customer_devices`
+(2026-09-28).
+
+Comparing a text column across that line raises:
+
+    #1267 - Illegal mix of collations
+            (utf8mb4_uca1400_ai_ci,IMPLICIT) and
+            (utf8mb4_unicode_ci,IMPLICIT) for operation '='
+
+**Why nothing has broken yet, and why that is not reassuring.** Every
+cross-table link in the app today is on `customer_id`, an integer. Every
+single-table filter compares a column to a bound parameter, and a
+parameter adopts the column's collation. So the clash is invisible until
+someone writes the first text join across the two eras — which the
+verification backfill was, and it failed on the spot.
+
+The next one will fail the same way, at runtime, in a place nobody
+expects, with an error that does not obviously name its cause.
+
+Two ways out:
+- **Workaround, in place now:** name the collation explicitly on one
+  side of the comparison (`a.email = c.email COLLATE utf8mb4_unicode_ci`).
+  EXPLICIT beats IMPLICIT, so one side settles it. Has to be remembered
+  every single time.
+- **Real fix, not yet approved:** one statement per new table —
+  `ALTER TABLE <t> CONVERT TO CHARACTER SET utf8mb4
+   COLLATE utf8mb4_unicode_ci` — aligning them with the rest of the
+  schema so the trap stops existing. Small, and it removes a whole class
+  of future runtime error.
+
+Check current state with `SHOW TABLE STATUS` and read the `Collation`
+column. Do NOT use `information_schema.TABLES`: this host denies that
+database outright (#1044).
