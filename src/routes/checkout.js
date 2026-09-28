@@ -22,35 +22,40 @@
 const express  = require('express');
 const router   = express.Router();
 const ctrl     = require('../controllers/checkoutController');
-const requireIdentity = require('../middleware/requireIdentity');
+const orderConfirm = require('../controllers/orderConfirmController');
 
-// ── 0. Identity ──────────────────────────────────────────────────
-// Guest checkout is gone (spec 7.1 superseded). Everything below this
-// line requires a signed-in customer.
+// ── 0. Identity — OPTIONAL SINCE 2026-09-28 ──────────────────────
 //
-// THIS ROUTE IS REGISTERED BEFORE THE GUARD AND IS NOT COVERED BY IT.
-// Guarding the sign-in page would redirect it to itself forever.
+// requireIdentity USED TO GUARD EVERY ROUTE BELOW. It was removed, and
+// it must not come back. Brevo's event log showed a sign-in code
+// accepted at 11:59 and delivered at 12:10 — eleven minutes — against a
+// code that expired at ten. Gmail defers mail from senders it does not
+// recognise, so the delay falls hardest on addresses we have never
+// mailed: FIRST-TIME BUYERS. A checkout that cannot start until a
+// third-party mail hop completes is a checkout hostage to Gmail.
+//
+// /identify survives as an OPTIONAL sign-in — a returning buyer who
+// wants their saved addresses prefilled can choose to wait for a code.
+// Nobody is forced through it. Email is now an ordinary field on page 1,
+// and identity is established as a CONSEQUENCE of ordering rather than a
+// precondition for it. See src/services/emailVerificationService.js.
 router.get ('/identify',  ctrl.identifyPage);
 
-// ── RETURN FROM STRIPE — ALSO OUTSIDE THE GUARD, DELIBERATELY ────
-// These three are where Stripe sends the buyer back, and by then the
-// card has been charged. A session that expired during payment — a slow
-// 3DS challenge, a bank app switch, a phone that slept — would bounce a
-// PAYING CUSTOMER to a sign-in screen instead of their confirmation,
-// and they would have no way to tell whether the order went through.
-//
-// Safe to leave open because they are read-only and identity-free:
-// returnFromStripe decides which page to show, the webhook is what
-// actually advances the order, and success reads only the order id the
-// server itself put on the session.
+// ── RETURN FROM STRIPE ───────────────────────────────────────────
+// Where Stripe sends the buyer back, after the card is authorised.
+// Read-only: returnFromStripe decides which page to show, the webhook is
+// what actually advances the order, and success reads only the order id
+// the server itself put on the session.
 router.get ('/return',    ctrl.returnFromStripe);
 router.get ('/success',   ctrl.success);
 router.get ('/cancel',    ctrl.cancel);
 
-// Applies to every route declared AFTER this line — Express runs
-// router-level middleware in declaration order. A guard added at the
-// bottom of the file would protect nothing.
-router.use(requireIdentity);
+// Backs the poll on the order-received page, so a confirmation that
+// arrives while the buyer is still looking flips the panel in place.
+// Reads the customer id off the SESSION, never a query parameter — an
+// endpoint answering "is <id> verified?" for a caller-supplied id would
+// be a free oracle over the customer table.
+router.get ('/verify-status', orderConfirm.status);
 
 // ── 1. Your information ──────────────────────────────────────────
 router.get ('/',          ctrl.show);
@@ -72,9 +77,5 @@ router.post('/session',   ctrl.createSession);
 // field for. Writes through the order id held in the server session,
 // never one from the body.
 router.post('/order-details', ctrl.setOrderDetails);
-
-// /return, /success and /cancel are registered ABOVE the guard — see
-// the comment there. They must stay above it: a buyer whose session
-// expired during payment has already been charged.
 
 module.exports = router;

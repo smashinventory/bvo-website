@@ -1,4 +1,4 @@
-<link rel="stylesheet" href="/css/site3.css?v=18"><!-- site3: injected per-page (perf) -->
+<link rel="stylesheet" href="/css/site3.css?v=28"><!-- site3: injected per-page (perf) -->
 <div class="checkout-confirm-page">
   <div class="confirm-icon">
     <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
@@ -27,6 +27,39 @@
   <p class="confirm-total">Order total (authorised): <strong>$<%= (parseFloat(subtotal)||0).toLocaleString('en-US',{minimumFractionDigits:2}) %></strong></p>
   <% } %>
 
+  <%/* ── CONFIRM YOUR EMAIL — OPTIONAL, NEVER A GATE ─────────────────
+       The order is placed and the card is authorised before this panel
+       is ever seen. It must read as an offer, not a requirement: a
+       buyer who has just paid and is then told to do something
+       reasonably assumes their order is in trouble, and that costs a
+       support call.
+
+       WHY IT POLLS. Brevo delivery to Gmail has been measured at
+       eleven minutes and at a few seconds, depending on how well Gmail
+       knows the sender. If the mail lands while they are still on this
+       page, the panel flips to confirmed in place and they never think
+       about it again. If it takes eleven minutes, they already have
+       their order and do not care. The poll makes the fast case
+       delightful without making the slow case a problem.
+
+       Hidden entirely once verified — a returning buyer who signed in
+       with a code is ALREADY verified and must not be asked again. */%>
+  <% if (typeof emailVerified !== 'undefined' && !emailVerified) { %>
+  <div class="confirm-verify" id="confirm-verify">
+    <p class="confirm-verify-ask">
+      <strong>Want delivery updates and tracking?</strong><br>
+      We've emailed you a link — open it and tap <em>Confirm my email</em>.
+      Optional, and your order is already placed either way.
+    </p>
+    <p class="confirm-verify-alt">
+      Already have an account? <a href="/account/login">Sign in</a> and you're confirmed straight away.
+    </p>
+  </div>
+  <div class="confirm-verify confirm-verify--done" id="confirm-verified" hidden>
+    <p><strong>Email confirmed.</strong> Delivery updates and tracking will come to you.</p>
+  </div>
+  <% } %>
+
   <div class="confirm-next">
     <%/* The card is AUTHORISED, not charged. Saying "receipt" here is a
          plain inaccuracy - no money has moved, and a buyer who checks
@@ -46,3 +79,35 @@
     <a href="/" class="btn btn-outline">Back to Home</a>
   </div>
 </div>
+
+<% if (typeof emailVerified !== 'undefined' && !emailVerified) { %>
+<script nonce="<%= cspNonce %>">
+(function () {
+  'use strict';
+  var ask  = document.getElementById('confirm-verify');
+  var done = document.getElementById('confirm-verified');
+  if (!ask || !done) return;
+
+  /* TWO MINUTES, then stop. Long enough to catch a fast delivery,
+     short enough that a tab left open overnight is not still polling.
+     Every 5s = 24 requests worst case, against a query on one indexed
+     primary key. */
+  var DEADLINE = Date.now() + 120000;
+
+  function check() {
+    if (Date.now() > DEADLINE) return;
+    fetch('/checkout/verify-status', { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (j && j.verified) { ask.hidden = true; done.hidden = false; return; }
+        setTimeout(check, 5000);
+      })
+      /* Silent on failure. This is a nicety on a page whose job is
+         already done; an error message here would imply the ORDER had
+         a problem, which it has not. */
+      .catch(function () { setTimeout(check, 5000); });
+  }
+  setTimeout(check, 5000);
+})();
+</script>
+<% } %>

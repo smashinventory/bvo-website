@@ -1,4 +1,19 @@
-<%/* The email-first gate. Spec 7.1 / 7.2.
+<%/* Sign in to check out — OPTIONAL since 2026-09-28.
+
+     This was a MANDATORY gate for one day. requireIdentity sent every
+     checkout route here until an address had been proven by six-digit
+     code. Brevo then delivered a code eleven minutes after issue against
+     a ten-minute expiry, and Gmail defers hardest on addresses it has
+     never seen — first-time buyers. A checkout cannot wait on a
+     third-party mail hop.
+
+     The page survives because it is still the fastest route for a
+     RETURNING buyer who wants their saved addresses prefilled: they
+     choose to wait for a code, and get everything filled in. Nobody is
+     sent here against their will, and email is an ordinary field on
+     checkout page 1 for everyone else.
+
+     Spec 7.1 / 7.2.
 
      Posts to /account/code and /account/verify — the SAME endpoints the
      account login uses. Those already carry the rate limits, the
@@ -48,8 +63,11 @@
     <%/* Step 2 — the code. Hidden until one has been sent. */%>
     <div id="id-step-code" hidden>
       <h1 class="auth-title">Check your email</h1>
+      <%/* codeTtlMinutes comes from authCodeService via identifyPage.
+           NEVER hard-type it: the TTL moved 10 -> 20 on 2026-09-28 and
+           this is the only place the buyer learns the number. */%>
       <p class="auth-sub">We sent a six-digit code to
-        <strong id="id-sent-to"></strong>. It works for ten minutes.</p>
+        <strong id="id-sent-to"></strong>. It works for <%= codeTtlMinutes %> minutes.</p>
 
       <div class="auth-error" id="id-err-code" role="alert" hidden></div>
 
@@ -63,6 +81,15 @@
                  inputmode="numeric" autocomplete="one-time-code"
                  maxlength="6" pattern="[0-9]{6}" placeholder="000000"
                  style="letter-spacing:.4em;font-size:1.3rem;text-align:center">
+          <%/* Prevents the STALE-CODE loop, not impatience. A code
+               delivered eleven minutes late on 2026-09-28 was typed after
+               a second had been requested. Not "due to high traffic" —
+               that is an excuse and it is not true; Gmail defers mail
+               from senders it does not yet know. */%>
+          <p class="auth-hint" id="id-code-hint">
+            Codes can take a few minutes to arrive. If you asked for more
+            than one, use the most recent.
+          </p>
         </div>
         <%/* UNCHECKED by default, deliberately. This grants 90 days of
              signing in with no code at all, which is a real decision and
@@ -162,6 +189,21 @@
       });
   }
 
+  /* ESCALATE, DO NOT REPEAT. After two minutes the first hint has stopped
+     being useful — they can see nothing has arrived. Repeating it reads
+     as a dead page; naming the next thing to try reads as a page still
+     with them. Two minutes clears the 60-second resend cooldown, so the
+     advice is actionable at the moment it is given. */
+  var hintTimer = null;
+  function startHintEscalation() {
+    var hint = document.getElementById('id-code-hint');
+    if (!hint) return;
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(function () {
+      hint.textContent = 'Still nothing? Check your spam folder, or send another code.';
+    }, 120000);
+  }
+
   emailForm.addEventListener('submit', function (ev) {
     ev.preventDefault();
     var email = document.getElementById('id-email').value.trim();
@@ -173,6 +215,7 @@
       sentTo.textContent = email;
       stepEmail.hidden = true;
       stepCode.hidden = false;
+      startHintEscalation();
       document.getElementById('id-code').focus();
     });
   });
@@ -189,7 +232,7 @@
                           remember_device: document.getElementById('id-code-form-remember').checked })
       .then(function (r) {
         /* The server decides where to land. return_to was validated in
-           requireIdentity and is validated AGAIN by /account/verify, so
+           identifyPage and is validated AGAIN by /account/verify, so
            the page never navigates anywhere of its own choosing. */
         if (r.body.ok) { window.location.href = r.body.redirect || '/checkout'; return; }
         verifyBtn.disabled = false;

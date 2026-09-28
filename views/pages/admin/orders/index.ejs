@@ -64,7 +64,20 @@
         <tr class="order-row order-row--<%= o.rag %>">
           <td><span class="rag-dot rag-dot--<%= o.rag %>" title="<%= o.rag === 'red' ? 'Needs attention' : o.rag === 'yellow' ? 'Watch' : 'On track' %>"></span></td>
           <td><a href="/admin/orders/<%= o.id %>" style="font-weight:700;color:var(--color-navy)"><%= o.order_number %></a></td>
-          <td><%= o.customer_name || '—' %></td>
+          <%# Email verification badge. CONFIRMED is green; UNCONFIRMED is
+              NEUTRAL GREY, never red — every brand-new order is
+              unconfirmed for its first few minutes, and a red flag that
+              fires on all of them is wallpaper. Red stays reserved for
+              the address-velocity panel and the ship/bill mismatch,
+              which actually mean something. %>
+          <td>
+            <%= o.customer_name || '—' %>
+            <% if (o.email_verified_at) { %>
+              <span class="email-vflag email-vflag--yes" title="Email address confirmed by this customer">&#10003; email</span>
+            <% } else { %>
+              <span class="email-vflag email-vflag--no" title="This customer has never confirmed their email address — worth asking about on the verification call">email unconfirmed</span>
+            <% } %>
+          </td>
           <td style="font-weight:700">$<%= parseFloat(o.total || 0).toFixed(2) %></td>
           <%# Hover explains what the status means — definitions live in
               src/config/orderStatuses.js %>

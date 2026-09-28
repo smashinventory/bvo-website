@@ -737,3 +737,75 @@ in the second. Both figures are correct.
 *(Flagged, not actioned: the two panels sit adjacent and invite the comparison.
 A variant-count or per-SKU column on the SKU table would make it
 self-explanatory.)*
+
+---
+
+## Added 2026-09-28 — from the verification rework
+
+### Small copy/design fixes to the new-device email (owner-raised, deferred)
+Owner, 2026-09-28, on seeing the live "New sign-in to your BVO account"
+message:
+
+1. **Add the BVO logo** to the new-device email so the reader is
+   reminded who it is from. Every other BVO email carries branding; this
+   one is plain text on white and looks least like us at the exact
+   moment the reader is being asked to judge whether it is genuine.
+2. **"That link works for 24 hours." → "This link works for 24 hours."**
+
+Both live in `newDeviceEmail()` in `src/controllers/accountController.js`
+— in code, not in `email_templates`, deliberately: a SECURITY
+notification that silently fails to send because a database row is
+missing is worse than one that is slightly out of date. Editing it means
+a deploy, which is the accepted cost.
+
+Explicitly deferred by the owner: *"Log this for future scope not now."*
+
+### Change-email flow — not built, and now the main gap in identity
+Orders hang off `customer_id`, not the email string, so history survives
+an address change **provided the change is made on the existing row**.
+Nothing today can do that. The risk is therefore not losing history but
+**splitting** it: a buyer who moves to a new address and simply checks
+out with it gets a second customer row via `findOrCreateByEmail`, and
+their history is orphaned under an id nobody looks at.
+
+Needs, roughly in order:
+- Self-service change from inside the account — code to the OLD address,
+  then a code to the NEW one. Both proven, one row updated.
+- An **admin** path for the common case of having lost the old mailbox,
+  verified the way the order-verification call already verifies people
+  (order number, ship-to, last four).
+- **Merge**, not rename, when the new address already exists as its own
+  customer: orders, addresses and devices move to one surviving id.
+- On any change: `emailVerificationService.clearVerification()` (already
+  written and waiting), revoke device cookies, kill live sessions, and
+  write an audit row. An attacker who gets one address changed inherits a
+  full order history, so this is a fraud-relevant action and needs a
+  trail.
+
+Optional early-warning, if the full flow stays unbuilt for long: flag
+when a BRAND-NEW customer's shipping address matches an existing
+customer's. `customer_addresses` and the velocity query already exist, so
+it is small. Owner has not asked for it.
+
+### Brevo deliverability — the disease, not the symptom
+The 2026-09-28 work removed checkout's dependence on email delivery. It
+did **not** fix delivery. Measured that day: a code accepted at 11:59 and
+delivered at 12:10 — eleven minutes — and a second still unsent after
+thirteen. DKIM and DMARC both pass, so there is nothing to fix in DNS;
+this is sender reputation plus Brevo's free-tier **shared IP**, where
+transactional mail sits alongside other senders' marketing.
+
+Order confirmations, delivery notices and carrier appointments all ride
+the same channel, so this still matters — it is just no longer able to
+cost a sale at checkout. Options: let volume build reputation, or move
+transactional mail to a transactional-only provider (Postmark or SES).
+Not a decision to take under time pressure.
+
+### Brevo event log on the diagnostics page — proposed, not approved
+`GET /v3/smtp/statistics/events?email=…` returns per-message `requests`,
+`delivered`, `softBounce`, `hardBounce`, `blocked`, `spam`, `deferred`.
+Its absence is why 2026-09-28 cost four rounds of wrong theories — API
+key, blocklist, credits — before the Brevo UI showed the answer in one
+screen. A read-only section 6 on `/admin/diagnostics/email` would answer
+this whole class of question in one click. Offered; owner did not take it
+up.

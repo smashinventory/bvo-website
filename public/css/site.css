@@ -11,3 +11,18 @@
   text-decoration:underline;cursor:pointer}
 .link-button:disabled{color:#8a8a8a;text-decoration:none;cursor:default}
 .link-button:hover:not(:disabled){text-decoration:none}
+
+/* ── Auth screens: remember-device box + code hint ────────────────────
+   .auth-remember SHIPPED DEAD ON 2026-09-28. It was added to site3.css
+   with the remember-device work, but site3 is injected per-page and
+   NEITHER auth screen injects it — account/login.ejs and
+   checkout-identify.ejs load site-bundle.css only. The checkbox rendered
+   unstyled on both. Rules live here instead, in the file every page gets.
+   The dead copy in site3.css is harmless and left alone.
+
+   .auth-hint is the delivery-expectation line under the code input. Grey
+   and small: it is guidance, not an error, and must not compete with
+   .auth-error directly above it. */
+.auth-remember{display:flex;align-items:flex-start;gap:.55rem;margin:0 0 1rem;font-size:.82rem;line-height:1.45;color:var(--color-navy,#182840);cursor:pointer;text-align:left}
+.auth-remember input{margin:.15rem 0 0;flex-shrink:0;width:15px;height:15px;accent-color:var(--color-navy,#182840);cursor:pointer}
+.auth-hint{margin:.5rem 0 0;font-size:.78rem;line-height:1.5;color:var(--text-muted,#687281);text-align:left}

@@ -235,6 +235,77 @@ const disputeOpen = order.dispute_id
 </div>
 <% } %>
 
+<%/* ── EMAIL VERIFICATION — context for the verification call ─────────
+     Owner-approved 2026-09-28: "an additional indicator for fraud for us
+     (internal indicator - not a deal breaker)."
+
+     ⛔ ADVISORY ONLY, like the address panel below. Nothing here gates
+     Capture. Verification is OPTIONAL for the buyer by design — the
+     order completes whether or not they ever click — so treating an
+     unconfirmed address as a blocker would punish customers for a
+     choice we deliberately gave them.
+
+     ALWAYS RENDERS, unlike the address panel. A missing flag and an
+     absent panel are indistinguishable at a glance, and "did they
+     confirm?" is a question the rep asks on every call — so it has to
+     have a visible answer every time, including "no".
+
+     THE TIMING IS THE INTERESTING PART. Verified is stored on the
+     customer, so it can predate this order. "Confirmed two minutes
+     after ordering" and "confirmed eight months ago" are very different
+     stories, and neither is visible from a tick alone. */%>
+<div class="adm-card" style="margin-bottom:1rem">
+  <h2 class="adm-card-title" style="margin-bottom:.5rem">Email address</h2>
+  <% if (order.email_verified_at) {
+       const vAt  = new Date(order.email_verified_at);
+       const oAt  = order.created_at ? new Date(order.created_at) : null;
+       const good = !isNaN(vAt.getTime());
+       /* Before/after THIS order, not an absolute date the reader has to
+          diff in their head against the order date further up the page. */
+       const rel  = (good && oAt && !isNaN(oAt.getTime()))
+         ? (vAt < oAt ? 'before this order was placed' : 'after this order was placed')
+         : '';
+       const when = good
+         ? vAt.toLocaleString('en-US', { timeZone: 'America/New_York',
+             year: 'numeric', month: 'short', day: 'numeric',
+             hour: 'numeric', minute: '2-digit' })
+         : '—';
+  %>
+    <p style="margin:0;font-size:.9rem">
+      <span class="email-vflag email-vflag--yes">&#10003; confirmed</span>
+      <span style="color:var(--text-muted,#687281)">
+        <%= when %><%= rel ? ' — ' + rel : '' %>
+        <% if (order.email_verified_method === 'code') { %>
+          &middot; signed in with a code
+        <% } else if (order.email_verified_method === 'order_link') { %>
+          &middot; clicked the link in an order email
+        <% } %>
+      </span>
+    </p>
+    <% if (order.email_verified_method === 'order_link') { %>
+      <%/* Said plainly because the two are NOT equal evidence: a code is
+           typed by a human within twenty minutes, where an order link
+           lives seven days in a mailbox and confirmations get
+           forwarded. Worth a shade more care on the call. */%>
+      <p style="margin:.4rem 0 0;font-size:.82rem;color:var(--text-muted,#687281)">
+        Weaker proof than a code sign-in — an order email can be forwarded.
+      </p>
+    <% } %>
+  <% } else { %>
+    <p style="margin:0;font-size:.9rem">
+      <span class="email-vflag email-vflag--no">email unconfirmed</span>
+      <span style="color:var(--text-muted,#687281)">
+        This customer has never proven they can read mail at this address.
+      </span>
+    </p>
+    <p style="margin:.4rem 0 0;font-size:.82rem;color:var(--text-muted,#687281)">
+      Common and usually harmless — confirming is optional. Worth noting
+      on the verification call alongside anything else on this screen,
+      not on its own.
+    </p>
+  <% } %>
+</div>
+
 <%/* ── ADDRESS HISTORY — items 6/9 ────────────────────────────────────
      Context for the verification call that already happens before
      capture.

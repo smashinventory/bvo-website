@@ -38,8 +38,13 @@
     <%/* Step 2 — the code. Hidden until one has been sent. */%>
     <div id="auth-step-code" hidden>
       <h1 class="auth-title">Check your email</h1>
+      <%/* codeTtlMinutes comes from authCodeService via the controller.
+           NEVER hard-type the number here: the TTL moved from 10 to 20 on
+           2026-09-28 and this sentence is the only place the buyer learns
+           it. A stale number here is the page lying about the one fact
+           they need. */%>
       <p class="auth-sub">We sent a six-digit code to <strong id="auth-sent-to"></strong>.
-        It works for ten minutes.</p>
+        It works for <%= codeTtlMinutes %> minutes.</p>
 
       <div class="auth-error" id="auth-err-code" role="alert" hidden></div>
 
@@ -54,6 +59,21 @@
                  inputmode="numeric" autocomplete="one-time-code"
                  maxlength="6" pattern="[0-9]{6}" placeholder="000000"
                  style="letter-spacing:.4em;font-size:1.3rem;text-align:center">
+          <%/* THE REAL FAILURE THIS COPY PREVENTS.
+               Not impatience — a STALE CODE. Brevo delivered a code
+               eleven minutes late on 2026-09-28; by then the buyer had
+               requested a second one, and typed the first. Old codes stay
+               valid (verifyCode takes the newest live row), so this is
+               advice rather than a rule, but "use the most recent" is
+               what stops the loop.
+
+               Deliberately NOT "due to high traffic" — that is an excuse,
+               it is vague, and it is not true. The delay is Gmail
+               deferring mail from a sender it does not know yet. */%>
+          <p class="auth-hint" id="auth-code-hint">
+            Codes can take a few minutes to arrive. If you asked for more
+            than one, use the most recent.
+          </p>
         </div>
         <%/* UNCHECKED by default, deliberately. This grants 90 days of
              signing in with no code at all, which is a real decision and
@@ -153,6 +173,22 @@
       });
   }
 
+  /* ESCALATE, DO NOT REPEAT.
+     After two minutes the first hint has stopped being useful — they can
+     see for themselves that nothing has arrived. Saying the same thing
+     louder reads as a dead page; offering the next thing to try reads as
+     a page that is still with them. Two minutes because it is past the
+     60-second resend cooldown, so the advice is actionable when given. */
+  var hintTimer = null;
+  function startHintEscalation() {
+    var hint = document.getElementById('auth-code-hint');
+    if (!hint) return;
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(function () {
+      hint.textContent = 'Still nothing? Check your spam folder, or send another code.';
+    }, 120000);
+  }
+
   emailForm.addEventListener('submit', function (ev) {
     ev.preventDefault();
     var email = document.getElementById('email').value.trim();
@@ -164,6 +200,7 @@
       sentTo.textContent = email;
       stepEmail.hidden = true;
       stepCode.hidden = false;
+      startHintEscalation();
       document.getElementById('code').focus();
     });
   });

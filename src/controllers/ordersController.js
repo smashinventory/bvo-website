@@ -181,6 +181,11 @@ exports.list = async (req, res, next) => {
                 NULLIF(TRIM(CONCAT(COALESCE(o.ship_first_name,''),' ',COALESCE(o.ship_last_name,''))),''),
                 o.guest_email
               ) AS customer_name,
+              /* Email verification, for the badge on each row. Read from
+                 the CUSTOMER, not the order: proving you own an address
+                 is a fact about a person, so a repeat buyer who verified
+                 once stays verified. See emailVerificationService.js. */
+              c.email_verified_at AS email_verified_at,
               vpo.status AS vpo_status, vpo.sent_at AS vpo_sent_at, vpo.confirmed_at AS vpo_confirmed_at,
               s.status AS ship_status, s.estimated_delivery, s.last_tracking_scan,
               (SELECT COUNT(*) FROM order_returns r WHERE r.order_id = o.id AND r.status NOT IN ('resolved','denied')) AS open_returns,
@@ -237,7 +242,13 @@ exports.detail = async (req, res, next) => {
                 NULLIF(TRIM(CONCAT(COALESCE(o.ship_first_name,''),' ',COALESCE(o.ship_last_name,''))),''),
                 o.guest_email
               ) AS customer_name,
-              c.email AS customer_email, c.phone AS customer_phone
+              c.email AS customer_email, c.phone AS customer_phone,
+              /* Verified state AND how it was proven. 'code' is the
+                 stronger evidence — twenty minutes, one shot, typed by a
+                 human — where 'order_link' is a seven-day link in a
+                 mailbox that gets forwarded. The rep should see which
+                 before the verification call. */
+              c.email_verified_at, c.email_verified_method
        FROM orders o
        LEFT JOIN customers c ON c.id = o.customer_id
        WHERE o.id = ?`, [id]

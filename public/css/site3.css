@@ -98,3 +98,16 @@
 .checkout-prefill-note{margin:.5rem 0 0;padding:.6rem .75rem;background:#fff8e6;border-left:3px solid var(--color-amber,#b8860b);border-radius:4px;font-size:.84rem;line-height:1.5;color:var(--color-navy,#182840)}
 .auth-remember{display:flex;align-items:flex-start;gap:.55rem;margin:0 0 1rem;font-size:.82rem;line-height:1.45;color:var(--color-navy,#182840);cursor:pointer;text-align:left}
 .auth-remember input{margin:.15rem 0 0;flex-shrink:0;width:15px;height:15px;accent-color:var(--color-navy,#182840);cursor:pointer}
+
+/* ── Order-received: confirm-your-email panel ─────────────────────────
+   NEUTRAL, NOT ALARMING. This sits on the page a buyer reaches straight
+   after their card is authorised. Anything red, or anything that reads
+   as a warning, makes a paying customer think their order is in
+   trouble. Sand background, no border accent, no icon. */
+.confirm-verify{max-width:560px;margin:1.5rem auto 0;padding:1rem 1.25rem;background:var(--sand,#faf8f5);border:1px solid var(--border,#e8e4dc);border-radius:8px;text-align:left;font-size:.92rem;line-height:1.6;color:var(--color-navy,#182840)}
+.confirm-verify-ask{margin:0}
+.confirm-verify-alt{margin:.6rem 0 0;font-size:.84rem;color:var(--text-muted,#687281)}
+/* Confirmed reads as a quiet success, not a celebration — they came
+   here for an order, not for a checkbox. */
+.confirm-verify--done{background:#f2f7f2;border-color:#cfe0cf}
+.confirm-verify--done p{margin:0}

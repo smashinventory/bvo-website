@@ -1,0 +1,70 @@
+<link rel="stylesheet" href="/css/site3.css?v=28"><!-- site3: injected per-page (perf) -->
+<%/* Confirm-your-email landing page. Spec: the post-order half of the
+     verification rework, 2026-09-28.
+
+     THE BUTTON IS THE POINT. This page exists so that a MACHINE cannot
+     confirm an address — mail scanners follow links (Gmail's own
+     "Loaded by proxy" shows in Brevo's log), and a GET that confirmed on
+     sight would let a scanner mark orders verified with no human
+     involved. That would quietly destroy the only thing the flag is for.
+
+     Three states, one template:
+       ask     — valid token, waiting on a human to press the button
+       done    — confirmed, now or earlier
+       invalid — expired, spent, or never real (all read identically) */%>
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <img src="/images/logos/BVOLOGOSQ_512.png" alt="BVO" width="60" height="60">
+    </div>
+
+    <% if (state === 'ask') { %>
+      <h1 class="auth-title">Confirm your email</h1>
+      <p class="auth-sub">
+        Confirming <strong><%= email %></strong> lets us send you delivery
+        updates and tracking for
+        <% if (orderNumber) { %>order <strong><%= orderNumber %></strong><% } else { %>your order<% } %>.
+      </p>
+
+      <form class="auth-form" method="POST" action="/orders/confirm">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="token" value="<%= token %>">
+        <button type="submit" class="btn btn-amber"
+                style="width:100%;padding:.85rem">Yes, this is my email</button>
+      </form>
+
+      <%/* Says plainly that nothing is at stake. A buyer who has already
+           paid and is then shown a page demanding they click something
+           reasonably wonders whether their order is in trouble. */%>
+      <p class="auth-hint" style="text-align:center;margin-top:1rem">
+        Your order is already placed and is not affected by this.
+      </p>
+
+    <% } else if (state === 'done') { %>
+      <h1 class="auth-title">Email confirmed</h1>
+      <p class="auth-sub">
+        Thanks — you're all set<% if (orderNumber) { %> for order <strong><%= orderNumber %></strong><% } %>.
+        Delivery updates and tracking will come to this address.
+      </p>
+      <%/* A SIGN-IN LINK, NOT A SESSION. Confirming proves the address;
+           it does not sign anyone in, because this link lives for seven
+           days in a mailbox and order confirmations get forwarded. The
+           buyer who wants their account takes the twenty-minute code
+           route like anybody else. */%>
+      <p class="auth-switch" style="margin-top:1.25rem">
+        <a href="/account/login">Sign in to track your order</a>
+        &nbsp;·&nbsp;
+        <a href="/">Back to the store</a>
+      </p>
+
+    <% } else { %>
+      <h1 class="auth-title">That link didn't work</h1>
+      <p class="auth-sub"><%= message %></p>
+      <p class="auth-switch" style="margin-top:1.25rem">
+        <a href="/account/login">Sign in with a code</a>
+        &nbsp;·&nbsp;
+        <a href="/">Back to the store</a>
+      </p>
+    <% } %>
+  </div>
+</div>

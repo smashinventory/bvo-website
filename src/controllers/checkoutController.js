@@ -68,6 +68,11 @@ const addrVal = require('../services/addressValidationService');
    catches its own errors and returns {ok:false} — nothing in here may
    throw into a checkout. */
 const CustomerAddress = require('../models/CustomerAddress');
+/* Match-or-create the customer from the address typed on page 1. Needed
+   since the identity gate was removed (2026-09-28) — previously
+   requireIdentity guaranteed a customerId was already on the session. */
+const Customer    = require('../models/Customer');
+const emailVerify = require('../services/emailVerificationService');
 
 /* ── Helpers ────────────────────────────────────────────────────── */
 
@@ -110,6 +115,9 @@ function identifyPage(req, res) {
        stored value still lands somewhere sensible. */
     returnTo:  req.session.returnTo || '/checkout',
     cartCount: cart.count || cart.items.length,
+    /* Read from the service rather than typed into the template, so the
+       page cannot go on promising ten minutes after the TTL moves. */
+    codeTtlMinutes: require('../services/authCodeService')._limits.CODE_TTL_MINUTES,
   });
 }
 exports.identifyPage = identifyPage;
@@ -257,10 +265,18 @@ function validateInfo(b) {
   const errors = {};
   const v = k => String(b[k] || '').trim();
 
-  /* NO EMAIL RULE. The address is not on this form any more — it was
-     proven by six-digit code at /checkout/identify and is read from the
-     session, never from the body. Validating a body field that the page
-     no longer submits would reject every single submission. */
+  /* EMAIL IS BACK ON THIS FORM (2026-09-28). It was removed on 09-27
+     when /checkout/identify proved it by code; that gate is gone,
+     because Brevo delivered a sign-in code eleven minutes late and a
+     checkout cannot wait on Gmail.
+
+     Shape only. There is no "does this address exist" check and there
+     must not be one — that is the enumeration leak authCodeService goes
+     to some trouble to avoid, and it would be pointless here anyway
+     since ownership is proven AFTER the order, not before. */
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v('email')))
+    errors.email = 'Enter a valid email address so we can send your order confirmation.';
+
   if (v('ship_name').length < 2)
     errors.ship_name = 'Enter the name of the person receiving the delivery.';
   if (!v('ship_address1'))
@@ -377,18 +393,28 @@ exports.show = async (req, res) => {
     draft = row || null;
   }
 
-  /* The FULL customer row, not the three fields the session carries.
-     res.locals.customer is {id, firstName, email} — enough to greet
-     someone, not enough to pre-tick a consent box from what they chose
-     last time. Read here so a returning buyer is not asked the same
-     question twice with the wrong default.
+  /* ── AUTHENTICATED ONLY, AND THIS DISTINCTION IS LOad-BEARING ─────
+     req.session.customerId means PROVEN identity — a code sign-in or a
+     recognised device. It is NOT set merely because somebody typed an
+     address into the email field on this page.
 
-     requireIdentity guarantees customerId exists by this point, so
-     there is no anonymous branch to handle. A failed read degrades to
-     the spec defaults rather than throwing: an unavailable database
-     should not take checkout down over a checkbox. */
+     Everything below reads customerId rather than orderCustomerId for
+     exactly that reason. Prefilling a saved address, or pre-ticking a
+     consent box, from an UNVERIFIED email would mean anyone who guesses
+     a customer's address gets shown that customer's home address and
+     marketing choices. That is the leak the gate used to prevent, and
+     removing the gate must not reintroduce it.
+
+     So an unidentified buyer gets an empty form and types their address.
+     A returning buyer on the same laptop is recognised by the device
+     cookie and gets everything prefilled with no code and no wait. That
+     is the trade, and it is the right way round.
+
+     A failed read degrades to the spec defaults rather than throwing: an
+     unavailable database must not take checkout down over a checkbox. */
   let customerRow = null;
   try {
+    if (req.session.customerId) {
     const [[row]] = await bvoPool.query(
       /* The *_consent_at timestamps come along because both consent
          flags are NOT NULL DEFAULT 0 — the flag alone cannot tell
@@ -401,6 +427,7 @@ exports.show = async (req, res) => {
       [req.session.customerId]
     );
     customerRow = row || null;
+    }
   } catch (err) {
     console.error('[checkout.show] customer read failed:', err && err.message);
   }
@@ -411,8 +438,14 @@ exports.show = async (req, res) => {
      has already typed on THIS order.
 
      Returns null on any failure. An empty form is a poor experience; a
-     500 is a lost sale. */
-  const savedAddress = (!draft && !flash.old.ship_address1)
+     500 is a lost sale.
+
+     customerId, NOT orderCustomerId — see the block above. A saved
+     address may only be shown to someone who PROVED they are that
+     customer, never to someone who merely typed their address into the
+     email field. Prefilling from an unverified address would hand a
+     stranger's home address to anyone who can guess their email. */
+  const savedAddress = (req.session.customerId && !draft && !flash.old.ship_address1)
     ? await CustomerAddress.mostRecent(req.session.customerId, 'shipping')
     : null;
 
@@ -487,7 +520,44 @@ exports.saveInfo = async (req, res) => {
   const wantsMarketing = req.body.marketing_opt_in === '1';
   const wantsSms       = req.body.delivery_sms_opt_in === '1';
 
-  if (req.session.customerId) {
+  /* ── RESOLVE THE CUSTOMER FROM THE TYPED ADDRESS ──────────────────
+     Replaces the session read that requireIdentity used to guarantee.
+
+     TWO SESSION KEYS, AND THE DIFFERENCE IS THE WHOLE SECURITY MODEL:
+
+       req.session.customerId       PROVEN identity. Set only by a code
+                                    sign-in or a recognised device.
+                                    Grants account access and address
+                                    prefill.
+
+       req.session.orderCustomerId  the customer row THIS ORDER hangs
+                                    on, derived from a typed address.
+                                    Grants NOTHING.
+
+     Writing a typed address into customerId would mean anyone who types
+     a stranger's email is signed in as that stranger — their order
+     history, their saved addresses. That is not a hypothetical; it is
+     the single thing that makes removing the gate safe or unsafe.
+
+     findOrCreateByEmail matches on the address and otherwise inserts, so
+     orders attach to one customer row per address and history follows
+     the customer_id rather than the email string. */
+  const buyerEmail = String(req.body.email || '').trim().toLowerCase();
+  let orderCustomerId = req.session.customerId || null;
+  if (!orderCustomerId) {
+    try {
+      const found = await Customer.findOrCreateByEmail(buyerEmail);
+      orderCustomerId = found ? found.id : null;
+    } catch (err) {
+      /* Never fail an order over this. A NULL customer_id costs us the
+         saved-address and velocity signals on one order; a 500 costs the
+         sale. The webhook fills guest_email either way. */
+      console.error('[checkout.saveInfo] customer resolve failed:', err && err.message);
+    }
+  }
+  req.session.orderCustomerId = orderCustomerId;
+
+  if (orderCustomerId) {
     try {
       await bvoPool.query(
         `UPDATE customers
@@ -503,7 +573,7 @@ exports.saveInfo = async (req, res) => {
           WHERE id = ?`,
         [wantsMarketing ? 1 : 0, customerIp,
          wantsSms ? 1 : 0, customerIp,
-         CONSENT_COPY_VERSION, req.session.customerId]
+         CONSENT_COPY_VERSION, orderCustomerId]
       );
       /* Both *_at are stamped even on a NO. The date they declined is
          as much a record as the date they agreed, and it is what tells
@@ -523,7 +593,7 @@ exports.saveInfo = async (req, res) => {
        point the buyer confirmed the address — a draft that never
        reaches payment is still a real address they typed, and the
        velocity signal wants it. */
-    CustomerAddress.record(req.session.customerId, 'shipping', {
+    CustomerAddress.record(orderCustomerId, 'shipping', {
       place_id:          prov.placeId || null,
       formatted_address: prov.formatted || null,
       first_name:        name.first,
@@ -539,18 +609,20 @@ exports.saveInfo = async (req, res) => {
   }
 
   const fields = {
-    /* FROM THE SESSION, NEVER THE BODY. Proven at /checkout/identify.
-       Reading it from req.body would let anyone past the gate swap in
-       an address they never proved — which is the entire value of the
-       gate, handed back at the next step.
+    /* FROM THE BODY AGAIN, as of 2026-09-28. It was read from the
+       session between 09-27 and 09-28, while /checkout/identify proved
+       it by code before this page was reachable. That gate is gone.
 
-       The column keeps the name guest_email for now: renaming it means
-       touching the webhook, the order emails, the admin order list and
-       four other queries, and a rename during a checkout rebuild is a
-       change with no upside and a long blast radius. Guest checkout is
-       gone (spec 7.1); the column name is a fossil, not a feature. */
-    guest_email:       String(req.session.customer && req.session.customer.email || '')
-                         .trim().toLowerCase(),
+       This is safe precisely BECAUSE the address is no longer treated as
+       proof of anything: it is where the confirmation goes, and it is
+       verified afterwards by a link or a code. What would NOT be safe is
+       letting a typed address unlock a customer's saved data — see the
+       two-session-key note above.
+
+       The column keeps the name guest_email: renaming it means touching
+       the webhook, the order emails, the admin order list and four other
+       queries, for no behavioural gain. */
+    guest_email:       buyerEmail,
     /* customer_id IS NOT IN THIS OBJECT, DELIBERATELY. The INSERT below
        already names it in its own column list and then appends
        ${cols.join(', ')} — putting it here too produces
@@ -671,12 +743,12 @@ exports.saveInfo = async (req, res) => {
              consume one. Nine were burned in one evening by a buyer
              retrying against the old page-load behaviour. */
           'DRAFT-' + crypto.randomUUID(),
-          /* customerId, not customer?.id. Both are set together at
-             sign-in, but customerId is the one requireIdentity checks
-             and the one every other handler reads — so it is the single
-             source of truth for "who is this". Past the guard it is
-             never null. */
-          req.session.customerId || null,
+          /* orderCustomerId — resolved from the typed address above, and
+             equal to customerId when the buyer is actually signed in.
+             May legitimately be null if the customer lookup failed; the
+             order still goes through, it just loses the saved-address
+             and velocity signals. */
+          orderCustomerId,
           /* status is an ENUM and has no 'draft' member. The draft marker
              lives on payment_status, which is a plain varchar - and this
              way drafts inherit the status='pending' exclusion the admin
@@ -1504,7 +1576,13 @@ async function handleSessionCompleted(sessionStub) {
       'SELECT name, qty, line_total FROM order_items WHERE order_id = ?', [orderId]
     );
 
-    sendConfirmation(order, items);
+    /* The confirm token is minted BEFORE the mail goes out, because the
+       link travels inside that one message. Awaited — unlike the send
+       itself — so the button is either correct or absent, never a dead
+       URL. issueOrderToken returns null rather than throwing, and a null
+       simply renders no button. */
+    const confirmToken = await emailVerify.issueOrderToken(orderId);
+    sendConfirmation(order, items, confirmToken);
   } finally {
     conn.release();
   }
@@ -1521,7 +1599,7 @@ async function handleSessionCompleted(sessionStub) {
  * Deliberately NOT awaited by the caller. The authorisation already
  * exists; a mail failure must not look to anyone like an order failure.
  */
-function sendConfirmation(order, items) {
+function sendConfirmation(order, items, confirmToken) {
   const esc = s => String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;')
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -1534,7 +1612,40 @@ function sendConfirmation(order, items) {
       <td style="padding:8px 0;border-bottom:1px solid #e5e0d8;text-align:right;white-space:nowrap">${money(it.line_total)}</td>
     </tr>`).join('');
 
+  /* ── THE CONFIRM-YOUR-EMAIL BLOCK ────────────────────────────────
+     Built here as WHOLE HTML, not as a bare URL, so that a missing
+     token produces an empty string and the email renders clean rather
+     than showing a button that goes nowhere.
+
+     SITE_URL, not a request host: this runs from the Stripe webhook,
+     where there is no buyer request to read a host from.
+
+     The wording sells the BENEFIT — tracking and delivery updates —
+     because that is what confirming actually buys the buyer. It must
+     not read as a demand or imply the order is incomplete: the card is
+     already authorised and the order already exists. Anything that
+     makes a paid buyer think something is wrong costs a support call.
+
+     The link is a GET to a page with a button, never a one-click
+     confirm. Mail scanners follow links — Gmail's "Loaded by proxy"
+     shows against our own messages in Brevo's log — and a scanner that
+     auto-confirmed would destroy the only signal this flag carries. */
+  const base = (process.env.SITE_URL || 'https://www.bathroomvanitiesoutlet.com')
+    .replace(/\/+$/, '');
+  const confirmHtml = confirmToken
+    ? `<div style="border:1px solid #e5e0d8;border-radius:8px;padding:18px 20px;margin:0 0 24px;background:#faf8f5">
+  <p style="margin:0 0 12px;font-size:15px"><strong>Want delivery updates and tracking?</strong><br>
+  Confirm this is your email and we will keep you posted the whole way.</p>
+  <p style="margin:0 0 10px">
+    <a href="${base}/orders/confirm?t=${encodeURIComponent(confirmToken)}"
+       style="display:inline-block;background:#182840;color:#ffffff;text-decoration:none;padding:11px 22px;border-radius:6px;font-weight:700;font-size:14px">Confirm my email</a>
+  </p>
+  <p style="margin:0;font-size:12px;color:#7a7264">Optional &mdash; your order is already placed either way. This link works for ${emailVerify.TOKEN_TTL_DAYS} days.</p>
+</div>`
+    : '';
+
   brevo.sendTemplate('order_confirmed', order.guest_email, {
+    confirm_button_html: confirmHtml,
     customer_first_name: order.ship_first_name || 'there',
     order_number:        order.order_number,
     order_date:          new Date().toLocaleDateString('en-US',
@@ -1596,8 +1707,28 @@ exports.returnFromStripe = async (req, res) => {
 };
 
 /* ── GET /checkout/success ──────────────────────────────────────── */
-exports.success = (req, res) => {
+exports.success = async (req, res) => {
   const order = req.session.lastOrder || {};
+
+  /* Decides whether the confirm-your-email panel renders at all. A
+     buyer who signed in with a code is ALREADY verified and must not be
+     asked to prove the same thing twice.
+
+     Defaults to TRUE on any failure — i.e. show nothing. A page that
+     wrongly nags a paying customer is worse than one that quietly omits
+     an optional prompt, and this must never throw on the one page a
+     buyer reaches after their card has been authorised. */
+  let emailVerified = true;
+  try {
+    const id = req.session.orderCustomerId || req.session.customerId || null;
+    if (id) {
+      const s = await emailVerify.statusForCustomer(id);
+      emailVerified = !!s.verified;
+    }
+  } catch (err) {
+    console.error('[checkout.success] verify status failed:', err && err.message);
+  }
+
   res.render('pages/checkout-success', {
     pageTitle:   'Order Received | BathroomVanitiesOutlet.com',
     metaDesc:    '',
@@ -1606,6 +1737,7 @@ exports.success = (req, res) => {
     firstName:   order.firstName   || '',
     subtotal:    order.total       || 0,
     orderNumber: order.orderNumber || '',
+    emailVerified,
   });
 };
 

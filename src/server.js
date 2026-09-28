@@ -580,6 +580,11 @@ app.use('/products',    require('./routes/products'));
 app.use('/collections', require('./routes/collections'));
 app.use('/cart',        require('./routes/cart'));
 app.use('/checkout',    require('./routes/checkout'));
+/* Confirm-your-email from the order confirmation mail. Public and
+   identity-free: the token is the proof, and whoever clicks it has by
+   definition not signed in. Mounted separately from /checkout because it
+   is reached days later from a mailbox, not from a checkout session. */
+app.use('/orders',      require('./routes/orderConfirm'));
 app.use('/account/login',    authLimiter);
 app.use('/account/register', authLimiter);
 /* Passwordless endpoints carry their own per-email and per-IP caps in

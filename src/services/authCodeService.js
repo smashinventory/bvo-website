@@ -64,10 +64,41 @@ function db() {
 
 /* Straight from the spec. Named rather than inlined so a future reader
    can see the whole policy in one place instead of grepping. */
-const CODE_TTL_MINUTES     = 10;
+/* 20 MINUTES, RAISED FROM 10 ON 2026-09-28. Owner-approved.
+
+   Not a preference. Brevo's own event log recorded a code email accepted
+   at 11:59 and DELIVERED at 12:10 — eleven minutes — against a code that
+   died at ten. The buyer opened it at 12:11, typed a number that had
+   expired 90 seconds earlier, and got "That code is not right". A second
+   code was still undelivered thirteen minutes after issue.
+
+   Gmail defers mail from senders it does not yet trust, and BVO is a new
+   sending domain on Brevo's shared IP. So 13 minutes is a MEASURED
+   FLOOR, not a ceiling, and the buyer still has to notice the mail, open
+   it and type six digits after it lands.
+
+   TTL IS NOT WAIT TIME. Nobody waits longer because the code lives
+   longer — the window only matters to someone whose mail was already
+   slow. A larger number costs a fast buyer nothing and rescues a slow
+   one. NIST 800-63B suggests 10 minutes for out-of-band secrets; against
+   a measured 13-minute delivery path that guidance produces lockouts,
+   and 5 attempts plus the caps below carry the brute-force weight
+   regardless. */
+const CODE_TTL_MINUTES     = 20;
+
+/* DELIBERATELY NOT CODE_TTL_MINUTES, though it was until 2026-09-28.
+
+   The burst window and the code lifetime answer different questions:
+   "how often may someone ask" versus "how long does an answer stay
+   good". While they shared a constant, raising the TTL silently
+   TIGHTENED the resend policy — 4 codes per 20 minutes instead of 4 per
+   10 — punishing the exact buyer the TTL change was meant to rescue.
+   Pinned at 10 so the two can move independently. */
+const BURST_WINDOW_MINUTES = 10;
+
 const MAX_ATTEMPTS         = 5;    // wrong guesses before the code dies
 const RESEND_COOLDOWN_SEC  = 60;
-const MAX_CODES_PER_BURST  = 4;    // 1 initial + 3 resends, within the TTL
+const MAX_CODES_PER_BURST  = 4;    // 1 initial + 3 resends, per burst window
 const MAX_CODES_EMAIL_HOUR = 5;
 const MAX_CODES_IP_HOUR    = 10;
 
@@ -120,13 +151,14 @@ async function issueCode(rawEmail, ip, purpose = 'login') {
     return { ok: false, reason: 'cooldown', retryAfter: RESEND_COOLDOWN_SEC - last.age };
   }
 
-  /* Burst: how many codes for this address are still within their TTL.
-     One initial plus three resends. */
+  /* Burst: how many codes this address has asked for recently. One
+     initial plus three resends. BURST_WINDOW_MINUTES, not the TTL —
+     see the constant for why they were separated. */
   const [[burst]] = await db().query(
     `SELECT COUNT(*) AS n FROM customer_auth_codes
       WHERE email = ? AND purpose = 'login'
         AND created_at > (NOW() - INTERVAL ? MINUTE)`,
-    [email, CODE_TTL_MINUTES]
+    [email, BURST_WINDOW_MINUTES]
   );
   if (burst.n >= MAX_CODES_PER_BURST) return { ok: false, reason: 'too_many_resends' };
 
@@ -357,7 +389,7 @@ module.exports = {
   _hashCode: hashCode,
   _generateCode: generateCode,
   _limits: {
-    CODE_TTL_MINUTES, MAX_ATTEMPTS, RESEND_COOLDOWN_SEC,
+    CODE_TTL_MINUTES, BURST_WINDOW_MINUTES, MAX_ATTEMPTS, RESEND_COOLDOWN_SEC,
     MAX_CODES_PER_BURST, MAX_CODES_EMAIL_HOUR, MAX_CODES_IP_HOUR,
   },
 };

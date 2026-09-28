@@ -5,6 +5,10 @@ const { bvoPool }      = require('../config/database');
 const authCode         = require('../services/authCodeService');
 const brevo            = require('../services/brevoService');
 const device           = require('../services/deviceService');
+/* A successful code sign-in IS proof of the mailbox, so it marks the
+   address verified — the same fact the post-order confirm link records.
+   See emailVerificationService.js. */
+const emailVerify      = require('../services/emailVerificationService');
 
 /* ═══════════════════════════════════════════════════════════════════
    PASSWORDLESS LOGIN — the six-digit code IS the login.
@@ -26,10 +30,25 @@ function clientIp(req) {
 /* Every refusal a buyer can actually cause, in plain words. Deliberately
    NOT distinguishing "no account" from "wrong code" anywhere — see the
    service header on enumeration. */
+/* ONE SOURCE FOR THE LIFETIME, interpolated everywhere it is stated.
+
+   Three screens and one email all tell the buyer how long a code lasts,
+   and until 2026-09-28 each carried its own hand-typed "ten minutes".
+   Raising the TTL without finding all four would leave the page lying to
+   the buyer about the one fact they need. Read from the service so it
+   cannot drift; gate_code_ttl_copy.js fails the build if it ever does. */
+const CODE_TTL_MINUTES     = authCode._limits.CODE_TTL_MINUTES;
+const BURST_WINDOW_MINUTES = authCode._limits.BURST_WINDOW_MINUTES;
+exports.CODE_TTL_MINUTES   = CODE_TTL_MINUTES;
+
 const CODE_ERRORS = {
   invalid_email:     'Enter a valid email address.',
   cooldown:          'We just sent a code. Give it a minute before asking for another.',
-  too_many_resends:  'That is as many codes as we can send right now. Wait ten minutes and try again.',
+  /* The BURST window, not the TTL — this refusal is about how often you
+     may ask, which is a different clock. They were the same number until
+     the two constants were separated; stating the wrong one would send
+     the buyer away for twice as long as they need to wait. */
+  too_many_resends:  `That is as many codes as we can send right now. Wait ${BURST_WINDOW_MINUTES} minutes and try again.`,
   email_hour_cap:    'Too many codes for this address in the last hour. Try again later.',
   ip_hour_cap:       'Too many sign-in attempts from this connection. Try again later.',
   bad_code:          'That code is not right. Check it and try again.',
@@ -54,7 +73,7 @@ function fallbackCodeEmail(code) {
     subject: `Your BVO code is ${code}`,
     html: `<p>Here is your sign-in code for BathroomVanitiesOutlet.com.</p>
 <p style="font-size:30px;font-weight:700;letter-spacing:4px;margin:20px 0">${code}</p>
-<p>It works for ten minutes, once. Do not share it or forward this email —
+<p>It works for ${CODE_TTL_MINUTES} minutes, once. Do not share it or forward this email —
 anyone with this code can sign in as you.</p>
 <p>If you did not ask to sign in, you can ignore this. Nobody can get in
 without the code, and it expires shortly.</p>`,
@@ -303,6 +322,24 @@ exports.verifyCode = async (req, res, next) => {
     const customer = await Customer.findOrCreateByEmail(email);
     if (!customer) return res.status(500).json({ ok: false, error: CODE_ERRORS.send_failed });
 
+    /* ── THIS IS EMAIL VERIFICATION, AND IT ALWAYS WAS ─────────────
+       Typing back a code that was mailed to an address proves ownership
+       of that mailbox — the exact thing the post-order confirm link
+       proves, by a stronger route (20 minutes vs 7 days, one shot, rate
+       limited, typed by a human rather than clicked).
+
+       Recording it here means anyone who has ever signed in is verified
+       and never sees the confirm prompt, and it is why the flag is
+       meaningful from day one rather than filling in slowly as people
+       happen to click links.
+
+       Deliberately NOT awaited into the response path's error handling:
+       markVerifiedByCode never throws and returns false on failure. A
+       sign-in must not fail because a flag would not write. */
+    emailVerify.markVerifiedByCode(email)
+      .catch(err => console.error('[account.verify] verify flag failed:',
+                                  err && err.message));
+
     /* One helper, both sign-in paths. See establishSession above for
        why regenerate() cannot simply be called inline. */
     await establishSession(req, customer, email);
@@ -450,6 +487,8 @@ exports.loginPage = (req, res) => {
     metaDesc:  '',
     error: null,
     returnTo: req.session.returnTo || '/account',
+    /* Passed, not hard-typed into the template. See CODE_TTL_MINUTES. */
+    codeTtlMinutes: CODE_TTL_MINUTES,
   });
 };
 

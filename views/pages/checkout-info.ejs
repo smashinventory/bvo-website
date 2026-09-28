@@ -1,4 +1,4 @@
-<link rel="stylesheet" href="/css/site3.css?v=27"><!-- site3: injected per-page (perf) -->
+<link rel="stylesheet" href="/css/site3.css?v=28"><!-- site3: injected per-page (perf) -->
 
 <%
 /* Page 1 of 3 — who you are, where it goes.
@@ -183,23 +183,36 @@ const money = n => '$' + Number(n || 0).toLocaleString('en-US',
         <h2 class="checkout-card-title">Contact information</h2>
         <p class="checkout-card-sub">We send your receipt and delivery updates here.</p>
 
-        <%/* NOT AN INPUT ANY MORE. Identity is settled at
-             /checkout/identify before this page renders, and the address
-             was PROVEN there by a six-digit code. An editable field here
-             would let someone change it to an unproven address after the
-             proving step — which is the whole value of the gate, handed
-             back.
+        <%/* AN EDITABLE INPUT AGAIN, as of 2026-09-28.
 
-             No hidden input either: saveInfo reads the address from the
-             session, never from the body. A hidden field would be a
-             forgeable copy of a fact the server already holds. */%>
+             It was read-only for one day, while /checkout/identify proved
+             the address by six-digit code before this page could render.
+             That gate is GONE: Brevo delivered a code eleven minutes late
+             against a ten-minute expiry, and Gmail defers hardest on
+             addresses it has never seen — first-time buyers.
+
+             Nothing is lost by making it editable, because the address is
+             no longer treated as proof of anything. It is where the
+             confirmation goes. Ownership is established AFTER the order,
+             by the confirm link in that email or by a code sign-in, and
+             surfaces as an internal flag on the order rather than as a
+             barrier to placing one.
+
+             Prefilled, in strict precedence: what they just typed (a
+             failed submit), then the draft order, then the signed-in
+             customer. A signed-in buyer sees their own address already
+             filled and never retypes it. */%>
         <div class="checkout-field">
-          <label>Email address</label>
-          <p class="checkout-readonly" id="checkout-email">
-            <%= (customer && customer.email) || '' %>
-            <a href="/checkout/identify?change=1" class="checkout-readonly-change">Not you?</a>
-          </p>
-          <span class="checkout-field-hint">Your receipt and delivery updates go here.</span>
+          <label for="email">Email address</label>
+          <input type="email" id="email" name="email" required
+                 autocomplete="email" placeholder="you@example.com"
+                 class="<%= errors.email ? 'is-error' : '' %>"
+                 value="<%= old.email || (draft && draft.guest_email) || (customer && customer.email) || '' %>">
+          <% if (errors.email) { %>
+            <span class="checkout-field-error"><%= errors.email %></span>
+          <% } else { %>
+            <span class="checkout-field-hint">Your receipt and delivery updates go here.</span>
+          <% } %>
         </div>
 
         <%/* MARKETING CONSENT — owner-approved verbatim, spec 9.2.
