@@ -55,5 +55,36 @@ ok('the finishes row is untouched',
 ok('the colour swap still emits data-variant',
    /data-variant="<%= JSON\.stringify\(_pSwSwap\)/.test(col), 'the swap regressed');
 
+
+/* ═══ BUNDLE BUILDER ═══════════════════════════════════════════════
+   Same "20-" chip appeared on step 4. Different file, same rule. */
+const bb = read('views/pages/bundle-builder.ejs');
+
+console.log('\n--- bundle builder step 4 ---');
+ok('the HB check exists there too',
+   /_bbIsHB\s*=\s*String\(_bbBrand\)\.trim\(\)\.toLowerCase\(\) === 'huntington brass'/.test(bb),
+   'the size chip is still rendered on HB faucets');
+ok('brand is read off the SKU, not the model group',
+   /model\.skus && model\.skus\[0\] && model\.skus\[0\]\.brand/.test(bb),
+   'groupByModel keys on model name only — there is no brand on the group object');
+/* Hiding the chips alone leaves a "Size" label with nothing after it,
+   which reads as a failed load rather than an absent field. */
+ok('the whole picker ROW is hidden, not just the chips',
+   /closest\('\.bb-picker-row'\)[\s\S]{0,160}style\.display = _bbIsHB \? 'none' : ''/.test(bb),
+   'an orphan "Size" label with no chips under it');
+ok('the row is restored for non-HB',
+   /_bbIsHB \? 'none' : ''/.test(bb),
+   'once hidden it would stay hidden when navigating to another brand');
+/* A hidden chip is still in the DOM and still reachable by keyboard. */
+ok('the chips are cleared as well as hidden',
+   /_bbIsHB\) \{[\s\S]{0,200}sizesEl\.innerHTML = '';/.test(bb),
+   'a hidden chip stays tabbable and would re-filter the step');
+/* Step 4 is deliberately multi-brand — see bundleController getFaucets. */
+ok('the guard is on brand, not on the step',
+   !/step === 'faucet'[\s\S]{0,80}sizesEl\.innerHTML = ''/.test(bb),
+   'a non-HB faucet with real widths would lose its chips');
+ok('cabinet and mirror chips still render',
+   /data-bucket="' \+ esc\(b\.label\)/.test(bb), 'the chip renderer was removed');
+
 console.log(fail ? `\n*** ${fail} GATE(S) FAILED ***` : '\nALL GATES PASS');
 process.exit(fail ? 1 : 0);

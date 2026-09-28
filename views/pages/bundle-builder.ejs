@@ -955,7 +955,31 @@
       var buckets   = modelBuckets(model);
       var activeLbl = gSize[step] ? gSize[step].label : null;
       var sizesEl   = el('bb-sizes-' + step);
+
+      /* ── NO SIZE ROW ON HUNTINGTON BRASS ─────────────────────────
+         Owner, 2026-09-28: "just remove size from all huntington brass
+         products." Same defect as the product cards — a single "20-"
+         chip, because the width bucketing that gives a vanity a useful
+         30/36/48 has nothing to bucket on a faucet.
+
+         The whole ROW is hidden, label included. Emptying the chips
+         alone would leave a "Size" label with nothing after it, which
+         reads as a loading failure rather than as an absent field.
+
+         Gated on BRAND, not on the faucet step: step 4 is deliberately
+         multi-brand (see the Step 4 comment in bundleController.js), so
+         a non-HB faucet with real sizes must keep its chips. */
+      var _bbBrand = (model.skus && model.skus[0] && model.skus[0].brand) || '';
+      var _bbIsHB  = String(_bbBrand).trim().toLowerCase() === 'huntington brass';
       if (sizesEl) {
+        var _bbRow = sizesEl.closest ? sizesEl.closest('.bb-picker-row') : null;
+        if (_bbRow) _bbRow.style.display = _bbIsHB ? 'none' : '';
+      }
+      if (sizesEl && _bbIsHB) {
+        /* Cleared as well as hidden: a stale chip left in the DOM is
+           still clickable by keyboard and would re-filter the step. */
+        sizesEl.innerHTML = '';
+      } else if (sizesEl) {
         sizesEl.innerHTML = buckets.map(function(b) {
           /* aria-label: "60S inch" → "60 inch Single sink"; plain "36 inch" unchanged */
           var ariaLabel = b.sink === 'S' ? (b.min + ' inch Single sink')
