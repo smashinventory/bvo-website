@@ -156,10 +156,40 @@ exports.verifyCode = async (req, res, next) => {
     const customer = await Customer.findOrCreateByEmail(email);
     if (!customer) return res.status(500).json({ ok: false, error: CODE_ERRORS.send_failed });
 
-    /* Same session-fixation guard the password login used. */
+    /* ── CARRY THE CART ACROSS THE REGENERATE ──────────────────────
+       session.regenerate() is the session-fixation guard and it must
+       stay. But it destroys EVERYTHING on the session, and the cart
+       lives there (server.js ~499). So signing in emptied the buyer's
+       cart — silently, and on every sign-in.
+
+       Harmless-looking while login was a detour from the account page.
+       Fatal once /checkout/identify puts a sign-in in FRONT of every
+       checkout: sign in, arrive at checkout, cart empty, no order
+       possible. Found by reading regenerate() before building the gate
+       on top of it, not by a customer.
+
+       Only anonymous, non-identifying state is carried. customerId is
+       NOT — establishing that fresh on a new session id is the entire
+       point of regenerating.
+
+       The theoretical cost: someone who fixes a session id could
+       pre-seed a cart the victim then carries in. That gives the victim
+       items they can see on the cart page before paying, which is not
+       an attack worth trading certain cart loss for. */
+    const carried = {
+      cart:          req.session.cart,
+      checkoutDraft: req.session.checkoutDraft,
+      checkoutOld:   req.session.checkoutOld,
+    };
+
     await new Promise((resolve, reject) =>
       req.session.regenerate(err => err ? reject(err) : resolve())
     );
+
+    for (const [k, v] of Object.entries(carried)) {
+      if (v !== undefined) req.session[k] = v;
+    }
+
     req.session.customerId = customer.id;
     req.session.customer   = { id: customer.id, firstName: customer.first_name || '', email };
     await Customer.updateLastLogin(customer.id);

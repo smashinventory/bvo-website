@@ -83,3 +83,15 @@
 @media (max-width:640px){
   .checkout-addr-opts{grid-template-columns:1fr}
 }
+
+/* Consent checkboxes + read-only email — checkout page 1, spec 9.2a.
+   Built on .checkout-check so the two agree on spacing and hit area;
+   the consent boxes are taller because the explanatory line sits inside
+   the label, which is what makes the box self-explaining rather than
+   needing a separate screen. */
+.checkout-consent{display:flex;align-items:flex-start;gap:.6rem;margin-top:1rem;padding:.8rem .9rem;background:var(--sand,#faf8f5);border:1px solid var(--border,#e8e4dc);border-radius:6px;font-size:.84rem;line-height:1.5;color:var(--color-navy,#182840);cursor:pointer}
+.checkout-consent input{margin:.2rem 0 0;flex-shrink:0;width:17px;height:17px;accent-color:var(--color-navy,#182840);cursor:pointer}
+.checkout-consent strong{font-weight:700}
+.checkout-consent:hover{border-color:var(--color-navy,#182840)}
+.checkout-readonly{display:flex;align-items:baseline;justify-content:space-between;gap:.75rem;margin:.25rem 0 0;padding:.6rem .75rem;background:var(--sand,#faf8f5);border:1px solid var(--border,#e8e4dc);border-radius:6px;font-size:.95rem;color:var(--color-navy,#182840);word-break:break-all}
+.checkout-readonly-change{flex-shrink:0;font-size:.8rem;text-decoration:underline;white-space:nowrap}

@@ -22,6 +22,35 @@
 const express  = require('express');
 const router   = express.Router();
 const ctrl     = require('../controllers/checkoutController');
+const requireIdentity = require('../middleware/requireIdentity');
+
+// ── 0. Identity ──────────────────────────────────────────────────
+// Guest checkout is gone (spec 7.1 superseded). Everything below this
+// line requires a signed-in customer.
+//
+// THIS ROUTE IS REGISTERED BEFORE THE GUARD AND IS NOT COVERED BY IT.
+// Guarding the sign-in page would redirect it to itself forever.
+router.get ('/identify',  ctrl.identifyPage);
+
+// ── RETURN FROM STRIPE — ALSO OUTSIDE THE GUARD, DELIBERATELY ────
+// These three are where Stripe sends the buyer back, and by then the
+// card has been charged. A session that expired during payment — a slow
+// 3DS challenge, a bank app switch, a phone that slept — would bounce a
+// PAYING CUSTOMER to a sign-in screen instead of their confirmation,
+// and they would have no way to tell whether the order went through.
+//
+// Safe to leave open because they are read-only and identity-free:
+// returnFromStripe decides which page to show, the webhook is what
+// actually advances the order, and success reads only the order id the
+// server itself put on the session.
+router.get ('/return',    ctrl.returnFromStripe);
+router.get ('/success',   ctrl.success);
+router.get ('/cancel',    ctrl.cancel);
+
+// Applies to every route declared AFTER this line — Express runs
+// router-level middleware in declaration order. A guard added at the
+// bottom of the file would protect nothing.
+router.use(requireIdentity);
 
 // ── 1. Your information ──────────────────────────────────────────
 router.get ('/',          ctrl.show);
@@ -44,11 +73,8 @@ router.post('/session',   ctrl.createSession);
 // never one from the body.
 router.post('/order-details', ctrl.setOrderDetails);
 
-// GET /checkout/return — where Stripe sends the buyer back. Read-only:
-//                        decides which page to show. The webhook, not
-//                        this, is what advances the order.
-router.get ('/return',    ctrl.returnFromStripe);
-router.get ('/success',   ctrl.success);
-router.get ('/cancel',    ctrl.cancel);
+// /return, /success and /cancel are registered ABOVE the guard — see
+// the comment there. They must stay above it: a buyer whose session
+// expired during payment has already been charged.
 
 module.exports = router;

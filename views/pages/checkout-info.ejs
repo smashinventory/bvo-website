@@ -1,4 +1,4 @@
-<link rel="stylesheet" href="/css/site3.css?v=25"><!-- site3: injected per-page (perf) -->
+<link rel="stylesheet" href="/css/site3.css?v=26"><!-- site3: injected per-page (perf) -->
 
 <%
 /* Page 1 of 3 — who you are, where it goes.
@@ -13,6 +13,36 @@
 const val = (k, fallback) =>
   (old && old[k] != null && old[k] !== '') ? old[k]
   : (draft && draft[k] != null ? draft[k] : (fallback || ''));
+
+/* CHECKBOXES CANNOT USE val(). An unchecked box submits NOTHING, so
+   val() sees undefined, falls through to the fallback, and re-checks a
+   box the buyer deliberately cleared. On the pre-checked delivery-SMS
+   box that is not a cosmetic bug: bounce the form on any validation
+   error and the consent record would claim they agreed when they had
+   just said no.
+
+   So the submitted state is read from the PRESENCE of the key, and the
+   default applies only on a first render — when `old` does not exist
+   because nothing has been submitted yet.
+
+   `stored` lets a returning customer's saved preference win over the
+   default — but ONLY once they have actually answered the question.
+
+   WHY `answered` IS A SEPARATE ARGUMENT AND NOT INFERRED FROM `stored`:
+   both consent columns are NOT NULL DEFAULT 0, so a customer created
+   thirty seconds ago at /checkout/identify has delivery_sms_consent = 0
+   — identical to someone who deliberately said no. Treating 0 as an
+   answer meant the pre-checked default applied to nobody, ever. Caught
+   by the gate, not by a customer.
+
+   The *_consent_at timestamps are the only thing that distinguishes
+   "never asked" from "asked and declined", which is exactly why they
+   are in the schema. */
+const checked = (k, dflt, stored, answered) => {
+  if (old) return old[k] === '1' || old[k] === 1 || old[k] === true;
+  if (answered) return !!Number(stored);
+  return !!dflt;
+};
 
 const draftName = draft
   ? [draft.ship_first_name, draft.ship_last_name].filter(Boolean).join(' ')
@@ -118,13 +148,44 @@ const money = n => '$' + Number(n || 0).toLocaleString('en-US',
         <h2 class="checkout-card-title">Contact information</h2>
         <p class="checkout-card-sub">We send your receipt and delivery updates here.</p>
 
+        <%/* NOT AN INPUT ANY MORE. Identity is settled at
+             /checkout/identify before this page renders, and the address
+             was PROVEN there by a six-digit code. An editable field here
+             would let someone change it to an unproven address after the
+             proving step — which is the whole value of the gate, handed
+             back.
+
+             No hidden input either: saveInfo reads the address from the
+             session, never from the body. A hidden field would be a
+             forgeable copy of a fact the server already holds. */%>
         <div class="checkout-field">
-          <label for="email">Email address <span class="req">*</span></label>
-          <input type="email" id="email" name="email" autocomplete="email"
-                 value="<%= val('email', draft && draft.guest_email) %>"
-                 <%= errors.email ? 'aria-invalid="true"' : '' %>>
-          <% if (errors.email) { %><span class="checkout-field-error"><%= errors.email %></span><% } %>
+          <label>Email address</label>
+          <p class="checkout-readonly" id="checkout-email">
+            <%= (customer && customer.email) || '' %>
+            <a href="/checkout/identify?change=1" class="checkout-readonly-change">Not you?</a>
+          </p>
+          <span class="checkout-field-hint">Your receipt and delivery updates go here.</span>
         </div>
+
+        <%/* MARKETING CONSENT — owner-approved verbatim, spec 9.2.
+             UNCHECKED by default (9.2a): a pre-ticked marketing box is
+             weaker evidence of consent and off-tone for a site that
+             otherwise tells people plainly what it does.
+
+             Inline in the form, not a screen and not a gate. Wayfair
+             gives this its own step because it is selling a $29
+             membership; a screen implies a decision worth stopping for,
+             which invites "no". */%>
+        <label class="checkout-consent" for="marketing_opt_in">
+          <input type="checkbox" id="marketing_opt_in" name="marketing_opt_in" value="1"
+                 <%= checked('marketing_opt_in', false, customer && customer.accepts_marketing, customer && customer.marketing_consent_at) ? 'checked' : '' %>>
+          <span>
+            <strong>Email me about my vanity.</strong><br>
+            Matching pieces in your finish when they go on sale, new sizes in your
+            model line, replacement parts when we stock them, and how to care for
+            your countertop. Nothing else, and one click to stop.
+          </span>
+        </label>
       </div>
 
       <!-- Shipping -->
@@ -244,6 +305,38 @@ const money = n => '$' + Number(n || 0).toLocaleString('en-US',
         </div>
         <span class="checkout-field-hint">The freight carrier calls this number to schedule your delivery.</span>
         <% if (errors.ship_phone) { %><span class="checkout-field-error"><%= errors.ship_phone %></span><% } %>
+
+        <%/* DELIVERY SMS CONSENT — owner-approved verbatim, spec 9.2.
+             PRE-CHECKED by default (9.2a), and sitting directly under
+             the number it governs rather than in a consent block
+             elsewhere. A checkbox beside the field it concerns explains
+             itself; the same words on their own screen do not.
+
+             Pre-checking is defensible ONLY because this is
+             transactional: the buyer hands over this number precisely so
+             the carrier can reach them about this shipment, and texting
+             the window is that same purpose done better. The carrier
+             calls either way.
+
+             ⛔ THE CONDITION THAT MAKES IT LAWFUL, AND IT IS NOT
+             OPTIONAL: this channel carries DELIVERY INFORMATION ONLY.
+             Forever. No promotion, no "while we're here", no cross-sell,
+             not once. The moment a promotion goes down this path it
+             stops being transactional consent and becomes exactly what
+             gets retailers sued under the TCPA — and this box would then
+             have to revert to unchecked with consent re-collected from
+             everyone who ever ticked it. If the content of delivery
+             texts is ever widened: unset the default and re-consent. Do
+             not reason that "they already agreed". Spec 9.2a / 9.4. */%>
+        <label class="checkout-consent" for="delivery_sms_opt_in">
+          <input type="checkbox" id="delivery_sms_opt_in" name="delivery_sms_opt_in" value="1"
+                 <%= checked('delivery_sms_opt_in', true, customer && customer.delivery_sms_consent, customer && customer.delivery_sms_consent_at) ? 'checked' : '' %>>
+          <span>
+            <strong>Text me about my delivery.</strong><br>
+            The carrier calls to book your appointment. We'll also text the window
+            and let you know when the truck is out.
+          </span>
+        </label>
 
         <fieldset class="checkout-radio-group">
           <legend>Delivery location <span class="req">*</span></legend>

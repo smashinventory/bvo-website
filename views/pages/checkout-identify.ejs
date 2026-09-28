@@ -1,0 +1,213 @@
+<%/* The email-first gate. Spec 7.1 / 7.2.
+
+     Posts to /account/code and /account/verify — the SAME endpoints the
+     account login uses. Those already carry the rate limits, the
+     timing-safe comparison, the no-enumeration property and the Brevo
+     blocklist check, so this page adds a screen, not a second auth path.
+
+     ONE SCREEN, TWO STEPS, AND NO PROMISE ABOUT WHICH. Signing in and
+     creating an account are the same action. Saying "create an account"
+     to someone who has one, or "sign in" to someone who does not, is
+     wrong half the time and neither is knowable without telling the
+     page whether the address exists — which is the thing that
+     enumerates the customer list. */%>
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <img src="/images/logos/BVOLOGOSQ_512.png" alt="BVO" width="60" height="60">
+    </div>
+
+    <%/* Step 1 — the address. */%>
+    <div id="id-step-email">
+      <h1 class="auth-title">Check out</h1>
+      <p class="auth-sub">
+        Enter your email and we'll send a six-digit code. No password to
+        remember, and your order history stays in one place.
+      </p>
+
+      <div class="auth-error" id="id-err-email" role="alert" hidden></div>
+
+      <form class="auth-form" id="id-email-form" novalidate>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="return_to" value="<%= returnTo %>">
+        <div class="form-group">
+          <label for="id-email">Email address</label>
+          <input type="email" id="id-email" name="email" required
+                 autocomplete="email" placeholder="you@example.com" autofocus>
+        </div>
+        <button type="submit" class="btn btn-amber" id="id-send-btn"
+                style="width:100%;padding:.85rem">Continue</button>
+      </form>
+
+      <p class="auth-switch" style="margin-top:1rem">
+        <a href="/cart">Back to cart<% if (cartCount) { %>
+          (<%= cartCount %> item<%= cartCount === 1 ? '' : 's' %>)<% } %></a>
+      </p>
+    </div>
+
+    <%/* Step 2 — the code. Hidden until one has been sent. */%>
+    <div id="id-step-code" hidden>
+      <h1 class="auth-title">Check your email</h1>
+      <p class="auth-sub">We sent a six-digit code to
+        <strong id="id-sent-to"></strong>. It works for ten minutes.</p>
+
+      <div class="auth-error" id="id-err-code" role="alert" hidden></div>
+
+      <form class="auth-form" id="id-code-form" novalidate>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div class="form-group">
+          <label for="id-code">Six-digit code</label>
+          <%/* one-time-code + numeric inputmode lets iOS and Android
+               offer the code straight from the notification. */%>
+          <input type="text" id="id-code" name="code" required
+                 inputmode="numeric" autocomplete="one-time-code"
+                 maxlength="6" pattern="[0-9]{6}" placeholder="000000"
+                 style="letter-spacing:.4em;font-size:1.3rem;text-align:center">
+        </div>
+        <button type="submit" class="btn btn-amber" id="id-verify-btn"
+                style="width:100%;padding:.85rem">Continue to checkout</button>
+      </form>
+
+      <p class="auth-switch">
+        <button type="button" class="link-button" id="id-resend" disabled>Send another code</button>
+        &nbsp;·&nbsp;
+        <button type="button" class="link-button" id="id-change">Use a different address</button>
+      </p>
+    </div>
+  </div>
+</div>
+
+<script nonce="<%= cspNonce %>">
+(function () {
+  'use strict';
+
+  var stepEmail = document.getElementById('id-step-email');
+  var stepCode  = document.getElementById('id-step-code');
+  var emailForm = document.getElementById('id-email-form');
+  var codeForm  = document.getElementById('id-code-form');
+  var sendBtn   = document.getElementById('id-send-btn');
+  var verifyBtn = document.getElementById('id-verify-btn');
+  var resendBtn = document.getElementById('id-resend');
+  var errEmail  = document.getElementById('id-err-email');
+  var errCode   = document.getElementById('id-err-code');
+  var sentTo    = document.getElementById('id-sent-to');
+  var csrf      = emailForm.querySelector('[name="_csrf"]').value;
+  var returnTo  = emailForm.querySelector('[name="return_to"]').value;
+
+  var currentEmail = '';
+  var cooldownTimer = null;
+
+  function show(el, msg) { el.textContent = msg; el.hidden = !msg; }
+
+  function post(url, body) {
+    return fetch(url, {
+      method: 'POST',
+      /* X-CSRF-Token, NOT CSRF-Token. server.js reads
+         req.headers['x-csrf-token'] and nothing else, so the shorter
+         name 403s every request with no clue why. */
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+      body: JSON.stringify(body),
+      credentials: 'same-origin',
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; })
+        .then(function (j) { return { status: r.status, body: j }; });
+    });
+  }
+
+  /* Counts down rather than leaving a dead disabled button, which reads
+     as broken. */
+  function startCooldown(seconds) {
+    var left = seconds || 60;
+    resendBtn.disabled = true;
+    clearInterval(cooldownTimer);
+    cooldownTimer = setInterval(function () {
+      left--;
+      if (left <= 0) {
+        clearInterval(cooldownTimer);
+        resendBtn.disabled = false;
+        resendBtn.textContent = 'Send another code';
+      } else {
+        resendBtn.textContent = 'Send another code in ' + left + 's';
+      }
+    }, 1000);
+    resendBtn.textContent = 'Send another code in ' + left + 's';
+  }
+
+  function requestCode(email, errBox, btn, btnLabel) {
+    btn.disabled = true;
+    show(errBox, '');
+    return post('/account/code', { email: email })
+      .then(function (r) {
+        btn.disabled = false;
+        btn.textContent = btnLabel;
+        if (!r.body.ok) { show(errBox, r.body.error || 'Something went wrong.'); return false; }
+        startCooldown(r.body.resendAfter);
+        return true;
+      })
+      .catch(function () {
+        btn.disabled = false;
+        btn.textContent = btnLabel;
+        show(errBox, 'We could not reach the server. Check your connection and try again.');
+        return false;
+      });
+  }
+
+  emailForm.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var email = document.getElementById('id-email').value.trim();
+    if (!email) { show(errEmail, 'Enter your email address.'); return; }
+    sendBtn.textContent = 'Sending…';
+    requestCode(email, errEmail, sendBtn, 'Continue').then(function (ok) {
+      if (!ok) return;
+      currentEmail = email;
+      sentTo.textContent = email;
+      stepEmail.hidden = true;
+      stepCode.hidden = false;
+      document.getElementById('id-code').focus();
+    });
+  });
+
+  codeForm.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var code = document.getElementById('id-code').value.trim();
+    if (!/^\d{6}$/.test(code)) { show(errCode, 'Enter the six digits from the email.'); return; }
+    verifyBtn.disabled = true;
+    verifyBtn.textContent = 'Checking…';
+    show(errCode, '');
+    post('/account/verify', { email: currentEmail, code: code, return_to: returnTo })
+      .then(function (r) {
+        /* The server decides where to land. return_to was validated in
+           requireIdentity and is validated AGAIN by /account/verify, so
+           the page never navigates anywhere of its own choosing. */
+        if (r.body.ok) { window.location.href = r.body.redirect || '/checkout'; return; }
+        verifyBtn.disabled = false;
+        verifyBtn.textContent = 'Continue to checkout';
+        var msg = r.body.error || 'That code is not right.';
+        if (typeof r.body.attemptsLeft === 'number' && r.body.attemptsLeft > 0) {
+          msg += ' ' + r.body.attemptsLeft + ' ' +
+                 (r.body.attemptsLeft === 1 ? 'try' : 'tries') + ' left.';
+        }
+        show(errCode, msg);
+        document.getElementById('id-code').select();
+      })
+      .catch(function () {
+        verifyBtn.disabled = false;
+        verifyBtn.textContent = 'Continue to checkout';
+        show(errCode, 'We could not reach the server. Check your connection and try again.');
+      });
+  });
+
+  resendBtn.addEventListener('click', function () {
+    requestCode(currentEmail, errCode, resendBtn, 'Send another code');
+  });
+
+  document.getElementById('id-change').addEventListener('click', function () {
+    clearInterval(cooldownTimer);
+    stepCode.hidden = true;
+    stepEmail.hidden = false;
+    show(errEmail, '');
+    show(errCode, '');
+    document.getElementById('id-email').focus();
+  });
+})();
+</script>

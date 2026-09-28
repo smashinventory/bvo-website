@@ -1,6 +1,15 @@
 'use strict';
 
-const bcrypt     = require('bcryptjs');
+/* NO BCRYPT HERE ANY MORE.
+   Customer passwords are gone — the six-digit code IS the login (spec
+   7.2), and `password_hash` was DROPPED from the customers table on
+   2026-09-27. Every query below that named it would now fail with
+   "Unknown column", so this is not tidying: leaving them would break
+   sign-in outright.
+
+   bcryptjs stays in package.json because adminController still uses it
+   for the ADMIN login (ADMIN_PW_B64), which is a different system with
+   a different threat model and is not affected by any of this. */
 const { bvoPool } = require('../config/database');
 
 const Customer = {
@@ -8,7 +17,14 @@ const Customer = {
   async findByEmail(email) {
     try {
       const [rows] = await bvoPool.query(
-        'SELECT id, email, first_name, last_name, password_hash, accepts_marketing, last_login_at, created_at FROM customers WHERE email = ? LIMIT 1',
+        /* password_hash is NOT selected: the column was dropped on
+           2026-09-27 and naming it makes this query fail outright with
+           "Unknown column". The consent columns ARE selected because
+           checkout reads them to set the checkbox defaults. */
+        `SELECT id, email, first_name, last_name, accepts_marketing,
+                marketing_consent_at, delivery_sms_consent,
+                delivery_sms_consent_at, last_login_at, created_at
+           FROM customers WHERE email = ? LIMIT 1`,
         [email.toLowerCase().trim()]
       );
       return rows[0] || null;
@@ -25,19 +41,23 @@ const Customer = {
     } catch { return null; }
   },
 
-  async create({ email, firstName, lastName, phone, password, acceptsMarketing = false }) {
-    const hash = await bcrypt.hash(password, 10);
+  /* NO `password` PARAMETER. There is nowhere to put one: password_hash
+     was dropped from the table on 2026-09-27 and the six-digit code is
+     the login. A caller still passing one is a caller that has not been
+     updated, and it is better that the argument simply does not exist
+     than that it be accepted and silently discarded. */
+  async create({ email, firstName, lastName, phone, acceptsMarketing = false }) {
     const [result] = await bvoPool.query(
-      `INSERT INTO customers (email, first_name, last_name, phone, password_hash, accepts_marketing)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [email.toLowerCase().trim(), firstName, lastName, phone || null, hash, acceptsMarketing ? 1 : 0]
+      `INSERT INTO customers (email, first_name, last_name, phone, accepts_marketing)
+       VALUES (?, ?, ?, ?, ?)`,
+      [email.toLowerCase().trim(), firstName, lastName, phone || null, acceptsMarketing ? 1 : 0]
     );
     return result.insertId;
   },
 
-  async verifyPassword(plaintext, hash) {
-    return bcrypt.compare(plaintext, hash);
-  },
+  /* verifyPassword() is GONE. Nothing calls it, there is no hash to
+     compare against, and leaving a working password-check function in a
+     passwordless system is an invitation to reintroduce one. */
 
   /**
    * Find the customer for a VERIFIED email, creating one if there is none.
@@ -48,8 +68,8 @@ const Customer = {
    * enumerate customers: there is no "does this account exist" question
    * for it to answer, because the answer stops mattering.
    *
-   * No password is written. password_hash stays NULL on every account
-   * created this way; the column survives only until nothing reads it.
+   * No password is written, and there is no column to write one to:
+   * password_hash was dropped on 2026-09-27.
    * See docs/briefs/BVO_CHECKOUT_SPEC.md 7.2.
    */
   async findOrCreateByEmail(rawEmail) {
@@ -61,8 +81,8 @@ const Customer = {
                            first_name: existing.first_name, created: false };
 
     const [result] = await bvoPool.query(
-      `INSERT INTO customers (email, first_name, last_name, password_hash, accepts_marketing)
-       VALUES (?, '', '', NULL, 0)`,
+      `INSERT INTO customers (email, first_name, last_name, accepts_marketing)
+       VALUES (?, '', '', 0)`,
       [email]
     );
     return { id: result.insertId, email, first_name: '', created: true };

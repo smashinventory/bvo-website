@@ -71,6 +71,44 @@ function getCart(req) {
   return req.session.cart;
 }
 
+/* ── GET /checkout/identify ── the email-first gate ───────────────────
+   Spec 7.1 (guest checkout superseded) and 7.2. Owner, 2026-09-27:
+   "on cart page and they select checkout — if they do not have an
+   account, we take them through a quick account setup or sign in."
+
+   NO NEW AUTH MACHINERY. This page posts to the existing
+   /account/code and /account/verify, which already carry the rate
+   limits, the timing-safe comparison, the no-enumeration property and
+   the Brevo blocklist check. A second code path for the same job would
+   be a second place for those to drift.
+
+   Sign-in and register are the same action here, which is why nothing
+   on the page promises one or the other — the endpoint deliberately
+   does not find out which it is. */
+function identifyPage(req, res) {
+  /* Already known: never make someone sign in twice. */
+  if (req.session.customerId) return res.redirect(req.session.returnTo || '/checkout');
+
+  /* An empty cart has nothing to identify FOR. Sending them to sign in
+     and then to an empty checkout is a dead end; the cart page at least
+     says so and offers a way out. */
+  const cart = req.session.cart;
+  if (!cart || !Array.isArray(cart.items) || cart.items.length === 0) {
+    return res.redirect('/cart');
+  }
+
+  return res.render('pages/checkout-identify', {
+    pageTitle: 'Sign in to check out | BathroomVanitiesOutlet.com',
+    metaDesc:  '',
+    /* Validated in requireIdentity before it was stored, and validated
+       again by /account/verify. Defaulted here so a direct visit with no
+       stored value still lands somewhere sensible. */
+    returnTo:  req.session.returnTo || '/checkout',
+    cartCount: cart.count || cart.items.length,
+  });
+}
+exports.identifyPage = identifyPage;
+
 /** Pre-tax subtotal, recalculated server-side — never trust the client.
  *
  *  This is NOT the amount charged. Once Stripe Tax is on, the total is
@@ -214,8 +252,10 @@ function validateInfo(b) {
   const errors = {};
   const v = k => String(b[k] || '').trim();
 
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(v('email')))
-    errors.email = 'Enter a valid email address.';
+  /* NO EMAIL RULE. The address is not on this form any more — it was
+     proven by six-digit code at /checkout/identify and is read from the
+     session, never from the body. Validating a body field that the page
+     no longer submits would reject every single submission. */
   if (v('ship_name').length < 2)
     errors.ship_name = 'Enter the name of the person receiving the delivery.';
   if (!v('ship_address1'))
@@ -332,10 +372,42 @@ exports.show = async (req, res) => {
     draft = row || null;
   }
 
+  /* The FULL customer row, not the three fields the session carries.
+     res.locals.customer is {id, firstName, email} — enough to greet
+     someone, not enough to pre-tick a consent box from what they chose
+     last time. Read here so a returning buyer is not asked the same
+     question twice with the wrong default.
+
+     requireIdentity guarantees customerId exists by this point, so
+     there is no anonymous branch to handle. A failed read degrades to
+     the spec defaults rather than throwing: an unavailable database
+     should not take checkout down over a checkbox. */
+  let customerRow = null;
+  try {
+    const [[row]] = await bvoPool.query(
+      /* The *_consent_at timestamps come along because both consent
+         flags are NOT NULL DEFAULT 0 — the flag alone cannot tell
+         "never asked" from "asked and declined", and the checkbox
+         default depends on that difference. */
+      `SELECT id, email, first_name,
+              accepts_marketing, marketing_consent_at,
+              delivery_sms_consent, delivery_sms_consent_at
+         FROM customers WHERE id = ? LIMIT 1`,
+      [req.session.customerId]
+    );
+    customerRow = row || null;
+  } catch (err) {
+    console.error('[checkout.show] customer read failed:', err && err.message);
+  }
+
   res.render('pages/checkout-info', {
     pageTitle: 'Checkout | BathroomVanitiesOutlet.com',
     metaDesc:  '',
     noindex:   true,
+    /* Shadows res.locals.customer deliberately — the view needs the
+       consent columns, and two objects called `customer` with different
+       shapes is exactly how a template ends up reading undefined. */
+    customer:  customerRow,
     cart,
     subtotal:  calcTotal(cart.items),
     draft,
@@ -375,8 +447,72 @@ exports.saveInfo = async (req, res) => {
   const customerIp = clientIp(req);
   const prov  = addressProvenance(req.body);
 
+  /* ── CONSENT, RECORDED AS EVIDENCE ────────────────────────────────
+     Spec 9.2 / 9.2a. Two separate legal instruments, two separate
+     columns, never collapsed: email marketing is CAN-SPAM (opt-out)
+     and delivery SMS is TCPA (express consent, four-year records,
+     $500–$1,500 per message). Conflating them is where retailers get
+     sued (spec 9.4).
+
+     PRESENCE, NOT TRUTHINESS. An unchecked box submits nothing, so
+     `'1' === body[k]` is the only correct test. Anything that treats
+     absence as "keep the previous value" would make opting OUT
+     impossible — the buyer could tick but never untick.
+
+     A timestamp, a source and an IP go with each flag because "accepts
+     = 1" is not a record anyone can produce four years later. The copy
+     version pins WHICH wording they agreed to; bump it whenever the
+     text in checkout-info.ejs changes. */
+  const CONSENT_COPY_VERSION = '2026-09-27a';
+  const wantsMarketing = req.body.marketing_opt_in === '1';
+  const wantsSms       = req.body.delivery_sms_opt_in === '1';
+
+  if (req.session.customerId) {
+    try {
+      await bvoPool.query(
+        `UPDATE customers
+            SET accepts_marketing           = ?,
+                marketing_consent_at        = NOW(),
+                marketing_consent_source    = 'checkout_info',
+                marketing_consent_ip        = ?,
+                delivery_sms_consent        = ?,
+                delivery_sms_consent_at     = NOW(),
+                delivery_sms_consent_source = 'checkout_info',
+                delivery_sms_consent_ip     = ?,
+                consent_copy_version        = ?
+          WHERE id = ?`,
+        [wantsMarketing ? 1 : 0, customerIp,
+         wantsSms ? 1 : 0, customerIp,
+         CONSENT_COPY_VERSION, req.session.customerId]
+      );
+      /* Both *_at are stamped even on a NO. The date they declined is
+         as much a record as the date they agreed, and it is what tells
+         the checkout page not to re-tick a box they cleared. */
+    } catch (err) {
+      /* Never fail an order over a checkbox. The buyer is mid-checkout
+         and the consent can be re-collected; a 500 here cannot. */
+      console.error('[checkout.saveInfo] consent write failed:', err && err.message);
+    }
+  }
+
   const fields = {
-    guest_email:       String(req.body.email).trim().toLowerCase(),
+    /* FROM THE SESSION, NEVER THE BODY. Proven at /checkout/identify.
+       Reading it from req.body would let anyone past the gate swap in
+       an address they never proved — which is the entire value of the
+       gate, handed back at the next step.
+
+       The column keeps the name guest_email for now: renaming it means
+       touching the webhook, the order emails, the admin order list and
+       four other queries, and a rename during a checkout rebuild is a
+       change with no upside and a long blast radius. Guest checkout is
+       gone (spec 7.1); the column name is a fossil, not a feature. */
+    guest_email:       String(req.session.customer && req.session.customer.email || '')
+                         .trim().toLowerCase(),
+    /* customer_id IS NOT IN THIS OBJECT, DELIBERATELY. The INSERT below
+       already names it in its own column list and then appends
+       ${cols.join(', ')} — putting it here too produces
+       "Duplicate column name 'customer_id'" on every new draft order.
+       Caught by reading the INSERT, before it ran. */
     ship_first_name:   name.first,
     ship_last_name:    name.last || null,
     ship_phone:        phone,
@@ -492,7 +628,12 @@ exports.saveInfo = async (req, res) => {
              consume one. Nine were burned in one evening by a buyer
              retrying against the old page-load behaviour. */
           'DRAFT-' + crypto.randomUUID(),
-          req.session.customer?.id || null,
+          /* customerId, not customer?.id. Both are set together at
+             sign-in, but customerId is the one requireIdentity checks
+             and the one every other handler reads — so it is the single
+             source of truth for "who is this". Past the guard it is
+             never null. */
+          req.session.customerId || null,
           /* status is an ENUM and has no 'draft' member. The draft marker
              lives on payment_status, which is a plain varchar - and this
              way drafts inherit the status='pending' exclusion the admin
