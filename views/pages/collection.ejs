@@ -1283,7 +1283,13 @@
           <% if (product.price) { %>
           <%   var _onSale = product.compare_price && parseFloat(product.compare_price) > parseFloat(product.price); %>
           <div class="card-price-qty-row">
-            <div class="card-price">
+            <%# data-card-price is the repaint target for the in-place
+                colour swap (public/js/carousels.js). The block is rebuilt
+                wholesale rather than patched span-by-span because the
+                on-sale and regular shapes differ: a colour that is not
+                discounted has no was-price or Save badge to update, and
+                patching would leave the previous colour's badge behind. %>
+            <div class="card-price" data-card-price>
               <% if (_onSale) { %>
                 <span class="card-price__sale">$<%= parseFloat(product.price).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}) %></span>
                 <span class="card-price__was">$<%= parseFloat(product.compare_price).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}) %></span>
@@ -1292,7 +1298,7 @@
                 <span class="card-price__regular">$<%= parseFloat(product.price).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}) %></span>
               <% } %>
             </div>
-            <span class="card-qty<%= _pQtyRaw === 0 ? ' card-qty--zero' : '' %>">QTY: <%= _pQtyDisplay %></span>
+            <span class="card-qty<%= _pQtyRaw === 0 ? ' card-qty--zero' : '' %>" data-card-qty>QTY: <%= _pQtyDisplay %></span>
           </div>
           <% } %>
 
@@ -1306,16 +1312,44 @@
               var _sb      = _isLight ? '#ccc' : (f.border || f.hex);
               var _isWood  = ['wood_l','wood_m','wood_d'].indexOf(f.color_family) !== -1;
             %>
-            <%# PRODUCT card. Highlight the colour this product IS, and let
-                the other swatches navigate to that colour's product —
-                changing colour in place would leave the price and the
-                View Details link on the original SKU. %>
+            <%# PRODUCT card. Highlight the colour this product IS.
+                Owner, 2026-09-28, on Huntington Brass: clicking a swatch
+                should show the item in that colour, not leave the page.
+
+                Changing colour in place used to be dishonest — the price
+                and the View Details link stayed on the original SKU — so
+                the swatch navigated instead. data-variant fixes the cause:
+                it carries that colour's id, price, compare_price and photo,
+                and carousels.js repaints all of them together. Nothing is
+                left describing another SKU.
+
+                A colour whose row has no price or no photo CANNOT be
+                repainted honestly, so it keeps data-variant-href and
+                navigates, exactly as before. Per swatch, not per card. %>
             <%
               var _pSwActive = product.color ? (f.color === product.color) : (i === 0);
               var _pSwHref   = (product.colorLinks && product.colorLinks[f.color]) || null;
+              var _pSwVar    = (product.colorVariants && product.colorVariants[f.color]) || null;
+              var _pSwSwap   = (_pSwVar && _pSwVar.slug && _pSwVar.price != null && _pSwVar.image)
+                                 ? { slug: '/products/' + _pSwVar.slug,
+                                     id:    _pSwVar.id,
+                                     price: Number(_pSwVar.price),
+                                     was:   (_pSwVar.compare_price != null &&
+                                             Number(_pSwVar.compare_price) > Number(_pSwVar.price))
+                                              ? Number(_pSwVar.compare_price) : null,
+                                     image: _pSwVar.image,
+                                     qty:   _pSwVar.qty == null ? null : _pSwVar.qty,
+                                     /* Resolved server-side because the
+                                        favourites set is server state; the
+                                        heart would otherwise keep the
+                                        ORIGINAL product's filled/empty look
+                                        while pointing at a different id. */
+                                     saved: (typeof savedProductIds !== 'undefined' &&
+                                             savedProductIds.has(_pSwVar.id)) ? 1 : 0 }
+                                 : null;
             %>
             <button class="model-card-swatch<%= _pSwActive ? ' is-active' : '' %><%= _isWood ? ' swatch--wood-grain' : '' %>"
-                    <% if (_pSwHref) { %>data-variant-href="/products/<%= _pSwHref %>"<% } %>
+                    <% if (_pSwSwap) { %>data-variant="<%= JSON.stringify(_pSwSwap) %>"<% } else if (_pSwHref) { %>data-variant-href="/products/<%= _pSwHref %>"<% } %>
                     data-target-img="<%= _pImgId %>"
                     data-finish="<%= f.color %>"
                     <% if (f.image_url) { %>data-image="<%= f.image_url %>"<% } %>

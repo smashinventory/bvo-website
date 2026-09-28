@@ -41,12 +41,28 @@ async function attachVariantLinks(rows) {
   try {
     const ph = pairs.map(() => '(?,?)').join(',');
     const [rowsOut] = await bvoPool.query(`
-      SELECT model, brand, slug, width_in, color, price
-      FROM products
-      WHERE is_active = 1
-        AND (model, brand) IN (${ph})
-        AND slug IS NOT NULL
-      ORDER BY width_in, price
+      /* id and compare_price added 2026-09-28 for the in-place colour
+         swap on product cards. The card no longer navigates when a
+         swatch is clicked, so it has to repaint the PRICE and retarget
+         the links itself — otherwise it shows one colour's photo over
+         another colour's price, which is the exact defect the old
+         navigate-instead behaviour existed to avoid. */
+      SELECT p.id, p.model, p.brand, p.slug, p.width_in, p.color,
+             p.price, p.compare_price,
+             /* Same COALESCE the listing itself uses. Reading
+                primary_image_url alone made every sibling whose photo
+                lives only in product_images look image-less, and an
+                image-less colour falls back to navigating — the card
+                would have kept the old behaviour for no real reason. */
+             COALESCE(p.primary_image_url, pi.url) AS primary_image_url,
+             i.qty_on_hand
+      FROM products p
+      LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
+      LEFT JOIN inventory i       ON i.product_id  = p.id
+      WHERE p.is_active = 1
+        AND (p.model, p.brand) IN (${ph})
+        AND p.slug IS NOT NULL
+      ORDER BY p.width_in, p.price
     `, pairs.flat());
     siblings = rowsOut;
   } catch (err) {
@@ -86,12 +102,34 @@ async function attachVariantLinks(rows) {
       const sameSize = myKey != null && b && b.key === myKey;
       // Prefer the same width; fall back to any width of that colour.
       if (!colorLinks[s.color] || (sameSize && !colorLinks[s.color]._same)) {
-        colorLinks[s.color] = { slug: s.slug, _same: sameSize };
+        colorLinks[s.color] = {
+          slug: s.slug, _same: sameSize,
+          /* Carried for the in-place colour swap (2026-09-28). The card
+             repaints the price from these rather than navigating, so a
+             colour with no price would silently show the PREVIOUS
+             colour's figure — worse than navigating. The client treats
+             a missing price as "cannot swap safely" and falls back to
+             navigation for that one swatch. */
+          id: s.id, price: s.price, compare_price: s.compare_price,
+          image: s.primary_image_url || null,
+          /* The QTY line is part of the card. Leaving it on the previous
+             colour's stock is the same class of lie as leaving the
+             price there. */
+          qty: s.qty_on_hand == null ? null : Number(s.qty_on_hand),
+        };
       }
     }
 
     r.sizeLinks  = Object.fromEntries(Object.entries(sizeLinks ).map(([k, v]) => [k, v.slug]));
     r.colorLinks = Object.fromEntries(Object.entries(colorLinks).map(([k, v]) => [k, v.slug]));
+    /* Full variant record per colour, alongside the slug-only map above.
+       colorLinks is left untouched on purpose: several templates read it
+       and widening its shape in place would change all of them at once
+       for the benefit of one card. */
+    r.colorVariants = Object.fromEntries(Object.entries(colorLinks).map(([k, v]) => [k, {
+      slug: v.slug, id: v.id, price: v.price,
+      compare_price: v.compare_price, image: v.image, qty: v.qty,
+    }]));
 
     /* This product's OWN size-chip key, so the card can highlight the
        chip it actually is. The chips carry bucket keys and the size list
