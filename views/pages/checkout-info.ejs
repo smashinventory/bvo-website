@@ -1,4 +1,4 @@
-<link rel="stylesheet" href="/css/site3.css?v=26"><!-- site3: injected per-page (perf) -->
+<link rel="stylesheet" href="/css/site3.css?v=27"><!-- site3: injected per-page (perf) -->
 
 <%
 /* Page 1 of 3 — who you are, where it goes.
@@ -10,9 +10,31 @@
  * STAGE 1 is guest-only. Sign in / register arrive in stage 2; no dead
  * buttons for them are rendered.
  */
+/* PRECEDENCE, and the order is the whole point:
+     1. `old`   -- what they just typed on a submit that bounced
+     2. `draft` -- what is already on this order
+     3. saved   -- their last delivery address (item 28)
+     4. fallback
+   A saved address must NEVER overwrite something the buyer typed on
+   THIS order. show() already guards by only fetching `savedAddress`
+   when there is no draft and nothing bounced; this ordering is the
+   second line of defence. */
+const SAVED_MAP = {
+  ship_address1: 'address1', ship_address2: 'address2',
+  ship_city: 'city', ship_state: 'state', ship_zip: 'zip',
+  ship_phone: 'phone', ship_phone_ext: 'phone_ext',
+  ship_address_type: 'address_type',
+};
+const savedVal = (k) => {
+  if (!savedAddress) return '';
+  const col = SAVED_MAP[k];
+  return col && savedAddress[col] != null ? savedAddress[col] : '';
+};
+
 const val = (k, fallback) =>
   (old && old[k] != null && old[k] !== '') ? old[k]
-  : (draft && draft[k] != null ? draft[k] : (fallback || ''));
+  : (draft && draft[k] != null && draft[k] !== '') ? draft[k]
+  : (savedVal(k) || fallback || '');
 
 /* CHECKBOXES CANNOT USE val(). An unchecked box submits NOTHING, so
    val() sees undefined, falls through to the fallback, and re-checks a
@@ -57,7 +79,9 @@ const checked = (k, dflt, stored, answered) => {
 
 const draftName = draft
   ? [draft.ship_first_name, draft.ship_last_name].filter(Boolean).join(' ')
-  : '';
+  : (savedAddress
+      ? [savedAddress.first_name, savedAddress.last_name].filter(Boolean).join(' ')
+      : '');
 const STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','DC','FL','GA','HI','ID','IL','IN','IA',
   'KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND',
   'OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'];
@@ -203,6 +227,19 @@ const money = n => '$' + Number(n || 0).toLocaleString('en-US',
       <div class="checkout-card">
         <h2 class="checkout-card-title">Delivery address</h2>
         <p class="checkout-card-sub">Where the freight truck is going. You'll enter the address on your card at the payment step.</p>
+
+        <%/* SAY SO. Spec §7 Stage 3 item 28: prefill VISIBLY.
+             A trade buyer ships to a different jobsite every job. Fill
+             the fields silently and a 300 lb vanity goes to the site
+             they finished last month -- expensive to reverse, and the
+             kind of error that is blamed on the website. */%>
+        <% if (savedAddress) { %>
+          <p class="checkout-prefill-note">
+            Shipping to your last address<% if (savedAddress.city) { %>
+            in <%= savedAddress.city %><% if (savedAddress.state) { %>, <%= savedAddress.state %><% } %><% } %>.
+            <strong>Change anything below if this order goes somewhere else.</strong>
+          </p>
+        <% } %>
 
         <div class="checkout-field">
           <label for="ship_name">Full name <span class="req">*</span></label>

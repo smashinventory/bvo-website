@@ -64,6 +64,11 @@ const { addressProvenance } = require('../utils/addressProvenance');
    could forge. See src/services/addressValidationService.js. */
 const addrVal = require('../services/addressValidationService');
 
+/* Saved addresses + the velocity signal behind items 6/9. Every method
+   catches its own errors and returns {ok:false} — nothing in here may
+   throw into a checkout. */
+const CustomerAddress = require('../models/CustomerAddress');
+
 /* ── Helpers ────────────────────────────────────────────────────── */
 
 function getCart(req) {
@@ -400,6 +405,17 @@ exports.show = async (req, res) => {
     console.error('[checkout.show] customer read failed:', err && err.message);
   }
 
+  /* Item 28 — prefill for a returning buyer.
+     Only consulted when there is no draft and nothing bounced back from
+     a failed submit: a saved address must never overwrite what the buyer
+     has already typed on THIS order.
+
+     Returns null on any failure. An empty form is a poor experience; a
+     500 is a lost sale. */
+  const savedAddress = (!draft && !flash.old.ship_address1)
+    ? await CustomerAddress.mostRecent(req.session.customerId, 'shipping')
+    : null;
+
   res.render('pages/checkout-info', {
     pageTitle: 'Checkout | BathroomVanitiesOutlet.com',
     metaDesc:  '',
@@ -408,6 +424,10 @@ exports.show = async (req, res) => {
        consent columns, and two objects called `customer` with different
        shapes is exactly how a template ends up reading undefined. */
     customer:  customerRow,
+    /* The most recent shipping address, or null. The view prefills from
+       it AND says so — silent prefill sends a trade buyer's vanity to
+       last month's jobsite. Spec §7 Stage 3, item 28. */
+    savedAddress,
     cart,
     subtotal:  calcTotal(cart.items),
     draft,
@@ -493,6 +513,29 @@ exports.saveInfo = async (req, res) => {
          and the consent can be re-collected; a 500 here cannot. */
       console.error('[checkout.saveInfo] consent write failed:', err && err.message);
     }
+
+    /* ── REMEMBER THIS DELIVERY ADDRESS (items 27/28, velocity for 6/9)
+       Fire-and-forget by design: CustomerAddress.record catches its own
+       errors and returns {ok:false}. A saved address is a convenience
+       and a fraud signal; neither is worth failing an order.
+
+       Written HERE rather than at order creation because this is the
+       point the buyer confirmed the address — a draft that never
+       reaches payment is still a real address they typed, and the
+       velocity signal wants it. */
+    CustomerAddress.record(req.session.customerId, 'shipping', {
+      place_id:          prov.placeId || null,
+      formatted_address: prov.formatted || null,
+      first_name:        name.first,
+      last_name:         name.last || null,
+      address1:          String(req.body.ship_address1 || '').trim(),
+      address2:          String(req.body.ship_address2 || '').trim() || null,
+      city:              String(req.body.ship_city || '').trim(),
+      state:             String(req.body.ship_state || '').trim().toUpperCase(),
+      zip:               String(req.body.ship_zip || '').trim(),
+      phone, phone_ext:  ext,
+      address_type:      req.body.ship_address_type || null,
+    }).catch(() => {});
   }
 
   const fields = {
@@ -1382,6 +1425,33 @@ async function handleSessionCompleted(sessionStub) {
           [g.lat, g.lng, g.source, orderId]
         ))
         .catch(err => console.error('[checkout] geocode failed for order',
+          orderId, '—', err && err.message));
+    }
+
+    /* ── REMEMBER THE BILLING ADDRESS (velocity, items 6/9) ──────────
+       Billing only ever arrives here — Stripe collects it, BVO never
+       asks for it — which is why this write lives in the webhook while
+       the shipping one lives in saveInfo.
+
+       There is NO SESSION in a webhook, so customer_id is read back off
+       the order rather than taken from req. An order placed before the
+       identity gate existed has a NULL customer_id; record() rejects
+       that and returns {ok:false} rather than writing an orphan row.
+
+       Fire-and-forget, like the geocode above: a fraud signal must not
+       delay or fail the handler that confirms a paid order. */
+    if (who.billAddress1) {
+      bvoPool.query('SELECT customer_id FROM orders WHERE id = ?', [orderId])
+        .then(([[row]]) => row && row.customer_id && CustomerAddress.record(
+          row.customer_id, 'billing', {
+            first_name: who.firstName,
+            last_name:  who.lastName,
+            address1:   who.billAddress1,
+            city:       who.billCity,
+            state:      who.billState,
+            zip:        who.billZip,
+          }))
+        .catch(err => console.error('[checkout] billing address record failed for order',
           orderId, '—', err && err.message));
     }
 

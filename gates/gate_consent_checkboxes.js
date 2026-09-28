@@ -48,6 +48,9 @@ const base = {
   customer: { id: 7, email: 'sam@example.com', first_name: 'Sam',
               accepts_marketing: 0,     marketing_consent_at: null,
               delivery_sms_consent: 0,  delivery_sms_consent_at: null },
+  /* New local as of the saved-addresses work. A first-time buyer has
+     none, which is this fixture's case. */
+  savedAddress: null,
   csrfToken: 'tok', cspNonce: 'nonce123',
 };
 
