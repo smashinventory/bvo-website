@@ -83,7 +83,31 @@ Ranked by what they're worth:
 
 ---
 
-### 4. Rate limiter — retune AT CUTOVER, not before
+### 4. Rate limiter — ✅ DONE 2026-09-28
+
+> **Applied: `windowMs 5 min, max 150`, and `/sitemap.xml` exempted.**
+>
+> Done ahead of cutover rather than on the day, because the change is
+> **not a relaxation**:
+>
+> ```
+> before   67 req/min sustained, up to 15 minutes locked out
+> after    30 req/min sustained, at most  5 minutes locked out
+> ```
+>
+> Tighter on throughput, three times gentler on the lockout. There was no
+> exposure in applying it early.
+>
+> Auth limiters untouched — customer 10/15min, admin login 5/15min.
+> Gated by `gates/gate_rate_limiter.js`, 9/9 mutations caught, including
+> "sitemap route path changed", which would have made the exemption
+> silently never match.
+>
+> **NOT done, deliberately:** verified-Googlebot bypass by reverse DNS.
+> Only worth it if Search Console shows real crawl errors after launch.
+>
+> The original reasoning is kept below.
+
 *Logged 2026-09-12 · deliberate pre-launch posture, do not "fix" early*
 
 Currently `windowMs 15 min, max 1000`, with `/css`, `/js`, `/images`,
@@ -254,6 +278,50 @@ compliance, not something to infer from the code.
 > Bunny pull zone `images.bathroomvanitiesoutlet.com`. All eight gstatic cache
 > keys are gone, as are lampsplus and bathvanityexperts.
 >
+> ### RE-MEASURED FROM THE DATABASE, 2026-09-28 — it is ELEVEN, not four
+>
+> The homepage DOM shows only what the homepage renders. Querying the
+> curated fields directly:
+>
+> | where | count | detail |
+> |---|---|---|
+> | `pages.og_image` | **10** | inspiration-guide cards + their JSON-LD `image` |
+> | `model_groups.custom_image` | 1 | Brittany tile |
+> | `categories.image_url` | **0** | the ten gstatic ones are genuinely closed |
+> | `product_images.url` | **0** | all ~57k rows clean — `cdnUrl.js` is working |
+>
+> Hosts: usbathstore ×2, jamesmartinvanities ×3, bathgems, ak1.ostkcdn,
+> cdn.shopify, keetchen, i5.walmartimages.
+>
+> **Owner, 2026-09-28: these are all James Martin product images that
+> happen to be hosted on other retailers' sites — not third-party
+> photography.** So it is a fragility and dependency problem, not a
+> rights problem. Fix by matching to the same image in our own catalogue
+> where the filename identifies it (Brittany 36 Smokey Celadon,
+> Breckenridge 36 Light Natural Oak, Allamari 48 Sable are all
+> identifiable), and uploading the rest to Bunny.
+>
+> ### WHY THE EXISTING CONTROLS DID NOT CATCH THESE
+>
+> Both controls work. Neither can see this case:
+>
+> - `views/partials/admin/hotlink-warn.ejs` (global, via
+>   `layouts/admin.ejs:418`) fires when someone TYPES a foreign URL into
+>   an admin form. These were never typed.
+> - `cdnUrl.js` rewrites vendor hosts on product import. These are not
+>   product images.
+>
+> The ten arrived with the inspiration-page content build, straight into
+> the database. **A gate cannot catch it either** — gates run with no
+> database credentials, and the URLs are in no committed `.sql` file.
+>
+> So the gap is filled by `scripts/auditImageHosts.js` (2026-09-28):
+> reads the database, classifies every image URL against the ONE owned-host
+> list in `cdnUrl.js`, exits non-zero if any are foreign. **Run it before
+> cutover and after any bulk content import.**
+>
+> The 2026-09-23 homepage measurement is kept below for history.
+
 > Measured on the live homepage DOM — four hosts still not ours:
 >
 > | host | what | on the original list? |

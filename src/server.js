@@ -231,29 +231,44 @@ app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
    supposed to be tight. This one only ever protected against scraping,
    and 1,000 page views per 15 minutes from a single IP still does that.
 
-   ⚠ THE NUMBER 1000 IS PROVISIONAL — PRE-LAUNCH POSTURE, NOT A CONCLUSION.
+   ── RETUNED 2026-09-28 FOR LAUNCH. Was 15 min / 1000. ─────────────────
 
-   The site is not live: www.BathroomVanitiesOutlet.com is still on Shopify
-   and this app runs on the Hostinger preview domain. The setting is
-   deliberately cautious for that reason and is NOT the answer for a live
-   storefront.
+   This limiter is a SCRAPING CONTROL, NOT DDoS PROTECTION. A request that
+   reaches express-rate-limit has already cost a TCP connection, a TLS
+   handshake and event-loop time; volumetric defence belongs at the edge.
+   Against a determined scraper the ceiling buys little either way — 5,311
+   URLs is 6.6 hours at 200/15min and 80 minutes at 1,000, and anyone
+   serious rotates IPs past both.
 
-   Retune it AT CUTOVER, not before — OPEN_ITEMS.md item 6 carries the
-   reasoning and the suggested settings. The short version: this limiter is
-   a scraping control, not DDoS protection (a request that reaches it has
-   already cost a connection, a TLS handshake and event-loop time — volumetric
-   defence belongs at the edge). What matters more than the ceiling is the
-   LOCKOUT SHAPE: the penalty is the remainder of the window, measured at
-   Retry-After 641, and sustained 429s are read by Google as a failing server.
-   A shorter window with a proportionally smaller max gives the same
-   protection with a fraction of the damage when a legitimate client trips it.
+   THE LOCKOUT SHAPE MATTERS MORE THAN THE CEILING. The penalty is the
+   remainder of the window — measured at Retry-After: 641, eleven minutes,
+   on every route including the homepage. Sustained 429s are read by Google
+   as a failing server and crawl rate drops, which is the real risk to a
+   site whose rankings are being migrated.
 
-   Do not "tidy" this number without reading that item first. */
+   So 5 min / 150 rather than 15 min / 1000:
+
+       before   67 req/min sustained, up to 15 minutes locked out
+       after    30 req/min sustained, at most  5 minutes locked out
+
+   TIGHTER on throughput and THREE TIMES GENTLER when a legitimate client
+   trips it. That is why this did not need to wait for cutover day: it is
+   not a relaxation.
+
+   /sitemap.xml is exempt as of this change. It was counted, and a 429
+   there breaks URL discovery for all 5,139 pages during exactly the
+   migration where that matters most. Same reasoning as robots.txt above.
+
+   NOT DONE, deliberately: bypassing verified Googlebot by reverse DNS.
+   Real work, and only worth it if Search Console actually shows crawl
+   errors after launch. Do not build it speculatively.
+
+   See OPEN_ITEMS.md item 4 for the full reasoning. */
 const _RL_SKIP_PREFIX = ['/css/', '/js/', '/images/', '/docs/uploads/'];
-const _RL_SKIP_EXACT  = new Set(['/robots.txt', '/favicon.ico']);
+const _RL_SKIP_EXACT  = new Set(['/robots.txt', '/favicon.ico', '/sitemap.xml']);
 app.use(rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max:      1000,
+  windowMs: 5 * 60 * 1000,
+  max:      150,
   standardHeaders: true,
   legacyHeaders:   false,
   skip: (req) => _RL_SKIP_EXACT.has(req.path)
