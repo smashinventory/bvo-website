@@ -220,8 +220,19 @@ into a log of everything that happened.
 
 ## What blocks cutover, regardless of this list
 
-1. **Email templates** — eight of nine still carry August copy and one is
-   a rejected cold draft. Overlaps 10 and 36. This is the critical path.
-2. **Stripe live-key swap** — three env vars, plus deleting the two inert
+*Revised 2026-09-28. Email templates were item 1 and are no longer on this
+list — owner: "These are good enough for now… We can tweak after cutover."
+They send, they carry the right variables, and they say true things; what
+they lack is brand voice. Moved to POST-CUTOVER in OPEN_ITEMS.md.*
+
+1. **Stripe live-key swap** — three env vars, plus deleting the two inert
    `_LIVE` variables. Unblocked since the account reached Verified.
-3. **Webhook endpoint** — still pointed at the temporary host.
+2. **Webhook endpoint** — still pointed at the temporary host.
+3. **Hotlinked images** — four hosts on the live homepage are still not
+   ours. See OPEN_ITEMS item 6.
+4. **Re-test the confirm-email link after DNS moves.** `SITE_URL` builds
+   `/orders/confirm?t=…` in order emails, so it 404s until the domain
+   points at this app — confirmed live on BVO-2026-09-28-00110. Nothing
+   on our side reports it: the email sends, the token is valid, and the
+   failure happens only in the customer's browser. Steps are in
+   PRE_LAUNCH_CHECKLIST.md.

@@ -124,17 +124,50 @@ Those guard credentials and are the ones doing real security work.
 
 ---
 
-### 5. Checkout and payment — audited 2026-09-23, fixes DEFERRED
-*Logged 2026-09-12 · **audited 2026-09-23** · Sam: hold the fixes until the
-Authorize.net work is picked up, so they land together rather than as drive-by
-edits to the highest-risk file in the app*
+### 5. Checkout and payment — audit findings, RE-CHECKED 2026-09-28
+*Logged 2026-09-12 · audited 2026-09-23 · **re-checked against live code
+2026-09-28***
 
-Static code read only. No test transactions, no probing the live flow, no card
-data touched.
+> ## ⚠️ THE REASON THIS WAS DEFERRED NO LONGER EXISTS
+>
+> The deferral was: *"hold the fixes until the Authorize.net work is picked
+> up, so they land together rather than as drive-by edits to the
+> highest-risk file in the app."*
+>
+> **That work has since happened — as a rewrite to STRIPE, not
+> Authorize.net.** checkoutController and the webhook handler were
+> rewritten, checkout.ejs moved to the Payment Element, capture was
+> repointed, and the old payment services were deleted.
+>
+> So the bundling argument is gone, and the rewrite closed several
+> findings outright. Re-checked below against the code as it stands, not
+> against the September audit. **Do not act on the 2026-09-23 list
+> without reading this.**
 
-**Note the stack changed:** this item and `routes/checkout.js` both still say
-Clover. The implementation is **Authorize.net AcceptUI**. There are no Clover
-credentials in the codebase.
+Original audit was a static code read only — no test transactions, no probing
+of the live flow, no card data touched.
+
+#### Status after the Stripe rewrite
+
+| # | Finding | Status 2026-09-28 |
+|---|---------|-------------------|
+| F1 | No authorization-expiry handling | **CLOSED** — `payment_auth_expired` event in ordersController, expiry countdown on the order detail screen |
+| F2 | Cart merge drops bundle context | **STILL LIVE** |
+| F3 | `existing.qty += qty` has no clamp | **STILL LIVE** |
+| F4 | FraudLabs fails open | **MOOT** — `fraudLabsService.js` deleted; screening is Stripe Radar plus the EFW and dispute webhooks |
+| F5 | No idempotency on `POST /checkout` | **CHANGED SHAPE — needs re-checking.** The webhook handler is explicitly idempotent (a redelivery affects 0 rows and returns early). Whether a double-submit can create two Checkout Sessions was NOT re-verified. |
+| F6 | `status: 'confirmed'` hardcoded | **PARTLY** — now `authorized ? 'confirmed' : 'pending'` with a comment defining "confirmed" as authorised-and-validated. The naming question (staff may read it as *paid*) stands. |
+| F7 | Stale Clover comments | **CLOSED** — zero occurrences in `routes/checkout.js` or `checkoutController.js` |
+
+#### What actually remains
+
+**F2 and F3 are NOT in the payment file.** Both live in
+`src/controllers/cartController.js`, which the deferral was never protecting.
+They are ordinary cart-merge bugs and can be fixed on their own, with a gate,
+without touching anything that moves money.
+
+F5 needs ten minutes of reading to confirm or re-open. F6 is a naming
+decision, not a defect.
 
 #### Sound — no action needed
 
@@ -787,7 +820,20 @@ when a BRAND-NEW customer's shipping address matches an existing
 customer's. `customer_addresses` and the velocity query already exist, so
 it is small. Owner has not asked for it.
 
-### Brevo deliverability — the disease, not the symptom
+### Brevo deliverability — CLOSED 2026-09-28, no follow-up
+> **Owner, same day: "all the other emails we received today were within
+> 2 minutes."** Measured, not assumed — and it matches the Gmail
+> greylisting explanation exactly. A sender Gmail does not recognise gets
+> deferred; once it has seen a few messages accepted, delivery is normal.
+> The eleven-minute case was first-contact, not a broken channel.
+>
+> **No action.** Checkout no longer depends on delivery either way, which
+> was the point of the rework. Re-open only if delivery times regress
+> after cutover, when the sending domain changes and reputation resets.
+>
+> The detail below is kept because that reset is a real possibility.
+
+#### Original note — why it looked like a standing problem
 The 2026-09-28 work removed checkout's dependence on email delivery. It
 did **not** fix delivery. Measured that day: a code accepted at 11:59 and
 delivered at 12:10 — eleven minutes — and a second still unsent after
@@ -907,3 +953,86 @@ Two ways out:
 Check current state with `SHOW TABLE STATUS` and read the `Collation`
 column. Do NOT use `information_schema.TABLES`: this host denies that
 database outright (#1044).
+
+---
+
+# POST-CUTOVER
+*Owner-scoped 2026-09-28. Everything below is deliberately NOT blocking the
+launch. It is here so it is not lost, not so it is done first.*
+
+## Email templates — polish, not repair
+**Owner: "These are good enough for now. They are basic and lack the warmness
+and cheeriness of our brand, but functional. We can tweak after cutover."**
+
+This was previously listed as THE cutover blocker. It is not. The templates
+send, carry the right variables, and say true things. What they lack is voice.
+
+When it is picked up, three things belong in one pass:
+
+1. **Rewrite the nine bodies in BVO voice.** Warm and cheery, matching the
+   brand rather than the neutral functional register they sit in now.
+2. **The new-device email gets the BVO logo** (owner-raised 2026-09-28).
+   Every other BVO email carries branding; that one is plain text on white,
+   and it looks least like us at the exact moment the reader is deciding
+   whether it is genuine. It lives in `newDeviceEmail()` in
+   `accountController.js` — in code, not `email_templates`, deliberately: a
+   SECURITY notification that silently fails because a database row is
+   missing is worse than one slightly out of date. Editing it means a
+   deploy; that is the accepted cost.
+3. **"That link works for 24 hours." → "This link works for 24 hours."**
+   Same file, same pass.
+
+**Read the LIVE TABLE, not `016_email_templates.sql`.** The repo's copy is
+stale — the live `order_confirmed` body is 3,842 characters against roughly
+three times that in `016_`. Trusting the file cost a silent defect on
+2026-09-28 (see the email_templates entry above). Dump the nine live bodies
+into a dated migration as part of this work so the repo tells the truth again.
+
+## Change-email flow
+Moved here 2026-09-28 — **owner: "Email flow is a trivial issue."**
+
+Full detail in the entry above. In short: orders hang off `customer_id`, so
+history survives an address change *provided the change is made on the
+existing row* — and nothing today can do that. The risk is a SPLIT, not a
+loss: a buyer who moves and simply checks out gets a second customer record,
+and their history is orphaned under an id nobody looks at.
+
+Trivial while the customer base is small, which is the case now. It gets
+harder to unpick the longer it runs, so it is worth doing early post-cutover
+rather than late.
+
+## Cart merge — F2 and F3 from the checkout audit
+Not payment code. `src/controllers/cartController.js` only.
+
+> ### MEASURED 2026-09-28, not inferred
+> Owner asked whether this had already been fixed. It has not. The real
+> `cartController.add` was driven with a stubbed price lookup — the
+> exported handler, not a re-implementation:
+>
+> ```
+> A. bundle first, then the SAME item standalone
+>    product 5  qty=2  disc=10%  bundle_id=b1    subtotal $1800
+>    correct: 1 @10% off + 1 @full             = $1900
+>
+> B. standalone first, then via the bundle
+>    product 5  qty=2  disc=0%   bundle_id=null  subtotal $2000
+>    correct: 1 @full + 1 @10% off             = $1900
+>
+> three consecutive adds of qty 99 -> qty 297   (cap is 99)
+> ```
+>
+> **Why it looked solved.** Bundle-discount work WAS done, just not here:
+> `stripBundleGroup()` reverts a whole group to sale price when any
+> bundle item is removed, and the September round fixed FormData →
+> URLSearchParams, the NaN/poisoned-entry guards and the
+> `productId`/`product_id` mismatch. The REMOVAL path and the
+> data-integrity path are both sound. The MERGE path was never touched.
+
+- **F2** — the merge branch reconciles neither `bundle_discount_pct` nor
+  `bundle_id`, and matches on `product_id` alone. Bundle first then the same
+  item standalone → extra units inherit the discount (revenue leak). Standalone
+  first then via bundle → the customer silently loses their bundle discount.
+- **F3** — the first add clamps qty to 99; the merge branch is a bare
+  `existing.qty += qty`, so repeated adds walk past the cap.
+
+Small, self-contained, gateable. No longer blocked by anything.
