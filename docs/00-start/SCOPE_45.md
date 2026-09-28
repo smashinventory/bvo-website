@@ -132,8 +132,23 @@ says what was asked for, not what was built.
 ## Checkout — stage 3
 
 27. ⬜ Saved addresses, one default per customer
+    ⚠️ **AMENDED 2026-09-28.** `customer_addresses` **ALREADY EXISTS** in
+    `001_initial_schema.sql` — empty, and no code touches it. **ALTER it,
+    do NOT CREATE it.** This is the `email_templates` near-miss repeating;
+    grep the initial schema before any CREATE TABLE.
+    ⛔ NOT `Billing/Shipping Address 1/2/3` columns — considered and
+    rejected (~84 columns, rotation logic destroys the history, and the
+    fraud query becomes a six-way pairwise compare).
+    Rows keyed on the Google `place_id`: three spellings of one street
+    are ONE place_id, and string dedup would false-flag honest customers.
+    Full reasoning: `BVO_PAYMENT_RISK_AND_CHECKOUT_SCOPE.md` §7 Stage 3.
 28. ⬜ Prefill page 1 for returning buyers
-29. ⬜ "Set as default delivery address" checkbox
+    Prefill **VISIBLY** — "Shipping to your last address, change it
+    below". Silent prefill sends a trade buyer's vanity to last month's
+    jobsite.
+29. ⛔ "Set as default delivery address" checkbox
+    **DROPPED 2026-09-28.** Meaningless with one address. `is_default`
+    already exists in the table, so this reverses for free.
 
 ## Outstanding from earlier
 

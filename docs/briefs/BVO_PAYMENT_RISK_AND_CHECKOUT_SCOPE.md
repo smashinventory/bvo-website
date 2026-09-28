@@ -502,7 +502,24 @@ Two editable copies of one fact is a defect, not a convenience.
 
 From `BVO_CHECKOUT_SPEC.md` §7, decided 2026-09-26.
 
-### Stage 2 — accounts
+### Stage 2 — accounts  [BUILT 2026-09-27 — `e613af5` `64b336e`]
+
+⚠️ **SHIPPED DIFFERENTLY FROM THIS SECTION. Read the deltas before
+trusting the bullets below.**
+
+| Written here | What shipped |
+|---|---|
+| Three options on page 1 | **No guest.** `/checkout/identify`, a step BEFORE page 1 |
+| Choice on page 1 | `requireIdentity` guards the WHOLE checkout router |
+| — | `/return`, `/success`, `/cancel` sit ABOVE the guard (see below) |
+
+⛔ **`/return`, `/success` and `/cancel` are registered ABOVE
+`router.use(requireIdentity)` in `src/routes/checkout.js`, and must stay
+there.** Stripe returns the buyer to those routes AFTER the card is
+charged. Express runs router middleware in declaration order, so moving
+the guard up would bounce a PAYING customer to a sign-in screen with no
+way to tell whether their order went through.
+
 - Sign in / register / **guest**, all three offered on page 1
 - **Passwordless** — six-digit email code IS the login; no passwords
   stored, no reset flow, no credential-stuffing surface, no breach
@@ -525,10 +542,109 @@ send that stranger mail. Enough complaints and Brevo's deliverability
 reputation degrades — the same channel that carries order confirmations
 and delivery appointments.
 
-### Stage 3 — returning buyers
-- Saved addresses in `customer_addresses` (table already exists)
-- One default per customer; "set as default delivery address"
-- Prefill page 1
+### Stage 3 — returning buyers  [AMENDED 2026-09-28, owner-approved]
+
+The original wording assumed guest checkout. Now that an account is
+created for every buyer at `/checkout/identify`, the owner asked whether
+26–29 are still needed at all. Settled as follows.
+
+| # | Was | Now |
+|---|---|---|
+| 26 | "Remember this device" cookie, 90 days | **KEEP — reasoning changed, see below** |
+| 27 | Saved addresses | **KEEP — but ALTER the existing table, do not create one** |
+| 28 | Prefill page 1 | **KEEP — and prefill VISIBLY, not silently** |
+| 29 | "Set as default" checkbox | **DROPPED** |
+
+#### 26 — why it survives, and it is NOT about convenience
+
+Without a device cookie, **every repeat purchase requires fetching a
+six-digit code from email.** That makes every sale depend on email
+delivery — a channel proved fragile on 2026-09-27 (an SMTP key in an
+API-key slot, an IP allowlist, a shared IP pool, junk-folder placement on
+a cold domain). If Brevo hiccups, nobody can check out at all.
+
+Second reason, subtler: **every code email is another chance for someone
+to hit Unsubscribe and permanently blocklist themselves** from all BVO
+transactional mail (see §on the List-Unsubscribe lockout). Fewer codes
+sent, less exposure.
+
+#### 27 — `customer_addresses` ALREADY EXISTS. ALTER IT.
+
+It has been in `001_initial_schema.sql` since the beginning with **zero
+rows and zero code touching it** — `BVO_AUDIT_BRIEF.md` line 306 already
+says so.
+
+⚠️ **This is the `email_templates` mistake from 2026-09-08 nearly
+repeating.** That day a migration was written to CREATE a table that
+already held nine live rows, because nothing in the repo mentioned it.
+The same near-miss happened on 2026-09-28 with this table.
+**Grep the initial schema before writing any CREATE TABLE.**
+
+Three reasons the owner wants address history, all sound:
+1. **People move.**
+2. **Record keeping** — orders are immutable financial records; the
+   *current* address needs somewhere else to live. Reading "where they
+   live now" out of a past order is how financial records become mutable.
+3. **Fraud** — distinct ship-to or billing addresses inside 90 days.
+
+⛔ **NOT `Billing Address 1/2/3` + `Shipping Address 1/2/3` columns.**
+Considered and rejected on 2026-09-28. A shipping address in this system
+is ~22 fields once the address-intel columns are counted, so three of
+each is ~84 new columns on `customers`; the fourth address needs
+arbitrary rotation logic that destroys the history you wanted; and the
+fraud query becomes a pairwise comparison across six column groups
+instead of one `GROUP BY`.
+
+**Rows, not columns.** Add to the existing table: `kind`
+(shipping|billing), `address_key`, `place_id`, `phone_ext`,
+`address_type`, `lat`, `lng`, `validation_verdict`, `usps_dpv`,
+`last_used_at`, `times_used`, plus `UNIQUE (customer_id, kind,
+address_key)`. `is_default` is already there — which is why dropping
+item 29 costs nothing and reverses freely.
+
+**`address_key` MUST be the Google `place_id` where one exists.**
+"123 Main St", "123 Main Street" and "123 Main St." are three strings and
+ONE place_id. Dedup on the string and the fraud rule fires on spelling
+variants — false flags on honest customers, which trains everyone to
+ignore the flag. Fall back to a normalised string hash only when place_id
+is absent, which `ship_address_source = 'typed'` already identifies.
+
+**Orders keep their own `ship_*` snapshot. Do not move them.**
+`customer_addresses` is *what we know about this customer now*; the order
+is *what was actually used then*.
+
+#### The velocity flag — ADVISORY ONLY
+
+Owner, 2026-09-28: *"this is just an internal flag that someone needs to
+look at and have awareness of before the verification of order call that
+we do — so we can ask the right questions."*
+
+- **No trade-account exemption.** Fraudsters can open a trade account
+  too; exempting trade creates exactly the gap a fraudster would target.
+  A contractor shipping to many jobsites is a false positive that costs
+  nothing, because the call happens anyway and the answer takes five
+  seconds.
+- **Surface FACTS, not a verdict.** A red "FRAUD RISK" badge trains
+  people to ignore it. Show: *"3 delivery addresses in 90 days — Marietta
+  GA (Sep 2), Alpharetta GA (Aug 14), this one. Billing ZIP ≠ delivery
+  ZIP."* That produces a good question instead of a suspicious one.
+- **Be MORE sensitive, not less** — surface at 2 distinct addresses, not
+  3. An automated rule needs a high threshold to survive noise; advisory
+  context inverts that, because the cost of showing something
+  unremarkable is one glance.
+- ⛔ **It must never touch Capture.** Blocking capture on risk is item 4,
+  a separate mechanism with a separate decision. The moment an advisory
+  flag starts blocking money, someone starts suppressing it.
+- Items **6 and 9 are one workflow**: the velocity data exists to make
+  the verification call better, and neither is much use alone.
+
+#### 28 — prefill VISIBLY
+
+Fill the fields from the most recent shipping address, and say so:
+*"Shipping to your last address — change it below."* Silent prefill is a
+freight error waiting to happen for trade buyers, who ship to a different
+jobsite every job. A 300 lb vanity delivered to last month's site is
+expensive to reverse.
 
 **Explicitly out of scope:** saved cards (§9.5), order-history portal,
 address-book CRUD screen. These grow into a customer-accounts project.
