@@ -64,6 +64,16 @@
                  maxlength="6" pattern="[0-9]{6}" placeholder="000000"
                  style="letter-spacing:.4em;font-size:1.3rem;text-align:center">
         </div>
+        <%/* UNCHECKED by default, deliberately. This grants 90 days of
+             signing in with no code at all, which is a real decision and
+             must not be made for the buyer. The opposite call from the
+             delivery-SMS box, which is pre-checked because it is
+             transactional rather than a standing credential. */%>
+        <label class="auth-remember" for="id-code-form-remember">
+          <input type="checkbox" id="id-code-form-remember">
+          <span>Remember this device for 90 days, so I don't need a code next time.</span>
+        </label>
+
         <button type="submit" class="btn btn-amber" id="id-verify-btn"
                 style="width:100%;padding:.85rem">Continue to checkout</button>
       </form>
@@ -174,7 +184,9 @@
     verifyBtn.disabled = true;
     verifyBtn.textContent = 'Checking…';
     show(errCode, '');
-    post('/account/verify', { email: currentEmail, code: code, return_to: returnTo })
+    post('/account/verify', { email: currentEmail, code: code,
+                          return_to: returnTo,
+                          remember_device: document.getElementById('id-code-form-remember').checked })
       .then(function (r) {
         /* The server decides where to land. return_to was validated in
            requireIdentity and is validated AGAIN by /account/verify, so

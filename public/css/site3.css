@@ -96,3 +96,5 @@
 .checkout-readonly{display:flex;align-items:baseline;justify-content:space-between;gap:.75rem;margin:.25rem 0 0;padding:.6rem .75rem;background:var(--sand,#faf8f5);border:1px solid var(--border,#e8e4dc);border-radius:6px;font-size:.95rem;color:var(--color-navy,#182840);word-break:break-all}
 .checkout-readonly-change{flex-shrink:0;font-size:.8rem;text-decoration:underline;white-space:nowrap}
 .checkout-prefill-note{margin:.5rem 0 0;padding:.6rem .75rem;background:#fff8e6;border-left:3px solid var(--color-amber,#b8860b);border-radius:4px;font-size:.84rem;line-height:1.5;color:var(--color-navy,#182840)}
+.auth-remember{display:flex;align-items:flex-start;gap:.55rem;margin:0 0 1rem;font-size:.82rem;line-height:1.45;color:var(--color-navy,#182840);cursor:pointer;text-align:left}
+.auth-remember input{margin:.15rem 0 0;flex-shrink:0;width:15px;height:15px;accent-color:var(--color-navy,#182840);cursor:pointer}

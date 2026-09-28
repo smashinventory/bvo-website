@@ -4,6 +4,7 @@ const Customer         = require('../models/Customer');
 const { bvoPool }      = require('../config/database');
 const authCode         = require('../services/authCodeService');
 const brevo            = require('../services/brevoService');
+const device           = require('../services/deviceService');
 
 /* ═══════════════════════════════════════════════════════════════════
    PASSWORDLESS LOGIN — the six-digit code IS the login.
@@ -60,6 +61,97 @@ without the code, and it expires shortly.</p>`,
   };
 }
 
+/* ── THE ONLY PLACE A CUSTOMER SESSION IS ESTABLISHED ──────────────────
+   Extracted 2026-09-28 when the device-recognition path became a SECOND
+   caller of session.regenerate(). The first one had already shipped a
+   bug: regenerate() destroys everything on the session, and THE CART
+   LIVES THERE (server.js ~499), so signing in silently emptied it.
+
+   Duplicating the carry-across logic would have reintroduced that bug in
+   the new path, so there is now exactly one function that does this and
+   both callers use it. If a third sign-in route ever appears, it uses
+   this too.
+
+   customerId is deliberately NOT carried across — establishing it fresh
+   on a new session id is the entire point of regenerating (session
+   fixation). Only anonymous, non-identifying state survives. */
+async function establishSession(req, customer, email) {
+  const carried = {
+    cart:          req.session.cart,
+    checkoutDraft: req.session.checkoutDraft,
+    checkoutOld:   req.session.checkoutOld,
+  };
+
+  await new Promise((resolve, reject) =>
+    req.session.regenerate(err => err ? reject(err) : resolve())
+  );
+
+  for (const [k, v] of Object.entries(carried)) {
+    if (v !== undefined) req.session[k] = v;
+  }
+
+  req.session.customerId = customer.id;
+  req.session.customer   = {
+    id: customer.id,
+    firstName: customer.first_name || '',
+    email,
+  };
+  await Customer.updateLastLogin(customer.id);
+}
+
+/* Sign-in from an unrecognised device. Structure captured from Wayfair
+   2026-09-27, spec §8.2; wording is BVO's own.
+
+   IN CODE, NOT THE DATABASE — same reason as fallbackCodeEmail above,
+   and it matters more here: a SECURITY notification that silently does
+   not send because a row is missing is worse than one that is slightly
+   out of date. sendTemplate('auth_new_device') is still tried first, so
+   an editable row added from the admin wins if it exists.
+
+   Every choice below has a reason, from the capture:
+     Title NEUTRAL — "Security alert" reads as a breach and generates
+       support calls; most recipients are the legitimate user.
+     NO NAME in the greeting, ACCOUNT ADDRESS in the body — so the
+       reader can tell WHICH account and spot instantly if it is not
+       theirs.
+     REASSURANCE BEFORE WARNING, for the same reason.
+     DEVICE IS COARSE, no IP and no city — enough to recognise yourself,
+       not enough to alarm or to dox.
+     ANTI-PHISHING BOX — the strongest element in the original. It
+       teaches the reader to check every future mail claiming to be us. */
+function newDeviceEmail({ email, deviceLabel, when, secureUrl }) {
+  return {
+    subject: 'New sign-in to your BVO account',
+    html: `<p>Hi,</p>
+<p>Your account, <strong>${email}</strong>, was just used to sign in on a new device.</p>
+<table style="margin:16px 0;font-size:14px">
+<tr><td style="padding:2px 14px 2px 0;color:#666">Time</td><td>${when}</td></tr>
+<tr><td style="padding:2px 14px 2px 0;color:#666">Device</td><td>${deviceLabel}</td></tr>
+</table>
+<p><strong>If this was you, no action is needed.</strong></p>
+<p>If it was not, secure your account. That signs out every remembered
+device and cancels any sign-in codes we have sent:</p>
+<p style="margin:18px 0"><a href="${secureUrl}"
+  style="background:#182840;color:#fff;padding:11px 20px;text-decoration:none;border-radius:4px;display:inline-block">Secure my account</a></p>
+<p style="font-size:13px;color:#666">That link works for 24 hours.</p>
+<div style="margin-top:24px;padding:14px;background:#f7f5f1;border-left:3px solid #b8860b;font-size:13px;line-height:1.6">
+<strong>How do you know this email is really from us?</strong><br>
+Every link we send starts with <strong>https://www.bathroomvanitiesoutlet.com</strong>.
+If a link claiming to be from BVO starts with anything else, it is not from us.
+</div>`,
+  };
+}
+
+/* Formatted for a human, with the offset shown. A bare UTC timestamp in
+   a security email is unreadable to the person who has to judge whether
+   2am was them. */
+function signInTimeLabel(d = new Date()) {
+  return d.toLocaleString('en-US', {
+    timeZone: 'America/New_York',
+    dateStyle: 'long', timeStyle: 'short', timeZoneName: 'short',
+  });
+}
+
 /* ── POST /account/code ── Send a sign-in code ──────────────────── */
 /* Behaves IDENTICALLY for a known and an unknown address. The account is
    created on successful verification, not here — so this endpoint has no
@@ -85,6 +177,42 @@ exports.sendCode = async (req, res) => {
   if (await brevo.isBlocked(email)) {
     console.warn('[account.sendCode] BLOCKED address attempted sign-in:', email);
     return res.status(403).json({ ok: false, error: CODE_ERRORS.blocked });
+  }
+
+  /* ── RECOGNISED DEVICE: SKIP THE CODE ENTIRELY (item 26) ──────────
+     Owner-approved 2026-09-28. This is what makes the cookie worth
+     having: a repeat buyer on their own laptop never waits on an email,
+     so a Brevo outage stops blocking purchases.
+
+     ORDER MATTERS. The account is looked up FIRST, then the cookie is
+     checked AGAINST THAT customer id. A cookie is bound to one
+     customer — presenting it while typing somebody else's address must
+     do nothing, and the binding is enforced inside recognise() as part
+     of the WHERE, not as an afterthought.
+
+     NO ENUMERATION LEAK. findByEmail returning null is indistinguishable
+     from an unrecognised device: both fall through to the normal
+     send-a-code path with the identical response. The only way to reach
+     the fast path is to already hold a valid cookie for that exact
+     account, which means you were already signed in as them. */
+  try {
+    const known = await Customer.findByEmail(email);
+    if (known) {
+      const dev = await device.recognise(req, known.id);
+      if (dev) {
+        await establishSession(req, known, email);
+
+        const rt = req.body.return_to;
+        const safeReturn = rt && /^\/(?!\/)/.test(rt) ? rt : '/account';
+        console.log('[account.sendCode] device recognised, code skipped for', email);
+        return res.json({ ok: true, skipped: true, redirect: safeReturn });
+      }
+    }
+  } catch (err) {
+    /* FAILS CLOSED: any error here falls through to the code path. A
+       broken lookup must never become a free sign-in. */
+    console.error('[account.sendCode] device check failed, sending a code:',
+                  err && err.message);
   }
 
   const issued = await authCode.issueCode(email, ip, 'login');
@@ -156,50 +284,130 @@ exports.verifyCode = async (req, res, next) => {
     const customer = await Customer.findOrCreateByEmail(email);
     if (!customer) return res.status(500).json({ ok: false, error: CODE_ERRORS.send_failed });
 
-    /* ── CARRY THE CART ACROSS THE REGENERATE ──────────────────────
-       session.regenerate() is the session-fixation guard and it must
-       stay. But it destroys EVERYTHING on the session, and the cart
-       lives there (server.js ~499). So signing in emptied the buyer's
-       cart — silently, and on every sign-in.
+    /* One helper, both sign-in paths. See establishSession above for
+       why regenerate() cannot simply be called inline. */
+    await establishSession(req, customer, email);
 
-       Harmless-looking while login was a detour from the account page.
-       Fatal once /checkout/identify puts a sign-in in FRONT of every
-       checkout: sign in, arrive at checkout, cart empty, no order
-       possible. Found by reading regenerate() before building the gate
-       on top of it, not by a customer.
-
-       Only anonymous, non-identifying state is carried. customerId is
-       NOT — establishing that fresh on a new session id is the entire
-       point of regenerating.
-
-       The theoretical cost: someone who fixes a session id could
-       pre-seed a cart the victim then carries in. That gives the victim
-       items they can see on the cart page before paying, which is not
-       an attack worth trading certain cart loss for. */
-    const carried = {
-      cart:          req.session.cart,
-      checkoutDraft: req.session.checkoutDraft,
-      checkoutOld:   req.session.checkoutOld,
-    };
-
-    await new Promise((resolve, reject) =>
-      req.session.regenerate(err => err ? reject(err) : resolve())
-    );
-
-    for (const [k, v] of Object.entries(carried)) {
-      if (v !== undefined) req.session[k] = v;
+    /* ── REMEMBER THIS DEVICE (item 26) ────────────────────────────
+       Opt-in, unchecked by default. This grants 90 days of signing in
+       with no code, so it is a real decision and must not be made for
+       the buyer — the opposite of the delivery-SMS box, which is
+       pre-checked because it is transactional. */
+    let rememberedLabel = null;
+    if (req.body.remember_device === true || req.body.remember_device === '1') {
+      const r = await device.remember(res, customer.id, {
+        userAgent: req.get('user-agent'),
+        ip:        clientIp(req),
+      });
+      rememberedLabel = r.ok ? r.label : null;
     }
 
-    req.session.customerId = customer.id;
-    req.session.customer   = { id: customer.id, firstName: customer.first_name || '', email };
-    await Customer.updateLastLogin(customer.id);
+    /* ── NEW-DEVICE NOTIFICATION (spec §8.2) ───────────────────────
+       Sent when someone signs in with a CODE, which by definition means
+       this browser was not recognised. Not sent on the fast path — that
+       one required an existing valid cookie, so it is by definition a
+       device they already told us to trust.
+
+       NOT sent to a brand-new account: the sign-in that CREATES an
+       account cannot be suspicious, and a security warning as the first
+       thing a customer ever receives from BVO is alarming and useless.
+
+       Fire-and-forget. A security notification is valuable, but not
+       worth failing the sign-in it is reporting. */
+    if (!customer.created) {
+      const secureToken = await authCode.issueSecureToken(email, clientIp(req));
+      if (secureToken) {
+        const label = require('../utils/deviceLabel')(req.get('user-agent'));
+        const secureUrl = `${req.protocol}://${req.get('host')}`
+                        + `/account/secure?t=${encodeURIComponent(secureToken)}`;
+        const mail = newDeviceEmail({
+          email, deviceLabel: label,
+          when: signInTimeLabel(), secureUrl,
+        });
+        brevo.sendTemplate('auth_new_device', email, {
+          email, device_label: label,
+          signin_time: signInTimeLabel(), secure_url: secureUrl,
+        }).then(sent => (!sent || sent.skipped)
+          ? brevo.sendRaw(email, mail.subject, mail.html) : null)
+          .catch(err => console.error('[account.verify] new-device email failed:',
+                                      err && err.message));
+      }
+    }
 
     /* Rejects protocol-relative URLs like //evil.com, which pass a naive
        startsWith('/'). Same guard as the password login. */
     const rt = req.body.return_to;
     const safeReturn = rt && /^\/(?!\/)/.test(rt) ? rt : '/account';
 
-    return res.json({ ok: true, created: customer.created, redirect: safeReturn });
+    return res.json({ ok: true, created: customer.created,
+                      remembered: rememberedLabel, redirect: safeReturn });
+  } catch (err) { next(err); }
+};
+
+/* ── GET /account/secure ── "Secure my account" ──────────────────────
+   Spec §8.2 flagged this as needing DESIGN, not assumption, because at
+   BVO it does NOT mean "change your password" — there is no password.
+   It means, and this is the whole definition:
+
+     1. revoke every remembered device, so no cookie can sign in again
+     2. cancel every outstanding sign-in code for that address
+     3. destroy the current session on this browser
+
+   The customer is then in a clean state: the only way back in is a
+   fresh code to their inbox, which is the one channel we cannot revoke
+   for them and the one they are presumed to control.
+
+   NO LOGIN REQUIRED, deliberately. The person clicking may be locked
+   out, or may be the legitimate owner while an attacker holds a live
+   session. Requiring a sign-in to secure an account under attack is the
+   wrong way round. The 256-bit single-use token IS the authorisation.
+
+   GET rather than POST because it is a link in an email, and a link is
+   what someone in a panic can actually use. The token is single-use, so
+   a prefetching mail client burns it — which fails SAFE: the worst case
+   is that a device the owner trusts gets signed out.
+
+   TRADE ACCOUNTS: spec §8.3 says a compromised trade login is a pricing
+   leak that points back at BVO's MAP position, so the owner should be
+   notified. NOT built here — it needs a decision about who is notified
+   and how, and guessing would put an unrequested alert in someone's
+   inbox. Recorded as the open item it is. */
+exports.secureAccount = async (req, res, next) => {
+  try {
+    const token = String(req.query.t || '');
+    const result = await authCode.consumeSecureToken(token);
+
+    if (!result.ok) {
+      return res.status(400).render('pages/account/secured', {
+        pageTitle: 'Link expired | BathroomVanitiesOutlet.com',
+        metaDesc: '', noindex: true,
+        ok: false, devicesRevoked: 0, codesRevoked: 0,
+      });
+    }
+
+    const customer = await Customer.findByEmail(result.email);
+    let devicesRevoked = 0;
+    if (customer) {
+      const d = await device.revokeAll(customer.id);
+      devicesRevoked = d.count;
+    }
+    const codesRevoked = await authCode.revokeAllCodes(result.email);
+
+    device.forget(res);
+
+    /* Destroy this browser's session too. If the clicker IS the
+       attacker, this costs them their session; if it is the owner, they
+       sign in again with a code in thirty seconds. */
+    await new Promise(resolve => req.session.destroy(() => resolve()));
+
+    console.warn('[account.secure] account secured for', result.email,
+                 '- devices:', devicesRevoked, 'codes:', codesRevoked);
+
+    return res.render('pages/account/secured', {
+      pageTitle: 'Account secured | BathroomVanitiesOutlet.com',
+      metaDesc: '', noindex: true,
+      ok: true, devicesRevoked, codesRevoked,
+    });
   } catch (err) { next(err); }
 };
 

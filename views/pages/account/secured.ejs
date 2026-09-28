@@ -1,0 +1,44 @@
+<%/* Outcome of the "Secure my account" link. Rendered in BOTH cases —
+     a dead link must say so plainly rather than 404, because the person
+     reading it may believe their account is compromised and a blank
+     error page is the worst possible answer. */%>
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <img src="/images/logos/BVOLOGOSQ_512.png" alt="BVO" width="60" height="60">
+    </div>
+
+    <% if (ok) { %>
+      <h1 class="auth-title">Account secured</h1>
+      <p class="auth-sub">
+        We signed out
+        <strong><%= devicesRevoked %> remembered device<%= devicesRevoked === 1 ? '' : 's' %></strong>
+        and cancelled
+        <strong><%= codesRevoked %> outstanding sign-in code<%= codesRevoked === 1 ? '' : 's' %></strong>.
+      </p>
+      <p class="auth-sub">
+        Nobody can sign in to your account now without a fresh code sent to
+        your email. Nothing about your orders has changed.
+      </p>
+      <p style="margin-top:1.5rem">
+        <a href="/account/login" class="btn btn-amber"
+           style="width:100%;padding:.85rem;display:block;text-align:center">Sign in again</a>
+      </p>
+    <% } else { %>
+      <h1 class="auth-title">That link has expired</h1>
+      <p class="auth-sub">
+        Secure-account links work for 24 hours and once only. This one has
+        already been used, or it is older than that.
+      </p>
+      <p class="auth-sub">
+        <strong>If you still think someone else has access to your account,
+        call us</strong> — the number is at the foot of every page. We can
+        secure it from our side straight away.
+      </p>
+      <p style="margin-top:1.5rem">
+        <a href="/account/login" class="btn btn-amber"
+           style="width:100%;padding:.85rem;display:block;text-align:center">Sign in</a>
+      </p>
+    <% } %>
+  </div>
+</div>

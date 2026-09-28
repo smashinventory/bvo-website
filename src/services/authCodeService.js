@@ -210,6 +210,114 @@ async function verifyCode(rawEmail, rawCode, purpose = 'login') {
   return { ok: true };
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   SECURE-MY-ACCOUNT LINK TOKENS
+
+   REUSES customer_auth_codes rather than adding a table. The columns
+   are already exactly right: a hashed secret, a purpose, an expiry, a
+   single-use consumed_at and an attempt counter. A second table would
+   duplicate all of it and be one more thing to purge.
+
+   Distinguished by purpose = 'secure_account'. verifyCode() only ever
+   queries purpose='login', so the two cannot be confused — and its
+   six-digit shape check would reject one of these anyway.
+
+   NOT issued through issueCode(): that applies the per-email burst caps,
+   which exist to stop someone mailbombing a stranger. This token rides
+   along with a notification we have already decided to send, and a rate
+   limit here would mean the security email sometimes arrives WITHOUT
+   its escape hatch — the worst possible time to be thrifty.
+
+   24 hours, not 10 minutes. The reader may not open the mail until
+   tomorrow, and the thing it protects against is ongoing. Matches the
+   captured Wayfair behaviour, spec §8.1. */
+const SECURE_TOKEN_TTL_HOURS = 24;
+
+/* NOT salted with the email, unlike the six-digit codes.
+
+   The link in the email carries ONLY the token (?t=...) — deliberately,
+   because putting the address in a URL leaks it into browser history,
+   referrer headers and any proxy log along the way. So the lookup has
+   to work from the token alone, which an email-salted hash makes
+   impossible.
+
+   Safe here for the reason it is NOT safe for the codes: this is 256
+   bits from randomBytes, where a sha256 preimage attack is not a thing.
+   Six digits without a salt would be brute-forced from a leaked table
+   instantly. Same trade-off, same conclusion, as the device tokens. */
+const hashSecureToken = t =>
+  crypto.createHash('sha256').update(String(t)).digest('hex');
+
+async function issueSecureToken(rawEmail, ip) {
+  const email = normEmail(rawEmail);
+  if (!email) return null;
+  /* 256 bits. This is a bearer credential that revokes sessions, so it
+     gets the same strength as a device token, not six digits. */
+  const token = crypto.randomBytes(32).toString('hex');
+  try {
+    await db().query(
+      `INSERT INTO customer_auth_codes
+         (email, code_hash, purpose, expires_at, request_ip)
+       VALUES (?, ?, 'secure_account', (NOW() + INTERVAL ? HOUR), ?)`,
+      [email, hashSecureToken(token), SECURE_TOKEN_TTL_HOURS, ip || null]
+    );
+    return token;
+  } catch (err) {
+    console.error('[authCode] secure token issue failed:', err && err.message);
+    return null;
+  }
+}
+
+/**
+ * Consume a secure-account token. Single use.
+ * @returns {Promise<{ok:boolean, email?:string}>}
+ */
+async function consumeSecureToken(token) {
+  const t = String(token || '');
+  if (!/^[0-9a-f]{64}$/.test(t)) return { ok: false };
+
+  try {
+    /* Looked up BY HASH — the token identifies the row, and the email
+       comes back OUT of it rather than being supplied by the clicker.
+       That also means a clicker cannot aim the revocation at somebody
+       else's account by editing a query string. */
+    const [[row]] = await db().query(
+      `SELECT id, email FROM customer_auth_codes
+        WHERE code_hash = ? AND purpose = 'secure_account'
+          AND consumed_at IS NULL AND expires_at > NOW()
+        LIMIT 1`,
+      [hashSecureToken(t)]
+    );
+    if (!row) return { ok: false };
+
+    /* Single use, consumed before anything acts on it. */
+    await db().query(
+      'UPDATE customer_auth_codes SET consumed_at = NOW() WHERE id = ?', [row.id]);
+    return { ok: true, email: row.email };
+  } catch (err) {
+    console.error('[authCode] secure token consume failed:', err && err.message);
+    return { ok: false };
+  }
+}
+
+/**
+ * Kill every outstanding login code for an address. The other half of
+ * "secure my account" — revoking devices is deviceService's job.
+ */
+async function revokeAllCodes(rawEmail) {
+  const email = normEmail(rawEmail);
+  if (!email) return 0;
+  try {
+    const [r] = await db().query(
+      `UPDATE customer_auth_codes SET consumed_at = NOW()
+        WHERE email = ? AND consumed_at IS NULL`, [email]);
+    return r.affectedRows || 0;
+  } catch (err) {
+    console.error('[authCode] revokeAllCodes failed:', err && err.message);
+    return 0;
+  }
+}
+
 /**
  * Housekeeping. Rows are evidence of nothing once spent and expired —
  * they only accumulate email addresses. Called opportunistically rather
@@ -231,6 +339,9 @@ module.exports = {
   issueCode,
   verifyCode,
   purgeExpired,
+  issueSecureToken,
+  consumeSecureToken,
+  revokeAllCodes,
   /* Exported for the gates, which exercise the pure parts directly rather
      than inferring them from a grep. */
   _hashCode: hashCode,
