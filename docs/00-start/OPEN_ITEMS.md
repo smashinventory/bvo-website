@@ -320,6 +320,44 @@ compliance, not something to infer from the code.
 > list in `cdnUrl.js`, exits non-zero if any are foreign. **Run it before
 > cutover and after any bulk content import.**
 >
+> ### RESOLVED 2026-09-28 — `migrations/2026-09-28_repoint_hotlinked_images_RUNME.sql`
+>
+> Ten of the eleven repointed at products in our own catalogue, resolved
+> **by SKU rather than by pasting a Bunny URL** — imports legitimately
+> replace product photography, so a hard-coded URL would rot back into a
+> stale link, which is the same failure being fixed.
+>
+> | target | product | same model as the original? |
+> |---|---|---|
+> | farmhouse | `330-V36-LNO-3EJP` Breckenridge 36″ LNO w/ Eternal Jasmine Pearl | exact, including the top |
+> | floating | `D640-V48-SBL` Allamari 48″ Sable | yes |
+> | 60-inch | `545-V60D-LNO-1WZ` Laurent 60″ Double LNO | yes |
+> | buying-guide | `D225-V72-SSO` Solene 72″ Double Seaside Oak | yes |
+> | modern | `983-V36-AGR-RG` Columbia 36″ Ash Gray, Radiant Gold | yes |
+> | white | `E645-V60S-GW` Athens 60″ Glossy White | yes |
+> | double-sink | `670-V60D-M-WLT` Amberly 60″ Double, Mid-Century Walnut | same model, different finish |
+> | master | De Soto 82″ if stocked, else `E444-V72-GW-3EJP` Addison 72″ | self-resolving |
+> | small | `E444-V30-GW-3EJP` Addison 30″ Glossy White | **SUBSTITUTED — see below** |
+> | Brittany tile | `650-V36-SC` Brittany 36″ Smokey Celadon | exact |
+>
+> **The one substitution.** `small-bathroom-vanity-ideas` pointed at
+> ak1.ostkcdn "Boston 31 1/2 Rectangular", which resolves EXACTLY to our
+> `055BK16BNK31.5WG2` — *"Two Boston 15.25″ Wall Brackets w/ 31.5″ glass
+> shelf"*. Perfect match, wrong content: a shelf bracket is a poor hero
+> for a guide about small vanities.
+>
+> **One left.** `how-to-choose-a-bathroom-vanity` uses a James Martin
+> 2026 **collections banner**, not a product, so there is nothing to
+> point at. Owner uploading it to Bunny. `scripts/auditImageHosts.js`
+> reports exactly that one until the URL is set — which is the check
+> working, not a failure.
+>
+> **Two probe errors of mine on the way, both self-inflicted:** a
+> `LIMIT 8` hid the Amberly 60″ rows so I reported it unstocked when it
+> is stocked, and a size filter of 72/84/94 never looked for De Soto 82
+> at all. The migration resolves De Soto dynamically rather than relying
+> on either answer.
+>
 > The 2026-09-23 homepage measurement is kept below for history.
 
 > Measured on the live homepage DOM — four hosts still not ours:
