@@ -50,6 +50,25 @@
 -- until the new URL is set, which is correct.
 -- ════════════════════════════════════════════════════════════════════
 
+-- ════════════════════════════════════════════════════════════════════
+-- ⚠ SELECT ROW_COUNT() IS USELESS IN phpMyAdmin — IGNORE THOSE COLUMNS.
+--
+-- Run here on 2026-09-28 every ROW_COUNT() reported 0 while the
+-- statements plainly worked. phpMyAdmin executes each statement in its
+-- own context, so the counter has reset by the time the SELECT runs.
+-- The same thing made the email-template migration's count unreadable
+-- earlier the same day.
+--
+-- Read the "N rows affected" line phpMyAdmin prints above each
+-- statement instead, and trust the END-STATE verification at the bottom
+-- of this file over any count. Asserting the end state rather than the
+-- effect of a statement is the rule that caught every real defect today.
+--
+-- Actual result: 8 / 1 / 0 / 1 — the batch, De Soto 82 (we DO stock it,
+-- an earlier probe of mine wrongly said otherwise), the Addison
+-- fallback correctly skipped, and the Brittany tile.
+-- ════════════════════════════════════════════════════════════════════
+
 -- ── The nine that map straight to a product ─────────────────────────
 UPDATE pages p
   JOIN (
