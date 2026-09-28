@@ -192,6 +192,10 @@
               <svg viewBox="0 0 24 24" class="admin-nav-icon" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
               Invoices
             </a>
+            <a href="/admin/shipping/pickup-addresses" class="admin-nav-item admin-nav-item--child <%= (typeof activePage !== 'undefined' && activePage === 'shipping-pickup') ? 'active' : '' %>">
+              <svg viewBox="0 0 24 24" class="admin-nav-icon" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              Pickup Addresses
+            </a>
             <a href="/admin/orders" class="admin-nav-item admin-nav-item--child admin-nav-disabled" aria-disabled="true">
               <svg viewBox="0 0 24 24" class="admin-nav-icon" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 16l3-8 3 8-6 0"/><path d="M2 16l3-8 3 8-6 0"/><path d="M9 18h6"/><path d="M12 2v16"/></svg>
               Vendor Orders <span class="admin-nav-soon">soon</span>
@@ -370,6 +374,7 @@
       'shipping-dashboard':'orders',
       'shipping-track':    'orders',
       'shipping-invoices': 'orders',
+      'shipping-pickup':   'orders',
       'reports':         'orders',
       'theme':           'website',
       'pages':           'website',

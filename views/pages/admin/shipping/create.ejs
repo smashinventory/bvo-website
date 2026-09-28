@@ -79,6 +79,44 @@ const meta = orderMeta           || null;
     <!-- Origin -->
     <div class="admin-card">
       <h3 class="admin-card-title">Origin (Ship From)</h3>
+
+      <%# SAVED PICKUP ADDRESSES — added 2026-09-28.
+          These six fields were HARD-CODED here as value= attributes, so
+          every shipment claimed to leave Marietta. Owner: "we sometimes
+          have the order picked up from the vendor."
+
+          IT FILLS, IT DOES NOT LOCK. Selecting an address overwrites the
+          fields and then gets out of the way — a vendor's dock detail
+          changes more often than anyone updates the saved record, and an
+          operator who cannot correct a line will book the wrong pickup
+          rather than stop.
+
+          NOT auto-selected from the order's vendor, deliberately. Owner:
+          "many vendors have multiple pick up addresses and we do not
+          have a way of programmatically knowing which to ship from - we
+          have to manually check in the pre-shipping phase." A rule here
+          would be wrong more often than right, and wrong dispatches a
+          truck to the wrong warehouse. %>
+      <% const pickups = (typeof pickupAddresses !== 'undefined' && pickupAddresses) || []; %>
+      <% if (pickups.length) { %>
+        <div class="adm-field adm-field--full" style="margin-bottom:.9rem">
+          <label>Pick up from</label>
+          <select id="pickup_select" class="adm-input">
+            <% pickups.forEach(function (p) { %>
+              <option value="<%= p.id %>"
+                      data-json="<%= encodeURIComponent(JSON.stringify(p)) %>"
+                      <%= p.is_default ? 'selected' : '' %>><%= p.nickname %></option>
+            <% }); %>
+            <option value="">— Other / type it in —</option>
+          </select>
+          <small style="color:#718096;font-size:.75rem">
+            Fills the fields below. You can still edit them.
+            <a href="/admin/shipping/pickup-addresses" target="_blank">Manage addresses</a>
+          </small>
+          <div id="pickup_notes" style="display:none;margin-top:.5rem;padding:.55rem .7rem;background:#fff8e6;border-left:3px solid var(--color-amber,#b8860b);border-radius:4px;font-size:.82rem;line-height:1.5"></div>
+        </div>
+      <% } %>
+
       <div class="adm-form-grid">
         <div class="adm-field"><label>Company</label><input id="orig_company" type="text" class="adm-input" value="Bathroom Vanities Outlet"></div>
         <div class="adm-field"><label>Phone <span class="req-star">*</span></label><input id="orig_phone" type="text" class="adm-input" value="7706352030"></div>
@@ -691,6 +729,63 @@ function toggleInsureVal(v) {
   document.getElementById('ltl_insure_val').style.display = v === 'yes' ? '' : 'none';
 }
 
+/* ── Saved pickup addresses ────────────────────────────────────── */
+/* Fills the origin fields from the selected saved address, then stops.
+   Every field is left editable on purpose — see the comment on the
+   select above.
+
+   The chosen id travels to the server in the booking payload so the
+   shipment records WHERE IT WAS COLLECTED FROM. Without that, nothing
+   afterwards can tell our warehouse from a vendor's dock: the form is
+   transient and WWEX holds the address, not us. */
+function applyPickupAddress() {
+  var sel = document.getElementById('pickup_select');
+  if (!sel) return;
+  var opt = sel.options[sel.selectedIndex];
+  var raw = opt && opt.getAttribute('data-json');
+  var notes = document.getElementById('pickup_notes');
+
+  /* "Other / type it in" — leave whatever is in the fields alone.
+     Clearing them would destroy a hand-typed address the moment
+     somebody glanced at the dropdown. */
+  if (!raw) { if (notes) notes.style.display = 'none'; return; }
+
+  var p;
+  try { p = JSON.parse(decodeURIComponent(raw)); } catch (e) { return; }
+
+  var set = function (id, v) {
+    var el = document.getElementById(id);
+    if (el) el.value = v == null ? '' : v;
+  };
+  set('orig_company',   p.company);
+  set('orig_phone',     p.phone);
+  set('orig_address1',  p.address1);
+  set('orig_address2',  p.address2);
+  set('orig_city',      p.city);
+  set('orig_state',     (p.state || '').toUpperCase());
+  set('orig_zip',       p.zip);
+  set('orig_country',   p.country || 'US');
+  var lt = document.getElementById('orig_locationType');
+  if (lt) lt.value = p.location_type || '';
+
+  /* Internal notes — gate codes, dock hours, who to ask for. Shown
+     because they are the difference between a pickup happening and a
+     driver turning around, and they are NOT sent to the carrier. */
+  if (notes) {
+    if (p.notes) { notes.textContent = p.notes; notes.style.display = 'block'; }
+    else { notes.style.display = 'none'; }
+  }
+}
+document.addEventListener('DOMContentLoaded', function () {
+  var sel = document.getElementById('pickup_select');
+  if (!sel) return;
+  sel.addEventListener('change', applyPickupAddress);
+  /* Run once on load: the default option is marked selected in HTML,
+     which fires no change event. Same trap as onResidentialChange
+     below — setting `selected` in markup does not notify anything. */
+  applyPickupAddress();
+});
+
 /* ── Residential address sync ─────────────────────────────────── */
 /* Prefilled residential needs the sync run once on load.
 
@@ -901,6 +996,22 @@ function goToRates() {
     sp_signature:        val('sp_signature') || '',
     sp_billingType:      val('sp_billing') || 'BILL_SHIPPER',
     residential: document.getElementById('dest_residential').checked,
+    /* Which saved address this came from, so the shipment can record
+       where it was collected. Null when the operator chose "Other" or
+       hand-edited past recognition — the booking still works, we just
+       cannot label it afterwards. Sent ALONGSIDE the address fields,
+       never instead of them: the server books what is on screen, not
+       what the saved record says, because the operator may have
+       corrected a line. */
+    pickupAddressId: (function () {
+      var s = document.getElementById('pickup_select');
+      return s && s.value ? parseInt(s.value, 10) : null;
+    })(),
+    pickupNickname: (function () {
+      var s = document.getElementById('pickup_select');
+      if (!s || !s.value) return null;
+      return s.options[s.selectedIndex].textContent.trim();
+    })(),
     origin: {
       company:      val('orig_company'),
       address1:     val('orig_address1'),

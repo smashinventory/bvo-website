@@ -22,6 +22,9 @@ const wwex        = require('../services/wwexService');
    from residential, so a commercial address with no dock booked a truck
    that could not unload it. See the header of that file. */
 const deliveryLocation = require('../utils/deliveryLocation');
+/* Saved origin addresses for the create form's "Pick up from" dropdown.
+   The origin was hard-coded in the template until 2026-09-28. */
+const pickupCtrl = require('./pickupAddressController');
 // Internal distribution of shipping paperwork to our own stores. BVO-sent,
 // unrelated to WWEX — they have no API to email a BOL.
 const brevo       = require('../services/brevoService');
@@ -283,6 +286,16 @@ async function createForm(req, res) {
     }
   }
 
+  /* Saved pickup addresses for the origin dropdown. Awaited rather than
+     fire-and-forget: the template branches on whether the list is empty,
+     and an empty list is a legitimate state (before the migration runs)
+     that simply hides the selector and leaves the fields as typed.
+
+     listActive() swallows its own errors and returns [] — a database
+     hiccup must not take the shipping screen down, because the operator
+     can still type an address by hand. */
+  const pickupAddresses = await pickupCtrl.listActive();
+
   res.render('pages/admin/shipping/create', {
     ...LAYOUT,
     pageTitle:           'Create Shipment',
@@ -292,6 +305,7 @@ async function createForm(req, res) {
     apiMode:             wwex.apiMode,
     orderId,
     defaultType:         'LTL',
+    pickupAddresses,
   });
 }
 
@@ -905,15 +919,26 @@ async function bookShipment(req, res) {
             origin_address1 column, so the street simply is not stored
             (origin is always our own warehouse). */
       `INSERT INTO shipments
-         (order_id, product_transaction_id, offer_id, product_type, bol_number, pro_number,
+         (order_id, pickup_address_id, pickup_nickname,
+          product_transaction_id, offer_id, product_type, bol_number, pro_number,
           bol_url, carrier, carrier_scac, service_level, total_charge, status,
           ship_date, est_delivery, pickup_txn_id,
           origin_company, origin_city, origin_state, origin_zip,
           dest_company, dest_name, dest_address1, dest_city, dest_state, dest_zip,
           dest_phone, dest_email, pickup_confirmation, created_at, updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, NOW(), NOW())`,
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, NOW(), NOW())`,
       [
         orderId || null,
+        /* WHICH saved pickup address this was collected from.
+           origin_company/city/state/zip below already snapshot most of
+           the address, so this is not about recovering it — it is about
+           LEGIBILITY and grouping: "RFL Marietta" answers "ours or the
+           vendor's" at a glance, where a city name does not when two
+           vendors share one. Null when the operator chose "Other". */
+        (parseInt(req.body.pickupAddressId, 10) || null),
+        /* Snapshot, not a join. Addresses get renamed and deactivated;
+           a shipment from last year must still say where it left from. */
+        (String(req.body.pickupNickname || '').trim().slice(0, 80) || null),
         booked.productTransactionId || productTransactionId,
         offerId,
         productType,

@@ -1,0 +1,217 @@
+<%/* Saved pickup (origin) addresses.
+
+     ONE PAGE, LIST AND FORM TOGETHER. There are going to be a handful
+     of these — our warehouse plus a few vendor docks — so a separate
+     edit screen would be two page loads to change a phone number. The
+     form sits above the list and switches to edit mode via ?edit=id.
+
+     Every field here ends up in the WWEX originAddress payload, which
+     is why phone is required: the carrier rejects a booking without an
+     origin phone, and that failure surfaces at pickup time. */%>
+<% const isEdit = !!editing; %>
+
+<div class="adm-head">
+  <div>
+    <h1 class="adm-title">Pickup Addresses</h1>
+    <p class="adm-sub">Where the carrier collects. Pick one on the
+      shipping form instead of retyping it.</p>
+  </div>
+</div>
+
+<% if (flash) { %>
+  <div class="adm-flash adm-flash--<%= flash.type === 'ok' ? 'ok' : 'error' %>"
+       style="margin-bottom:1rem;padding:.7rem 1rem;border-radius:6px;font-size:.9rem;<%=
+         flash.type === 'ok' ? 'background:#e8f2e8;color:#2f6b34;border:1px solid #cfe0cf'
+                             : 'background:#fff5f5;color:#9b2c2c;border:1px solid #fed7d7' %>">
+    <%= flash.msg %>
+  </div>
+<% } %>
+
+<div class="adm-card" style="margin-bottom:1.25rem">
+  <h2 class="adm-card-title"><%= isEdit ? 'Edit "' + editing.nickname + '"' : 'Add a pickup address' %></h2>
+
+  <form method="POST" action="/admin/shipping/pickup-addresses">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <% if (isEdit) { %><input type="hidden" name="id" value="<%= editing.id %>"><% } %>
+
+    <div class="adm-grid">
+      <div class="adm-field">
+        <label>Nickname <span class="req-star">*</span></label>
+        <%/* The whole point of the feature. "RFL Marietta" is
+             recognisable in a dropdown where a street address is not,
+             especially with several vendors in one city. */%>
+        <input type="text" name="nickname" class="adm-input" required maxlength="80"
+               placeholder="RFL Marietta"
+               value="<%= isEdit ? editing.nickname : '' %>">
+        <small style="color:#718096;font-size:.75rem">What you'll see in the dropdown.</small>
+      </div>
+
+      <div class="adm-field">
+        <label>Company</label>
+        <input type="text" name="company" class="adm-input" maxlength="120"
+               value="<%= isEdit ? (editing.company || '') : '' %>">
+      </div>
+
+      <div class="adm-field">
+        <label>Contact name</label>
+        <input type="text" name="contact_name" class="adm-input" maxlength="120"
+               value="<%= isEdit ? (editing.contact_name || '') : '' %>">
+      </div>
+
+      <div class="adm-field">
+        <label>Phone <span class="req-star">*</span></label>
+        <%/* REQUIRED. WWEX rejects a booking with no origin phone, and
+             that rejection lands at pickup time, not at save time. */%>
+        <input type="text" name="phone" class="adm-input" required maxlength="30"
+               value="<%= isEdit ? (editing.phone || '') : '' %>">
+        <small style="color:#718096;font-size:.75rem">Digits only; formatting is stripped.</small>
+      </div>
+
+      <div class="adm-field">
+        <label>Ext <small style="color:#718096;font-weight:400">(optional)</small></label>
+        <input type="text" name="phone_ext" class="adm-input" maxlength="10"
+               value="<%= isEdit ? (editing.phone_ext || '') : '' %>">
+      </div>
+
+      <div class="adm-field adm-field--full">
+        <label>Address <span class="req-star">*</span></label>
+        <input type="text" name="address1" class="adm-input" required maxlength="200"
+               value="<%= isEdit ? editing.address1 : '' %>">
+      </div>
+
+      <div class="adm-field adm-field--full">
+        <label>Address 2 <small style="color:#718096;font-weight:400">(optional)</small></label>
+        <input type="text" name="address2" class="adm-input" maxlength="200"
+               placeholder="Suite, dock, building"
+               value="<%= isEdit ? (editing.address2 || '') : '' %>">
+      </div>
+
+      <div class="adm-field">
+        <label>City <span class="req-star">*</span></label>
+        <input type="text" name="city" class="adm-input" required maxlength="100"
+               value="<%= isEdit ? editing.city : '' %>">
+      </div>
+
+      <div class="adm-field">
+        <label>State <span class="req-star">*</span></label>
+        <input type="text" name="state" class="adm-input" required maxlength="2"
+               style="text-transform:uppercase"
+               value="<%= isEdit ? editing.state : '' %>">
+      </div>
+
+      <div class="adm-field">
+        <label>ZIP <span class="req-star">*</span></label>
+        <input type="text" name="zip" class="adm-input" required maxlength="10"
+               value="<%= isEdit ? editing.zip : '' %>">
+      </div>
+
+      <div class="adm-field">
+        <label>Pickup location type</label>
+        <%/* Curated from the WWEX enum. A value outside it is silently
+             IGNORED by the API rather than rejected — so a typo books a
+             standard commercial pickup while this screen says
+             otherwise. Hence a select, never a free-text field. */%>
+        <select name="location_type" class="adm-input">
+          <% locationTypes.forEach(function (t) { %>
+            <option value="<%= t %>"
+              <%= isEdit && (editing.location_type || '') === t ? 'selected' : '' %>>
+              <%= t === '' ? 'Standard commercial (default)' : t.replace(/_/g, ' ') %>
+            </option>
+          <% }); %>
+        </select>
+      </div>
+
+      <div class="adm-field">
+        <label>Sort order</label>
+        <input type="number" name="sort_order" class="adm-input"
+               value="<%= isEdit ? editing.sort_order : 0 %>">
+        <small style="color:#718096;font-size:.75rem">Lower appears first.</small>
+      </div>
+
+      <div class="adm-field adm-field--full">
+        <label>Notes <small style="color:#718096;font-weight:400">(internal)</small></label>
+        <%/* NOT sent to the carrier. Gate codes, dock hours, who to ask
+             for — the things that make a pickup actually happen. */%>
+        <textarea name="notes" class="adm-input" rows="2" maxlength="2000"
+                  placeholder="Gate code, dock hours, ask for…"><%= isEdit ? (editing.notes || '') : '' %></textarea>
+      </div>
+
+      <div class="adm-field adm-field--full">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:6px">
+          <input type="checkbox" name="is_default" value="1"
+                 <%= isEdit && editing.is_default ? 'checked' : '' %>>
+          Default — preselected on the shipping form
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" name="is_active" value="1"
+                 <%= !isEdit || editing.is_active ? 'checked' : '' %>>
+          Active — appears in the dropdown
+        </label>
+      </div>
+    </div>
+
+    <div style="margin-top:1rem;display:flex;gap:.6rem">
+      <button type="submit" class="adm-btn adm-btn--primary">
+        <%= isEdit ? 'Save changes' : 'Add address' %>
+      </button>
+      <% if (isEdit) { %>
+        <a href="/admin/shipping/pickup-addresses" class="adm-btn">Cancel</a>
+      <% } %>
+    </div>
+  </form>
+</div>
+
+<div class="adm-card">
+  <h2 class="adm-card-title">Saved addresses</h2>
+  <% if (!addresses.length) { %>
+    <p class="adm-empty">No pickup addresses yet. Add one above.</p>
+  <% } else { %>
+    <table class="adm-table">
+      <thead>
+        <tr>
+          <th>Nickname</th><th>Address</th><th>Phone</th>
+          <th>Type</th><th>Status</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% addresses.forEach(function (a) { %>
+          <tr style="<%= a.is_active ? '' : 'opacity:.5' %>">
+            <td>
+              <strong><%= a.nickname %></strong>
+              <% if (a.is_default) { %>
+                <span style="margin-left:.4rem;padding:1px 7px;border-radius:10px;font-size:.66rem;font-weight:700;background:#e8f2e8;color:#2f6b34;border:1px solid #cfe0cf">DEFAULT</span>
+              <% } %>
+              <% if (a.company) { %><br><small style="color:#718096"><%= a.company %></small><% } %>
+            </td>
+            <td style="font-size:.85rem">
+              <%= a.address1 %><% if (a.address2) { %>, <%= a.address2 %><% } %><br>
+              <%= a.city %>, <%= a.state %> <%= a.zip %>
+            </td>
+            <td style="font-size:.85rem"><%= a.phone %><% if (a.phone_ext) { %> ext <%= a.phone_ext %><% } %></td>
+            <td style="font-size:.8rem;color:#718096">
+              <%= a.location_type ? a.location_type.replace(/_/g, ' ') : 'Commercial' %>
+            </td>
+            <td style="font-size:.8rem"><%= a.is_active ? 'Active' : 'Inactive' %></td>
+            <td style="white-space:nowrap">
+              <a href="/admin/shipping/pickup-addresses?edit=<%= a.id %>" class="adm-btn adm-btn--sm">Edit</a>
+              <% if (a.is_active) { %>
+                <%/* DEACTIVATE, NOT DELETE. shipments.pickup_address_id
+                     points here; a deleted row makes a historic
+                     shipment's origin a dangling id. */%>
+                <form method="POST" action="/admin/shipping/pickup-addresses/<%= a.id %>/deactivate"
+                      style="display:inline" onsubmit="return confirm('Deactivate <%= a.nickname %>? It will disappear from the dropdown. Past shipments keep their record.')">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <button type="submit" class="adm-btn adm-btn--sm">Deactivate</button>
+                </form>
+              <% } %>
+            </td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+    <p style="margin:.8rem 0 0;font-size:.8rem;color:#718096">
+      Addresses are deactivated rather than deleted, so past shipments
+      still show where they were collected from.
+    </p>
+  <% } %>
+</div>

@@ -158,6 +158,18 @@ router.post('/shipping/rates',            shippingCtrl.getRates);
 router.post('/shipping/book',             shippingCtrl.bookShipment);
 router.post('/shipping/cancel',           shippingCtrl.cancelShipment);
 router.get ('/shipping/document',         shippingCtrl.getDocument);
+
+/* Saved pickup (origin) addresses — the dropdown on the create form.
+   Registered BEFORE any '/shipping/:something' wildcard would be, so a
+   future param route cannot swallow these paths.
+
+   There is deliberately NO delete route: shipments.pickup_address_id
+   points at these rows, so removal is deactivation. See the controller
+   header. */
+const pickupCtrl = require('../controllers/pickupAddressController');
+router.get ('/shipping/pickup-addresses',              pickupCtrl.index);
+router.post('/shipping/pickup-addresses',              pickupCtrl.save);
+router.post('/shipping/pickup-addresses/:id/deactivate', pickupCtrl.deactivate);
 router.post('/shipping/email-documents',  shippingCtrl.emailDocuments);
 router.post('/shipping/run-poll',         shippingCtrl.runStatusPoll);
 router.get ('/shipping/track/:bol',       shippingCtrl.trackShipment);
