@@ -299,8 +299,12 @@ const disputeOpen = order.dispute_id
   };
 %>
 <% if (worthShowing) { %>
-<div style="border:1px solid var(--border,#e8e4dc);background:#fdfcfa;border-radius:6px;padding:14px 18px;margin-bottom:16px">
-  <p style="margin:0 0 4px;font-weight:700;font-size:14px">Before the verification call</p>
+<%/* Light red, matching the risk and dispute blocks above. Beige read
+     as decoration rather than a flag — owner, 2026-09-28. The border
+     is 1px not 2px on purpose: this is CONTEXT, and it should not
+     shout as loudly as an actual dispute. */%>
+<div style="border:1px solid var(--red);background:#fff5f5;border-radius:6px;padding:14px 18px;margin-bottom:16px">
+  <p style="margin:0 0 4px;font-weight:700;font-size:14px;color:var(--red)">Before the verification call</p>
   <p style="margin:0 0 12px;font-size:12px;color:#7a7264">
     Context only — none of this blocks capture. Ask, do not assume.
   </p>
@@ -311,8 +315,14 @@ const disputeOpen = order.dispute_id
     </p>
     <ul style="margin:0 0 12px;padding-left:18px;font-size:13px;line-height:1.7">
       <% ah.shipping.forEach(function (a) { %>
+        <%/* THE STREET, not just the city. Two orders to different
+             addresses in one town render as "Roswell, GA" twice —
+             indistinguishable, so the rep cannot form a question. Seen
+             live on order 00108, 2026-09-28. */%>
         <li>
-          <%= a.city %><%= a.state ? ', ' + a.state : '' %>
+          <strong><%= a.address1 || '(no street recorded)' %></strong><%
+          %><%= a.address2 ? ' ' + a.address2 : '' %><br>
+          <%= a.city %><%= a.state ? ', ' + a.state : '' %><%= a.zip ? ' ' + a.zip : '' %>
           <span style="color:#7a7264">
             — last used <%= fmtDate(a.last_used_at) %><%
             %><%= a.times_used > 1 ? ', ' + a.times_used + ' times' : '' %>
@@ -328,7 +338,8 @@ const disputeOpen = order.dispute_id
     </p>
     <ul style="margin:0 0 12px;padding-left:18px;font-size:13px;line-height:1.7">
       <% ah.billing.forEach(function (a) { %>
-        <li><%= a.city %><%= a.state ? ', ' + a.state : '' %>
+        <li><strong><%= a.address1 || '(no street recorded)' %></strong><br>
+          <%= a.city %><%= a.state ? ', ' + a.state : '' %><%= a.zip ? ' ' + a.zip : '' %>
           <span style="color:#7a7264">— last used <%= fmtDate(a.last_used_at) %></span>
         </li>
       <% }); %>

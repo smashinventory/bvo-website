@@ -38,8 +38,8 @@ const render = (o) => ejs.render(frag, Object.assign({
   addressHistory: { shipping: [], billing: [] },
 }, o), { filename: FILE });
 
-const addr = (city, state, last, times = 1) => ({
-  city, state, last_used_at: last, times_used: times,
+const addr = (city, state, last, times = 1, address1 = '1 Main St') => ({
+  address1, city, state, zip: '30060', last_used_at: last, times_used: times,
 });
 
 console.log('--- when it stays QUIET ---');
@@ -62,6 +62,23 @@ ok('TWO addresses is enough to show', h.trim() !== '',
    'advisory context should be MORE sensitive, not less');
 ok('it counts them', /2 delivery addresses in the last 90 days/.test(h), 'no count');
 ok('it names the cities', /Marietta/.test(h) && /Alpharetta/.test(h), 'unidentifiable');
+/* Two orders to one town render as "Roswell, GA" twice without this —
+   indistinguishable, so the rep cannot form a question. */
+{
+  const h2 = render({ addressHistory: { shipping: [
+    addr('Roswell', 'GA', '2026-09-28', 1, '5150 Old Ellis Point'),
+    addr('Roswell', 'GA', '2026-09-28', 1, '22 Canton Street')], billing: [] } });
+  ok('it shows the STREET, not just the city',
+     /5150 Old Ellis Point/.test(h2) && /22 Canton Street/.test(h2),
+     'two addresses in one town would be indistinguishable');
+  ok('a missing street says so rather than rendering blank',
+     /\(no street recorded\)/.test(render({ addressHistory: { shipping: [
+       { city: 'A', state: 'GA', last_used_at: '2026-09-01', times_used: 1 },
+       addr('B', 'GA', '2026-08-01')], billing: [] } })), 'blank line');
+}
+ok('the panel is RED, not beige',
+   /background:#fff5f5/.test(frag) && /border:1px solid var\(--red\)/.test(frag),
+   'beige reads as decoration, not a flag');
 ok('it shows when each was last used', /last used Sep 20/.test(h), 'no dates');
 ok('it shows repeat use', /3 times/.test(h), 'a regular destination looks like a one-off');
 
