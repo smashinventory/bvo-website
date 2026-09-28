@@ -235,6 +235,115 @@ const disputeOpen = order.dispute_id
 </div>
 <% } %>
 
+<%/* ── ADDRESS HISTORY — items 6/9 ────────────────────────────────────
+     Context for the verification call that already happens before
+     capture.
+
+     ⛔ ADVISORY ONLY. Nothing here gates the Capture button. That is
+     item 4, a separate mechanism with a separate decision. The moment
+     an advisory flag starts blocking money, someone starts suppressing
+     it.
+
+     FACTS, NOT A VERDICT. There is deliberately no score, no red
+     "FRAUD RISK" badge and no threshold that "fires". A badge trains
+     people to ignore the panel; a list of places and dates lets a rep
+     ask "I see this is going somewhere different from last time — is
+     this a jobsite?" and get an answer in five seconds.
+
+     Shown whenever there is more than one address, NOT at 3+. An
+     automated rule needs a high threshold to survive noise; advisory
+     context inverts that, because the cost of showing something
+     unremarkable is one glance.
+
+     NO TRADE EXEMPTION. Fraudsters open trade accounts too. A
+     contractor shipping to many jobsites is a false positive that costs
+     nothing — the call happens anyway. */%>
+<%
+  /* Defaulted per-ARRAY, not per-object. `addressHistory` being a
+     truthy object is not a promise that both arrays exist — a partial
+     object would throw on .length and take the whole order screen down
+     over a fraud hint. */
+  const _ah = (typeof addressHistory !== 'undefined' && addressHistory) || {};
+  const ah = {
+    shipping: Array.isArray(_ah.shipping) ? _ah.shipping : [],
+    billing:  Array.isArray(_ah.billing)  ? _ah.billing  : [],
+  };
+  const shipCount = ah.shipping.length;
+  const billCount = ah.billing.length;
+  /* The ship-to vs bill-to flag was recorded AT AUTHORISATION (item 5)
+     so a later edit to either address cannot rewrite what was true then.
+     Shown here beside the history because it is the same question. */
+  const mismatch  = order.ship_bill_mismatch ? true : false;
+  const worthShowing = shipCount > 1 || billCount > 1 || mismatch;
+  /* ⚠️ DATE-ONLY STRINGS ARE PARSED AS UTC MIDNIGHT, and rendered in
+     America/New_York that is the PREVIOUS DAY. "last used Sep 19" for
+     an address used on the 20th is a small error that derails a
+     verification call.
+
+     mysql2 returns DATETIME as a Date object, so production does not
+     hit it — but the panel must not depend on that, and a gate fixture
+     passing a plain 'YYYY-MM-DD' string found it immediately. Date-only
+     strings are split and built in LOCAL time; anything else is handed
+     to Date unchanged. */
+  const fmtDate = (d) => {
+    if (!d) return '—';
+    let dt;
+    if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
+      const [y, m, day] = d.split('-').map(Number);
+      dt = new Date(y, m - 1, day);
+    } else {
+      dt = new Date(d);
+    }
+    return isNaN(dt) ? '—'
+      : dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+%>
+<% if (worthShowing) { %>
+<div style="border:1px solid var(--border,#e8e4dc);background:#fdfcfa;border-radius:6px;padding:14px 18px;margin-bottom:16px">
+  <p style="margin:0 0 4px;font-weight:700;font-size:14px">Before the verification call</p>
+  <p style="margin:0 0 12px;font-size:12px;color:#7a7264">
+    Context only — none of this blocks capture. Ask, do not assume.
+  </p>
+
+  <% if (shipCount > 1) { %>
+    <p style="margin:0 0 4px;font-size:13px;font-weight:600">
+      <%= shipCount %> delivery addresses in the last 90 days
+    </p>
+    <ul style="margin:0 0 12px;padding-left:18px;font-size:13px;line-height:1.7">
+      <% ah.shipping.forEach(function (a) { %>
+        <li>
+          <%= a.city %><%= a.state ? ', ' + a.state : '' %>
+          <span style="color:#7a7264">
+            — last used <%= fmtDate(a.last_used_at) %><%
+            %><%= a.times_used > 1 ? ', ' + a.times_used + ' times' : '' %>
+          </span>
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
+
+  <% if (billCount > 1) { %>
+    <p style="margin:0 0 4px;font-size:13px;font-weight:600">
+      <%= billCount %> billing addresses in the last 90 days
+    </p>
+    <ul style="margin:0 0 12px;padding-left:18px;font-size:13px;line-height:1.7">
+      <% ah.billing.forEach(function (a) { %>
+        <li><%= a.city %><%= a.state ? ', ' + a.state : '' %>
+          <span style="color:#7a7264">— last used <%= fmtDate(a.last_used_at) %></span>
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
+
+  <% if (mismatch) { %>
+    <p style="margin:0;font-size:13px">
+      <strong>Delivery address does not match the billing address</strong>
+      on the card. Recorded at authorisation.
+    </p>
+  <% } %>
+</div>
+<% } %>
+
 <% if (order.dispute_id) { %>
 <div style="border:2px solid <%= disputeOpen ? 'var(--red)' : '#7a7264' %>;background:<%= disputeOpen ? '#fff5f5' : '#faf9f7' %>;border-radius:6px;padding:14px 18px;margin-bottom:16px">
   <p style="margin:0 0 6px;font-weight:700;font-size:15px;color:<%= disputeOpen ? 'var(--red)' : 'inherit' %>">

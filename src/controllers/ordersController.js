@@ -23,6 +23,7 @@ const { buildSearch } = require('../utils/searchQuery');
 // Single source of truth for status values and their meanings.
 const { ORDER_STATUSES, VALID_ORDER_STATUSES } = require('../config/orderStatuses');
 const brevo          = require('../services/brevoService');
+const CustomerAddress = require('../models/CustomerAddress');
 const wwex           = require('../services/wwexService');
 const stripePay      = require('../services/stripeService');
 const path        = require('path');
@@ -266,6 +267,31 @@ exports.detail = async (req, res, next) => {
       'SELECT * FROM order_documents WHERE order_id = ? ORDER BY created_at DESC', [id]
     );
 
+    /* ── ADDRESS HISTORY (items 6/9) ─────────────────────────────────
+       Context for the verification call that already happens before
+       capture — NOT a gate, NOT a score.
+
+       ⛔ ADVISORY ONLY. This must never block the Capture button. That
+       is item 4, a separate mechanism with a separate decision. The
+       moment an advisory flag starts blocking money, someone starts
+       suppressing it.
+
+       Owner, 2026-09-28: "this is just an internal flag that someone
+       needs to look at and have awareness of before the verification of
+       order call that we do — so we can ask the right questions."
+
+       NO TRADE EXEMPTION, deliberately. Fraudsters open trade accounts
+       too, and exempting trade creates exactly the gap one would aim
+       for. A contractor shipping to many jobsites is a false positive
+       that costs nothing: the call happens anyway and the answer takes
+       five seconds.
+
+       Orders placed before the identity gate have a NULL customer_id
+       and simply get an empty history — not an error. */
+    const addressHistory = order.customer_id
+      ? await CustomerAddress.velocity(order.customer_id, 90)
+      : { shipping: [], billing: [] };
+
     const openReturn = returns.find(r => !['resolved','denied'].includes(r.status)) || null;
     const rag = computeRag(order, vendorPo, shipment, openReturn);
 
@@ -282,6 +308,10 @@ exports.detail = async (req, res, next) => {
       events,
       documents,
       rag,
+      /* Facts, not a verdict. The view shows the addresses and dates so
+         the rep can ask a good question; a red "FRAUD RISK" badge would
+         train everyone to ignore it. */
+      addressHistory,
       wwexMode:   wwex.apiMode,
       /* Maps Embed key for the delivery panel. Client-side visible by
          design — it ships in the iframe URL and anyone can read it. The
