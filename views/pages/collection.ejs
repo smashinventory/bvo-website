@@ -1370,7 +1370,27 @@
           </div>
           <% } %>
 
-          <% if (_pSizes && _pSizes.length) { %>
+          <%# ── NO SIZE ROW ON HUNTINGTON BRASS ────────────────────────
+              Owner, 2026-09-28: "just remove size from all huntington
+              brass products."
+
+              Every HB card rendered "Sizes: 20-". HB is faucets and
+              faucet accessories: the width bucketing that produces a
+              useful 30/36/48 chip on a vanity has nothing to bucket on a
+              supply elbow, so all 25 HB cards fell into the same
+              under-20 bucket and printed a label that means nothing.
+
+              Matched on BRAND, not on category or product_type. The owner
+              was explicit that type is not locked down well enough to
+              trust — an HB item surfaces on /collections/accessories as
+              readily as on /collections/faucets, and a type-based rule
+              would miss it there. Brand is the one field that is right
+              on every one of these rows.
+
+              James Martin cards are untouched: 30/36/48/60/72 is real
+              information on a vanity and on a mirror. %>
+          <% var _pIsHB = String(product.brand || '').trim().toLowerCase() === 'huntington brass'; %>
+          <% if (_pSizes && _pSizes.length && !_pIsHB) { %>
           <div class="model-card-sizes-row">
             <span class="model-card-sizes-label">Sizes:</span>
             <div class="model-card-size-chips">
