@@ -1021,6 +1021,19 @@ Not payment code. `src/controllers/cartController.js` only.
 > three consecutive adds of qty 99 -> qty 297   (cap is 99)
 > ```
 >
+> ### SCALE — corrected by the owner, and it is much smaller than first written
+> `bundle-builder.ejs:390` — `ITEM_DISC = { cabinet: 0, top: 5,
+> mirror: 10, faucet: 15 }`. **The cabinet is always added at 0%.**
+>
+> So the VANITY — the item a buyer is most likely to also add from its own
+> product page — cannot leak in either direction: merging 0% with 0% is
+> 0%. Exposure exists only on a top, mirror or faucet added both inside a
+> bundle and separately, i.e. 5–15% of a $200–600 accessory. Single-digit
+> to low-double-digit dollars, not the ~$100 an earlier draft of this note
+> claimed by wrongly assuming a discounted vanity.
+>
+> Still a real defect, still worth fixing, but firmly post-cutover.
+>
 > **Why it looked solved.** Bundle-discount work WAS done, just not here:
 > `stripBundleGroup()` reverts a whole group to sale price when any
 > bundle item is removed, and the September round fixed FormData →
