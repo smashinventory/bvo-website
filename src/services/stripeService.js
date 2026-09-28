@@ -453,6 +453,52 @@ exports.paymentDetailsFrom = (session) => {
  * records which of the two it was, so nobody later mistakes a copied
  * address for one the customer actually confirmed.
  */
+/**
+ * Does the freight go somewhere other than the cardholder's own address?
+ *
+ * ⚠️ THIS EXISTS BECAUSE shippingFrom() CANNOT ANSWER IT.
+ *
+ * `shipping_address_collection` was removed from the Checkout Session on
+ * 2026-09-26 (it blocked Place Order — spec §9). So Stripe never returns
+ * a shipping address, `shipAddr` inside shippingFrom() is ALWAYS null,
+ * and its shipBillMismatch returned false on its first line every single
+ * time. The flag was structurally dead from that day until 2026-09-28,
+ * and nothing said so: it simply read 0 on every order.
+ *
+ * The comparison was also between the wrong two things. Stripe only ever
+ * knows the BILLING address. The DELIVERY address is BVO's — collected on
+ * checkout page 1 and written to orders.ship_*. So the pairing that
+ * matters exists only in the webhook, after the order row is read.
+ *
+ * ON LINE1 + POSTAL CODE ONLY. City and state are derivable from a ZIP
+ * and add nothing; line2 is an apartment number buyers type in a
+ * different place each time and would produce a stream of false
+ * positives.
+ *
+ * RETURNS FALSE, NOT NULL, when there is nothing to compare. An unknown
+ * must never read as a mismatch. With billing_address_collection:'auto'
+ * Stripe often gives only country + postal code, so a ZIP-only
+ * comparison is the common case and is still worth having.
+ */
+exports.compareShipBill = ({ shipLine1, shipZip, billLine1, billZip } = {}) => {
+  const norm = v => String(v || '')
+    .toLowerCase()
+    .replace(/[.,#]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const zip5 = v => String(v || '').trim().slice(0, 5);
+
+  const sL = norm(shipLine1), bL = norm(billLine1);
+  const sZ = zip5(shipZip),   bZ = zip5(billZip);
+
+  /* Street beats ZIP when both sides have one: two different houses can
+     share a postcode. */
+  if (sL && bL) return sL !== bL;
+  /* ZIP-only fallback — the common case under 'auto' billing collection. */
+  if (sZ && bZ) return sZ !== bZ;
+  return false;   // nothing comparable
+};
+
 exports.shippingFrom = (session) => {
   const cd = session.customer_details || {};
   const ci = session.collected_information || {};
@@ -513,6 +559,11 @@ exports.shippingFrom = (session) => {
        shipping was collected, or Stripe withheld the billing line1. An
        unknown must not read as a mismatch, because a mismatch is what
        blocks the Capture button. */
+    /* ⚠️ ALWAYS FALSE. Kept only so existing callers do not break.
+       shipping_address_collection was removed on 2026-09-26, so shipAddr
+       is permanently null and the first line below always returns.
+       USE exports.compareShipBill() INSTEAD — it compares BVO's own
+       ship-to against Stripe's billing, which is the real question. */
     shipBillMismatch: (() => {
       if (!shipAddr) return false;               // ship-to IS the bill-to
       if (!billAddr.line1 || !addr.line1) return false;  // nothing to compare

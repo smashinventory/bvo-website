@@ -1310,6 +1310,41 @@ async function handleSessionCompleted(sessionStub) {
   const who = stripe.shippingFrom(fetched.session);
 
 
+  /* ── SHIP-TO vs BILL-TO, COMPUTED HERE AND NOWHERE ELSE ───────────
+     who.shipBillMismatch is PERMANENTLY FALSE and cannot be used:
+     shipping_address_collection was removed from the session on
+     2026-09-26, so Stripe never returns a shipping address and
+     shippingFrom() returns on its first line every time. The flag read 0
+     on every order from that day until this was written, silently.
+
+     The comparison was also between the wrong two things. Stripe only
+     knows the BILLING address; the DELIVERY address is BVO's, collected
+     on checkout page 1. The webhook is the only place both exist — so
+     the order's stored ship_* is read back here and compared against
+     Stripe's bill_*.
+
+     Read BEFORE the UPDATE, because the UPDATE's COALESCE would
+     otherwise let Stripe's billing fall into ship_* on an order that had
+     none, and then it would be comparing a value with itself. */
+  let shipBillMismatch = false;
+  try {
+    const [[prior]] = await bvoPool.query(
+      'SELECT ship_address1, ship_zip FROM orders WHERE id = ?', [orderId]);
+    if (prior) {
+      shipBillMismatch = stripe.compareShipBill({
+        shipLine1: prior.ship_address1,
+        shipZip:   prior.ship_zip,
+        billLine1: who.billAddress1,
+        billZip:   who.billZip,
+      });
+    }
+  } catch (err) {
+    /* Fails to FALSE. An unknown must never read as a mismatch — this
+       flag is context for a human, and a false alarm on every order
+       trains everyone to ignore it. */
+    console.error('[checkout.webhook] ship/bill compare failed for order',
+                  orderId, '—', err && err.message);
+  }
   const conn = await bvoPool.getConnection();
   try {
     /* Guarded on payment_status = 'pending', which makes the whole
@@ -1390,7 +1425,7 @@ async function handleSessionCompleted(sessionStub) {
         d.riskScore, d.riskLevel, d.sellerMessage,
         d.cvcCheck, d.avsZip, d.avsLine1,
         d.tdsResult, d.tdsFlow, d.tdsEci,
-        who.shipBillMismatch ? 1 : 0,
+        shipBillMismatch ? 1 : 0,
         d.subtotal, d.tax, d.total,
         orderId,
       ]
