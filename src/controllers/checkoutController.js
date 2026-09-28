@@ -73,6 +73,10 @@ const CustomerAddress = require('../models/CustomerAddress');
    requireIdentity guaranteed a customerId was already on the session. */
 const Customer    = require('../models/Customer');
 const emailVerify = require('../services/emailVerificationService');
+/* Residential vs liftgate, labels and the page-2 acknowledgement — all
+   derived from one table so they cannot drift apart. See the header of
+   that file for the liftgate bug that prompted it. */
+const deliveryLocation = require('../utils/deliveryLocation');
 
 /* ── Helpers ────────────────────────────────────────────────────── */
 
@@ -289,8 +293,14 @@ function validateInfo(b) {
     errors.ship_zip = 'Enter a 5-digit ZIP code.';
   if (!/^\+1\d{10}$/.test(toE164(v('ship_phone'))))
     errors.ship_phone = 'Enter a 10-digit phone number, e.g. (404) 555-1234.';
-  if (!['residential', 'commercial'].includes(v('ship_address_type')))
-    errors.ship_address_type = 'Choose residential or commercial.';
+  /* THREE VALUES NOW, and isValid deliberately does NOT accept the
+     legacy 'commercial'. Legacy mapping exists for READING old rows;
+     accepting it from a live form post would let the page keep
+     submitting a value whose meaning is now ambiguous. A stale cached
+     page gets a visible validation error rather than a silent
+     mis-booking. */
+  if (!deliveryLocation.isValid(v('ship_address_type')))
+    errors.ship_address_type = 'Choose where the truck is delivering to.';
 
   /* PO boxes cannot take a freight delivery. Catching it here saves a
      cancelled order and a refund three days from now. */
@@ -475,6 +485,10 @@ exports.show = async (req, res) => {
     /* Null unless the previous submit produced a fix/suspect verdict.
        The page renders nothing at all when it is null. */
     addrWarning: flash.addrWarning,
+    /* The radio options render from this rather than being typed into
+       the template — one source for the label, the acknowledgement, and
+       the liftgate rule. */
+    deliveryLocation,
   });
 };
 
@@ -877,6 +891,11 @@ exports.deliveryPage = async (req, res) => {
     metaDesc:  '', noindex: true,
     cart, subtotal: calcTotal(cart.items), order,
     errors: flash.errors,
+    /* The acknowledgement sentence and the address label both depend on
+       what they chose on page 1. A buyer with a forklift must not be
+       asked to agree they will "arrange help" — a form that ignores
+       what it was just told stops being believed. */
+    deliveryLocation,
   });
 };
 

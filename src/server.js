@@ -489,6 +489,17 @@ app.use((req, res, next) => {
      and drift here means an admin is offered a font the renderer will not
      honour. See src/utils/fontStacks.js. */
   res.locals.fontStacks = require('./utils/fontStacks');
+  /* Delivery location: the three-way residential / commercial-no-dock /
+     commercial-dock table, plus the labels, the page-2 acknowledgement
+     and the liftgate rule derived from it.
+
+     A res.local rather than a per-render pass, for the same reason as
+     fontStacks above: it is a PURE LOOKUP with no request state, and it
+     is read by five templates across checkout, payment and two admin
+     screens. Passing it individually means the sixth render forgets, and
+     an EJS local that is undefined throws at render time on a page a
+     buyer is mid-purchase on. See src/utils/deliveryLocation.js. */
+  res.locals.deliveryLocation = require('./utils/deliveryLocation');
   // Initialise cart on every page request so the session is "touched" (modified)
   // and express-session writes it to MySQL + sends the session cookie immediately.
   // Without this, saveUninitialized:false delays the cookie until /cart is visited,

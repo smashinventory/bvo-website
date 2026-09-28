@@ -42,7 +42,11 @@
         </p>
         <p class="checkout-addr-meta">
           Free curbside delivery &middot;
-          <%= order.ship_address_type === 'commercial' ? 'Commercial' : 'Residential' %>
+          <%/* Was a two-way ternary on 'commercial' and would label both
+               new values "Residential" — the last screen before payment
+               is the worst place to show the buyer a fact they did not
+               choose. */%>
+          <%= deliveryLocation.shortLabel(order.ship_address_type) %>
           &middot; <a href="/checkout">Change</a>
         </p>
       </div>

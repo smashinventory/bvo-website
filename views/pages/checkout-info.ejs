@@ -399,18 +399,38 @@ const money = n => '$' + Number(n || 0).toLocaleString('en-US',
           </span>
         </label>
 
+        <%/* DELIVERY LOCATION — three options since 2026-09-28.
+
+             There were two, and "Commercial" was defined as "a business
+             with a loading dock or forklift". An office, studio or shop
+             is commercial and has neither, so there was no honest answer
+             for them — and the answer they were forced into told
+             shippingController not to send a liftgate. A 200-400 lb
+             crate would arrive on a truck with no way to unload it.
+
+             RENDERED FROM src/utils/deliveryLocation.js, not written out
+             here. The label, the acknowledgement on page 2, the summary
+             on page 3, the admin label and the liftgate/residential
+             derivations all read from that one table. Writing the
+             options out in the template is how the fifth copy comes to
+             disagree with the other four.
+
+             The selected value is normalised, so a legacy draft holding
+             plain 'commercial' pre-selects the dock option — which is
+             what that label used to mean. */%>
+        <% const DL = locals.deliveryLocation;
+           const dlSelected = DL.normalise(val('ship_address_type',
+                                               draft && draft.ship_address_type)); %>
         <fieldset class="checkout-radio-group">
           <legend>Delivery location <span class="req">*</span></legend>
-          <label class="checkout-check" for="dt-res">
-            <input type="radio" name="ship_address_type" id="dt-res" value="residential"
-                   <%= val('ship_address_type', draft && draft.ship_address_type) !== 'commercial' ? 'checked' : '' %>>
-            <span>Residential &mdash; a house or apartment</span>
-          </label>
-          <label class="checkout-check" for="dt-com">
-            <input type="radio" name="ship_address_type" id="dt-com" value="commercial"
-                   <%= val('ship_address_type', draft && draft.ship_address_type) === 'commercial' ? 'checked' : '' %>>
-            <span>Commercial &mdash; a business with a loading dock or forklift</span>
-          </label>
+          <% DL.all().forEach(function (opt) { %>
+            <label class="checkout-check" for="dt-<%= opt.value %>">
+              <input type="radio" name="ship_address_type"
+                     id="dt-<%= opt.value %>" value="<%= opt.value %>"
+                     <%= dlSelected === opt.value ? 'checked' : '' %>>
+              <span><%= opt.label %> &mdash; <%= opt.detail %></span>
+            </label>
+          <% }); %>
           <span class="checkout-field-hint">This tells the carrier what kind of truck and crew to send.</span>
           <% if (errors.ship_address_type) { %><span class="checkout-field-error"><%= errors.ship_address_type %></span><% } %>
         </fieldset>

@@ -17,6 +17,11 @@
 
 const { bvoPool } = require('../config/database');
 const wwex        = require('../services/wwexService');
+/* Residential and LIFTGATE are separate facts derived from the buyer's
+   own answer on checkout page 1. Before 2026-09-28 liftgate was inferred
+   from residential, so a commercial address with no dock booked a truck
+   that could not unload it. See the header of that file. */
+const deliveryLocation = require('../utils/deliveryLocation');
 // Internal distribution of shipping paperwork to our own stores. BVO-sent,
 // unrelated to WWEX — they have no API to email a BOL.
 const brevo       = require('../services/brevoService');
@@ -158,11 +163,37 @@ async function createForm(req, res) {
            all - and freight delivery is appointment-based. */
         email:      order.guest_email || order.email || '',
         /* Residential is the buyer's own answer from page 1, not a guess
-           from the address. Checking the box auto-sets locationType
-           RESIDENTIAL plus liftgate delivery - see onResidentialChange()
-           in create.ejs. Note there is NO residentialDeliveryFlag in the
-           WWEX API; residential delivery IS the locationType. */
-        residential: order.ship_address_type === 'residential',
+           from the address. Note there is NO residentialDeliveryFlag in
+           the WWEX API; residential delivery IS the locationType. */
+        residential: deliveryLocation.isResidential(order.ship_address_type),
+
+        /* ── LIFTGATE IS A SEPARATE FACT, AND THAT IS THE FIX ─────────
+           This used to be inferred: create.ejs's onResidentialChange()
+           set liftgate whenever residential was ticked, and nothing set
+           it otherwise. So COMMERCIAL meant NO LIFTGATE — and until
+           2026-09-28 "Commercial" was the only non-residential option on
+           the checkout form, described as "a business with a loading
+           dock or forklift".
+
+           An office, studio or retail unit is commercial with neither.
+           Those orders booked a truck with no liftgate, and a 200-400 lb
+           crate cannot come off a trailer without one. Redelivery,
+           storage, and a customer who answered as honestly as the form
+           allowed.
+
+           Now derived from the address type directly: a liftgate unless
+           the buyer told us they have a dock or forklift. Passed through
+           so the create form can pre-tick it rather than the operator
+           having to remember. */
+        liftgate: deliveryLocation.needsLiftgate(order.ship_address_type),
+
+        /* The RAW value, so the form can show the operator what the
+           buyer actually picked. An unticked liftgate box with no
+           explanation looks like an oversight, and the safe-looking
+           reaction — ticking it — is the one that throws the signal
+           away. Null when the order predates the question. */
+        addressType: order.ship_address_type || null,
+
         reference1: `Order ${order.order_number || '#'+order.id}`,
       };
 

@@ -769,10 +769,17 @@ const disputeOpen = order.dispute_id
            is checked when booking, and "not asked" has to be visible as
            itself rather than defaulting silently to either answer. */%>
       <p style="margin:6px 0 0;font-size:12px;color:var(--text-muted)">
-        <% if (order.ship_address_type === 'residential') { %>
-          Residential delivery
-        <% } else if (order.ship_address_type === 'commercial') { %>
-          Commercial delivery
+        <%/* THE LIFTGATE IS THE OPERATIONAL FACT, so it is stated here
+             rather than left for whoever books the shipment to infer.
+             Until 2026-09-28 liftgate was derived from "residential",
+             which meant a commercial address got none — fine for a
+             warehouse, a stranded delivery for a dockless office. The
+             rep reading this screen should see what the truck will
+             actually arrive with. */%>
+        <% if (order.ship_address_type) {
+             const dl = deliveryLocation.info(order.ship_address_type); %>
+          <%= dl.short %> delivery
+          &middot; <%= dl.liftgate ? 'liftgate' : 'NO liftgate — customer unloads' %>
         <% } else { %>
           <span style="color:var(--color-amber)">Delivery type not captured — confirm before booking</span>
         <% } %>

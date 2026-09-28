@@ -149,6 +149,26 @@ const meta = orderMeta           || null;
                    onchange="onResidentialChange(this.checked)"> Residential address
           </label>
           <small style="color:#718096;font-size:.75rem">Auto-sets Residential + Liftgate Delivery</small>
+
+          <%# WHAT THE BUYER ACTUALLY CHOSE, and what it means for the
+              truck. Without this an operator sees an UNTICKED liftgate
+              box, assumes it was missed, and ticks it "to be safe" —
+              undoing the only signal that says this address has a
+              forklift. The liftgate line is stated as a consequence so
+              the box below reads as deliberate rather than forgotten. %>
+          <% if (pre.addressType) {
+               const dl = deliveryLocation.info(pre.addressType); %>
+            <p style="margin:6px 0 0;font-size:.75rem;color:#4a5568">
+              Buyer selected: <strong><%= dl.short %></strong> &mdash;
+              <%= dl.liftgate
+                  ? 'liftgate required'
+                  : 'NO liftgate, their staff unload it' %>
+            </p>
+          <% } else { %>
+            <p style="margin:6px 0 0;font-size:.75rem;color:var(--color-amber,#b8860b)">
+              Buyer was not asked for a delivery location &mdash; confirm before booking.
+            </p>
+          <% } %>
         </div>
       </div>
     </div>
@@ -215,7 +235,21 @@ const meta = orderMeta           || null;
         <div class="ship-acc-section">
           <div class="ship-acc-label">Delivery Services</div>
           <label class="ship-check"><input type="checkbox" id="acc_insideDelivery"> Inside Delivery</label>
-          <label class="ship-check"><input type="checkbox" id="acc_liftgateDelivery" checked> Liftgate Delivery</label>
+          <%# Liftgate now comes from the BUYER's answer on checkout page 1,
+              via deliveryLocation.needsLiftgate() in shippingController —
+              not from a blanket `checked` and not inferred from the
+              residential box.
+
+              It was hard-checked here, which happened to be right most of
+              the time and hid the real defect: onResidentialChange() only
+              ever TURNS IT ON, so nothing set it for a commercial address.
+              Anyone unticking it for a dock customer and then switching
+              orders got no liftgate on a dockless office.
+
+              pre.liftgate is false ONLY when the buyer told us they have a
+              dock or forklift. %>
+          <label class="ship-check"><input type="checkbox" id="acc_liftgateDelivery"
+                 <%= (pre.liftgate === undefined || pre.liftgate) ? 'checked' : '' %>> Liftgate Delivery</label>
           <label class="ship-check"><input type="checkbox" id="acc_residentialDelivery"> Residential Delivery</label>
           <label class="ship-check"><input type="checkbox" id="acc_tradeshowDelivery"> Tradeshow Delivery</label>
           <label class="ship-check"><input type="checkbox" id="acc_groceryDelivery"> Grocery Consolidation Delivery</label>

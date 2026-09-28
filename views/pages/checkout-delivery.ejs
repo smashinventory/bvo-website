@@ -42,7 +42,10 @@ const money = n => '$' + Number(n || 0).toLocaleString('en-US',
           <%= order.ship_phone %><% if (order.ship_phone_ext) { %> ext. <%= order.ship_phone_ext %><% } %>
         </p>
         <p class="checkout-addr-meta">
-          <%= order.ship_address_type === 'commercial' ? 'Commercial address' : 'Residential address' %>
+          <%/* Was a two-way ternary on 'commercial', which mislabels
+               both new values. Reads from deliveryLocation, which
+               normalises legacy rows too. */%>
+          <%= deliveryLocation.shortLabel(order.ship_address_type) %> address
           &middot; <a href="/checkout">Change</a>
         </p>
       </div>
@@ -51,17 +54,41 @@ const money = n => '$' + Number(n || 0).toLocaleString('en-US',
       <div class="checkout-card checkout-card--notice">
         <h2 class="checkout-card-title">Free curbside delivery</h2>
 
-        <p class="checkout-notice-lead">
-          Your vanity ships by freight truck. The driver brings it to your
-          driveway or the curb and lowers it with a lift gate.
-          <strong>They do not bring it inside, up steps, into a garage, or
-          unpack it.</strong>
-        </p>
+        <%/* THE LEAD VARIES TOO, for the same reason as the
+             acknowledgement below. This whole page exists because
+             curbside is the biggest expectation gap in the business —
+             but the gap is different for a dock. Telling a warehouse
+             their crate arrives at the curb and they should find help
+             is not managing an expectation, it is getting it wrong. */%>
+        <% if (deliveryLocation.needsLiftgate(order.ship_address_type)) { %>
+          <p class="checkout-notice-lead">
+            Your vanity ships by freight truck. The driver brings it to your
+            <%= deliveryLocation.normalise(order.ship_address_type) === 'residential'
+                ? 'driveway or the curb' : 'drive or yard' %>
+            and lowers it with a lift gate.
+            <strong>They do not bring it inside, up steps, into a garage, or
+            unpack it.</strong>
+          </p>
 
-        <p>
-          Please arrange help to move it from there. A 60&Prime; vanity in its
-          crate can weigh over 200&nbsp;lb.
-        </p>
+          <p>
+            Please arrange help to move it from there. A 60&Prime; vanity in its
+            crate can weigh over 200&nbsp;lb.
+          </p>
+        <% } else { %>
+          <p class="checkout-notice-lead">
+            Your vanity ships by freight truck to your yard or dock.
+            <strong>You told us you have a dock or forklift, so the driver
+            will not bring a lift gate</strong> &mdash; your team unloads it
+            from the trailer.
+          </p>
+
+          <p>
+            A 60&Prime; vanity in its crate can weigh over 200&nbsp;lb, so
+            please have someone available to receive and unload it. If that
+            is not right, <a href="/checkout">change your delivery location</a>
+            and we will send a lift gate instead.
+          </p>
+        <% } %>
 
         <p class="checkout-notice-alt">
           <strong>Need it brought inside?</strong>
@@ -113,8 +140,18 @@ const money = n => '$' + Number(n || 0).toLocaleString('en-US',
         <label class="checkout-check checkout-check--ack" for="delivery_ack">
           <input type="checkbox" id="delivery_ack" name="delivery_ack" value="1"
                  <%= order.delivery_terms_ack_at ? 'checked' : '' %>>
-          <span>I understand delivery is to my driveway or curb, and that I
-                need to arrange help to move it from there.</span>
+          <%/* WAS HARD-CODED "driveway or curb … arrange help", shown to
+               everyone. A buyer who has just told us they have a
+               loading dock was being asked to agree they would line up
+               help to carry a crate off their own forklift — a form
+               that ignores what it was told a page earlier.
+
+               Now from deliveryLocation, which keys the sentence to
+               their choice. The ack is legal evidence of what they
+               agreed to (saveDelivery stamps delivery_terms_ack_at), so
+               it has to describe what will actually happen at THEIR
+               address. */%>
+          <span><%= deliveryLocation.acknowledgement(order.ship_address_type) %></span>
         </label>
         <% if (errors.delivery_ack) { %>
           <span class="checkout-field-error"><%= errors.delivery_ack %></span>
