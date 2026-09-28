@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 /* ─────────────────────────────────────────────────────────────────────────
-   Load migration/redirect_map.csv into the url_redirects table.
+   Load migrations/redirect_map.csv into the url_redirects table.
 
    The CSV is the AUDIT RECORD — all 659 indexed old URLs, including the
    ones that need no redirect. The TABLE is the subset the middleware acts
@@ -50,7 +50,7 @@ const OVERWRITE = argv.includes('--overwrite');
 
 const BVO = 'https://www.bathroomvanitiesoutlet.com';
 
-const CSV = path.resolve(__dirname, '..', '..', 'migration', 'redirect_map.csv');
+const CSV = path.resolve(__dirname, '..', 'migrations', 'redirect_map.csv');
 
 /* ── Minimal RFC-4180 CSV reader. No dependency for a five-column file. ── */
 function parseCsv(text) {
@@ -222,7 +222,13 @@ function isBvo(url) {
     out.push(`--   SELECT COUNT(*) FROM url_redirects WHERE is_active = 1;  -- ${candidates.length}`);
     out.push('');
 
-    const dest = path.resolve(__dirname, '..', '..', 'migration', 'url_redirects.sql');
+    // Named DATA, not url_redirects.sql. The schema file is
+    // BVO Node.js/migrations/2026-09-24_url_redirects.sql, and the two names
+    // were close enough that the schema got imported by mistake on the first
+    // run — "1 query executed", an empty table, and no obvious sign anything
+    // was wrong. The filename now says which one this is.
+    const dest = path.resolve(__dirname, '..', 'migrations',
+                              'url_redirects_DATA_501rows.sql');
     fs.writeFileSync(dest, out.join('\n'));
     const kb = (fs.statSync(dest).size / 1024).toFixed(0);
 

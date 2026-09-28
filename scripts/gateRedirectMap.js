@@ -19,7 +19,7 @@ const path  = require('path');
 const https = require('https');
 
 const LIVE = process.argv.includes('--live');
-const CSV  = path.resolve(__dirname, '..', '..', 'migration', 'redirect_map.csv');
+const CSV  = path.resolve(__dirname, '..', 'migrations', 'redirect_map.csv');
 const NEW_SITE = 'https://slategrey-falcon-350174.hostingersite.com';
 
 let bad = 0;

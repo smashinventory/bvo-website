@@ -65,7 +65,7 @@ const GSC_TABLE = path.join(
   'Table.csv'
 );
 
-const OUT_DIR = path.join(PROJECT, 'migration');
+const OUT_DIR = path.join(REPO_ROOT, 'migrations');
 const OUT_MAP = path.join(OUT_DIR, 'redirect_map.csv');
 const OUT_REV = path.join(OUT_DIR, 'redirect_review.csv');
 
