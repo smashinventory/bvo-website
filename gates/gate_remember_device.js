@@ -242,6 +242,98 @@ function statics() {
     ok(`${path.basename(v)}: posts the flag`, /remember_device:/.test(t), 'never sent');
   }
 
+  console.log('--- the email functions are CALLED, not grepped ---');
+  /* ⚠️ THE LESSON FROM cfce433. The previous version of this gate
+     asserted the email's CONTENT by regexing the controller source, and
+     never executed signInTimeLabel() or newDeviceEmail(). Both were
+     broken: dateStyle/timeStyle cannot be combined with timeZoneName,
+     so signInTimeLabel threw `TypeError: Invalid option : option` on
+     EVERY call — on every Node build, not an environment quirk.
+
+     The effect was invisible to a source grep and brutal in practice:
+     the code verified, the row was consumed, the secure token was
+     written, and THEN it threw — so the buyer was signed in and told
+     "That code is not right."
+
+     Source text is not behaviour. These now run. */
+  {
+    const src = fs.readFileSync(
+      path.join(ROOT, 'src/controllers/accountController.js'), 'utf8');
+
+    const tm = src.match(/function signInTimeLabel\(d = new Date\(\)\) \{[\s\S]*?\n\}/);
+    ok('signInTimeLabel is extractable', !!tm, 'not found');
+    /* COMMENTS ARE NOT CODE. This function's own comment WARNS about
+       dateStyle/timeStyle, so scanning raw text flags the warning as the
+       thing it warns against. Fourth time this exact mistake has been
+       made in these gates — see gate_customer_addresses_migration.py and
+       its executable() helper for the SQL version. Declared HERE, before
+       any assertion uses it: putting it lower hit a TDZ ReferenceError. */
+    const tmCode = tm[0].replace(/\/\*[\s\S]*?\*\//g, '')
+                        .replace(/^\s*\/\/.*$/gm, '');
+    const signInTimeLabel = eval('(function(){' + tm[0] + '; return signInTimeLabel; })()');
+
+    let label = null, threw = null;
+    try { label = signInTimeLabel(new Date(Date.UTC(2026, 8, 28, 19, 13))); }
+    catch (e) { threw = e; }
+    ok('signInTimeLabel does NOT throw', !threw,
+       threw && `${threw.constructor.name}: ${threw.message}`);
+    ok('it returns a non-empty string',
+       typeof label === 'string' && label.length > 0, String(label));
+    ok('it names the month', /September/.test(label || ''), String(label));
+    ok('it shows the timezone', /EDT|EST|UTC/.test(label || ''), String(label));
+    /* ⚠️ THIS BEHAVIOURAL CHECK PASSES BY LUCK IF THE HOST'S OWN
+       TIMEZONE IS EASTERN — which the sandbox's is. A mutation deleting
+       the explicit timeZone option sailed through it. The structural
+       assertion below is the one that actually holds on a UTC server,
+       which is what Hostinger most likely is. */
+    ok('it is in Eastern, not UTC', /3:13|03:13/.test(label || ''),
+       `${label} — 19:13 UTC should read 3:13 PM Eastern`);
+    ok('the timezone is stated EXPLICITLY, not inherited from the host',
+       /timeZone:\s*'America\/New_York'/.test(tmCode),
+       'on a UTC server every security email would show the wrong hour');
+    ok('dateStyle/timeStyle are NOT used',
+       !/dateStyle|timeStyle/.test(tmCode),
+       'they cannot be combined with timeZoneName - this is the cfce433 bug');
+    ok('there is a fallback if formatting ever fails',
+       /catch\s*\{/.test(tmCode),
+       'a timestamp is never worth an exception on the sign-in path');
+
+    const nm = src.match(/function newDeviceEmail\(\{ email, deviceLabel, when, secureUrl \}\) \{[\s\S]*?\n\}/);
+    ok('newDeviceEmail is extractable', !!nm, 'not found');
+    const newDeviceEmail = eval('(function(){' + nm[0] + '; return newDeviceEmail; })()');
+
+    let mail = null; threw = null;
+    try {
+      mail = newDeviceEmail({ email: 'a@b.com', deviceLabel: 'Mac (Web)',
+                              when: label, secureUrl: 'https://x/account/secure?t=abc' });
+    } catch (e) { threw = e; }
+    ok('newDeviceEmail does NOT throw', !threw,
+       threw && `${threw.constructor.name}: ${threw.message}`);
+    ok('it produces a subject', !!(mail && mail.subject), 'none');
+    ok('it produces html', !!(mail && mail.html && mail.html.length > 200), 'none');
+    ok('the address is interpolated, not left as a token',
+       mail && /a@b\.com/.test(mail.html) && !/\$\{email\}/.test(mail.html), 'not substituted');
+    ok('the secure URL is interpolated',
+       mail && mail.html.includes('https://x/account/secure?t=abc'), 'missing');
+    ok('the device label is interpolated',
+       mail && /Mac \(Web\)/.test(mail.html), 'missing');
+    ok('the time is interpolated', mail && mail.html.includes(label), 'missing');
+  }
+
+  console.log('--- the notification cannot fail the sign-in ---');
+  /* Structural, not incidental: the WHOLE block is wrapped, not just the
+     brevo promise. issueSecureToken, newDeviceEmail and signInTimeLabel
+     all run synchronously on the sign-in path. */
+  {
+    const src = fs.readFileSync(
+      path.join(ROOT, 'src/controllers/accountController.js'), 'utf8');
+    const m = src.match(/try \{\n    if \(!customer\.created\) \{[\s\S]*?\} catch \(notifyErr\)/);
+    ok('the notification block has its OWN try/catch', !!m,
+       'a throw in it takes down the sign-in it reports on');
+    ok('its catch says the sign-in is unaffected',
+       /sign-in unaffected/.test(src), 'no signal in the log');
+  }
+
   console.log('--- the new-device email ---');
   ok('sent only when NOT a new account', /if \(!customer\.created\)/.test(code),
      'a security warning as the first mail BVO ever sends');

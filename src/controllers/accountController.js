@@ -146,10 +146,29 @@ If a link claiming to be from BVO starts with anything else, it is not from us.
    a security email is unreadable to the person who has to judge whether
    2am was them. */
 function signInTimeLabel(d = new Date()) {
-  return d.toLocaleString('en-US', {
-    timeZone: 'America/New_York',
-    dateStyle: 'long', timeStyle: 'short', timeZoneName: 'short',
-  });
+  /* ⚠️ dateStyle/timeStyle CANNOT be combined with component options
+     like timeZoneName. Doing so throws `TypeError: Invalid option :
+     option` on EVERY call, on every Node build — it is a spec rule, not
+     an environment quirk.
+
+     That shipped in cfce433 and broke every code sign-in: the code
+     verified, the row was consumed, the secure token was written, and
+     THEN this threw — so the buyer was signed in but saw
+     "That code is not right." Found 2026-09-28 from the auth-code table,
+     which showed consumed_at set on a code the user was told was wrong.
+
+     Component options only, therefore. */
+  try {
+    return d.toLocaleString('en-US', {
+      timeZone: 'America/New_York',
+      year: 'numeric', month: 'long', day: 'numeric',
+      hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
+    });
+  } catch {
+    /* Belt and braces. A timestamp in a notification is never worth an
+       exception on the sign-in path. */
+    return d.toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
+  }
 }
 
 /* ── POST /account/code ── Send a sign-in code ──────────────────── */
@@ -314,6 +333,14 @@ exports.verifyCode = async (req, res, next) => {
 
        Fire-and-forget. A security notification is valuable, but not
        worth failing the sign-in it is reporting. */
+    /* ⚠️ THE WHOLE BLOCK IS WRAPPED, not just the mail call.
+       The comment above said "fire-and-forget", but only the brevo
+       promise actually was — issueSecureToken, newDeviceEmail() and
+       signInTimeLabel() all ran synchronously in the critical path, so
+       ANY throw took down the sign-in they were reporting on. One did
+       (see signInTimeLabel). A security notification must never be able
+       to fail the authentication it describes. */
+    try {
     if (!customer.created) {
       const secureToken = await authCode.issueSecureToken(email, clientIp(req));
       if (secureToken) {
@@ -332,6 +359,10 @@ exports.verifyCode = async (req, res, next) => {
           .catch(err => console.error('[account.verify] new-device email failed:',
                                       err && err.message));
       }
+    }
+    } catch (notifyErr) {
+      console.error('[account.verify] new-device notification failed (sign-in unaffected):',
+                    notifyErr && notifyErr.message);
     }
 
     /* Rejects protocol-relative URLs like //evil.com, which pass a naive

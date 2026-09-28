@@ -104,9 +104,16 @@ async function issueCode(rawEmail, ip, purpose = 'login') {
   /* Cooldown first: it is the limit a legitimate impatient buyer hits,
      and it deserves a specific answer rather than a generic refusal. */
   const [[last]] = await db().query(
+    /* purpose = 'login' — NOT every row for this address.
+        secure_account tokens live in this table too (issueSecureToken),
+        and without this filter one of those counts as "a code we just
+        sent", so the 60-second cooldown fires against a token the buyer
+        never asked for. Added 2026-09-28 after secure tokens started
+        sharing the table. */
     `SELECT created_at, TIMESTAMPDIFF(SECOND, created_at, NOW()) AS age
        FROM customer_auth_codes
-      WHERE email = ? ORDER BY id DESC LIMIT 1`,
+      WHERE email = ? AND purpose = 'login'
+      ORDER BY id DESC LIMIT 1`,
     [email]
   );
   if (last && last.age < RESEND_COOLDOWN_SEC) {
@@ -117,14 +124,16 @@ async function issueCode(rawEmail, ip, purpose = 'login') {
      One initial plus three resends. */
   const [[burst]] = await db().query(
     `SELECT COUNT(*) AS n FROM customer_auth_codes
-      WHERE email = ? AND created_at > (NOW() - INTERVAL ? MINUTE)`,
+      WHERE email = ? AND purpose = 'login'
+        AND created_at > (NOW() - INTERVAL ? MINUTE)`,
     [email, CODE_TTL_MINUTES]
   );
   if (burst.n >= MAX_CODES_PER_BURST) return { ok: false, reason: 'too_many_resends' };
 
   const [[hourEmail]] = await db().query(
     `SELECT COUNT(*) AS n FROM customer_auth_codes
-      WHERE email = ? AND created_at > (NOW() - INTERVAL 1 HOUR)`,
+      WHERE email = ? AND purpose = 'login'
+        AND created_at > (NOW() - INTERVAL 1 HOUR)`,
     [email]
   );
   if (hourEmail.n >= MAX_CODES_EMAIL_HOUR) return { ok: false, reason: 'email_hour_cap' };
@@ -135,7 +144,8 @@ async function issueCode(rawEmail, ip, purpose = 'login') {
   if (ip) {
     const [[hourIp]] = await db().query(
       `SELECT COUNT(*) AS n FROM customer_auth_codes
-        WHERE request_ip = ? AND created_at > (NOW() - INTERVAL 1 HOUR)`,
+        WHERE request_ip = ? AND purpose = 'login'
+          AND created_at > (NOW() - INTERVAL 1 HOUR)`,
       [ip]
     );
     if (hourIp.n >= MAX_CODES_IP_HOUR) return { ok: false, reason: 'ip_hour_cap' };
