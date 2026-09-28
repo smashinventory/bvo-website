@@ -834,6 +834,23 @@ Fix, when someone has an hour: dump the nine live bodies into a dated
 migration so the repo has a truthful record again, and add a note at the
 top of `016_` saying it is history, not current state.
 
+### INFORMATION_SCHEMA — phpMyAdmin only. CLOSED, no action.
+The `#1044 Access denied … to database 'information_schema'` seen on
+2026-09-28 applies to the **phpMyAdmin user** (`u222311468_Admin1`), not
+to the application's database user.
+
+Verified by loading `/admin/models`, which calls
+`INFORMATION_SCHEMA.COLUMNS` and `INFORMATION_SCHEMA.STATISTICS` on
+every request inside `_ensureModelGroupsTable()`. The page renders
+correctly — 45 models, 10 managed, brand column populated — so the
+self-heal has been working throughout.
+
+**No code change needed.** The rule is narrower than it first looked:
+avoid `INFORMATION_SCHEMA` in **migrations**, because those run through
+phpMyAdmin and a denial there aborts the rest of the file silently. Use
+`SHOW COLUMNS` / `SHOW INDEX` / `SHOW TABLE STATUS` in `.sql` files.
+Application code may continue to use it.
+
 ### The schema is split across two collations — 2026-09-28
 **MEASURED, not guessed** — `SHOW TABLE STATUS`, 2026-09-28:
 
