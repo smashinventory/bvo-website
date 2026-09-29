@@ -7,6 +7,9 @@ const { modelKey, modelBrandPairs } = require('../utils/modelKey');
 /* Which product a model card leads with — shared with collectionsController
    so the homepage carousel and the full list cannot disagree. */
 const { fetchModelHeroes } = require('../utils/modelHero');
+/* One definition of which products a model card may be built from —
+   shared with collectionsController so the two cannot scope differently. */
+const { createScope }      = require('../utils/modelScope');
 /* Corner badge — shared with collectionsController so a card cannot claim
    one thing on the homepage and another on the full list. */
 const { pickBadge }        = require('../utils/cardBadge');
@@ -541,13 +544,29 @@ async function getFeaturedModels(opts = {}) {
     curatedModels.forEach(r => {
       if (r.default_sku) heroOverrides[modelKey({ model: r.model_name, brand: r.brand })] = r.default_sku;
     });
-    /* Pass the section's product_type filter through. A featured-models
-       section scoped to "Single Sink Cabinet Only" had the same latent bug
-       as the collection page — the hero was ranked across all types, so the
-       section could lead with a mirror. Not reported on the homepage, but
-       it is the same function and the same mistake one filter away. */
+    /* ── THE SCOPE. Same object the collection page builds. ────────────
+       Until 2026-09-29 this passed only the section's product_type, which
+       had the same hole the collection page had: a section filtered to a
+       CATEGORY but not to a type ranked its heroes across the entire
+       catalogue, so a vanity section could lead with a mirror from the
+       same collection. Never reported here — the homepage sections are
+       mostly type-filtered by luck — but it is one settings change away.
+
+       A section with NO category filter is genuinely site-wide, and that
+       has to be said out loud rather than arrived at by an empty array.
+       See the header of src/utils/modelScope.js: an empty filter that
+       MEANS "everything" and an empty filter that means "somebody forgot"
+       are indistinguishable at the call site, and that is precisely how
+       this bug survived three fixes. */
+    const heroScope = createScope({
+      categorySlug: (opts.category || '').trim() || null,
+      productTypes: opts.ptype ? [opts.ptype] : [],
+      brands:       opts.brand  ? [opts.brand] : [],
+      unscoped:     !((opts.category || '').trim()),
+      label:        `home/featured-models[${opts.category || 'site-wide'}]`,
+    });
     const defaultBySku = await fetchModelHeroes(
-      bvoPool, modelRows, heroOverrides, opts.ptype ? [opts.ptype] : []);
+      bvoPool, modelRows, heroOverrides, heroScope);
 
     return modelRows.map(r => {
       /* RESOLVED 2026-09-05 — was the last map on the site still keyed on

@@ -49,3 +49,6 @@ git_amend_*.sh
 # Local pre-change CSS backups (2026-09-29). Git history is the real
 # backup; these exist so a rollback needs no git knowledge.
 public/css/_backup/
+
+# Local pre-change backups (model card scope work, 2026-09-29).
+_backup/

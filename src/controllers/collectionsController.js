@@ -22,6 +22,9 @@ const { SIZE_BUCKETS }                                  = require('../config/siz
 /* Which product a model card leads with — shared with homeController so
    the carousel and this page cannot pick different heroes. */
 const { fetchModelHeroes, heroFields }                  = require('../utils/modelHero');
+/* One definition of which products a model card may be built from —
+   shared with homeController so the two cannot scope differently. */
+const { createScope }                                   = require('../utils/modelScope');
 /* Corner badge — shared with homeController so a card cannot claim one
    thing on the homepage and another here. */
 const { pickBadge }                                     = require('../utils/cardBadge');
@@ -562,11 +565,24 @@ exports.show = async (req, res, next) => {
         console.warn('[collections] default_sku overrides unavailable:', err.message);
       }
 
-      /* mgActiveTypes is passed for the same reason mgCsRows filters on it
-         above: without it the hero is ranked across every product type in
-         the model, and a cabinets-only page leads with a mirror's photo
-         and price. See the block comment in src/utils/modelHero.js. */
-      const mgHeroes = await fetchModelHeroes(bvoPool, mgModelRows, mgHeroOverrides, mgActiveTypes);
+      /* ── THE SCOPE. Read src/utils/modelScope.js before changing it. ──
+         CATEGORY is the load-bearing half and the half that was missing.
+         Until 2026-09-29 this call passed only mgActiveTypes, and on
+         /collections/vanity-models that array is empty — so the hero was
+         ranked across the ENTIRE catalogue. The Bristol card led with a
+         mirror sitting correctly in the mirrors category, at $388, over a
+         model whose real range here is $1,608-$4,237.
+
+         vanity-models deliberately gets NO type list: mirrors and storage
+         cabinets live in their own categories, so the category alone is
+         sufficient, and a second list of types to keep in sync is how
+         SLUG_DEFAULT_TYPES-shaped drift starts. */
+      const mgScope = createScope({
+        categoryId:   mgProductCatId,
+        productTypes: mgActiveTypes,
+        label:        `collections/${slug}`,
+      });
+      const mgHeroes = await fetchModelHeroes(bvoPool, mgModelRows, mgHeroOverrides, mgScope);
 
       let mgModels = mgModelRows.map(r => {
         const _hero  = heroFields(mgHeroes[mk(r)]);

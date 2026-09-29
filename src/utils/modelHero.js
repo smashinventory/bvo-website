@@ -26,6 +26,9 @@
 
 const { modelKey, modelBrandPairs } = require('./modelKey');
 const { SIZE_BUCKETS }              = require('../config/sizeBuckets');
+/* One definition of which products a model card may be built from.
+   See the header of that file for why this is not a local parameter. */
+const { isScope }                   = require('./modelScope');
 
 /**
  * Resolve the hero product for each (model, brand) pair.
@@ -33,13 +36,13 @@ const { SIZE_BUCKETS }              = require('../config/sizeBuckets');
  * @param pool          mysql2 pool
  * @param rows          rows carrying `model` and `brand`
  * @param overrides     optional { "Model||Brand": "SKU" } from model_groups.default_sku
- * @param productTypes  optional string[] — restrict candidates to these
- *                      product_types. MUST be passed by any caller whose
- *                      page is scoped to a subset of types; see below.
+ * @param scope         REQUIRED scope from src/utils/modelScope.js. Carries
+ *                      the category, and optionally product types and
+ *                      brands. An unbounded scope yields {} — see below.
  * @returns             { "Model||Brand": heroRow } — pairs with no usable
  *                      candidate are simply absent, never a partial object.
  */
-/* ── WHY productTypes IS NOT OPTIONAL IN PRACTICE ──────────────────────
+/* ── SCOPE IS REQUIRED. READ THIS BEFORE CHANGING THE SIGNATURE ────────
    Reported 2026-09-24: "mirrors have snuck back into the vanity/cabinet
    collections", and then "accessory cabinet is also slipping in".
 
@@ -58,16 +61,45 @@ const { SIZE_BUCKETS }              = require('../config/sizeBuckets');
    is the exact failure this file was written to END; it just reintroduced
    it along a different axis.
 
-   Callers scoped to a type subset MUST pass it. An empty array keeps the
-   old unfiltered behaviour, which is correct only for a genuinely
-   unscoped surface. */
-async function fetchModelHeroes(pool, rows, overrides = {}, productTypes = []) {
+   THE 2026-09-24 FIX WAS INCOMPLETE, and this is why it came back on
+   2026-09-29 with the same SKU and the same $388:
+
+     - it added a productTypes parameter, NOT a category one. The query
+       below had no category predicate at all, so a mirror sitting
+       correctly in category 2 was still an eligible hero for a card on a
+       page scoped to category 1.
+     - productTypes DEFAULTED TO [] meaning "everything". The call site
+       read `fetchModelHeroes(pool, rows, overrides, mgActiveTypes)` and
+       looked right. On /collections/vanity-models mgActiveTypes is empty,
+       so it ran with no filter whatsoever, and looked right while doing
+       it.
+
+   Both halves are fixed by taking a scope object (src/utils/modelScope.js)
+   instead: it always carries the category, and a surface that genuinely
+   means "everything" has to say `unscoped: true` out loud.
+
+   An unbounded scope returns {} rather than an unscoped ranking. Callers
+   fall back to their aggregate (MIN price, MIN image from their own
+   already-scoped query) — less precise, but drawn from the right
+   products. Degrading toward the wrong SKU is what produced this bug
+   three times; degrading toward a duller card has never hurt anyone. */
+async function fetchModelHeroes(pool, rows, overrides = {}, scope = null) {
   const out = {};
   const { params, sql } = modelBrandPairs(rows);
   if (!params.length) return out;
 
-  const types    = (productTypes || []).filter(Boolean);
-  const typeSql  = types.length ? ` AND p.product_type IN (${types.map(() => '?').join(',')})` : '';
+  if (!isScope(scope) || !scope.isBounded()) {
+    console.warn(
+      '[modelHero] REFUSING to rank unscoped — no category and no explicit ' +
+      `unscoped flag (caller: ${(scope && scope.label) || 'no scope passed'}). ` +
+      'Cards fall back to their aggregate. See src/utils/modelScope.js.'
+    );
+    return out;
+  }
+
+  const scoped   = scope.where('p');
+  const joinCats = scope.needsCategoryJoin()
+    ? ' INNER JOIN categories c ON c.id = p.category_id' : '';
 
   try {
     /* ROW_NUMBER over (model, brand) picks one winner per card in a single
@@ -101,7 +133,7 @@ async function fetchModelHeroes(pool, rows, overrides = {}, productTypes = []) {
             PARTITION BY p.model, p.brand
             ORDER BY p.demand_score DESC, p.price ASC, p.id ASC
           ) AS rn
-        FROM products p
+        FROM products p${joinCats}
         LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
         LEFT JOIN inventory inv     ON inv.product_id = p.id
         LEFT JOIN product_attribute_values pav
@@ -110,11 +142,11 @@ async function fetchModelHeroes(pool, rows, overrides = {}, productTypes = []) {
           AND (p.model, p.brand) IN (${sql})
           AND p.width_in IS NOT NULL
           AND p.color    IS NOT NULL AND p.color <> ''
-          ${typeSql}
+          ${scoped.sql}
         GROUP BY p.id
       ) ranked
       WHERE rn = 1
-    `, [...params, ...types]);
+    `, [...params, ...scoped.params]);
 
     for (const r of heroRows) out[modelKey(r)] = r;
   } catch (err) {
@@ -152,19 +184,22 @@ async function fetchModelHeroes(pool, rows, overrides = {}, productTypes = []) {
                COALESCE(inv.qty_on_hand, 0) AS qty_on_hand,
                MAX(pav.value_text)          AS primary_material,
                COALESCE(p.primary_image_url, MIN(pi.url)) AS image_url
-        FROM products p
+        FROM products p${joinCats}
         LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
         LEFT JOIN inventory inv     ON inv.product_id = p.id
         LEFT JOIN product_attribute_values pav
                ON pav.product_id = p.id AND pav.attr_key = 'primary_material'
         WHERE p.is_active = 1 AND (p.sku, p.model, p.brand) IN (${ph})
-          /* The pin is filtered too. A hand-picked default_sku that is a
-             mirror must not override the correctly-typed demand winner on
-             a cabinets-only page — it would reintroduce the exact bug by
-             the back door, and only on the models someone had curated. */
-          ${typeSql}
+          /* The pin carries the SAME scope as the demand pick. A
+             hand-picked default_sku that is a mirror must not override
+             the correctly-scoped winner on a vanity page — it would
+             reintroduce this exact bug by the back door, and only on the
+             models someone had bothered to curate, which is the hardest
+             possible place to notice it. An out-of-scope pin simply finds
+             nothing and leaves the demand pick standing. */
+          ${scoped.sql}
         GROUP BY p.id
-      `, [...wanted.flat(), ...types]);
+      `, [...wanted.flat(), ...scoped.params]);
       for (const r of pinned) out[modelKey(r)] = r;
     } catch (err) {
       console.warn('[modelHero] default_sku lookup failed:', err.message);
