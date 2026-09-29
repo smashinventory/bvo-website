@@ -515,6 +515,12 @@ app.use((req, res, next) => {
      an EJS local that is undefined throws at render time on a page a
      buyer is mid-purchase on. See src/utils/deliveryLocation.js. */
   res.locals.deliveryLocation = require('./utils/deliveryLocation');
+  /* Screen-size bands, resolved from the owner's Theme Editor settings.
+     Exposed here for the same reason deliveryLocation is: header.ejs and
+     main.ejs both need it, an EJS template cannot `require`, and a local
+     that is undefined throws at render on every page of the site.
+     See src/utils/breakpoints.js. */
+  res.locals.breakpoints = require('./utils/breakpoints');
   // Initialise cart on every page request so the session is "touched" (modified)
   // and express-session writes it to MySQL + sends the session cookie immediately.
   // Without this, saveUninitialized:false delays the cookie until /cart is visited,

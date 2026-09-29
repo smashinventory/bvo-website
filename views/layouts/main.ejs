@@ -183,6 +183,26 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
        it here ships ~23KB of admin CSS to every public visitor and grows the
        bundle from 121KB to 137KB for no benefit. Do not add it. %>
   <link rel="stylesheet" href="/css/site-bundle.css?v=21">
+  <%# ── SECTION VISIBILITY, FROM THE OWNER'S BREAKPOINTS ─────────────
+      "Visible on" offered All / Desktop / Mobile and was implemented as
+      two rules hardcoded at 861px. There was no Tablet option because
+      there was no tablet band — which is also why the editor's Tablet
+      preview button appeared broken: at 768px the site rendered its
+      mobile layout, correctly, because 860 was the only line it knew.
+
+      Now the three bands come from Theme Editor > Breakpoints, and a
+      section can be shown on exactly one of them.
+
+      EMITTED INLINE, not added to a stylesheet, deliberately. Verified
+      2026-09-29: public/css/site4.css is linked ONLY by the admin
+      layout, and site-bundle.css does not contain its storefront rules —
+      which is why site4's `@media (max-width:480px){.site-nav{padding:0
+      12px}}` has never once applied to a shopper. Anything the owner
+      controls has to reach the page without depending on a bundle
+      rebuild. See src/utils/breakpoints.js. %>
+  <% if (typeof breakpoints !== 'undefined' && breakpoints) { %>
+  <style nonce="<%= cspNonce %>"><%- breakpoints.visibilityCss(breakpoints.resolve(settings || {})) %></style>
+  <% } %>
   <%# site3.css: Trust signals, checkout, CMS pages, blog, inspiration guides.
       Loaded conditionally per-page via the `style` slot below, not globally
       (perf: saves 37KB blocking CSS on homepage/collections/products).

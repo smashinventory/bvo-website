@@ -247,9 +247,15 @@ _DEFAULT_ORDER.forEach(function(k) {
 <% var _baseKey = sectionKey.replace(/_\d+$/, ''); var _d = S[sectionKey] || {}; %>
 <%
   var _showOn   = (_d && _d.show_on) || 'all';
-  var _visClass = _showOn === 'desktop' ? 'sec--desktop-only'
-                : _showOn === 'mobile'  ? 'sec--mobile-only'
-                : '';
+  /* One mapping, in src/utils/breakpoints.js, so the class the section
+     gets and the CSS that hides it cannot disagree. Adding 'tablet' here
+     without adding its rule there is how a section silently shows on
+     every device. Guarded: the local is absent on pages rendered outside
+     the normal middleware chain. */
+  var _visClass = (typeof breakpoints !== 'undefined' && breakpoints)
+    ? breakpoints.visibilityClass(_showOn)
+    : (_showOn === 'desktop' ? 'sec--desktop-only'
+      : _showOn === 'mobile' ? 'sec--mobile-only' : '');
 %>
 <% if (_visClass) { %><div class="<%= _visClass %>"><% } %>
 

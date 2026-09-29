@@ -217,6 +217,11 @@ function teVisibleOn(pk,d){
     + '<label>Visible on</label><select name="'+pk+'.show_on" class="te4-select">'
     + '<option value="all"'    +((d.show_on||'all')==='all'   ?' selected':'')+'>All devices</option>'
     + '<option value="desktop"'+(d.show_on==='desktop'        ?' selected':'')+'>Desktop only</option>'
+    /* Tablet added 2026-09-29. It exists now because the site HAS a tablet
+       band — see Theme Editor > Breakpoints and src/utils/breakpoints.js.
+       Before that the two rules were hardcoded at 861px and a third
+       option would have selected nothing. */
+    + '<option value="tablet"' +(d.show_on==='tablet'         ?' selected':'')+'>Tablet only</option>'
     + '<option value="mobile"' +(d.show_on==='mobile'         ?' selected':'')+'>Mobile only</option>'
     + '</select></div>';
 }
@@ -451,13 +456,25 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
                  min="240" max="3840" step="1" value="" placeholder="auto"
                  title="Preview width in px — type any value, or pick a breakpoint">
           <span class="te4-width-unit">px</span>
+          <%
+            /* Presets derived from the owner's OWN bands, not from the
+               breakpoints that used to be hardcoded in the CSS. The old
+               list offered 479/481/519/720/860 — numbers from rules the
+               owner never set and can now change, which meant the list
+               went stale the moment they did. */
+            var _bpm = (t.breakpoints && +t.breakpoints.mobile_max) || 600;
+            var _bpt = (t.breakpoints && +t.breakpoints.tablet_max) || 1024;
+          %>
           <datalist id="te4WidthPresets">
-            <option value="375" label="375 — phone"></option>
-            <option value="479" label="479 — last px of phone hero"></option>
-            <option value="481" label="481 — desktop hero takes over"></option>
-            <option value="519" label="519 — bg layout rules end"></option>
-            <option value="720" label="720 — content-box rules"></option>
-            <option value="860" label="860 — split collapses"></option>
+            <option value="375"  label="375 — iPhone SE / 13 mini"></option>
+            <option value="390"  label="390 — iPhone 14/15"></option>
+            <option value="428"  label="428 — iPhone Pro Max"></option>
+            <option value="<%= _bpm %>" label="<%= _bpm %> — last px of Mobile"></option>
+            <option value="<%= _bpm + 1 %>" label="<%= _bpm + 1 %> — Tablet starts"></option>
+            <option value="768"  label="768 — iPad portrait"></option>
+            <option value="1024" label="1024 — iPad landscape"></option>
+            <option value="<%= _bpt %>" label="<%= _bpt %> — last px of Tablet"></option>
+            <option value="<%= _bpt + 1 %>" label="<%= _bpt + 1 %> — Desktop starts"></option>
             <option value="1440" label="1440 — laptop"></option>
           </datalist>
         </div>
@@ -736,12 +753,78 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
           <div class="te4-panel" id="panel-nav">
             <% const nav=t.nav||{}; %>
 
+            <!-- ══ SCREEN-SIZE BANDS ══════════════════════════════
+                 Added 2026-09-29. Two numbers that every responsive
+                 decision on the site reads. Before this, 860px was
+                 hardcoded in four files, "Visible on" could only offer
+                 Desktop and Mobile, and the preview's Tablet button
+                 showed the mobile layout because no tablet band existed.
+                 Resolved and clamped by src/utils/breakpoints.js. -->
+            <div class="te4-section-label">Screen-size bands</div>
+            <p style="font-size:.77rem;color:var(--te4-muted,#888);margin:0 0 .6rem">
+              Everything below — and every section's <strong>Visible on</strong> —
+              uses these. Mobile is 0 to the first number, Tablet runs to the
+              second, Desktop is anything wider.
+            </p>
+            <div class="te4-row2">
+              <%- teField('number','breakpoints.mobile_max','Mobile ends at (px)',(t.breakpoints&&t.breakpoints.mobile_max)||600,true) %>
+              <%- teField('number','breakpoints.tablet_max','Tablet ends at (px)',(t.breakpoints&&t.breakpoints.tablet_max)||1024,true) %>
+            </div>
+            <p style="font-size:.74rem;color:var(--te4-muted,#888);margin:.3rem 0 1.2rem">
+              Common widths: 390 iPhone · 428 Pro Max · 768 iPad portrait ·
+              1024 iPad landscape · 1440 laptop.
+            </p>
+
             <!-- Logo & Header -->
             <div class="te4-section-label">Logo</div>
             <%- teImageField('nav.logo_url','Logo Image',nav.logo_url) %>
+            <p style="font-size:.77rem;color:var(--te4-muted,#888);margin:.5rem 0 .4rem">
+              <strong>Size per band.</strong> Leave a box empty to reuse the
+              Desktop value. Until 2026-09-29 only the Desktop pair existed and
+              it applied above 861px only, so on a phone these fields did
+              nothing at all.
+            </p>
             <div class="te4-row2" style="margin-top:.5rem">
-              <%- teField('number','nav.logo_width','Logo Width (px)',nav.logo_width||'90',true) %>
-              <%- teField('number','nav.logo_height','Logo Height (px)',nav.logo_height||'90',true) %>
+              <%- teField('number','nav.logo_width','Logo Width — Desktop (px)',nav.logo_width||'90',true) %>
+              <%- teField('number','nav.logo_height','Logo Height — Desktop (px)',nav.logo_height||'90',true) %>
+            </div>
+            <div class="te4-row2">
+              <%- teField('number','nav.logo_width_tablet','Width — Tablet',nav.logo_width_tablet,true) %>
+              <%- teField('number','nav.logo_height_tablet','Height — Tablet',nav.logo_height_tablet,true) %>
+            </div>
+            <div class="te4-row2">
+              <%- teField('number','nav.logo_width_mobile','Width — Mobile',nav.logo_width_mobile,true) %>
+              <%- teField('number','nav.logo_height_mobile','Height — Mobile',nav.logo_height_mobile,true) %>
+            </div>
+
+            <!-- ══ HEADER SPACING ═══════════════════════════════════
+                 The owner asked for control of "buffer sizes between the
+                 objects and each other as well as the objects and the
+                 container". Side padding is object-to-container; gap is
+                 object-to-object. Both had a single hardcoded value used
+                 on every screen, which is why a 375px phone clipped the
+                 menu button. -->
+            <div class="te4-section-label" style="margin-top:1rem">Header spacing</div>
+            <p style="font-size:.77rem;color:var(--te4-muted,#888);margin:0 0 .5rem">
+              <strong>Side padding</strong> is the gap between the bar's edge and
+              its contents. <strong>Item gap</strong> is the space between the
+              logo, the icons and the menu button. <strong>Bar height</strong>
+              empty = tall enough for the logo.
+            </p>
+            <div class="te4-row3">
+              <%- teField('number','nav.pad_desktop','Side padding — Desktop',nav.pad_desktop,true) %>
+              <%- teField('number','nav.gap_desktop','Item gap — Desktop',nav.gap_desktop,true) %>
+              <%- teField('number','nav.height_desktop','Bar height — Desktop',nav.height_desktop,true) %>
+            </div>
+            <div class="te4-row3">
+              <%- teField('number','nav.pad_tablet','Side padding — Tablet',nav.pad_tablet,true) %>
+              <%- teField('number','nav.gap_tablet','Item gap — Tablet',nav.gap_tablet,true) %>
+              <%- teField('number','nav.height_tablet','Bar height — Tablet',nav.height_tablet,true) %>
+            </div>
+            <div class="te4-row3">
+              <%- teField('number','nav.pad_mobile','Side padding — Mobile',nav.pad_mobile,true) %>
+              <%- teField('number','nav.gap_mobile','Item gap — Mobile',nav.gap_mobile,true) %>
+              <%- teField('number','nav.height_mobile','Bar height — Mobile',nav.height_mobile,true) %>
             </div>
             <%- teField('text','nav.logo_alt','Logo Alt Text',nav.logo_alt,true) %>
             <p style="font-size:.77rem;color:var(--te4-muted,#888);margin:.25rem 0 1rem">
@@ -876,6 +959,7 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
               <select name="scrolling_ticker.show_on" class="te4-select">
                 <option value="all"     <%=(stk.show_on||'all')==='all'    ?'selected':''%>>All devices</option>
                 <option value="desktop" <%=stk.show_on==='desktop'         ?'selected':''%>>Desktop only</option>
+                <option value="tablet"  <%=stk.show_on==='tablet'          ?'selected':''%>>Tablet only</option>
                 <option value="mobile"  <%=stk.show_on==='mobile'          ?'selected':''%>>Mobile only</option>
               </select>
             </div>
@@ -1057,6 +1141,7 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
               <select name="hero.show_on" class="te4-select">
                 <option value="all"     <%=(h.show_on||'all')==='all'    ?'selected':''%>>All devices</option>
                 <option value="desktop" <%=h.show_on==='desktop'         ?'selected':''%>>Desktop only</option>
+                <option value="tablet"  <%=h.show_on==='tablet'          ?'selected':''%>>Tablet only</option>
                 <option value="mobile"  <%=h.show_on==='mobile'          ?'selected':''%>>Mobile only</option>
               </select>
             </div>
@@ -1259,6 +1344,7 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
               <select name="brand_logos.show_on" class="te4-select">
                 <option value="all"     <%=(bll.show_on||'all')==='all'    ?'selected':''%>>All devices</option>
                 <option value="desktop" <%=bll.show_on==='desktop'         ?'selected':''%>>Desktop only</option>
+                <option value="tablet"  <%=bll.show_on==='tablet'          ?'selected':''%>>Tablet only</option>
                 <option value="mobile"  <%=bll.show_on==='mobile'          ?'selected':''%>>Mobile only</option>
               </select>
             </div>
@@ -1311,6 +1397,7 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
               <select name="bundle_teaser.show_on" class="te4-select">
                 <option value="all"     <%=(btsec.show_on||'all')==='all'    ?'selected':''%>>All devices</option>
                 <option value="desktop" <%=btsec.show_on==='desktop'         ?'selected':''%>>Desktop only</option>
+                <option value="tablet"  <%=btsec.show_on==='tablet'          ?'selected':''%>>Tablet only</option>
                 <option value="mobile"  <%=btsec.show_on==='mobile'          ?'selected':''%>>Mobile only</option>
               </select>
             </div>
@@ -1540,6 +1627,7 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
               <select name="<%= pk %>.show_on" class="te4-select">
                 <option value="all"     <%=(d.show_on||'all')==='all'    ?'selected':''%>>All devices</option>
                 <option value="desktop" <%=d.show_on==='desktop'         ?'selected':''%>>Desktop only</option>
+                <option value="tablet"  <%=d.show_on==='tablet'          ?'selected':''%>>Tablet only</option>
                 <option value="mobile"  <%=d.show_on==='mobile'          ?'selected':''%>>Mobile only</option>
               </select>
             </div>
@@ -1572,6 +1660,7 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
               <select name="newsletter.show_on" class="te4-select">
                 <option value="all"     <%=(newsec.show_on||'all')==='all'    ?'selected':''%>>All devices</option>
                 <option value="desktop" <%=newsec.show_on==='desktop'         ?'selected':''%>>Desktop only</option>
+                <option value="tablet"  <%=newsec.show_on==='tablet'          ?'selected':''%>>Tablet only</option>
                 <option value="mobile"  <%=newsec.show_on==='mobile'          ?'selected':''%>>Mobile only</option>
               </select>
             </div>
@@ -1637,6 +1726,10 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
     <div class="te4-preview" id="te4Preview">
       <div class="te4-preview-bar">
         <span class="te4-preview-label">Live Preview</span>
+        <%# Shows the true viewport width and, when the pane is too small to
+            hold it, the scale it is drawn at. Without this a scaled preview
+            looks like a rendering bug. %>
+        <span class="te4-preview-label" id="te4ScaleNote" style="text-transform:none;letter-spacing:0;color:#8A93A3"></span>
         <a href="/" target="_blank" class="te4-open-link" title="Open store in new tab">
           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
           Open ↗
@@ -2414,22 +2507,82 @@ var widthInput = document.getElementById('te4WidthInput');
 
 /* Single place that sets the preview width, so the buttons and the number
    box can never disagree about what is on screen. w is '100%' or 'NNNpx'. */
+/* ── SCALE TO FIT, DO NOT CLAMP ────────────────────────────────────
+   Reported 2026-09-29: "There are 3 options, but only the desktop and
+   mobile work. We have a px box that is not functional."
+
+   Two causes, and this fixes the second:
+
+     1. The site had no tablet band. At 768px it rendered its mobile
+        layout because 860px was the only line it knew. Fixed by
+        Theme Editor > Screen-size bands.
+
+     2. THIS. The old code only ever set max-width. The preview pane is
+        the window minus a 290px sidebar, so on a 1280px laptop it is
+        about 970px — narrower than the Tablet button's 768px is useful
+        at, and narrower than any 1024 or 1440 the owner types. Setting
+        max-width to a number LARGER than the pane changes nothing at
+        all, so the control looked dead while working exactly as
+        written.
+
+   Now the frame is laid out at the requested width and scaled down with
+   a transform when the pane cannot hold it. Media queries inside the
+   iframe fire on its LAYOUT width, not its painted size, so a scaled
+   1440px preview is a true 1440px viewport — just drawn smaller. That
+   is the whole point: the owner can see a desktop layout while editing
+   on a laptop.
+
+   The wrapper is sized to the scaled height so the pane does not keep a
+   full-height scroll area for a frame that is now 70% as tall. */
 function applyPreviewWidth(w) {
+  var outer = document.getElementById('te4IframeOuter');
+  var label = document.getElementById('te4ScaleNote');
+
   if (w === '100%') {
     iframeWrap.style.maxWidth     = '';
+    iframeWrap.style.width        = '';
     iframeWrap.style.margin       = '';
     iframeWrap.style.borderRadius = '';
     iframeWrap.style.boxShadow    = '';
+    iframeWrap.style.transform    = '';
+    iframeWrap.style.transformOrigin = '';
+    iframeWrap.style.height       = '';
     if (widthInput) widthInput.value = '';
-  } else {
-    iframeWrap.style.maxWidth     = w;
-    iframeWrap.style.margin       = '16px auto';
-    iframeWrap.style.borderRadius = '12px';
-    iframeWrap.style.overflow     = 'hidden';
-    iframeWrap.style.boxShadow    = '0 4px 24px rgba(0,0,0,.18)';
-    if (widthInput) widthInput.value = parseInt(w, 10);
+    if (label) label.textContent = '';
+    return;
   }
+
+  var want  = parseInt(w, 10);
+  var avail = outer ? outer.clientWidth - 32 : want;   // 32 = breathing room
+  var scale = (avail > 0 && want > avail) ? (avail / want) : 1;
+
+  iframeWrap.style.width        = want + 'px';
+  iframeWrap.style.maxWidth     = 'none';              /* the clamp is gone */
+  iframeWrap.style.margin       = '16px auto';
+  iframeWrap.style.borderRadius = '12px';
+  iframeWrap.style.overflow     = 'hidden';
+  iframeWrap.style.boxShadow    = '0 4px 24px rgba(0,0,0,.18)';
+  iframeWrap.style.transformOrigin = 'top center';
+  iframeWrap.style.transform    = scale < 1 ? 'scale(' + scale + ')' : '';
+  /* Height follows the scale so the pane's scrollbar stays honest. */
+  if (outer) {
+    var h = outer.clientHeight - 32;
+    iframeWrap.style.height = scale < 1 ? (h / scale) + 'px' : '';
+  }
+
+  if (label) {
+    label.textContent = scale < 1
+      ? want + 'px viewport · shown at ' + Math.round(scale * 100) + '%'
+      : want + 'px viewport';
+  }
+  if (widthInput && document.activeElement !== widthInput) widthInput.value = want;
 }
+
+/* Re-fit when the editor window changes size, or a 1440 preview that fitted
+   a moment ago silently stops fitting. */
+window.addEventListener('resize', function () {
+  if (widthInput && widthInput.value) applyPreviewWidth(widthInput.value + 'px');
+});
 
 document.querySelectorAll('.te4-dev-btn').forEach(function (btn) {
   btn.addEventListener('click', function () {
@@ -2448,13 +2601,12 @@ if (widthInput) {
     if (!n) { return; }                       // mid-typing or cleared: leave it alone
     if (n < 240 || n > 3840) { return; }      // ignore nonsense without fighting the user
     document.querySelectorAll('.te4-dev-btn').forEach(function (b) { b.classList.remove('is-active'); });
-    /* Not applyPreviewWidth() — that would rewrite value while typing and
-       move the caret. Set the frame directly and leave the field as typed. */
-    iframeWrap.style.maxWidth     = n + 'px';
-    iframeWrap.style.margin       = '16px auto';
-    iframeWrap.style.borderRadius = '12px';
-    iframeWrap.style.overflow     = 'hidden';
-    iframeWrap.style.boxShadow    = '0 4px 24px rgba(0,0,0,.18)';
+    /* One code path. The old version duplicated the styling here to avoid
+       rewriting the field while typing — and that copy was the one that
+       only set max-width, so a typed value could never scale even after
+       the buttons learned to. applyPreviewWidth now leaves the field
+       alone while it has focus, so there is no reason for a second copy. */
+    applyPreviewWidth(n + 'px');
   });
   /* Empty the box to go back to full width. */
   widthInput.addEventListener('change', function () {

@@ -68,10 +68,59 @@ const DEFAULTS = {
     bg_color: '#182840',    // navy — high contrast for accessibility
     text_color: '#ffffff',  // white on navy
   },
+  /* ── SCREEN-SIZE BANDS ────────────────────────────────────────────
+     Two numbers that every responsive decision derives from:
+       mobile   0 .. mobile_max
+       tablet   mobile_max+1 .. tablet_max
+       desktop  tablet_max+1 .. up
+
+     Added 2026-09-29. Before this, 860px was hardcoded in four places
+     and the Theme Editor's Tablet preview button showed the mobile
+     layout because no tablet band existed. See src/utils/breakpoints.js
+     — that file resolves and clamps these, and nothing else may read
+     them raw. */
+  breakpoints: {
+    mobile_max: 600,
+    tablet_max: 1024,
+  },
+
   nav: {
     brand_line1: 'BathroomVanities',
     brand_line2: 'Outlet',
     brand_line3: '.com',
+
+    /* ── HEADER SIZING, PER BAND ───────────────────────────────────
+       Empty string means "inherit the band above", so the owner only
+       fills in what they want to differ. A zero is a real value (no
+       padding); only '' is absent — hence the String() checks in
+       header.ejs rather than a truthiness test.
+
+       logo_width / logo_height stay as the DESKTOP values because they
+       already exist and are already saved; renaming them would silently
+       drop the 120px currently live. The tablet and mobile pairs are
+       new and default to empty = inherit. */
+    logo_width:         90,
+    logo_height:        90,
+    /* 90, not '' (inherit), ON PURPOSE. site.css pinned .nav-logo to 90x90
+       below 861px, so 90 is what every phone and tablet renders TODAY.
+       Leaving these empty would make them inherit the desktop value — the
+       live setting is 120 — and the owner's phone header would grow the
+       moment this deploys, which nobody asked for. Clear a field to
+       inherit; these ship pre-filled with the status quo. */
+    logo_width_tablet:  90,
+    logo_height_tablet: 90,
+    logo_width_mobile:  90,
+    logo_height_mobile: 90,
+
+    /* Space between the bar's edge and its contents, and between the
+       items. Desktop keeps what site.css has always had (40 / 28) so
+       nothing moves on a big screen. Mobile defaults are DELIBERATELY
+       different from desktop: 40px of side padding on a 375px phone is
+       what pushes the hamburger off the right edge. */
+    pad_desktop:   40,  gap_desktop:   28,  height_desktop: 106,
+    pad_tablet:    '',  gap_tablet:    '',  height_tablet:  '',
+    pad_mobile:    14,  gap_mobile:    12,  height_mobile:  '',
+
     links: [
       { label: 'Vanities',    url: '/collections/bathroom-vanities', megaMenu: true },
       { label: 'Mirrors',     url: '/collections/bathroom-mirrors' },
