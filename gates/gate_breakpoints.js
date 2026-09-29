@@ -44,8 +44,36 @@ const bp = require('../src/utils/breakpoints');
 console.log('--- the bands themselves ---');
 {
   const r = bp.resolve({});
-  ok('defaults resolve', r.mobileMax === 600 && r.tabletMax === 1024,
-     `got ${r.mobileMax}/${r.tabletMax}`);
+  /* Asserted against DEFAULTS rather than literals: the owner may move
+     these, and a gate that hardcodes today's numbers fails the moment
+     they do — which is the opposite of the point. What must hold is that
+     the resolver honours the declared defaults. */
+  ok('defaults resolve',
+     r.mobileMax === bp.DEFAULTS.mobile_max && r.tabletMax === bp.DEFAULTS.tablet_max,
+     `got ${r.mobileMax}/${r.tabletMax}, defaults say ` +
+     `${bp.DEFAULTS.mobile_max}/${bp.DEFAULTS.tablet_max}`);
+  ok('the shipped default clears the menu width',
+     bp.DEFAULTS.tablet_max + 1 >= bp.DESKTOP_MENU_NEEDS_PX,
+     `default desktop band starts at ${bp.DEFAULTS.tablet_max + 1}, ` +
+     `menu needs ${bp.DESKTOP_MENU_NEEDS_PX}`);
+  /* The constant is the yardstick, so it can be gamed: shrinking it to
+     800 made the check above pass while the gap stayed open. A mutation
+     test found exactly that. Pin it to the measured evidence — the menu
+     was measured at 1,222px on the live page, and anything much smaller
+     means someone moved the goalposts rather than the layout. */
+  ok('the menu-width yardstick has not been quietly lowered',
+     bp.DESKTOP_MENU_NEEDS_PX >= 1200,
+     `DESKTOP_MENU_NEEDS_PX is ${bp.DESKTOP_MENU_NEEDS_PX}; it was measured at 1222. ` +
+     `If the bar really got narrower, re-measure and say so in the commit.`);
+  /* One definition, asserted. themeSettings used to repeat the numbers;
+     it now spreads bp.DEFAULTS, and this fails if anyone re-literalises
+     them. */
+  {
+    const tsSrc = read('src/services/themeSettings.js');
+    ok('themeSettings seeds breakpoints from the resolver, not literals',
+       /breakpoints:\s*\{\s*\.\.\.require\('\.\.\/utils\/breakpoints'\)\.DEFAULTS\s*\}/.test(tsSrc),
+       'two copies of the same number will drift, silently');
+  }
 
   /* Every width lands in exactly one band. This is the property that makes
      cascade order irrelevant — see gate_listing_grid_breakpoints.js for
@@ -151,8 +179,15 @@ console.log('\n--- header: every band, every knob ---');
   ok('the old desktop-only rule is gone',
      !/@media \(min-width:861px\)\{\.nav-logo/.test(hdrX),
      'the logo fields would still do nothing on a phone');
-  ok('three bands are emitted',
-     (hdrX.match(/_bp\.mq\.(mobile|tablet|desktop)/g) || []).length >= 3, 'not all bands');
+  /* EACH band, individually. The first version counted references to
+     _bp.mq.* and required >= 3 — then the hamburger rules added more
+     references, so deleting the mobile band entirely still left three
+     and the gate passed. A count is not a checklist. */
+  for (const band of ['mobile', 'tablet', 'desktop']) {
+    ok(`the ${band} band is emitted`,
+       new RegExp(`\\+ '@media ' \\+ _bp\\.mq\\.${band} \\+ '\\{'[\\s\\S]{0,240}nav-logo`).test(hdrX),
+       `${band} gets no sizing rules at all`);
+  }
 
   for (const knob of ['pad', 'gap']) {
     ok(`${knob} is settable per band`,
@@ -188,7 +223,14 @@ console.log('\n--- header: every band, every knob ---');
 console.log('\n--- all three layers (CLAUDE.md: two of three is decoration) ---');
 {
   const ts = executable(read('src/services/themeSettings.js'));
-  ok('breakpoints have defaults', /breakpoints:\s*\{[\s\S]{0,120}mobile_max/.test(ts), 'absent');
+  /* NOT require('themeSettings') — that module refuses to load without
+     DB_PASS, and a gate that needs a database is a gate that does not run
+     in the push script. I broke this for one commit; it is asserted on
+     the source instead, and the resolver's own behaviour is covered by
+     the band tests at the top of this file. */
+  ok('themeSettings declares a breakpoints group',
+     /breakpoints:\s*\{[^}]*\}/.test(ts),
+     'absent — the editor fields would save into nothing');
   for (const f of ['pad_mobile', 'gap_mobile', 'logo_width_mobile',
                    'pad_tablet', 'gap_tablet', 'logo_width_tablet',
                    'height_desktop']) {
@@ -273,14 +315,20 @@ console.log('\n--- the cart can always be reached ---');
      /_bp\.mq\.desktop[\s\S]{0,80}nav-hamburger\{display:none\}/.test(hdr),
      'both navigation modes visible at once');
 
-  /* Widest reasonable content, measured on the live page: 40 padding +
-     90 logo + 28 + 253 brand + 28 + 555 links + 28 + 160 icons + 40 =
-     1,222. The desktop band must start at or above that, or the menu is
-     shown at a width it cannot fit. */
-  const MENU_NEEDS = 1222;
-  ok(`the Desktop band starts where the menu fits (needs ~${MENU_NEEDS}px)`,
-     r.tabletMax + 1 >= 1024,
-     `desktop starts at ${r.tabletMax + 1} — below that the icons and the CART go off screen`);
+  /* THIS ASSERTION WAS TOO WEAK AND SHIPPED A HOLE.
+     It compared the band against 1024 — a DEVICE width — so it passed
+     with the band at 1024 while 1025-1231 still showed the desktop menu
+     at widths it does not fit. The iPad Pro 11-inch (1180 landscape) sat
+     in that gap with its cart off screen, and the gate said PASS.
+
+     Now it compares against the width the menu actually NEEDS, which is
+     the only number that means anything here. Device widths are what the
+     owner tunes; this is what the layout requires. */
+  const MENU_NEEDS = bp.DESKTOP_MENU_NEEDS_PX;
+  ok(`the Desktop band starts where the menu fits (needs ${MENU_NEEDS}px)`,
+     r.tabletMax + 1 >= MENU_NEEDS,
+     `desktop starts at ${r.tabletMax + 1}, menu needs ${MENU_NEEDS} — ` +
+     `between those two widths the icons and the CART go off screen`);
 
   /* The mobile panel must not itself be width-gated, or the hamburger
      would open nothing at tablet widths. */

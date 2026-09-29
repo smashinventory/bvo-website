@@ -58,7 +58,14 @@
 /* Defaults. mobile_max 600 matches the .listing-grid band set on
    2026-09-29; tablet_max 1024 is iPad landscape, the width the owner
    reported cards being cramped at. */
-const DEFAULTS = { mobile_max: 600, tablet_max: 1024 };
+/* tablet_max 1231 = the last width at which the desktop menu does NOT
+   fit. It needs 1,222px; below that the cart goes off screen. Changed
+   from 1024 on 2026-09-29 — 1024 covered iPad landscape but left
+   1025-1231 broken, including the iPad Pro 11-inch at 1180. */
+const DEFAULTS = { mobile_max: 600, tablet_max: 1231 };
+/* Measured on the live page. The Desktop band must not start below
+   this or the menu is shown at a width it cannot fit. */
+const DESKTOP_MENU_NEEDS_PX = 1222;
 
 /* Sanity rails. Not taste — these stop a typo producing a site with no
    desktop layout, or bands that cross over and cancel each other. */
@@ -125,4 +132,5 @@ function visibilityClass(showOn) {
 const SHOW_ON_VALUES = ['all', 'desktop', 'tablet', 'mobile'];
 
 module.exports = { resolve, visibilityCss, visibilityClass,
-                   DEFAULTS, SHOW_ON_VALUES, MIN_MOBILE, MAX_TABLET, MIN_GAP };
+                   DEFAULTS, SHOW_ON_VALUES, MIN_MOBILE, MAX_TABLET, MIN_GAP,
+                   DESKTOP_MENU_NEEDS_PX };

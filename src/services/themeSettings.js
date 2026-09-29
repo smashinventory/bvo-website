@@ -79,9 +79,23 @@ const DEFAULTS = {
      layout because no tablet band existed. See src/utils/breakpoints.js
      — that file resolves and clamps these, and nothing else may read
      them raw. */
-  breakpoints: {
-    mobile_max: 600,
-    tablet_max: 1024,
+  /* NOT literals. src/utils/breakpoints.js owns these numbers; writing
+     them again here created two copies of the same value that a mutation
+     test immediately showed could drift apart silently. The resolver is
+     the single source — this just seeds the settings file from it. */
+  breakpoints: { ...require('../utils/breakpoints').DEFAULTS },
+  _breakpoints_note: {
+    /* 1231, not 1024. Owner-approved 2026-09-29 after measuring.
+
+       The desktop menu needs 1,222px (40 padding + 90 logo + 28 + 253
+       brand + 28 + 555 links + 28 + 160 icons + 40). Below that the icon
+       cluster - search, account, wishlist and the CART - is pushed off
+       the right edge and is simply absent.
+
+       1024 fixed iPad landscape but left 1025-1231 broken, which is
+       exactly where the iPad Pro 11-inch lands in landscape (1180). The
+       band now ends where the menu genuinely fits, not at a device
+       width. */
   },
 
   nav: {
