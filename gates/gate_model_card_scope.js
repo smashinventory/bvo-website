@@ -119,19 +119,33 @@ ok('modelHero has no hand-written product_type predicate',
 console.log('\n--- the half this file cannot do ---');
 ok('the live gate exists', fs.existsSync(path.join(ROOT, 'gates/gate_model_card_scope_live.js')),
    'a static gate alone cannot see a new query that ignores the helper');
-/* Matched on the INVOCATION, not the filename. The first version of this
-   assertion matched the name anywhere in the file, so replacing
-   `node gates/...live.js` with `true` still passed — the script's own echo
-   line mentions the file. A gate that is satisfied by a comment about the
-   thing rather than the thing is the trap this whole exercise is about. */
-ok('the push script actually RUNS both gates',
-   fs.existsSync(path.join(ROOT, 'git_push_model_scope.sh')) &&
-   /node\s+gates\/gate_model_card_scope_live\.js/.test(read('git_push_model_scope.sh')) &&
-   /node\s+gates\/gate_model_card_scope\.js/.test(read('git_push_model_scope.sh')),
+
+/* ── WHY THIS IS ASSERTED ON package.json, NOT ON THE PUSH SCRIPT ─────
+   The first version of this checked git_push_model_scope.sh. That file is
+   matched by `git_push_*.sh` in .gitignore — the repo keeps push scripts
+   as local scratch on purpose — so the assertion depended on a file that
+   is not in the repo and would have FAILED on a fresh clone while passing
+   on the machine that wrote it. Wiring a tracked gate to an untracked
+   runner is the same "two copies that can drift" mistake this whole
+   change is about, committed inside the gate meant to prevent it.
+
+   package.json is tracked, so `npm run gate:model-scope` travels with the
+   code and means the same thing on every machine. A push script may still
+   call it; it is no longer the thing that makes the pairing real.
+
+   Matched on the INVOCATION, not the filename: an earlier draft matched
+   the name anywhere in the runner, so swapping `node gates/...live.js`
+   for `true` still passed because a nearby echo line mentioned the file. */
+const pkg = JSON.parse(read('package.json'));
+const runner = (pkg.scripts && pkg.scripts['gate:model-scope']) || '';
+ok('npm run gate:model-scope runs the static gate',
+   /node\s+gates\/gate_model_card_scope\.js/.test(runner), 'not wired');
+ok('…and the live gate',
+   /node\s+gates\/gate_model_card_scope_live\.js/.test(runner),
    'the live gate that nobody runs is the same as no live gate');
-ok('and refuses to push if either fails',
-   (read('git_push_model_scope.sh').match(/not pushing.*exit 1/g) || []).length >= 2,
-   'a gate whose failure does not stop the push is decoration');
+ok('…and stops at the first failure (&&, not ;)',
+   /&&/.test(runner) && !/;/.test(runner),
+   'a gate whose failure does not stop the run is decoration');
 
 console.log(fail ? `\n*** ${fail} GATE(S) FAILED ***` : '\nALL GATES PASS');
 process.exit(fail ? 1 : 0);
