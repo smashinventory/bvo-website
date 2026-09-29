@@ -120,6 +120,45 @@
           + '.nav-logo{width:' + _band.desktop.lw + 'px;height:' + _band.desktop.lh + 'px}'
           + '.site-nav{padding:0 ' + _band.desktop.pad + 'px;gap:' + _band.desktop.gap + 'px;'
           + 'height:' + _barH(_band.desktop, 106) + 'px}'
+        + '}'
+
+        /* ══ WHERE THE HAMBURGER TAKES OVER ════════════════════════════
+           Owner-approved 2026-09-29. Follows the TABLET band instead of
+           the 860px that was hardcoded in site-bundle.css.
+
+           What was wrong, measured on the live site:
+
+             861px  the hamburger switched off and the full desktop menu
+                    switched on — but logo + brand + six links + icons
+                    needs 1,222px. From 861 to 1,231 the icon cluster was
+                    pushed past the right edge and simply absent. No
+                    search, no account, no wishlist, NO CART. That is
+                    every iPad in landscape (1024) and the 11-inch Pro
+                    (1180).
+
+           The breakpoint was not the only problem. The Vanities megamenu
+           opens on :hover / :focus-within / pointerenter, and a touch
+           screen has no hover — so even at a width where it fitted, the
+           main route into the catalogue was unreliable on an iPad. The
+           mobile accordion is tap-driven and already works.
+
+           So the desktop menu now waits until the Desktop band. Below
+           that the hamburger runs, at any width, including the tablet
+           sizes it never used to cover.
+
+           #mobile-menu itself is width-independent (.mobile-menu.is-open
+           {display:block}), so the panel opens correctly at these widths
+           with no further change.
+
+           No !important: these rules sit later in the document than the
+           stylesheet, so they win on order at equal specificity. If a
+           future rule outranks them the gate's width sweep catches it. */
+        + '@media ' + _bp.mq.upToTablet + '{'
+          + '.nav-brand,.nav-links{display:none}'
+          + '.nav-hamburger{display:flex}'
+        + '}'
+        + '@media ' + _bp.mq.desktop + '{'
+          + '.nav-hamburger{display:none}'
         + '}';
 
       /* The <img> attributes stay on the DESKTOP numbers: they are there to

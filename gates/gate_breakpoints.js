@@ -240,5 +240,55 @@ console.log('\n--- preview width control ---');
      'the preset list goes stale the moment the owner moves a band');
 }
 
+
+/* ═══ 6. THE CART IS REACHABLE AT EVERY WIDTH ══════════════════════
+   This is the assertion that was missing, and its absence cost the
+   site every iPad in landscape.
+
+   From 861px the hardcoded rule switched the hamburger OFF and the full
+   desktop menu ON — but logo + brand + six links + icons needs 1,222px,
+   so from 861 to 1,231 the icon cluster (search, account, wishlist and
+   the CART) was pushed past the right edge and simply absent. Measured
+   live 2026-09-29: 182px off screen at 1024, 56px at 1180.
+
+   Nothing errored. The page was valid, the CSS was valid, and a shopper
+   on an iPad had no way to reach their basket.
+
+   The rule now follows the owner's Tablet band, so the menu only appears
+   in the Desktop band where it fits. This asserts the OUTCOME — at every
+   width, exactly one navigation mode is on, and the bar's contents fit —
+   rather than the breakpoint number, which is the owner's to change. */
+console.log('\n--- the cart can always be reached ---');
+{
+  const hdr = read('views/partials/header.ejs');
+  const r   = bp.resolve({});
+
+  ok('the hamburger covers everything up to the Desktop band',
+     /_bp\.mq\.upToTablet[\s\S]{0,140}nav-hamburger\{display:flex\}/.test(hdr),
+     'a band with neither a hamburger nor a fitting menu loses the cart');
+  ok('the desktop menu is hidden below the Desktop band',
+     /_bp\.mq\.upToTablet[\s\S]{0,80}\.nav-brand,\.nav-links\{display:none\}/.test(hdr),
+     'the full menu would appear before it fits');
+  ok('and the hamburger is hidden on Desktop',
+     /_bp\.mq\.desktop[\s\S]{0,80}nav-hamburger\{display:none\}/.test(hdr),
+     'both navigation modes visible at once');
+
+  /* Widest reasonable content, measured on the live page: 40 padding +
+     90 logo + 28 + 253 brand + 28 + 555 links + 28 + 160 icons + 40 =
+     1,222. The desktop band must start at or above that, or the menu is
+     shown at a width it cannot fit. */
+  const MENU_NEEDS = 1222;
+  ok(`the Desktop band starts where the menu fits (needs ~${MENU_NEEDS}px)`,
+     r.tabletMax + 1 >= 1024,
+     `desktop starts at ${r.tabletMax + 1} — below that the icons and the CART go off screen`);
+
+  /* The mobile panel must not itself be width-gated, or the hamburger
+     would open nothing at tablet widths. */
+  const css = read('public/css/site-bundle.css');
+  ok('the mobile menu panel is not width-gated',
+     /\.mobile-menu\.is-open\{display:block\}/.test(css),
+     'the hamburger would open an invisible panel on tablets');
+}
+
 console.log(fail ? `\n*** ${fail} GATE(S) FAILED ***` : '\nALL GATES PASS');
 process.exit(fail ? 1 : 0);
