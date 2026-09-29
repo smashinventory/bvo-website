@@ -63,11 +63,11 @@ const MIN_W = 320, MAX_W = 1600;
    columns on a phone while the CSS was in fact correct — a false alarm
    that would have had me "fix" working stylesheets. Cascade order is
    FILE order; anything else is a different question being answered. */
-function columnRules(src) {
+function columnRules(src, cls = 'listing-grid') {
   const out = [];
 
   const collect = (text, cond, base) => {
-    const re = /([^{}]*\.listing-grid[^{}]*)\{([^}]*)\}/g;
+    const re = new RegExp(`([^{}]*\\.${cls}[^{}]*)\\{([^}]*)\\}`, 'g');
     let m;
     while ((m = re.exec(text)) !== null) {
       const decl = /grid-template-columns\s*:\s*([^;}]+)/.exec(m[2]);
@@ -76,7 +76,7 @@ function columnRules(src) {
          ".listing-grid > *" or ".listing-grid .foo" — those are different
          elements and must not be read as the grid's own columns. */
       const sels = m[1].split(',').map(s => s.trim());
-      if (!sels.some(s => s === '.listing-grid')) continue;
+      if (!sels.some(s => s === `.${cls}`)) continue;
       out.push({ cond, value: decl[1].trim(), at: base + m.index, ...parseRange(cond) });
     }
   };
@@ -186,6 +186,41 @@ for (const file of FILES) {
   ok('  desktop (1280px) is three columns', resolve(1280) === 3, 'band shifted');
 }
 
+
+/* ═══ .category-grid — the 3-column tablet band ════════════════════
+   Added 2026-09-29. Measured on /collections: 860px gave 2 columns at
+   388px wide, 861px gave 4 at 165px — a 57% drop across one pixel, with
+   titles wrapping to three lines. iPad landscape and iPad Pro 12.9"
+   portrait both sit at 1024px.
+
+   ONLY the new band is asserted here. The pre-existing max-width:860 and
+   max-width:480 rules overlap each other and resolve by file order; the
+   owner reviewed that on 2026-09-29 and is happy with it ("we arrived
+   here after much trial and error"). It is deliberately NOT gated, and
+   this gate must not be extended to fail on it. */
+console.log('\n--- .category-grid tablet band ---');
+for (const file of FILES) {
+  const rules = columnRules(read(file), 'category-grid');
+  const res = w => {
+    const m = rules.filter(r => w >= r.min && w <= r.max);
+    return m.length ? cols(m[m.length - 1].value) : null;
+  };
+  const want = { 480: 1, 600: 2, 768: 2, 820: 2, 860: 2,
+                 861: 3, 900: 3, 1024: 3, 1100: 3, 1101: 4, 1280: 4 };
+  const bad = Object.entries(want).filter(([w, n]) => res(+w) !== n)
+    .map(([w, n]) => `${w}px: got ${res(+w)}, want ${n}`);
+  ok(`${file.split('/').pop()}: 1 / 2 / 3 / 4 across the bands`, bad.length === 0,
+     bad.join(' | '));
+  /* The band must stay bounded on BOTH sides. An unbounded max-width:1100
+     rule would swallow every width below it and undo the 2-column band —
+     the same shape as the .listing-grid regression. */
+  const band = rules.find(r => r.min === 861);
+  ok(`${file.split('/').pop()}: the band is bounded below (min-width:861px)`,
+     !!band, 'an unbounded rule here would override the 2-column band');
+  ok(`${file.split('/').pop()}: and above (max-width:1100px)`,
+     !!band && band.max === 1100, 'the band would swallow the desktop 4-column layout');
+}
+
 /* ═══ SOURCE AND BUNDLE MUST AGREE ═══════════════════════════════════
    Only site-bundle.css is <link>ed, but site.css is what a rebuild reads.
    Fixing one and not the other puts the bug back on the next rebuild —
@@ -212,7 +247,7 @@ console.log('\n--- the browser gets the new stylesheet ---');
 {
   const layout = read('views/layouts/main.ejs');
   const m = /site-bundle\.css\?v=(\d+)/.exec(layout);
-  ok('site-bundle.css is cache-busted past v=19', m && +m[1] >= 20,
+  ok('site-bundle.css is cache-busted past v=20', m && +m[1] >= 21,
      `at v=${m ? m[1] : '?'} — .htaccess sets long cache headers, so returning visitors keep two columns`);
 }
 
