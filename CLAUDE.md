@@ -19,6 +19,12 @@ the document that already governs the area — the index says which. A new
 file is only correct for a genuinely new area, and it must be added to the
 index in the same edit.
 
+**Then, before proposing a fix to anything, run the history search in
+"⛔ SEARCH THE HISTORY BEFORE PROPOSING A FIX" below.** It is a
+precondition, not a step. Several defects on this project have shipped
+three and four times because each session reasoned from the code in front
+of it instead of from the record.
+
 ---
 
 
@@ -97,6 +103,70 @@ telling you the reasoning is elsewhere and has already been argued.
   needed no code change at all.
 
 The signposts were not missing in any of these. They were walked past.
+
+---
+
+## ⛔ SEARCH THE HISTORY BEFORE PROPOSING A FIX
+
+Added 2026-09-29. This is the same failure as the section above, in a
+different dimension — that one is about not reading the *documents*, this one
+is about not reading the *history*. Both were written after doing it again.
+
+**The precondition, before proposing any fix to any symptom:**
+
+```bash
+git log --oneline --all -S'<the identifier>' -- <path>   # who last touched this
+git log --oneline --all | grep -iE '<symptom words>'     # has this shipped before?
+grep -rn '<symptom words>' docs/history/CHANGE_LOG_BRIEF.md docs/00-start/OPEN_ITEMS.md
+```
+
+Mechanical, every time, **before** forming a proposal — not afterwards to
+confirm a conclusion, and not only when something jogs the memory. If the
+symptom has been fixed before, the first sentence of the proposal is *"this
+was fixed on <date> in <commit>, and here is why it came back"*, because a
+fix that does not explain the recurrence is a fix that will be needed again.
+
+**What this cost on 2026-09-29:**
+
+- Sam reported two-column collection grids on mobile. I proposed appending
+  `.listing-grid { grid-template-columns: 1fr }` so it would win by being
+  last. That is character-for-character commit `7f292fb` (16 Jul 2026,
+  *"Bug 3: fix listing-grid mobile breakpoint"*), whose entire diff was that
+  one line, and which a later `max-width:1024px` rule below it silently
+  overrode. I found that commit in about thirty seconds — **after** Sam said
+  "we have fixed this issue once before." I searched to confirm his memory,
+  not to build the proposal.
+
+- The model-card leak (mirrors in vanity cards) had shipped **four** times:
+  `e5f8df4` 2026-07-21, `53c0c29` 2026-07-30, a 2026-09-24 report recorded in
+  the header of `src/utils/modelHero.js`, and again on 2026-09-29. That
+  header describes the September occurrence, names the Bristol card and the
+  $388 mirror, and sits in the file that caused it. Reading it first would
+  have framed the whole investigation.
+
+**Why this keeps happening, stated plainly so the next session can act on
+it:** these documents are the memory. They are produced at the end of a task
+and then not consulted at the start of the next, so each problem gets
+reasoned out from the code in front of it. That is how a fix that failed two
+months ago gets confidently re-proposed.
+
+### Companion rule — verify the OUTCOME, not the field you changed
+
+Same root cause, and it cost three separate things on 2026-09-29:
+
+- Reported the colour-swatch swap "verified" from the DOM fields I had
+  thought to check. The card heading still read *"PVD Satin Brass"* over a
+  Matte Black photo. Sam's screenshot found it.
+- Reported "25 Huntington Brass products." It was ~768. I had counted the
+  cards on one page of a paginated grid and stated it as a catalogue figure.
+- Weeks earlier, the same shape: kept asking "did the email send?" when the
+  question was "when did it land?"
+
+So: render the page and **look at it**, the way Sam would. Take the
+screenshot. Count from the reported total, not from the page in front of you.
+And when saying "verified", name what was checked and what was not — a bare
+"verified" that means "I believe it works" is worth less than nothing,
+because it stops him looking.
 
 ---
 
