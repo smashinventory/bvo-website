@@ -216,10 +216,25 @@ if (require.main !== module) return;
   try {
     [rows] = await pool.query(sql);
   } catch (err) {
+    /* PRINT EVERY FIELD THAT COULD SAY WHY. mysql2 puts the server's own
+       words in err.sqlMessage and leaves err.message empty for some
+       connection failures — the first version of this printed only
+       err.message and produced "Could not read the catalogue." followed
+       by a blank line, which told the owner nothing at all. That is the
+       third time in this script that a handler hid its own cause. */
+    console.error('Could not read the catalogue.\n');
+    for (const k of ['message', 'sqlMessage', 'code', 'errno', 'sqlState', 'fatal']) {
+      if (err[k] !== undefined && err[k] !== '') console.error(`  ${k}: ${err[k]}`);
+    }
     console.error(
-      'Could not read the catalogue.\n  ' + err.message +
-      '\n\nThis script must run where the database is reachable — your Mac\n' +
-      'with .env present, not a sandbox.');
+      `\n  trying: ${process.env.DB_USER || 'bvo_user'}@` +
+      `${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || 3306}` +
+      `/${process.env.DB_NAME || 'bvo_website'}`);
+    console.error(
+      '\nIf DB_HOST is localhost, this machine is not where the database\n' +
+      'lives — the catalogue is on the Hostinger host. Either run this on\n' +
+      'the server, or point DB_HOST at it if remote access is allowed.');
+    if (!err.code && !err.sqlMessage) console.error('\n  raw: ' + require('util').inspect(err).slice(0, 400));
     process.exit(2);
   }
   if (!rows.length) {
