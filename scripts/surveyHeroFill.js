@@ -83,21 +83,32 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
    catalogue does not process images at runtime. Installed on demand rather
    than added to package.json, so a native build is not forced on every
    deploy of a storefront that never decodes an image. */
+/* sharp is pinned BELOW the current release on purpose. 0.35.x requires
+   Node >= 20.9.0; this project runs Node 20.3.0, where npm installs it
+   with only a warning and then the require fails at run time. 0.33.5
+   needs >= 18.17.0 and works here. Raise this only after the runtime
+   Node version moves. */
+const SHARP_VERSION = '0.33.5';
+
 let sharp;
 try {
   sharp = require('sharp');
-} catch {
+} catch (err) {
+  /* PRINT THE REAL ERROR. The first two versions of this block swallowed
+     it and printed only the install instruction — so when the install
+     "succeeded" but the engine was too old, the owner ran the same
+     command twice and got the same unhelpful message twice. A catch that
+     hides why it failed turns one round trip into three. */
   console.error(
-    'This survey needs an image decoder.\n\n' +
-    '  npm install --no-save sharp\n\n' +
-    'Left out of package.json on purpose: the storefront never decodes an\n' +
-    'image at runtime, and sharp is a native build. --no-save keeps it out\n' +
-    'of the deploy.');
-  /* An earlier version of this message claimed sharp was "already present
-     in node_modules". It was — in the sandbox this script was written in,
-     not on the machine it runs on. Checking one environment and writing
-     the claim as though it covered both wasted the owner a round trip.
-     Say what to run; do not promise what is installed. */
+    'This survey needs an image decoder, and loading it failed.\n\n' +
+    '  ' + err.message.split('\n')[0] + '\n\n' +
+    'Install the pinned version:\n\n' +
+    '  npm install --no-save sharp@' + SHARP_VERSION + '\n\n' +
+    'Pinned, not latest: sharp 0.35.x requires Node >= 20.9.0 and this\n' +
+    'project runs ' + process.version + '. npm installs the newer one with only a\n' +
+    'warning, then it fails to load here.\n\n' +
+    'Kept out of package.json on purpose — the storefront never decodes\n' +
+    'an image at runtime, and sharp is a native build.');
   process.exit(2);
 }
 
