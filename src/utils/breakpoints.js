@@ -55,17 +55,89 @@
    rebuild step, and a value the owner types is live on the next request.
    ═══════════════════════════════════════════════════════════════════════ */
 
+/* ── THE DESKTOP MENU'S WIDTH REQUIREMENT ──────────────────────────────
+
+   This was a pinned constant twice, and it was wrong twice.
+
+     1024  — a DEVICE width (iPad landscape). Fixed that one device and
+             left 1025-1231 showing a menu that does not fit.
+     1222  — a real measurement, but taken with a 90px logo while the
+             desktop band renders the owner's 120px logo. 30px short per
+             30px of logo. At 1232 the cart was still 4px off screen.
+
+   The lesson both times: a number that DEPENDS on settings cannot be
+   stored as a literal, because the settings move and the literal does
+   not. So it is computed.
+
+   Owner, 2026-09-29: "as the screen gets large enough for the wordmark
+   the hamburger is no longer needed as it is most likely a computer or
+   laptop." That is the rule this file now implements literally — one
+   line, placed where the full menu genuinely fits.
+
+   WHAT VARIES (read from settings, so the threshold tracks them):
+     pad_desktop    both side paddings
+     gap_desktop    the three gaps between the four items
+     logo_width     the desktop logo
+
+   WHAT IS MEASURED (content, not settings — no field controls these):
+     the wordmark, the links row, the icon cluster.
+
+   Measured 2026-09-29 on the live page at 1232px, computed styles, via
+   getBoundingClientRect on each child of .site-nav. Re-measure if the
+   nav gains a link, the wordmark text changes, or the font changes —
+   and change the numbers HERE, where they are named, not at a call
+   site. */
+const MEASURED_PX = {
+  brand: 253,  // .nav-brand   — "BathroomVanitiesOutlet.com", 3 lines
+  links: 555,  // .nav-links   — 6 items incl. the Vanities megamenu
+  icons: 160,  // .nav-icons   — search, account, wishlist, CART
+};
+
+/* Fallbacks matching themeSettings' nav defaults. Named once so a
+   missing setting cannot silently become 0 and shrink the threshold. */
+const NAV_FALLBACK = { pad_desktop: 40, gap_desktop: 28, logo_width: 90 };
+
+function _num(v, fallback) {
+  if (v === undefined || v === null || String(v).trim() === '') return fallback;
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+/**
+ * The narrowest viewport at which the full desktop nav fits without
+ * pushing the cart off the right edge.
+ *
+ * Four items, three gaps, two paddings:
+ *   pad + logo + gap + brand + gap + links + gap + icons + pad
+ *
+ * Sanity check against the two measurements on record:
+ *   logo  90 → 1222   (matches the old pinned constant exactly)
+ *   logo 120 → 1252   (matches the live measurement at 1232/1252)
+ */
+function desktopMenuNeeds(settings) {
+  const nav = (settings && settings.nav) || {};
+  const pad  = _num(nav.pad_desktop,  NAV_FALLBACK.pad_desktop);
+  const gap  = _num(nav.gap_desktop,  NAV_FALLBACK.gap_desktop);
+  const logo = _num(nav.logo_width,   NAV_FALLBACK.logo_width);
+
+  return (pad * 2)
+       + logo + MEASURED_PX.brand + MEASURED_PX.links + MEASURED_PX.icons
+       + (gap * 3);
+}
+
 /* Defaults. mobile_max 600 matches the .listing-grid band set on
-   2026-09-29; tablet_max 1024 is iPad landscape, the width the owner
-   reported cards being cramped at. */
-/* tablet_max 1231 = the last width at which the desktop menu does NOT
-   fit. It needs 1,222px; below that the cart goes off screen. Changed
-   from 1024 on 2026-09-29 — 1024 covered iPad landscape but left
-   1025-1231 broken, including the iPad Pro 11-inch at 1180. */
-const DEFAULTS = { mobile_max: 600, tablet_max: 1231 };
-/* Measured on the live page. The Desktop band must not start below
-   this or the menu is shown at a width it cannot fit. */
-const DESKTOP_MENU_NEEDS_PX = 1222;
+   2026-09-29.
+
+   tablet_max 1251 = desktopMenuNeeds() - 1 at the LIVE logo size (120),
+   so the Desktop band starts at 1252, exactly where the menu fits. It
+   is written out rather than computed because DEFAULTS is a static seed
+   for themeSettings and cannot read a saved logo size. gate_breakpoints
+   asserts the two agree, so this cannot drift unnoticed. */
+const DEFAULTS = { mobile_max: 600, tablet_max: 1251 };
+
+/* The logo size DEFAULTS was computed against. If the owner's saved
+   logo differs, the editor shows them the recomputed requirement. */
+const DEFAULTS_ASSUME_LOGO_PX = 120;
 
 /* Sanity rails. Not taste — these stop a typo producing a site with no
    desktop layout, or bands that cross over and cancel each other. */
@@ -84,9 +156,30 @@ function resolve(settings) {
   mobileMax = Math.min(Math.max(mobileMax, MIN_MOBILE), MAX_TABLET - MIN_GAP);
   tabletMax = Math.min(Math.max(tabletMax, mobileMax + MIN_GAP), MAX_TABLET);
 
+  /* What the desktop menu needs at THIS owner's logo and spacing, and
+     whether their Desktop band starts below it.
+
+     Deliberately NOT clamped. The owner asked to take control and then
+     watched me ship numbers they had not approved; silently raising
+     their value would be the same move in a nicer coat. So the hole is
+     reported, the Theme Editor shows it, and gate_breakpoints refuses
+     the push when the shipped defaults leave one. What the owner types
+     is what the owner gets. */
+  const desktopNeeds  = desktopMenuNeeds(settings);
+  const desktopStarts = tabletMax + 1;
+  const shortfallPx   = Math.max(0, desktopNeeds - desktopStarts);
+
   return {
     mobileMax,
     tabletMax,
+    desktopNeeds,
+    desktopStarts,
+    /* 0 = every width lands in a band whose layout fits. Above 0, the
+       cart is off screen from desktopStarts up to desktopNeeds-1. */
+    shortfallPx,
+    shortfallRange: shortfallPx > 0
+      ? { from: desktopStarts, to: desktopNeeds - 1 }
+      : null,
     /* Media query conditions, so no caller ever writes one by hand and
        gets the ±1 wrong. These are what make the bands disjoint. */
     mq: {
@@ -131,6 +224,6 @@ function visibilityClass(showOn) {
 
 const SHOW_ON_VALUES = ['all', 'desktop', 'tablet', 'mobile'];
 
-module.exports = { resolve, visibilityCss, visibilityClass,
+module.exports = { resolve, visibilityCss, visibilityClass, desktopMenuNeeds,
                    DEFAULTS, SHOW_ON_VALUES, MIN_MOBILE, MAX_TABLET, MIN_GAP,
-                   DESKTOP_MENU_NEEDS_PX };
+                   MEASURED_PX, NAV_FALLBACK, DEFAULTS_ASSUME_LOGO_PX };

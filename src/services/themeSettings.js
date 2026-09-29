@@ -85,17 +85,29 @@ const DEFAULTS = {
      the single source — this just seeds the settings file from it. */
   breakpoints: { ...require('../utils/breakpoints').DEFAULTS },
   _breakpoints_note: {
-    /* 1231, not 1024. Owner-approved 2026-09-29 after measuring.
+    /* tablet_max is 1251 — the last width BELOW what the desktop menu
+       needs. Desktop therefore starts at 1252, where it fits.
 
-       The desktop menu needs 1,222px (40 padding + 90 logo + 28 + 253
-       brand + 28 + 555 links + 28 + 160 icons + 40). Below that the icon
-       cluster - search, account, wishlist and the CART - is pushed off
-       the right edge and is simply absent.
+       THIS NUMBER HAS BEEN WRONG TWICE. Both times because it was typed
+       instead of derived:
 
-       1024 fixed iPad landscape but left 1025-1231 broken, which is
-       exactly where the iPad Pro 11-inch lands in landscape (1180). The
-       band now ends where the menu genuinely fits, not at a device
-       width. */
+         1024  a DEVICE width (iPad landscape). Fixed one device, left
+               1025-1231 rendering a menu that did not fit.
+         1231  from a real measurement of 1,222px - but taken with a 90px
+               logo, while the desktop band renders the owner's 120px
+               logo. Measured live at 1232: cart still 4px off screen.
+
+       breakpoints.desktopMenuNeeds(settings) now COMPUTES the
+       requirement from pad_desktop, gap_desktop and logo_width plus
+       three measured content widths. Change the logo size in the Theme
+       Editor and the requirement moves with it; the editor shows the
+       new number next to the field. gate_breakpoints asserts this
+       default agrees with the computed value, so a third wrong number
+       cannot ship quietly.
+
+       Owner's rule, 2026-09-29: "as the screen gets large enough for the
+       wordmark the hamburger is no longer needed as it is most likely a
+       computer or laptop." One line, placed where the menu fits. */
   },
 
   nav: {

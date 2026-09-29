@@ -52,19 +52,70 @@ console.log('--- the bands themselves ---');
      r.mobileMax === bp.DEFAULTS.mobile_max && r.tabletMax === bp.DEFAULTS.tablet_max,
      `got ${r.mobileMax}/${r.tabletMax}, defaults say ` +
      `${bp.DEFAULTS.mobile_max}/${bp.DEFAULTS.tablet_max}`);
-  ok('the shipped default clears the menu width',
-     bp.DEFAULTS.tablet_max + 1 >= bp.DESKTOP_MENU_NEEDS_PX,
+  /* ── THE DEFAULT MUST CLEAR THE REQUIREMENT ─────────────────────
+     Checked against the requirement computed at the LIVE logo size,
+     not at the settings-file default. That distinction is the whole
+     bug: DEFAULTS.logo_width is 90, the owner's saved logo is 120,
+     and 1231 was derived from the 90 while the page renders the 120.
+     A gate that reads the default logo would have passed 1231. */
+  /* DEFAULTS_ASSUME_LOGO_PX is the new yardstick, so it is the new thing
+     that can be gamed — and a mutation test proved it: dropping it from
+     120 to 90 lowers the requirement to 1222, which makes tablet_max 1251
+     pass while the owner's real 120px logo still pushes the cart off
+     screen. Same failure as the old DESKTOP_MENU_NEEDS_PX, one level up.
+     Pinned to the observed live value. Lowering it is a claim that the
+     owner shrank their logo, which belongs in a commit message. */
+  ok('the assumed logo size has not been quietly lowered',
+     bp.DEFAULTS_ASSUME_LOGO_PX >= 120,
+     `DEFAULTS_ASSUME_LOGO_PX is ${bp.DEFAULTS_ASSUME_LOGO_PX}; the live ` +
+     `setting was 120 on 2026-09-29. Lowering it shrinks the requirement ` +
+     `and reopens the gap it exists to close.`);
+  const needAtLiveLogo = bp.desktopMenuNeeds({
+    nav: { logo_width: bp.DEFAULTS_ASSUME_LOGO_PX },
+  });
+  ok('the shipped default clears the menu width at the live logo size',
+     bp.DEFAULTS.tablet_max + 1 >= needAtLiveLogo,
      `default desktop band starts at ${bp.DEFAULTS.tablet_max + 1}, ` +
-     `menu needs ${bp.DESKTOP_MENU_NEEDS_PX}`);
-  /* The constant is the yardstick, so it can be gamed: shrinking it to
-     800 made the check above pass while the gap stayed open. A mutation
-     test found exactly that. Pin it to the measured evidence — the menu
-     was measured at 1,222px on the live page, and anything much smaller
-     means someone moved the goalposts rather than the layout. */
-  ok('the menu-width yardstick has not been quietly lowered',
-     bp.DESKTOP_MENU_NEEDS_PX >= 1200,
-     `DESKTOP_MENU_NEEDS_PX is ${bp.DESKTOP_MENU_NEEDS_PX}; it was measured at 1222. ` +
-     `If the bar really got narrower, re-measure and say so in the commit.`);
+     `menu needs ${needAtLiveLogo} at a ${bp.DEFAULTS_ASSUME_LOGO_PX}px logo`);
+  /* And not wastefully above it either — a default 200px too high would
+     pass the check above while pushing laptops onto the hamburger. */
+  ok('the shipped default is not needlessly wide',
+     bp.DEFAULTS.tablet_max + 1 <= needAtLiveLogo + 40,
+     `desktop starts at ${bp.DEFAULTS.tablet_max + 1} but only needs ` +
+     `${needAtLiveLogo} — that hides the menu on screens that fit it`);
+
+  /* ── THE YARDSTICK CANNOT BE GAMED ──────────────────────────────
+     Its predecessor, DESKTOP_MENU_NEEDS_PX, was a literal: a mutation
+     test shrank it to 800 and the gap-check above passed with the hole
+     wide open. It is now computed from the three MEASURED_PX content
+     widths, so lowering it means lowering a measurement — assert those
+     against what was measured on the live page 2026-09-29. */
+  ok('the measured content widths have not been quietly shrunk',
+     bp.MEASURED_PX.brand >= 250 && bp.MEASURED_PX.links >= 550 &&
+     bp.MEASURED_PX.icons >= 155,
+     `brand/links/icons = ${bp.MEASURED_PX.brand}/${bp.MEASURED_PX.links}/` +
+     `${bp.MEASURED_PX.icons}; measured 253/555/160 at 1232px on 2026-09-29. ` +
+     `If the nav genuinely got narrower, re-measure and say so in the commit.`);
+
+  /* ── AND IT MUST TRACK THE LOGO ─────────────────────────────────
+     This is the assertion that would have caught 1231. The requirement
+     is a FUNCTION of the logo width; if someone re-pins it to a
+     constant, these two come out equal and the gate fails. */
+  const need90  = bp.desktopMenuNeeds({ nav: { logo_width: 90  } });
+  const need120 = bp.desktopMenuNeeds({ nav: { logo_width: 120 } });
+  ok('the requirement moves with the logo size',
+     need120 - need90 === 30,
+     `90px logo needs ${need90}, 120px logo needs ${need120} — a ` +
+     `difference of ${need120 - need90}, expected 30. A constant crept back.`);
+  ok('the requirement also tracks padding and gap',
+     bp.desktopMenuNeeds({ nav: { pad_desktop: 60, gap_desktop: 28, logo_width: 90 } })
+       - need90 === 40,
+     'padding is counted twice (both sides); gap three times (four items)');
+  /* Anchored to the two measurements on record, so the formula cannot be
+     rewritten into something that merely varies. */
+  ok('the formula reproduces both live measurements',
+     need90 === 1222 && need120 === 1252,
+     `got ${need90} / ${need120}; measured 1222 (logo 90) and 1252 (logo 120)`);
   /* One definition, asserted. themeSettings used to repeat the numbers;
      it now spreads bp.DEFAULTS, and this fails if anyone re-literalises
      them. */
@@ -321,14 +372,62 @@ console.log('\n--- the cart can always be reached ---');
      at widths it does not fit. The iPad Pro 11-inch (1180 landscape) sat
      in that gap with its cart off screen, and the gate said PASS.
 
-     Now it compares against the width the menu actually NEEDS, which is
-     the only number that means anything here. Device widths are what the
-     owner tunes; this is what the layout requires. */
-  const MENU_NEEDS = bp.DESKTOP_MENU_NEEDS_PX;
+     Then it compared against DESKTOP_MENU_NEEDS_PX = 1222, which was a
+     real measurement — taken with a 90px logo, while the desktop band
+     renders the owner's 120px logo. 30px short. At 1232 the cart was
+     still 4px off screen and the gate said PASS a second time.
+
+     It now uses the requirement COMPUTED at the live logo size. The
+     lesson, written twice: this number depends on settings, so it
+     cannot be stored as a constant. */
+  const MENU_NEEDS = bp.desktopMenuNeeds({
+    nav: { logo_width: bp.DEFAULTS_ASSUME_LOGO_PX },
+  });
   ok(`the Desktop band starts where the menu fits (needs ${MENU_NEEDS}px)`,
      r.tabletMax + 1 >= MENU_NEEDS,
      `desktop starts at ${r.tabletMax + 1}, menu needs ${MENU_NEEDS} — ` +
      `between those two widths the icons and the CART go off screen`);
+
+  /* ── resolve() REPORTS THE HOLE RATHER THAN HIDING IT ────────────
+     The owner's saved value is deliberately not clamped, so the only
+     protection for a bad SAVED value is that the Theme Editor shows it.
+     That needs resolve() to compute it — assert it does, in both
+     directions, or the warning panel silently renders nothing. */
+  const short = bp.resolve({ breakpoints: { tablet_max: 1024 },
+                             nav: { logo_width: 120 } });
+  ok('a too-low tablet_max is reported as a shortfall',
+     short.shortfallPx === 1252 - 1025 &&
+     short.shortfallRange && short.shortfallRange.from === 1025 &&
+     short.shortfallRange.to === 1251,
+     `shortfallPx=${short.shortfallPx}, range=${JSON.stringify(short.shortfallRange)}`);
+  const fine = bp.resolve({ breakpoints: { tablet_max: 1251 },
+                            nav: { logo_width: 120 } });
+  ok('and a correct one reports no shortfall',
+     fine.shortfallPx === 0 && fine.shortfallRange === null,
+     `shortfallPx=${fine.shortfallPx}, range=${JSON.stringify(fine.shortfallRange)}`);
+  ok('the shortfall tracks the logo too',
+     bp.resolve({ breakpoints: { tablet_max: 1251 }, nav: { logo_width: 160 } })
+       .shortfallPx === 40,
+     'a bigger logo must reopen the gap, or the warning is decorative');
+
+  /* The editor must actually READ that, not re-derive or hardcode it. */
+  const thm = read('views/pages/admin/theme.ejs');
+  ok('the Theme Editor shows the computed requirement',
+     /_bpNow\s*=\s*breakpoints\.resolve\(t\)/.test(thm) &&
+     /_bpNeed\s*=\s*_bpNow\.desktopNeeds/.test(thm),
+     'the owner cannot see a number nobody renders');
+  ok('the Theme Editor warns when the band is short',
+     /_bpNow\.shortfallPx\s*>\s*0/.test(thm) &&
+     /_bpNow\.shortfallRange\.from/.test(thm),
+     'a saved 1024 would be invisible again');
+  /* `[^)]*` here instead of `[\s\S]{0,140}?` let a mutation through: the
+     label between the field name and the fallback is 'Tablet ends at
+     (px)', whose ')' ended the character class before the regex ever
+     reached the `||`. A mutation test putting 1024 back passed. The
+     class must not stop at a bracket that appears in ordinary copy. */
+  ok('the Theme Editor band fields do not re-literalise the defaults',
+     !/breakpoints\.(mobile|tablet)_max[\s\S]{0,140}?\|\|\s*\d/.test(thm),
+     'a fifth copy of the band numbers, stale the moment they move');
 
   /* The mobile panel must not itself be width-gated, or the hamburger
      would open nothing at tablet widths. */

@@ -462,8 +462,16 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
                list offered 479/481/519/720/860 — numbers from rules the
                owner never set and can now change, which meant the list
                went stale the moment they did. */
-            var _bpm = (t.breakpoints && +t.breakpoints.mobile_max) || 600;
-            var _bpt = (t.breakpoints && +t.breakpoints.tablet_max) || 1024;
+            /* Fallbacks read from the resolver. They were literal 600 and
+               1024 until 2026-09-29 — a copy of the band numbers that did
+               not move when the real ones did, so the preset list offered
+               the owner a stale "Desktop starts" width. */
+            var _bpm = (t.breakpoints && +t.breakpoints.mobile_max) || breakpoints.DEFAULTS.mobile_max;
+            var _bpt = (t.breakpoints && +t.breakpoints.tablet_max) || breakpoints.DEFAULTS.tablet_max;
+            /* Resolved once here, at the first use on the page, and reused
+               by the Screen-size bands panel further down. */
+            var _bpNow  = breakpoints.resolve(t);
+            var _bpNeed = _bpNow.desktopNeeds;
           %>
           <datalist id="te4WidthPresets">
             <option value="375"  label="375 — iPhone SE / 13 mini"></option>
@@ -473,8 +481,10 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
             <option value="<%= _bpm + 1 %>" label="<%= _bpm + 1 %> — Tablet starts"></option>
             <option value="768"  label="768 — iPad portrait"></option>
             <option value="1024" label="1024 — iPad landscape"></option>
+            <option value="1180" label="1180 — iPad Pro 11″ landscape"></option>
             <option value="<%= _bpt %>" label="<%= _bpt %> — last px of Tablet"></option>
             <option value="<%= _bpt + 1 %>" label="<%= _bpt + 1 %> — Desktop starts"></option>
+            <option value="<%= _bpNeed %>" label="<%= _bpNeed %> — narrowest the desktop menu fits"></option>
             <option value="1440" label="1440 — laptop"></option>
           </datalist>
         </div>
@@ -766,13 +776,63 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
               uses these. Mobile is 0 to the first number, Tablet runs to the
               second, Desktop is anything wider.
             </p>
+            <%
+              /* Defaults come from the resolver, NOT typed here. These two
+                 fallbacks used to read `|| 600` and `|| 1024` — a third and
+                 fourth copy of numbers that live in breakpoints.js. When
+                 tablet_max moved to 1251 these would still have shown 1024
+                 to the owner, which is exactly the drift that put the cart
+                 off screen twice. */
+              var _bpDef  = breakpoints.DEFAULTS;
+              /* _bpNow / _bpNeed are resolved once, up at the preview-width
+                 datalist. Not re-resolved here — two calls is two chances
+                 for them to disagree. */
+              var _bpLogo = (t.nav && t.nav.logo_width) || breakpoints.NAV_FALLBACK.logo_width;
+            %>
             <div class="te4-row2">
-              <%- teField('number','breakpoints.mobile_max','Mobile ends at (px)',(t.breakpoints&&t.breakpoints.mobile_max)||600,true) %>
-              <%- teField('number','breakpoints.tablet_max','Tablet ends at (px)',(t.breakpoints&&t.breakpoints.tablet_max)||1024,true) %>
+              <%- teField('number','breakpoints.mobile_max','Mobile ends at (px)',(t.breakpoints&&t.breakpoints.mobile_max)||_bpDef.mobile_max,true) %>
+              <%- teField('number','breakpoints.tablet_max','Tablet ends at (px)',(t.breakpoints&&t.breakpoints.tablet_max)||_bpDef.tablet_max,true) %>
             </div>
+
+            <!-- ══ THE REQUIREMENT, SHOWN NOT ENFORCED ═══════════════
+                 Added 2026-09-29 after "Tablet ends at" was set wrong
+                 twice (1024, then 1231) and shipped both times without
+                 anyone being able to see it was wrong.
+
+                 The number is COMPUTED from the owner's own logo size
+                 and spacing, so it moves when they do. It is deliberately
+                 not clamped: the owner asked to take control, and
+                 silently raising a value they typed is the same override
+                 in a nicer coat. Show the number, name the consequence,
+                 let them decide. gate_breakpoints stops a bad DEFAULT
+                 from shipping; this stops a bad SAVED value from being
+                 invisible. -->
+            <p style="font-size:.74rem;color:var(--te4-muted,#888);margin:.45rem 0 .2rem">
+              At your current logo size (<strong><%= _bpLogo %>px</strong>) the full
+              desktop menu needs <strong><%= _bpNeed %>px</strong> — logo, wordmark,
+              links and the icon cluster including the cart. Change the logo size and
+              this number changes with it.
+            </p>
+            <% if (_bpNow.shortfallPx > 0) { %>
+              <p style="font-size:.78rem;line-height:1.45;margin:.4rem 0 .2rem;padding:.55rem .7rem;border-radius:6px;background:#fdf1f1;border:1px solid #e6b8b8;color:#8a2b2b">
+                <strong>The cart is off screen between
+                <%= _bpNow.shortfallRange.from %>px and
+                <%= _bpNow.shortfallRange.to %>px.</strong>
+                Tablet ends at <%= _bpNow.tabletMax %>, so the desktop menu starts at
+                <%= _bpNow.desktopStarts %> — <%= _bpNow.shortfallPx %>px before it fits.
+                Set <em>Tablet ends at</em> to <strong><%= _bpNeed - 1 %></strong> to close it.
+              </p>
+            <% } else { %>
+              <p style="font-size:.78rem;margin:.4rem 0 .2rem;padding:.5rem .7rem;border-radius:6px;background:#f1f8f2;border:1px solid #bcd9c0;color:#2f6b39">
+                Desktop menu starts at <%= _bpNow.desktopStarts %>px and needs
+                <%= _bpNeed %>px — the cart is reachable at every width.
+              </p>
+            <% } %>
             <p style="font-size:.74rem;color:var(--te4-muted,#888);margin:.3rem 0 1.2rem">
-              Common widths: 390 iPhone · 428 Pro Max · 768 iPad portrait ·
-              1024 iPad landscape · 1440 laptop.
+              Below the Tablet line the hamburger replaces the menu, so the cart is
+              always reachable. Common widths: 390 iPhone · 428 Pro Max ·
+              768 iPad portrait · 1024 iPad landscape · 1180 iPad Pro 11″ ·
+              1440 laptop.
             </p>
 
             <!-- Logo & Header -->
