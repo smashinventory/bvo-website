@@ -88,17 +88,46 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
    is exactly the kind of pointless dead end that has already cost two
    round trips on this script. */
 if (process.argv.includes('--sql')) {
-  console.log('\nRun this on the Hostinger MySQL/MariaDB (phpMyAdmin is fine),');
-  console.log('then Export > CSV, with column names in the first row:');
+  /* NO TABLE ALIASES. The first version used `products p` / `product_images
+     pi`, and phpMyAdmin's exporter read the alias as a table name:
+
+       Error reading structure for table u222311468_BVO_website.p:
+       #1146 - Table 'p' doesn't exist
+
+     It then exported that non-existent table instead of the results.
+     Spelling the table names out costs nothing and removes the trap. */
   console.log(`
-SELECT p.id AS product_id, p.sku, p.brand, p.name, pi.url
-  FROM products p
-  JOIN product_images pi
-    ON pi.product_id = p.id AND pi.is_primary = 1
- WHERE pi.url IS NOT NULL AND pi.url <> ''
- ORDER BY p.brand, p.sku;`);
-  console.log('\nThen point the survey at the file — no database needed here:\n');
-  console.log('  node scripts/surveyHeroFill.js --from ~/Downloads/<file>.csv\n');
+STEP 1 — run this in phpMyAdmin on the Hostinger database
+         (SQL tab, paste, Go)
+
+SELECT products.id AS product_id,
+       products.sku,
+       products.brand,
+       products.name,
+       product_images.url
+  FROM products
+  INNER JOIN product_images
+          ON product_images.product_id = products.id
+ WHERE product_images.is_primary = 1
+   AND product_images.url IS NOT NULL
+   AND product_images.url <> ''
+ ORDER BY products.brand, products.sku;
+
+STEP 2 — export the RESULTS, not the tables
+
+  Scroll BELOW the results grid to the "Query results operations" row
+  and click Export there. The Export tab in the top navigation is a
+  different thing - it dumps tables, and on the aliased version of this
+  query it produced a 1 KB file containing an error message.
+
+    Format                          CSV
+    Put columns names in first row  TICKED
+    Then: Go
+
+STEP 3 — point the survey at the file. No database needed here.
+
+  node scripts/surveyHeroFill.js --from ~/Downloads/<file>.csv
+`);
   process.exit(0);
 }
 
