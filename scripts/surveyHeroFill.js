@@ -92,8 +92,12 @@ try {
     '  npm install --no-save sharp\n\n' +
     'Left out of package.json on purpose: the storefront never decodes an\n' +
     'image at runtime, and sharp is a native build. --no-save keeps it out\n' +
-    'of the deploy. (It is already present in node_modules as of\n' +
-    '2026-09-29, pulled in as a transitive dependency.)');
+    'of the deploy.');
+  /* An earlier version of this message claimed sharp was "already present
+     in node_modules". It was — in the sandbox this script was written in,
+     not on the machine it runs on. Checking one environment and writing
+     the claim as though it covered both wasted the owner a round trip.
+     Say what to run; do not promise what is installed. */
   process.exit(2);
 }
 
