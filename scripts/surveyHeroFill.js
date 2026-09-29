@@ -83,6 +83,25 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
    catalogue does not process images at runtime. Installed on demand rather
    than added to package.json, so a native build is not forced on every
    deploy of a storefront that never decodes an image. */
+/* --sql just prints a query. It is answered BEFORE the decoder is
+   required, because needing an image library to be told what SQL to run
+   is exactly the kind of pointless dead end that has already cost two
+   round trips on this script. */
+if (process.argv.includes('--sql')) {
+  console.log('\nRun this on the Hostinger MySQL/MariaDB (phpMyAdmin is fine),');
+  console.log('then Export > CSV, with column names in the first row:');
+  console.log(`
+SELECT p.id AS product_id, p.sku, p.brand, p.name, pi.url
+  FROM products p
+  JOIN product_images pi
+    ON pi.product_id = p.id AND pi.is_primary = 1
+ WHERE pi.url IS NOT NULL AND pi.url <> ''
+ ORDER BY p.brand, p.sku;`);
+  console.log('\nThen point the survey at the file — no database needed here:\n');
+  console.log('  node scripts/surveyHeroFill.js --from ~/Downloads/<file>.csv\n');
+  process.exit(0);
+}
+
 /* sharp is pinned BELOW the current release on purpose. 0.35.x requires
    Node >= 20.9.0; this project runs Node 20.3.0, where npm installs it
    with only a warning and then the require fails at run time. 0.33.5
@@ -120,6 +139,21 @@ const argOf = (name, dflt) => {
 const LIMIT       = parseInt(argOf('limit', '0'), 10);        // 0 = all
 const CONCURRENCY = parseInt(argOf('concurrency', '10'), 10);
 const PROBE_W     = parseInt(argOf('width', '400'), 10);
+/* --from <file> reads the hero list from a CSV instead of the database.
+   The catalogue lives on the Hostinger host, so a laptop gets
+   ECONNREFUSED on localhost:3306 and the survey cannot start. Rather
+   than require remote MySQL access, an IP allowlist, or a native sharp
+   build on shared hosting, export the list once from phpMyAdmin and
+   point this at the file. See HERO_SQL below for the query. */
+const FROM_CSV    = argOf('from', '');
+
+const HERO_SQL = `
+SELECT p.id AS product_id, p.sku, p.brand, p.name, pi.url
+  FROM products p
+  JOIN product_images pi
+    ON pi.product_id = p.id AND pi.is_primary = 1
+ WHERE pi.url IS NOT NULL AND pi.url <> ''
+ ORDER BY p.brand, p.sku;`;
 
 /* Near-white cutoff. 243, not 255: JPEG-sourced "white" backgrounds are
    rarely pure, and 255 would report a full-canvas box on almost everything.
@@ -191,31 +225,85 @@ module.exports = { analyse, WHITE_MIN, ALPHA_MIN };
 if (require.main !== module) return;
 
 /* ── main ────────────────────────────────────────────────────────────── */
+/* ── read the hero list from a CSV ─────────────────────────────────────
+   Deliberately a small hand-rolled parser rather than a dependency: the
+   only fields are ids, SKUs, names and URLs, and adding a package to a
+   one-off survey is not worth it. It does handle quoted fields with
+   embedded commas, because product names have plenty of those
+   ("Brittany 48" Single Vanity, Smokey Celadon, w/ 3 CM ..."). */
+function parseCsv(text) {
+  const rows = [];
+  let row = [], field = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) {
+      if (c === '"' && text[i + 1] === '"') { field += '"'; i++; }
+      else if (c === '"') q = false;
+      else field += c;
+    } else if (c === '"') q = true;
+    else if (c === ',') { row.push(field); field = ''; }
+    else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+    else if (c !== '\r') field += c;
+  }
+  if (field || row.length) { row.push(field); rows.push(row); }
+  if (!rows.length) return [];
+
+  const head = rows[0].map(h => h.trim().toLowerCase().replace(/^﻿/, ''));
+  const col = (...names) => {
+    for (const n of names) { const i = head.indexOf(n); if (i >= 0) return i; }
+    return -1;
+  };
+  const iUrl = col('url', 'image', 'image_url');
+  if (iUrl < 0) {
+    throw new Error(
+      'No "url" column in the CSV. Found: ' + head.join(', ') +
+      '\nExport the query printed by --sql, with column names in row 1.');
+  }
+  const iId = col('product_id', 'id'), iSku = col('sku'),
+        iBrand = col('brand'), iName = col('name');
+
+  return rows.slice(1)
+    .filter(r => r[iUrl] && r[iUrl].trim())
+    .map(r => ({
+      id:    iId    >= 0 ? r[iId]    : '',
+      sku:   iSku   >= 0 ? r[iSku]   : '',
+      brand: iBrand >= 0 ? r[iBrand] : '',
+      name:  iName  >= 0 ? r[iName]  : '',
+      url:   r[iUrl].trim(),
+    }));
+}
+
 (async () => {
-  let pool;
-  try {
-    pool = require('../src/config/database').bvoPool;
-  } catch (err) {
-    console.error('Could not open the database. Is .env present?\n ', err.message);
-    process.exit(2);
+  let pool = null;
+  if (!FROM_CSV) {
+    try {
+      pool = require('../src/config/database').bvoPool;
+    } catch (err) {
+      console.error('Could not open the database. Is .env present?\n ', err.message);
+      process.exit(2);
+    }
   }
 
   /* is_primary = 1 is exactly what the cards render — collectionsController
      joins on it in six places. Surveying anything else would measure images
      no shopper sees on a card. */
-  const sql = `
-    SELECT p.id, p.sku, p.name, p.brand, pi.url
-      FROM products p
-      JOIN product_images pi
-        ON pi.product_id = p.id AND pi.is_primary = 1
-     WHERE pi.url IS NOT NULL AND pi.url <> ''
-     ORDER BY p.brand, p.sku
-     ${LIMIT ? 'LIMIT ' + LIMIT : ''}`;
-
   let rows;
-  try {
-    [rows] = await pool.query(sql);
-  } catch (err) {
+
+  if (FROM_CSV) {
+    const file = FROM_CSV.replace(/^~/, process.env.HOME || '~');
+    try {
+      rows = parseCsv(fs.readFileSync(file, 'utf8'));
+    } catch (err) {
+      console.error('Could not read ' + file + '\n  ' + err.message);
+      process.exit(2);
+    }
+    if (LIMIT) rows = rows.slice(0, LIMIT);
+    console.log(`Read ${rows.length} heroes from ${path.basename(file)}.`);
+  } else {
+    const sql = HERO_SQL.replace(/;\s*$/, '') + (LIMIT ? `\n LIMIT ${LIMIT}` : '');
+    try {
+      [rows] = await pool.query(sql);
+    } catch (err) {
     /* PRINT EVERY FIELD THAT COULD SAY WHY. mysql2 puts the server's own
        words in err.sqlMessage and leaves err.message empty for some
        connection failures — the first version of this printed only
@@ -230,12 +318,17 @@ if (require.main !== module) return;
       `\n  trying: ${process.env.DB_USER || 'bvo_user'}@` +
       `${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || 3306}` +
       `/${process.env.DB_NAME || 'bvo_website'}`);
-    console.error(
-      '\nIf DB_HOST is localhost, this machine is not where the database\n' +
-      'lives — the catalogue is on the Hostinger host. Either run this on\n' +
-      'the server, or point DB_HOST at it if remote access is allowed.');
-    if (!err.code && !err.sqlMessage) console.error('\n  raw: ' + require('util').inspect(err).slice(0, 400));
-    process.exit(2);
+      console.error(
+        '\nThe catalogue is on the Hostinger host, not this machine.\n' +
+        'You do not need a connection from here — export the list once:\n\n' +
+        '  node scripts/surveyHeroFill.js --sql        (prints the query)\n' +
+        '  ...run it in phpMyAdmin, Export > CSV with column names...\n' +
+        '  node scripts/surveyHeroFill.js --from ~/Downloads/<file>.csv\n');
+      if (!err.code && !err.sqlMessage) {
+        console.error('  raw: ' + require('util').inspect(err).slice(0, 400));
+      }
+      process.exit(2);
+    }
   }
   if (!rows.length) {
     console.error('No primary images found. Nothing to survey.');
@@ -331,5 +424,5 @@ if (require.main !== module) return;
   }
 
   console.log('\nCSV: ' + OUT_CSV);
-  await pool.end();
+  if (pool) await pool.end();
 })().catch(e => { console.error(e); process.exit(2); });
