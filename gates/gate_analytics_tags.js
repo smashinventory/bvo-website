@@ -56,10 +56,24 @@ console.log('--- both tags are env-guarded ---');
      /<%\s*if\s*\(\s*_gaId\s*&&/.test(code));
 }
 
-/* ═══ 2. BOTH ARE DEFERRED ══════════════════════════════════════════
-   The 3s / first-interaction loader is a measured LCP decision, not a
-   style. Microsoft's own snippet loads immediately; ours must not. */
-console.log('\n--- both tags load late, not with the page ---');
+/* ═══ 2. GA4 DEFERRED, CLARITY EAGER ════════════════════════════════
+   These two are asymmetric ON PURPOSE as of 2026-09-30, and the asymmetry
+   is the point of the experiment running right now.
+
+   GA4 stays deferred: its 3s / first-interaction loader is a measured LCP
+   decision (~250ms on throttled mobile, plus the page's only long
+   main-thread task).
+
+   Clarity was shipped deferred too, and never registered its install —
+   across a multi-page phone session that reached the cart, where prior
+   installs have always registered within minutes. The deferral was the one
+   variable we had introduced, so Clarity is now Microsoft's stock snippet,
+   loading at parse time, to isolate it.
+
+   So this section asserts DIFFERENT things about the two tags. If Clarity
+   is later returned to a deferred loader, this section flips back and the
+   loader count below goes to 2. */
+console.log('\n--- GA4 loads late; Clarity loads with the page ---');
 {
   /* Isolate each block around its OWN marker. An earlier version sliced by
      a fixed offset from the Clarity tag, which silently cut through the GA4
@@ -75,19 +89,18 @@ console.log('\n--- both tags load late, not with the page ---');
   })();
   const cBlock = blockAround(ci);
 
-  ok('Clarity waits for first interaction',
-     /addEventListener\(e,load,\{passive:true\}\)/.test(cBlock) &&
-     /pointerdown/.test(cBlock),
-     'the interaction listeners are what make this deferred');
-  ok('Clarity has a 3s fallback timer',
-     /setTimeout\(load,3000\)/.test(cBlock),
-     'without it a visitor who never interacts is never recorded');
-  ok('Clarity fires on tab-hide too',
-     /visibilitychange/.test(cBlock),
-     'catches the tab-switcher who leaves before 3s');
-  ok('Clarity is injected, not a direct <script src> in the head',
-     !/<script[^>]+src=["']https:\/\/www\.clarity\.ms/.test(code),
-     'a plain src tag in the head loads with the page and undoes the deferral');
+  ok('Clarity runs at parse time, with no deferral wrapper',
+     !/setTimeout\(load,3000\)/.test(cBlock) &&
+     !/addEventListener\(e,load/.test(cBlock),
+     'the whole point of the current state is that Clarity is NOT deferred — ' +
+     'if a loader has crept back, the isolation test is invalid');
+  ok('Clarity still creates the script itself (stock snippet shape)',
+     /createElement\(r\)/.test(cBlock) && /insertBefore/.test(cBlock),
+     'Microsoft injects rather than using a plain src tag; keeping that shape ' +
+     'means we are testing their snippet, not our approximation of it');
+  ok('the Clarity id is interpolated, not hardcoded',
+     /clarityId/.test(cBlock),
+     'a literal id here would survive an env change and mislead');
 
   const gBlock = blockAround(code.indexOf('googletagmanager.com/gtag/js'));
   ok('GA4 still has its 3s fallback',
@@ -124,15 +137,17 @@ console.log('\n--- connect-src carries the hosts the beacons need ---');
      /google-analytics\.com/.test(connect) && /googletagmanager\.com/.test(connect));
 }
 
-/* ═══ 4. THE TWO LOADERS STAY SEPARATE ══════════════════════════════
-   Deliberate duplication. If someone merges them to save five listeners,
-   a mistake in the shared loader takes out both tags at once. */
-console.log('\n--- the loaders are independent ---');
+/* ═══ 4. EXACTLY ONE DEFERRED LOADER ════════════════════════════════
+   GA4's, and only GA4's. Two would mean Clarity has been re-deferred and
+   the isolation test is no longer running. Zero would mean GA4's measured
+   LCP protection has been lost. */
+console.log('\n--- exactly one deferred loader, and it is GA4 ---');
 {
   const loaders = (code.match(/setTimeout\(load,3000\)/g) || []).length;
-  ok('there are exactly two independent deferred loaders',
-     loaders === 2,
-     `found ${loaders} — one each for GA4 and Clarity is expected`);
+  ok('there is exactly one deferred loader',
+     loaders === 1,
+     `found ${loaders} — expected 1 (GA4). 2 means Clarity was re-deferred; ` +
+     `0 means GA4 lost its LCP protection`);
 }
 
 console.log(fail ? `\n*** ${fail} GATE(S) FAILED ***` : '\nALL GATES PASS');
