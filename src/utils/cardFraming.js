@@ -145,8 +145,42 @@ function frame(m) {
   }
 
   const imgW = W * s, imgH = H * s;
-  const top  = BOX_H / 2 - cy * s;     // fixed box height, so a fixed px
-  const dx   = cx * s;                 // used as calc(50% - dx)
+
+  /* ── THE WIDTH CAP IS A PERCENTAGE, NOT PIXELS ──────────────────────
+     The first version capped the product at MAX_W_SHARE x MIN_BOX_W and
+     assumed MIN_BOX_W was 299 — the 4-across desktop grid. It is not the
+     minimum. A 3-across grid with the filter sidebar gives roughly 238px
+     cards, so a product capped at 281px overhung a 238px box by 43px and
+     72" vanities were sliced down both sides. The owner caught it on the
+     live page.
+
+     A px cap cannot be right, because the box width is fluid and this is
+     computed once, server-side. So the cap is expressed as a percentage
+     of the box: CSS resolves it against whatever the card actually is,
+     at every breakpoint, including ones that do not exist yet.
+
+       width: min(<px from the height rule>, <% from the width cap>)
+
+     The px term normalises product HEIGHT, which is what makes the grid
+     even. The % term is a guarantee it can never overhang. Whichever
+     binds, binds. */
+  const capPct = +((MAX_W_SHARE * 100 * W) / bw).toFixed(2);
+
+  /* ── POSITIONING IS ALSO SCALE-INDEPENDENT ──────────────────────────
+     Once width can be decided by the browser, a px top/left computed
+     here would be wrong whenever the % term wins. Percentages in
+     `translate` resolve against the ELEMENT'S OWN size, so shifting by
+     the product centre's position within the image puts that centre on
+     the box centre at any scale, without knowing the scale.
+
+     The standalone `translate` property, not `transform`: the hover zoom
+     (.product-card:hover .product-img-pri{transform:scale(1.04)}) lives
+     in transform, and an inline transform here would silently kill it. */
+  const cxPct = +((cx / W) * 100).toFixed(2);
+  const cyPct = +((cy / H) * 100).toFixed(2);
+
+  const top  = BOX_H / 2 - cy * s;     // reported for tests/diagnostics
+  const dx   = cx * s;
 
   /* Smallest ladder rung that still has ~1 source pixel per drawn pixel
      across the product. Under-sampling shows as softness, and the whole
@@ -163,6 +197,7 @@ function frame(m) {
   const r2 = (n) => Math.round(n * 10) / 10;
   return {
     width: r2(imgW), height: r2(imgH), top: r2(top), dx: r2(dx),
+    capPct, cxPct, cyPct,
     productW: Math.round(drawnW),
     productWBefore: Math.round(bw * s0),
     zoom: +(s / s0).toFixed(2),
@@ -180,9 +215,9 @@ function frame(m) {
        an absolutely positioned child is clipped to the card box. The base
        class keeps object-fit:contain, which is a no-op here because width
        and height preserve the source's own aspect ratio. */
-    style: `position:absolute;max-width:none;` +
-           `width:${r2(imgW)}px;height:${r2(imgH)}px;top:${r2(top)}px;` +
-           `left:calc(50% - ${r2(dx)}px)`,
+    style: `position:absolute;max-width:none;left:50%;top:50%;` +
+           `width:min(${r2(imgW)}px,${capPct}%);height:auto;` +
+           `translate:-${cxPct}% -${cyPct}%`,
   };
 }
 

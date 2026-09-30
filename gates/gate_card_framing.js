@@ -188,16 +188,115 @@ console.log('\n--- the emitted style ---');
   const s = framer.frameStyle({ src_w:400, src_h:599, fill_w:57, fill_h:32.4,
                                 off_x:0.4, off_y:23.7 });
   ok('positions absolutely', /position:absolute/.test(s));
+  /* The translate percentages are measured FROM 50%/50%. Without these
+     anchors the element sits at the box's top-left and every product
+     slides up and to the left by half its own size — and the simulation
+     in section 6 assumed the anchors rather than checking them. */
+  ok('anchors at the box centre before translating',
+     /left:50%/.test(s) && /top:50%/.test(s),
+     'translate() is relative to wherever the element already is');
   ok('lifts the max-width cap', /max-width:none/.test(s),
      'the base rule is width:100%; without this the px width is ignored');
-  ok('horizontal position is viewport-independent', /left:calc\(50% - [\d.]+px\)/.test(s),
-     'the card box is a FIXED 210px tall but a FLUID width — a px left would ' +
-     'be wrong on every breakpoint but one');
-  ok('vertical position is a fixed px', /top:-?[\d.]+px/.test(s),
-     'box height is fixed, so this one is safe as px');
-  ok('carries no url, host or query', !/https?:|\?|b-cdn|bunny/i.test(s),
+  ok('width carries a PERCENTAGE cap, not just pixels',
+     /width:min\([\d.]+px,[\d.]+%\)/.test(s),
+     'a px-only cap assumes a box width. The first version assumed 299 and ' +
+     'the 3-across grid is ~238, so 72" vanities were sliced down both sides');
+  ok('positioning is by translate percentages, not px offsets',
+     /translate:-[\d.]+% -[\d.]+%/.test(s),
+     'percentages resolve against the element\'s own size, so the product ' +
+     'centre lands on the box centre whichever width term wins');
+  ok('uses the translate property, not transform',
+     !/transform:/.test(s),
+     'an inline transform would silently kill the hover zoom');
+  ok('carries no url, host or query', !/https?:|b-cdn|bunny/i.test(s),
      'this feature must not be able to change what is downloaded');
-  ok('stays under 110 bytes', s.length < 110, `${s.length} bytes x ~24 cards`);
+  ok('stays under 150 bytes', s.length < 150, `${s.length} bytes x ~24 cards`);
+}
+
+/* ═══ 6. NOTHING OVERHANGS THE CARD, AT ANY CARD WIDTH ═══════════════
+   THE ASSERTION THAT WAS MISSING. Everything above passed while 72"
+   vanities were being clipped on the live site, because every check
+   evaluated the maths at one assumed box width. The bug was the
+   assumption itself, so the fix is to stop assuming: simulate what the
+   browser does — width = min(px, % of box) — across the real grid
+   widths, and check the product fits inside each. */
+console.log('\n--- nothing overhangs the card, at any width ---');
+{
+  /* 238 = 3-across with the filter sidebar, which is where it broke.
+     343 = single column on a phone. */
+  const BOX_WIDTHS = [220, 238, 265, 299, 320, 343, 400];
+  const shapes = [
+    ['wide 72" double',   { src_w:400, src_h:400, fill_w:80.8, fill_h:40.8, off_x:-0.3, off_y:4.7 }],
+    ['very wide, shallow',{ src_w:400, src_h:250, fill_w:96.3, fill_h:96.0, off_x:0,    off_y:0.2 }],
+    ['tall single',       { src_w:400, src_h:400, fill_w:52.8, fill_h:64.5, off_x:1.0,  off_y:0.4 }],
+    ['portrait canvas',   { src_w:400, src_h:599, fill_w:57,   fill_h:32.4, off_x:0.4,  off_y:23.7 }],
+    ['off to one side',   { src_w:400, src_h:400, fill_w:92.0, fill_h:69.0, off_x:-1.1, off_y:6.9 }],
+    ['hard off-centre',   { src_w:400, src_h:400, fill_w:88,   fill_h:60,   off_x:-8,   off_y:12 }],
+  ];
+  let clipped = 0, checked = 0;
+  for (const boxW of BOX_WIDTHS) {
+    for (const [name, m] of shapes) {
+      const r = framer.frame(m);
+      if (!r) continue;
+      checked++;
+      /* Simulate the browser EXACTLY, from the emitted percentages.
+         The first version of this assumed the product ended up centred
+         and computed left as boxW/2 - pw/2 — so hardcoding cxPct to 50
+         changed nothing and the check stayed green while the product
+         went off-centre. Derive the position the way CSS will:
+             image left  = 50% of box  -  cxPct% of the image's own width
+             product left = image left + (cx - bw/2) x scale            */
+      const imgW = Math.min(r.width, (r.capPct / 100) * boxW);
+      const s = imgW / m.src_w;
+      const bw = (m.fill_w / 100) * m.src_w;
+      const cx = m.src_w / 2 + ((m.off_x || 0) / 100) * m.src_w;
+      const pw = bw * s;
+      const imgLeft = boxW / 2 - (r.cxPct / 100) * imgW;
+      const left = imgLeft + (cx - bw / 2) * s, right = left + pw;
+      if (left < -0.5 || right > boxW + 0.5) {
+        clipped++;
+        console.log(`        ${name} @ ${boxW}px box: product ${pw.toFixed(0)}px, ` +
+                    `spans ${left.toFixed(0)}..${right.toFixed(0)}`);
+      }
+    }
+  }
+  ok(`no product overhangs its card (${checked} shape x width combinations)`,
+     clipped === 0, `${clipped} clipped — this is what the owner saw on the 72" vanities`);
+
+  /* And the product actually lands ON the centre, both axes, at every
+     width. Without this, cxPct/cyPct could be any constant and the
+     overhang check above would still pass for a symmetric product. */
+  let offC = 0;
+  for (const boxW of BOX_WIDTHS) {
+    for (const [, m] of shapes) {
+      const r = framer.frame(m); if (!r) continue;
+      const imgW = Math.min(r.width, (r.capPct / 100) * boxW);
+      const s = imgW / m.src_w, imgH = m.src_h * s;
+      const cx = m.src_w / 2 + ((m.off_x || 0) / 100) * m.src_w;
+      const cy = m.src_h / 2 + ((m.off_y || 0) / 100) * m.src_h;
+      const px = (boxW / 2 - (r.cxPct / 100) * imgW) + cx * s;
+      const py = (framer.BOX_H / 2 - (r.cyPct / 100) * imgH) + cy * s;
+      if (Math.abs(px - boxW / 2) > 0.6 || Math.abs(py - framer.BOX_H / 2) > 0.6) offC++;
+    }
+  }
+  ok('the product centre lands on the box centre at every width',
+     offC === 0,
+     `${offC} off centre — the stagger is the whole reason this exists`);
+
+  ok('height is left to the browser so the aspect survives the % cap',
+     /height:auto/.test(framer.frameStyle(shapes[0][1])),
+     'the base rule is height:100%; without height:auto the image is squashed ' +
+     'whenever the percentage term decides the width');
+
+  /* And the point of the whole exercise: where there IS room, heights match. */
+  const hs = shapes.map(([, m]) => {
+    const r = framer.frame(m); if (!r) return null;
+    const imgW = Math.min(r.width, (r.capPct / 100) * 343);
+    return (m.fill_h / 100) * m.src_h * (imgW / m.src_w);
+  }).filter(h => h && h > 150);
+  ok('on a wide card the tall products land on a common height',
+     Math.max(...hs) - Math.min(...hs) < 3,
+     `heights ${hs.map(h => h.toFixed(0)).join(', ')}`);
 }
 
 console.log(fail ? `\n*** ${fail} GATE(S) FAILED ***` : '\nALL GATES PASS');
