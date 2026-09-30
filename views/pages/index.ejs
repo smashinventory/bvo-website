@@ -1287,7 +1287,14 @@ _DEFAULT_ORDER.forEach(function(k) {
                  var _pcs = (_pi.indexOf('images.bathroomvanitiesoutlet.com') !== -1 && _pi.indexOf('?') === -1)
                    ? [320,400,480,640,800].map(function(w){ return _pi + '?width=' + w + ' ' + w + 'w'; }).join(', ')
                    : ''; %>
-              <img class="product-img-pri" src="<%= product.primary_image %>?width=800"<% if (_pcs) { %> srcset="<%= _pcs %>" sizes="(max-width: 600px) 88vw, (max-width: 1024px) 46vw, 23vw"<% } %> alt="<%= product.name %>" loading="lazy"
+              <%# Card framing — same measured geometry the collection
+                  grid uses, so a product looks identical in both places.
+                  Same URL, same srcset, nothing regenerated. '' means
+                  render exactly today. See src/utils/cardFraming.js. %>
+              <% var _frame = (typeof cardFrameStyle === 'function')
+                                ? cardFrameStyle(product.primary_image) : ''; %>
+              <img class="product-img-pri<%= _frame ? ' is-framed' : '' %>" src="<%= product.primary_image %>?width=800"<% if (_pcs) { %> srcset="<%= _pcs %>" sizes="(max-width: 600px) 88vw, (max-width: 1024px) 46vw, 23vw"<% } %> alt="<%= product.name %>" loading="lazy"
+                 <% if (_frame) { %>style="<%= _frame %>"<% } %>
                  id="<%= _hpImgId %>">
               <%# No hover image on the homepage. Leaving it in the DOM at
                   opacity:0 would cost a lazy image request per card for

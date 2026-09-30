@@ -521,6 +521,28 @@ app.use((req, res, next) => {
      that is undefined throws at render on every page of the site.
      See src/utils/breakpoints.js. */
   res.locals.breakpoints = require('./utils/breakpoints');
+  /* Card hero framing. Two pieces: the maths (cardFraming) and the
+     measured geometry (cardFramingStore). Exposed as ONE template
+     helper so a card can only ask the question one way.
+
+     Returns '' for anything unmeasured, any lifestyle shot, any product
+     type outside vanities and cabinets, and any state where the store
+     has not loaded — and '' means the card renders exactly today's
+     markup. There is no arrangement of failures that produces a broken
+     card; the worst case is the uneven grid we have now.
+
+     The store refresh is fire-and-forget: a card grid must not wait on,
+     or fail because of, a cosmetic lookup. See src/utils/cardFraming.js
+     for why this is CSS rather than regenerated image files. */
+  {
+    const store  = require('./services/cardFramingStore');
+    const framer = require('./utils/cardFraming');
+    store.ensure(require('./config/database').bvoPool).catch(() => {});
+    res.locals.cardFrameStyle = function (imageUrl) {
+      try { return framer.frameStyle(store.get(imageUrl)); }
+      catch { return ''; }
+    };
+  }
   // Initialise cart on every page request so the session is "touched" (modified)
   // and express-session writes it to MySQL + sends the session cookie immediately.
   // Without this, saveUninitialized:false delays the cookie until /cart is visited,

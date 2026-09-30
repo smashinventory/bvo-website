@@ -1235,7 +1235,24 @@
                  var _pcs = (_pi.indexOf('images.bathroomvanitiesoutlet.com') !== -1 && _pi.indexOf('?') === -1)
                    ? [320,400,480,640,800].map(function(w){ return _pi + '?width=' + w + ' ' + w + 'w'; }).join(', ')
                    : ''; %>
-              <img class="product-img-pri" src="<%= product.primary_image %>?width=800"<% if (_pcs) { %> srcset="<%= _pcs %>" sizes="(max-width: 600px) 88vw, (max-width: 1024px) 46vw, 23vw"<% } %> alt="<%= product.name %>" loading="lazy"
+              <%# CARD FRAMING. James Martin's photography is not
+                  standardised: measured across 4,566 vanity heroes the
+                  product fills 20-100% of its canvas, the canvas is
+                  square, 3:2 or 2:3, and products sit up to 50px off
+                  centre in the 210px box. Three faults, one symptom —
+                  cards that look staggered and randomly sized.
+
+                  This positions the SAME image, from the SAME URL, with
+                  the SAME srcset above. Nothing is cropped, generated or
+                  re-hosted, so the measured 320-800 ladder and the
+                  single-hostname connection are untouched.
+
+                  '' for anything unmeasured -> today's markup exactly.
+                  See src/utils/cardFraming.js. %>
+              <% var _frame = (typeof cardFrameStyle === 'function')
+                                ? cardFrameStyle(product.primary_image) : ''; %>
+              <img class="product-img-pri<%= _frame ? ' is-framed' : '' %>" src="<%= product.primary_image %>?width=800"<% if (_pcs) { %> srcset="<%= _pcs %>" sizes="(max-width: 600px) 88vw, (max-width: 1024px) 46vw, 23vw"<% } %> alt="<%= product.name %>" loading="lazy"
+                   <% if (_frame) { %>style="<%= _frame %>"<% } %>
                    id="<%= _pImgId %>">
               <% if (product.hover_image) { %>
               <img class="product-img-hov" src="<%= product.hover_image %>?width=800" alt="" aria-hidden="true" loading="lazy" style="opacity:0">
