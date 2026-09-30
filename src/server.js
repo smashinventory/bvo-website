@@ -165,7 +165,26 @@ const CSP_DIRECTIVES = {
                       because the site does not call it, and a policy that
                       permits an unused host advertises a capability we do
                       not have. Add it with that feature, not before. */
-                   'https://places.googleapis.com'],
+                   'https://places.googleapis.com',
+                   /* Microsoft Clarity — session recordings and heatmaps,
+                      added 2026-09-30 alongside GA4.
+
+                      CONNECT-SRC IS THE ONE THAT MATTERS. scriptSrc needs no
+                      entry: it carries 'strict-dynamic', so the nonce-bearing
+                      inline loader in main.ejs is trusted to inject the tag
+                      it creates, and a host added there is ignored by CSP3
+                      browsers anyway. Omit the connect entry and it fails the
+                      way the Maps note above describes — the script loads,
+                      the page looks perfectly normal, and every beacon dies
+                      silently with nothing in the UI to suggest it.
+
+                      TWO HOSTS. The tag is served from www.clarity.ms and the
+                      wildcard covers the regional ingest endpoints it beacons
+                      to (a.clarity.ms, b.clarity.ms, …). c.bing.com is where
+                      Clarity posts its own telemetry; without it the recorder
+                      still works but throws on every page. */
+                   'https://*.clarity.ms',
+                   'https://c.bing.com'],
   frameSrc:       ["'self'", 'https://www.youtube-nocookie.com', 'https://www.youtube.com',
                    /* The Payment Element renders inside an iframe served by
                       js.stripe.com — the same hosted-field model AcceptUI used,
@@ -524,6 +543,10 @@ app.use((req, res, next) => {
 app.use((req, res, next) => {
   res.locals.ga4Id      = process.env.GA4_ID      || '';
   res.locals.gtmId      = process.env.GTM_ID      || '';
+  /* Microsoft Clarity — session recordings and heatmaps, added 2026-09-30
+     as a second opinion alongside GA4. Env-guarded like the others, so an
+     unset CLARITY_ID renders no tag at all rather than a broken one. */
+  res.locals.clarityId  = process.env.CLARITY_ID || '';
   res.locals.tidioKey   = process.env.TIDIO_PUBLIC_KEY || '';
   res.locals.gmcId      = process.env.GMC_MERCHANT_ID  || '';
   /* Hosts the admin hotlink warning treats as ours. Exposed from

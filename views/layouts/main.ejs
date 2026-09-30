@@ -303,6 +303,49 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   })();
   </script>
   <% } %>
+
+  <!-- Microsoft Clarity -->
+  <%/* Session recordings and heatmaps, added 2026-09-30 as a second opinion
+       alongside GA4 while the in-house KPI dashboards are built.
+
+       DEFERRED ON THE SAME TERMS AS GA4 ABOVE — first interaction, or 3s,
+       whichever comes first. Microsoft's own snippet loads immediately; this
+       does not, deliberately. The 3s deferral above was measured (~250ms of
+       LCP on throttled mobile, plus the page's only long main-thread task),
+       and adding a second ~45KB third-party script eagerly would hand that
+       back. Sam's call, 2026-09-30: "I am not interested in tracking bot
+       traffic or less than 2 second traffic as it is probably truly not
+       human." The visitors this deferral drops are the ones he does not want
+       counted, so the trade costs nothing here.
+
+       A SECOND LOADER, NOT A SHARED ONE. Folding Clarity into the GA4 loader
+       above would save five event listeners. It would also mean editing a
+       block whose timings were measured and which currently works. Ten
+       passive listeners and two timers are not worth that risk. The
+       duplication is deliberate.
+
+       CSP: the injected <script> needs no nonce — 'strict-dynamic' trusts
+       scripts added by an already-trusted script. The hosts that matter are
+       in connectSrc (see server.js), not scriptSrc. */%>
+  <% if (typeof clarityId !== 'undefined' && clarityId) { %>
+  <script nonce="<%= cspNonce %>">
+  (function(){
+    var loaded=false,evts=['pointerdown','keydown','touchstart','scroll','wheel'],t;
+    function load(){
+      if(loaded)return;loaded=true;clearTimeout(t);
+      evts.forEach(function(e){window.removeEventListener(e,load,{passive:true});});
+      (function(c,l,a,r,i,t2,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t2=l.createElement(r);t2.async=1;t2.src='https://www.clarity.ms/tag/'+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t2,y);
+      })(window,document,'clarity','script','<%= clarityId %>');
+    }
+    evts.forEach(function(e){window.addEventListener(e,load,{passive:true});});
+    document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden')load();});
+    t=setTimeout(load,3000);
+  })();
+  </script>
+  <% } %>
   <meta name="csrf-token" content="<%= csrfToken %>">
 </head>
 <body>
