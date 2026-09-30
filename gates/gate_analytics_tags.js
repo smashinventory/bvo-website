@@ -56,24 +56,20 @@ console.log('--- both tags are env-guarded ---');
      /<%\s*if\s*\(\s*_gaId\s*&&/.test(code));
 }
 
-/* ═══ 2. GA4 DEFERRED, CLARITY EAGER ════════════════════════════════
-   These two are asymmetric ON PURPOSE as of 2026-09-30, and the asymmetry
-   is the point of the experiment running right now.
+/* ═══ 2. BOTH TAGS LOAD WITH THE PAGE ═══════════════════════════════
+   As of 2026-09-30 neither tag is deferred. Clarity went eager first, to
+   isolate whether the deferral was why its install never registered; GA4
+   followed, at Sam's call, to re-measure the LCP cost against the page as
+   it stands today rather than as it stood on 2026-09-22.
 
-   GA4 stays deferred: its 3s / first-interaction loader is a measured LCP
-   decision (~250ms on throttled mobile, plus the page's only long
-   main-thread task).
-
-   Clarity was shipped deferred too, and never registered its install —
-   across a multi-page phone session that reached the cart, where prior
-   installs have always registered within minutes. The deferral was the one
-   variable we had introduced, so Clarity is now Microsoft's stock snippet,
-   loading at parse time, to isolate it.
-
-   So this section asserts DIFFERENT things about the two tags. If Clarity
-   is later returned to a deferred loader, this section flips back and the
-   loader count below goes to 2. */
-console.log('\n--- GA4 loads late; Clarity loads with the page ---');
+   THIS SECTION ASSERTS THE STATE WE INTEND, NOT THE STATE WE HAPPEN TO BE
+   IN. That is the whole reason it is worth writing: if a later session
+   reintroduces a deferred loader for either tag — reasonably, perhaps, off
+   the back of a fresh measurement — the gate fails and forces the decision
+   to be made explicitly and re-recorded here, instead of drifting back in
+   as a silent "optimisation" nobody measured. The previous loader is intact
+   in git history at f89af87 if it needs to come back. */
+console.log('\n--- neither tag is deferred ---');
 {
   /* Isolate each block around its OWN marker. An earlier version sliced by
      a fixed offset from the Clarity tag, which silently cut through the GA4
@@ -90,7 +86,7 @@ console.log('\n--- GA4 loads late; Clarity loads with the page ---');
   const cBlock = blockAround(ci);
 
   ok('Clarity runs at parse time, with no deferral wrapper',
-     !/setTimeout\(load,3000\)/.test(cBlock) &&
+     !/setTimeout\(load,\s*\d+\)/.test(cBlock) &&
      !/addEventListener\(e,load/.test(cBlock),
      'the whole point of the current state is that Clarity is NOT deferred — ' +
      'if a loader has crept back, the isolation test is invalid');
@@ -103,11 +99,28 @@ console.log('\n--- GA4 loads late; Clarity loads with the page ---');
      'a literal id here would survive an env change and mislead');
 
   const gBlock = blockAround(code.indexOf('googletagmanager.com/gtag/js'));
-  ok('GA4 still has its 3s fallback',
-     /setTimeout\(load,3000\)/.test(gBlock),
-     'the GA4 loader must not have been disturbed by adding Clarity');
-  ok('GA4 still waits for first interaction',
-     /pointerdown/.test(gBlock) && /addEventListener\(e,load/.test(gBlock));
+  /* Asserted as the ABSENCE of the loader's parts, not just of the timer.
+     Deleting only `setTimeout(load,3000)` would leave gtag loading solely on
+     first interaction with no fallback at all — strictly worse than the
+     deferral it replaced, and invisible in any lab measurement, which never
+     interacts with the page. That is the specific wrong outcome this guards
+     against, so all three pieces are named. */
+  ok('GA4 has no timer',
+     !/setTimeout\(load,\s*\d+\)/.test(gBlock),
+     'GA4 now loads with the page; a timer means the loader is back');
+  ok('GA4 has no interaction listeners',
+     !/pointerdown/.test(gBlock) && !/addEventListener\(e,load/.test(gBlock),
+     'interaction-gated loading with no timer is the worst of both — gtag ' +
+     'would never fire for a visitor who reads and leaves');
+  ok('GA4 has no visibilitychange fallback',
+     !/visibilitychange/.test(gBlock),
+     'a leftover fallback implies the rest of the loader is meant to be there');
+  ok('GA4 still injects the script and still primes dataLayer first',
+     /createElement\('script'\)/.test(gBlock) &&
+     gBlock.indexOf('window.dataLayer') > -1 &&
+     gBlock.indexOf('window.dataLayer') < gBlock.indexOf('createElement'),
+     'the config calls must be queued BEFORE the tag is requested or the ' +
+     'pageview can arrive without the real URL and referrer');
   ok('the two blocks are genuinely separate',
      gBlock.indexOf('clarity.ms') === -1 && cBlock.indexOf('googletagmanager') === -1,
      'if one block contains both markers the slicing is wrong and every ' +
@@ -137,17 +150,19 @@ console.log('\n--- connect-src carries the hosts the beacons need ---');
      /google-analytics\.com/.test(connect) && /googletagmanager\.com/.test(connect));
 }
 
-/* ═══ 4. EXACTLY ONE DEFERRED LOADER ════════════════════════════════
-   GA4's, and only GA4's. Two would mean Clarity has been re-deferred and
-   the isolation test is no longer running. Zero would mean GA4's measured
-   LCP protection has been lost. */
-console.log('\n--- exactly one deferred loader, and it is GA4 ---');
+/* ═══ 4. NO DEFERRED LOADERS ANYWHERE IN THE LAYOUT ═════════════════
+   Section 2 checks each tag's own block. This one sweeps the WHOLE file, so
+   a third tag added later with a copied-and-pasted loader is caught even
+   though sections 2 and 3 know nothing about it. */
+console.log('\n--- no deferred loader anywhere in the layout ---');
 {
-  const loaders = (code.match(/setTimeout\(load,3000\)/g) || []).length;
-  ok('there is exactly one deferred loader',
-     loaders === 1,
-     `found ${loaders} — expected 1 (GA4). 2 means Clarity was re-deferred; ` +
-     `0 means GA4 lost its LCP protection`);
+  const loaders = (code.match(/setTimeout\(load,\s*\d+\)/g) || []).length;
+  ok('there are no deferred script loaders',
+     loaders === 0,
+     `found ${loaders} — expected 0. Both analytics tags load with the page ` +
+     `as of 2026-09-30; if a loader is being reintroduced on the strength of ` +
+     `a fresh measurement, update section 2 and this count together and ` +
+     `record the number in the template comment`);
 }
 
 console.log(fail ? `\n*** ${fail} GATE(S) FAILED ***` : '\nALL GATES PASS');

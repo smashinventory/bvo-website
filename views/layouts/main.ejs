@@ -269,18 +269,34 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
 
   <!-- GA4 -->
   <% const _gaId = (typeof ga4Id !== 'undefined' && ga4Id) ? ga4Id : _seo.google_analytics_id; %>
-  <%/* gtag.js is fetched on the visitor's first interaction, or 3s after this
-       script runs, whichever comes first — NOT with the page. Measured
-       2026-09-22 on throttled mobile (5 runs each): loading it with the page
-       cost ~250ms of LCP (2744ms vs 2492ms median) plus the page's only long
-       main-thread task (86ms), because 162KB of async script competes for
-       bandwidth with the hero image on a slow connection.
+  <%/* gtag.js is fetched WITH THE PAGE as of 2026-09-30. It previously waited
+       for the visitor's first interaction, or 3s, whichever came first.
 
-       The dataLayer queue below is filled immediately, so the pageview keeps
-       the real URL and referrer and is sent as soon as the script arrives.
-       KNOWN TRADE: a visitor who leaves within ~3s without touching anything
-       is not counted. The visibilitychange hook catches most tab-switchers;
-       a hard close inside the window is lost.
+       WHY THE LOADER EXISTED, AND THE NUMBER IT WAS BUILT ON
+       Measured 2026-09-22 on throttled mobile (5 runs each): loading gtag with
+       the page cost ~250ms of LCP (2744ms vs 2492ms median) plus the page's
+       only long main-thread task (86ms), because 162KB of async script
+       competes for bandwidth with the hero image on a slow connection.
+
+       WHY IT WAS REMOVED ANYWAY — Sam's call, 2026-09-30, to re-measure the
+       cost against the page as it stands today rather than as it stood on
+       2026-09-22. A great deal has shipped since: the four blocking CSS files
+       were consolidated into site-bundle.css, the hero srcset ladder was
+       capped, the 1x1 data-URI placeholders were dropped, Google Fonts was
+       removed entirely, and the forced reflows in site.js were replaced with
+       a ResizeObserver. Several of those attacked the same bottleneck the
+       loader was working around, so the 250ms may no longer be there to pay.
+
+       DO NOT restore the loader on the strength of the 2026-09-22 number
+       alone — that measurement describes a page that no longer exists. Take a
+       fresh throttled-mobile reading first. If the cost is still real, the
+       loader is in git history at f89af87 and can come back intact.
+
+       WHAT WAS GIVEN UP BY REMOVING IT, deliberately: nothing on the data
+       side. The loader's known trade was the opposite direction — a visitor
+       who left within ~3s without touching anything was never counted. Eager
+       loading counts them. The dataLayer queue below still runs before the
+       injection, so the pageview keeps the real URL and referrer either way.
 
        CSP: the injected <script> carries no nonce and does not need one —
        'strict-dynamic' trusts scripts added by an already-trusted script. */%>
@@ -289,17 +305,9 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}
   gtag('js',new Date());gtag('config','<%= _gaId %>');
   (function(){
-    var loaded=false,evts=['pointerdown','keydown','touchstart','scroll','wheel'],t;
-    function load(){
-      if(loaded)return;loaded=true;clearTimeout(t);
-      evts.forEach(function(e){window.removeEventListener(e,load,{passive:true});});
-      var s=document.createElement('script');
-      s.async=true;s.src='https://www.googletagmanager.com/gtag/js?id=<%= _gaId %>';
-      document.head.appendChild(s);
-    }
-    evts.forEach(function(e){window.addEventListener(e,load,{passive:true});});
-    document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden')load();});
-    t=setTimeout(load,3000);
+    var s=document.createElement('script');
+    s.async=true;s.src='https://www.googletagmanager.com/gtag/js?id=<%= _gaId %>';
+    document.head.appendChild(s);
   })();
   </script>
   <% } %>
