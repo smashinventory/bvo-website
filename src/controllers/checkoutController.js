@@ -974,7 +974,7 @@ exports.paymentPage = async (req, res) => {
     /* Publishable key is public by design — it identifies the account and
        can only create, never read or charge. The secret key must never
        reach a template. */
-    stripePublishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
+    stripePublishableKey: require('../utils/stripeKeys').publishableKey(),
   });
 };
 

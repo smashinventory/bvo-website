@@ -54,6 +54,7 @@
    ═══════════════════════════════════════════════════════════════════════ */
 
 const Stripe = require('stripe');
+const stripeKeys = require('../utils/stripeKeys');
 
 /* Lazily constructed so that requiring this file cannot crash boot when the
    key is absent — the same reason brevoService and wwexService defer their
@@ -61,8 +62,11 @@ const Stripe = require('stripe');
 let _stripe = null;
 function client() {
   if (_stripe) return _stripe;
-  const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) throw new Error('STRIPE_SECRET_KEY is not set');
+  /* Resolved by STRIPE_MODE, not read raw — see utils/stripeKeys.js.
+     assertCoherent throws if the live/sandbox sets are mixed, which
+     is the failure that otherwise looks exactly like success. */
+  stripeKeys.assertCoherent();
+  const key = stripeKeys.secretKey();
   _stripe = new Stripe(key, {
     /* Pinned deliberately. Stripe rolls the default API version with the
        account, so leaving this out means a dashboard-side change can alter
@@ -366,7 +370,7 @@ exports.retrieveSession = async (sessionId) => {
 exports.constructEvent = (rawBody, signature) => {
   try {
     const event = client().webhooks.constructEvent(
-      rawBody, signature, process.env.STRIPE_WEBHOOK_SECRET
+      rawBody, signature, stripeKeys.webhookSecret()
     );
     return { ok: true, event };
   } catch (err) {
