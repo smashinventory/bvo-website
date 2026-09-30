@@ -42,8 +42,20 @@ if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 // ── Ensure JM Feed directory exists ──────────────────────────────
 // Lives in public_html so the JM FTP account can drop files there.
 // Outside the git repo — gets wiped on deployments — recreate on every startup.
+//
+// PATH RENAMED 2026-09-30. Hostinger's activity log records "Website
+// slategrey-falcon-350174.hostingersite.com domain was changed to
+// bathroomvanitiesoutlet.com" at 00:37:54, which renames the account
+// directory. The old literal was left pointing at nothing.
+//
+// It failed silently, and the mechanism is worth knowing: mkdirSync with
+// recursive:true CREATES a missing tree rather than erroring. So this line
+// quietly built a ghost JM_Feed at the dead path on every restart — and
+// Runtime Logs shows the app restarting every ~4 minutes — while James
+// Martin's FTP account wrote to the real directory. Errors: 0 throughout.
+// The feed simply stopped arriving with nothing logged anywhere.
 const JM_FEED_DIR    = process.env.JM_FEED_DIR
-  || '/home/u222311468/domains/slategrey-falcon-350174.hostingersite.com/public_html/JM_Feed';
+  || '/home/u222311468/domains/bathroomvanitiesoutlet.com/public_html/JM_Feed';
 const JM_ARCHIVE_DIR = path.join(JM_FEED_DIR, 'archive');
 if (!fs.existsSync(JM_FEED_DIR))    fs.mkdirSync(JM_FEED_DIR,    { recursive: true });
 if (!fs.existsSync(JM_ARCHIVE_DIR)) fs.mkdirSync(JM_ARCHIVE_DIR, { recursive: true });
@@ -384,6 +396,27 @@ app.use('/images/uploads', express.static(uploadDir, {
 // deploy serves the right file on both hosts, and DNS flips the behaviour.
 const CANONICAL_HOST = (process.env.SITE_URL || 'https://www.bathroomvanitiesoutlet.com')
   .replace(/^https?:\/\//, '').replace(/\/+$/, '').toLowerCase();
+
+/* ── Canonical host redirect — apex → www ─────────────────────────
+ *
+ * The whole rule lives in src/utils/canonicalRedirect.js, as a pure
+ * function, so gates/gate_canonical_redirect.js can test the REAL
+ * decision instead of a reimplementation of it. See that file for why
+ * each exemption exists.
+ *
+ * Placed above robots.txt deliberately: a crawler that follows the 301
+ * reads the canonical host's robots.txt, which is the one we want it to
+ * obey. The non-canonical robots response stays as the belt to this
+ * braces — it still answers for HEAD-less fetchers and for the exempt
+ * temp hostname.
+ */
+const { redirectTarget } = require('./utils/canonicalRedirect');
+
+app.use((req, res, next) => {
+  const to = redirectTarget(req, CANONICAL_HOST);
+  if (!to) return next();
+  return res.redirect(301, to);
+});
 
 app.get('/robots.txt', (req, res) => {
   const host = String(req.hostname || '').toLowerCase();

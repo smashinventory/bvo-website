@@ -45,7 +45,9 @@
 const path = require('path');
 const fs   = require('fs');
 
-const BVO_BASE = '/home/u222311468/domains/slategrey-falcon-350174.hostingersite.com';
+// Renamed 2026-09-30: Hostinger's "domain was changed" operation renames the
+// account directory. Was slategrey-falcon-350174.hostingersite.com.
+const BVO_BASE = '/home/u222311468/domains/bathroomvanitiesoutlet.com';
 const ENV_CANDIDATES = [
   process.env.BVO_ENV_PATH,                       // explicit override wins
   `${BVO_BASE}/hbuilds/config/.env`,              // CONFIRMED — survives deploys

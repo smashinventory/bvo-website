@@ -2,7 +2,7 @@
 
 // Load .env from the git repo — must run before any other require
 require('dotenv').config({
-  path: '/home/u222311468/domains/slategrey-falcon-350174.hostingersite.com/nodejs/.env',
+  path: '/home/u222311468/domains/bathroomvanitiesoutlet.com/nodejs/.env',
 });
 
 /**
@@ -16,11 +16,20 @@ require('dotenv').config({
  * Triggered by Hostinger cron at 11:59 PM EST (04:59 UTC) daily.
  *
  * Hostinger hPanel cron command:
- *   /usr/bin/node /home/u222311468/domains/slategrey-falcon-350174.hostingersite.com/nodejs/src/jobs/syncJMFeed.js >> /home/u222311468/domains/slategrey-falcon-350174.hostingersite.com/nodejs/logs/jm-sync.log 2>&1
+ *   /usr/bin/node /home/u222311468/domains/bathroomvanitiesoutlet.com/nodejs/src/jobs/syncJMFeed.js >> /home/u222311468/domains/bathroomvanitiesoutlet.com/nodejs/logs/jm-sync.log 2>&1
  *
  * Cron schedule (hPanel):  59 4 * * *   (04:59 UTC = 11:59 PM EST)
  *
- * After domain migration, update paths above to bathroomvanitiesoutlet.com.
+ * DOMAIN MIGRATION DONE — 2026-09-30. Hostinger's activity log records
+ * "Website slategrey-falcon-350174.hostingersite.com domain was changed to
+ * bathroomvanitiesoutlet.com" at 00:37:54, which RENAMES the account
+ * directory. The paths above were swapped to match the same day.
+ *
+ * The old path did not fail loudly: every consumer of it used
+ * mkdir -p / mkdirSync({recursive:true}), which creates a missing tree
+ * instead of erroring. So the app quietly built a ghost JM_Feed at the
+ * dead path while James Martin's FTP wrote to the real one. Nothing
+ * logged; the feed just stopped arriving.
  */
 
 const path = require('path');
@@ -30,8 +39,8 @@ const XLSX = require('xlsx');
 const { importFromWorkbook } = require('./importJamesMartinFeed');
 
 // ── Paths ─────────────────────────────────────────────────────────────
-const FEED_DIR    = '/home/u222311468/domains/slategrey-falcon-350174.hostingersite.com/public_html/JM_Feed';
-const ARCHIVE_DIR = '/home/u222311468/domains/slategrey-falcon-350174.hostingersite.com/public_html/JM_Feed/archive';
+const FEED_DIR    = '/home/u222311468/domains/bathroomvanitiesoutlet.com/public_html/JM_Feed';
+const ARCHIVE_DIR = '/home/u222311468/domains/bathroomvanitiesoutlet.com/public_html/JM_Feed/archive';
 
 // ── Logging ───────────────────────────────────────────────────────────
 const log = msg => console.log(`[${new Date().toISOString()}] ${msg}`);

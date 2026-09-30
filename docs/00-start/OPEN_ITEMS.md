@@ -713,6 +713,296 @@ re-run the redirect build.
 
 ---
 
+### 14. Every cron wrapper hardcodes the OLD domain directory
+*Logged 2026-09-30, ~03:00, during DNS cutover night · START HERE tomorrow*
+
+> **SUPERSEDED IN DETAIL by `docs/architecture/SERVER_CRON_TOPOLOGY.md`**
+> (written 2026-09-30). The rename is now CONFIRMED, not suspected — the
+> Hostinger activity log records it at 00:37:54 and the live directory
+> string was read untruncated off the FTP Accounts page. That document has
+> the full chain map, the exact line to change in each of the 14 scripts,
+> and three open unknowns that must be resolved before any edit. Read it
+> first; this entry is kept for the original reasoning trail.
+
+**This is the root item. 15, 16 and 17 are all downstream of it, and the
+first hour tomorrow should be spent establishing the one fact below before
+touching anything else.**
+
+All 14 shell wrappers at the account root begin with the same line:
+
+```
+BASE=/home/u222311468/domains/slategrey-falcon-350174.hostingersite.com
+```
+
+`bundle_catalogue.sh` · `bvosync_cloudinary.sh` · `bvosync_manuals.sh` ·
+`gvssync.sh` · `gvssync_append.sh` · `gvssync_cloudinary.sh` ·
+`gvssync_envcheck.sh` · `gvssync_images.sh` · `gvssync_purge.sh` ·
+`gvssync_resize.sh` · `jm_feed_guard.sh` · `jmsync.sh` · `jmv_rollup.sh` ·
+`shipment_status_poll.sh`
+
+**Why it is suddenly a question.** On cutover night the domain
+`bathroomvanitiesoutlet.com` was attached to the Hostinger site. Two
+things on the hPanel FTP Accounts page changed with it:
+
+- FTP username is now `u222311468.bathroomvanitiesoutlet.com` — previously
+  it would have been `u222311468.slategrey-falcon-350174.hostingersite.com`
+- The "create FTP account" Directory prefix reads
+  `/home/u222311468/domains/bathroomvanitiesoutlet.co…`
+
+Both suggest the account's primary-domain identity moved. **Not proven.**
+File Manager still shows everything where it was, but that proves nothing
+either way — it is chrooted to the domain directory and presents it as
+root, and `public_html` is a symlink that would follow a rename.
+
+**THE ONE FACT TO ESTABLISH FIRST.** Does
+`/home/u222311468/domains/slategrey-falcon-350174.hostingersite.com/`
+still exist? File Manager cannot answer this. Use hPanel → Advanced →
+**Cron Jobs**, which lists the registered command lines verbatim, or SSH
+if the plan has it.
+
+- **Path intact** → nothing here is cutover damage. Items 15 and 16 stand
+  on their own and are older than tonight.
+- **Path moved** → all 14 wrappers are dead right now, silently, and
+  every nightly job (01:00, 04:30, 05:30, 06:30, 13:00) fails tonight
+  with nothing in any inbox.
+
+**The fix, once known.** Do not hand-edit 14 files with a new literal —
+that is the same bug again, one rename later. Derive BASE from the
+script's own location, e.g. `BASE="$(cd "$(dirname "${BASH_SOURCE[0]}")"
+&& pwd)"`, so a future rename cannot break them. Needs Sam's approval;
+also needs a decision on whether the JM/Salsify FTP path and the
+`jmv_sync/` PHP side reference the literal anywhere.
+
+---
+
+### 15. The four half-hourly crons appear not to be running
+*Logged 2026-09-30, ~03:00 · evidence is circumstantial*
+
+> **THE "PREDATES CUTOVER" CLAIM IS RETRACTED.** The original heading read
+> "and this PREDATES cutover". That was written before the domain rename
+> was confirmed. Two other explanations now fit the same evidence at least
+> as well: the wrappers may be running and failing, with their errors
+> written to a ghost `jmv_sync/logs/` on the dead path; or the crontab
+> entries themselves may still point at the dead path, in which case the
+> scripts never execute and log nowhere at all. See
+> `docs/architecture/SERVER_CRON_TOPOLOGY.md` §6 and §7a. Do not act on
+> the timing claim below.
+
+| job | log file | schedule |
+|---|---|---|
+| `bvosync_cloudinary.sh` | `jmv_sync/logs/bvo_cloudinary.log` | `0,30 * * * *` |
+| `bvosync_manuals.sh` | `jmv_sync/logs/bvo_manuals.log` | `0,30 * * * *` |
+| `gvssync_append.sh` | `jmv_sync/logs/append_cron.log` | `0,30 * * * *` |
+| `gvssync_cloudinary.sh` | `jmv_sync/logs/cloudinary_cron.log` | `0,30 * * * *` |
+
+These write **unconditionally** on every run, before doing any work —
+`bvosync_cloudinary.sh:37` and `gvssync_append.sh:91` both
+`echo "=== $(date) ===" >> $LOG`. So a live job leaves a fresh log every
+30 minutes, whether or not it had anything to do.
+
+**Observed 2026-09-30 ~03:00:** a File Manager listing of
+`jmv_sync/logs/`, sorted newest-first, showed the most recent file at
+**7 hours old** (`shipment-status-poll.log`), then `cron.log` and
+`sync_2026-09-29.log` at 13 hours, then everything else a day or older.
+None of the four log files above appeared at the top of the listing.
+Fourteen scheduled runs should have landed in that window.
+
+**Not yet confirmed**, and this is the honest limit of the evidence: the
+listing was not scrolled to the bottom, so the files may exist further
+down — but if they were being written every 30 minutes they could not
+sort below a 7-hour-old file. Confirm by searching the directory for
+those four names and reading their last line.
+
+**Why it matters that this is old.** If these have been dead for days or
+weeks, then ER Vanities Cloudinary pushes, JMV image appends and manuals
+have all been silently stale, and nobody would have seen an error. Check
+how far back the last entries go before assuming the data is current.
+
+---
+
+### 16. `jm_feed_guard.sh` cannot prove it is alive
+*Logged 2026-09-30, ~03:00 · design flaw, not a bug*
+
+The guard runs every 5 minutes and, by deliberate design, logs **only
+when it acts**. Its own header explains why: "At 288 firings a day, a line
+per run would bury the two lines that matter under 100,000 a year. An
+empty log means nothing has gone wrong."
+
+The flaw: an empty log is also what "not running at all" looks like. The
+two states are indistinguishable.
+
+**Tonight it mattered.** A deploy demonstrably touched `public_html`
+around 02:00 (`public_html` and `hbuilds` both showed mtime ~1 hour), and
+`JM_Feed` was left empty with a fresh mtime — exactly the deploy-wipe
+scenario the guard exists to catch. `feed_guard.log` was **a day old**.
+That is either "it had nothing to do" or "it never fired," and the log
+cannot say which.
+
+**Suggested fix, not approved:** a heartbeat that does not bury the
+signal — touch a `state/guard_heartbeat` file (mtime only, no content) on
+every run, and keep the log action-only. Then "last heartbeat" answers
+liveness and the log still answers what happened.
+
+---
+
+### 17. JM feed did not arrive on 2026-09-30 — deploy wipe is the leading explanation
+*Logged 2026-09-30, ~03:00 · Sam: "resolve tomorrow, let it go"*
+
+Feed was due and did not arrive. Established that night:
+
+- **Not a DNS problem.** Salsify's FTP destination is configured with
+  **Host `82.25.87.178`** — a raw IP, not a hostname. Port 21, path
+  `/JM_Feed`, user `JMTeam`. DNS could not have affected it.
+- `JM_Feed/` exists, is **empty**, mtime ~1 hour before 03:00.
+- `JM_Feed/archive` empty. `JM_Feed_Repo` had no new file.
+- `public_html` and `hbuilds` both mtime ~1 hour → **an hbuilds deploy
+  fired**, almost certainly triggered by attaching the domain.
+- The "Service unavailable." banner in the Salsify dialog is **stale** —
+  that issue was resolved two months ago; transfers have run nightly since.
+
+**Leading explanation, from `jm_feed_guard.sh`'s own header:** Hostinger's
+hbuilds deploy system rebuilds `public_html` on every push, and `JM_Feed`
+lives inside it because that is the only place JM's FTP account can write.
+"If JM's FTP connects while the folder is missing, the transfer fails at
+THEIR end. Nothing arrives, nothing is logged here, and the morning import
+reports 'No .xlsx file found'." This exact failure happened on 31 Aug and
+is why the guard was written.
+
+**Still unchecked when work stopped:**
+
+1. `jmv_sync/logs/feed_guard.log` — a `RECREATED … (deploy wipe)` line
+   timestamped ~02:00 would confirm it. (It was a day old in the
+   directory listing, which points the other way — see item 16.)
+2. `JM_Feed_Repo/inbox` — the guard's rescue location, dated
+   `YYYY-MM-DD_<filename>`. Only `archive` was checked. Tonight's feed may
+   be sitting there intact.
+3. Whether `JMTeam` still exists as an FTP sub-account. It was **not**
+   visible in the hPanel FTP Accounts list, but it is unclear whether that
+   page renders sub-accounts at all. Settle it by connecting with
+   FileZilla to `82.25.87.178:21` as `JMTeam`.
+
+**Note for the standing fix:** the Salsify config has **"Use .filepart"
+unchecked**, so a failed transfer leaves a truncated real file rather than
+a temp file, and nothing downstream can tell it is incomplete. Worth
+turning on.
+
+**Also noted:** this is plain FTP on port 21 — credentials and feed cross
+the wire unencrypted. Hostinger account has no SFTP. **FTPS** (Salsify's
+FTP Type dropdown) would fix it with the same IP, port, account and path.
+
+---
+
+### 19. TABLED — move the JM drop zone out of `public_html`
+*Logged 2026-09-30 · Sam: "Lets table this. It is back to where it was
+before." · design work is DONE, nothing built*
+
+**Current state is the original working one**, restored 2026-09-30:
+
+- FTP account `u222311468.JMTeam` **was wiped by the domain rename** and has
+  been **recreated** — Directory `/public_html`, same username, same
+  password. Write access confirmed by FileZilla upload test.
+- Salsify needs no change: host `82.25.87.178`, port 21, path `/JM_Feed`.
+- The only instruction-sheet edit for the JM team is the alternate
+  hostname, `ftp.slategrey-falcon-350174.hostingersite.com` →
+  **`ftp.bathroomvanitiesoutlet.com`**. The IP form never needed changing.
+- Sam is asking JM to resend the missed drop.
+
+**The idea, for when it comes back up.** `public_html` is Hostinger's
+document root and hbuilds rebuilds it on every deploy, taking `JM_Feed`
+with it — the cause of the 31 Aug and 30 Sept incidents. Moving the drop
+zone to `/JM_Drop/JM_Feed`, outside `public_html`, makes the wipe
+impossible and lets `jm_feed_guard.sh` retire.
+
+**READ `docs/architecture/SERVER_CRON_TOPOLOGY.md` §2b FIRST.** It has the
+pipeline traced from source, and it overturns the two things that seem
+obviously true:
+
+- the archive step in `syncJMFeed.js` is **not** a redundant hop, it is the
+  input to `jmv_shopify_sync.php`
+- the `.csv.gz` is in `jmv_sync/snapshots/`, **not** in `JM_Feed_Repo` —
+  the Repo holds XLSX, and its filename is regex-parsed by the rollup
+
+Both of those were assumed wrong in this session, from memory, by both of
+us. The §2b trace is the corrective.
+
+**Sam's chosen shape:** run the new path in parallel — new folder, new FTP
+account, a second cron reading from it — and retire the old crons only
+after cutover. No flag day. The clean hook is `FEED_DROP_DIR`, an env
+override already present at `jmv_shopify_sync.php:366`, which needs one
+added export in `gvssync.sh` and no edit to third-party `jmv_sync/`.
+
+**Also decided and NOT done:** tightening the FTP chroot to
+`/public_html/JM_Feed` so the vendor account cannot see or delete
+`.htaccess` (FileZilla reported `adfrw` on it — read, write, rename,
+delete). Sam: *"I trust them. No need to overcomplicate this. We will just
+be extra tight on step 2."* The chroot change needs Salsify's Path to
+become `/`, which is Sam's field to change, not the JM team's.
+
+---
+
+### 18. Apex → www 301 is written and gated but NOT COMMITTED
+*Logged 2026-09-30, ~03:00 · approved by Sam, held for the JM cron*
+
+Sitting uncommitted in the working tree:
+
+- `src/utils/canonicalRedirect.js` (new) — `redirectTarget()`, pure function
+- `src/server.js` — 4-line middleware calling it, placed after
+  `CANONICAL_HOST` and above the robots route
+- `gates/gate_canonical_redirect.js` (new) — 34 assertions, all pass;
+  mutation swept with 10 mutations, 10 caught
+
+**Why a module and not inline:** a gate cannot reach inline middleware
+without booting the app, so it would have had to reimplement the rule and
+assert its own copy. Sam approved inline; the deviation was flagged and
+accepted.
+
+**Decision made without an explicit answer, flag if wrong:**
+`*.hostingersite.com` is **exempt** from the redirect, so the temp URL
+stays usable as an escape hatch. Costs nothing in search terms — the
+robots route already returns `Disallow: /` for every non-canonical host.
+
+**Not urgent.** The apex was never going to be indexed: its robots.txt
+already returns `Disallow: /`, and canonical + `og:url` on www pages both
+emit www. The 301 is the better instrument (a disallowed host cannot pass
+signals; a 301 does), not a live bug.
+
+**Also still stashed:** `stash@{0}` — siteUrl consolidation + cutover
+config gate, parked 2026-09-29.
+
+---
+
+## Cutover — completed 2026-09-30 ~02:00, verified
+
+Recorded so nobody re-checks these. All confirmed live on the day.
+
+| item | result |
+|---|---|
+| DNS | A `@` → 82.25.87.178, CNAME `www` → apex, both TTL 600, propagated |
+| DNS method | **Connect via DNS records**, NOT nameservers — mail, Brevo, and the `images` → `bvo-zone.b-cdn.net` CNAME all live in the GoDaddy zone and would have been lost |
+| TLS | Hostinger Lifetime SSL, Active, covers apex + www. No CAA record, so issuance was unblocked |
+| robots.txt | `Allow: /` on www with sitemap; `Disallow: /` on apex |
+| Sitemap | submitted to the **Domain property** `sc-domain:bathroomvanitiesoutlet.com` (the URL-prefix property is apex-only and would not cover www) |
+| Stripe webhook | endpoint **edited** to `https://www.bathroomvanitiesoutlet.com/checkout/webhook` — editing preserves the signing secret, so no env change and no restart. 7 events intact |
+| Bunny | origin type is **Storage Zone `bvo-images`**, not a pull zone over a URL — cutover could not affect it. 50/50 images verified loading on the live domain |
+| CDN purge | **deliberately skipped.** Bunny serves only `/images` from its own storage; nothing changed. Purging would cost a re-fetch and zero the 57% cache HIT for no benefit |
+| Old Shopify URLs | spot-checked, one hop, 200 at destination |
+
+**Correction worth carrying forward:** the working assumption that
+`images.bathroomvanitiesoutlet.com` is a pull zone over vendor masters,
+with nothing writable, was **wrong** — it is a Bunny Storage Zone. That
+assumption drove the decision to do card framing in CSS rather than
+regenerating images. The CSS framing shipped, is gated and measured well,
+and is not being reopened — but the constraint as stated was false and
+should not be relied on for future decisions.
+
+**Do not cancel or downgrade the Shopify store yet.** Its Google &
+YouTube app is the only thing currently feeding Google Merchant Center.
+Order must be: build a replacement feed → verify in GMC → disconnect the
+Shopify app → cancel Shopify. No ad spend is running, so there is no
+clock, but doing it out of order loses the listings.
+
+---
+
 ## Resolved
 
 ### Homepage CLS — hero, tablet band, and image-with-text

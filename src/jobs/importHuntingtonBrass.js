@@ -69,7 +69,9 @@ const { loadCdnMap, toBunnyUrl, newStats, logStats } = require('../utils/cdnUrl'
    Unlike shipmentStatusPoll, a failure here is NOT fatal at load time. A
    dry run touches no database and must work on a laptop with no
    credentials. The error is raised in the write path instead. */
-const BVO_BASE = '/home/u222311468/domains/slategrey-falcon-350174.hostingersite.com';
+// Renamed 2026-09-30: Hostinger's "domain was changed" operation renames the
+// account directory. Was slategrey-falcon-350174.hostingersite.com.
+const BVO_BASE = '/home/u222311468/domains/bathroomvanitiesoutlet.com';
 const ENV_CANDIDATES = [
   process.env.BVO_ENV_PATH,                       // explicit override wins
   `${BVO_BASE}/hbuilds/config/.env`,              // survives deploys

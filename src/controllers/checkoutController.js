@@ -172,10 +172,16 @@ function makeOrderNumber(insertId) {
  * A forged host would only ever redirect the attacker's own session, but
  * an open redirect on the checkout path is not worth leaving lying about.
  */
+/* The staging hostname slategrey-falcon-350174.hostingersite.com was removed
+   on 2026-09-30. Hostinger performed a domain CHANGE, not an alias: the
+   activity log reads "Website slategrey-falcon-350174.hostingersite.com
+   domain was changed to bathroomvanitiesoutlet.com" (00:37:54). The old
+   hostname now fails to connect outright — verified, ERR_HTTP2_PROTOCOL_ERROR
+   — so it is not a fallback, it is a dead entry, and a dead entry in an
+   allowlist is just extra surface for a forged Host header. */
 const ALLOWED_RETURN_HOSTS = new Set([
   'www.bathroomvanitiesoutlet.com',
   'bathroomvanitiesoutlet.com',
-  'slategrey-falcon-350174.hostingersite.com',
 ]);
 
 function returnOrigin(req) {
