@@ -82,7 +82,22 @@ const draftName = draft
   : (savedAddress
       ? [savedAddress.first_name, savedAddress.last_name].filter(Boolean).join(' ')
       : '');
-const STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','DC','FL','GA','HI','ID','IL','IN','IA',
+/* AK and HI are deliberately absent, removed 2026-10-01 — the published
+   Shipping Policy excludes Alaska and Hawaii, and until this change both
+   this dropdown and the server accepted them.
+
+   THIS LIST MUST MATCH US_STATES in src/controllers/checkoutController.js
+   EXACTLY. That one decides what enters the database; this one is only what
+   the buyer can pick. A state here but not there fails on submit with no
+   useful message. gate_shipping_exclusions.js asserts they are identical, so
+   they cannot drift apart.
+
+   This is a plain JS comment on purpose. The line already sits inside an EJS
+   script block, so an EJS comment tag here would nest a second tag inside an
+   open one and fail to compile. Do not write EJS tag characters anywhere in
+   this comment either — the parser scans raw text for them and does not care
+   that they sit inside a JavaScript comment. */
+const STATES = ['AL','AZ','AR','CA','CO','CT','DE','DC','FL','GA','ID','IL','IN','IA',
   'KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND',
   'OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'];
 const money = n => '$' + Number(n || 0).toLocaleString('en-US',

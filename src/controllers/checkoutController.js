@@ -265,9 +265,69 @@ function toE164(raw) {
   return d ? '+' + d : '';
 }
 
-const US_STATES = new Set(('AL AK AZ AR CA CO CT DE FL GA HI ID IL IN IA KS KY LA ME MD MA MI '
+/* DELIVERABLE STATES — the continental US, plus DC.
+
+   AK AND HI ARE DELIBERATELY ABSENT, removed 2026-10-01. The published
+   Shipping Policy says: "We do not currently ship to Alaska, Hawaii, Puerto
+   Rico, US territories, or international addresses." Until this change the
+   code disagreed with the page — both lists carried AK and HI, so an
+   Anchorage or Honolulu shopper could pay and receive a confirmation for an
+   order that was never going to ship.
+
+   Territories (PR VI GU AS MP) were already absent and stay absent.
+   There is no country field anywhere in checkout, so international is
+   blocked by construction rather than by a rule.
+
+   THIS LIST IS DUPLICATED, ON PURPOSE AND UNAVOIDABLY, in
+   views/pages/checkout-info.ejs as STATES — one is the dropdown the buyer
+   sees, this one is what decides what enters the database. They must stay
+   identical: a state in the dropdown but not here fails on submit with no
+   explanation, and a state here but not in the dropdown is unreachable.
+   gate_shipping_exclusions.js asserts they match, character for character. */
+const US_STATES = new Set(('AL AZ AR CA CO CT DE FL GA ID IL IN IA KS KY LA ME MD MA MI '
   + 'MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY DC')
   .split(' '));
+
+/* ZIP prefixes for the two states above. Dropping the state codes alone
+   leaves a hole: the form posts state and ZIP independently, so picking a
+   neighbouring state with a Honolulu ZIP would pass. Checking both closes it
+   and also catches an honest typo.
+     Alaska  995-999
+     Hawaii  967-968  */
+const NON_DELIVERABLE_ZIP3 = new Set(['995', '996', '997', '998', '999', '967', '968']);
+
+/* Freight forwarders and storage facilities, also excluded by the published
+   policy.
+
+   BE HONEST ABOUT WHAT THIS IS. A forwarder is a business, not an address
+   shape — there is no rule that separates "ShipToUSA Freight Forwarding, 123
+   Industrial Blvd" from any other commercial address. This matches operator
+   names and obvious keywords, which stops the careless case and will not stop
+   a determined one. It is a speed bump, not a gate, and the real enforcement
+   is a human noticing a suspect consignee before the pallet moves.
+
+   Kept deliberately narrow. A regex greedy enough to catch every forwarder
+   would also reject real customers on Storage Road, and a blocked genuine
+   order costs more than a forwarder that slips through. */
+const NON_DELIVERABLE_PATTERNS = [
+  { re: /\bfreight\s*forward(?:er|ing)?\b/i,  why: 'freight forwarder' },
+  { re: /\bshipping\s*agent\b/i,              why: 'freight forwarder' },
+  { re: /\bcargo\s*agent\b/i,                 why: 'freight forwarder' },
+  { re: /\bself[-\s]*storage\b/i,             why: 'storage facility' },
+  { re: /\bpublic\s*storage\b/i,              why: 'storage facility' },
+  { re: /\bextra\s*space\s*storage\b/i,       why: 'storage facility' },
+  { re: /\bcubesmart\b/i,                     why: 'storage facility' },
+  { re: /\blife\s*storage\b/i,                why: 'storage facility' },
+  { re: /\bu-?haul\b/i,                       why: 'storage facility' },
+  { re: /\bstorage\s*(?:unit|facility|center|centre)\b/i, why: 'storage facility' },
+];
+
+/** The first exclusion a set of address lines trips, or null. */
+function nonDeliverableReason(lines) {
+  const hay = lines.filter(Boolean).join(' \n ');
+  for (const p of NON_DELIVERABLE_PATTERNS) if (p.re.test(hay)) return p.why;
+  return null;
+}
 
 /** Server-side validation. The page validates too, for the buyer's sake;
  *  this is the copy that decides what enters the database. */
@@ -293,10 +353,18 @@ function validateInfo(b) {
     errors.ship_address1 = 'Enter a street address.';
   if (!v('ship_city'))
     errors.ship_city = 'Enter a city.';
-  if (!US_STATES.has(v('ship_state').toUpperCase()))
-    errors.ship_state = 'Choose a state.';
+  /* The message names the reason when the state is a real one we do not
+     serve. "Choose a state" in front of someone who just chose Hawaii reads
+     as a broken form; they retry, fail again, and leave without knowing why. */
+  if (!US_STATES.has(v('ship_state').toUpperCase())) {
+    errors.ship_state = ['AK', 'HI'].includes(v('ship_state').toUpperCase())
+      ? 'We ship by freight truck to the continental US only, so we cannot deliver to Alaska or Hawaii.'
+      : 'Choose a state.';
+  }
   if (!/^\d{5}(-\d{4})?$/.test(v('ship_zip')))
     errors.ship_zip = 'Enter a 5-digit ZIP code.';
+  else if (NON_DELIVERABLE_ZIP3.has(v('ship_zip').slice(0, 3)))
+    errors.ship_zip = 'That ZIP code is in Alaska or Hawaii, which we cannot deliver to by freight.';
   if (!/^\+1\d{10}$/.test(toE164(v('ship_phone'))))
     errors.ship_phone = 'Enter a 10-digit phone number, e.g. (404) 555-1234.';
   /* THREE VALUES NOW, and isValid deliberately does NOT accept the
@@ -312,6 +380,18 @@ function validateInfo(b) {
      cancelled order and a refund three days from now. */
   if (/\bP\.?\s*O\.?\s*BOX\b/i.test(v('ship_address1')))
     errors.ship_address1 = 'We ship by freight truck and cannot deliver to a PO box.';
+
+  /* Freight forwarders and storage facilities — also excluded by the
+     published policy. Checked across BOTH address lines and the recipient
+     name, because "CubeSmart" lands in ship_name as often as in the street.
+     See NON_DELIVERABLE_PATTERNS for why this is a speed bump, not a gate. */
+  {
+    const why = nonDeliverableReason([v('ship_address1'), v('ship_address2'), v('ship_name')]);
+    if (why === 'freight forwarder')
+      errors.ship_address1 = 'We cannot deliver to a freight forwarder. Please give us the final delivery address.';
+    else if (why === 'storage facility')
+      errors.ship_address1 = 'We cannot deliver to a storage facility. Freight delivery needs someone present to inspect and sign for the shipment.';
+  }
 
   return errors;
 }
