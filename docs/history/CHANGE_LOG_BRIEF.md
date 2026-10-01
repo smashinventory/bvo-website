@@ -1,7 +1,7 @@
 # BVO Change Log Brief
 
 > The running log of every change, with dates and reasons. Search here first when asking when something broke.
-*Last updated: 2026-09-28*
+*Last updated: 2026-09-30*
 
 > **⚠️ This file had a one-month hole.** It stopped at 2026-08-10 while roughly
 > seventy tasks shipped — the whole order-management and fulfilment stack, the
@@ -16,6 +16,83 @@
 >
 > **Companion reference:** `BVO_AUDIT_BRIEF.md` → *LIVE DATABASE INVENTORY* —
 > all 41 live tables, and which 16 of them have no migration file.
+
+---
+
+## Google Merchant Center feed — and the duplicate map it shipped with
+**Date:** 2026-09-30
+**Commits:** `4f03b4a` (the feed), and the consolidation that followed
+**Open item:** `OPEN_ITEMS.md` item 20 — read it before touching this area
+
+### What shipped
+
+`GET /feeds/google-shopping.xml` — an RSS 2.0 product feed generated live from
+the database. 5,873 items from 6,059 active products; the 186 skipped are 172
+with no `product_type`, 11 with no https image and 3 `Sample` rows. Verified
+live and independently parsed.
+
+A route, not a file, because an hbuilds deploy rebuilds `public_html` — which
+is exactly how `public_html/JM_Feed` was lost the same day. Exempt from the
+rate limiter alongside `sitemap.xml`, because a 429 to the Merchant Center
+fetcher expires every item in the account. `X-Robots-Tag: noindex`; not in the
+sitemap; nothing links to it.
+
+**Nothing in Merchant Center was changed.** No data source registered, so
+Google is not fetching it yet.
+
+### The defect it shipped with, and why it matters more than the feature
+
+The feed was built with a **second** `product_type` → Google-category map,
+while `GMC_CATEGORY_MAP` already existed in `src/utils/seoDefaults.js` and was
+the thing writing to the database. Two sources for one fact — **Rule 8 and
+Rule 10, both broken.**
+
+Found by Sam, not by the session that caused it.
+
+The correct fix had been taken twice before — `8bb7729` ("add 4 vanity
+product_type variants to GMC category map") and `db077a3` ("GMC category map
+expansion"). `git log -S'GMC_CATEGORY_MAP'` shows both in ten seconds and was
+never run, despite CLAUDE.md naming that search a precondition. `INDEX.md` was
+never opened either, nor the numbered Rules, nor the two documents that
+specifically govern this column (`BVO_MODEL_BRAND_KEY_BRIEF.md` §5.9 and
+Playbook Trap 13).
+
+### The consolidation
+
+`GMC_CATEGORY_MAP` deleted. `seoDefaults.js` now imports
+`src/utils/googleProductCategory.js` and derives through `categoryFor()`. One
+map, covering all 27 live `product_type` values where the old one covered 14,
+with every id read out of Google's published taxonomy rather than recalled.
+
+**The old map's paths were not merely wrong — they did not exist.** Neither
+`Home & Garden > Bathroom > Bathroom Fixtures > …` nor
+`Home & Garden > Kitchen & Dining > Kitchen Fixtures > …` appears anywhere in
+Google's taxonomy. 5,035 product rows therefore carry a category Google cannot
+resolve, and 900 more loaded NULL because their type was not a key.
+
+`gate_gmc_feed.js` now fails if a second map appears anywhere under `src/` —
+including in a file that does not exist yet. 5 mutations, 5 caught.
+
+### Deliberately NOT done — still open, see item 20
+
+- **No backfill.** 6,059 rows still hold invalid values. Note that both
+  writers are first-write-wins (`seoDefaults` fills only when empty;
+  `importJamesMartinFeed.js:288` is `COALESCE(existing, new)`), so correcting
+  the map does **not** correct anything already stored.
+- **Write semantics unchanged.** Whether the column becomes a derived cache or
+  stays hand-editable is Sam's decision and has not been made.
+- The column is mixed-format until the backfill: rows touched after this
+  change hold a numeric id, untouched rows hold the old invalid path. Verified
+  harmless — the column is never parsed, compared, or used in any
+  `WHERE`/`ORDER BY`/`GROUP BY`, and the feed derives its own value.
+
+### Stale document found — not corrected, per CLAUDE.md rule 4
+
+`BVO_MODEL_BRAND_KEY_BRIEF.md` §5.9 says ER Vanities' `product_type` values are
+*Vanity, Bridge Unit, Linen Tower*. The live DB shows those 78 rows are now
+Single Sink Cabinet Only (59), Double Sink Cabinet Only (14), Side Cabinet (4),
+Linen Cabinet (1). The warning stands; the facts are overtaken. All 78 are in
+the feed.
 
 ---
 

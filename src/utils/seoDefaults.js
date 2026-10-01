@@ -11,6 +11,24 @@
  *   • (any future importer or API ingestion)
  */
 
+/* THE product_type → Google category map lives in ONE file, and this is not
+   it. See src/utils/googleProductCategory.js.
+
+   On 2026-09-30 a second map was created there while this one still existed —
+   two sources deriving one fact, breaking Rule 8 (one internal taxonomy) and
+   Rule 10 (one canonical source per fact). This import is the repair: the map
+   that used to sit below as GMC_CATEGORY_MAP is gone, and both this file and
+   the Merchant Center feed now read the same table.
+
+   Why that file is the home rather than this one: it is a dedicated, gated
+   module whose ids were each read out of Google's published taxonomy, and it
+   carries the deliberate-exclusion list too. This file is a grab-bag of SEO
+   and GMC defaults; a taxonomy does not belong inside it, and the feed
+   controller importing "seoDefaults" to get a category would be the wrong
+   shape. Keeping the map here instead was the alternative and was rejected on
+   those grounds, not on history — it did live here first. */
+const gpc = require('./googleProductCategory');
+
 const DESC_MAX = 125;  // First 125 chars + "…" keeps meta_desc under 160
 
 /** Strip HTML tags and trim whitespace */
@@ -52,23 +70,30 @@ function applyProductSeoDefaults(d) {
    Google Merchant Center defaults
    ───────────────────────────────────────────────────────────────── */
 
-/** product_type → GMC taxonomy path (approved mapping, July 2026) */
-const GMC_CATEGORY_MAP = {
-  'vanity cabinet':                'Home & Garden > Bathroom > Bathroom Fixtures > Bathroom Vanities',
-  'single sink vanity with top':   'Home & Garden > Bathroom > Bathroom Fixtures > Bathroom Vanities',
-  'double sink vanity with top':   'Home & Garden > Bathroom > Bathroom Fixtures > Bathroom Vanities',
-  'single sink cabinet only':      'Home & Garden > Bathroom > Bathroom Fixtures > Bathroom Vanities',
-  'double sink cabinet only':      'Home & Garden > Bathroom > Bathroom Fixtures > Bathroom Vanities',
-  'linen cabinet':    'Home & Garden > Furniture > Cabinets & Storage',
-  'medicine cabinet': 'Home & Garden > Bathroom > Bathroom Fixtures > Bathroom Mirrors',
-  'mirror':           'Home & Garden > Bathroom > Bathroom Fixtures > Bathroom Mirrors',
-  'faucet':           'Hardware > Plumbing > Plumbing Fixtures > Faucets',
-  'stone top':        'Home & Garden > Kitchen & Dining > Kitchen Fixtures > Countertops',
-  'composite top':    'Home & Garden > Kitchen & Dining > Kitchen Fixtures > Countertops',
-  'backsplash':       'Home & Garden > Kitchen & Dining > Kitchen Fixtures > Countertops',
-  'light':            'Home & Garden > Lighting > Bathroom Lighting',
-  'accessory':        'Home & Garden > Bathroom > Bathroom Accessories',
-};
+/* GMC_CATEGORY_MAP WAS HERE. REMOVED 2026-09-30 — do not reinstate it.
+
+   It held fourteen keys mapping product_type to a Google taxonomy PATH, e.g.
+   'single sink vanity with top' → 'Home & Garden > Bathroom > Bathroom
+   Fixtures > Bathroom Vanities'. Two separate things were wrong with it, and
+   both are worth knowing before anyone is tempted to bring it back:
+
+   1. EVERY PATH IN IT WAS INVENTED. Checked against Google's published
+      taxonomy (taxonomy-with-ids.en-US.txt, version 2021-09-21): neither
+      "Home & Garden > Bathroom > Bathroom Fixtures > ..." nor
+      "Home & Garden > Kitchen & Dining > Kitchen Fixtures > ..." exists. They
+      read plausibly, which is exactly why they survived three rounds of
+      maintenance (7fcf537, 8bb7729, db077a3). Google cannot resolve them, so
+      5,035 product rows carry a category that means nothing.
+
+   2. It covered 14 product_type keys against 27 in the live catalogue, and
+      four of its keys ('vanity cabinet', 'medicine cabinet', 'light',
+      'accessory') matched no live type at all. 900 active products therefore
+      loaded a NULL category — all 376 Shower Fixtures, all 149 Bathroom
+      Faucets, all 84 Kitchen Faucets, and so on — silently, because an
+      unmapped key is indistinguishable from a deliberate null here.
+
+   Replaced by googleProductCategory.js, which covers all 27 types and whose
+   ids were each read out of Google's file rather than recalled. */
 
 /**
  * Apply Google Merchant Center defaults to a product data object.
@@ -84,10 +109,26 @@ const GMC_CATEGORY_MAP = {
  * @returns {object}
  */
 function applyGmcDefaults(d) {
-  // google_product_category — map from product_type
+  /* google_product_category — derived from product_type via the ONE map.
+     Now stores Google's NUMERIC ID (e.g. 2081), not a path string. The id is
+     what the feed emits, what Google prefers, and the one form that cannot be
+     subtly mistyped into something that looks right and resolves to nothing —
+     which is precisely how the fourteen invented paths survived here for
+     months.
+
+     UNCHANGED ON PURPOSE: this still fills only when the field is EMPTY.
+     Whether the column should instead become a derived cache that is
+     recomputed on every sync is an open question for Sam (OPEN_ITEMS item 20)
+     and is deliberately NOT decided here.
+
+     CONSEQUENCE, KNOWN AND ACCEPTED: the column is mixed-format until the
+     backfill runs — rows touched after this change hold an id, the 5,035
+     untouched rows still hold an invalid path. Nothing reads the column
+     (verified: never parsed, compared, or used in any WHERE/ORDER BY/GROUP BY
+     anywhere in the codebase, and the feed derives its own), so mixed content
+     is untidy rather than harmful. */
   if (!clean(d.google_product_category)) {
-    const key = (d.product_type || '').toLowerCase().trim();
-    d.google_product_category = GMC_CATEGORY_MAP[key] || null;
+    d.google_product_category = gpc.categoryFor(d.product_type) || null;
   }
 
   // google_condition — always 'new' unless explicitly set to refurbished/used

@@ -26,6 +26,8 @@ const ROOT = path.join(__dirname, '..');
 const gpc  = require(path.join(ROOT, 'src/utils/googleProductCategory'));
 const feed = require(path.join(ROOT, 'src/controllers/feedController'));
 
+const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
+
 let fail = 0;
 const ok = (name, cond, detail) => {
   console.log(`  ${cond ? 'ok  ' : 'FAIL'}  ${name}`);
@@ -84,6 +86,65 @@ const PRODUCTION_TYPES = [
      'that path does not exist in Google\'s taxonomy — it is what the DB column holds');
   ok('no invalid "Kitchen Fixtures" path has crept back in',
      !/Kitchen Fixtures/.test(paths));
+}
+
+/* ═══ 1b. EXACTLY ONE MAP — Rule 8 and Rule 10 ═════════════════════════
+   This section exists because on 2026-09-30 this project shipped TWO maps
+   deriving one fact: GMC_CATEGORY_MAP in seoDefaults.js (which writes to the
+   database) and googleProductCategory.js (which feeds Merchant Center). That
+   breaks Rule 8 (one internal taxonomy) and Rule 10 (one canonical source per
+   fact), both in BVO_AUDIT_BRIEF.md.
+
+   It was not caught by review. It was caught by Sam, afterwards.
+
+   The reason it happened is that the correct fix — repair the existing map —
+   had already been taken twice (8bb7729, db077a3) and the session never ran
+   `git log -S'GMC_CATEGORY_MAP'` to find out. A rule that depends on a future
+   session remembering to look is not a control. This is the control. */
+console.log('\n--- exactly one product_type -> category map exists ---');
+{
+  const seo = read('src/utils/seoDefaults.js');
+
+  ok('GMC_CATEGORY_MAP no longer exists',
+     !/const\s+GMC_CATEGORY_MAP\s*=/.test(seo),
+     'a second map deriving the same fact — Rule 8 and Rule 10');
+
+  ok('seoDefaults imports the single map',
+     /require\(['"]\.\/googleProductCategory['"]\)/.test(seo),
+     'it must READ the shared map, not hold its own');
+
+  ok('seoDefaults derives the category through categoryFor()',
+     /gpc\.categoryFor\(/.test(seo),
+     'reaching into the map object directly would let the two drift apart ' +
+     'again through the exclusion list');
+
+  /* Sweep every file that could plausibly hold a third map, rather than the
+     two we happen to know about. A new one in a new file is the exact shape
+     of the original mistake. */
+  const dirs = ['src/utils', 'src/controllers', 'src/jobs', 'src/models', 'src/middleware'];
+  const offenders = [];
+  for (const dir of dirs) {
+    const full = path.join(ROOT, dir);
+    if (!fs.existsSync(full)) continue;
+    for (const f of fs.readdirSync(full).filter((n) => n.endsWith('.js'))) {
+      const rel = `${dir}/${f}`;
+      if (rel === 'src/utils/googleProductCategory.js') continue;   // the one home
+      const body = read(rel);
+      /* A map is identified by a vanity product_type key sitting next to a
+         Google-taxonomy-looking value on the same line. Narrow on purpose:
+         it must not fire on prose, comments naming the old paths, or the
+         feed's own product_type passthrough. */
+      const line = body.split('\n').find((l) =>
+        /'(single|double) sink (vanity with top|cabinet only)'\s*:/i.test(l) &&
+        /(Bathroom Vanities|Countertops|\b\d{3,6}\b)/.test(l));
+      if (line) offenders.push(`${rel}: ${line.trim().slice(0, 70)}`);
+    }
+  }
+  ok('no second product_type -> category map anywhere under src/',
+     offenders.length === 0,
+     offenders.join('\n        ') ||
+     'if this fires, a map was added outside googleProductCategory.js — ' +
+     'fold it in rather than keeping both');
 }
 
 /* ═══ 2. GTIN NORMALISATION ════════════════════════════════════════════ */

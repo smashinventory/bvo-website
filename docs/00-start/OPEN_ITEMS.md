@@ -971,6 +971,163 @@ config gate, parked 2026-09-29.
 
 ---
 
+### 20. GMC feed shipped with a DUPLICATE category map — Rule 8 and Rule 10 violated
+*Logged 2026-09-30 · commit `4f03b4a` · raised by Sam, not found by the session that caused it*
+
+**READ THIS BEFORE TOUCHING `google_product_category` OR THE FEED.**
+
+#### 20a. What is wrong
+
+There are now **two maps deriving one fact** — `product_type` → Google
+product category:
+
+| file | form | written by | reaches |
+|---|---|---|---|
+| `src/utils/seoDefaults.js` → `GMC_CATEGORY_MAP` | path strings | the original work | **the database**, via `importJamesMartinFeed.js` and `adminController.js` |
+| `src/utils/googleProductCategory.js` | numeric ids | this session, `4f03b4a` | **the feed only** |
+
+That is a direct breach of **Rule 8** (one internal taxonomy) and **Rule 10**
+(one canonical source per fact), both in `BVO_AUDIT_BRIEF.md`.
+
+The content of the new file is correct and is the genuinely valuable part —
+all 27 live `product_type` values are covered where the old map covered 14,
+and every id was read out of Google's published taxonomy file rather than
+recalled. **The duplication is the defect, not the data.**
+
+#### 20b. How it happened — the process failure, recorded so it is not repeated
+
+The correct fix was always "correct `GMC_CATEGORY_MAP`". **That path had
+already been taken twice:**
+
+```
+8bb7729  fix: add 4 vanity product_type variants to GMC category map
+db077a3  fix: alt text + GMC category map expansion
+7fcf537  feat: SEO + GMC auto-fill — browser UI + server-side defaults
+```
+
+`git log -S'GMC_CATEGORY_MAP'` takes ten seconds and shows all three. It was
+not run. CLAUDE.md calls that search *"a precondition, not a step"* and says
+defects have shipped three and four times on this project because sessions
+reasoned from the code in front of them instead of from the record. This is
+another one.
+
+Also skipped, all of them signposted:
+
+- **`INDEX.md` was never opened.** It is the literal first line of CLAUDE.md.
+- **`BVO_AUDIT_BRIEF.md` rules were never read** — so Rule 8 and Rule 10 were
+  broken without knowing they existed.
+- **`BVO_MODEL_BRAND_KEY_BRIEF.md` §5.9** and **`BVO_BRAND_ONBOARDING_PLAYBOOK.md`
+  Trap 13** both govern this exact column and both warn about this exact map.
+  Neither was opened.
+- The session searched for the *column name* early and `seoDefaults.js`
+  **appeared in its own results**. It was never opened. The conclusion drawn
+  was "the stored values are untrustworthy, so derive instead" — without ever
+  asking the prior question, *who writes this, and does a map already exist?*
+
+#### 20c. What does NOT need reversing — verified, do not redo this check
+
+Nothing in production. The feed is inert:
+
+- **No storefront coupling.** `google_product_category` is read by zero
+  controllers, models, views, filters or sorts. Checked explicitly:
+  `collectionsController`, `homeController`, `bundleController`,
+  `productsController`, `inspirationController`, `lookbookController`,
+  `Product.js`, `Category.js`, `search.js`, `searchQuery.js` — all zero. The
+  storefront filters on `brand`, `model`, `width_in`, `color_family`,
+  `category_id`, `product_type`, `is_featured`, `sort_order`.
+- **It writes nothing.** The feed is read-only.
+- **Merchant Center is untouched** — no data source registered, so Google is
+  not fetching it. Live exposure is zero.
+- `feedController.js` deliberately ignores the DB column, which is what
+  insulated the feed from the bad stored data in the first place.
+- **Rule 14 satisfied** — the query ran against the real database; the live
+  feed returned 5,873 items.
+- Rule 9 satisfied (file headers, commented decisions). No new top-level
+  document was created.
+
+#### 20d. The surgical unwind — scope only, NOT APPROVED, nothing built
+
+One change: **collapse two maps into one.** Not a revert of `4f03b4a`.
+
+The verified ids and 27-type coverage move into whichever file is chosen as
+the single home; the other is deleted and its consumer re-pointed. The map
+has always lived in `seoDefaults.js` and has been corrected there twice, so
+that is the more faithful home — **but it is Sam's call, and he has not made
+it.**
+
+Still open and NOT decided, do not assume:
+
+1. **Which file holds the one map.**
+2. **Whether `google_product_category` becomes a derived cache** (admin field
+   read-only, recomputed every sync) **or stays hand-editable with a gate that
+   fails on drift.** Asked; not answered.
+3. **The backfill.** 6,059 rows hold invalid values. Separately: both writers
+   are first-write-wins — `seoDefaults.js:88` only fills when empty, and
+   `importJamesMartinFeed.js:288` is
+   `COALESCE(google_product_category, VALUES(...))`, which **keeps the existing
+   value forever**. So correcting the map alone fixes nothing already stored.
+4. **A gate that fails when a second map appears**, so this cannot recur
+   silently. Proposed, not approved.
+
+#### 20e. Data facts measured 2026-09-30, reuse rather than re-derive
+
+From dump `u222311468_BVO_website.20260929174558.sql`:
+
+- 6,059 active products. Feed includes **5,873**; skips 172 (no
+  `product_type`, all James Martin), 11 (no https image), 3 (`Sample`).
+- `google_product_category` populated on 5,035 rows — **every value invalid**,
+  i.e. absent from Google's taxonomy, not merely a poor choice. Stored
+  `Home & Garden > Bathroom > Bathroom Fixtures > Bathroom Vanities`; the real
+  path is `Furniture > Cabinets & Storage > Vanities > Bathroom Vanities` (2081).
+  Stored `Home & Garden > Kitchen & Dining > Kitchen Fixtures > Countertops`;
+  real is `Hardware > Building Materials > Countertops` (2729).
+- Incoherent as well as invalid: **2,958 vanities carry the Countertops value,
+  1,241 identical products carry the Vanities one.** All created 2026-07, all
+  `source_flag = manual`. The current map sends vanities to Vanities, so the
+  Countertops value cannot have come from it — the reading that fits is that
+  these were typed differently at first import, the category was written once,
+  and when `product_type` was corrected later the frozen category never moved.
+  **Inference from the write semantics, not proven from the dump.**
+- **900 active products have a `product_type` absent from `GMC_CATEGORY_MAP`**
+  and therefore load NULL: Shower Fixtures 376, Bathroom Faucets 149, Kitchen
+  Faucets 84, Bathroom Accessories 72, Tub Fillers 55, Storage Cabinet 37,
+  Countertop Unit 32, Plumbing Accessories 27, Knobs & Legs 21, Hutch 15,
+  Metal Base 13, Drawer Unit 5, Side Cabinet 4, Sample 3, Bar Faucets 3,
+  Bench 2, Laundry Faucets 2. The map also holds four dead keys matching no
+  live type: `vanity cabinet`, `medicine cabinet`, `light`, `accessory`.
+- Identifier coverage is excellent and is **not** a problem: 5,959 twelve-digit
+  UPCs, **all** passing the GS1 check digit; six 11-digit values that are all
+  valid once a leading zero is restored; one row with the literal text
+  `Stone Sample - Grey Expo Quart` in the `upc` column (sku `SS-GEX2`).
+  Only 6 products have neither a usable gtin nor an mpn.
+
+#### 20f. STALE DOCUMENT — a question for Sam, not a fix (CLAUDE.md rule 4)
+
+`docs/architecture/BVO_MODEL_BRAND_KEY_BRIEF.md` §5.9 states ER Vanities'
+three `product_type` values are **Vanity, Bridge Unit, Linen Tower**, and that
+`google_product_category` was set explicitly on all 78 rows because none were
+in the map.
+
+The live database says those 78 rows are now **Single Sink Cabinet Only (59),
+Double Sink Cabinet Only (14), Side Cabinet (4), Linen Cabinet (1)** — ER was
+retyped to canonical values after that brief was written. The brief's *warning*
+still stands; its *facts* are overtaken.
+
+Consequence, confirmed: all 78 ER products have a mapped type and **are** in
+the feed. The failure the brief feared did not occur.
+
+Surfaced, not corrected, per CLAUDE.md §"ARTIFACTS OF RECORD" rule 4.
+
+#### 20g. Housekeeping still owed on `4f03b4a`
+
+- `docs/history/CHANGE_LOG_BRIEF.md` — no entry for the feed. Owed.
+- `node docs/00-start/reindex.js` — not run after adding
+  `feedController.js`, `googleProductCategory.js`, `gate_gmc_feed.js`.
+- `docs/00-start/VERIFY_QUEUE.md` — the feed is pushed and live but not yet
+  seen working by Sam beyond the counts; belongs there.
+
+---
+
 ## Cutover — completed 2026-09-30 ~02:00, verified
 
 Recorded so nobody re-checks these. All confirmed live on the day.
@@ -1526,10 +1683,44 @@ lives in Google's property and can be lost with the account.
 4. **Cookie consent.** GA4 and Stripe cookies drop before any consent today.
    Defensible for US-only traffic under most readings; not for EU/UK, and
    California has its own rules. Decide deliberately rather than by default.
-5. **Know the GA4 loading trade.** `gtag.js` is fetched on first interaction
-   or 3 seconds, whichever comes first — a deliberate choice made
-   2026-09-22 worth ~250ms of LCP on throttled mobile, documented in
-   `main.ejs`. The cost: a visitor who leaves inside 3s without touching
-   anything is never counted. **Sessions will under-report and bounce rate
-   will read better than reality.** That is a real trade, not a bug — but
-   do not compare these numbers to Shopify's without accounting for it.
+5. **~~Know the GA4 loading trade.~~ RESOLVED 2026-09-30 — the loader is
+   gone and the under-reporting with it.** It read: *"`gtag.js` is fetched
+   on first interaction or 3 seconds, whichever comes first — a deliberate
+   choice made 2026-09-22 worth ~250ms of LCP on throttled mobile. The
+   cost: a visitor who leaves inside 3s without touching anything is never
+   counted. Sessions will under-report and bounce rate will read better
+   than reality."*
+
+   **gtag now loads with the page (commit `9eeebef`), so sessions no longer
+   under-report and the bounce-rate caveat is void.** Clarity went eager
+   first, on `f89af87`, for an unrelated reason.
+
+   **The 250ms was re-measured and is gone.** PageSpeed Insights, mobile,
+   same URL, ~10 minutes apart either side of the deploy:
+
+   | | deferred (5:12pm) | eager (5:23pm) | Δ |
+   |---|---|---|---|
+   | Performance | 99 | 99 | — |
+   | **LCP** | **2.1 s** | **2.0 s** | **none** |
+   | FCP | 1.2 s | 1.2 s | — |
+   | **TBT** | **20 ms** | **60 ms** | **+40 ms** |
+   | CLS | 0 | 0 | — |
+   | Speed Index | 1.3 s | 1.2 s | — |
+
+   LCP did not move. The bandwidth contention the loader was built to avoid
+   was removed by other work since 2026-09-22 — site-bundle.css, the capped
+   hero srcset, the dropped 1x1 placeholders, Google Fonts removed, the
+   ResizeObserver rewrite. TBT tripling 20→60ms is the one genuine cost and
+   is where gtag's parse/execute now lands; in absolute terms it is 40ms
+   against a 200ms "good" threshold.
+
+   **Read this table with two caveats.** Single runs, not medians — treat
+   the ±0.1s movements as noise, not as improvements. And Lighthouse keeps
+   the page alive past 3 seconds, so the 3s fallback almost certainly fired
+   inside the *deferred* run too: the baseline was never a gtag-free page,
+   which is part of why the delta is this small.
+
+   If the cost ever needs paying again, the full loader is intact at
+   `f89af87` and `gate_analytics_tags.js` will fail until sections 2 and 4
+   are updated to match — deliberately, so the decision has to be explicit
+   and re-recorded here rather than drifting back in unmeasured.

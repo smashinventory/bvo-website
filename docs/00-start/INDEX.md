@@ -35,6 +35,7 @@ line — add one to the top of that file, under its H1, then reindex.
 | `docs/architecture/BVO_MODEL_BRAND_KEY_BRIEF.md` | Model-group and model-card architecture; why a model card is keyed on (model, brand) and never model alone. |
 | `docs/architecture/CARD_CHANGES_2026-09-05.md` | Product card structure — badges, pricing rows, swatches and size chips. |
 | `docs/architecture/SEARCH_AND_ORDERING_2026-09-06.md` | Search relevance scoring and result ordering across the storefront and admin. |
+| `docs/architecture/SERVER_CRON_TOPOLOGY.md` | Everything scheduled on the Hostinger account: what runs it, what it reads, |
 | `docs/architecture/VANITY_SIDEBAR_FILTERS.md` | Vanity collection sidebar: which filters appear, in what order, on both the grid and model-group render paths. |
 
 ## DEFINITIONS — settled meanings. Do not re-derive.
