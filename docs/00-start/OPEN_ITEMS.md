@@ -976,6 +976,32 @@ config gate, parked 2026-09-29.
 
 **READ THIS BEFORE TOUCHING `google_product_category` OR THE FEED.**
 
+> **STATUS 2026-09-30, end of session**
+>
+> | | |
+> |---|---|
+> | Two maps collapsed into one | **DONE** — commit `2feced3` |
+> | Gate against a third map | **DONE** — 5 mutations, 5 caught |
+> | **Database backfilled** | **DONE — ran by Sam in phpMyAdmin, verified** |
+> | Write semantics (`COALESCE`) | **UNCHANGED — still open, see 20d** |
+> | Huntington Brass importer | **UNCHANGED — see 20h** |
+> | Anything in Merchant Center | **UNCHANGED — no data source registered** |
+>
+> **The backfill ran and matched the prediction exactly.** Dry run returned
+> 6,079 / 5,890 / 189 as forecast from the dump; the UPDATE affected 5,890
+> rows; the verification returned all twelve category counts exactly as
+> predicted and `invalid_paths_remaining = 0`.
+>
+> Backup table **`_bk_gmc_category_20260930`** holds every pre-change value
+> and is still in the database. **Do not drop it until Merchant Center has
+> accepted the feed.** The old values cannot be recomputed — the map that
+> produced them was deleted in `2feced3`.
+>
+> Scripts: `migrations/gmc_backfill_2026-09-30/` (1_backup, 2_dryrun,
+> 3_update, 4_verify, 5_rollback). Idempotent — safe to re-run — **but see
+> the warning in 3_update: it overwrites hand-typed values, which was safe
+> only because none were legitimate at the time it first ran.**
+
 #### 20a. What is wrong
 
 There are now **two maps deriving one fact** — `product_type` → Google
@@ -1117,6 +1143,56 @@ Consequence, confirmed: all 78 ER products have a mapped type and **are** in
 the feed. The failure the brief feared did not occur.
 
 Surfaced, not corrected, per CLAUDE.md §"ARTIFACTS OF RECORD" rule 4.
+
+#### 20h. Huntington Brass — safe today, but new SKUs will load NULL
+
+Checked 2026-09-30, after the backfill, because the earlier finding that
+`importHuntingtonBrass.js` never writes `google_product_category` needed to be
+turned into a precise answer rather than a worry.
+
+**Existing HB rows are safe.** The importer uses
+`INSERT ... ON DUPLICATE KEY UPDATE` with an explicit column list —
+`category_id, product_type, sku, slug, name, model, brand, short_desc,
+long_desc, price, compare_price, color, color_family, upc, weight_lbs,
+width_in, depth_in, height_in, primary_image_url, source_flag, is_active` —
+and `google_product_category` is in neither the insert list nor the update
+list. A re-import therefore leaves the backfilled value alone. All 768 HB
+products now hold a correct id and will keep it.
+
+**New HB SKUs are not safe.** A first insert supplies no value, so the column
+defaults to NULL and nothing ever fills it — `applyGmcDefaults()` is never
+called by this importer. Every genuinely new Huntington Brass product will be
+absent a category until someone opens it in the admin or re-runs the backfill.
+
+**RESOLVED OPERATIONALLY 2026-09-30 — no code change.** Huntington Brass has
+no automated uploader. Every HB load is a deliberate manual act, so the answer
+is to re-run `migrations/gmc_backfill_2026-09-30/3_update.sql` afterwards. It
+is idempotent, takes under a second, and carries no code risk. Fixing the
+importer was the alternative and was rejected as disproportionate for a job
+that runs by hand a few times a year.
+
+**Which load routes fill the category and which do not** — checked, because
+"the importer doesn't do it" turned out to understate the problem:
+
+| route | fills `google_product_category`? |
+|---|---|
+| Single product via the admin form | **yes** — `adminController:544/593` → `_extractProductFields` → `applyGmcDefaults` |
+| Admin **CSV import** | **no** — reads a `google_product_category` column straight off the CSV (`adminController:1131`); blank if the column is absent |
+| `importHuntingtonBrass.js --sql` → phpMyAdmin | **no** — the column is in neither the INSERT list nor the ON DUPLICATE list |
+| `importJamesMartinFeed.js` nightly | yes, but only when the field is empty |
+
+So the CSV bulk import bypasses `applyGmcDefaults` as well. Only the
+single-product form actually derives it. **Anyone adding a brand should assume
+the category will be NULL and re-run the backfill**, which is Playbook Trap 13
+restated — that trap was written before either of these two routes existed and
+is still correct.
+
+**NOT closed, for whoever revisits this:** making the CSV import and the brand
+importers share `applyGmcDefaults` would remove the manual step entirely. It
+pulls in the other seven fields that function sets (`google_condition`, `mpn`
+from `vendor_sku`, `identifier_exists`, `shipping_label`, `custom_label_0–4`),
+which is probably desirable and definitely larger than it looks. Not assessed,
+not proposed.
 
 #### 20g. Housekeeping still owed on `4f03b4a`
 

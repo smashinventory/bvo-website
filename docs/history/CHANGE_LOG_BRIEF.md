@@ -73,12 +73,40 @@ resolve, and 900 more loaded NULL because their type was not a key.
 `gate_gmc_feed.js` now fails if a second map appears anywhere under `src/` —
 including in a file that does not exist yet. 5 mutations, 5 caught.
 
-### Deliberately NOT done — still open, see item 20
+### The backfill — RAN 2026-09-30, verified
 
-- **No backfill.** 6,059 rows still hold invalid values. Note that both
-  writers are first-write-wins (`seoDefaults` fills only when empty;
-  `importJamesMartinFeed.js:288` is `COALESCE(existing, new)`), so correcting
-  the map does **not** correct anything already stored.
+`migrations/gmc_backfill_2026-09-30/` — five scripts, run by hand in
+phpMyAdmin in order: backup, dry run, update, verify, rollback-if-needed.
+
+It was needed because both writers are first-write-wins (`seoDefaults` fills
+only when empty; `importJamesMartinFeed.js:288` is `COALESCE(existing, new)`),
+so correcting the map corrected nothing already stored. Measured: only **87 of
+6,059** active rows would ever have healed on their own.
+
+The logic was simulated against the 2026-09-29 dump first, and the live run
+matched the forecast exactly:
+
+| | predicted | actual |
+|---|---|---|
+| rows backed up | 6,079 | 6,079 |
+| rows changing | 5,890 | 5,890 |
+| rows unchanged | 189 | 189 |
+| invalid paths remaining | 0 | 0 |
+
+All twelve post-change category counts matched to the row. Independent
+cross-check: the active-row result differs from the live feed's category
+spread by exactly 11 items, which are precisely the 11 the feed drops for
+having no https image — two unrelated code paths reconciling to the item.
+
+**`_bk_gmc_category_20260930` holds every pre-change value and must not be
+dropped until Merchant Center accepts the feed.** The old values cannot be
+recomputed; the map that produced them was deleted in this same change.
+
+Rule 14 note: the SQL *logic* was verified against the dump, the *syntax* was
+not executed against a server beforehand. The scripts were ordered so that a
+syntax error would surface on a read-only SELECT before anything wrote.
+
+### Deliberately NOT done — still open, see item 20
 - **Write semantics unchanged.** Whether the column becomes a derived cache or
   stays hand-editable is Sam's decision and has not been made.
 - The column is mixed-format until the backfill: rows touched after this
