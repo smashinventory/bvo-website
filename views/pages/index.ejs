@@ -1147,7 +1147,28 @@ _DEFAULT_ORDER.forEach(function(k) {
 
     <div class="cat-carousel-track" data-carousel-track>
       <% categories.forEach(function(cat) { %>
-      <a href="<%= _csHref(cat.slug) %>" class="cat-card">
+      <%/* CARD IS NOT A LINK — changed 2026-10-01.
+
+           This was <a class="cat-card"> wrapping the whole tile, so the link's
+           anchor text was the heading, the description paragraph and the CTA
+           concatenated. One of them read 155 characters:
+             "Our Collections Every Model, Every Finish Save Time and Find the
+              Right Vanity Quickly with Our ..."
+           Google uses anchor text to work out what a link is about, and that
+           one names no single subject.
+
+           The link now sits on the <h3> and carries .card-stretch, whose
+           ::after overlay covers the tile — so the whole card is still
+           clickable, the destination is unchanged, and the anchor text is
+           just the category name.
+
+           Known trade: text inside the tile can no longer be selected with
+           the mouse, because the overlay sits above it. Standard for this
+           pattern and accepted deliberately.
+
+           Matches what product cards already do at ~line 1265: <article>
+           wrapper with a scoped link, rather than a card-sized anchor. */%>
+      <article class="cat-card">
         <div class="cat-img">
           <% if (cat.image_url) { %>
             <%/* ?width= only helps on the Bunny zone. Local /images/uploads paths
@@ -1172,11 +1193,11 @@ _DEFAULT_ORDER.forEach(function(k) {
           <% } %>
         </div>
         <div class="cat-body">
-          <h3><%= cat.name %></h3>
+          <h3><a href="<%= _csHref(cat.slug) %>" class="card-stretch"><%= cat.name %></a></h3>
           <p><%- cat.description %></p>
           <span class="cat-link">Shop Now →</span>
         </div>
-      </a>
+      </article>
       <% }); %>
     </div>
 
@@ -1599,7 +1620,16 @@ _DEFAULT_ORDER.forEach(function(k) {
     </div>
     <div class="hp-inspo-grid">
       <% inspirationPages.forEach(function(p) { %>
-      <a href="/inspiration/<%= p.slug %>" class="hp-inspo-card">
+      <%/* CARD IS NOT A LINK — changed 2026-10-01, same reason as the
+           category tiles above. This was <a class="hp-inspo-card"> around the
+           whole tile, so the anchor text was "Style Guide" + the article
+           title + 100 characters of description + "Read guide →" — 158
+           characters naming no single subject.
+
+           Link now sits on the <h3> title with .card-stretch. Whole tile
+           still clickable, same destination, anchor text is the article
+           title. */%>
+      <article class="hp-inspo-card">
         <div class="hp-inspo-card-img-wrap">
           <% if (p.og_image) { %>
           <img src="<%= p.og_image %>" alt="<%= p.title %>" class="hp-inspo-card-img" loading="lazy" width="400" height="225">
@@ -1611,11 +1641,11 @@ _DEFAULT_ORDER.forEach(function(k) {
         </div>
         <div class="hp-inspo-card-body">
           <span class="hp-inspo-card-label">Style Guide</span>
-          <h3 class="hp-inspo-card-title"><%= p.title %></h3>
+          <h3 class="hp-inspo-card-title"><a href="/inspiration/<%= p.slug %>" class="card-stretch"><%= p.title %></a></h3>
           <% if (p.meta_desc) { %><p class="hp-inspo-card-desc"><%= p.meta_desc.substring(0, 100) + (p.meta_desc.length > 100 ? '…' : '') %></p><% } %>
           <span class="hp-inspo-card-cta">Read guide →</span>
         </div>
-      </a>
+      </article>
       <% }) %>
     </div>
     <div class="hp-inspo-footer">

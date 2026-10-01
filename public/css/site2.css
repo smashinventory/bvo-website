@@ -88,3 +88,40 @@
     display: inline-flex; align-items: center; justify-content: center;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────
+   CARD STRETCH LINK — added 2026-10-01
+
+   The category tiles (.cat-card) and style-guide tiles (.hp-inspo-card) on
+   the homepage used to be a single <a> wrapping the entire tile. That made
+   the link's anchor text the heading plus the description plus the CTA
+   concatenated — up to 158 characters naming no single subject, which is
+   what Google reads to decide what the link is about.
+
+   The link now sits on each tile's <h3>. This overlay restores the
+   behaviour shoppers expect: the whole tile stays clickable.
+
+   KNOWN TRADE, accepted deliberately: text inside these tiles can no longer
+   be selected with the mouse, because the overlay sits above it.
+
+   If a second link is ever added inside one of these tiles it will be
+   unclickable unless it is given position:relative and a higher z-index
+   than this overlay.
+   ───────────────────────────────────────────────────────────────────── */
+.cat-card,
+.hp-inspo-card { position: relative; }
+
+/* The titles were plain text inside a card-sized link, so they took their
+   colour from .cat-body h3 / .hp-inspo-card-title — navy. They are anchors
+   now, and the global rule is a{color:var(--color-amber)}, which would have
+   turned both tile titles amber. :hover is listed too because a:hover
+   (0-1-1) outranks a bare .card-stretch (0-1-0). */
+.card-stretch,
+.card-stretch:hover { color: inherit; text-decoration: none; }
+
+.card-stretch::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
