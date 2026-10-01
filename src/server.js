@@ -296,7 +296,14 @@ app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
    See OPEN_ITEMS.md item 4 for the full reasoning. */
 const _RL_SKIP_PREFIX = ['/css/', '/js/', '/images/', '/docs/uploads/'];
-const _RL_SKIP_EXACT  = new Set(['/robots.txt', '/favicon.ico', '/sitemap.xml']);
+/* /feeds/google-shopping.xml joins this list for the same reason sitemap.xml
+   is on it: Google fetches it on a schedule we do not control, and a 429 to
+   the Merchant Center fetcher is read as a fetch failure. Enough of those and
+   the account's items expire — the whole catalogue drops out of free listings
+   because of a rate limiter doing its job. The feed is cached for an hour
+   inside the controller, so exempting it costs nothing. */
+const _RL_SKIP_EXACT  = new Set(['/robots.txt', '/favicon.ico', '/sitemap.xml',
+                                 '/feeds/google-shopping.xml']);
 app.use(rateLimit({
   windowMs: 5 * 60 * 1000,
   max:      150,
@@ -731,6 +738,13 @@ app.get('/lookbook', lookbookCtrl.index);
 // ── SEO / crawler files ──────────────────────────────────────────
 const sitemapCtrl = require('./controllers/sitemapController');
 app.get('/sitemap.xml', sitemapCtrl.xml);
+
+/* Google Merchant Center product feed. Deliberately NOT listed in
+   sitemap.xml and not linked from anywhere — Merchant Center fetches it by
+   URL on a schedule, it is not something to be crawled or indexed, and the
+   controller sets X-Robots-Tag: noindex to say so. */
+const feedCtrl = require('./controllers/feedController');
+app.get('/feeds/google-shopping.xml', feedCtrl.googleShopping);
 
 // robots.txt is served ABOVE express.static — see the block near the static
 // middleware. It cannot live here: a file at public/robots.txt would win,

@@ -367,7 +367,11 @@
         <div class="adm-card">
           <h2 class="adm-card-title">Google Merchant Center</h2>
           <p class="adm-form-hint" style="margin-bottom:14px">
-            These fields power the GMC product feed. Required fields are <strong>google_condition</strong> and <strong>google_product_category</strong>.
+            These fields power the GMC product feed at
+            <code>/feeds/google-shopping.xml</code>. To keep a product out of
+            Google entirely, put <strong>all</strong> in Excluded Destinations
+            below — that is the per-product kill switch and it takes effect on
+            the next feed build (within an hour).
           </p>
 
           <div class="adm-form-row">
@@ -390,19 +394,34 @@
             <label for="google_product_category">Google Product Category</label>
             <input type="text" id="google_product_category" name="google_product_category"
               value="<%= product?.google_product_category || '' %>"
-              placeholder="e.g. Home & Garden > Bath > Vanities"
+              placeholder="not used by the feed — see note below"
               list="gpc-list">
+            <%/* The suggestions below were REPLACED on 2026-09-30. Every value
+                 previously offered here ("Home & Garden > Bath > Vanities" and
+                 friends) is absent from Google's published taxonomy — they
+                 read plausibly but Google cannot resolve them, and this
+                 datalist is where the 5,035 invalid values in the database
+                 came from. These are the real paths, with their ids, read out
+                 of taxonomy-with-ids.en-US.txt. */%>
             <datalist id="gpc-list">
-              <option value="Home &amp; Garden > Bath > Vanities">
-              <option value="Home &amp; Garden > Bath > Bathroom Mirrors">
-              <option value="Home &amp; Garden > Bath > Bathroom Faucets">
-              <option value="Home &amp; Garden > Bath > Bathroom Accessories">
-              <option value="Home &amp; Garden > Bath > Bathtubs">
-              <option value="Home &amp; Garden > Bath > Showers">
-              <option value="Home &amp; Garden > Bath > Toilets &amp; Bidets">
-              <option value="Home &amp; Garden > Lighting">
+              <option value="Furniture > Cabinets &amp; Storage > Vanities > Bathroom Vanities">
+              <option value="Hardware > Building Materials > Countertops">
+              <option value="Home &amp; Garden > Decor > Mirrors">
+              <option value="Hardware > Plumbing > Plumbing Fixtures > Faucets">
+              <option value="Hardware > Plumbing > Plumbing Fixture Hardware &amp; Parts > Shower Parts">
+              <option value="Home &amp; Garden > Bathroom Accessories">
+              <option value="Furniture > Cabinets &amp; Storage > Storage Cabinets &amp; Lockers">
+              <option value="Hardware > Hardware Accessories > Cabinet Hardware > Cabinet Knobs &amp; Handles">
             </datalist>
-            <span class="adm-form-hint">Use Google's <a href="https://support.google.com/merchants/answer/6324436" target="_blank">product taxonomy</a></span>
+            <span class="adm-form-hint">
+              <strong>The feed does not read this field.</strong> The category
+              is derived from Product Type by
+              <code>src/utils/googleProductCategory.js</code>, because the
+              values stored here were invalid on 5,035 of 6,059 products.
+              Changing it has no effect on what Google receives — change
+              Product Type instead. Kept editable only so the column can be
+              backfilled later.
+            </span>
           </div>
 
           <div class="adm-form-row adm-form-row--3">
@@ -485,7 +504,13 @@
               <label for="excluded_destinations">Excluded Destinations</label>
               <input type="text" id="excluded_destinations" name="excluded_destinations"
                 value="<%= product?.excluded_destinations || '' %>"
-                placeholder="e.g. Shopping_ads">
+                placeholder="all  |  Shopping_ads  |  Free_listings">
+              <span class="adm-form-hint">
+                <strong>all</strong> drops the product from the feed entirely.
+                Naming a destination keeps it in Google but blocks that surface
+                — <strong>Shopping_ads</strong> keeps free listings while
+                preventing any ad spend on it. Comma-separate for several.
+              </span>
             </div>
           </div>
 
