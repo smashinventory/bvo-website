@@ -192,5 +192,69 @@ console.log('\n--- the Image with Text CTA default is not a 404 ---');
      'a fresh environment would ship a dead "Our Story" button');
 }
 
+/* ═══ THE FOOTER SOCIAL LINKS CARRY REAL ANCHOR TEXT ═══════════════
+   Added 2026-10-02. Same failure as the three nav icons fixed in cc748a9:
+   an inline SVG plus aria-label, so assistive tech has a name but a crawler
+   reading anchor text sees an empty link.
+
+   ASSERTED FOR ALL FIVE NETWORKS, NOT JUST FACEBOOK.
+   Only facebook_url is set today, so Facebook is the only one that renders
+   and the only one any crawl could have flagged. The other four carried the
+   identical markup and would have inherited the bug silently the moment an
+   owner pasted a URL into the Theme Editor — a defect that ships later, on
+   someone else's change, is the kind worth gating now rather than fixing
+   again in six months.
+
+   WHY aria-label IS ASSERTED ABSENT, NOT MERELY "TEXT PRESENT":
+   aria-label OVERRIDES element contents for the accessible name. Keeping
+   both means the .sr-only text is dead to assistive tech while existing only
+   for crawlers, which is the cloaking-adjacent shape we avoided on the nav
+   icons for the same reason. One source of truth per link. */
+console.log('\n--- footer social links have anchor text, not just aria-label ---');
+{
+  const foot = read('views/partials/footer.ejs');
+  const NETS = ['facebook', 'instagram', 'twitter', 'pinterest', 'linkedin'];
+
+  for (const net of NETS) {
+    /* [\s\S]{0,N}? and NOT [^>]* — the href is an EJS tag and every EJS tag
+       contains a ">" inside its closing "%>", so a negated-> class stops dead
+       inside the attribute and matches nothing. That exact bug silently
+       rewrote zero links on the first attempt at this very fix. */
+    const block = (() => {
+      const re = new RegExp('<a[\\s\\S]{0,200}?social-share-btn--' + net + '[\\s\\S]{0,2600}?</a>');
+      const m = foot.match(re);
+      return m ? m[0] : '';
+    })();
+    ok(`${net}: link block found`, block.length > 40);
+    ok(`${net}: carries .sr-only anchor text`,
+       /<span class="sr-only">[^<]+<\/span>/.test(block),
+       'an icon-only link reads as empty to a crawler');
+    /* THE OPENING TAG ENDS AT THE FIRST ">" THAT IS NOT PART OF "%>".
+       indexOf('>') is wrong here for the same reason [^>]* is wrong: the href
+       is an EJS tag, so the first ">" in the string sits INSIDE the attribute,
+       in the tag's own "%>". Slicing there yields just
+
+           <a href="<%= _fsoc.facebook_url %>
+
+       which can never contain aria-label, so the assertion passed no matter
+       what. The mutation sweep caught it — putting aria-label back on two of
+       the five links left this gate green. Negative lookbehind for "%" finds
+       the real end of the tag. */
+    const openTag = (block.match(/^<a[\s\S]*?(?<!%)>/) || [''])[0];
+    ok(`${net}: no aria-label on the anchor`,
+       openTag.length > 0 && !/aria-label=/.test(openTag),
+       'aria-label overrides the element contents, making the text dead');
+  }
+
+  /* The five labels must be DISTINCT. Five links to five different domains
+     all reading "Follow us" would be the duplicate-anchor-text problem this
+     whole scope existed to remove, reintroduced in the footer. */
+  const labels = [...foot.matchAll(/<span class="sr-only">(Follow us on [^<]+)<\/span>/g)]
+                   .map(m => m[1]);
+  ok(`five social labels present (found ${labels.length})`, labels.length === 5);
+  ok('and all five are distinct', new Set(labels).size === labels.length,
+     `duplicates: ${labels.filter((v,i)=>labels.indexOf(v)!==i).join(', ')}`);
+}
+
 console.log(fail ? `\n*** ${fail} GATE(S) FAILED ***` : '\nALL GATES PASS');
 process.exit(fail ? 1 : 0);
