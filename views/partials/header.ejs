@@ -324,19 +324,52 @@
         </svg>
       </button>
 
-      <a href="/account" class="nav-icon-btn" aria-label="My account">
+      <%/* THE LABEL IS TEXT IN THE LINK, NOT AN aria-label — changed 2026-10-02.
+
+           These three were icon-only links carrying aria-label and nothing
+           else. Correct markup, and screen readers were always fine, but a
+           crawler reads link TEXT and does not count aria-label — so
+           seobility reported "3 links don't have an anchor text".
+
+           REPLACED rather than added alongside. If a link has an aria-label
+           AND text inside it, the aria-label wins the accessible name and
+           the text is never announced: two labels saying the same thing,
+           one of them dead and free to drift. One source now, which serves
+           the screen reader and the crawler at once.
+
+           .sr-only is clipped (position:absolute; clip:rect(0,0,0,0)), NOT
+           display:none — that distinction is the whole point. Clipped text
+           is read by crawlers and announced by assistive tech; display:none
+           text is neither. Same pattern as the "View Details" buttons.
+
+           Nothing visual changes: the span renders at 1px and is clipped.
+
+           Checked before removing the attributes: no JavaScript writes to
+           these three aria-labels. (site.js DOES rewrite aria-label on the
+           .heart-btn wishlist buttons on product cards — different elements,
+           untouched.)
+
+           The cart count lives in the span now, so there is one source for
+           it too; the visible badge stays aria-hidden and is not read twice.
+
+           SEO value here is zero and that is fine: robots.txt disallows
+           /cart and /account/, so none of these are crawled. This exists to
+           clear a report warning, nothing more. */%>
+      <a href="/account" class="nav-icon-btn">
         <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
         </svg>
+        <span class="sr-only">My account</span>
       </a>
 
-      <a href="/account/favorites" class="nav-icon-btn nav-favorites-btn" aria-label="Saved items">
+      <a href="/account/favorites" class="nav-icon-btn nav-favorites-btn">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
           <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
         </svg>
+        <span class="sr-only">Saved items</span>
       </a>
 
-      <a href="/cart" class="nav-icon-btn nav-cart-wrap" aria-label="Shopping cart (<%= cart.count %> items)">
+      <a href="/cart" class="nav-icon-btn nav-cart-wrap">
         <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
           <line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>
@@ -344,6 +377,7 @@
         <% if (cart.count > 0) { %>
         <span class="nav-cart-badge" aria-hidden="true"><%= cart.count %></span>
         <% } %>
+        <span class="sr-only">Shopping cart (<%= cart.count %> items)</span>
       </a>
 
     </div>
