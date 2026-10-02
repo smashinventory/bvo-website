@@ -359,14 +359,22 @@
         <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
         </svg>
-        <span class="sr-only">My account</span>
+        <%/* Wording matches the mobile drawer's VISIBLE labels exactly (see
+             the <li> list further down: "My Account", "Saved Items",
+             "Cart (n)"). These three are invisible, the drawer's are not, so
+             the hidden copy follows the visible one rather than the reverse.
+
+             They disagreed until 2026-10-02: desktop sentence case, drawer
+             title case. That mismatch was hidden while these were
+             aria-labels and only surfaced once they became link text. */%>
+        <span class="sr-only">My Account</span>
       </a>
 
       <a href="/account/favorites" class="nav-icon-btn nav-favorites-btn">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
           <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
         </svg>
-        <span class="sr-only">Saved items</span>
+        <span class="sr-only">Saved Items</span>
       </a>
 
       <a href="/cart" class="nav-icon-btn nav-cart-wrap">
@@ -377,7 +385,7 @@
         <% if (cart.count > 0) { %>
         <span class="nav-cart-badge" aria-hidden="true"><%= cart.count %></span>
         <% } %>
-        <span class="sr-only">Shopping cart (<%= cart.count %> items)</span>
+        <span class="sr-only">Cart (<%= cart.count %>)</span>
       </a>
 
     </div>

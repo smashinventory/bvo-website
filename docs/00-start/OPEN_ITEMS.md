@@ -1800,3 +1800,100 @@ lives in Google's property and can be lost with the account.
    `f89af87` and `gate_analytics_tags.js` will fail until sections 2 and 4
    are updated to match — deliberately, so the decision has to be explicit
    and re-recorded here rather than drifting back in unmeasured.
+
+## Captured 2026-10-02 — sitechecker.pro findings, for a later SEO/perf scope
+
+Parked deliberately: Sam asked to capture, not act, so the current
+anchor-text scope kept its focus. Nothing below has been changed.
+
+**READ THE VERIFICATION COLUMN BEFORE PLANNING WORK FROM THIS.** Three of
+the four site-wide claims did not reproduce when checked against the live
+site. Taking the report at face value would mean a scope spent "fixing"
+things that are not broken.
+
+| Claim | Verified 2026-10-02 | Status |
+|---|---|---|
+| HTML size 4.87 MB | Homepage HTML is **210,612 bytes (0.20 MB)** | **Does not reproduce** — 24x out |
+| Error page returns 200 (soft 404) | A missing path returns **404** | **Does not reproduce** |
+| /index.html and /index.php accessible as separate pages | Both return **404** | **Does not reproduce** |
+| www and non-www work as separate sites | Navigated to `https://bathroomvanitiesoutlet.com/collections/bathroom-mirrors` and landed on `https://www.bathroomvanitiesoutlet.com/collections/bathroom-mirrors` — path preserved, one hop, canonical agrees | **Does not reproduce** |
+
+SETTLED 2026-10-02. The apex redirect works and `gate_canonical_redirect`
+is asserting real behaviour, not just source code.
+
+A caution for whoever checks this next: Chrome hides `https://` and `www.`
+in the address bar until you click into it, so "I typed the apex and the
+page loaded" proves nothing on its own — it looks identical whether the
+redirect fired or the apex served its own copy. Navigate and read
+`location.host`, or watch the address bar after focusing it.
+
+ALL FOUR of this tool's site-wide claims failed to reproduce. It found one
+real defect (the /pages/about dead button, fixed 2026-10-02) and four false
+alarms. Weight its output accordingly: verify before scoping work from it.
+
+On the HTML-size figure: their wording is "all HTML code on the page,
+except external JavaScript or external CSS". Measured directly, that is
+0.20 MB, of which 7.4 KB inline CSS, 6.9 KB inline JS, 10.1 KB inline SVG
+and 0 bytes of data: URIs. 4.87 MB is plausible only if they are measuring
+total page weight including images, or a rendered DOM snapshot rather than
+the served HTML. Worth re-measuring with a known-good tool before anyone
+sets a page-weight target from it.
+
+### Findings that DID reproduce and are worth doing
+
+- **`/pages/about` returns 404.** The "Our Story" button in the Image with
+  Text section links to it. The real page is `/pages/about-us` (200). This
+  is a dead button on the homepage. It is a Theme Editor field (Image with
+  Text -> CTA URL), so it needs no deploy. **Highest value item here.**
+
+- **Desktop PageSpeed 72.** Not investigated. A real number worth a scope
+  of its own; see the GA4 table earlier in this file for how measurement
+  on this site has to be read (single runs are noise).
+
+- **3xx on `/account` and `/account/favorites`.** Expected — both redirect
+  to the login page for a signed-out crawler. Not a defect, listed so a
+  future reader does not re-investigate it.
+
+### Anchor-text scope — conclusion, so it is not relitigated
+
+The homepage duplicate-anchor-text warning is **structural and I recommend
+leaving it**. Evidence, from sitechecker's own link list:
+
+  Their links #45-#75 mirror #5-#44 exactly — Vanities, Single Sink,
+  Cabinet Only, all nine colours, all nine styles, Mirrors, Bath Faucets,
+  Accessories, Bundle/Save, Sale, each listed twice.
+
+That is the mobile menu. The header renders the whole navigation twice in
+the HTML — once for desktop, once for the mobile drawer — and CSS shows one
+or the other. A crawler reads both. 25 of the 27 duplicate groups are this,
+and the only ways to remove it are to build the mobile menu in JavaScript
+(so the nav does not exist for a crawler that does not run scripts) or a
+substantial shared-markup rewrite. Both trade something real for a report
+number.
+
+**The number that matters is zero.** After the Faucets and Accessories
+renames, there is no remaining case of one anchor text pointing at two
+different pages — checked under exact match, alt-as-anchor-text,
+case-insensitive and arrow-stripped matching. That competing-pages case is
+the only part of seobility's own guidance that describes real harm. What
+remains is the same text pointing at the same place, which is noise.
+
+Small, cheap, not yet done:
+- Footer logo `alt="BathroomVanitiesOutlet.com"` duplicates the header
+  wordmark's link text, both -> `/`. Change the alt.
+- Mobile menu says "My Account" / "Saved Items"; the header says
+  "My account" / "Saved items". Inconsistent capitalisation.
+- Hero "Shop Now ->" vs category tile "Shop Now", same target.
+
+### Elsewhere, worse than anything on the homepage
+
+- **`/lookbook`: "Learn More" x41, pointing at 41 different pages.** Trivial
+  anchor text AND the same text for different targets — both failures at
+  once, and the one case that genuinely makes pages compete. Fix is the one
+  already used on the homepage tiles: move the link onto the model name and
+  leave "Learn More" as a span.
+- **`/collections/*`: "View Details — <product name>" x26.** Distinct, so no
+  competition, but the keyword sits after "View Details".
+- **Model card image alts** read "Brittany vanity", "Hudson vanity". For an
+  image link the alt IS the anchor text, so that is the entire signal for
+  those collection pages. Thin.

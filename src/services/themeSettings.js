@@ -500,7 +500,12 @@ const DEFAULTS = {
     heading: 'The Bathroom Renovation Experts',
     body: "We've spent years building direct relationships with the brands homeowners trust most — James Martin, Kohler, Moen, Delta, and more. That means you get authentic, warranty-backed products at prices that don't make sense anywhere else. Free shipping included on every single order.",
     cta_text: 'Our Story',
-    cta_url: '/pages/about',
+    /* /pages/about is a 404; the page is /pages/about-us. The live site was
+       fixed in the Theme Editor on 2026-10-02 and the settings file now wins
+       over this default, so changing it here alters nothing on bathroom-
+       vanitiesoutlet.com. It is corrected so a FRESH environment, which
+       starts from these defaults, does not ship the same dead button. */
+    cta_url: '/pages/about-us',
   },
   before_after: {
     enabled: true,

@@ -12,7 +12,14 @@
                pull zone is 3.0 KB, and ?width=104 (2x for retina) brings the wire
                cost to 2.1 KB -- 89% off, pixel-identical at this size. */%>
           <img src="https://images.bathroomvanitiesoutlet.com/site/logos/BVOLOGOSQ_512.webp?width=104"
-               alt="<%= gl.site_name || 'BathroomVanitiesOutlet.com' %>"
+               <%/* STATIC alt, not gl.site_name. The site name renders as
+                    "BathroomVanitiesOutlet.com", which is character-for-character
+                    the header wordmark's link text — and both links point at "/".
+                    For an image link the alt IS the anchor text, so that was one
+                    phrase serving as the anchor for two separate links to the
+                    same page. Describing the image instead removes the collision
+                    and says more than the site name did. */%>
+               alt="Bathroom Vanities Outlet logo"
                width="52" height="52" loading="lazy" decoding="async">
         </a>
         <%/* Was an <h3>. It is the brand name under the footer logo — a
