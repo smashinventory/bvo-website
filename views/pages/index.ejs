@@ -12,7 +12,7 @@
      stylesheet (inNoscript:false, media:""), which defeated the whole point.
      Cost of omitting it: a JS-disabled visitor loses styling on the featured
      save badge and the hp-inspo block, both below the fold. */%>
-<link rel="stylesheet" href="/css/site3.css?v=18" media="print" id="site3-css">
+<link rel="stylesheet" href="/css/site3.css?v=29" media="print" id="site3-css">
 <%/* media flip done by a nonced script, not onload="": the CSP's
      script-src-attr 'none' blocks inline handlers, which would leave site3.css
      stuck at media=print (unstyled) once the policy is enforced. */%>
@@ -196,8 +196,28 @@ function _ytId(url) {
 function _isYT(url) { return !!(url && /youtu\.be|youtube\.com/.test(String(url))); }
 
 /* Security: whitelist heading tag values so theme settings can't inject arbitrary HTML
-   via raw EJS output tags (e.g. _heroTag, _csTag) used to emit heading elements. */
-const _ALLOWED_TAGS = new Set(['h1','h2','h3','h4','h5','h6']);
+   via raw EJS output tags (e.g. _heroTag, _csTag) used to emit heading elements.
+
+   'p' ADDED 2026-10-01 — "Label (not a heading)" in the Theme Editor.
+   Still a whitelist, one safe entry longer; the injection guard is unchanged.
+
+   WHY: a section title that says nothing specific ("See the Transformation")
+   is noise in the page outline — a heading is supposed to tell a crawler what
+   the content under it is about. Rather than hardcode which sections get one,
+   the choice is a Theme Editor setting, so Sam can demote or restore any
+   section title without a deploy.
+
+   The sections that honour it all route through _safeTag: Hero, Category
+   Grid, Featured Products, Image with Text, Video + Text, Before/After.
+
+   ACCESSIBILITY IS UNAFFECTED where the section points at its title with
+   aria-labelledby (Before/After, Category Grid, Featured Products, Featured
+   Models, Image with Text, Testimonials, Bundle Teaser, Newsletter) —
+   aria-labelledby can reference any element, so the <section> keeps its
+   accessible name when the title becomes a <p>. Video + Text uses aria-label
+   built from the same strings and is likewise unaffected. Checked before
+   allowing this, not assumed. */
+const _ALLOWED_TAGS = new Set(['h1','h2','h3','h4','h5','h6','p']);
 function _safeTag(val, def) { return _ALLOWED_TAGS.has(val) ? val : (def || 'h2'); }
 
 /* Salsify (Cloudinary) on-the-fly resize — inserts transform params into CDN URL.

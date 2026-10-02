@@ -344,13 +344,32 @@ function teImageField(name,label,value,compact){
   return '<div class="'+cls+'"><label>'+label+'</label><div class="te4-img-row">'+(v?'<img class="te4-img-thumb" src="'+v+'" alt="">':'<div class="te4-img-empty">No image</div>')+'<div class="te4-img-controls"><input type="text" name="'+name+'" value="'+v+'" class="te4-img-url" placeholder="Paste URL or upload"><label class="te4-upload-label"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload<input type="file" accept="image/*" class="te4-upload-input" data-target-name="'+name+'"></label></div></div></div>';
 }
 /* Heading level picker (H1–H6) */
+/* "Label (not a heading)" added 2026-10-01.
+
+   Picking it renders the section title as a <p> instead of an <h1>-<h6>. It
+   looks identical — the title classes carry their own font, size, weight and
+   colour — but the text leaves the page's heading outline.
+
+   The point: a heading should tell a crawler what the content under it is
+   about. "See the Transformation" does not, and three homepage titles like
+   it were adding noise rather than signal. Making this a setting rather than
+   hardcoding the three means the decision stays Sam's, per section, with no
+   deploy.
+
+   'p' is whitelisted in _ALLOWED_TAGS in index.ejs. The two must stay in
+   step: offering an option the renderer rejects silently falls back to h2,
+   which looks like the setting was ignored. */
 function teHeadingLevel(name,value,compact){
   var cls=compact?'te4-field compact':'te4-field';
   var v=value||'h2';
   var opts=['h1','h2','h3','h4','h5','h6'].map(function(h){
     return '<option value="'+h+'"'+(v===h?' selected':'')+'>'+h.toUpperCase()+'</option>';
   }).join('');
-  return '<div class="'+cls+'"><label>Heading Level</label><select name="'+name+'" class="te4-select">'+opts+'</select></div>';
+  opts += '<option value="p"'+(v==='p'?' selected':'')+'>Label (not a heading)</option>';
+  return '<div class="'+cls+'"><label>Heading Level</label><select name="'+name+'" class="te4-select">'+opts+'</select>'
+       + '<p style="font-size:.72rem;color:var(--te4-muted,#888);margin:.3rem 0 0;line-height:1.45">'
+       + 'Pick <strong>Label</strong> for a title that does not describe the content &mdash; it looks the same but is left out of the page outline.'
+       + '</p></div>';
 }
 
 /* Text alignment picker (left / center / right) */
