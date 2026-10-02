@@ -86,18 +86,73 @@ for (const f of ['public/css/site3.css', 'public/css/site-bundle.css']) {
   check(/\.lb-card\{[^}]*position:relative/.test(css) || /\.lb-card\{position:relative\}/.test(css),
         `${f}: .lb-card is positioned, so the overlay is bounded by the card`);
 
-  /* The load-bearing one. Both arrows and both swatches sit under the
-     overlay and need lifting, and z-index only applies to a positioned
-     element — so position AND z-index, or it silently does nothing. */
-  check(/\.lb-card \.lb-arrow,\.lb-card \.lb-card-swatch\{position:relative;z-index:2\}/.test(css),
-        `${f}: carousel arrows and colour swatches are lifted above the overlay`);
+  /* ── THIS SECTION WAS THE GATE'S OWN FAILURE. Rewritten 2026-10-02. ──
+     It used to assert the literal rule I had written:
 
-  check(/\.lb-card-name a\{color:inherit;text-decoration:none\}/.test(css),
+         .lb-card .lb-arrow,.lb-card .lb-card-swatch{position:relative;z-index:2}
+
+     which is a tautology — it asserts "the line I typed is the line I
+     typed" and cannot report that the line is WRONG. And it was: .lb-arrow
+     already carried z-index:2 and is position:ABSOLUTE, so that selector
+     added nothing and, at higher specificity, forced the arrows out of
+     absolute positioning and moved them. Twelve green mutations and a green
+     gate, with a live layout bug.
+
+     These assert the CONDITIONS instead, which the rule has to satisfy
+     however it is written. */
+
+  /* CSS COMMENTS STRIPPED FIRST. Three of these assertions failed on a
+     correct tree because the explanatory comment in site3.css QUOTES the
+     broken rule as an example of what not to write, and the scan found the
+     quotation. Same shape as the EJS-comment trap that has bitten gates in
+     this repo repeatedly: assert on code, never on prose about code. */
+  const rules = css.replace(/\/\*[\s\S]*?\*\//g, '');
+
+  /* (a) The arrows must still resolve to position:absolute. Nothing may
+         override it — that is what places them over the image, and
+         overriding it is exactly the bug that shipped in fa6244b. */
+  check(!/\.lb-card\s+\.lb-arrow[^{]*\{[^}]*position:\s*(?!absolute)/.test(rules),
+        `${f}: nothing overrides the carousel arrows' position:absolute`);
+  check(/\.lb-arrow\{[^}]*position:absolute/.test(rules),
+        `${f}: the arrows are still absolutely positioned`);
+
+  /* (b) The arrows must be above the overlay. They already were, by their
+         own rule — which is the fact the fix relies on, so it is asserted
+         as a fact rather than as a rule of mine.
+
+         Compared as a NUMBER, not matched literally: site3.css says 2 and
+         site-bundle.css says 9001. Those two files have drifted, which is
+         worth knowing, but both clear the overlay and pinning either value
+         would make this red for a difference that does not matter here. */
+  {
+    const m = rules.match(/\.lb-arrow\{[^}]*z-index:\s*(\d+)/);
+    check(!!m && Number(m[1]) > 1,
+          `${f}: the arrows sit above the overlay (own z-index ${m ? m[1] : 'NONE'} > 1)`);
+  }
+
+  /* (c) The swatches are the only control that genuinely needed lifting:
+         they declare no position of their own, and z-index does nothing on
+         a static element. Both properties, or it silently fails. */
+  check(/\.lb-card \.lb-card-swatch\{position:relative;z-index:2\}/.test(rules),
+        `${f}: the colour swatches are lifted above the overlay`);
+
+  check(/\.lb-card-name a\{color:inherit;text-decoration:none\}/.test(rules),
         `${f}: the name link inherits colour, so the card looks unchanged`);
   /* A <span> is inline and ignores the vertical padding .lb-learn-btn was
      written with for an <a>, so the button would visibly collapse. */
-  check(/span\.lb-learn-btn\{display:inline-block/.test(css),
+  check(/span\.lb-learn-btn\{display:inline-block/.test(rules),
         `${f}: the Learn More span is inline-block, so the button keeps its shape`);
+}
+
+/* (d) The overlay's own z-index, asserted ONCE and only where it lives.
+       .card-stretch is defined in site-bundle.css alone; asserting it in
+       site3.css failed for the honest reason that it is not there. If the
+       overlay ever rises above 1, every lift above becomes wrong at once. */
+{
+  const bundle = read('public/css/site-bundle.css').replace(/\/\*[\s\S]*?\*\//g, '');
+  const m = bundle.match(/\.card-stretch::after\{[^}]*z-index:\s*(\d+)/);
+  check(!!m && Number(m[1]) === 1,
+        `site-bundle.css: the .card-stretch overlay is z-index:${m ? m[1] : 'NONE'}, which is what the lifts assume`);
 }
 
 check(/site3\.css\?v=30/.test(read('views/pages/lookbook.ejs')),

@@ -117,12 +117,24 @@
    overlay escapes to some ancestor further up and the click target lands
    in the wrong place entirely. */
 .lb-card{position:relative}
-/* The card's three interactive controls sit UNDER that overlay by default
-   and would silently stop working: both carousel arrows and both colour
-   swatches. The homepage tiles this pattern came from had no interactive
-   children, so this is the first place it has mattered. z-index needs a
-   positioned element to apply, hence position:relative on each. */
-.lb-card .lb-arrow,.lb-card .lb-card-swatch{position:relative;z-index:2}
+/* ONLY THE SWATCHES. Corrected 2026-10-02, same day, before anyone saw it.
+   This rule originally read
+
+       .lb-card .lb-arrow,.lb-card .lb-card-swatch{position:relative;z-index:2}
+
+   which was wrong twice over for the arrows:
+
+     1. .lb-arrow already carries z-index:2 in its own rule, so it was
+        already above the overlay and needed nothing;
+     2. .lb-arrow is position:ABSOLUTE with top:.6rem, which is how it sits
+        over the image. At (0,2,0) this selector outranks the (0,1,0)
+        .lb-arrow rule, so it forced the arrows back into normal flow and
+        moved them.
+
+   A rule that adds nothing and breaks layout. The swatches are the only
+   control that genuinely needed lifting: they set no position of their own,
+   and z-index does nothing on a static element. */
+.lb-card .lb-card-swatch{position:relative;z-index:2}
 /* The name link must not look like a link — the card already reads as
    clickable and an underlined blue model name would be a visual change
    nobody asked for. */
