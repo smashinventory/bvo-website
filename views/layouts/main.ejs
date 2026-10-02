@@ -182,13 +182,17 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
        ADMIN-ONLY and is loaded separately by views/layouts/admin.ejs. Adding
        it here ships ~23KB of admin CSS to every public visitor and grows the
        bundle from 121KB to 137KB for no benefit. Do not add it. %>
-  <%# v=22 (2026-10-01): card-stretch overlay for the homepage tiles. The
-      source rule lives at the end of site2.css and was appended to this
-      bundle minified by hand, per the instruction above — site2.css alone
-      reaches no browser, and without the bump the CDN keeps serving v=21,
-      which has the new markup's CSS missing and only the tile TITLES
-      clickable. %>
-  <link rel="stylesheet" href="/css/site-bundle.css?v=22">
+  <%# BUMP THIS EVERY TIME site-bundle.css CHANGES. Without it the CDN and
+      every returning visitor keep the previous file, so markup ships against
+      a stylesheet that does not match it.
+        v=22 (2026-10-01) card-stretch overlay for the homepage tiles
+        v=23 (2026-10-01) footer grid retracked to 2 columns, trust-band and
+                          footer-brand selectors moved off their old tags,
+                          .footer-brand p max-width
+      The source rules live in site.css / site2.css and are hand-minified
+      into this bundle, per the instruction above — those files reach no
+      browser on their own. %>
+  <link rel="stylesheet" href="/css/site-bundle.css?v=23">
   <%# ── SECTION VISIBILITY, FROM THE OWNER'S BREAKPOINTS ─────────────
       "Visible on" offered All / Desktop / Mobile and was implemented as
       two rules hardcoded at 861px. There was no Tablet option because

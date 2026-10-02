@@ -225,8 +225,12 @@ console.log('\n--- the rules reached site-bundle.css, which is what ships ---');
      the CDN and every returning visitor keep the old file. */
   const m = layout.match(/site-bundle\.css\?v=(\d+)/);
   ok('the layout links site-bundle.css with a version', !!m);
-  ok(`the cache-buster is at least v=22 (found v=${m ? m[1] : '?'})`,
-     !!m && Number(m[1]) >= 22,
+  /* FLOOR RAISED WITH EVERY BUNDLE CHANGE. v=22 shipped the card-stretch
+     overlay; v=23 the footer retrack, the demoted-heading selectors and the
+     .footer-brand p max-width. Raising it here is the only mechanical thing
+     forcing the bump — nothing else connects the stylesheet to the link. */
+  ok(`the cache-buster is at least v=23 (found v=${m ? m[1] : '?'})`,
+     !!m && Number(m[1]) >= 23,
      'returning visitors and the CDN will keep serving the bundle that has ' +
      'no overlay rule, against markup that needs it');
 }

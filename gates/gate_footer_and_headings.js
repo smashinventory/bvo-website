@@ -106,6 +106,17 @@ console.log('\n--- the grid was retracked to match ---');
      bundle.includes(want));
   ok('no 4-track footer grid survives anywhere',
      !css.includes('2fr 1fr 1fr 1fr') && !bundle.includes('2fr 1fr 1fr 1fr'));
+
+  /* Dropping the Shop column widened the brand column from 461px to 601px at
+     1440, which let the strapline run most of a line further before wrapping.
+     Measured on the live page at the retracked width: the line breaks after
+     "prices" anywhere in 342-366px, and 356 is the middle of that window.
+     Asserted as an exact value because any other number silently moves the
+     break — 341 breaks after "accessories", 367 after "that". */
+  const mw = '.footer-brand p{font-size:.8rem;line-height:1.6;margin-bottom:16px;max-width:356px}';
+  ok('the footer strapline is capped at 356px (source)', css.includes(mw));
+  ok('the footer strapline is capped at 356px (shipped bundle)', bundle.includes(mw),
+     'without it the line runs to "...make sense. Free shipping on every"');
 }
 
 /* ═══ 4. THE DEMOTED HEADINGS ══════════════════════════════════════ */
