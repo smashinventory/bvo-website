@@ -36,8 +36,24 @@ git_push_swatches_and_samples.sh
 *-1.ejs
 *-1.js
 
-# Admin password hash. Must never enter git.
-config/
+# Admin password hash (config/admin.hash). Must never enter git.
+#
+# ANCHORED WITH A LEADING SLASH — corrected 2026-10-02.
+# This was a bare `config/`, which in gitignore matches a directory of that
+# name at ANY depth. So it silently ignored src/config/ as well, where the
+# application's config MODULES live. The four files already in there
+# (colorFamilies, database, orderStatuses, sizeBuckets) were unaffected only
+# because git had already begun tracking them — .gitignore does not apply to
+# tracked files. Every NEW file added to src/config was invisible to git.
+#
+# Found when src/config/filterLandingPages.js — the entire content map for
+# the filter landing pages — failed `git check-ignore`. It would have been
+# left out of the commit, and `git add` erroring on an explicitly-named
+# ignored path would have aborted the push script after the gates had run.
+#
+# /config/ matches only the directory at the repository root, which is the
+# one holding admin.hash. Verified both directions after the change.
+/config/
 
 # Local scratch only: _to_delete is the holding pen for files this Mac
 # cannot rm, `instant` is stray gate-harness output, git_amend_*.sh is a

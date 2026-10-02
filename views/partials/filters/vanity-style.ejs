@@ -7,18 +7,14 @@
   * model-group Configuration block, while the grid path needs it before
   * the attribute loop. Two positions, one definition.
   *
-  * ⚠ KNOWN GAP — this filter does not filter yet.
-  *   collectionsController.js never reads req.query.style. Grep the whole
-  *   controller for "style" and you get zero hits. Ticking a box posts
-  *   ?style=Modern and the controller drops it on the floor; the page
-  *   reloads identical. The EAV data exists (importJamesMartinFeed.js
-  *   writes attr_key='style') and lookbookController.js reads the same
-  *   param correctly — it is only the collection path that is unwired.
-  *
-  *   CLAUDE.md rule 5, "field with no home": written, stored, NOT read.
-  *   Rendering it in Sam's approved slot is deliberate — the position is
-  *   correct and reserved — but it is inert until the controller learns
-  *   to read it. Do not describe this filter as working.
+  * THIS FILTER WORKS — corrected 2026-10-02. This comment previously said
+  * it did not, on the evidence that collectionsController.js contains no
+  * literal req.query.style. That is true and still is; the controller's
+  * GENERIC attribute loop reads req.query[def.attr_key] for every attribute
+  * definition, and 'style' is not excluded, so the parameter is handled
+  * without being named. Verified live: ?style=ZZZNotARealStyle returns 0
+  * products while an ignored param returns all 4,604. See §5 of
+  * VANITY_SIDEBAR_FILTERS.md for the full correction.
   */%>
 <%
   var _styleVals     = (typeof attrFilters !== 'undefined' && attrFilters['style']) || [];

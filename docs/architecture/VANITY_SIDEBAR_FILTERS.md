@@ -156,29 +156,59 @@ Migration 010's two unguarded DELETEs are **still unguarded**. See
 
 ---
 
-## 5. ⚠ VANITY STYLE DOES NOT FILTER
+## 5. ✅ VANITY STYLE FILTERS — CORRECTED 2026-10-02
 
-**Position 4 is rendered and reserved. The filter is inert.**
+**This section previously said the opposite. It was wrong.**
 
-`collectionsController.js` never reads `req.query.style`. Grep the whole
-file for `style` and you get **zero hits**. Ticking a box posts
-`?style=Modern`; the controller discards it; the page reloads unchanged.
+It read "VANITY STYLE DOES NOT FILTER … the controller discards it … Do not
+describe this filter as working", and instructed that wiring it was separate,
+approved, outstanding work. None of that was true by 2026-10-02, and acting
+on it would have meant rebuilding something that already worked.
 
-The data exists:
+### Why the original conclusion was reasonable
 
-- `importJamesMartinFeed.js` writes `attr_key='style'` rows
-- `lookbookController.js:46` reads `req.query.style` correctly
+The evidence it cited is still correct. Grep `collectionsController.js` for
+`style` and you get one hit — the header comment itself. There is no literal
+`req.query.style` anywhere in the file.
 
-Only the collection path is unwired. This is CLAUDE.md rule 5 — written,
-stored, **not read**.
+### What it missed
 
-It is rendered anyway, on purpose, so the approved position is settled and
-visible rather than silently dropped. It is labelled inert in
-`views/partials/filters/vanity-style.ejs` and in the template banner.
+The controller has a **generic** attribute loop:
 
-**Do not describe this filter as working.** Wiring it is a separate,
-approved piece of work — it needs a join in the model-group query and a
-parse in the grid path.
+```js
+const vals = [].concat(req.query[def.attr_key] || []).filter(Boolean);
+if (vals.length) attrFilters[def.attr_key] = vals;
+```
+
+It reads every attribute definition **by key**. `style` is not in the
+exclusion list above it — only `brand`, `size_in` and `color_swatch` types
+are skipped — so `?style=Modern` becomes `attrFilters.style` and is applied
+as an EAV filter. The parameter is never named, so a grep for the literal
+cannot see it.
+
+### Verified live, not inferred
+
+| URL | Products returned |
+|---|---|
+| `/collections/bathroom-vanities` | 4,604 |
+| `?style=Coastal` | 7 |
+| `?style=ZZZNotARealStyle` | **0** |
+| `?qqq=123` (a genuinely ignored param) | 4,604 |
+
+A discarded parameter returns the full set. Style returns zero for a nonsense
+value, which only happens if the value is parsed and matched. The sidebar
+checkbox posts `name="style"`, so the UI path works as well as the URL.
+
+### The lesson worth keeping
+
+Absence of a literal is not absence of a read. In a controller with a generic
+key-driven loop, grep proves nothing about whether a parameter is handled —
+only a request does. The timeline supports simple staleness rather than an
+error at the time of writing: this document was last touched 16 Sept, the
+controller 29 Sept.
+
+**Filter landing pages for the nine style values now depend on this working.**
+See `src/config/filterLandingPages.js`.
 
 ---
 

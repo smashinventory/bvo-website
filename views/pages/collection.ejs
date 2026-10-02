@@ -5,17 +5,38 @@
 
    It states the approved order, why Brand is fifth on vanities and first
    everywhere else, why Size does not depend on an attribute_definitions
-   row, and why Vanity Style renders but does not filter.
+   row. (Vanity Style DOES filter — the note saying otherwise was
+   corrected 2026-10-02; see §5 of the document.)
 
    This file has TWO complete sidebars — a grid path and a model-group
    path — and BOTH serve vanities. Changing one and not the other is the
    mistake that has been made twice. See §3 of the document.
    ═══════════════════════════════════════════════════════════════════ */%>
 <!-- Category header -->
+<%/* ── FILTER LANDING PAGES ───────────────────────────────────────────
+     `landing` is set by collectionsController ONLY when exactly one
+     promotable filter is active AND it clears the product threshold in
+     settings (seo.filter_landing_min_products). On every other request it
+     is null and this block renders exactly what it always did.
+
+     THE H1 IS SWAPPED, NOT ADDED TO. A page carrying both "Bathroom
+     Vanities" and "Farmhouse Bathroom Vanities" as headings would have two
+     H1s — or, worse, an H1 that does not describe the page it is on while
+     a more specific heading sits below it. One page, one H1, matching the
+     title tag.
+
+     The intro sits ABOVE the grid on purpose. It is the only unique body
+     copy on the page, and copy placed after a long product grid is read by
+     neither shoppers nor crawlers as the page's subject.    */%>
 <div class="cat-header">
   <div class="cat-header-inner">
+    <% if (typeof landing !== 'undefined' && landing) { %>
+    <h1><%= landing.h1 %></h1>
+    <p class="cat-intro"><%= landing.intro %></p>
+    <% } else { %>
     <h1><%= category.name %></h1>
     <% if (category.description) { %><p><%= category.description %></p><% } %>
+    <% } %>
   </div>
 </div>
 
@@ -827,7 +848,8 @@
       <% } %>
 
       <%/* ── Vanity Style (model-group, position 4) ──────────────
-       * WARNING: renders but does not filter. collectionsController never
+       * CORRECTED 2026-10-02: this DOES filter. The old note said
+       * collectionsController never
        * reads req.query.style — grep the file for "style" and there are
        * zero hits. The position is correct and reserved; the wiring is
        * not done. See partials/filters/vanity-style.ejs for the detail.

@@ -747,6 +747,35 @@ const DEFAULTS = {
     empty_cta_text: 'Start Shopping',
     empty_cta_url: '/collections/bathroom-vanities',
   },
+  /* ── SEO ────────────────────────────────────────────────────────────
+     filter_landing_min_products — how many products a filtered collection
+     page must have before it is promoted to a real, indexable landing page
+     with its own title, meta description, H1 and intro, canonicalising to
+     ITSELF rather than to the parent collection.
+
+     Below the threshold the page behaves exactly as it always has: parent
+     canonical, parent title and meta, no intro. That is deliberate. A page
+     with seven products and a paragraph of copy is the thin-content case
+     that makes indexing faceted navigation backfire — Google sees a
+     near-duplicate of the parent with little unique value, and a shopper
+     arriving from "coastal bathroom vanity" finds seven results where the
+     search promised a category.
+
+     A THRESHOLD RATHER THAN A HAND-PICKED LIST, because the catalogue
+     moves: the James Martin feed adds products nightly, so Coastal at 7
+     today may be 60 next quarter, and a list of "the good ones" would be
+     wrong in both directions within weeks. Content is written for all 27
+     filter values (src/config/filterLandingPages.js); this number decides
+     which of them are live at any moment, and the set self-corrects.
+
+     25 because the grid serves 24 per page, so a promoted page always has
+     at least one full grid and a second page. That makes the line
+     defensible rather than arbitrary. Raise it to be more conservative;
+     set it to 0 to promote every value that has content written. */
+  seo: {
+    filter_landing_min_products: 25,
+  },
+
   social: {
     facebook_url:  '',   // e.g. https://facebook.com/YourPage
     instagram_url: '',   // e.g. https://instagram.com/yourhandle

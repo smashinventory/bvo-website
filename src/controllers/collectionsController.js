@@ -9,8 +9,18 @@
  * Both must produce the same approved filter order. A change to one that
  * is not made to the other ships a broken sidebar with green gates.
  *
- * NOTE: this controller does NOT read req.query.style. Vanity Style is
- * rendered but inert — §5 of the document. Do not call it working.
+ * VANITY STYLE DOES FILTER — corrected 2026-10-02.
+ * This note previously said the opposite, and §5 of the document still did
+ * too until the same date. Both were wrong, and the error was reasonable:
+ * there is no literal `req.query.style` in this file, so a grep finds
+ * nothing. The GENERIC attribute loop below reads req.query[def.attr_key]
+ * for every attribute definition, and `style` is not in its exclusion list
+ * (only brand, size_in and colour swatches are) — so ?style= is parsed and
+ * applied without ever being named.
+ *
+ * Verified live, not inferred: ?style=ZZZNotARealStyle returns 0 products
+ * while a genuinely ignored parameter (?qqq=123) returns all 4,604. The
+ * sidebar checkbox posts name="style", so that works too.
  * ───────────────────────────────────────────────────────────────────── */
 
 
@@ -29,6 +39,9 @@ const { createScope }                                   = require('../utils/mode
    thing on the homepage and another here. */
 const { pickBadge }                                     = require('../utils/cardBadge');
 const { bvoPool }                                       = require('../config/database');
+/* Title/meta/H1/intro per filter value, plus the lookup. Separate file so
+   the copy can be reviewed and gated without reading controller logic. */
+const filterLandingPages                                = require('../config/filterLandingPages');
 
 /* ── Color family hex lookup: family_key → hex / border ──────────── */
 const FAMILY_HEX = {};
@@ -1213,10 +1226,79 @@ exports.show = async (req, res, next) => {
       ? await Customer.getFavoriteIds(req.session.customerId)
       : new Set();
 
+    /* ── FILTER LANDING PAGES ──────────────────────────────────────────
+       Decided HERE, not in the SEO block above, for one reason: the SEO
+       block runs BEFORE the products are fetched, so result.total does not
+       exist yet and the threshold cannot be evaluated there.
+
+       WHAT THIS CHANGES, and only this: when exactly one promotable filter
+       is active, that filter has content written for it, and it clears the
+       product threshold, the page stops canonicalising to the parent
+       collection and starts canonicalising to itself, carrying its own
+       title, meta description, H1 and intro.
+
+       Everything else is untouched. Two or more active filter groups still
+       set noindex (above). An unpromoted page is byte-identical to what it
+       served before.
+
+       WHY ONE FILTER ONLY. ?style=Farmhouse is a category a person
+       searches for. ?style=Farmhouse&color_family=white is a combination
+       nobody searches for and there are hundreds of them — indexing those
+       is how faceted navigation floods an index with near-duplicates. The
+       existing noindex rule already handles that case; this just declines
+       to promote it. */
+    const _landing = (() => {
+      // Vanities only. The content map is written about vanities.
+      if (!isVanityCategory) return null;
+      // Exactly one filter group, reusing the count computed in the SEO block.
+      if (activeFilterGroupCount !== 1) return null;
+
+      /* Build the candidate list from where each filter ACTUALLY lives.
+         These three do not share a home, and assuming they did would mean
+         a promotion that silently never fires:
+           style   -> attrFilters.style      (via the generic attribute loop)
+           size_in -> attrFilters.size_in    (parsed separately, see above)
+           colour  -> colorFamilyParam       (its own param, NOT attrFilters) */
+      const candidates = [];
+      if ((attrFilters.style   || []).length === 1) candidates.push(['style',   attrFilters.style[0]]);
+      if ((attrFilters.size_in || []).length === 1) candidates.push(['size_in', attrFilters.size_in[0]]);
+      if (colorFamilyParam.length === 1 && colorExactParam.length === 0) {
+        candidates.push(['color_family', colorFamilyParam[0]]);
+      }
+      if (candidates.length !== 1) return null;
+
+      const [param, value] = candidates[0];
+      const content = filterLandingPages.lookup(param, value);
+      if (!content) return null;   // no copy written for this value — leave the page alone
+
+      /* The threshold. Read from settings so it is tunable without a deploy;
+         the ?? chain means a missing settings block falls back to 25 rather
+         than to 0, because defaulting to "promote everything" on a config
+         slip is the failure that ships thin pages. */
+      const minProducts = Number(
+        ((res.locals.settings || {}).seo || {}).filter_landing_min_products ?? 25
+      );
+      if (!Number.isFinite(minProducts)) return null;
+      if ((result.total || 0) < minProducts) return null;
+
+      return { param, value, total: result.total, ...content };
+    })();
+
+    /* Self-canonical when promoted. Must carry the query string — a
+       canonical pointing at the bare collection is exactly the behaviour
+       being overridden, and emitting one here would make the whole block a
+       no-op that still looked wired. */
+    const effectiveCanonical = _landing
+      ? `${canonicalUrl}?${_landing.param}=${encodeURIComponent(_landing.value)}`
+      : canonicalUrl;
+
     res.render('pages/collection', {
-      pageTitle:    `${category.meta_title || category.name} | BathroomVanitiesOutlet.com`,
-      metaDesc:     category.meta_desc || category.description || '',
-      canonicalUrl,
+      pageTitle:    _landing ? _landing.title
+                             : `${category.meta_title || category.name} | BathroomVanitiesOutlet.com`,
+      metaDesc:     _landing ? _landing.meta
+                             : (category.meta_desc || category.description || ''),
+      canonicalUrl: effectiveCanonical,
+      landing:      _landing,
       noindex,
       category,
       isVanityCategory,
