@@ -1648,6 +1648,47 @@ _DEFAULT_ORDER.forEach(function(k) {
       </article>
       <% }) %>
     </div>
+    <%/* ── GUIDE PREVIEW ───────────────────────────────────────────────
+         A scrollable box carrying the opening of one guide. Added because
+         the homepage was 1,470 words against 50 headings, and the cards
+         above contribute titles rather than prose.
+
+         EVERY STRING COMES FROM SETTINGS. There is no fallback copy here on
+         purpose: the defaults live in themeSettings.js `inspiration` and
+         nowhere else, so there is exactly one place to edit the text and no
+         way for the two to drift. If the settings block were ever removed
+         the box disappears rather than rendering half of it.
+
+         THE SUBHEAD IS NOT A HEADING. It is an <h2> in the guide itself;
+         here it is a <p class="hp-gp-subhead"> styled to look the same.
+         Carrying the tag across would have added a heading back to the
+         homepage immediately after eight were removed.
+
+         SCROLLING, NOT COLLAPSING. The box clips with overflow:auto. A
+         "read more" that used display:none would hide the text from Google
+         too — content in a scroll container is ordinary page text and
+         counts in full, which is the entire point of adding it. */%>
+    <% var _ip = (settings && settings.inspiration) || {}; %>
+    <% if (_ip.preview_enabled !== false && _ip.preview_body1) { %>
+    <div class="hp-guide-preview">
+      <% if (_ip.preview_eyebrow) { %><p class="hp-gp-eyebrow"><%= _ip.preview_eyebrow %></p><% } %>
+      <% if (_ip.preview_heading) { %><p class="hp-gp-heading"><%= _ip.preview_heading %></p><% } %>
+      <%/* --hp-gp-lines drives max-height in the stylesheet, so the owner can
+           change the visible height from the Theme Editor without a push.
+           Clamped 3..40 here rather than in CSS: a blank or silly value in
+           settings would otherwise render a box one line tall or one with no
+           scroll at all, and neither looks like a mistake from the editor. */%>
+      <div class="hp-gp-scroll" style="--hp-gp-lines:<%= Math.max(3, Math.min(40, parseInt(_ip.preview_lines, 10) || 6)) %>" tabindex="0" role="region" aria-label="<%= _ip.preview_heading || 'Guide preview' %>">
+        <p><%= _ip.preview_body1 %></p>
+        <% if (_ip.preview_subhead) { %><p class="hp-gp-subhead"><%= _ip.preview_subhead %></p><% } %>
+        <% if (_ip.preview_body2) { %><p><%= _ip.preview_body2 %></p><% } %>
+      </div>
+      <% if (_ip.preview_cta_url && _ip.preview_cta_text) { %>
+      <a href="<%= _ip.preview_cta_url %>" class="hp-gp-cta"><%= _ip.preview_cta_text %> →</a>
+      <% } %>
+    </div>
+    <% } %>
+
     <div class="hp-inspo-footer">
       <a href="/inspiration" class="hp-inspo-browse-btn">Browse All Style Guides</a>
     </div>

@@ -534,6 +534,43 @@ const DEFAULTS = {
     image_url: '/images/parallax-bg.jpg',
     image_alt: 'Luxury bathroom inspiration',
   },
+  /* ── STYLE GUIDES PREVIEW ───────────────────────────────────────
+     A sub-block of the Style Guides (inspiration) section on the homepage:
+     a scrollable box showing the opening of one guide, so the homepage
+     carries real prose rather than only card titles.
+
+     THE TEXT LIVES HERE AND NOWHERE ELSE. index.ejs renders these values
+     with no hardcoded copy of its own, so this is the single source. That
+     works because load() deep-merges DEFAULTS with the settings file on
+     every read — a NEW key added here does reach the live site. (The trap
+     recorded in CLAUDE.md is about CHANGING a default that already exists
+     in the settings file: there the file's value wins and the edit here
+     does nothing. Adding is safe; editing an existing key is not.)
+
+     WHY THE SUBHEAD IS ITS OWN FIELD RATHER THAN MARKUP IN THE BODY
+     In the guide it is an <h2>. Carried across as a heading it would add
+     one back to the homepage immediately after eight were deliberately
+     removed, so it renders as styled bold text instead. Keeping it as a
+     separate plain-text field means no HTML in a textarea and no way for
+     an editor to reintroduce a heading by accident.
+
+     DUPLICATE CONTENT, ACKNOWLEDGED
+     This is 228 of the guide's 558 words, also live at
+     /inspiration/farmhouse-bathroom-vanity-ideas. Not a penalty, but Google
+     must choose which page ranks for these phrases and the homepage is the
+     stronger one. Sam was shown the figure and accepted it. If the guide
+     ever underperforms on "farmhouse vanity" terms, shorten this first. */
+  inspiration: {
+    preview_enabled:  true,
+    preview_eyebrow:  'From the guide',
+    preview_heading:  'Farmhouse Bathroom Vanity Ideas',
+    preview_body1:    'Farmhouse bathrooms have a way of feeling like they have always been there — warm, textured, and quietly beautiful. The vanity is the heart of this aesthetic, and getting it right means balancing rustic character with everyday practicality. Shaker-style cabinet doors, natural wood tones, and hardware in matte black or oil-rubbed bronze are the building blocks of the look. Whether you are designing a sprawling primary bathroom or refreshing a compact powder room, farmhouse vanity ideas give you a timeless foundation that holds its value and charm for decades.',
+    preview_subhead:  'The Essential Elements of Farmhouse Style',
+    preview_body2:    'The Shaker cabinet door is farmhouse design at its most enduring. Its recessed flat panel and clean rail construction are simple enough to blend into almost any space, yet distinctive enough to anchor a clear aesthetic. Pair Shaker doors with matte black hardware for a contemporary farmhouse feel — this combination has become the defining look of modern farmhouse interiors. For a warmer, more vintage interpretation, oil-rubbed bronze or unlacquered brass hardware evokes the patina of a well-loved country kitchen. Wood plays an equally central role: white oak and walnut bring a refined warmth, while painted finishes in soft white, warm cream, or sage green suit a more cottage-inspired direction. The countertop choice matters too — honed Carrara marble, white quartz, or a butcher-block top each reinforce the farmhouse character in different ways.',
+    preview_lines:    6,   // visible lines before the box scrolls
+    preview_cta_text: 'Read the full guide',
+    preview_cta_url:  '/inspiration/farmhouse-bathroom-vanity-ideas',
+  },
   testimonials: {
     enabled: true,
     show_on: 'all',
