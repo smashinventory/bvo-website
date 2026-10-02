@@ -15,7 +15,12 @@
                alt="<%= gl.site_name || 'BathroomVanitiesOutlet.com' %>"
                width="52" height="52" loading="lazy" decoding="async">
         </a>
-        <h3><%= nav.brand_line1 || 'BathroomVanities' %><span><%= nav.brand_line2 || 'Outlet' %></span><%= nav.brand_line3 || '.com' %></h3>
+        <%/* Was an <h3>. It is the brand name under the footer logo — a
+             wordmark, not a section heading. Nothing follows it that it
+             introduces. Demoted 2026-10-01 along with the trust-band stat
+             numbers and the cart drawer title; styling is unchanged, the
+             CSS selectors moved from `.footer-brand h3` to this class. */%>
+        <div class="footer-brand-name"><%= nav.brand_line1 || 'BathroomVanities' %><span><%= nav.brand_line2 || 'Outlet' %></span><%= nav.brand_line3 || '.com' %></div>
         <p><%= ft.brand_desc || 'Premium vanities, mirrors, faucets &amp; accessories — at prices that make sense. Free shipping on every order.' %></p>
         <%
           var _fsoc = S.social || {};
@@ -80,19 +85,48 @@
            Now: if a menu is empty the column renders empty. Visible and
            fixable, rather than quietly wrong. */
         var _fm = (typeof footerMenus !== 'undefined' && footerMenus) ? footerMenus : {};
-        var _colShop    = _fm.shop    || [];
         var _colHelp    = _fm.help    || [];
         var _colCompany = _fm.company || [];
       %>
 
-      <div class="footer-col">
-        <h4><%= ft.col_shop_heading || 'Shop' %></h4>
-        <ul role="list">
-          <% _colShop.forEach(function(l) { %>
-          <li><a href="<%= l.url %>"<%= l.is_highlight ? ' class="footer-link--highlight"' : '' %>><%= l.label %></a></li>
-          <% }) %>
-        </ul>
-      </div>
+      <%/* SHOP COLUMN REMOVED 2026-10-01.
+
+           It duplicated the main navigation — Bathroom Vanities, Mirrors,
+           Faucets, Sale — in a place nobody browses for a menu, and it held
+           both of the link defects seobility flagged:
+
+             Faucets -> /collections/faucets?type=Bathroom+Faucets
+               ?type= and ?product_type= are ALIASES. Both return the same 24
+               products in the same order. The header used product_type, this
+               used type, so one filter existed under two spellings and
+               "Faucets" read as three different URLs across the page. The
+               alias still WORKS -- old links and bookmarks are unaffected --
+               it is simply no longer linked from here. Picking which spelling
+               survives in the code is a separate job; it needs the sidebar
+               filter checked first, because the sidebar is what emits these.
+
+             Sale -> /collections/sale
+               The header's "Sale" goes to ?on_sale=1 (24 products, vanities
+               only). This went to /collections/sale (48 products, everything
+               discounted). Two links reading "Sale", two different lists.
+
+           /collections/sale IS NOW ORPHANED. Nothing on the homepage links to
+           it. That is accepted deliberately and recorded in OPEN_ITEMS: the
+           page is a rule, not a curated list -- every active product whose
+           compare_price exceeds its price, LIMIT 48, with pages:1 so there is
+           no pagination and the 49th discounted product is unreachable. It
+           needs admin-controlled sale flags before it is worth linking.
+
+           HELP AND COMPANY STAY. They carry Shipping Policy, Returns &
+           Refunds, Contact Us, About Us, Privacy Policy and Terms. Those are
+           what the Merchant Center policy reviewer looks for and the footer
+           is where reviewers expect them -- removing them during a GMC review
+           would be self-inflicted. They are also not a browse menu; people go
+           looking for them on purpose.
+
+           The footer-shop menu still exists in the Menu Manager and is now
+           unrendered. Left in place rather than deleted so the links are
+           recoverable; nothing reads it. */%>
 
       <!-- Help column -->
       <div class="footer-col">

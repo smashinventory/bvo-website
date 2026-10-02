@@ -1882,17 +1882,30 @@ _DEFAULT_ORDER.forEach(function(k) {
   var _tbIsBase = (sectionKey === 'trust_band');
 %>
 <section class="trust-band" data-section="<%= sectionKey %>" data-section-label="Trust Band" aria-label="Trust statistics"<%= _tbStyle ? ' style="' + _tbStyle + '"' : '' %>>
+  <%/* STAT VALUES ARE NOT HEADINGS — changed 2026-10-01.
+
+       These were <h3>, which put "10,000+", "500+" and "Free" into the page
+       outline as section headings. A heading announces what the content
+       under it is about; "Free" announces nothing, and the actual meaning
+       lives in the <p> beside it ("Shipping on every single order").
+
+       Now a <div>. Deliberately NOT a <p>: `.trust-item p` styles the label
+       underneath — small, uppercase, 65% opacity — and a <p> here would
+       inherit that and lose the large amber figure.
+
+       Styling is identical. The CSS selector moved from `.trust-item h3` to
+       `.trust-item .trust-item-value`. */%>
   <div class="trust-item">
     <% if (_d.stat1_icon) { %><span class="trust-item-icon"><%= _d.stat1_icon %></span><% } %>
-    <h3><%= _d.stat1_value || (_tbIsBase ? '10,000+' : '') %></h3><p><%= _d.stat1_label || (_tbIsBase ? 'Happy customers nationwide' : '') %></p>
+    <div class="trust-item-value"><%= _d.stat1_value || (_tbIsBase ? '10,000+' : '') %></div><p><%= _d.stat1_label || (_tbIsBase ? 'Happy customers nationwide' : '') %></p>
   </div>
   <div class="trust-item">
     <% if (_d.stat2_icon) { %><span class="trust-item-icon"><%= _d.stat2_icon %></span><% } %>
-    <h3><%= _d.stat2_value || (_tbIsBase ? '500+' : '') %></h3><p><%= _d.stat2_label || (_tbIsBase ? 'Premium products in stock' : '') %></p>
+    <div class="trust-item-value"><%= _d.stat2_value || (_tbIsBase ? '500+' : '') %></div><p><%= _d.stat2_label || (_tbIsBase ? 'Premium products in stock' : '') %></p>
   </div>
   <div class="trust-item">
     <% if (_d.stat3_icon) { %><span class="trust-item-icon"><%= _d.stat3_icon %></span><% } %>
-    <h3><%= _d.stat3_value || (_tbIsBase ? 'Free' : '') %></h3><p><%= _d.stat3_label || (_tbIsBase ? 'Shipping on every single order' : '') %></p>
+    <div class="trust-item-value"><%= _d.stat3_value || (_tbIsBase ? 'Free' : '') %></div><p><%= _d.stat3_label || (_tbIsBase ? 'Shipping on every single order' : '') %></p>
   </div>
 </section>
 <% } /* end trust_band */ %>

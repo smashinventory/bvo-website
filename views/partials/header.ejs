@@ -280,12 +280,31 @@
           </div>
           <!-- Right col: promo card — editable in admin theme editor -->
           <div class="mega-col mega-col--promo">
-            <a href="<%= _vmp.url || '/collections/vanity-models' %>" class="mega-promo-card">
+            <%/* CARD IS NOT A LINK — changed 2026-10-01.
+
+                 This was <a class="mega-promo-card"> around the whole card, so
+                 the link's anchor text was the eyebrow, the title, the sub and
+                 the CTA concatenated — 155 characters reading:
+                   "Our Collections Every Model, Every Finish Save Time and
+                    Find the Right Vanity Quickly with Our Advanced AI DRIVEN
+                    Smart Filtering. Browse All Collections"
+                 Google reads anchor text to decide what a link is about, and
+                 that names no single subject.
+
+                 The link now sits on the title and carries .card-stretch,
+                 whose ::after overlay covers the card — whole card still
+                 clickable, destination unchanged, anchor text is just the
+                 title. Same change as the homepage tiles (commit f259c30).
+
+                 .card-stretch is defined once, at the end of site2.css and in
+                 site-bundle.css. It needs its container positioned, which is
+                 why .mega-promo-card gains position:relative. */%>
+            <div class="mega-promo-card">
               <p class="mega-promo-eyebrow"><%= _vmp.eyebrow || 'Our Collection' %></p>
-              <p class="mega-promo-title"><%= _vmp.title || 'Every Model, Every Finish' %></p>
+              <p class="mega-promo-title"><a href="<%= _vmp.url || '/collections/vanity-models' %>" class="card-stretch"><%= _vmp.title || 'Every Model, Every Finish' %></a></p>
               <p class="mega-promo-sub"><%= _vmp.sub || '' %></p>
               <span class="mega-promo-cta"><%= _vmp.cta || 'Browse All Collections' %> &rarr;</span>
-            </a>
+            </div>
           </div>
         </div>
       </li>

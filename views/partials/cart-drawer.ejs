@@ -17,12 +17,21 @@ const _pct       = _threshold > 0 ? Math.min(100, Math.round((_total / _threshol
 
   <!-- Header -->
   <div class="cd-header">
-    <h2 class="cd-title">
+    <%/* Was an <h2>. This partial ships on EVERY page, so it was one heading
+         per URL site-wide, sitting in each page's outline above content it
+         has nothing to do with — a cart panel is interface, not a section of
+         the document.
+
+         Screen readers are unaffected: the drawer is <aside
+         aria-label="Shopping cart">, which is what names the region. The
+         heading was never what announced it. Styling is unchanged — .cd-title
+         is a class selector and does not mention the tag. */%>
+    <div class="cd-title">
       Your Cart
       <% if (_cartItems.count > 0) { %>
       <span class="cd-count"><%= _cartItems.count %></span>
       <% } %>
-    </h2>
+    </div>
     <button class="cd-close" id="cdClose" aria-label="Close cart">
       <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="2">
         <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>

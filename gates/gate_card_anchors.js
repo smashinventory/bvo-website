@@ -117,6 +117,50 @@ console.log('\n--- exactly one link inside each tile ---');
      /<span class="hp-inspo-card-cta">Read guide/.test(ins));
 }
 
+/* ═══ 3b. THE MEGAMENU PROMO CARD ══════════════════════════════════
+   Same defect, different file — it was missed when the homepage tiles were
+   fixed, and it was the single remaining over-length anchor on the page
+   (155 characters). It lives in the header, so it is on EVERY page. */
+console.log('\n--- the megamenu promo card ---');
+{
+  const hdr = stripComments(read('views/partials/header.ejs'));
+
+  ok('the promo card is a <div>, not an <a>',
+     /<div class="mega-promo-card">/.test(hdr) && !/<a\s[^>]*class="mega-promo-card"/.test(hdr),
+     'a card-sized <a> here puts the eyebrow, title, sub AND cta into one ' +
+     'anchor text — 155 characters, on every page of the site');
+
+  ok('the link sits on the promo title',
+     /<p class="mega-promo-title"><a href="[^"]*" class="card-stretch">/.test(hdr));
+
+  /* [\s\S] not [^>]: the href is an EJS tag, so the attribute value itself
+     contains a ">" (in "%>"). A [^>]* class pattern stops dead inside the
+     tag and the assertion fails on correct markup — the same shape of bug as
+     <a[^>]* matching the first two characters of <article. */
+  ok('the promo title still renders the editable title field',
+     /<p class="mega-promo-title"><a [\s\S]{0,140}?class="card-stretch"><%=\s*_vmp\.title\s*\|\|/.test(hdr),
+     'the Theme Editor field must survive the restructure');
+
+  ok('the destination is still the editable url field',
+     /<a href="<%= _vmp\.url \|\| '\/collections\/vanity-models' %>" class="card-stretch">/.test(hdr));
+
+  const block = (() => {
+    const s = hdr.indexOf('<div class="mega-promo-card">');
+    return s < 0 ? '' : hdr.slice(s, hdr.indexOf('</div>', s));
+  })();
+  ok('exactly one <a> inside the promo card',
+     (block.match(/<a\s/g) || []).length === 1,
+     `found ${(block.match(/<a\s/g) || []).length}`);
+  ok('the CTA is still a <span>, not a second link',
+     /<span class="mega-promo-cta">/.test(block));
+
+  /* .card-stretch::after positions against the nearest POSITIONED ancestor.
+     Without this the overlay escapes the card and covers the megamenu. */
+  ok('.mega-promo-card is position:relative in the shipped bundle',
+     /\.mega-promo-card\{[^}]*position:relative/.test(bundle),
+     'the overlay would escape the card and cover the whole dropdown');
+}
+
 /* ═══ 4. THE WHOLE TILE STILL CLICKS ═══════════════════════════════
    This is the half that fails silently and hurts shoppers rather than
    rankings. Without the overlay only the title is clickable. */
