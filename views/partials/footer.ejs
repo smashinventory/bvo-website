@@ -128,25 +128,65 @@
            unrendered. Left in place rather than deleted so the links are
            recoverable; nothing reads it. */%>
 
+      <%/* COLUMN LABELS ARE NOT HEADINGS — changed 2026-10-01.
+
+           They were <h4>, which was valid only while the footer brand name
+           above them was an <h3>: H2 ... H3 ... H4 stepped down one level at
+           a time. Demoting that brand name to a <div> earlier today removed
+           the H3 and left every page jumping H2 -> H4, which Lighthouse
+           flags as a skipped heading level. Self-inflicted, caught by Sam in
+           a Lighthouse run rather than by anything here.
+
+           TWO WAYS TO FIX IT, AND WHY THIS ONE.
+           Re-levelling to a heading means picking a level that works on
+           EVERY page, because this partial is on all of them, and the last
+           heading before the footer is not the same level everywhere —
+           measured live:
+               /cart              H1
+               /collections/...   H3
+               homepage, guides   H2
+           Only <h2> survives that (a decrease in level is never flagged).
+           It was built that way and worked.
+
+           Sam's call was to drop the heading entirely instead, which is the
+           better answer: these label a group of links, not a section of the
+           document, and it takes the homepage from 43 headings to 41. Do not
+           "restore" them to headings later; the gate asserts they are not.
+
+           WHAT THAT COSTS, AND HOW IT IS COVERED.
+           Screen reader users navigate by heading, so those labels were the
+           handle for finding the Help and Company groups. Removing them with
+           nothing in their place would leave two unlabelled lists of links.
+
+           Each column is therefore a <nav> named by its own label, which is
+           the accurate semantic for a group of links and restores the handle
+           as a landmark instead of a heading. aria-labelledby, not
+           aria-label, so the accessible name always matches the visible text
+           even after the label is renamed in the Theme Editor — one source,
+           no drift.
+
+           The ids are static because this block is not duplicated. If the
+           footer ever renders twice on a page these collide and must be made
+           unique. */%>
       <!-- Help column -->
-      <div class="footer-col">
-        <h4><%= ft.col_help_heading || 'Help' %></h4>
+      <nav class="footer-col" aria-labelledby="footer-col-help">
+        <div class="footer-col-title" id="footer-col-help"><%= ft.col_help_heading || 'Help' %></div>
         <ul role="list">
           <% _colHelp.forEach(function(l) { %>
           <li><a href="<%= l.url %>"<%= l.is_highlight ? ' class="footer-link--highlight"' : '' %>><%= l.label %></a></li>
           <% }) %>
         </ul>
-      </div>
+      </nav>
 
       <!-- Company column -->
-      <div class="footer-col">
-        <h4><%= ft.col_company_heading || 'Company' %></h4>
+      <nav class="footer-col" aria-labelledby="footer-col-company">
+        <div class="footer-col-title" id="footer-col-company"><%= ft.col_company_heading || 'Company' %></div>
         <ul role="list">
           <% _colCompany.forEach(function(l) { %>
           <li><a href="<%= l.url %>"<%= l.is_highlight ? ' class="footer-link--highlight"' : '' %>><%= l.label %></a></li>
           <% }) %>
         </ul>
-      </div>
+      </nav>
 
     </div><!-- /footer-grid -->
 

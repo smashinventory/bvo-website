@@ -88,6 +88,49 @@ console.log('\n--- HELP and COMPANY survived (GMC policy review depends on these
      still pass every assertion here. */
   ok('the Help column heading still renders',    /col_help_heading/.test(footer));
   ok('the Company column heading still renders', /col_company_heading/.test(footer));
+
+  /* ── THE LABELS ARE NOT HEADINGS, AND THE GROUPS ARE STILL NAMED ──
+     They were <h4>, valid only while the footer brand name above them was
+     an <h3>. Demoting that brand name removed the H3 and left every page
+     jumping H2 -> H4, which Lighthouse flags. The fix is to drop the
+     heading entirely rather than re-level it.
+
+     Both halves are asserted, because the second is the one that fails
+     silently. Removing a heading and leaving two unlabelled lists of links
+     looks identical on screen and is worse for a screen reader user than
+     the skipped level was. The <nav aria-labelledby> is what replaces the
+     handle they lost. */
+  ok('no heading of any level survives in the footer',
+     !/<h[1-6][\s>]/.test(footer),
+     'a heading here reintroduces the skipped level — the last heading ' +
+     'before the footer is H1 on /cart, H2 on most pages and H3 on ' +
+     'collections, so no single level is safe on all of them');
+
+  ok('the Help label renders as plain text',
+     /<div class="footer-col-title" id="footer-col-help">/.test(footer));
+  ok('the Company label renders as plain text',
+     /<div class="footer-col-title" id="footer-col-company">/.test(footer));
+
+  ok('each column is a <nav> landmark',
+     (footer.match(/<nav class="footer-col"/g) || []).length === 2,
+     'without this the labels are decoration and the link groups are ' +
+     'anonymous to assistive technology');
+  ok('the Help nav is named by its own visible label',
+     /<nav class="footer-col" aria-labelledby="footer-col-help">/.test(footer));
+  ok('the Company nav is named by its own visible label',
+     /<nav class="footer-col" aria-labelledby="footer-col-company">/.test(footer));
+
+  /* aria-labelledby, not aria-label: the accessible name has to track the
+     Theme Editor value. A hardcoded aria-label would keep saying "Help"
+     after the visible label was renamed. */
+  ok('the names are not hardcoded aria-labels',
+     !/<nav class="footer-col" aria-label="/.test(footer),
+     'the name would stop matching the visible text once it is renamed');
+
+  ok('the label styling followed off the tag',
+     /\.footer-col-title\{/.test(bundle)
+       && !/\.footer-col h4\{/.test(bundle) && !/\.footer-col h2\{/.test(bundle),
+     'the labels lose their uppercase white styling and render as body text');
   ok('exactly two footer columns remain',
      (footer.match(/class="footer-col"/g) || []).length === 2,
      `found ${(footer.match(/class="footer-col"/g) || []).length}`);
