@@ -1,4 +1,4 @@
-<link rel="stylesheet" href="/css/site3.css?v=29"><!-- site3: injected per-page (perf) -->
+<link rel="stylesheet" href="/css/site3.css?v=30"><!-- site3: injected per-page (perf) -->
 <%/* ── LOOKBOOK — Visual Vanity Gallery ──────────────────────────────
  * Sidebar filters: Size · Color · Configuration · Style
  * Cards: image carousel only — no name, price, or description.
@@ -199,8 +199,22 @@
       %>
       <div class="lb-card" data-images='<%- JSON.stringify(imgs) %>'>
 
-        <!-- Model name -->
-        <div class="lb-card-name"><%= product.model %></div>
+        <%/* The model name carries the link now — it is the only text on the
+             card that differs between cards, which is exactly what anchor
+             text has to be. .card-stretch spreads an invisible ::after over
+             the whole card so clicking anywhere still opens the product,
+             unchanged for shoppers.
+
+             .card-stretch needs its container positioned, hence
+             .lb-card{position:relative} in site3.css. The carousel arrows and
+             colour swatches sit UNDER that overlay by default and would stop
+             working, so they are lifted above it there too — the homepage
+             tiles this pattern came from had no interactive children, so this
+             page is the first place that mattered. */%>
+        <!-- Model name — carries the product link -->
+        <div class="lb-card-name">
+          <a href="/products/<%= product.slug %>" class="card-stretch"><%= product.model %></a>
+        </div>
 
         <!-- Image area -->
         <div class="lb-card-img-wrap">
@@ -258,9 +272,28 @@
         </div>
         <% } %>
 
-        <!-- Learn More CTA -->
+        <%/* ── "Learn More" IS NO LONGER A LINK — changed 2026-10-02 ──────
+             It was <a href="/products/…">Learn More</a>, forty-one times on
+             this page, pointing at forty-one DIFFERENT products.
+
+             That is the one anchor-text failure that does real damage, and
+             the only one left on the site: identical text competing for
+             different destinations gives Google forty-one pages whose entire
+             anchor-text signal is the phrase "Learn More". It is also the
+             thin-anchor-text problem at the same time — two failures in one
+             element.
+
+             The link moved to the model name above (lb-card-name), which is
+             unique per card — verified live: 41 cards, 41 distinct names, 41
+             distinct targets, a clean 1:1. Same fix as the homepage tiles in
+             f259c30.
+
+             This stays as a styled <span> so the card looks identical. The
+             whole card remains clickable through .card-stretch on the name
+             link, so nothing a shopper does changes either. */%>
+        <!-- Learn More — visual affordance only; the link is on the name -->
         <div class="lb-card-foot">
-          <a href="/products/<%= product.slug %>" class="lb-learn-btn" tabindex="0">Learn More</a>
+          <span class="lb-learn-btn" aria-hidden="true">Learn More</span>
         </div>
 
       </div>

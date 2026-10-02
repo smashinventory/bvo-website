@@ -111,3 +111,23 @@
    here for an order, not for a checkbox. */
 .confirm-verify--done{background:#f2f7f2;border-color:#cfe0cf}
 .confirm-verify--done p{margin:0}
+/* ── Lookbook card: link moved onto the model name, 2026-10-02 ──────
+   .card-stretch (site-bundle.css) spreads an invisible ::after over the
+   nearest POSITIONED ancestor, so the card must be positioned or the
+   overlay escapes to some ancestor further up and the click target lands
+   in the wrong place entirely. */
+.lb-card{position:relative}
+/* The card's three interactive controls sit UNDER that overlay by default
+   and would silently stop working: both carousel arrows and both colour
+   swatches. The homepage tiles this pattern came from had no interactive
+   children, so this is the first place it has mattered. z-index needs a
+   positioned element to apply, hence position:relative on each. */
+.lb-card .lb-arrow,.lb-card .lb-card-swatch{position:relative;z-index:2}
+/* The name link must not look like a link — the card already reads as
+   clickable and an underlined blue model name would be a visual change
+   nobody asked for. */
+.lb-card-name a{color:inherit;text-decoration:none}
+/* Learn More is a <span> now. It inherited its look from .lb-learn-btn,
+   which was written for an <a>; a span is inline by default and ignores
+   the vertical padding, so the button would collapse. */
+span.lb-learn-btn{display:inline-block;cursor:pointer}

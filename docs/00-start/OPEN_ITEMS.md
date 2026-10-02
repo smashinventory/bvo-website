@@ -1854,44 +1854,63 @@ sets a page-weight target from it.
   to the login page for a signed-out crawler. Not a defect, listed so a
   future reader does not re-investigate it.
 
-### Anchor-text scope — conclusion, so it is not relitigated
+### Anchor-text scope — CONCLUSION SUPERSEDED 2026-10-02
 
-The homepage duplicate-anchor-text warning is **structural and I recommend
-leaving it**. Evidence, from sitechecker's own link list:
+**The recommendation below was acted against, and the work succeeded. Read
+the correction before the original.**
 
-  Their links #45-#75 mirror #5-#44 exactly — Vanities, Single Sink,
-  Cabinet Only, all nine colours, all nine styles, Mirrors, Bath Faucets,
-  Accessories, Bundle/Save, Sale, each listed twice.
+This section used to conclude: *"The homepage duplicate-anchor-text warning
+is structural and I recommend leaving it … the only ways to remove it are to
+build the mobile menu in JavaScript (so the nav does not exist for a crawler
+that does not run scripts) or a substantial shared-markup rewrite. Both trade
+something real for a report number."*
 
-That is the mobile menu. The header renders the whole navigation twice in
-the HTML — once for desktop, once for the mobile drawer — and CSS shows one
-or the other. A crawler reads both. 25 of the 27 duplicate groups are this,
-and the only ways to remove it are to build the mobile menu in JavaScript
-(so the nav does not exist for a crawler that does not run scripts) or a
-substantial shared-markup rewrite. Both trade something real for a report
-number.
+The shared-markup rewrite was done on 2026-10-02 (commit f683f51) and traded
+nothing. It REMOVED JavaScript rather than adding it: <details>/<summary>
+gives the mobile accordion natively, so the inline accordion script was
+deleted and the header now carries no scripts at all. The nav is one markup
+set, present for every crawler, working on touch where the hover-only
+desktop trigger never did.
 
-**The number that matters is zero.** After the Faucets and Accessories
-renames, there is no remaining case of one anchor text pointing at two
-different pages — checked under exact match, alt-as-anchor-text,
-case-insensitive and arrow-stripped matching. That competing-pages case is
-the only part of seobility's own guidance that describes real harm. What
-remains is the same text pointing at the same place, which is noise.
+| | Before | After |
+|---|---|---|
+| Homepage anchors | 164 | 119 |
+| Duplicate anchor-text groups | 27 | **0** |
+| Same text, different pages | 0 | **0** |
+| Links with no anchor text | 3 | **0** |
 
-Small, cheap, not yet done:
-- Footer logo `alt="BathroomVanitiesOutlet.com"` duplicates the header
-  wordmark's link text, both -> `/`. Change the alt.
-- Mobile menu says "My Account" / "Saved Items"; the header says
-  "My account" / "Saved items". Inconsistent capitalisation.
-- Hero "Shop Now ->" vs category tile "Shop Now", same target.
+Confirmed independently by seobility's own re-crawl: the mirrored block at
+their items #45-#75 is gone, and one "Text duplicate" marker remained, which
+was then also removed.
+
+**What the original got right, and is worth keeping:** the diagnosis. It
+correctly identified the duplicated mobile menu as the cause of 25 of the 27
+groups, from sitechecker's own link list, and it correctly identified
+same-text-different-target as the only part of the guidance describing real
+harm. Both held up. Only the cost estimate was wrong.
+
+**The lesson:** "structural, leave it" is a conclusion with a shelf life, and
+this one was written before anyone had checked how other storefronts solve
+it. Shopify's Dawn theme uses <details>/<summary> for exactly this. Fifteen
+minutes of looking at prior art changed the answer.
+
+The three "small, cheap, not yet done" items it listed are all done: the
+footer logo alt (cc748a9), the capitalisation mismatch (the drawer that
+disagreed no longer exists), and the footer social links (14f82a4). The
+remaining "Shop Now ->" vs "Shop Now" pair points at the same page, which is
+the harmless case, and Sam has accepted it.
+
+---
 
 ### Elsewhere, worse than anything on the homepage
 
-- **`/lookbook`: "Learn More" x41, pointing at 41 different pages.** Trivial
-  anchor text AND the same text for different targets — both failures at
-  once, and the one case that genuinely makes pages compete. Fix is the one
-  already used on the homepage tiles: move the link onto the model name and
-  leave "Learn More" as a span.
+- **`/lookbook`: "Learn More" x41 — ✅ FIXED 2026-10-02.** The link moved onto
+  the model name, which is unique per card (verified live: 41 cards, 41
+  distinct names, 41 distinct targets). "Learn More" is a span now. One
+  wrinkle this entry did not anticipate: each card holds three interactive
+  controls — two carousel arrows and two colour swatches — which sit under
+  the .card-stretch overlay and had to be lifted with position+z-index, or
+  they stop responding silently. gates/gate_lookbook_anchors.js asserts it.
 - **`/collections/*`: "View Details — <product name>" x26.** Distinct, so no
   competition, but the keyword sits after "View Details".
 - **Model card image alts** read "Brittany vanity", "Hudson vanity". For an
