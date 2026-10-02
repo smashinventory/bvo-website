@@ -104,33 +104,48 @@ console.log('\n--- .sr-only is clipped, not display:none ---');
      'some assistive tech skips zero-sized elements');
 }
 
-/* ═══ THE DESKTOP LABELS MATCH THE MOBILE DRAWER ═══════════════════
-   The navigation exists twice in the HTML — icons with hidden labels for
-   desktop, a text drawer for mobile. Two hand-maintained copies of the same
-   thing drift, and they already had: sentence case on one side, title case
-   on the other. That was invisible while the desktop side used aria-label,
-   and only surfaced once it became link text.
+/* ═══ THE UTILITY LABELS ════════════════════════════════════════════
+   REWRITTEN 2026-10-02, when the nav rewrite deleted #mobile-menu.
 
-   The drawer's labels are VISIBLE, so they are the reference; the hidden
-   ones follow. Asserted as an exact pair so neither side can be reworded
-   alone. */
-console.log('\n--- hidden desktop labels match the visible mobile drawer ---');
+   WHAT THIS SECTION USED TO ASSERT, and why it had to change
+   The navigation existed TWICE — icons with hidden labels for desktop, a
+   text drawer for mobile — and the two had drifted (sentence case on one
+   side, title case on the other). So this section asserted the two copies
+   as exact PAIRS: neither side could be reworded alone.
+
+   There is no second copy any more. The drawer is gone and .nav-icons
+   renders at every width, so these three labels exist in exactly one place.
+   The pairing contract is not loosened, it is RETIRED — there is nothing
+   left to pair with. Asserting a drawer row that cannot exist would be a
+   gate that fails for being right.
+
+   What is still worth asserting is that the labels did not VANISH in the
+   deletion. They were rows in the drawer as well as hidden labels on the
+   icons, and deleting the drawer is exactly the moment someone could take
+   the wrong copy. One assertion each, on the surviving copy. */
+console.log('\n--- utility labels (single source: .nav-icons) ---');
 {
-  const PAIRS = [
-    { sr: '<span class="sr-only">My Account</span>',
-      mob: '<li><a href="/account">My Account</a></li>',                 what: 'My Account' },
-    { sr: '<span class="sr-only">Saved Items</span>',
-      mob: '<li><a href="/account/favorites">Saved Items</a></li>',      what: 'Saved Items' },
-    { sr: '<span class="sr-only">Cart (<%= cart.count %>)</span>',
-      mob: '<li><a href="/cart">Cart (<%= cart.count %>)</a></li>',      what: 'Cart (n)' },
+  const LABELS = [
+    { sr: '<span class="sr-only">My Account</span>',                what: 'My Account' },
+    { sr: '<span class="sr-only">Saved Items</span>',               what: 'Saved Items' },
+    { sr: '<span class="sr-only">Cart (<%= cart.count %>)</span>',  what: 'Cart (n)' },
   ];
-  for (const { sr, mob, what } of PAIRS) {
-    ok(`${what}: the hidden desktop label is present`, header.includes(sr));
-    ok(`${what}: the visible drawer label is present`, header.includes(mob));
+  for (const { sr, what } of LABELS) {
+    ok(`${what}: label present on the icon link`, header.includes(sr));
   }
   ok('no sentence-case leftovers from the old desktop wording',
      !/sr-only">My account</.test(header) && !/sr-only">Saved items</.test(header),
-     'the two copies have drifted apart again');
+     'the wording regressed to the pre-2026-10-01 desktop form');
+
+  /* The drawer rows must NOT come back. If they do, these three labels are
+     duplicated in the HTML again and so are their anchor texts — the exact
+     regression the nav rewrite was for. gate_nav_single_source covers the
+     structural side; this covers these three strings specifically. */
+  ok('the drawer rows have not been re-added',
+     !/<li><a href="\/account">My Account<\/a><\/li>/.test(header) &&
+     !/<li><a href="\/account\/favorites">Saved Items<\/a><\/li>/.test(header) &&
+     !/<li><a href="\/cart">Cart \(/.test(header),
+     'a second copy of the utility links is back in the markup');
 }
 
 /* ═══ THE FOOTER LOGO ALT IS NOT THE WORDMARK'S LINK TEXT ══════════

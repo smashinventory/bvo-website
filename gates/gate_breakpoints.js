@@ -359,9 +359,41 @@ console.log('\n--- the cart can always be reached ---');
   ok('the hamburger covers everything up to the Desktop band',
      /_bp\.mq\.upToTablet[\s\S]{0,140}nav-hamburger\{display:flex\}/.test(hdr),
      'a band with neither a hamburger nor a fitting menu loses the cart');
-  ok('the desktop menu is hidden below the Desktop band',
-     /_bp\.mq\.upToTablet[\s\S]{0,80}\.nav-brand,\.nav-links\{display:none\}/.test(hdr),
-     'the full menu would appear before it fits');
+  /* REWRITTEN 2026-10-02 for the one-list nav.
+
+     It used to assert `.nav-brand,.nav-links{display:none}` below the Desktop
+     band, because .nav-links was the DESKTOP-ONLY copy and a separate
+     #mobile-menu was the mobile nav. Both copies shipped in the HTML, which
+     is what the rewrite removed.
+
+     .nav-links is now the only navigation, so display:none below Desktop
+     would delete the mobile menu outright — the gate would be demanding the
+     bug. What still has to hold is the OUTCOME this section exists for: below
+     the Desktop band the horizontal bar must not be laid out across the
+     header, where it overflows and pushes the cart off screen.
+
+     So: the brand line is still hidden (it is desktop chrome), and the list
+     must be re-laid-out as the off-canvas panel — asserted via the fixed
+     positioning and the off-screen transform, which is what actually gets it
+     out of the bar. Weaker-looking, strictly equivalent in effect, and it no
+     longer forbids the mobile menu from existing. */
+  ok('the brand line is hidden below the Desktop band',
+     /_bp\.mq\.upToTablet[\s\S]{0,120}\.nav-brand\{display:none\}/.test(hdr),
+     'the bar would carry desktop chrome at widths where it does not fit');
+  ok('the nav list leaves the bar and becomes the off-canvas panel',
+     /_bp\.mq\.upToTablet[\s\S]{0,900}\.nav-links\{display:block;position:fixed/.test(hdr) &&
+     /_bp\.mq\.upToTablet[\s\S]{0,900}transform:translateX\(-100%\)/.test(hdr),
+     'the horizontal bar would still be laid out in the header and overflow it');
+  ok('...and the hamburger is what slides it in',
+     /\.nav-links\.is-open\{transform:translateX\(0\)\}/.test(hdr),
+     'the panel would be off-screen with no way to open it');
+  /* The list must NOT be display:none below Desktop. It is the only copy of
+     the navigation now; hiding it leaves phones with no menu at all, and
+     takes the links out of the accessibility tree. */
+  ok('the nav list is not display:none below the Desktop band',
+     !/_bp\.mq\.upToTablet[\s\S]{0,200}\.nav-links\{display:none\}/.test(hdr) &&
+     !/_bp\.mq\.upToTablet[\s\S]{0,200}\.nav-brand,\.nav-links\{display:none\}/.test(hdr),
+     'phones would have no navigation at all');
   ok('and the hamburger is hidden on Desktop',
      /_bp\.mq\.desktop[\s\S]{0,80}nav-hamburger\{display:none\}/.test(hdr),
      'both navigation modes visible at once');
@@ -430,11 +462,30 @@ console.log('\n--- the cart can always be reached ---');
      'a fifth copy of the band numbers, stale the moment they move');
 
   /* The mobile panel must not itself be width-gated, or the hamburger
-     would open nothing at tablet widths. */
+     would open nothing at tablet widths.
+
+     REWRITTEN 2026-10-02. It used to look for `.mobile-menu.is-open{display:
+     block}` in the bundle — an unconditional rule, which is what made the
+     drawer width-independent. #mobile-menu and that rule are both gone.
+
+     The same property now has to hold for the one nav list, and the thing
+     that could break it is different in kind: the panel is revealed by a
+     transform inside the upToTablet media query, so the risk is no longer a
+     missing unconditional rule but a rule that hides .mega-menu with
+     !important and so beats the inline CSS. That is exactly what
+     @media (max-width:900px){.mega-menu{display:none!important}} did, and
+     re-adding it gives tablets and phones a "Vanities" row that expands to
+     nothing — invisible to any desktop test. */
   const css = read('public/css/site-bundle.css');
-  ok('the mobile menu panel is not width-gated',
-     /\.mobile-menu\.is-open\{display:block\}/.test(css),
-     'the hamburger would open an invisible panel on tablets');
+  ok('the hamburger opens a panel, not nothing',
+     /\.nav-links\.is-open\{transform:translateX\(0\)\}/.test(hdr),
+     'the hamburger would toggle a class nothing responds to');
+  ok('nothing hides the submenu panel with !important',
+     !/\.mega-menu\s*\{\s*display:\s*none\s*!important/.test(css),
+     'the accordion would expand to an empty panel below the Desktop band');
+  ok('the panel is not width-gated out of existence',
+     !/\.nav-links\{display:none\}/.test(css),
+     'the hamburger would open an invisible panel');
 }
 
 console.log(fail ? `\n*** ${fail} GATE(S) FAILED ***` : '\nALL GATES PASS');

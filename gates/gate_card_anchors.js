@@ -137,8 +137,19 @@ console.log('\n--- the megamenu promo card ---');
      contains a ">" (in "%>"). A [^>]* class pattern stops dead inside the
      tag and the assertion fails on correct markup — the same shape of bug as
      <a[^>]* matching the first two characters of <article. */
+  /* Updated 2026-10-02: the field is now printed through _plain(), which
+     strips tags. The stored value contains a br tag and was being rendered as
+     visible escaped markup; _plain() is the fix.
+
+     The assertion still checks the same thing it always did — that the Theme
+     EDITOR FIELD, not a hardcoded string, is what reaches the card — it just
+     allows the helper to sit in between. Written as "_vmp.title appears inside
+     the title anchor" rather than naming _plain specifically, so swapping the
+     helper for a better one does not fail the gate, while hardcoding the
+     title still does. The stripping itself is asserted in
+     gate_nav_single_source, against a rendered page with a tag injected. */
   ok('the promo title still renders the editable title field',
-     /<p class="mega-promo-title"><a [\s\S]{0,140}?class="card-stretch"><%=\s*_vmp\.title\s*\|\|/.test(hdr),
+     /<p class="mega-promo-title"><a [\s\S]{0,140}?class="card-stretch"><%=[\s\S]{0,60}?_vmp\.title/.test(hdr),
      'the Theme Editor field must survive the restructure');
 
   ok('the destination is still the editable url field',

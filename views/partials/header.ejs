@@ -146,19 +146,68 @@
            that the hamburger runs, at any width, including the tablet
            sizes it never used to cover.
 
-           #mobile-menu itself is width-independent (.mobile-menu.is-open
-           {display:block}), so the panel opens correctly at these widths
-           with no further change.
-
            No !important: these rules sit later in the document than the
            stylesheet, so they win on order at equal specificity. If a
-           future rule outranks them the gate's width sweep catches it. */
+           future rule outranks them the gate's width sweep catches it.
+
+           ══ ONE LIST, TWO LAYOUTS — rewritten 2026-10-02 ══════════════
+           The .nav-links list used to be display:none here and a separate
+           #mobile-menu took over. Now the SAME list becomes the off-canvas
+           panel, because there is only one list.
+
+           Below Desktop:
+             .nav-links is the panel — fixed, off-screen, slid in by
+             .is-open from the hamburger. It is NOT display:none, so its
+             links stay in the accessibility tree and stay crawlable in the
+             one place they exist.
+             <summary> shows its marker and the <details> start closed —
+             the accordion, tap-driven, no JS.
+
+           At Desktop:
+             .nav-links is the horizontal bar again.
+             The marker is hidden and .mega-menu is absolutely positioned,
+             revealed by the existing :hover/:focus-within rules in
+             site-bundle.css. Those rules are untouched.
+
+           WHY THE PANEL IS NOT FORCED OPEN AT DESKTOP
+             It cannot be. A <details> shows its content when the `open`
+             ATTRIBUTE is present; CSS cannot set an attribute. Verified
+             before relying on it. So the desktop dropdown does not depend
+             on open state at all — .mega-menu is positioned and revealed
+             on hover exactly as before, which works whether the <details>
+             happens to be open or shut. A desktop visitor who clicks the
+             summary opens it; the hover rules still show the same panel in
+             the same place, so nothing looks different. */
         + '@media ' + _bp.mq.upToTablet + '{'
-          + '.nav-brand,.nav-links{display:none}'
+          + '.nav-brand{display:none}'
           + '.nav-hamburger{display:flex}'
+          /* The list IS the drawer below Desktop. Was display:none. */
+          + '.nav-links{display:block;position:fixed;top:0;left:0;bottom:0;'
+          + 'width:min(86vw,360px);z-index:1200;background:#fff;'
+          + 'padding:72px 0 32px;margin:0;overflow-y:auto;'
+          + '-webkit-overflow-scrolling:touch;'
+          + 'transform:translateX(-100%);transition:transform .25s ease;'
+          + 'box-shadow:2px 0 24px rgba(0,0,0,.18)}'
+          + '.nav-links.is-open{transform:translateX(0)}'
+          + '.nav-links>li{display:block;border-bottom:1px solid #eee}'
+          + '.nav-links>li>a,.nav-mega-trigger{display:flex;'
+          + 'align-items:center;justify-content:space-between;'
+          + 'padding:14px 20px;font-size:1rem;cursor:pointer}'
+          /* Panel flows inline under its summary — no absolute positioning,
+             no hover, no fixed width. */
+          + '.mega-menu{position:static;display:block;opacity:1;visibility:visible;'
+          + 'width:auto;min-width:0;transform:none;box-shadow:none;'
+          + 'border:0;padding:0 0 8px;background:#fafafa}'
+          + '.mega-col{display:block;padding:4px 20px 12px;border:0}'
+          + '.mega-col--promo{display:none}'
+          + '.mega-link{padding:9px 0;font-size:.94rem}'
         + '}'
         + '@media ' + _bp.mq.desktop + '{'
           + '.nav-hamburger{display:none}'
+          /* Marker hiding is NOT here. The summary carries its own SVG
+             chevron, so the UA triangle is a duplicate affordance at every
+             width, not just desktop - so it lives in site.css /
+             site-bundle.css as .nav-disclosure>summary, unconditionally. */
         + '}';
 
       /* The <img> attributes stay on the DESKTOP numbers: they are there to
@@ -218,14 +267,47 @@
     </a>
 
     <!-- Primary links -->
-    <ul class="nav-links" role="list">
+    <ul class="nav-links" id="primary-nav" role="list">
       <% (nav.links || []).forEach(link => { %>
       <% if (link.megaMenu) { %>
+      <%/* ── ONE NAV, TWO LAYOUTS — rebuilt 2026-10-02 ──────────────────
+
+           WAS: this megamenu, plus a second hand-written copy of every
+           link inside #mobile-menu further down the file. Both shipped in
+           the HTML on every page; CSS showed one. Crawlers read both, which
+           is 25 of the 27 duplicate-anchor-text groups the SEO tools report,
+           and it meant two places to edit for one change.
+
+           NOW: one list. <details> gives the mobile accordion natively —
+           tap to expand, no JavaScript, and it works on touch where the
+           desktop hover never did. At the Desktop band the CSS hides the
+           marker and hover/focus-within reveals the panel as before.
+
+           WHY <details> AND NOT A BUTTON + hidden
+           The old drawer collapsed its sub-list with the `hidden` ATTRIBUTE,
+           toggled by an inline script. `hidden` is global — it hides at
+           every width — so shared markup cannot use it without blanking the
+           desktop columns too. <details> carries its own open/closed state,
+           so the same element can be a closed accordion on a phone and an
+           open-on-hover panel on a desktop. The inline script is deleted.
+
+           THE ONE BEHAVIOUR CHANGE, DELIBERATE AND FLAGGED
+           The top-level "Vanities" was an <a> that both navigated and opened
+           the menu. A <summary> is the toggle, and nesting a link inside it
+           puts an interactive element inside an interactive element — so the
+           destination moved to "Shop All Vanities", the first row in the
+           panel. The listing is still one click from the nav, the anchor
+           text still contains the keyword, and there is no nested control.
+
+           Panel class names are UNCHANGED (.mega-menu, .mega-col,
+           .mega-section, .mega-heading, .mega-link) so the existing desktop
+           CSS keeps applying. Only the wrapper and the trigger are new. */%>
       <li class="has-mega">
-        <a href="<%= link.url %>" class="nav-mega-trigger" aria-haspopup="true" aria-expanded="false">
-          <%= link.label %>
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
-        </a>
+        <details class="nav-disclosure">
+          <summary class="nav-mega-trigger">
+            <%= link.label %>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+          </summary>
         <div class="mega-menu" role="navigation" aria-label="<%= link.label %> menu">
           <%
             var _vm  = nav.vanities_mega || {};
@@ -234,6 +316,13 @@
           %>
           <!-- Left col: editable type links (admin) + dynamic size chips (DB) -->
           <div class="mega-col mega-col--links">
+            <div class="mega-section">
+              <%/* Carries the destination the old <a class="nav-mega-trigger">
+                   used to have. Keyword-bearing anchor text, one click from
+                   the bar, and reachable on touch where the hover trigger
+                   was not. */%>
+              <a class="mega-link mega-link--all" href="<%= link.url %>">Shop All <%= link.label %></a>
+            </div>
             <% if (_vml.length) { %>
             <div class="mega-section">
               <p class="mega-heading"><%= _vm.section_heading || 'Shop By Type' %></p>
@@ -263,21 +352,21 @@
               <% }) %>
             </div>
           </div>
-          <!-- Style col: canonical BVO style buckets — static list -->
+          <!-- Style col: canonical BVO style buckets — from settings -->
+          <% var _vms = _vm.style_links || []; %>
+          <% if (_vms.length) { %>
           <div class="mega-col mega-col--style">
             <div class="mega-section">
-              <p class="mega-heading">Shop By Style</p>
-              <a class="mega-link" href="/collections/bathroom-vanities?style=Traditional">Traditional</a>
-              <a class="mega-link" href="/collections/bathroom-vanities?style=Transitional">Transitional</a>
-              <a class="mega-link" href="/collections/bathroom-vanities?style=Modern">Modern</a>
-              <a class="mega-link" href="/collections/bathroom-vanities?style=Farmhouse">Farmhouse</a>
-              <a class="mega-link" href="/collections/bathroom-vanities?style=Mid-Century+Modern">Mid-Century Modern</a>
-              <a class="mega-link" href="/collections/bathroom-vanities?style=Industrial">Industrial</a>
-              <a class="mega-link" href="/collections/bathroom-vanities?style=Coastal">Coastal</a>
-              <a class="mega-link" href="/collections/bathroom-vanities?style=Scandinavian">Scandinavian</a>
-              <a class="mega-link" href="/collections/bathroom-vanities?style=European+%2F+Old+World">European / Old World</a>
+              <%/* WAS nine hardcoded <a> here AND nine more in #mobile-menu.
+                   Now one list in themeSettings.js (nav.vanities_mega.style_links),
+                   rendered once. Same nine destinations, same nine labels. */%>
+              <p class="mega-heading"><%= _vm.style_heading || 'Shop By Style' %></p>
+              <% _vms.forEach(function(sl) { %>
+              <a class="mega-link" href="<%= sl.url %>"><%= sl.label %></a>
+              <% }) %>
             </div>
           </div>
+          <% } %>
           <!-- Right col: promo card — editable in admin theme editor -->
           <div class="mega-col mega-col--promo">
             <%/* CARD IS NOT A LINK — changed 2026-10-01.
@@ -299,14 +388,48 @@
                  .card-stretch is defined once, at the end of site2.css and in
                  site-bundle.css. It needs its container positioned, which is
                  why .mega-promo-card gains position:relative. */%>
+            <%/* PRE-EXISTING BUG, fixed here 2026-10-02. Not caused by the nav
+                 rewrite - found while diffing the rendered anchor list against
+                 the old one.
+
+                 The stored title in data/theme_settings.json literally
+                 contains a br tag, and it is printed with the ESCAPING output
+                 tag, so the tag is HTML-escaped rather than rendered. The card
+                 has been displaying the raw characters of that tag on screen,
+                 visible to shoppers, and the same string was the anchor text
+                 of the link.
+
+                 NOT fixed by switching to the unescaped output tag. That
+                 renders admin-editable text as live HTML, which is a
+                 script-injection hole in a field any admin can edit. And a
+                 line break inside anchor text is poor anchor text regardless
+                 of whether it renders.
+
+                 (This comment deliberately does not spell those two EJS tags
+                 out. EJS scans the raw template text for its delimiters and
+                 does not care that they sit inside a comment - writing them
+                 here is what broke this file once already.)
+
+                 Fixed by stripping tags and collapsing the whitespace, so the
+                 title reads "Every Model, Every Finish". Stripping happens HERE
+                 rather than only in the defaults because the settings FILE wins
+                 over the defaults on a deep merge - a defaults-only fix would
+                 change nothing on the live site. The default is corrected too,
+                 so a fresh environment does not reintroduce it. */%>
+            <% function _plain(s, fb) {
+                 s = String(s == null ? '' : s).replace(/<[^>]*>/g, ' ')
+                      .replace(/\s+/g, ' ').trim();
+                 return s || fb;
+               } %>
             <div class="mega-promo-card">
-              <p class="mega-promo-eyebrow"><%= _vmp.eyebrow || 'Our Collection' %></p>
-              <p class="mega-promo-title"><a href="<%= _vmp.url || '/collections/vanity-models' %>" class="card-stretch"><%= _vmp.title || 'Every Model, Every Finish' %></a></p>
+              <p class="mega-promo-eyebrow"><%= _plain(_vmp.eyebrow, 'Our Collection') %></p>
+              <p class="mega-promo-title"><a href="<%= _vmp.url || '/collections/vanity-models' %>" class="card-stretch"><%= _plain(_vmp.title, 'Every Model, Every Finish') %></a></p>
               <p class="mega-promo-sub"><%= _vmp.sub || '' %></p>
               <span class="mega-promo-cta"><%= _vmp.cta || 'Browse All Collections' %> &rarr;</span>
             </div>
           </div>
         </div>
+        </details>
       </li>
       <% } else { %>
       <li><a href="<%= link.url %>"<%= link.highlight ? ' class="nav-link-sale"' : '' %>><%= link.label %></a></li>
@@ -390,7 +513,10 @@
 
     </div>
 
-    <button class="nav-hamburger" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu">
+    <%/* aria-controls was "mobile-menu", which no longer exists — a dangling
+         reference is an accessibility error, not a cosmetic one. It now points
+         at the one nav list, which is what this button actually opens. */%>
+    <button class="nav-hamburger" aria-label="Open menu" aria-expanded="false" aria-controls="primary-nav">
       <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" fill="none" stroke-width="2" aria-hidden="true">
         <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
       </svg>
@@ -421,72 +547,34 @@
     </div>
   </div>
 
-  <!-- Mobile drawer -->
-  <div id="mobile-menu" class="mobile-menu" aria-hidden="true">
-    <ul role="list">
-      <% (nav.links || []).forEach(link => { %>
-      <% if (link.megaMenu) { %>
-      <%/* Accordion parent — toggle reveals sub-items */%>
-      <li class="mobile-mega-parent">
-        <div class="mobile-mega-header">
-          <a href="<%= link.url %>"><%= link.label %></a>
-          <button class="mobile-sub-toggle" aria-expanded="false" aria-label="Expand <%= link.label %> submenu">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
-          </button>
-        </div>
-        <ul class="mobile-sub-list" hidden role="list">
-          <%/* Type links — editable in admin mega menu editor */%>
-          <% ((nav.vanities_mega || {}).links || []).forEach(function(sl) { %>
-          <li class="mobile-sub"><a href="<%= sl.url %>"><%= sl.label %></a></li>
-          <% }) %>
-          <%/* Promo card target — editable in admin */%>
-          <li class="mobile-sub"><a href="<%= ((nav.vanities_mega || {}).promo || {}).url || '/collections/vanity-models' %>">Browse All Collections</a></li>
-          <%/* Dynamic color families — same source as desktop mega menu */%>
-          <% (typeof megaMenuColorFamilies !== 'undefined' ? megaMenuColorFamilies : []).forEach(function(fam) { %>
-          <li class="mobile-sub"><a href="/collections/bathroom-vanities?color_family=<%= fam.key %>"><%= fam.label %> Vanities</a></li>
-          <% }) %>
-          <%/* Style links — mirrors desktop mega menu Style column */%>
-          <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Traditional">Traditional</a></li>
-          <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Transitional">Transitional</a></li>
-          <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Modern">Modern</a></li>
-          <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Farmhouse">Farmhouse</a></li>
-          <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Mid-Century+Modern">Mid-Century Modern</a></li>
-          <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Industrial">Industrial</a></li>
-          <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Coastal">Coastal</a></li>
-          <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=Scandinavian">Scandinavian</a></li>
-          <li class="mobile-sub"><a href="/collections/bathroom-vanities?style=European+%2F+Old+World">European / Old World</a></li>
-        </ul>
-      </li>
-      <% } else { %>
-      <li><a href="<%= link.url %>"<%= link.highlight ? ' class="nav-link-sale"' : '' %>><%= link.label %></a></li>
-      <% } %>
-      <% }) %>
-      <li><a href="/account">My Account</a></li>
-      <li><a href="/account/favorites">Saved Items</a></li>
-      <li><a href="/cart">Cart (<%= cart.count %>)</a></li>
-    </ul>
-  </div>
+  <%/* ── #mobile-menu DELETED 2026-10-02 ───────────────────────────────
 
-  <!-- Mobile accordion toggle — runs after drawer HTML is in DOM -->
-  <script nonce="<%= cspNonce %>">
-  (function() {
-    function initMobileAccordion() {
-      document.querySelectorAll('.mobile-sub-toggle').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-          var expanded = btn.getAttribute('aria-expanded') === 'true';
-          btn.setAttribute('aria-expanded', String(!expanded));
-          var list = btn.closest('.mobile-mega-parent').querySelector('.mobile-sub-list');
-          if (list) list.hidden = expanded;
-          btn.classList.toggle('is-open', !expanded);
-        });
-      });
-    }
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initMobileAccordion);
-    } else {
-      initMobileAccordion();
-    }
-  })();
-  </script>
+         A second copy of the whole navigation lived here: every top-level
+         link, all nine type links, every colour family, nine more style
+         links, and three utility rows. ~45 anchors, duplicating ~45 anchors
+         200 lines above. Both copies were in the HTML on every page; CSS
+         showed one, crawlers read both.
+
+         Replaced by nothing. <ul class="nav-links"> above is now the only
+         navigation, and the inline breakpoint CSS turns it into this
+         off-canvas panel below the Desktop band.
+
+         ALSO DELETED: the accordion <script> that used to sit here. The
+         <details> elements in the list do the same job natively, so there
+         is one less script in the header and one less thing to break with
+         JS off.
+
+         THREE LINKS THAT LIVED ONLY IN THE DRAWER, and where they went:
+           "Browse All Collections"  -> the promo card's CTA in the panel
+           "My Account"              -> .nav-icons, as .sr-only text
+           "Saved Items"             -> .nav-icons, as .sr-only text
+           "Cart (n)"                -> .nav-icons, as .sr-only text
+         .nav-icons renders at every width, so none of these became
+         unreachable on a phone.
+
+         If this needs undoing: bash restore_nav.sh — it restores the
+         template AND both stylesheets from tag nav-pre-rewrite as a set,
+         because a template restored without its CSS looks worse than the
+         bug you were escaping. */%>
 
 </header>

@@ -179,10 +179,40 @@ const DEFAULTS = {
         { label: 'Double Sink Vanity With Top', url: '/collections/bathroom-vanities-with-tops?type=Double+Sink+Vanity+With+Top' },
         { label: 'Cabinet Only',               url: '/collections/bathroom-vanity-cabinets' },
       ],
+      /* ── STYLE LINKS — ONE SOURCE, ADDED 2026-10-02 ─────────────────
+         These nine were hardcoded TWICE in header.ejs: once in the
+         desktop mega-menu Style column, once in the mobile drawer, with
+         the mobile copy carrying the comment "mirrors desktop mega menu
+         Style column". Eighteen <a> tags for nine destinations.
+
+         Nothing failed when they disagreed. Add a style, rename one,
+         change a URL — you had to remember to do it twice, and the two
+         menus would quietly differ by device.
+
+         They live here now because the nav rewrite renders one list for
+         both layouts, so there is one place to read them from. Unlike
+         vanities_mega.links these are the canonical BVO style buckets
+         rather than merchandising choices, so they are not expected to
+         change often — but when they do, this is the only edit. */
+      style_heading: 'Shop By Style',
+      style_links: [
+        { label: 'Traditional',          url: '/collections/bathroom-vanities?style=Traditional' },
+        { label: 'Transitional',         url: '/collections/bathroom-vanities?style=Transitional' },
+        { label: 'Modern',               url: '/collections/bathroom-vanities?style=Modern' },
+        { label: 'Farmhouse',            url: '/collections/bathroom-vanities?style=Farmhouse' },
+        { label: 'Mid-Century Modern',   url: '/collections/bathroom-vanities?style=Mid-Century+Modern' },
+        { label: 'Industrial',           url: '/collections/bathroom-vanities?style=Industrial' },
+        { label: 'Coastal',              url: '/collections/bathroom-vanities?style=Coastal' },
+        { label: 'Scandinavian',         url: '/collections/bathroom-vanities?style=Scandinavian' },
+        { label: 'European / Old World', url: '/collections/bathroom-vanities?style=European+%2F+Old+World' },
+      ],
       promo: {
         url:    '/collections/vanity-models',
         eyebrow: 'Our Collection',
-        title:  'Every Model,<br>Every Finish',
+        /* No <br>. It was escaped by <%= %> at render time and shipped as
+           visible raw markup on the promo card. header.ejs now strips tags
+           defensively too, because the settings file wins over this default. */
+        title:  'Every Model, Every Finish',
         sub:    'Browse all vanity collections, sizes, and styles at a glance.',
         cta:    'Browse All Collections',
       },
