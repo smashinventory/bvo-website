@@ -986,7 +986,26 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
               var _vmAdmin  = (nav.vanities_mega || {});
               var _vmlAdmin = Array.isArray(_vmAdmin.links) ? _vmAdmin.links : [];
               var _vmpAdmin = _vmAdmin.promo  || {};
+              var _vmsAdmin = Array.isArray(_vmAdmin.style_links) ? _vmAdmin.style_links : [];
             %>
+
+            <%/* ── THE "ALL" ROW ────────────────────────────────────────
+                 Added 2026-10-02 with the nav rewrite. Needs its own field
+                 because it is no longer derivable from anything else:
+                 "Vanities" in the menu bar used to be a link, and when it
+                 became a <summary> it stopped being one. This row is now
+                 the mega menu's ONLY route to the main collection. */%>
+            <div style="margin-top:1.75rem">
+              <div class="te4-section-label">Mega Menu — "All" Row</div>
+              <p style="font-size:.78rem;color:var(--te4-muted,#888);margin:.25rem 0 .75rem">
+                The first row of the Vanities menu, linking to the full collection.
+                It replaced clicking "Vanities" in the menu bar itself, which no longer navigates.
+                <strong>Leave blank to restore the default</strong> — this row cannot be removed,
+                because it is the only link from the menu to all vanities.
+              </p>
+              <%- teField('text','nav.vanities_mega.all_label','Link text',_vmAdmin.all_label||'All Bathroom Vanities',true) %>
+            </div>
+
             <div style="margin-top:1.75rem">
               <div class="te4-section-label">Mega Menu — Shop By Type Links</div>
               <p style="font-size:.78rem;color:var(--te4-muted,#888);margin:.25rem 0 .75rem">
@@ -1021,6 +1040,46 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
               </template>
             </div>
 
+            <%/* ── STYLE COLUMN ─────────────────────────────────────────
+                 These nine moved into settings on 2026-10-02 (they had been
+                 hardcoded twice in header.ejs) but no editor fields were
+                 added at the time, so the column was live-but-uneditable.
+                 That gap is what prompted this panel being extended. */%>
+            <div style="margin-top:1.75rem">
+              <div class="te4-section-label">Mega Menu — Shop By Style Links</div>
+              <p style="font-size:.78rem;color:var(--te4-muted,#888);margin:.25rem 0 .75rem">
+                The third column. Unlike Finish and Size, these are a fixed list rather than
+                read from the catalog — a style only appears here if you add it.
+              </p>
+              <%- teField('text','nav.vanities_mega.style_heading','Section heading',_vmAdmin.style_heading||'Shop By Style',true) %>
+              <div class="te4-array-header" style="margin-top:.75rem">
+                <span style="font-size:.8rem;font-weight:600">Style Links</span>
+                <button type="button" class="te4-add-btn" data-target="megaStyleList" data-tpl="megaStyleTpl">+ Add Link</button>
+              </div>
+              <div class="te4-array-list" id="megaStyleList">
+                <% _vmsAdmin.forEach(function(sl,j){ %>
+                <div class="te4-array-row">
+                  <span class="te4-array-drag">⠿</span>
+                  <div class="te4-array-fields te4-row2">
+                    <%- teField('text','nav.vanities_mega.style_links['+j+'].label','Label', sl.label, true) %>
+                    <%- teField('text','nav.vanities_mega.style_links['+j+'].url',  'URL / slug (relative path or ?filter=value)', sl.url, true) %>
+                  </div>
+                  <button type="button" class="te4-remove-row">×</button>
+                </div>
+                <% }) %>
+              </div>
+              <template id="megaStyleTpl">
+                <div class="te4-array-row">
+                  <span class="te4-array-drag">⠿</span>
+                  <div class="te4-array-fields te4-row2">
+                    <%- teField('text','nav.vanities_mega.style_links[__i__].label','Label', '', true) %>
+                    <%- teField('text','nav.vanities_mega.style_links[__i__].url',  'URL / slug', '', true) %>
+                  </div>
+                  <button type="button" class="te4-remove-row">×</button>
+                </div>
+              </template>
+            </div>
+
             <div style="margin-top:1.75rem">
               <div class="te4-section-label">Mega Menu — Promo Card (right column)</div>
               <div class="te4-row2" style="margin-top:.5rem">
@@ -1028,7 +1087,18 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
                 <%- teField('text','nav.vanities_mega.promo.cta',    'Button text',  _vmpAdmin.cta||'',    true) %>
               </div>
               <%- teField('text','nav.vanities_mega.promo.url',   'Card URL (slug or path)', _vmpAdmin.url||'',   true) %>
-              <%- teField('text','nav.vanities_mega.promo.title', 'Title (HTML ok — use &lt;br&gt; for line break)', _vmpAdmin.title||'', true) %>
+              <%/* LABEL CORRECTED 2026-10-02. It used to read
+                   "Title (HTML ok - use <br> for line break)", which was
+                   wrong and was the direct cause of a live bug: the field is
+                   printed with the escaping output tag, so a typed-in tag was
+                   escaped and the card displayed the raw characters of it to
+                   shoppers for months. The instruction in the label is what
+                   put it there.
+
+                   The renderer now strips tags, so typing one is harmless but
+                   silently does nothing - which is its own confusion if the
+                   label still invites it. Hence the plain-text note. */%>
+              <%- teField('text','nav.vanities_mega.promo.title', 'Title (plain text — HTML tags are removed)', _vmpAdmin.title||'', true) %>
               <%- teField('textarea','nav.vanities_mega.promo.sub','Sub-text', _vmpAdmin.sub||'', true) %>
             </div>
           </div>

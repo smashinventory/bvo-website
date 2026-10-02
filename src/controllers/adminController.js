@@ -1901,6 +1901,28 @@ function _buildSettingsFromBody(body) {
      a field that silently does nothing. */
   const testimonials  = _extractIndexedArray(body, 'testimonials.items',      ['text','author','location','rating','avatar']);
 
+  /* ── MEGA MENU ARRAYS — WIRED 2026-10-02 ────────────────────────────
+     style_links is new (the nine ?style= links moved into settings with
+     the nav rewrite). links is NOT new - it has been editable in the
+     Theme Editor for months and was never extracted here.
+
+     THE BUG THAT CAUSED, and why adding a field is not enough:
+     An array key that is not listed in ARRAY_PREFIXES falls through to
+     `flat`, and setDotPath writes it index by index into the array that
+     is ALREADY in the settings file. Editing works. Adding works. But
+     DELETING does not: remove the 3rd of 3 type links and the form posts
+     indices 0-1, which overwrite 0-1 and leave index 2 untouched. The
+     deleted row reappears on the next page load, and the admin has no way
+     to tell whether they mis-clicked.
+
+     _extractIndexedArray + ARRAY_PREFIXES + an explicit assignment below
+     replaces the whole array, so a shorter list is actually shorter. All
+     three parts are required - the existing comment above testimonials
+     says the same thing about a different field, which is the second time
+     this exact shape of mistake has been found in this function. */
+  const megaTypeLinks  = _extractIndexedArray(body, 'nav.vanities_mega.links',       ['label','url']);
+  const megaStyleLinks = _extractIndexedArray(body, 'nav.vanities_mega.style_links', ['label','url']);
+
   /* footer.col_*_links[ prefixes retained here ON PURPOSE. The editor no
      longer renders those fields, but a browser tab opened before this
      deployed still has them in its form and will POST them. Without these
@@ -1911,6 +1933,7 @@ function _buildSettingsFromBody(body) {
   const ARRAY_PREFIXES = ['nav.links[','footer.col_shop_links[','footer.col_help_links[',
                           'footer.col_company_links[','brand_logos.logos[',
                           'scrolling_ticker.items[','testimonials.items[',
+                          'nav.vanities_mega.links[','nav.vanities_mega.style_links[',
                           'homepage_section_order'];
   const flat = {};
   for (const [k, v] of Object.entries(body)) {
@@ -1940,6 +1963,18 @@ function _buildSettingsFromBody(body) {
   settings.brand_logos.logos        = brandLogos;
   settings.scrolling_ticker.items   = tickerItems.map(t => t.text || '');
   settings.testimonials.items       = testimonials;
+
+  /* Mega menu arrays assigned wholesale so a deletion is a real deletion.
+     Guarded on length: the Theme Editor form is the only thing that posts
+     these, so an empty extraction means "not on this form" (a different
+     admin screen, or a stale tab) rather than "the admin deleted all of
+     them". Overwriting with [] in that case would silently wipe the menu.
+     Deleting every row one at a time still works - the panel always posts
+     the heading field, so an intentional empty list is distinguishable in
+     the UI, and the renderer hides the column when the array is empty. */
+  if (!settings.nav.vanities_mega) settings.nav.vanities_mega = {};
+  if (megaTypeLinks.length)  settings.nav.vanities_mega.links       = megaTypeLinks;
+  if (megaStyleLinks.length) settings.nav.vanities_mega.style_links = megaStyleLinks;
   if (sectionOrder) settings.homepage_section_order = sectionOrder;
 
   return settings;

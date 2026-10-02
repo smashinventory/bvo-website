@@ -23,6 +23,8 @@ FILES=(
   public/js/site.js
   public/css/site.css
   public/css/site-bundle.css
+  views/pages/admin/theme.ejs
+  src/controllers/adminController.js
 )
 BAK=$(mktemp -d)
 
@@ -175,6 +177,56 @@ t=t.replace("title:  \x27Every Model, Every Finish\x27","title:  \x27Every Model
 mutate "br reintroduced into the settings default" src/services/themeSettings.js \
   "t=t.replace(\"title:  'Every Model, Every Finish'\",\"title:  'Every Model,\"+chr(60)+\"br>Every Finish'\")"
 
+# --- the "All" row label regressing to the duplicate ---
+mutate "all_label hardcoded back to Shop All <label>" views/partials/header.ejs \
+  "t=t.replace(\"<%= _plain(_vm.all_label, 'All Bathroom Vanities') %>\",\"Shop All <%= link.label %>\")"
+
+mutate "all_label setting removed" src/services/themeSettings.js \
+  "t=t.replace(\"all_label:\",\"all_labelX:\")"
+
+# --- THE THREE HISTORICAL SHAPES OF "a setting nobody can edit" ---
+# Each one is a real failure that happened in this codebase, reproduced.
+
+#  shape 1: read by the template, no panel field  (what style_links was)
+mutate "all_label field removed from the panel" views/pages/admin/theme.ejs \
+  "t=t.replace(\"nav.vanities_mega.all_label'\",\"nav.vanities_mega.all_labelX'\")"
+
+mutate "style_heading field removed from the panel" views/pages/admin/theme.ejs \
+  "t=t.replace(\"nav.vanities_mega.style_heading'\",\"nav.vanities_mega.style_headingX'\")"
+
+mutate "style_links rows removed from the panel" views/pages/admin/theme.ejs \
+  "t=t.replace('nav.vanities_mega.style_links[','nav.vanities_mega.style_linksX[')"
+
+mutate "promo.title field removed from the panel" views/pages/admin/theme.ejs \
+  "t=t.replace(\"nav.vanities_mega.promo.title'\",\"nav.vanities_mega.promo.titleX'\")"
+
+#  shape 2: panel field exists but the save handler never extracts it
+#           (what nav.vanities_mega.links was - deletion left a ghost row)
+mutate "style_links not extracted in save handler" src/controllers/adminController.js \
+  "t=t.replace(\"_extractIndexedArray(body, 'nav.vanities_mega.style_links'\",\"_noExtract(body, 'nav.vanities_mega.style_linksX'\")"
+
+mutate "type links not extracted in save handler" src/controllers/adminController.js \
+  "t=t.replace(\"_extractIndexedArray(body, 'nav.vanities_mega.links'\",\"_noExtract(body, 'nav.vanities_mega.linksX'\")"
+
+#  shape 3: extracted but missing from ARRAY_PREFIXES, so it also falls
+#           through to setDotPath and the stale tail survives anyway
+mutate "style_links dropped from ARRAY_PREFIXES" src/controllers/adminController.js \
+  "t=t.replace(\"'nav.vanities_mega.style_links[',\",'')"
+
+mutate "type links dropped from ARRAY_PREFIXES" src/controllers/adminController.js \
+  "t=t.replace(\"'nav.vanities_mega.links[',\",'')"
+
+#  ...and extracted + prefixed but never assigned back
+mutate "style_links never assigned back onto settings" src/controllers/adminController.js \
+  "t=t.replace('settings.nav.vanities_mega.style_links =','var _unused_style =')"
+
+mutate "type links never assigned back onto settings" src/controllers/adminController.js \
+  "t=t.replace('settings.nav.vanities_mega.links       =','var _unused_type =')"
+
+# --- the field label that caused the live bug ---
+mutate "promo title label tells admins to type a br tag" views/pages/admin/theme.ejs \
+  "t=t.replace(\"'Title (plain text \"+chr(8212)+\" HTML tags are removed)'\",\"'Title (HTML ok \"+chr(8212)+\" use &lt;br&gt; for line break)'\")"
+
 echo
 echo "=== restore verification ==="
 restore
@@ -188,7 +240,7 @@ for f in "${FILES[@]}"; do
     CLEAN=0
   fi
 done
-[ $CLEAN -eq 1 ] && echo "  ok   all 5 files byte-identical to their pre-mutation state"
+[ $CLEAN -eq 1 ] && echo "  ok   all ${#FILES[@]} files byte-identical to their pre-mutation state"
 
 echo
 echo "=== gate passes again after restore ==="

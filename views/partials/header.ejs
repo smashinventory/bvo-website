@@ -313,6 +313,30 @@
             var _vm  = nav.vanities_mega || {};
             var _vml = _vm.links || [];
             var _vmp = _vm.promo || {};
+
+            /* Admin-editable text -> plain prose. Strips tags and collapses
+               whitespace, with a fallback when the field is blank.
+
+               WHY IT EXISTS: these fields are printed with the ESCAPING
+               output tag, so a tag typed into the Theme Editor is escaped
+               and renders as visible raw markup rather than as formatting.
+               The promo title shipped exactly that for months - the field's
+               own help text used to tell admins to type a line-break tag.
+
+               NOT solved by the unescaped output tag: that renders
+               admin-editable text as live HTML, which is a script-injection
+               hole in a field any admin can edit.
+
+               Defined HERE, at the top of the block, rather than beside its
+               first use further down. Function declarations hoist, so the
+               late definition did work - but depending on hoisting across
+               200 lines of template is not something to leave for the next
+               person to discover. */
+            function _plain(s, fb) {
+              s = String(s == null ? '' : s).replace(/<[^>]*>/g, ' ')
+                   .replace(/\s+/g, ' ').trim();
+              return s || fb;
+            }
           %>
           <!-- Left col: editable type links (admin) + dynamic size chips (DB) -->
           <div class="mega-col mega-col--links">
@@ -320,8 +344,13 @@
               <%/* Carries the destination the old <a class="nav-mega-trigger">
                    used to have. Keyword-bearing anchor text, one click from
                    the bar, and reachable on touch where the hover trigger
-                   was not. */%>
-              <a class="mega-link mega-link--all" href="<%= link.url %>">Shop All <%= link.label %></a>
+                   was not.
+
+                   Editable: Theme Editor -> Navigation -> Mega Menu.
+                   Blank falls back to the default rather than hiding the row,
+                   because this is the mega menu's ONLY link to the main
+                   collection - see the note in themeSettings.js. */%>
+              <a class="mega-link mega-link--all" href="<%= link.url %>"><%= _plain(_vm.all_label, 'All Bathroom Vanities') %></a>
             </div>
             <% if (_vml.length) { %>
             <div class="mega-section">
@@ -416,11 +445,6 @@
                  over the defaults on a deep merge - a defaults-only fix would
                  change nothing on the live site. The default is corrected too,
                  so a fresh environment does not reintroduce it. */%>
-            <% function _plain(s, fb) {
-                 s = String(s == null ? '' : s).replace(/<[^>]*>/g, ' ')
-                      .replace(/\s+/g, ' ').trim();
-                 return s || fb;
-               } %>
             <div class="mega-promo-card">
               <p class="mega-promo-eyebrow"><%= _plain(_vmp.eyebrow, 'Our Collection') %></p>
               <p class="mega-promo-title"><a href="<%= _vmp.url || '/collections/vanity-models' %>" class="card-stretch"><%= _plain(_vmp.title, 'Every Model, Every Finish') %></a></p>

@@ -170,6 +170,28 @@ const DEFAULTS = {
     /** Mega-menu content for the Vanities top-level link.
      *  Kept separate from nav.links so array reindex never corrupts nested keys. */
     vanities_mega: {
+      /* ── THE "ALL" ROW — ADDED 2026-10-02 ──────────────────────────
+         First row of the panel, and the ONLY link in the mega menu to the
+         main collection. It carries the destination the top-level
+         "Vanities" trigger used to have, before that trigger became a
+         <summary> and stopped being a link.
+
+         WAS hardcoded as 'Shop All ' + the menu item's label, which
+         rendered "Shop All Vanities" - character-for-character identical
+         to the parallax band's CTA on the homepage, and seobility flagged
+         the pair as the last remaining duplicate anchor text on the page.
+
+         "All Bathroom Vanities" instead: it is not the CTA's wording, and
+         it carries the exact collection keyword rather than the generic
+         verb "Shop", which is better anchor text on its own merits.
+
+         A BLANK VALUE FALLS BACK TO THIS DEFAULT RATHER THAN HIDING THE
+         ROW. Hiding it would leave the mega menu with no link at all to
+         /collections/bathroom-vanities - the trigger is not a link any
+         more - so an admin clearing the field would silently orphan the
+         main collection from the navigation. The field help text in the
+         Theme Editor says so. */
+      all_label: 'All Bathroom Vanities',
       section_heading: 'Shop By Type',
       // Taxonomy overhaul 2026-07-31: links updated to new SEO display category slugs.
       // Note: Admin → Theme Editor → Navigation may have DB-stored overrides that take

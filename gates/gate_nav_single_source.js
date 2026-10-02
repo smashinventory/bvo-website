@@ -103,9 +103,16 @@ console.log('\n-- nothing became unreachable --');
 // without nesting interactive elements, so the destination moved into the
 // panel. If that row goes, the collection drops out of the nav entirely.
 check(/class="mega-link mega-link--all"/.test(header),
-      'the "Shop All ..." row carrying the old trigger destination exists');
+      'the "All" row carrying the old trigger destination exists');
 check(/mega-link--all"\s+href="<%=\s*link\.url\s*%>"/.test(header),
       '...and it points at link.url, not a hardcoded path');
+/* Its LABEL must come from settings, not be hardcoded. It was hardcoded as
+   'Shop All ' + the menu label, which collided with the homepage parallax
+   CTA's "Shop All Vanities" - the last duplicate anchor text on the page. */
+check(/mega-link--all"[\s\S]{0,80}_vm\.all_label/.test(header),
+      '...and its label comes from settings, not a hardcoded string');
+check(!/>Shop All <%=\s*link\.label\s*%></.test(header),
+      '...and the old hardcoded "Shop All <label>" form is gone');
 
 // These three lived only in the drawer. They survive as .sr-only text on the
 // icon cluster, which renders at every width.
@@ -128,6 +135,80 @@ const hardcoded = STYLES.filter(s => header.includes(`>${s}</a>`));
 check(hardcoded.length === 0,
       `no style label hardcoded in the template (found ${hardcoded.length}: ${hardcoded.join(', ') || 'none'})`);
 check(/_vm\.style_links/.test(header), 'template reads style_links from settings');
+
+/* ───────────── 4b. EVERY MEGA MENU SETTING IS EDITABLE ─────────────
+   THE RULE THIS ENFORCES
+   A field the template READS must be SETTABLE in the Theme Editor panel and,
+   if it is an array, EXTRACTED in the save handler. Two of the three is a
+   field that silently does nothing.
+
+   WHY IT IS ASSERTED RATHER THAN REMEMBERED
+   This has now gone wrong three times in this codebase, each time differently:
+     - testimonials.avatar was read by index.ejs but was in neither the panel
+       nor the extract list, so every review drew an empty circle;
+     - style_links was moved into settings on 2026-10-02 and given no panel
+       fields at all, so the column was live but uneditable - which is what
+       prompted "I don't see a way to edit the mega menu";
+     - nav.vanities_mega.links HAD panel fields but was never extracted, so
+       deleting a type link left a ghost row that came back on reload.
+   Three different halves missing, same root cause. Hence a derived check
+   rather than a hand-maintained list: it reads what the TEMPLATE uses and
+   demands the editor keep up, so a new setting cannot be added without one. */
+console.log('\n-- every mega menu setting is editable --');
+{
+  const theme = read('views/pages/admin/theme.ejs');
+  const admin = read('src/controllers/adminController.js');
+
+  /* Scalars the template reads off _vm (the vanities_mega object). Derived
+     from the template text, not listed by hand. */
+  const readScalars = [...new Set(
+    [...header.matchAll(/_vm\.([a-z_]+)/g)].map(m => m[1])
+  )].filter(k => !['links', 'style_links', 'promo'].includes(k));
+
+  check(readScalars.length > 0, `found scalar settings in the template (${readScalars.join(', ')})`);
+  for (const key of readScalars) {
+    check(theme.includes(`nav.vanities_mega.${key}'`),
+          `  ${key}: has a Theme Editor field`);
+    /* ...and a DEFAULT. Added after the mutation sweep found this hole:
+       deleting all_label from DEFAULTS left the gate green, because the
+       template and the panel BOTH carry their own hardcoded fallback and
+       between them they papered over the missing key.
+
+       It still renders, so it is not a visible bug - which is exactly why
+       it needs asserting. A key absent from DEFAULTS is never seeded into
+       a fresh settings file, so the "setting" exists only as two duplicated
+       literals in a template and an admin screen, which then drift. The
+       fallbacks are a safety net, not the source of truth. */
+    check(new RegExp(`\\b${key}\\s*:`).test(settings),
+          `  ${key}: has a default in themeSettings.js`);
+  }
+
+  /* Arrays need all three parts. */
+  for (const arr of ['links', 'style_links']) {
+    const p = `nav.vanities_mega.${arr}`;
+    check(theme.includes(`${p}[`),            `  ${arr}: editable in the panel`);
+    check(admin.includes(`'${p}'`),           `  ${arr}: extracted in the save handler`);
+    check(admin.includes(`'${p}[`),           `  ${arr}: listed in ARRAY_PREFIXES`);
+    check(new RegExp(`vanities_mega\\.${arr}\\s*=`).test(admin),
+                                              `  ${arr}: assigned back onto settings`);
+  }
+
+  /* The promo-card fields are read off _vmp, and all three go through the
+     same panel. */
+  for (const key of ['eyebrow', 'cta', 'url', 'title', 'sub']) {
+    check(theme.includes(`nav.vanities_mega.promo.${key}'`),
+          `  promo.${key}: has a Theme Editor field`);
+  }
+
+  /* The field label must not instruct admins to type HTML. The old label
+     read "use <br> for line break" and is the documented cause of the promo
+     card rendering raw markup to shoppers for months - the admin did exactly
+     what the label said. */
+  check(!/promo\.title'[^)]*<br/i.test(theme) && !/promo\.title'[^)]*&lt;br/i.test(theme),
+        'the promo title label no longer tells admins to type a br tag');
+  check(/promo\.title'\s*,\s*'Title \(plain text/.test(theme),
+        '...and says plain text instead');
+}
 
 /* ───────────── 5. the CSS that would silently break the phone ───────────── */
 console.log('\n-- CSS --');
