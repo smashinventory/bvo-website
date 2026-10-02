@@ -1897,3 +1897,137 @@ Small, cheap, not yet done:
 - **Model card image alts** read "Brittany vanity", "Hudson vanity". For an
   image link the alt IS the anchor text, so that is the entire signal for
   those collection pages. Thin.
+
+---
+
+## Theme Editor — found 2026-10-02 while making the mega menu editable
+
+### A. The Theme Editor publishes every keystroke to the LIVE site — SEVERE
+
+**Reported by Sam:** "I noticed that it displays without me selecting save."
+
+`views/pages/admin/theme.ejs`:
+
+```js
+form.addEventListener('input',  function () { markDirty(); schedulePreview(); });
+form.addEventListener('change', function () { markDirty(); schedulePreview(); });
+```
+
+`schedulePreview()` debounces 650ms, then POSTs the whole form to
+`/admin/theme/preview`. That route is not a preview:
+
+```js
+exports.themeSavePreview = (req, res) => {
+  const settings = _buildSettingsFromBody(req.body);
+  _persistSettings(settings);     // writes data/theme_settings.json AND the DB
+  themeSettings.reload();         // clears the cache, so the PUBLIC site serves it
+  req.session.tePreviewSettings = settings;
+  res.json({ ok: true });
+};
+```
+
+So 650ms after the admin stops typing, the half-finished value is live to
+every visitor, and persisted to the database so a redeploy will not undo it.
+
+**Confirmed in the wild, not theorised.** Sam re-added a deleted style link,
+and `Coasta` — the word mid-typing — was served on the live homepage. The URL
+beside it was complete, which is what ruled out a truncation bug in the
+renderer and pointed here.
+
+**Consequences**
+- Shoppers see mid-word drafts in the navigation.
+- The Save button does not control persistence. It is decorative for that.
+- `markDirty()` shows an unsaved-changes state that is not true.
+- Opening the editor to "look at options" mutates the live site.
+
+**The correct mechanism ALREADY EXISTS and is defeated by one line.**
+`src/server.js:510`:
+
+```js
+const isPreview = req.query.te_preview === '1' && req.session.isAdmin
+                  && req.session.tePreviewSettings;
+res.locals.settings = isPreview ? req.session.tePreviewSettings : themeSettings.get();
+```
+
+A session-scoped draft, visible only to the signed-in admin, in the preview
+iframe. Exactly right. `_persistSettings()` on the line above makes it
+redundant by writing globally first.
+
+**Fix:** drop `_persistSettings(settings)` and `themeSettings.reload()` from
+`themeSavePreview`, keeping only the session assignment.
+
+**Why it needs gating both ways before anyone touches it.** The failure mode
+of a careless fix is the mirror image and worse: if anything else depends on
+the preview route persisting, Save silently stops working and edits are lost
+on navigate-away. Assert BOTH directions:
+1. typing into the form does NOT change `data/theme_settings.json`;
+2. pressing Save DOES.
+Mutation-test each. Check whether any other admin screen posts to
+`/theme/preview` expecting it to persist before removing the call.
+
+**Interim guidance for Sam:** treat the Theme Editor as live editing. Do not
+browse it speculatively on the production site.
+
+---
+
+### B. The drag handles do nothing — Sam's request, 2026-10-02
+
+Every array row in the Theme Editor renders `<span class="te4-array-drag">⠿</span>`.
+It is decorative. There is no `draggable` attribute and no drag JS behind it.
+Only the homepage section-order list (`te4-sec-draggable`, `draggable="true"`)
+reorders for real.
+
+Affects SIX lists, not just the mega menu:
+
+| List | Panel |
+|---|---|
+| `nav.links` | Navigation (now points at Menu Manager) |
+| `nav.vanities_mega.links` | Mega Menu — Shop By Type |
+| `nav.vanities_mega.style_links` | Mega Menu — Shop By Style (added 2026-10-02) |
+| `brand_logos.logos` | Brand Logos |
+| `scrolling_ticker.items` | Announcement bar |
+| `testimonials.items` | Testimonials |
+
+Sam hit it on the mega menu: re-adding a deleted style link appends to the
+end, and the obvious way to move it back does nothing.
+
+Two of those six instances are mine — I copied the established row pattern
+when building the Style Links panel rather than noticing the handle was inert.
+
+**Two options, and the choice matters more than the work:**
+1. **Wire it up.** One sortable implementation applied to `.te4-array-list`,
+   renumbering the `[n]` field names on drop. The renumbering is the whole
+   job — the field names carry the order, so a drop that moves DOM rows
+   without rewriting indices changes nothing on save, which would look
+   identical to the current bug.
+2. **Remove the handle.** Honest immediately, costs nothing, and ordering
+   stays a retype. Reasonable given order is cosmetic in all six lists —
+   none of them carries SEO weight.
+
+Do NOT do it for one list only. Six identical-looking grips where one works
+is worse than six that all do nothing.
+
+**Gate:** whichever way it goes, assert the handle and the behaviour agree —
+either every `.te4-array-list` row is draggable with index renumbering on
+drop, or no `te4-array-drag` span is rendered anywhere. The current state,
+affordance without behaviour, is what the gate exists to forbid.
+
+---
+
+### C. Footer Facebook icon has no anchor text — small
+
+`views/partials/footer.ejs`: inline SVG, `aria-label="Facebook"`, no text.
+aria-label wins for the accessible name, so assistive tech is fine, but a
+crawler reading anchor text sees an empty link.
+
+Same shape as the three nav icons fixed in `cc748a9`, and the same fix: an
+`.sr-only` span, dropping the aria-label (both cannot win — aria-label
+overrides element contents).
+
+NOT in seobility's "links without anchor text" count, because that list is
+internal links only and this is external. Different warning class, which is
+why it was left out of the 2026-10-02 commits rather than bundled in.
+
+Also noted: Facebook is the only social link rendering. If Instagram or
+Pinterest URLs are set in settings and not appearing, that is separate and
+unverified.
