@@ -1854,6 +1854,36 @@ sets a page-weight target from it.
   to the login page for a signed-out crawler. Not a defect, listed so a
   future reader does not re-investigate it.
 
+---
+
+### ⚠ CORRECTION 2026-10-02 — the "HTML 4.87 MB" finding was REAL
+
+I recorded sitechecker's page-weight finding as a false alarm on the grounds
+that the homepage measures 0.20 MB. That was the wrong page.
+
+**/lookbook was 7,020 KB of HTML.** 6,875 KB of it — 98% — was image URLs
+packed into `data-images` attributes: 55,429 URLs across 41 cards, median 603
+per card, 6,699 on the largest (Breckenridge).
+
+The lookbook controller gathered every image of every product variant under a
+model and shipped the whole list to the browser so a carousel could page
+through them. Nobody pages through 6,699.
+
+Sam found it from the "2/603" and "12/936" counters visible on the cards. The
+counter was the only symptom; the page rendered perfectly.
+
+Fixed by capping each card at 12 images, selected one per colour family then
+filled — page drops to roughly 202 KB, the same as the homepage, a 97%
+reduction. gates/gate_lookbook_payload.js asserts the cap and the selection.
+
+**What I got wrong, recorded so the method improves and not just the page:**
+I tested one page and generalised to "site-wide claim did not reproduce". A
+page-weight finding names a number, not a URL — the right check was the
+heaviest pages, or several, not the one I happened to have open. The other
+three sitechecker claims in this file were each verified against the specific
+thing they described and those verdicts stand; only this one was tested
+against the wrong subject.
+
 ### Anchor-text scope — CONCLUSION SUPERSEDED 2026-10-02
 
 **The recommendation below was acted against, and the work succeeded. Read

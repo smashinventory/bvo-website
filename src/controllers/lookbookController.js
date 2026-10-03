@@ -189,9 +189,11 @@ exports.index = async (req, res, next) => {
         const allIds = allVariants.map(v => v.id);
         const idPh   = allIds.map(() => '?').join(',');
 
-        // Images for all variant IDs — cabinet-only variant images lead.
+        /* color_family added to the SELECT 2026-10-02 — the carousel now
+           picks one image per colour before filling, so it has to know
+           which colour each image belongs to. */
         const [imgRows] = await bvoPool.query(`
-          SELECT pi.product_id, pi.url, p.model, p.brand
+          SELECT pi.product_id, pi.url, p.model, p.brand, p.color_family
           FROM product_images pi
           JOIN products p ON p.id = pi.product_id
           WHERE pi.product_id IN (${idPh})
@@ -200,19 +202,77 @@ exports.index = async (req, res, next) => {
                    pi.is_primary DESC, pi.sort_order ASC, pi.id ASC
         `, allIds);
 
-        // Accumulate per-model, deduplicating by URL.
-        const modelImages  = {};
-        const modelSeenUrl = {};
+        /* ── THE CAROUSEL IS CAPPED. Added 2026-10-02. ──────────────────
+           This loop used to accumulate EVERY image of EVERY variant under a
+           model and put the whole list in the card's data-images attribute.
+
+           What that actually shipped, measured on the live page:
+
+             /lookbook HTML ............ 7,020 KB
+             image URLs in attributes .. 55,429 across 41 cards
+             of which data-images ...... 6,875 KB — 98% of the page
+             median per card ........... 603
+             largest card .............. 6,699  (Breckenridge)
+
+           Seven megabytes of HTML on every visit, for a carousel nobody
+           pages past the first few frames of. Sam spotted it from the "2/603"
+           and "12/936" counters on the cards — the counter was the only
+           visible symptom.
+
+           It also retrospectively confirms a finding I had recorded as a
+           false alarm: sitechecker reported "HTML 4.87 MB", I checked the
+           HOMEPAGE (0.20 MB), and wrote it off. It was true, on a page I had
+           not looked at. OPEN_ITEMS.md is corrected.
+
+           SELECTION: ONE PER COLOUR, THEN FILL.
+           Not simply the first N. The card shows colour swatches, and
+           clicking one should have something distinct to show — taking the
+           first N in query order can return a dozen frames of the same
+           finish, because variants are ordered by product, not by colour.
+           So: walk the rows in their existing priority order (cabinet-only
+           first, then primary, then sort order), take the FIRST image of
+           each colour family, then top up to the cap with whatever is left
+           in that same order.
+
+           The cap lives in one constant below. At 12 the page measures
+           ~202 KB — the same weight as the homepage, a 97% reduction. */
+        const LOOKBOOK_CARD_IMAGE_CAP = 12;
+
+        const modelImages  = {};   // final, capped list per model
+        const modelSeenUrl = {};   // URL dedupe — many variants share a hero shot
+        const modelByColor = {};   // first image per colour family
+        const modelRest    = {};   // everything else, in priority order
+
         for (const row of imgRows) {
           const k = modelKey(row);
-          if (!modelImages[k]) {
-            modelImages[k]  = [];
+          if (!modelSeenUrl[k]) {
             modelSeenUrl[k] = new Set();
+            modelByColor[k] = new Map();
+            modelRest[k]    = [];
           }
-          if (!modelSeenUrl[k].has(row.url)) {
-            modelImages[k].push(row.url);
-            modelSeenUrl[k].add(row.url);
+          if (modelSeenUrl[k].has(row.url)) continue;
+          modelSeenUrl[k].add(row.url);
+
+          /* A null/empty colour_family must not collapse every uncoloured
+             variant into one bucket keyed "undefined" — that would reserve a
+             single slot for all of them and push real colours out. Those go
+             straight to the fill pile. */
+          const cf = row.color_family || null;
+          if (cf && !modelByColor[k].has(cf)) modelByColor[k].set(cf, row.url);
+          else                                modelRest[k].push(row.url);
+        }
+
+        for (const k of Object.keys(modelSeenUrl)) {
+          const perColour = [...modelByColor[k].values()];
+          const picked    = perColour.slice(0, LOOKBOOK_CARD_IMAGE_CAP);
+          /* Only fill if the colours did not already reach the cap. A model
+             in 20 finishes shows 12 colours rather than 12 near-identical
+             shots of the first one. */
+          for (const url of modelRest[k]) {
+            if (picked.length >= LOOKBOOK_CARD_IMAGE_CAP) break;
+            picked.push(url);
           }
+          modelImages[k] = picked;
         }
 
         // Colors the model is available in (for card swatches).
