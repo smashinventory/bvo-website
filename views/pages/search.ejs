@@ -88,8 +88,11 @@
         var _onSale = product.compare_price && parseFloat(product.compare_price) > parseFloat(product.price);
       %>
       <article class="product-card<%= _qtyRaw === 0 ? ' product-card--no-stock' : '' %>">
-        <a href="/products/<%= product.slug %>" class="product-img-link" aria-label="<%= product.name %>">
-          <div class="product-img">
+        <%# The <a> wraps the photo only. .product-img stays the positioning
+            context for the badge but is now the PARENT of the link, so the
+            badge word is no longer part of the anchor text. %>
+        <div class="product-img">
+          <a href="/products/<%= product.slug %>" class="product-img-link" aria-label="<%= product.name %>">
             <% if (product.primary_image) { %>
               <img class="product-img-pri" src="<%= product.primary_image %>?width=400" alt="<%= product.name %>" loading="lazy">
             <% } else { %>
@@ -99,13 +102,13 @@
                 <polyline points="21 15 16 10 5 21"/>
               </svg>
             <% } %>
+          </a>
             <% if (product.badge === 'best') { %>
               <span class="product-badge badge-best">BEST</span>
             <% } else if (product.badge === 'new') { %>
               <span class="product-badge badge-new">NEW</span>
             <% } %>
           </div>
-        </a>
         <div class="product-body">
           <% if (product.brand) { %><p class="product-brand"><%= product.brand %></p><% } %>
           <h3 class="product-title">
@@ -175,13 +178,16 @@
           var _onSale = product.compare_price && parseFloat(product.compare_price) > parseFloat(product.price);
         %>
         <article class="product-card<%= _qtyRaw === 0 ? ' product-card--no-stock' : '' %>">
-          <a href="/products/<%= product.slug %>" class="product-img-link" aria-label="<%= product.name %>">
-            <div class="product-img">
+          <%# Same shape as the card above, kept identical on purpose: one DOM
+              structure for .product-img across the site, so one CSS rule
+              describes it. This card carries no badge today. %>
+          <div class="product-img">
+            <a href="/products/<%= product.slug %>" class="product-img-link" aria-label="<%= product.name %>">
               <% if (product.primary_image) { %>
                 <img class="product-img-pri" src="<%= product.primary_image %>?width=400" alt="<%= product.name %>" loading="lazy">
               <% } %>
-            </div>
-          </a>
+            </a>
+          </div>
           <div class="product-body">
             <% if (product.brand) { %><p class="product-brand"><%= product.brand %></p><% } %>
             <h3 class="product-title">

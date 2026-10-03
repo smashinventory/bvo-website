@@ -28,8 +28,12 @@
     <div class="listing-grid" style="margin-top:0">
       <% products.forEach(function(product) { %>
       <article class="product-card">
-        <a href="/products/<%= product.slug %>" class="product-img-link" aria-label="<%= product.name %>">
-          <div class="product-img">
+        <%# The <a> wraps the photo only, so the badge is not part of the link
+            and the heart <button> is no longer nested inside an anchor —
+            interactive content inside interactive content, which no browser
+            is obliged to make work. %>
+        <div class="product-img">
+          <a href="/products/<%= product.slug %>" class="product-img-link" aria-label="<%= product.name %>">
             <% if (product.primary_image) { %>
               <img src="<%= product.primary_image %>" alt="<%= product.name %>" loading="lazy">
             <% } else { %>
@@ -39,6 +43,7 @@
                 <polyline points="21 15 16 10 5 21"/>
               </svg>
             <% } %>
+          </a>
             <% if (product.badge) { %>
             <span class="product-badge badge-<%= product.badge %>"><%= product.badge.toUpperCase() %></span>
             <% } %>
@@ -53,7 +58,6 @@
               </svg>
             </button>
           </div>
-        </a>
         <div class="product-body">
           <% if (product.brand) { %><p class="product-brand"><%= product.brand %></p><% } %>
           <h3 class="product-title">

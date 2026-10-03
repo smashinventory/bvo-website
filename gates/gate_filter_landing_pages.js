@@ -228,8 +228,17 @@ for (const f of ['public/css/site.css', 'public/css/site-bundle.css']) {
   check(!/(^|})\.cat-intro\s*\{/.test(css),
         `${f}: not written as a bare .cat-intro, which .cat-header p would beat`);
 }
-check(/site-bundle\.css\?v=28/.test(read('views/layouts/main.ejs')),
-      'the cache buster was bumped, or nobody gets the new rule');
+/* COMPARED AS A NUMBER, NOT PINNED TO 28. This was written as
+   /site-bundle\.css\?v=28/ and went red the moment the next unrelated change
+   bumped the stylesheet to 29 — it asserted "the version is the version I
+   happened to write", which is true until someone does the right thing.
+   What has to hold is that the version is at or past the one this feature's
+   CSS landed in. */
+{
+  const m = read('views/layouts/main.ejs').match(/site-bundle\.css\?v=(\d+)/);
+  check(!!m && Number(m[1]) >= 28,
+        `the cache buster is at or past this feature's version (v=${m ? m[1] : 'NONE'} >= 28)`);
+}
 
 /* ───────────── 7. the corrected Vanity Style record ───────────── */
 console.log('\n-- the Vanity Style correction holds --');

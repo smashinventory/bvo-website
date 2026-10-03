@@ -1233,8 +1233,20 @@
                           : 9;
       %>
       <article class="product-card<%= product.hover_image ? ' has-hover-img' : '' %><%= _pQtyRaw === 0 ? ' product-card--no-stock' : '' %>">
-        <a href="/products/<%= product.slug %>" class="product-img-link" aria-label="<%= product.name %>">
-          <div class="product-img">
+        <%# THE LINK WRAPS THE IMAGE, NOT THE WHOLE IMAGE BOX.
+            .product-img is the positioning context for the callout badge, the
+            video badge and the heart, and it used to sit INSIDE this <a>. That
+            put the badge inside the link, so the anchor text of every product
+            link in this grid began with the badge word — "HOT SELLER" to eight
+            different products on one page, which is the one anchor-text
+            failure that does real damage. The badges rotate, so it was not
+            even stable from crawl to crawl.
+            .product-img is now the parent and the <a> wraps only the photo.
+            The badges keep their position:absolute reference and contribute
+            nothing to the link. It also un-nests the heart <button>, which was
+            interactive content inside an anchor — invalid either way. %>
+        <div class="product-img">
+          <a href="/products/<%= product.slug %>" class="product-img-link" aria-label="<%= product.name %>">
             <% if (product.primary_image) { %>
               <%/* Responsive card photo. Measured against the live page: the image is
        210px tall with a width that moves by breakpoint --
@@ -1286,6 +1298,7 @@
                 <polyline points="21 15 16 10 5 21"/>
               </svg>
             <% } %>
+          </a>
             <%# Only BEST wins outright. Everything else comes from the
                 rotation, so a grid of discounted products no longer reads
                 SALE on every card while each one also prints its saving
@@ -1311,7 +1324,6 @@
               </svg>
             </button>
           </div>
-        </a>
         <div class="product-body">
           <% if (product.brand) { %><p class="product-brand"><%= product.brand %></p><% } %>
           <h3 class="product-title">

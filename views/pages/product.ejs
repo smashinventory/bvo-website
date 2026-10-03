@@ -942,8 +942,11 @@
   <div class="product-grid">
     <% suggestedMirrors.forEach(function(m) { %>
     <article class="product-card">
-      <a href="/products/<%= m.slug %>" class="product-img-link">
-        <div class="product-img">
+      <%# One DOM shape for .product-img everywhere: the box is the parent,
+          the <a> wraps the photo. No badge on this card today, kept identical
+          so a single CSS rule describes every product card on the site. %>
+      <div class="product-img">
+        <a href="/products/<%= m.slug %>" class="product-img-link">
           <% if (m.primary_image) { %>
             <img src="<%= m.primary_image %>" alt="<%= m.name %>" loading="lazy">
           <% } else { %>
@@ -953,8 +956,8 @@
               <polyline points="21 15 16 10 5 21"/>
             </svg>
           <% } %>
-        </div>
-      </a>
+        </a>
+      </div>
       <div class="product-body">
         <p class="product-brand"><%= product.brand %></p>
         <h3 class="product-title"><a href="/products/<%= m.slug %>"><%= m.name %></a></h3>
@@ -982,8 +985,10 @@
   <div class="product-grid">
     <% related.forEach(p => { %>
     <article class="product-card">
-      <a href="/products/<%= p.slug %>" class="product-img-link">
-        <div class="product-img">
+      <%# The <a> wraps the photo only, so "SALE"/"NEW"/"BEST" is not the
+          leading word of this link's anchor text. %>
+      <div class="product-img">
+        <a href="/products/<%= p.slug %>" class="product-img-link">
           <% if (p.primary_image) { %>
             <img src="<%= p.primary_image %>" alt="<%= p.name %>" loading="lazy">
           <% } else { %>
@@ -993,9 +998,9 @@
               <polyline points="21 15 16 10 5 21"/>
             </svg>
           <% } %>
-          <% if (p.badge) { %><span class="product-badge badge-<%= p.badge %>"><%= p.badge.toUpperCase() %></span><% } %>
-        </div>
-      </a>
+        </a>
+        <% if (p.badge) { %><span class="product-badge badge-<%= p.badge %>"><%= p.badge.toUpperCase() %></span><% } %>
+      </div>
       <div class="product-body">
         <% if (p.brand) { %><p class="product-brand"><%= p.brand %></p><% } %>
         <h3 class="product-title"><a href="/products/<%= p.slug %>"><%= p.name %></a></h3>

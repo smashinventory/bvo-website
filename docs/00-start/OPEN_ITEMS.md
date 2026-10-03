@@ -1946,6 +1946,32 @@ the harmless case, and Sam has accepted it.
 - **Model card image alts** read "Brittany vanity", "Hudson vanity". For an
   image link the alt IS the anchor text, so that is the entire signal for
   those collection pages. Thin.
+- **Callout badges were the anchor text — ✅ FIXED 2026-10-02.** Every product
+  card wrapped its whole image box in the link, so the badge span sat inside
+  the anchor and its word led the anchor text of every product link on the
+  site: "TRENDING", "HOT SELLER", "POPULAR", "GREAT VALUE". On a collection
+  page that was the damaging form — "HOT SELLER" to eight different products
+  from one page. Worse, the badges come from a rotation
+  (`src/utils/cardBadge.js`), so the same product advertised itself with
+  *different* anchor text from one crawl to the next.
+
+  **Sam asked whether our card work caused it. It did not, and this is the
+  evidence, not an assertion.** `git blame` puts the
+  `<a class="product-img-link">` wrapper at `5caf1de`, the initial import of
+  2026-07-13, and the badge text at `1626bda2` / `a1567c10` on 2026-09-06.
+  `f259c30` changed the homepage *category* and *style* tiles, not product
+  cards. Today's commits touched `index.ejs` exactly once, to bump a
+  stylesheet version. It surfaced now because 27 duplicate-anchor groups and
+  41 "Learn More"s were cleared from in front of it.
+
+  Fixed by inverting the two elements across all 7 product cards in 5
+  templates: `.product-img` is now the parent and the `<a>` wraps only the
+  photo. The badge, the video badge and the heart stay inside `.product-img`,
+  which is `position:relative`, so they keep their positioning reference and
+  leave the anchor text. It also un-nested the heart `<button>` from inside an
+  anchor on `collection.ejs` and `favorites.ejs` — interactive content inside
+  interactive content, invalid before the fix too.
+  `gates/gate_card_badge_anchor.js`, 25/25 mutations.
 
 ---
 

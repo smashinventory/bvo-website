@@ -1304,8 +1304,18 @@ _DEFAULT_ORDER.forEach(function(k) {
 
         No CSS change was needed for this; the rule already existed. %>
     <article class="product-card<%= _fpQtyRaw === 0 ? ' product-card--no-stock' : '' %>">
-      <a href="/products/<%= product.slug %>" class="product-img-link" aria-label="<%= product.name %>">
-        <div class="product-img">
+      <%# THE LINK WRAPS THE IMAGE, NOT THE WHOLE IMAGE BOX.
+          .product-img is the positioning context for the callout badge, the
+          video badge and the heart. It used to sit INSIDE this <a>, which put
+          the badge inside the link — so the anchor text of every product link
+          on this page began with the badge word: "TRENDING", "POPULAR",
+          "GREAT VALUE". Those rotate, so the same product advertised itself
+          with different anchor text on different crawls.
+          .product-img is now the parent and the <a> wraps only the photo, so
+          the badges keep their position:absolute reference and contribute
+          nothing to the link. Same pattern the model cards already use. %>
+      <div class="product-img">
+        <a href="/products/<%= product.slug %>" class="product-img-link" aria-label="<%= product.name %>">
           <% if (product.primary_image) { %>
             <%/* Responsive card photo. Measured against the live page: the image is
        210px tall with a width that moves by breakpoint --
@@ -1345,6 +1355,7 @@ _DEFAULT_ORDER.forEach(function(k) {
           <% } else { %>
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
           <% } %>
+        </a>
           <%# Only BEST wins outright — one card per section, and earned.
               Everything else, including Sale, comes from the rotation, so
               a row of discounted products no longer reads SALE four
@@ -1360,7 +1371,6 @@ _DEFAULT_ORDER.forEach(function(k) {
           </span>
           <% } %>
         </div>
-      </a>
       <div class="product-body">
         <% if (product.brand) { %><p class="product-brand"><%= product.brand %></p><% } %>
         <h3 class="product-title"><a href="/products/<%= product.slug %>"><%= product.name %></a></h3>
