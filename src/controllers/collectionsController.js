@@ -1292,6 +1292,35 @@ exports.show = async (req, res, next) => {
       ? `${canonicalUrl}?${_landing.param}=${encodeURIComponent(_landing.value)}`
       : canonicalUrl;
 
+    /* ── Model landing copy ───────────────────────────────────────────────
+       The body copy for a model page, read from model_groups.description.
+
+       Set ONLY when the page is narrowed to exactly one (model, brand)
+       pair, which is what the clean paths /vanity-models/<brand>/<model>
+       resolve to. On every other request this is null and the template
+       renders exactly as it does today — a collection page with a model
+       filter applied by hand is not a model landing page.
+
+       KEYED ON THE PAIR, NEVER ON THE MODEL NAME ALONE. 'Bristol' exists
+       under both James Martin Vanities and ER Vanities. A lookup on the
+       name would serve one brand's copy on the other brand's page, and it
+       would do it silently — the page would still render, just describing
+       the wrong cabinet. This mirrors mk() at the top of this file.
+
+       Read-only, one row, one table. No product query is touched. */
+    const _modelCopy = await (async () => {
+      if (!model || brands.length !== 1) return null;
+      const [rows] = await bvoPool.query(
+        `SELECT model_name, brand, description
+           FROM model_groups
+          WHERE model_name = ? AND brand = ?
+            AND description IS NOT NULL AND description <> ''
+          LIMIT 1`,
+        [model, brands[0]]
+      );
+      return rows.length ? rows[0] : null;
+    })();
+
     res.render('pages/collection', {
       pageTitle:    _landing ? _landing.title
                              : `${category.meta_title || category.name} | BathroomVanitiesOutlet.com`,
@@ -1299,6 +1328,7 @@ exports.show = async (req, res, next) => {
                              : (category.meta_desc || category.description || ''),
       canonicalUrl: effectiveCanonical,
       landing:      _landing,
+      modelCopy:    _modelCopy,
       noindex,
       category,
       isVanityCategory,

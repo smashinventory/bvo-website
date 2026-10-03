@@ -37,6 +37,31 @@
     <h1><%= category.name %></h1>
     <% if (category.description) { %><p><%= category.description %></p><% } %>
     <% } %>
+
+    <%# Model landing copy — model_groups.description, set by
+        collectionsController ONLY when the page is narrowed to exactly one
+        (model, brand) pair. Null on every other request, so this block is
+        absent from an ordinary collection page rather than empty on it.
+
+        H2, not H1. The H1 above is the page's subject; this is a section
+        within it, and a second H1 would undo the single-H1 rule the header
+        comment above exists to protect.
+
+        Paragraphs are split on blank lines and ESCAPED on output. The copy
+        is editorial text written through the Models admin, not markup —
+        rendering it unescaped would turn that editor into an HTML
+        injection point for no gain, since nothing in these descriptions
+        needs tags. %>
+    <% if (typeof modelCopy !== 'undefined' && modelCopy && modelCopy.description) { %>
+    <section class="model-copy">
+      <h2 class="model-copy-title">What people love about the <%= modelCopy.model_name %> vanity</h2>
+      <% String(modelCopy.description).split(/\n\s*\n/).forEach(function (para) {
+           var p = para.trim();
+           if (!p) return; %>
+      <p class="model-copy-body"><%= p %></p>
+      <% }) %>
+    </section>
+    <% } %>
   </div>
 </div>
 
