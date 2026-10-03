@@ -126,6 +126,22 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
        double-rounding never shows.
 
        Regenerate from the 512 master with Pillow if the logo changes. %>
+  <%# ── 192 ADDED 2026-10-03: GOOGLE WOULD NOT SHOW ANY OF THE ABOVE ──
+      The SERP showed a generic globe while the browser tab showed BVO
+      correctly — which is exactly what a size floor looks like. Google
+      requires the favicon to be a SQUARE MULTIPLE OF 48px (48, 96, 144,
+      192). 32 and 16 are both under it, and apple-touch-icon at 180 is a
+      supported type but not a multiple of 48, so Google had nothing it
+      would accept and fell back to the globe.
+
+      192 is declared FIRST so Google takes it. Browsers ignore it for a
+      tab: they match on `sizes` and still fetch the 32, so the page-weight
+      work above is intact — the 192 is only ever requested by Google's
+      favicon crawler, which runs on its own schedule, not on page load.
+
+      Expect days to weeks before the SERP updates. Google refetches
+      favicons rarely and independently of page crawls. %>
+  <link rel="icon" type="image/png" sizes="192x192" href="/images/logos/favicon-192.png">
   <link rel="icon" type="image/png" sizes="32x32" href="/images/logos/favicon-32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/images/logos/favicon-16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/images/logos/apple-touch-icon.png">
