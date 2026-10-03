@@ -615,6 +615,45 @@ history may not.
 
 ---
 
+### 11a. The `collections` table is write-only — DO NOT DROP IT
+*Logged 2026-10-02 · found while scoping the model-URL work*
+
+`collections` is written on **every James Martin import run**
+(`src/jobs/importJamesMartinFeed.js:177` `upsertCollection()`, called per row
+at :886) and its id lands in `products.collection_id`. The ERV load scripts
+also resolve `(SELECT id FROM collections WHERE slug = ?)` on every insert
+(`migrations/erv_load/1_collections.sql`, `3_products.sql`).
+
+**Nothing on the storefront reads it.** `FROM collections` appears zero times
+in `collectionsController.js`. The sitemap uses `categories`, a different
+table. So the importer has been maintaining a slug-per-collection table for
+months that no page has ever looked at.
+
+**It was proposed for deletion and that was wrong.** The `INSERT` sits inside
+a per-row `try`, so dropping the table would not crash the import — it would
+fail *silently per row*, leaving `collection_id` NULL across the whole JMV
+catalogue with nothing in the logs. Sam stopped it: *"it will be problematic
+if we remove it and it is needed."* Correct call.
+
+**Two open questions for whoever picks this up:**
+
+1. Its rows are inconsistently shaped — `bristol-er-vanities` carries the
+   brand suffix, `kensington` / `london` / `oxford` / `windsor` do not. The
+   JMV importer slugifies `row['Collection Name']`; the ERV load used
+   hand-written slugs. Two conventions in one column.
+2. Is JM's "Collection Name" the same string as `products.model`? The model
+   pages are keyed on `products.model` + `products.brand`, so if the two
+   agree, `collections` is a ready-made slug store. If they do not, it is a
+   third naming authority and a Rule 10 problem.
+
+Until both are answered, the model-URL work derives its slugs independently
+(`src/utils/modelSlug.js` + a committed snapshot) rather than reading this
+table, so it cannot inherit the inconsistency. Reconciling `collections`
+against `products.model` — and deciding whether it becomes the slug store or
+gets retired — is future scope.
+
+---
+
 ### 12. 26 setting blocks have no `text_align` default
 *Logged 2026-09-23 · narrowed 2026-09-24*
 
