@@ -1506,8 +1506,11 @@ _DEFAULT_ORDER.forEach(function(k) {
         // Brand on the link too — without it the ER Bristol card led to a
         // grid holding both brands' Bristol products. getCollection already
         // parses req.query.brand, so this needs no controller change.
-        var _mHref           = '/collections/bathroom-vanities?model=' + encodeURIComponent(m.model || '')
-                               + (m.brand ? '&brand=' + encodeURIComponent(m.brand) : '');
+        // Clean path when the model is in src/config/pathFilters.js, else the
+        // old ?model= form. Both resolve to the same page.
+        var _mHref           = (typeof pathFilters !== 'undefined' && pathFilters.modelPath(m.model, m.brand))
+                               || ('/collections/bathroom-vanities?model=' + encodeURIComponent(m.model || '')
+                                   + (m.brand ? '&brand=' + encodeURIComponent(m.brand) : ''));
         var _mImg            = m.image_url || '/images/placeholder-vanity.jpg';
       %>
       <article class="model-card" data-model="<%= m.model %>" data-sizes="<%= m.sizes.map(function(s){return s.key}).join(',') %>">

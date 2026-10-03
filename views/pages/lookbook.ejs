@@ -255,7 +255,7 @@
              would merge two different product lines. */%>
         <!-- Model name — links to the model's collection -->
         <div class="lb-card-name">
-          <a href="/collections/bathroom-vanities?model=<%= encodeURIComponent(product.model) %>&amp;brand=<%= encodeURIComponent(product.brand) %>"
+          <a href="<%= (typeof pathFilters !== 'undefined' && pathFilters.modelPath(product.model, product.brand)) || ('/collections/bathroom-vanities?model=' + encodeURIComponent(product.model) + '&brand=' + encodeURIComponent(product.brand)) %>"
              class="card-stretch"><%= product.model %></a>
         </div>
 

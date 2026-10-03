@@ -495,6 +495,10 @@ app.use((req, res, next) => {
 // ── EJS + layouts ────────────────────────────────────────────────
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, '..', 'views'));
+
+// Clean-path link helpers for templates (pathFilters.modelPath/sizePath/
+// finishPath). Data lookup only — no DB, no filtering.
+app.locals.pathFilters = require('./config/pathFilters');
 app.use(expressLayouts);
 app.set('layout', 'layouts/main');
 app.set('layout extractScripts', true);

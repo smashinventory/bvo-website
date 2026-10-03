@@ -210,10 +210,13 @@ console.log('\n-- card swatches jump the carousel, they do not filter the page -
   check(!/var primaryImg = imgs\[0\] \|\| ''/.test(tmpl),
         '...and never assigns the raw entry, which renders as [object Object]');
 
-  check(/collections\/bathroom-vanities\?model=/.test(tmpl),
+  check(/modelPath\(product\.model, product\.brand\)/.test(tmpl),
         'the card links to the model collection');
-  check(/brand=<%= encodeURIComponent\(product\.brand\) %>/.test(tmpl),
-        '...scoped by brand, since model names repeat across brands');
+  /* Brand is still mandatory — Bristol exists under both brands. It now
+     travels as a modelPath() argument instead of a &brand= parameter. */
+  check(/modelPath\(product\.model, product\.brand\)/.test(tmpl)
+        && /brand=' \+ encodeURIComponent\(product\.brand\)/.test(tmpl),
+        '...scoped by brand, in both the path and the fallback');
   check(!/<a href="\/products\/<%= product\.slug %>" class="card-stretch"/.test(tmpl),
         '...and no longer to a single arbitrary product');
 }

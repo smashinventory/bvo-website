@@ -68,11 +68,14 @@ console.log('\n-- the link moved to the unique text --');
    carousel, every colour the model comes in — so it has to open the model.
    This assertion follows that, and still demands the link sit on the name,
    which is what makes the anchor text unique per card. */
-check(/<div class="lb-card-name">[\s\S]{0,200}?<a\s[\s\S]{0,260}?href="\/collections\/bathroom-vanities\?model=/.test(lb),
-      'the model name carries the model-collection link');
+/* The href is now built by pathFilters.modelPath() with a ?model= fallback
+   (clean paths, 2026-10-03), so this asserts the LINK IS ON THE NAME rather
+   than the URL spelling. */
+check(/<div class="lb-card-name">[\s\S]{0,200}?<a\s/.test(lb),
+      'the model name carries the model link');
 check(/class="card-stretch"/.test(lb),
       '...with .card-stretch, so the whole card stays clickable');
-check(/<a[\s\S]{0,160}?class="card-stretch"><%= product\.model %><\/a>/.test(lb),
+check(/class="card-stretch"><%= product\.model %><\/a>/.test(lb),
       '...and the anchor text is the model name, which differs per card');
 
 /* Exactly one link per card. Two would reintroduce the duplicate — the name
@@ -80,7 +83,7 @@ check(/<a[\s\S]{0,160}?class="card-stretch"><%= product\.model %><\/a>/.test(lb)
 /* Still exactly one link per card — the name — so a re-linked "Learn More"
    cannot reappear and duplicate it. Counts the MODEL link now, and
    separately asserts the old per-product link has not crept back. */
-const modelLinks = (lb.match(/href="\/collections\/bathroom-vanities\?model=/g) || []).length;
+const modelLinks = (lb.match(/modelPath\(product\.model, product\.brand\)/g) || []).length;
 check(modelLinks === 1, `exactly one model link per card (found ${modelLinks})`);
 check(!/href="\/products\/<%= product\.slug %>"/.test(lb),
       'the card no longer links to a single arbitrary SKU');

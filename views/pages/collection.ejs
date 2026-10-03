@@ -1032,8 +1032,11 @@
         // Brand on the link too — without it the ER Bristol card led to a
         // grid holding both brands' Bristol products. getCollection already
         // parses req.query.brand, so this needs no controller change.
-        var _mHref           = '/collections/bathroom-vanities?model=' + encodeURIComponent(m.model || '')
-                               + (m.brand ? '&brand=' + encodeURIComponent(m.brand) : '');
+        // Clean path when the model is in src/config/pathFilters.js, else the
+        // old ?model= form. Both resolve to the same page.
+        var _mHref           = (typeof pathFilters !== 'undefined' && pathFilters.modelPath(m.model, m.brand))
+                               || ('/collections/bathroom-vanities?model=' + encodeURIComponent(m.model || '')
+                                   + (m.brand ? '&brand=' + encodeURIComponent(m.brand) : ''));
         /* The card leads with its hero — the hand-picked default_sku if one
            is set, otherwise the best-selling variant nationally. See
            src/utils/modelHero.js; the homepage carousel resolves the same
