@@ -194,7 +194,28 @@
     <div class="lb-grid">
       <% products.forEach(function(product) {
            var imgs = product.images || [];
-           var primaryImg = imgs[0] || '';
+           /* ── BROKE THE PAGE ONCE. Read before simplifying. ─────────────
+              Entries became {u: url, c: colour} on 2026-10-02 so the colour
+              swatches could jump the carousel. This line was still
+              `imgs[0] || ''`, so primaryImg was an OBJECT, and the escaping
+              output tag printed it as the string "[object Object]" into the
+              src of every card. Forty-one broken images, live, until Sam
+              sent a screenshot.
+
+              (This note deliberately contains no EJS delimiters at all.
+              Spelling the output tag out here broke the template twice in
+              a row: EJS scans raw text for its delimiters and does not care
+              that they sit inside a JavaScript comment, so the closing
+              sequence ended the enclosing tag early. Quoting it does not
+              help either. Describe the tags; never type them.)
+
+              The carousel JS was updated for the new shape; this server-side
+              initial render was not. A half-migration: one consumer of a
+              changed data structure updated, the other missed.
+
+              Accepts both shapes so a stale cached page still renders. */
+           var _imgSrc = function(e) { return (e && e.u) ? e.u : e; };
+           var primaryImg = _imgSrc(imgs[0]) || '';
            if (!primaryImg) return; /* skip products with no images */
       %>
       <div class="lb-card" data-images='<%- JSON.stringify(imgs) %>'>

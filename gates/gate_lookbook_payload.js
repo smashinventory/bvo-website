@@ -35,6 +35,26 @@ const ctrl = read('src/controllers/lookbookController.js');
 
 console.log('\n=== gate_lookbook_payload ===\n');
 
+
+/* ───────────── 0. THE TEMPLATE MUST COMPILE ─────────────
+   Added after this gate reported "All assertions passed" against a
+   lookbook.ejs that would not compile at all — a comment in it contained
+   the EJS closing delimiter and ended the enclosing tag early.
+
+   Every other assertion here reads the template as TEXT, so a file that
+   cannot be parsed still satisfies all of them. A gate that is green on a
+   page which cannot render is worse than no gate. This runs first. */
+console.log('-- the template parses --');
+{
+  try {
+    require('ejs').compile(read('views/pages/lookbook.ejs'),
+                           { filename: path.join(ROOT, 'views/pages/lookbook.ejs') });
+    ok('views/pages/lookbook.ejs compiles');
+  } catch (e) {
+    bad('views/pages/lookbook.ejs DOES NOT COMPILE: ' + String(e.message).split('\n')[0]);
+  }
+}
+
 /* ───────────── 1. the cap exists and is sane ───────────── */
 console.log('-- the cap --');
 const capMatch = ctrl.match(/const LOOKBOOK_CARD_IMAGE_CAP\s*=\s*(\d+)/);
@@ -174,6 +194,22 @@ console.log('\n-- card swatches jump the carousel, they do not filter the page -
         'the carousel tolerates the old bare-string image shape');
 
   /* The card link is the model collection, not one SKU. */
+  /* ── THE HALF-MIGRATION THAT BROKE THE PAGE ──────────────────────
+     Entries became {u, c}. The carousel JS was updated; the SERVER-SIDE
+     initial src was not, so primaryImg was an object and every card
+     rendered src="[object Object]". Forty-one broken images, live, and
+     every gate green — because nothing asserted the other consumer of the
+     shape I had changed.
+
+     Asserted as a RULE, not a spelling: the first image must go through a
+     url-extracting helper before it reaches the src. */
+  check(/var primaryImg = _imgSrc\(imgs\[0\]\)/.test(tmpl),
+        'the initial card image extracts the URL from the entry object');
+  check(/var _imgSrc = function\(e\) \{ return \(e && e\.u\) \? e\.u : e; \};/.test(tmpl),
+        '...with a helper that also accepts the old bare-string shape');
+  check(!/var primaryImg = imgs\[0\] \|\| ''/.test(tmpl),
+        '...and never assigns the raw entry, which renders as [object Object]');
+
   check(/collections\/bathroom-vanities\?model=/.test(tmpl),
         'the card links to the model collection');
   check(/brand=<%= encodeURIComponent\(product\.brand\) %>/.test(tmpl),
