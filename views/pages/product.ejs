@@ -960,7 +960,7 @@
       </div>
       <div class="product-body">
         <p class="product-brand"><%= product.brand %></p>
-        <h3 class="product-title"><a href="/products/<%= m.slug %>"><%= m.name %></a></h3>
+        <p class="product-title"><a href="/products/<%= m.slug %>"><%= m.name %></a></p>
         <div class="product-price-row">
           <span class="product-price">$<%= parseFloat(m.price).toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
           <% if (m.compare_price && m.compare_price > m.price) { %>
@@ -1003,7 +1003,7 @@
       </div>
       <div class="product-body">
         <% if (p.brand) { %><p class="product-brand"><%= p.brand %></p><% } %>
-        <h3 class="product-title"><a href="/products/<%= p.slug %>"><%= p.name %></a></h3>
+        <p class="product-title"><a href="/products/<%= p.slug %>"><%= p.name %></a></p>
         <div class="product-price-row">
           <span class="product-price">$<%= p.price.toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
           <% if (p.compare_price && p.compare_price > p.price) { %>

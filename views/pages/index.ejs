@@ -1219,7 +1219,7 @@ _DEFAULT_ORDER.forEach(function(k) {
           <% } %>
         </div>
         <div class="cat-body">
-          <h3><a href="<%= _csHref(cat.slug) %>" class="card-stretch"><%= cat.name %></a></h3>
+          <p class="cat-title"><a href="<%= _csHref(cat.slug) %>" class="card-stretch"><%= cat.name %></a></p>
           <p><%- cat.description %></p>
           <span class="cat-link">Shop Now →</span>
         </div>
@@ -1379,7 +1379,7 @@ _DEFAULT_ORDER.forEach(function(k) {
         </div>
       <div class="product-body">
         <% if (product.brand) { %><p class="product-brand"><%= product.brand %></p><% } %>
-        <h3 class="product-title"><a href="/products/<%= product.slug %>"><%= product.name %></a></h3>
+        <p class="product-title"><a href="/products/<%= product.slug %>"><%= product.name %></a></p>
 
         <% if (_fpSwatches.length) { %>
         <div class="model-card-swatches" role="group" aria-label="Available finishes">
@@ -2087,7 +2087,8 @@ _DEFAULT_ORDER.forEach(function(k) {
 <section class="section bundle-teaser-section" data-section="bundle_teaser" data-section-label="Bundle Builder Teaser" aria-labelledby="bt-heading">
   <div class="section-header" style="text-align:center">
     <% if (bt_.eyebrow) { %><p class="section-eyebrow"><%= bt_.eyebrow %></p><% } %>
-    <h2 class="section-title" id="bt-heading"><%= bt_.heading || 'Build Your Dream Bathroom' %></h2>
+    <% var _btTag = _safeTag(bt_.heading_level, 'p'); %>
+    <<%- _btTag %> class="section-title" id="bt-heading"><%= bt_.heading || 'Build Your Dream Bathroom' %></<%- _btTag %>>
     <% if (bt_.subtitle) { %><p class="section-sub"><%= bt_.subtitle %></p><% } %>
   </div>
 

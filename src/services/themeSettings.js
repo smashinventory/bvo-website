@@ -422,6 +422,13 @@ const DEFAULTS = {
     ],
   },
   categories_section: {
+      /* 'p' = looks identical, left out of the page outline. A heading should
+         name a topic the page can rank for; a section label does not. Sam,
+         2026-10-03. Override per-section in the Theme Editor (Heading Level ->
+         "Label (not a heading)"), which wins over this default.
+         NOTE: data/theme_settings.json had no *_level key for any of these, so
+         this default is what renders. If one is ever saved, it wins.*/
+    title_level: 'p',
     enabled: true,
     show_on: 'all',
     eyebrow: 'Browse by Category',
@@ -436,6 +443,13 @@ const DEFAULTS = {
     brand: '',
   },
   bundle_teaser: {
+      /* 'p' = looks identical, left out of the page outline. A heading should
+         name a topic the page can rank for; a section label does not. Sam,
+         2026-10-03. Override per-section in the Theme Editor (Heading Level ->
+         "Label (not a heading)"), which wins over this default.
+         NOTE: data/theme_settings.json had no *_level key for any of these, so
+         this default is what renders. If one is ever saved, it wins.*/
+    heading_level: 'p',
     enabled: true,
     show_on: 'all',
     eyebrow: 'James Martin Vanities',
@@ -560,6 +574,13 @@ const DEFAULTS = {
     cta_url: '/pages/about-us',
   },
   before_after: {
+      /* 'p' = looks identical, left out of the page outline. A heading should
+         name a topic the page can rank for; a section label does not. Sam,
+         2026-10-03. Override per-section in the Theme Editor (Heading Level ->
+         "Label (not a heading)"), which wins over this default.
+         NOTE: data/theme_settings.json had no *_level key for any of these, so
+         this default is what renders. If one is ever saved, it wins.*/
+    heading_level: 'p',
     enabled: true,
     show_on: 'all',
     eyebrow: 'The BVO Difference',
@@ -659,7 +680,19 @@ const DEFAULTS = {
     split: '50',            // '40' | '50' | '60' — video column width %
     eyebrow: '',
     heading: 'See Our Products in Action',
-    heading_level: 'h2',
+      /* 'p' = looks identical, left out of the page outline. A heading should
+         name a topic the page can rank for; a section label does not. Sam,
+         2026-10-03. Override per-section in the Theme Editor (Heading Level ->
+         "Label (not a heading)"), which wins over this default.
+         NOTE: data/theme_settings.json had no *_level key for any of these, so
+         this default is what renders. If one is ever saved, it wins.*/
+      /* 'p' = looks identical, left out of the page outline. A heading should
+         name a topic the page can rank for; a section label does not. Sam,
+         2026-10-03. Override per-section in the Theme Editor (Heading Level ->
+         "Label (not a heading)"), which wins over this default.
+         NOTE: data/theme_settings.json had no *_level key for any of these, so
+         this default is what renders. If one is ever saved, it wins.*/
+    heading_level: 'p',
     body: '',
     cta_text: '',
     cta_url: '',

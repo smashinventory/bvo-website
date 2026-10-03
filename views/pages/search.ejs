@@ -111,9 +111,9 @@
           </div>
         <div class="product-body">
           <% if (product.brand) { %><p class="product-brand"><%= product.brand %></p><% } %>
-          <h3 class="product-title">
+          <p class="product-title">
             <a href="/products/<%= product.slug %>"><%= product.name %></a>
-          </h3>
+          </p>
           <% if (product.price) { %>
           <div class="card-price-qty-row">
             <div class="card-price">
@@ -190,9 +190,9 @@
           </div>
           <div class="product-body">
             <% if (product.brand) { %><p class="product-brand"><%= product.brand %></p><% } %>
-            <h3 class="product-title">
+            <p class="product-title">
               <a href="/products/<%= product.slug %>"><%= product.name %></a>
-            </h3>
+            </p>
             <% if (product.price) { %>
             <div class="card-price-qty-row">
               <div class="card-price">

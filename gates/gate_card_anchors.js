@@ -71,8 +71,12 @@ console.log('--- the tiles are not themselves links ---');
 /* ═══ 2. THE LINK IS ON THE TITLE ══════════════════════════════════ */
 console.log('\n--- each tile links from its title ---');
 {
+  /* Tag-agnostic since 2026-10-03: the title became <p class="cat-title">,
+     because a category tile is navigation, not a heading describing the
+     page. What this protects is the ANCHOR TEXT — exactly the category
+     name, nothing else — which is unchanged. */
   ok('the category title carries the link',
-     /<h3><a href="<%= _csHref\(cat\.slug\) %>" class="card-stretch"><%= cat\.name %><\/a><\/h3>/.test(view),
+     /<(h3|p)[^>]*><a href="<%= _csHref\(cat\.slug\) %>" class="card-stretch"><%= cat\.name %><\/a><\/(h3|p)>/.test(view),
      'the anchor text should be exactly the category name and nothing else');
 
   ok('the style-guide title carries the link',

@@ -60,9 +60,9 @@
           </div>
         <div class="product-body">
           <% if (product.brand) { %><p class="product-brand"><%= product.brand %></p><% } %>
-          <h3 class="product-title">
+          <p class="product-title">
             <a href="/products/<%= product.slug %>"><%= product.name %></a>
-          </h3>
+          </p>
           <div class="product-price-row">
             <% if (product.compare_price && product.compare_price > product.price) { %>
             <span class="product-price">$<%= parseFloat(product.price).toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
