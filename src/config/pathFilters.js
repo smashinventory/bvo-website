@@ -69,6 +69,20 @@ const FACETS = {
     },
   },
 
+  /* Brand. Values are products.brand verbatim — the full name, which is
+     what the controller matches on. (themeSettings separately stores some
+     ?brand=james-martin slug links; those are a different, pre-existing
+     mismatch and are not what this maps.) */
+  brand: {
+    param: 'brand',
+    on: ['vanity-models', 'bathroom-vanities', 'bathroom-vanities-with-tops',
+         'bathroom-vanity-cabinets'],
+    values: {
+      'james-martin-vanities': 'James Martin Vanities',
+      'er-vanities':           'ER Vanities',
+    },
+  },
+
   'product-type': {
     param: 'product_type',
     on: ['faucets'],
@@ -186,7 +200,32 @@ function slugOf(facetSlug, value) {
   return null;
 }
 const sizePath   = v => slugOf('size', String(v));
+const brandPath  = v => slugOf('brand', String(v));
 const finishPath = v => slugOf('finish', String(v));
 
-module.exports = { FACETS, FLAGS, MODELS, facet, flag, model, slug,
-                   modelPath, slugOf, sizePath, finishPath };
+/* Convert a stored ?param= URL to its clean path, or return it unchanged.
+   Theme Editor links live in the settings file, so they cannot be fixed in
+   code — this cleans them as they render. One param only; anything else is
+   left alone. */
+function clean(url) {
+  const u = String(url || '');
+  const m = /^\/collections\/([a-z0-9-]+)\?([a-z_]+)=([^&]+)$/.exec(u);
+  if (!m) return u;
+  const [, collection, param, raw] = m;
+  let value;
+  try { value = decodeURIComponent(raw.replace(/\+/g, ' ')); } catch (e) { return u; }
+
+  if (param === 'on_sale' && value === '1') {
+    return FLAGS['on-sale'].on.includes(collection)
+      ? `/collections/${collection}/on-sale` : u;
+  }
+  for (const [facetSlug, f] of Object.entries(FACETS)) {
+    if (f.param !== param || !f.on.includes(collection)) continue;
+    const valueSlug = slugOf(facetSlug, value);
+    if (valueSlug) return `/collections/${collection}/${facetSlug}/${valueSlug}`;
+  }
+  return u;
+}
+
+module.exports = { FACETS, FLAGS, MODELS, facet, flag, model, slug, clean,
+                   modelPath, slugOf, sizePath, finishPath, brandPath };

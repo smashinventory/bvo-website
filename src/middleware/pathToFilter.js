@@ -51,11 +51,12 @@ module.exports = function pathToFilter(req, res, next) {
   const p = String(req.path || '').split('/').filter(Boolean);
 
   try {
-    // /vanity-models/<brand>/<model>  — checked first; also 3 segments.
+    // /vanity-models/<brand>/<model>  — tried first; also 3 segments.
+    // A miss falls THROUGH to the facet branch, so /vanity-models/brand/...
+    // still resolves. Returning here would shadow it.
     if (p.length === 3 && p[0] === 'vanity-models') {
       const hit = P.model(p[1], p[2]);
-      if (hit) rewrite(req, 'bathroom-vanities', hit);
-      return next();
+      if (hit) { rewrite(req, 'bathroom-vanities', hit); return next(); }
     }
     // /<collection>/<facet>/<value>
     if (p.length === 3) {

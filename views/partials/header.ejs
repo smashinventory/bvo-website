@@ -356,7 +356,7 @@
             <div class="mega-section">
               <p class="mega-heading"><%= _vm.section_heading || 'Shop By Type' %></p>
               <% _vml.forEach(function(sl) { %>
-              <a class="mega-link" href="<%= sl.url %>"><%= sl.label %></a>
+              <a class="mega-link" href="<%= (typeof pathFilters !== 'undefined') ? pathFilters.clean(sl.url) : sl.url %>"><%= sl.label %></a>
               <% }) %>
             </div>
             <% } %>
@@ -391,7 +391,7 @@
                    rendered once. Same nine destinations, same nine labels. */%>
               <p class="mega-heading"><%= _vm.style_heading || 'Shop By Style' %></p>
               <% _vms.forEach(function(sl) { %>
-              <a class="mega-link" href="<%= sl.url %>"><%= sl.label %></a>
+              <a class="mega-link" href="<%= (typeof pathFilters !== 'undefined') ? pathFilters.clean(sl.url) : sl.url %>"><%= sl.label %></a>
               <% }) %>
             </div>
           </div>

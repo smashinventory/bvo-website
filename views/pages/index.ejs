@@ -165,6 +165,12 @@ function _ctaWithBrand(url, brand) {
   var b = String(brand || '').trim();
   if (!u || !b) return u;
   if (/[?&]brand=/.test(u)) return u;
+  /* Clean path when the destination is a plain collection and the brand is
+     in pathFilters; otherwise the ?brand= form, which still works. */
+  var bp = (typeof pathFilters !== 'undefined') && pathFilters.brandPath(b);
+  if (bp && u.indexOf('?') === -1 && u.indexOf('/collections/') === 0) {
+    return u.replace(/\/+$/, '') + '/brand/' + bp;
+  }
   return u + (u.indexOf('?') === -1 ? '?' : '&') + 'brand=' + encodeURIComponent(b);
 }
 /* cs / fs_ / fm_ are gone deliberately. They pointed at the BASE slot only,
