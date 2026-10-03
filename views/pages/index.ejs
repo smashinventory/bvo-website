@@ -1350,7 +1350,7 @@ _DEFAULT_ORDER.forEach(function(k) {
                   render exactly today. See src/utils/cardFraming.js. %>
               <% var _frame = (typeof cardFrameStyle === 'function')
                                 ? cardFrameStyle(product.primary_image) : ''; %>
-              <img class="product-img-pri<%= _frame ? ' is-framed' : '' %>" src="<%= product.primary_image %>?width=800"<% if (_pcs) { %> srcset="<%= _pcs %>" sizes="(max-width: 600px) 88vw, (max-width: 1024px) 46vw, 23vw"<% } %> alt="<%= product.name %>" loading="lazy"
+              <img class="product-img-pri<%= _frame ? ' is-framed' : '' %>" src="<%= product.primary_image %>?width=800"<% if (_pcs) { %> srcset="<%= _pcs %>" sizes="(max-width: 600px) 88vw, (max-width: 1024px) 46vw, 23vw"<% } %> alt="<%= (product.brand ? product.brand + ' ' : '') + product.name %>" loading="lazy"
                  <% if (_frame) { %>style="<%= _frame %>"<% } %>
                  id="<%= _hpImgId %>">
               <%# No hover image on the homepage. Leaving it in the DOM at

@@ -948,7 +948,7 @@
       <div class="product-img">
         <a href="/products/<%= m.slug %>" class="product-img-link">
           <% if (m.primary_image) { %>
-            <img src="<%= m.primary_image %>" alt="<%= m.name %>" loading="lazy">
+            <img src="<%= m.primary_image %>" alt="<%= (m.brand ? m.brand + ' ' : '') + m.name %>" loading="lazy">
           <% } else { %>
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" aria-hidden="true">
               <rect x="3" y="3" width="18" height="18" rx="2"/>
@@ -990,7 +990,7 @@
       <div class="product-img">
         <a href="/products/<%= p.slug %>" class="product-img-link">
           <% if (p.primary_image) { %>
-            <img src="<%= p.primary_image %>" alt="<%= p.name %>" loading="lazy">
+            <img src="<%= p.primary_image %>" alt="<%= (p.brand ? p.brand + ' ' : '') + p.name %>" loading="lazy">
           <% } else { %>
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" aria-hidden="true">
               <rect x="3" y="3" width="18" height="18" rx="2"/>
