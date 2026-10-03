@@ -96,7 +96,11 @@ console.log('\n-- selection logic (real code, lifted and run) --');
     };
     const mk = (n, colour, tag) => Array.from({ length: n }, (_, i) =>
       ({ model: 'M', brand: 'B', color_family: colour, url: `${tag}#${i}` }));
-    const colourOf = u => u.split('#')[0];
+    /* Entries are {u, c} since 2026-10-02, so the colour is read directly
+       rather than parsed back out of the URL. The previous version split
+       the URL string and threw the moment the shape changed — which is
+       the gate noticing, just noisily. */
+    const colourOf = e => (e && typeof e === 'object') ? e.c : String(e).split('#')[0];
 
     let r = run(mk(500, 'white', 'white'));
     check(r['M||B'].length === cap, `500 images of one colour collapse to the cap (${r['M||B'].length})`);
@@ -136,6 +140,51 @@ console.log('\n-- selection logic (real code, lifted and run) --');
           `41 cards at the cap is ${worst} image entries (was 55,429)`);
   }
 }
+
+/* ───────────── 4. the card swatch jumps the card ───────────── */
+console.log('\n-- card swatches jump the carousel, they do not filter the page --');
+{
+  const tmpl = read('views/pages/lookbook.ejs');
+
+  /* THE ROOT CAUSE THIS GUARDS. The page-filter handler matched a bare
+     [data-lb-color], which hits the SIDEBAR swatches and the CARD swatches
+     alike — so a swatch on the Addison card submitted the filter form and
+     reloaded the whole lookbook. One handler, two controls, different jobs.
+     If the :not() comes off, that returns and nothing errors. */
+  check(/\[data-lb-color\]:not\(\.lb-card-swatch\)/.test(tmpl),
+        'the page-filter handler EXCLUDES card swatches');
+  check(!/querySelectorAll\('\[data-lb-color\]'\)/.test(tmpl),
+        '...and the bare [data-lb-color] selector is gone');
+
+  check(/card\.querySelectorAll\('\.lb-card-swatch'\)/.test(tmpl),
+        'card swatches get their own handler, scoped to the card');
+  check(/images\[i\]\.c === key/.test(tmpl),
+        'the handler finds the frame whose colour matches the swatch');
+  /* Without stopPropagation the click bubbles to .card-stretch and navigates
+     away — the swatch would open the model collection instead of jumping. */
+  check(/e\.stopPropagation\(\)/.test(tmpl),
+        'the swatch click does not bubble to the card-stretch link');
+
+  check(/function syncSwatches\(\)/.test(tmpl) && /syncSwatches\(\);/.test(tmpl),
+        'the active swatch follows the carousel as it moves');
+
+  /* The carousel reads entries as objects now. A stale cached page may still
+     hold bare strings, and a blank card is worse than an old one. */
+  check(/\(e && e\.u\) \? e\.u : e/.test(tmpl),
+        'the carousel tolerates the old bare-string image shape');
+
+  /* The card link is the model collection, not one SKU. */
+  check(/collections\/bathroom-vanities\?model=/.test(tmpl),
+        'the card links to the model collection');
+  check(/brand=<%= encodeURIComponent\(product\.brand\) %>/.test(tmpl),
+        '...scoped by brand, since model names repeat across brands');
+  check(!/<a href="\/products\/<%= product\.slug %>" class="card-stretch"/.test(tmpl),
+        '...and no longer to a single arbitrary product');
+}
+
+/* entries must carry the colour, or the swatch has nothing to match on */
+check(/\{ u: row\.url, c: cf \}/.test(ctrl),
+      'each image entry carries its colour alongside the URL');
 
 console.log(`\n${fails ? 'FAILED: ' + fails + ' assertion(s)' : 'All assertions passed.'}\n`);
 process.exit(fails ? 1 : 0);

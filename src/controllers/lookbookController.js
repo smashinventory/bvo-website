@@ -258,8 +258,13 @@ exports.index = async (req, res, next) => {
              single slot for all of them and push real colours out. Those go
              straight to the fill pile. */
           const cf = row.color_family || null;
-          if (cf && !modelByColor[k].has(cf)) modelByColor[k].set(cf, row.url);
-          else                                modelRest[k].push(row.url);
+          /* Each entry carries its colour, not just a URL. The card's colour
+             swatches jump the carousel to that colour's frame, which needs a
+             colour per image to find. Short keys (u, c) because this ships in
+             a data- attribute on every card. */
+          const entry = { u: row.url, c: cf };
+          if (cf && !modelByColor[k].has(cf)) modelByColor[k].set(cf, entry);
+          else                                modelRest[k].push(entry);
         }
 
         for (const k of Object.keys(modelSeenUrl)) {
@@ -267,10 +272,16 @@ exports.index = async (req, res, next) => {
           const picked    = perColour.slice(0, LOOKBOOK_CARD_IMAGE_CAP);
           /* Only fill if the colours did not already reach the cap. A model
              in 20 finishes shows 12 colours rather than 12 near-identical
-             shots of the first one. */
-          for (const url of modelRest[k]) {
+             shots of the first one.
+
+             The per-colour picks come FIRST on purpose: every swatch the card
+             renders must have a frame to jump to, or clicking it does nothing.
+             Measured on the live page — max 7 swatches on any card, and no
+             card has more swatches than images — so with the colours leading,
+             a dead swatch is not reachable. */
+          for (const entry of modelRest[k]) {
             if (picked.length >= LOOKBOOK_CARD_IMAGE_CAP) break;
-            picked.push(url);
+            picked.push(entry);
           }
           modelImages[k] = picked;
         }

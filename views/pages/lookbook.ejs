@@ -211,9 +211,31 @@
              working, so they are lifted above it there too — the homepage
              tiles this pattern came from had no interactive children, so this
              page is the first place that mattered. */%>
-        <!-- Model name — carries the product link -->
+        <%/* ── LINKS TO THE MODEL COLLECTION, NOT ONE SKU ────────────────
+             Changed 2026-10-02, Sam's call, and it corrects a mismatch this
+             card had all along.
+
+             The card is a MODEL card in every respect: the heading is the
+             model name, the carousel aggregates images across every variant
+             of that model, and the swatches show every colour the MODEL
+             comes in. It then sent you to a single arbitrary SKU — the card
+             reading "Addison" opened "Addison 30" Single Vanity Cabinet,
+             Glossy White", one of 103 Addison products.
+
+             That was tolerable while the carousel showed every image of
+             every variant, since the chosen SKU was at least among them. It
+             stopped being tolerable when the carousel was capped at 12
+             representative frames: the card now deliberately summarises the
+             model, so it has to open the model.
+
+             brand is in the pair because model names are not unique across
+             brands — ER Vanities and James Martin both have a Bristol. The
+             same reason modelKey() exists in the controller. Dropping it
+             would merge two different product lines. */%>
+        <!-- Model name — links to the model's collection -->
         <div class="lb-card-name">
-          <a href="/products/<%= product.slug %>" class="card-stretch"><%= product.model %></a>
+          <a href="/collections/bathroom-vanities?model=<%= encodeURIComponent(product.model) %>&amp;brand=<%= encodeURIComponent(product.brand) %>"
+             class="card-stretch"><%= product.model %></a>
         </div>
 
         <!-- Image area -->
@@ -355,8 +377,17 @@
     });
   });
 
-  /* ── Color swatch toggle ─────────────────────────────────────────── */
-  document.querySelectorAll('[data-lb-color]').forEach(function(sw) {
+  /* ── SIDEBAR colour swatches — these filter the page ───────────────
+     :not(.lb-card-swatch) added 2026-10-02. This selector was a bare
+     [data-lb-color], which matches the SIDEBAR swatches and the CARD
+     swatches alike — so clicking a colour on a card submitted the filter
+     form and reloaded the whole lookbook, instead of doing anything to that
+     card. One handler quietly serving two controls with different jobs.
+
+     Card swatches are handled in the carousel block above, where they jump
+     that card to the chosen colour. Filtering stays here, in the sidebar,
+     where it is unambiguous. */
+  document.querySelectorAll('[data-lb-color]:not(.lb-card-swatch)').forEach(function(sw) {
     sw.addEventListener('click', function() {
       var key    = sw.dataset.lbColor;
       var isOn   = sw.classList.contains('is-active');
@@ -417,14 +448,64 @@
     var prevBtn = card.querySelector('.lb-arrow--prev');
     var nextBtn = card.querySelector('.lb-arrow--next');
 
+    /* Entries are {u: url, c: colour} since 2026-10-02 — the colour swatches
+       jump the carousel, which needs a colour per frame. Tolerates the old
+       bare-string shape so a stale cached page does not render blank. */
+    var srcOf = function(e) { return (e && e.u) ? e.u : e; };
+
     function goTo(n) {
       idx = (n + images.length) % images.length;
-      img.src = images[idx];
+      img.src = srcOf(images[idx]);
       if (cur) cur.textContent = idx + 1;
+      syncSwatches();
     }
+
+    /* The active swatch follows the carousel, so arrowing through frames
+       keeps the ring on whichever colour is showing. Without this the ring
+       would only move when a swatch was clicked and would then be wrong. */
+    function syncSwatches() {
+      var shown = images[idx] && images[idx].c;
+      card.querySelectorAll('.lb-card-swatch').forEach(function(sw) {
+        var on = !!shown && sw.dataset.lbColor === shown;
+        sw.classList.toggle('is-active', on);
+        sw.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+    }
+    syncSwatches();
 
     prevBtn.addEventListener('click', function(e) { e.preventDefault(); goTo(idx - 1); });
     nextBtn.addEventListener('click', function(e) { e.preventDefault(); goTo(idx + 1); });
+
+    /* ── A CARD SWATCH JUMPS THIS CARD. Changed 2026-10-02. ────────────
+       It used to append a hidden `color` input to the sidebar filter form
+       and submit it, so clicking Navy on the Addison card reloaded the whole
+       page filtered to navy and did nothing to Addison. Sam raised it: a
+       swatch sitting on a card reads as belonging to that card.
+
+       The cause was one handler for two controls — both the sidebar swatches
+       and the card swatches match [data-lb-color], so the card ones were
+       literally wired as page filters. The filter handler below now excludes
+       .lb-card-swatch, and this takes over.
+
+       Possible only because the carousel is capped at 12 with one frame per
+       colour; before that there was no reliable frame to jump to. */
+    card.querySelectorAll('.lb-card-swatch').forEach(function(sw) {
+      var jump = function(e) {
+        e.preventDefault();
+        e.stopPropagation();   // or .card-stretch opens the model collection
+        var key = sw.dataset.lbColor;
+        for (var i = 0; i < images.length; i++) {
+          if (images[i] && images[i].c === key) { goTo(i); return; }
+        }
+        /* No frame for this colour. Not reachable today — no card renders
+           more swatches than it has images — but silence beats a jump to
+           the wrong finish if that ever changes. */
+      };
+      sw.addEventListener('click', jump);
+      sw.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.key === ' ') jump(e);
+      });
+    });
 
     /* Swipe support for touch devices */
     var touchStartX = 0;

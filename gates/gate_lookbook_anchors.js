@@ -63,8 +63,13 @@ check(!/>Learn More<\/a>/.test(lb),
 
 /* ───────────── 2. the link moved to the model name ───────────── */
 console.log('\n-- the link moved to the unique text --');
-check(/<div class="lb-card-name">[\s\S]{0,160}?<a\s[\s\S]{0,160}?href="\/products\/<%= product\.slug %>"/.test(lb),
-      'the model name carries the product link');
+/* TARGET CHANGED 2026-10-02: the card now links to the MODEL's collection,
+   not one arbitrary SKU. The card summarises a model — name, aggregated
+   carousel, every colour the model comes in — so it has to open the model.
+   This assertion follows that, and still demands the link sit on the name,
+   which is what makes the anchor text unique per card. */
+check(/<div class="lb-card-name">[\s\S]{0,200}?<a\s[\s\S]{0,260}?href="\/collections\/bathroom-vanities\?model=/.test(lb),
+      'the model name carries the model-collection link');
 check(/class="card-stretch"/.test(lb),
       '...with .card-stretch, so the whole card stays clickable');
 check(/<a[\s\S]{0,160}?class="card-stretch"><%= product\.model %><\/a>/.test(lb),
@@ -72,8 +77,13 @@ check(/<a[\s\S]{0,160}?class="card-stretch"><%= product\.model %><\/a>/.test(lb)
 
 /* Exactly one link per card. Two would reintroduce the duplicate — the name
    AND a still-linked button pointing at the same product. */
-const prodLinks = (lb.match(/href="\/products\/<%= product\.slug %>"/g) || []).length;
-check(prodLinks === 1, `exactly one product link per card (found ${prodLinks})`);
+/* Still exactly one link per card — the name — so a re-linked "Learn More"
+   cannot reappear and duplicate it. Counts the MODEL link now, and
+   separately asserts the old per-product link has not crept back. */
+const modelLinks = (lb.match(/href="\/collections\/bathroom-vanities\?model=/g) || []).length;
+check(modelLinks === 1, `exactly one model link per card (found ${modelLinks})`);
+check(!/href="\/products\/<%= product\.slug %>"/.test(lb),
+      'the card no longer links to a single arbitrary SKU');
 
 /* ───────────── 3. THE CONTROLS STILL WORK ───────────── */
 console.log('\n-- the overlay does not break the card controls --');
