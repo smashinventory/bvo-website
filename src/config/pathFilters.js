@@ -227,5 +227,40 @@ function clean(url) {
   return u;
 }
 
-module.exports = { FACETS, FLAGS, MODELS, facet, flag, model, slug, clean,
+/* The reverse of facet()/flag(): given the query a controller would read,
+   the clean path that produces it — or null if there isn't one. Used by the
+   301 so an old ?param= URL can find its new home. */
+function pathFor(collection, param, value) {
+  const c = String(collection || '').toLowerCase();
+  const v = String(value == null ? '' : value);
+  for (const [flagSlug, f] of Object.entries(FLAGS)) {
+    if (f.param === param && f.value === v && f.on.includes(c)) {
+      return `/collections/${c}/${flagSlug}`;
+    }
+  }
+  for (const [facetSlug, f] of Object.entries(FACETS)) {
+    if (f.param !== param || !f.on.includes(c)) continue;
+    const valueSlug = slugOf(facetSlug, v);
+    if (valueSlug) return `/collections/${c}/${facetSlug}/${valueSlug}`;
+  }
+  return null;
+}
+
+/* Every facet and flag path this file can serve. For the sitemap, so it
+   cannot list a URL the router does not resolve. Model paths come from
+   MODELS via modelPath() and are added separately. */
+function allPaths() {
+  const out = [];
+  for (const [facetSlug, f] of Object.entries(FACETS)) {
+    for (const valueSlug of Object.keys(f.values)) {
+      for (const c of f.on) out.push(`/collections/${c}/${facetSlug}/${valueSlug}`);
+    }
+  }
+  for (const [flagSlug, f] of Object.entries(FLAGS)) {
+    for (const c of f.on) out.push(`/collections/${c}/${flagSlug}`);
+  }
+  return out;
+}
+
+module.exports = { FACETS, FLAGS, MODELS, facet, flag, model, slug, clean, pathFor, allPaths,
                    modelPath, slugOf, sizePath, finishPath, brandPath };

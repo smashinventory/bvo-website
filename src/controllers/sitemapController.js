@@ -1,6 +1,7 @@
 'use strict';
 
 const { bvoPool } = require('../config/database');
+const pathFilters = require('../config/pathFilters');
 const Category    = require('../models/Category');
 const Product     = require('../models/Product');
 
@@ -191,6 +192,40 @@ exports.xml = async (req, res) => {
     <loc>${escUrl(`${siteUrl}/collections/${cat.slug}`)}</loc>${lastmod(cat.updated_at)}
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+  </url>`);
+    }
+
+    /* ── Clean filter + model paths ─────────────────────────────────
+       Added 2026-10-03 with the ?param= -> path conversion. These replaced
+       URLs that were never in the sitemap because a parameterised filter
+       canonicals to its parent and could not rank.
+
+       Every path here is generated from src/config/pathFilters.js, so the
+       sitemap cannot drift from what the router actually serves — adding a
+       style or a model to that file puts it here automatically.
+
+       NOTE, honestly: the facet paths include the handful whose product
+       count is below seo.filter_landing_min_products and which therefore
+       still canonical to their parent. Search Console will report those as
+       "alternate page with proper canonical tag", which is information, not
+       an error. Excluding them would need a per-filter count query here;
+       not worth it unless the noise becomes a problem. */
+    for (const p of pathFilters.allPaths()) {
+      urls.push(`
+  <url>
+    <loc>${escUrl(siteUrl + p)}</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>`);
+    }
+    for (const m of Object.values(pathFilters.MODELS)) {
+      const mp = pathFilters.modelPath(m.model, m.brand);
+      if (!mp) continue;
+      urls.push(`
+  <url>
+    <loc>${escUrl(siteUrl + mp)}</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
   </url>`);
     }
 
