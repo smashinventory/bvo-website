@@ -70,7 +70,27 @@ const OUT = path.join(__dirname, '..', 'src', 'config', 'modelSlugs.json');
       ORDER BY p.brand, p.model
     `, [VANITY_CAT_ID]);
   } catch (err) {
-    console.error('Query failed: ' + err.message);
+    /* mysql2 puts the useful text in sqlMessage and code, NOT in message —
+       `err.message` is often empty, which is how this first reported
+       "Query failed:" with nothing after it and told Sam nothing. */
+    console.error('\nQuery failed.');
+    for (const k of ['code', 'errno', 'sqlState', 'sqlMessage', 'message']) {
+      if (err[k]) console.error(`  ${k.padEnd(10)} ${err[k]}`);
+    }
+    if (!err.code && !err.sqlMessage && !err.message) {
+      console.error('  the error object carried no detail — full dump:');
+      console.error(require('util').inspect(err, { depth: 3 }));
+    }
+    console.error('\n  Likely causes, in order:');
+    console.error('   ER_BAD_FIELD_ERROR  a column name is wrong for this schema');
+    console.error('   ER_NO_SUCH_TABLE    `products` is not where expected');
+    console.error('   ECONNREFUSED / ER_ACCESS_DENIED_ERROR  .env credentials');
+    console.error('   no detail at all    the pool resolved but the query was rejected;');
+    console.error('                       run the SQL by hand in phpMyAdmin:\n');
+    console.error('     SELECT DISTINCT model, brand FROM products');
+    console.error('     WHERE is_active = 1 AND category_id = 1');
+    console.error("       AND model IS NOT NULL AND model <> ''");
+    console.error('     ORDER BY brand, model;\n');
     await pool.end().catch(() => {});
     process.exit(2);
   }
