@@ -456,7 +456,7 @@
         </details>
       </li>
       <% } else { %>
-      <li><a href="<%= link.url %>"<%= link.highlight ? ' class="nav-link-sale"' : '' %>><%= link.label %></a></li>
+      <li><a href="<%= (typeof pathFilters !== 'undefined') ? pathFilters.clean(link.url) : link.url %>"<%= link.highlight ? ' class="nav-link-sale"' : '' %>><%= link.label %></a></li>
       <% } %>
       <% }) %>
     </ul>
