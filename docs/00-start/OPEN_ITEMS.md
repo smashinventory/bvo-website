@@ -635,22 +635,34 @@ fail *silently per row*, leaving `collection_id` NULL across the whole JMV
 catalogue with nothing in the logs. Sam stopped it: *"it will be problematic
 if we remove it and it is needed."* Correct call.
 
-**Two open questions for whoever picks this up:**
+**Question 2 is ANSWERED (2026-10-02, live DB).** Yes — JM's "Collection
+Name" is the same string as `products.model`. All 47 joined rows matched:
 
-1. Its rows are inconsistently shaped — `bristol-er-vanities` carries the
-   brand suffix, `kensington` / `london` / `oxford` / `windsor` do not. The
-   JMV importer slugifies `row['Collection Name']`; the ERV load used
-   hand-written slugs. Two conventions in one column.
-2. Is JM's "Collection Name" the same string as `products.model`? The model
-   pages are keyed on `products.model` + `products.brand`, so if the two
-   agree, `collections` is a ready-made slug store. If they do not, it is a
-   third naming authority and a Rule 10 problem.
+```
+distinct_models  matched_a_collection_row  no_matching_collection_row
+      47                    47                         0
+```
 
-Until both are answered, the model-URL work derives its slugs independently
-(`src/utils/modelSlug.js` + a committed snapshot) rather than reading this
-table, so it cannot inherit the inconsistency. Reconciling `collections`
-against `products.model` — and deciding whether it becomes the slug store or
-gets retired — is future scope.
+So `collections` *is* a viable slug store. Two caveats found in the same
+query, and both matter:
+
+1. **`collections.name` is not unique.** The query returned 47 rows for 45
+   distinct models, because the `ON c.name = t.model` join fanned out —
+   `Bristol` exists under both James Martin Vanities and ER Vanities. Any
+   future use of this table must join on `(name, brand)`, never name alone.
+2. **Its slugs are still inconsistently shaped** — `bristol-er-vanities`
+   carries the brand, `kensington` / `london` / `oxford` / `windsor` do not.
+   The JMV importer slugifies `row['Collection Name']`; the ERV load used
+   hand-written slugs. Two conventions in one column, and with Bristol in
+   both brands the bare-vs-suffixed split is now a live ambiguity rather
+   than a tidiness complaint.
+
+Because of (2), the model-URL work still derives its slugs independently
+(`src/utils/modelSlug.js` + the committed `src/config/modelSlugs.json`)
+rather than reading this table — it cannot inherit the inconsistency.
+Reconciling the slug shapes, and deciding whether `collections` then becomes
+the slug store or gets retired, is future scope. Question 2 being answered
+makes that a cleanup rather than an investigation.
 
 ---
 

@@ -1,0 +1,8 @@
+{
+  "src/controllers/collectionsController.js": "8e6ffec4dbd027849ad8b778d172e8f4403f46a9a5f06b2e77872be58d165c22",
+  "src/controllers/bundleController.js": "72d4fc153b90b1c96960fce148a2656ae0f764a9d426c405242edf90b8ce9b94",
+  "src/config/colorFamilies.js": "9dd6776f9fb7e5a758f55d925f12a631c251c39ad7c6c32aef404b7b3251add5",
+  "src/jobs/importJamesMartinFeed.js": "b01b04291f3e85c46173c7719475c076d50968924aa3db6af0b84c944967822b",
+  "src/middleware/megaMenuData.js": "2b390dd2fc9ac46ab1e2e1cea989783f12c4e9bced03f04ecd826b5f0f2c96fd",
+  "src/config/filterLandingPages.js": "17905306e6983e3d14266737d752a22dd5640af774ee8335e5e062abe9890bad"
+}

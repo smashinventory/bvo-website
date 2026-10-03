@@ -13,16 +13,31 @@
    as "dynamic parameters"; the flag is a proxy for "probably a duplicate",
    which for these is true today and need not be.
 
-   ── WHY THE BRAND IS ALWAYS IN THE SLUG ────────────────────────────────
-   Not "suffix only when two brands collide". That rule is ORDER-DEPENDENT:
-   Brittany is the only Brittany today, so it would get the bare slug
-   `brittany`; the day a second brand ships a Brittany, one of them has to
-   move, and a live URL changes silently. Always-suffixed is deterministic
-   and immune to a new brand arriving.
+   ── BRAND AND MODEL ARE SEPARATE PATH SEGMENTS ─────────────────────────
+       /collections/vanity-models/james-martin-vanities/bristol
 
-   It also matches the shape already present in the `collections` table
-   (`bristol-er-vanities`), and brand-in-URL is no loss for a catalogue
-   whose customers search by brand.
+   Brand first, because that is how the catalogue is already segregated —
+   Sam, 2026-10-03: "we currently segregate them by having Brand/model."
+   The URL now reads as the hierarchy it is.
+
+   THE CATALOGUE ALREADY COLLIDES, which is why the brand cannot be
+   omitted. Verified against the live database 2026-10-03:
+
+       James Martin Vanities / Bristol    300 products
+       ER Vanities           / Bristol
+
+   Two different vanity lines, same model name. I had claimed no collision
+   existed, read off the ERV load file and the 10 models the crawl happened
+   to show. Wrong: there are 45 model pages, not 10, and Bristol is in both.
+
+   SEPARATE SEGMENTS ALSO REMOVE A WHOLE CLASS OF AMBIGUITY. An earlier
+   version joined the two with a hyphen into one segment, which is not
+   injective — both halves can contain a hyphen, so ('A B','C') and
+   ('A','B C') both produced 'a-b-c'. The mutation sweep found that the
+   collision detector was never tested, which is how the flaw surfaced.
+   With a segment each there is nothing to disambiguate: two slugs that
+   differ differ, and the detector exists only to catch two models whose
+   names slugify identically within one brand.
 
    ── WHY A SLUG IS NEVER PARSED BACK ────────────────────────────────────
    `resolve()` looks the slug up in an index built from the real (model,
@@ -90,22 +105,25 @@ function slugifyPart(s) {
 }
 
 /**
- * The slug for one model-brand pair, or null if there is no model to name.
+ * The two slugs for one model-brand pair: { brand, model }, or null.
  * Pure: same inputs, same output, no clock, no DB, no I/O.
+ *
+ * Returns BOTH halves rather than a joined string, because the URL keeps
+ * them in separate path segments. Nothing downstream should ever join them.
  *
  * @param {string} model  products.model
  * @param {string} brand  products.brand
- * @returns {string|null}
+ * @returns {{brand:string, model:string}|null}
  */
 function modelSlug(model, brand) {
   const m = slugifyPart(model);
-  if (!m) return null;                     // no model -> no page
   const b = slugifyPart(brand);
-  /* An empty brand yields a bare slug rather than a trailing hyphen. It is
-     a data defect — products.brand should always be set — so the gate
-     asserts the snapshot contains none, rather than this function pretending
-     it is fine. */
-  return b ? `${m}-${b}` : m;
+  /* Both are required. An empty brand is a data defect — products.brand
+     should always be set — and a one-segment fallback would make the URL
+     shape depend on the data, so it is refused instead. The gate asserts
+     the snapshot contains none. */
+  if (!m || !b) return null;
+  return { brand: b, model: m };
 }
 
 /**
@@ -117,12 +135,19 @@ function modelSlug(model, brand) {
  *
  * @param {Array<{model:string,brand:string}>} pairs
  */
+/* The index key. "<brand>/<model>", which is exactly the path tail, so the
+   lookup needs no reassembly and cannot disagree with the URL. */
+function indexKey(brandSlug, modelSlug_) {
+  return `${brandSlug}/${modelSlug_}`;
+}
+
 function buildIndex(pairs) {
   const index = new Map();
   const collisions = [];
   for (const p of (pairs || [])) {
-    const slug = modelSlug(p.model, p.brand);
-    if (!slug) continue;
+    const sl = modelSlug(p.model, p.brand);
+    if (!sl) continue;
+    const slug = indexKey(sl.brand, sl.model);
     const prev = index.get(slug);
     if (prev) {
       collisions.push({ slug, a: prev, b: { model: p.model, brand: p.brand } });
@@ -134,10 +159,10 @@ function buildIndex(pairs) {
 }
 
 /**
- * Inbound slug -> the pair it names, or null if it names nothing.
+ * Inbound "<brand>/<model>" -> the pair it names, or null.
  *
  * A lookup, never a parse. Case-folded and trimmed of surrounding slashes
- * so `/Brittany-James-Martin-Vanities/` resolves to the same page as the
+ * so `/James-Martin-Vanities/Bristol/` resolves to the same page as the
  * canonical form — which is then what the caller should redirect to.
  */
 function resolve(slug, index) {
@@ -148,8 +173,8 @@ function resolve(slug, index) {
 
 /** The canonical path for a pair. One place, so no template builds it by hand. */
 function modelPath(model, brand) {
-  const slug = modelSlug(model, brand);
-  return slug ? `/collections/vanity-models/${slug}` : null;
+  const sl = modelSlug(model, brand);
+  return sl ? `/collections/vanity-models/${sl.brand}/${sl.model}` : null;
 }
 
-module.exports = { slugifyPart, modelSlug, buildIndex, resolve, modelPath };
+module.exports = { slugifyPart, modelSlug, indexKey, buildIndex, resolve, modelPath };
