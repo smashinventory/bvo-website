@@ -1,6 +1,12 @@
 'use strict';
 
 const { bvoPool } = require('../config/database');
+/* ⚠️ THE ONLY PLACE A LINE PRICE IS DECIDED. This formula used to be
+   written out here, in checkoutController.calcTotal and again in
+   stripeService.buildLineItems — three copies, and the Stripe one is
+   what charges the card. See the header of cartPricing.js. */
+const pricing = require('../utils/cartPricing');
+const SAMPLE  = require('../config/sampleOffer');
 
 /* ── Cart helpers ───────────────────────────────────────────────── */
 function getCart(req) {
@@ -18,17 +24,21 @@ function getCart(req) {
   return req.session.cart;
 }
 
+/* Recalculate the cart's own figures. Delegates to cartPricing so the
+   cart page, orders.subtotal and the Stripe charge cannot disagree.
+ *
+ * ⚠️ NO sampleEligible HERE, deliberately. Whether this customer may take
+ * free samples is a database question (has this email or address already
+ * redeemed?) and recalc is called from synchronous session handlers. The
+ * promotion is applied where eligibility is actually known — see
+ * cartController.index and the checkout flow — so a cart mutated by a
+ * route that has not asked prices at FULL price. Failing closed means a
+ * customer occasionally sees the discount appear a step later; failing
+ * open would mean giving samples away to everyone, forever. */
 function recalc(cart) {
-  cart.count = cart.items.reduce((s, i) => s + i.qty, 0);
-  // Apply bundle discount so cart.subtotal is the actual amount to pay.
-  // Guard: i.price may be null/NaN if a poisoned session entry slipped through;
-  // treat null/NaN as 0 so the reduce never produces NaN.
-  const raw = cart.items.reduce((s, i) => {
-    const disc      = parseFloat(i.bundle_discount_pct) || 0;
-    const unitPrice = (parseFloat(i.price) || 0) * (1 - disc / 100);
-    return s + i.qty * unitPrice;
-  }, 0);
-  cart.subtotal = parseFloat(raw.toFixed(2));
+  const priced  = pricing.priceCart(cart.items);
+  cart.count    = pricing.itemCount(cart.items);
+  cart.subtotal = priced.subtotal;
 }
 
 // Strip bundle discount from all items that share the same bundle_id.
@@ -73,10 +83,11 @@ exports.add = async (req, res) => {
   }
 
   // ── Fetch authoritative price from DB — never trust client-supplied prices ──
-  let pricef, comparePricef;
+  let pricef, comparePricef, isSample;
   try {
     const [rows] = await bvoPool.query(
-      'SELECT price, compare_price FROM products WHERE id = ? AND is_active = 1',
+      // category_id joins the same authoritative row the price comes from.
+      'SELECT price, compare_price, category_id FROM products WHERE id = ? AND is_active = 1',
       [product_id]
     );
     if (!rows.length) {
@@ -84,6 +95,12 @@ exports.add = async (req, res) => {
     }
     pricef        = parseFloat(rows[0].price)         || 0;
     comparePricef = parseFloat(rows[0].compare_price) || 0;  // MSRP — 0 means not set
+    /* ⚠️ A FREE SAMPLE IS WORTH MONEY, so what counts as a sample is
+       decided HERE, from the database row, for the same reason the price
+       is. Never from the name or the SKU: "Sample" appears in product
+       names outside category 10, and a name test would hand out free
+       vanities. Never from req.body: the client would simply claim it. */
+    isSample = Number(rows[0].category_id) === SAMPLE.CATEGORY_ID;
   } catch (err) {
     console.error('[cart/add] DB price lookup failed:', err.message);
     if (req.headers['x-requested-with'] === 'XMLHttpRequest' ||
@@ -108,12 +125,20 @@ exports.add = async (req, res) => {
     existing.price           = pricef;
     existing.compare_price   = comparePricef;
     existing.original_price  = comparePricef || pricef;
+    /* Refreshed alongside the price, and for the same reason: a line
+       added before this flag existed, or before the product was moved
+       into/out of category 10, must not keep a stale answer to "is this
+       free?". */
+    existing.is_sample       = isSample;
   } else {
     cart.items.push({
       product_id,
       slug:                slug      || '',
       name:                name      || '',
       price:               pricef,
+      /* Boolean, not the raw category_id: cartPricing requires === true,
+         so a truthy string from anywhere cannot buy a free sample. */
+      is_sample:           isSample,
       image:               image     || null,
       qty,
       original_price:      comparePricef || pricef,  // MSRP, falls back to sale price

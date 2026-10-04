@@ -78,6 +78,10 @@ const emailVerify = require('../services/emailVerificationService');
    that file for the liftgate bug that prompted it. */
 const deliveryLocation = require('../utils/deliveryLocation');
 
+/* The ONE pricing module. calcTotal below used to hold its own copy of
+   the formula; see the comment there for why that was dangerous. */
+const pricing = require('../utils/cartPricing');
+
 /* ── Helpers ────────────────────────────────────────────────────── */
 
 function getCart(req) {
@@ -132,12 +136,20 @@ exports.identifyPage = identifyPage;
  *  whatever Stripe computes for the delivery address, and `orders.total`
  *  is set from `session.amount_total` in the webhook. Writing our own
  *  figure into `total` would put the books out of step with the money. */
-function calcTotal(items) {
-  return items.reduce((sum, i) => {
-    const disc  = parseFloat(i.bundle_discount_pct) || 0;
-    const price = parseFloat(i.price || 0) * (1 - disc / 100);
-    return sum + price * (i.qty || 1);
-  }, 0);
+function calcTotal(items, opts) {
+  /* ⚠️ DELEGATES. This function used to carry its own copy of the
+     pricing formula, as did cartController.recalc and
+     stripeService.buildLineItems — three copies of the arithmetic that
+     decides what a customer pays. They were not identical: these two
+     rounded the LINE TOTAL once while Stripe rounded the UNIT and
+     multiplied, so any discounted line with qty > 1 and a half-cent unit
+     price was DISPLAYED at one figure and CHARGED at another. Reachable
+     in production, since the bundle builder carries mirror_qty and
+     faucet_qty.
+     cartPricing matches Stripe, because Stripe's number is the money.
+     See gates/gate_cart_pricing.js, which asserts that and will fail if
+     a private copy of the formula reappears in this file. */
+  return pricing.priceCart(items, opts).subtotal;
 }
 
 /** BVO-YYYY-MM-DD-NNNNN. The +106 offset preserves continuity with the
@@ -886,17 +898,46 @@ exports.saveInfo = async (req, res) => {
       orderId = result.insertId;
     }
 
-    for (const item of cart.items) {
-      const disc      = parseFloat(item.bundle_discount_pct) || 0;
-      const unitPrice = parseFloat(item.price || 0) * (1 - disc / 100);
-      await conn.query(
-        `INSERT INTO order_items
-           (order_id, product_id, sku, name, qty, unit_price, line_total)
-         VALUES (?,?,?,?,?,?,?)`,
-        [orderId, item.product_id || null, item.slug || '',
-         item.name || 'Product', item.qty || 1,
-         unitPrice.toFixed(2), (unitPrice * (item.qty || 1)).toFixed(2)]
-      );
+    /* ⚠️ A FOURTH COPY OF THE PRICING FORMULA LIVED HERE and was found by
+       gate_cart_pricing, which asserts no file computes it privately.
+       These rows are what the admin order screen and any reconciliation
+       against Stripe read, so a freebie missing here would show
+       order_items totalling 19.98 against a charge of 0.00.
+
+       No sampleEligible yet: the free-sample offer is a separate change.
+       Omitting it means freeQty is always 0 here, so this loop writes
+       exactly the rows it wrote before — one per cart line. The two-row
+       branch below is dormant until eligibility is wired, which is how
+       this commit stays a no-op. */
+    const pricedLines = pricing.priceCart(cart.items).lines;
+    for (const l of pricedLines) {
+      const item = l.item;
+      /* A part-free line is written as TWO rows, not one row with
+         confusing arithmetic. "4 @ $9.99 = $19.98" plus "2 @ $0.00 =
+         $0.00" is an invoice a human can check; one row reading
+         "4 @ $9.99 = $19.98" when 19.98 was charged for 2 of them is
+         not. It also matches what Stripe receives, which is the paid
+         quantity only. */
+      if (l.freeQty > 0) {
+        await conn.query(
+          `INSERT INTO order_items
+             (order_id, product_id, sku, name, qty, unit_price, line_total)
+           VALUES (?,?,?,?,?,?,?)`,
+          [orderId, item.product_id || null, item.slug || '',
+           String(item.name || 'Product') + ' (free sample)', l.freeQty,
+           '0.00', '0.00']
+        );
+      }
+      if (l.paidQty > 0) {
+        await conn.query(
+          `INSERT INTO order_items
+             (order_id, product_id, sku, name, qty, unit_price, line_total)
+           VALUES (?,?,?,?,?,?,?)`,
+          [orderId, item.product_id || null, item.slug || '',
+           item.name || 'Product', l.paidQty,
+           l.unitPrice.toFixed(2), l.lineTotal.toFixed(2)]
+        );
+      }
     }
 
     await conn.commit();

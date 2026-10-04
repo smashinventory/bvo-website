@@ -55,6 +55,9 @@
 
 const Stripe = require('stripe');
 const stripeKeys = require('../utils/stripeKeys');
+/* The ONE pricing module. buildLineItems below used to carry its own
+   copy of the formula — and it was the copy that charges the card. */
+const pricing = require('../utils/cartPricing');
 
 /* Lazily constructed so that requiring this file cannot crash boot when the
    key is absent — the same reason brevoService and wwexService defer their
@@ -130,12 +133,28 @@ function toCents(amount) {
  * coupon: the customer is being shown one net price per line on our cart
  * page, and the invoice should say the same thing.
  */
-function buildLineItems(items) {
-  return items.map(it => {
-    const disc = parseFloat(it.bundle_discount_pct) || 0;
-    const unit = parseFloat(it.price || 0) * (1 - disc / 100);
+function buildLineItems(items, opts) {
+  /* ⚠️ PRICES COME FROM cartPricing, NOT FROM A COPY OF THE FORMULA HERE.
+     This function's own arithmetic was one of three copies; it was also
+     the only one of the three that rounded per unit, which is what
+     Stripe actually bills (unit_amount * quantity). The other two
+     therefore displayed and stored a figure that could differ from this
+     one by a cent or two. cartPricing adopted THIS behaviour and the
+     other two now follow it, so the cart page, orders.subtotal and the
+     charge agree by construction.
+ *
+     Free units (the sample offer) are expressed as a REDUCED QUANTITY,
+     not a zero-amount line: a $0.00 line on the invoice invites "why am
+     I being charged nothing for this" and Stripe Tax has nothing to do
+     with it. A line whose units are all free drops out entirely, which
+     is filtered below. */
+  return pricing.priceCart(items, opts).lines
+    .filter(l => l.paidQty > 0)
+    .map(l => {
+    const it   = l.item;
+    const unit = l.unitPrice;
     return {
-      quantity: it.qty || 1,
+      quantity: l.paidQty,
       price_data: {
         currency: 'usd',
         unit_amount: toCents(unit),
@@ -151,6 +170,13 @@ function buildLineItems(items) {
     };
   });
 }
+
+/* Exposed ONLY so gate_cart_pricing can call it and assert that the
+   free-sample discount actually reaches the amount charged. A text
+   search for "pricing.priceCart" in this file passed while the options
+   argument had been dropped — the line items looked right and the card
+   was still billed in full. Behaviour has to be executed to be gated. */
+exports._internals = { buildLineItems, toCents };
 
 /**
  * Create a Checkout Session in Elements mode.
