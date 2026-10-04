@@ -184,6 +184,72 @@ if (!fs.existsSync(path.join(ROOT, sqlPath))) {
     'both Bristols present, one per brand');
 }
 
+/* ── 5. The SEO overrides ───────────────────────────────────────────────
+   The canonical is the one that decides whether any of this can rank. A
+   model page that canonicalises to the parent collection is telling Google
+   to index the parent instead, which makes the copy decoration. */
+console.log('\n5. Model pages are self-canonical and uniquely titled');
+
+const seoMatch = code.match(/const\s+_modelSeo\s*=[\s\S]{0,1800}?\}\)\(\)\s*:\s*null;/);
+check(!!seoMatch, '_modelSeo block exists');
+
+if (seoMatch) {
+  const b = seoMatch[0];
+  check(/pathFilters\.modelPath\(/.test(b),
+    'canonical is built by pathFilters.modelPath — same source as the hrefs');
+  check(/canonical:\s*p\s*\?/.test(b),
+    'falls back to null when the model is not in the lookup table (no invented URL)');
+  check(/\.replace\(\/\\s\+\/g,\s*' '\)/.test(b),
+    'meta description is collapsed to a single line');
+  check(/155/.test(b), 'meta description is truncated for the SERP');
+}
+
+/* Precedence: model must win over landing, in BOTH the controller and the
+   template. If they disagree the page canonicalises as one thing and reads
+   as another — the exact failure this ordering exists to prevent. */
+const canon = code.match(/const\s+effectiveCanonical\s*=[\s\S]{0,400}?;/);
+check(!!canon && /_modelSeo[\s\S]{0,80}_landing/.test(canon[0]),
+  'controller: _modelSeo is tested BEFORE _landing for the canonical');
+check(/pageTitle:\s*_modelSeo\s*\?/.test(code),
+  'controller: pageTitle prefers _modelSeo');
+check(/metaDesc:\s*_modelSeo\s*\?/.test(code),
+  'controller: metaDesc prefers _modelSeo');
+check(/modelSeo:\s*_modelSeo/.test(code),
+  'controller: modelSeo is passed to the view');
+
+/* EJS comments stripped first. The block's own prose names "filter landing
+   page" ABOVE the code, so a raw scan compares a comment against a branch
+   and reports the wrong order — the comment-vs-code trap this repo has
+   shipped before, caught here by this gate on its first run. */
+const tmplCode = tmpl.replace(/<%#[\s\S]*?%>/g, '');
+const h1Block  = tmplCode.slice(tmplCode.indexOf('<div class="cat-header">'),
+                                tmplCode.indexOf('<!-- Breadcrumb -->'));
+check(h1Block.indexOf('modelSeo') >= 0 &&
+      h1Block.indexOf('modelSeo') < h1Block.indexOf('landing'),
+  'template: modelSeo H1 is tested BEFORE landing — same precedence as the controller');
+
+/* Exactly one H1 may be emitted whichever branch wins. */
+{
+  const hdrStart = tmpl.indexOf('<div class="cat-header">');
+  const hdrEnd   = tmpl.indexOf('<!-- Breadcrumb -->');
+  const header   = tmpl.slice(hdrStart, hdrEnd);
+  const render = locals => ejs.render(header + '</div></div>', locals);
+  const base = { category: { name: 'Bathroom Vanities- All', slug: 'bathroom-vanities', description: 'x' } };
+  const cases = [
+    ['model page',   { ...base, modelSeo: { label: 'ER Vanities Bristol' }, modelCopy: { model_name: 'Bristol', description: 'a\n\nb' }, landing: null }],
+    ['landing page', { ...base, modelSeo: null, modelCopy: null, landing: { h1: 'Farmhouse Vanities', intro: 'i' } }],
+    ['plain page',   { ...base, modelSeo: null, modelCopy: null, landing: null }],
+  ];
+  for (const [name, locals] of cases) {
+    const out = render(locals);
+    check((out.match(/<h1[\s>]/g) || []).length === 1, `${name}: exactly one H1`);
+  }
+  check(/ER Vanities Bristol/.test(render(cases[0][1])),
+    'model page H1 is the brand + model label');
+  check(!/Bathroom Vanities- All<\/h1>/.test(render(cases[0][1])),
+    'model page H1 is NOT the parent collection name');
+}
+
 console.log('\n' + '='.repeat(72));
 console.log(fails === 0 ? 'gate_model_descriptions: PASS\n'
                         : `gate_model_descriptions: ${fails} FAILURE(S)\n`);

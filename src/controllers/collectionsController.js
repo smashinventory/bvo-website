@@ -39,6 +39,10 @@ const { createScope }                                   = require('../utils/mode
    thing on the homepage and another here. */
 const { pickBadge }                                     = require('../utils/cardBadge');
 const { bvoPool }                                       = require('../config/database');
+/* Clean-path builder. Used here ONLY to build a model page's self-canonical,
+   from the same function that emits the hrefs — so the canonical and the
+   links cannot drift apart. */
+const pathFilters                                       = require('../config/pathFilters');
 /* Title/meta/H1/intro per filter value, plus the lookup. Separate file so
    the copy can be reviewed and gated without reading controller logic. */
 const filterLandingPages                                = require('../config/filterLandingPages');
@@ -1284,14 +1288,6 @@ exports.show = async (req, res, next) => {
       return { param, value, total: result.total, ...content };
     })();
 
-    /* Self-canonical when promoted. Must carry the query string — a
-       canonical pointing at the bare collection is exactly the behaviour
-       being overridden, and emitting one here would make the whole block a
-       no-op that still looked wired. */
-    const effectiveCanonical = _landing
-      ? `${canonicalUrl}?${_landing.param}=${encodeURIComponent(_landing.value)}`
-      : canonicalUrl;
-
     /* ── Model landing copy ───────────────────────────────────────────────
        The body copy for a model page, read from model_groups.description.
 
@@ -1321,14 +1317,76 @@ exports.show = async (req, res, next) => {
       return rows.length ? rows[0] : null;
     })();
 
+    /* ── Model landing SEO ────────────────────────────────────────────────
+       THE CANONICAL IS THE POINT OF THIS BLOCK.
+
+       canonicalUrl above is `${siteUrl}/collections/${slug}` — the PARENT
+       collection. Emitted on a model page that is an instruction to Google
+       to index the parent INSTEAD of this URL. All 45 model pages were
+       pointing at the same parent, so they were competing to be ignored:
+       unique body copy behind a cross-canonical cannot rank, which would
+       have made the descriptions decoration.
+
+       Self-canonical to the CLEAN path, built by pathFilters.modelPath() —
+       the same function the links are emitted with, so the canonical and
+       the href cannot drift apart. If modelPath returns null the model is
+       not in the lookup table, and this falls back to the old behaviour
+       rather than inventing a URL that may 404.
+
+       Title and H1 are `<Brand> <Model>`. Both brand names already end in
+       "Vanities" ("James Martin Vanities", "ER Vanities"), so appending
+       the word again would read "ER Vanities Bristol Vanities". Taking the
+       brand as-is keeps the keyword without the stutter and needs no
+       special-casing per brand. */
+    const _modelSeo = _modelCopy ? (() => {
+      const label = `${_modelCopy.brand} ${_modelCopy.model_name}`.trim();
+
+      /* Meta description from the body copy. Collapsed to one line, cut at
+         a word boundary, ellipsis appended. ~155 chars is where Google
+         truncates; the floor stops a pathological cut producing a stub. */
+      const flat = String(_modelCopy.description).replace(/\s+/g, ' ').trim();
+      let meta = flat;
+      if (meta.length > 155) {
+        meta = meta.slice(0, 155);
+        const cut = meta.lastIndexOf(' ');
+        meta = meta.slice(0, cut > 120 ? cut : 155).replace(/[\s,;:.—-]+$/, '') + '…';
+      }
+
+      const p = pathFilters.modelPath(_modelCopy.model_name, _modelCopy.brand);
+      return {
+        label,
+        title:     `${label} | BathroomVanitiesOutlet.com`,
+        meta,
+        canonical: p ? `${siteUrl}${p}` : null,
+      };
+    })() : null;
+
+    /* Self-canonical when promoted. Must carry the query string — a
+       canonical pointing at the bare collection is exactly the behaviour
+       being overridden, and emitting one here would make the whole block a
+       no-op that still looked wired.
+
+       A model page wins over a filter landing page when both could apply.
+       The two cannot usefully coexist: they would each want a different
+       self-canonical, and silently picking one while rendering the other's
+       copy is how a page ends up canonicalising somewhere it does not
+       describe. Model is the more specific of the two, so it takes it. */
+    const effectiveCanonical =
+        (_modelSeo && _modelSeo.canonical) ? _modelSeo.canonical
+      : _landing ? `${canonicalUrl}?${_landing.param}=${encodeURIComponent(_landing.value)}`
+      : canonicalUrl;
+
     res.render('pages/collection', {
-      pageTitle:    _landing ? _landing.title
-                             : `${category.meta_title || category.name} | BathroomVanitiesOutlet.com`,
-      metaDesc:     _landing ? _landing.meta
-                             : (category.meta_desc || category.description || ''),
+      pageTitle:    _modelSeo ? _modelSeo.title
+                  : _landing  ? _landing.title
+                              : `${category.meta_title || category.name} | BathroomVanitiesOutlet.com`,
+      metaDesc:     _modelSeo ? _modelSeo.meta
+                  : _landing  ? _landing.meta
+                              : (category.meta_desc || category.description || ''),
       canonicalUrl: effectiveCanonical,
       landing:      _landing,
       modelCopy:    _modelCopy,
+      modelSeo:     _modelSeo,
       noindex,
       category,
       isVanityCategory,

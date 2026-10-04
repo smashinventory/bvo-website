@@ -31,6 +31,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const ejs = require('ejs');   // renders the header block to test the H1 branches
 
 const ROOT = path.resolve(__dirname, '..');
 const read = p => fs.readFileSync(path.join(ROOT, p), 'utf8');
@@ -205,9 +206,45 @@ check(/\$\{canonicalUrl\}\?\$\{_landing\.param\}=\$\{encodeURIComponent\(_landin
 check(/canonicalUrl:\s*effectiveCanonical/.test(ctrl), 'the render uses it');
 check(/landing:\s+_landing/.test(ctrl), 'landing is passed to the template');
 
-/* ONE H1. A promoted page must SWAP the heading, not add a second one. */
-const h1s = (tmpl.match(/<h1[\s>]/g) || []).length;
-check(h1s === 2, `the header block has exactly two <h1> branches, promoted and not (found ${h1s})`);
+/* ONE H1. A promoted page must SWAP the heading, not add a second one.
+   ── CHANGED 2026-10-03 ───────────────────────────────────────────────
+   This was `h1s === 2`, counting <h1> occurrences in the whole file. That
+   pinned the NUMBER OF BRANCHES, which is a spelling, not a condition: the
+   header is an if/else chain, a model landing branch was added to it, and
+   the count went red on a correct change while proving nothing about the
+   rendered page. It is now asserted by RENDERING each branch — which is
+   what the comment above always meant, and which survives a fourth
+   branch being added later. */
+{
+  const hdr    = tmpl.slice(tmpl.indexOf('<div class="cat-header">'),
+                            tmpl.indexOf('<!-- Breadcrumb -->'));
+  const render = locals => ejs.render(hdr + '</div></div>', locals);
+  const base   = { category: { name: 'Bathroom Vanities- All', slug: 'bathroom-vanities', description: 'd' },
+                   modelSeo: null, modelCopy: null };
+  const promoted = render({ ...base, landing: { h1: 'Farmhouse Bathroom Vanities', intro: 'i' } });
+  const ordinary = render({ ...base, landing: null });
+
+  check((promoted.match(/<h1[\s>]/g) || []).length === 1, 'a promoted page emits exactly one H1');
+  check((ordinary.match(/<h1[\s>]/g) || []).length === 1, 'an unpromoted page emits exactly one H1');
+  check(/<h1>Farmhouse Bathroom Vanities<\/h1>/.test(promoted),
+        'the promoted H1 is the landing heading');
+  check(!/<h1>Bathroom Vanities- All<\/h1>/.test(promoted),
+        'the promoted H1 REPLACES the collection name rather than adding to it');
+  check(/<h1>Bathroom Vanities- All<\/h1>/.test(ordinary),
+        'an unpromoted page still gets the collection name');
+
+  /* Mutual exclusion, asserted by rendering the one case that can break it:
+     BOTH a model page and a promotable filter at once. The structural
+     "is it an if/else" check below passes even when the chain is split
+     into separate ifs, because the final else survives — so only this
+     renders the failure. Caught by mutation test, not by inspection. */
+  const both = render({ ...base,
+    modelSeo: { label: 'ER Vanities Bristol' },
+    modelCopy: { model_name: 'Bristol', brand: 'ER Vanities', description: 'a' },
+    landing: { h1: 'Farmhouse Bathroom Vanities', intro: 'i' } });
+  check((both.match(/<h1[\s>]/g) || []).length === 1,
+        'model page + promotable filter together still emit exactly one H1');
+}
 check(/typeof landing !== 'undefined' && landing/.test(tmpl),
       'the template guards on landing being defined');
 check(/<h1><%= landing\.h1 %><\/h1>/.test(tmpl), 'the promoted branch renders landing.h1');

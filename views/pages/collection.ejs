@@ -30,7 +30,13 @@
      neither shoppers nor crawlers as the page's subject.    */%>
 <div class="cat-header">
   <div class="cat-header-inner">
-    <% if (typeof landing !== 'undefined' && landing) { %>
+    <%# Three H1 sources, exactly one of which wins — model page, filter
+        landing page, then the plain collection. Model is checked first and
+        matches the controller's precedence; the two must agree, or the page
+        would canonicalise as one thing and read as another. %>
+    <% if (typeof modelSeo !== 'undefined' && modelSeo) { %>
+    <h1><%= modelSeo.label %></h1>
+    <% } else if (typeof landing !== 'undefined' && landing) { %>
     <h1><%= landing.h1 %></h1>
     <p class="cat-intro"><%= landing.intro %></p>
     <% } else { %>
@@ -66,10 +72,18 @@
 </div>
 
 <!-- Breadcrumb -->
+<%# On a model page the trail gains a level: the collection becomes a LINK
+    and the model is the leaf. Leaving the collection as the leaf would have
+    the breadcrumb contradict both the H1 and the canonical. %>
 <div class="breadcrumb">
   <a href="/">Home</a> &rsaquo;
   <a href="/collections">Collections</a> &rsaquo;
+  <% if (typeof modelSeo !== 'undefined' && modelSeo) { %>
+  <a href="/collections/<%= category.slug %>"><%= category.name %></a> &rsaquo;
+  <%= modelSeo.label %>
+  <% } else { %>
   <%= category.name %>
+  <% } %>
 </div>
 
 <!-- Mobile filter drawer overlay -->
