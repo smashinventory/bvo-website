@@ -415,9 +415,59 @@ exports.verifyCode = async (req, res, next) => {
     const rt = req.body.return_to;
     const safeReturn = rt && /^\/(?!\/)/.test(rt) ? rt : '/account';
 
+    /* ── DO WE STILL NEED A NAME? ─────────────────────────────────
+       Asked AFTER verification, never before, and this is a security
+       constraint rather than a design preference. Showing a name field
+       conditionally on the code screen would mean the page knew whether
+       that address already had an account — turning the code endpoint
+       into an enumeration oracle, which the comment on findOrCreateByEmail
+       exists to prevent. By this line the address is proven and the
+       session established, so the question is safe to ask.
+
+       Only when we do not already have one. A returning customer with a
+       name is never asked again, including on every future sign-in. */
+    const needsName = !String(customer.first_name || '').trim();
+
     return res.json({ ok: true, created: customer.created,
-                      remembered: rememberedLabel, redirect: safeReturn });
+                      remembered: rememberedLabel, redirect: safeReturn,
+                      needsName });
   } catch (err) { next(err); }
+};
+
+/* ── POST /account/name ───────────────────────────────────────────────
+   Save the name collected straight after a code sign-in.
+
+   requireAuth in the route, and the id comes from the SESSION — never
+   from the body. A customer_id in the payload would let anyone rename
+   anyone.
+
+   First name is required, last name optional (owner's decision,
+   2026-10-04). "Required" is enforced here as well as in the browser:
+   client-side validation is a courtesy to the typist, not a control.
+
+   NEVER OVERWRITES A NAME WE ALREADY HAVE. The prompt only appears when
+   first_name is blank, but a second tab, a replayed request or a stale
+   page could still post. The WHERE clause makes that a no-op instead of
+   letting a blank or a typo clobber a good record. */
+exports.saveName = async (req, res) => {
+  try {
+    const first = String(req.body.first_name || '').trim().slice(0, 100);
+    const last  = String(req.body.last_name  || '').trim().slice(0, 100);
+    if (!first) return res.status(400).json({ ok: false, error: 'Please enter your first name.' });
+
+    await Customer.setNameIfMissing(req.session.customerId, first, last);
+
+    /* Keep the session copy in step, or the dashboard greets them with
+       "there" until they next sign in. */
+    if (req.session.customer) {
+      req.session.customer.first_name = first;
+      if (last) req.session.customer.last_name = last;
+    }
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('[account.saveName]', err);
+    return res.status(500).json({ ok: false, error: 'Could not save that just now.' });
+  }
 };
 
 /* ── GET /account/secure ── "Secure my account" ──────────────────────

@@ -98,6 +98,38 @@ const Customer = {
     return { id: result.insertId, email, first_name: '', created: true };
   },
 
+  /**
+   * Write a name ONLY where we do not already have one.
+   *
+   * The guard is in the WHERE clause, not an if() above it. A read-then-
+   * write would race two tabs, and more importantly it would let a stale
+   * form post a blank over a name captured five minutes earlier at
+   * checkout. Here the condition and the write are one statement, so the
+   * second caller simply updates nothing.
+   *
+   * last_name is only written when supplied: it is optional, and an empty
+   * string posted by someone who skipped it must not erase a surname we
+   * already have from an order.
+   */
+  async setNameIfMissing(customerId, firstName, lastName) {
+    const id = parseInt(customerId, 10);
+    if (!Number.isInteger(id) || id < 1) return false;
+    const first = String(firstName || '').trim();
+    if (!first) return false;
+    const last = String(lastName || '').trim();
+
+    const [r] = await bvoPool.query(
+      `UPDATE customers
+          SET first_name = ?,
+              last_name  = CASE WHEN ? <> '' AND (last_name IS NULL OR last_name = '')
+                                THEN ? ELSE last_name END
+        WHERE id = ?
+          AND (first_name IS NULL OR first_name = '')`,
+      [first, last, last, id]
+    );
+    return r.affectedRows > 0;
+  },
+
   async updateLastLogin(id) {
     try {
       await bvoPool.query('UPDATE customers SET last_login_at = NOW() WHERE id = ?', [id]);

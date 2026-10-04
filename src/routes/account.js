@@ -18,6 +18,11 @@ router.post('/logout',            controller.logout);
 router.post('/code',              controller.sendCode);
 router.post('/verify',            controller.verifyCode);
 
+/* Name captured straight after a code sign-in. requireAuth because by this
+   point they ARE signed in — the id comes from the session, never the body,
+   so nobody can rename anyone else. */
+router.post('/name',              requireAuth, controller.saveName);
+
 /* "Secure my account" — the link in the new-device email.
    GET on purpose: it is a link in an email, and a link is what someone
    in a panic can use. NO auth middleware, also on purpose — the person

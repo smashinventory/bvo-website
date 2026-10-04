@@ -36,6 +36,55 @@
     </div>
 
     <%/* Step 2 — the code. Hidden until one has been sent. */%>
+    <%/* ── STEP 3: NAME ────────────────────────────────────────────────
+         Shown ONLY when the server says it has no name for this account,
+         and only AFTER the code has been verified. Both parts matter:
+
+         - after, because deciding before would mean this page knew whether
+           the address already had an account, turning the code endpoint
+           into an enumeration oracle. The whole passwordless design exists
+           to avoid answering "does this person have an account".
+         - only when missing, so a returning customer is never asked twice,
+           and anyone who has ever checked out is never asked at all —
+           their name was copied from the shipping form.
+
+         They are signed in by the time this renders. The session is live
+         and the redirect is already decided; this step only delays it. */%>
+    <div id="auth-step-name" hidden>
+      <h1 class="auth-title">One last thing</h1>
+      <p class="auth-sub">What should we call you?</p>
+
+      <div class="auth-error" id="auth-err-name" role="alert" hidden></div>
+
+      <%/* .form-group and btn-amber, matching the two steps above. The first
+           draft of this used .auth-field and .auth-optional, neither of
+           which exists in the stylesheet — invented class names that would
+           have rendered as unstyled blocks. The "(optional)" marker is
+           inline-styled because this file already styles its buttons that
+           way, and because one span is not worth a CSS file edit and a
+           cache-key bump. */%>
+      <form class="auth-form" id="auth-name-form" novalidate>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div class="form-group">
+          <label for="auth-first-name">First name</label>
+          <input type="text" id="auth-first-name" name="first_name"
+                 autocomplete="given-name" required maxlength="100"
+                 placeholder="Jane">
+        </div>
+        <div class="form-group">
+          <%/* Marked optional in the label itself. "Optional" has to be
+               readable, not inferred from the absence of a required mark. */%>
+          <label for="auth-last-name">Last name
+            <span style="font-weight:400;color:var(--text-muted,#687281)">(optional)</span>
+          </label>
+          <input type="text" id="auth-last-name" name="last_name"
+                 autocomplete="family-name" maxlength="100" placeholder="Doe">
+        </div>
+        <button type="submit" class="btn btn-amber" id="auth-name-btn"
+                style="width:100%;padding:.85rem">Continue</button>
+      </form>
+    </div>
+
     <div id="auth-step-code" hidden>
       <h1 class="auth-title">Check your email</h1>
       <%/* codeTtlMinutes comes from authCodeService via the controller.
@@ -104,6 +153,41 @@
 
   var stepEmail = document.getElementById('auth-step-email');
   var stepCode  = document.getElementById('auth-step-code');
+  var stepName  = document.getElementById('auth-step-name');
+  var errName   = document.getElementById('auth-err-name');
+  var nameForm  = document.getElementById('auth-name-form');
+  var nameBtn   = document.getElementById('auth-name-btn');
+  var afterName = '/account';
+
+  /* Reached only when the sign-in succeeded AND the server has no name.
+     The visitor is already authenticated here — this step is the last
+     thing between them and where they were going. */
+  function showNameStep(redirect) {
+    afterName = redirect || '/account';
+    stepEmail.hidden = true;
+    stepCode.hidden  = true;
+    stepName.hidden  = false;
+    var f = document.getElementById('auth-first-name');
+    if (f) f.focus();
+  }
+
+  if (nameForm) nameForm.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var first = document.getElementById('auth-first-name').value.trim();
+    var last  = document.getElementById('auth-last-name').value.trim();
+    if (!first) { show(errName, 'Please enter your first name.'); return; }
+    show(errName, '');
+    nameBtn.disabled = true;
+    nameBtn.textContent = 'Saving…';
+    post('/account/name', { first_name: first, last_name: last })
+      .then(function (r) {
+        /* Go on either way. They are signed in; a failure to store a name
+           is not a reason to strand someone on a form they cannot pass.
+           The prompt simply reappears next sign-in. */
+        window.location.href = afterName;
+      })
+      .catch(function () { window.location.href = afterName; });
+  });
   var emailForm = document.getElementById('auth-email-form');
   var codeForm  = document.getElementById('auth-code-form');
   var sendBtn   = document.getElementById('auth-send-btn');
@@ -226,7 +310,14 @@
                           source: SRC[msg] || 'direct',
                           remember_device: document.getElementById('auth-code-form-remember').checked })
       .then(function (r) {
-        if (r.body.ok) { window.location.href = r.body.redirect || '/account'; return; }
+        if (r.body.ok) {
+          /* Signed in either way. If the server has no name for this
+             account, hold the redirect and ask — otherwise go straight
+             through, which is what every returning customer and everyone
+             who has ever checked out will do. */
+          if (r.body.needsName) { showNameStep(r.body.redirect || '/account'); return; }
+          window.location.href = r.body.redirect || '/account'; return;
+        }
         verifyBtn.disabled = false;
         verifyBtn.textContent = 'Sign in';
         var msg = r.body.error || 'That code is not right.';

@@ -652,6 +652,20 @@ exports.saveInfo = async (req, res) => {
          bundle, which is the question the field exists to answer. */
       const found = await Customer.findOrCreateByEmail(buyerEmail, 'checkout');
       orderCustomerId = found ? found.id : null;
+
+      /* The buyer just typed their name into the shipping form. Copying it
+         onto the customer row costs nothing and means most people are never
+         asked for it again — the name is the one piece of personalisation
+         every email template already expects.
+
+         setNameIfMissing, so a checkout under a different name (a gift, a
+         contractor ordering for a client) cannot overwrite the account
+         holder's own name. Fire-and-forget for the same reason the customer
+         resolve is: a name is worth having, never worth failing a sale. */
+      if (orderCustomerId) {
+        Customer.setNameIfMissing(orderCustomerId, name.first, name.last)
+          .catch(e => console.error('[checkout.saveInfo] name copy failed:', e && e.message));
+      }
     } catch (err) {
       /* Never fail an order over this. A NULL customer_id costs us the
          saved-address and velocity signals on one order; a 500 costs the
