@@ -969,3 +969,159 @@ exports.getBundleBuilder = async (req, res) => {
     });
   }
 };
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SAVED BUNDLES — "Save Your Bundle"
+   Added 2026-10-04. Requires migrations/2026-10-04_saved_bundles.sql.
+
+   WHY ALL THREE HANDLERS LIVE HERE AND NOT IN accountController
+   Two of them are reached under /account, so the obvious split is "saving
+   is bundle, listing is account". That split would put the knowledge of
+   what a bundle IS — four slots, two of which carry quantities — in two
+   files that must agree. Adding a fifth slot later would then be a change
+   in one place and a silent omission in the other. One file owns the
+   shape; account.js just points at it.
+
+   NOTHING HERE TOUCHES THE BUILDER'S OWN LOGIC. No query that selects
+   cabinets, tops, mirrors or faucets for the builder is read or modified.
+   These three functions only record and replay a set of product ids.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* The four slots, in display order. ONE definition, used by the insert, the
+   read and the view — so a slot cannot exist in one and not the others. */
+const BUNDLE_SLOTS = [
+  { key: 'cabinet', col: 'cabinet_id', qtyCol: null,          label: 'Vanity'  },
+  { key: 'top',     col: 'top_id',     qtyCol: null,          label: 'Top'     },
+  { key: 'mirror',  col: 'mirror_id',  qtyCol: 'mirror_qty',  label: 'Mirror'  },
+  { key: 'faucet',  col: 'faucet_id',  qtyCol: 'faucet_qty',  label: 'Faucet'  },
+];
+
+/* Ids arrive from the browser. Anything that is not a positive integer
+   becomes NULL rather than reaching the query — the slot is simply empty. */
+function _id(v) {
+  const n = parseInt(v, 10);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+function _qty(v) {
+  const n = parseInt(v, 10);
+  return Number.isInteger(n) && n > 0 ? Math.min(n, 20) : 1;
+}
+
+/* POST /bundle/save — body: { cabinet, top, mirror, faucet, mirrorQty, faucetQty } */
+exports.saveBundle = async (req, res) => {
+  try {
+    const customerId = req.session && req.session.customerId;
+    /* 401 rather than a redirect: this is fetch()ed from the builder, and a
+       redirect would be followed silently and land an HTML login page in a
+       JSON parse. The client reads this status and sends the visitor to
+       sign in with a next= back to the builder. */
+    if (!customerId) return res.status(401).json({ ok: false, error: 'sign-in-required' });
+
+    const b    = req.body || {};
+    const ids  = {
+      cabinet_id: _id(b.cabinet),
+      top_id:     _id(b.top),
+      mirror_id:  _id(b.mirror),
+      faucet_id:  _id(b.faucet),
+    };
+
+    /* An empty bundle is not worth a row. Saving one would also put a card
+       in the dashboard with nothing in it, which reads as a bug. */
+    if (!Object.values(ids).some(Boolean)) {
+      return res.status(400).json({ ok: false, error: 'empty-bundle' });
+    }
+
+    /* A cap, so a scripted loop cannot fill the table. Deliberately generous
+       — a real person planning two bathrooms may legitimately save several. */
+    const [[{ n }]] = await bvoPool.query(
+      'SELECT COUNT(*) AS n FROM saved_bundles WHERE customer_id = ?', [customerId]
+    );
+    if (n >= 50) return res.status(429).json({ ok: false, error: 'too-many-saved' });
+
+    const [r] = await bvoPool.query(
+      `INSERT INTO saved_bundles
+         (customer_id, cabinet_id, top_id, mirror_id, mirror_qty, faucet_id, faucet_qty)
+       VALUES (?,?,?,?,?,?,?)`,
+      [customerId, ids.cabinet_id, ids.top_id, ids.mirror_id,
+       _qty(b.mirrorQty), ids.faucet_id, _qty(b.faucetQty)]
+    );
+    return res.json({ ok: true, id: r.insertId });
+  } catch (err) {
+    console.error('[saveBundle]', err);
+    return res.status(500).json({ ok: false, error: 'save-failed' });
+  }
+};
+
+/* GET /account/bundles */
+exports.savedBundlesPage = async (req, res) => {
+  try {
+    const customerId = req.session.customerId;
+    const [rows] = await bvoPool.query(
+      `SELECT * FROM saved_bundles WHERE customer_id = ? ORDER BY created_at DESC`,
+      [customerId]
+    );
+
+    /* Resolve ids to products in ONE query across every bundle, rather than
+       a query per bundle per slot. Prices come from products LIVE, which is
+       the whole reason ids are stored instead of a snapshot. */
+    const wanted = new Set();
+    rows.forEach(r => BUNDLE_SLOTS.forEach(s => { if (r[s.col]) wanted.add(r[s.col]); }));
+
+    const byId = {};
+    if (wanted.size) {
+      const ids = [...wanted];
+      const [prods] = await bvoPool.query(
+        `SELECT id, slug, name, brand, price, compare_price, primary_image_url, is_active
+           FROM products WHERE id IN (${ids.map(() => '?').join(',')})`, ids
+      );
+      prods.forEach(p => { byId[p.id] = p; });
+    }
+
+    /* Shape for the view. A product that has since been deactivated or
+       deleted is dropped and counted, so the page can say so plainly rather
+       than rendering a blank row or a dead link. */
+    const bundles = rows.map(r => {
+      const items = [];
+      let missing = 0, total = 0;
+      for (const s of BUNDLE_SLOTS) {
+        const pid = r[s.col];
+        if (!pid) continue;
+        const p = byId[pid];
+        if (!p || String(p.is_active) !== '1') { missing++; continue; }
+        const qty = s.qtyCol ? r[s.qtyCol] : 1;
+        total += parseFloat(p.price || 0) * qty;
+        items.push({ slot: s.label, qty, product: p });
+      }
+      return { id: r.id, created_at: r.created_at, items, missing, total };
+    });
+
+    return res.render('pages/account/bundles', {
+      pageTitle: 'Saved Bundles | BathroomVanitiesOutlet.com',
+      metaDesc:  '',
+      noindex:   true,
+      bundles,
+    });
+  } catch (err) {
+    console.error('[savedBundlesPage]', err);
+    return res.status(500).render('pages/error', {
+      pageTitle: 'Error | BathroomVanitiesOutlet.com',
+      message:   'Unable to load your saved bundles right now.',
+    });
+  }
+};
+
+/* POST /account/bundles/:id/delete */
+exports.deleteSavedBundle = async (req, res) => {
+  try {
+    /* customer_id is in the WHERE, not checked after the fact. One person
+       cannot delete another's bundle by guessing an id, because the row is
+       never selected in the first place. */
+    await bvoPool.query(
+      'DELETE FROM saved_bundles WHERE id = ? AND customer_id = ?',
+      [_id(req.params.id), req.session.customerId]
+    );
+  } catch (err) {
+    console.error('[deleteSavedBundle]', err);
+  }
+  return res.redirect('/account/bundles');
+};

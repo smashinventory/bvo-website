@@ -362,7 +362,15 @@
         <button class="btn btn-navy bb-cart-btn" id="bb-add-cart" type="button" disabled>
           Add Bundle to Cart
         </button>
+        <%# Save Your Bundle. Secondary styling on purpose — Add to Cart is
+            still the primary action, and a save that competes with it would
+            trade revenue for a lead. This catches the visitor who is NOT
+            ready to buy today, which on a vanity is most of them. %>
+        <button class="btn btn-outline bb-save-btn" id="bb-save-bundle" type="button" disabled>
+          Save Your Bundle
+        </button>
         <p class="bb-cart-note">Each item added at the discounted price</p>
+        <p class="bb-save-note" id="bb-save-note" hidden>Saved to your account — find it under <a href="/account/bundles">Saved Bundles</a>.</p>
       </div>
     </div>
 
@@ -1331,6 +1339,64 @@
 
     var cartBtn = el('bb-add-cart');
     if (cartBtn) cartBtn.disabled = !state.cabinet;
+    /* Same condition as the cart button, deliberately. A bundle worth saving
+       and a bundle worth buying are the same bundle; two different rules here
+       would mean one button enabling without the other for no visible reason. */
+    var saveBtn = el('bb-save-bundle');
+    if (saveBtn) saveBtn.disabled = !state.cabinet;
+  }
+
+  /* ── Save bundle ──────────────────────────────────────────────────
+     Records WHICH PRODUCTS were picked, not prices. The dashboard re-reads
+     products on every view, so a bundle saved today and opened in three
+     weeks shows current pricing rather than a stale figure the customer
+     could reasonably expect us to honour.
+
+     Signed-out is not an error: 401 sends them to sign in with next= back
+     here. The builder keeps its state in the page, so returning re-opens a
+     fresh builder — the first pass does not restore the selection, which is
+     why the prompt says "sign in to save" rather than promising a round
+     trip. */
+  function saveBundle() {
+    if (!state.cabinet) return;
+    var btn = el('bb-save-bundle');
+    var original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+
+    fetch('/bundle/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      body: JSON.stringify({
+        cabinet:    state.cabinet ? state.cabinet.id : null,
+        top:        state.top     ? state.top.id     : null,
+        mirror:     state.mirror  ? state.mirror.id  : null,
+        faucet:     state.faucet  ? state.faucet.id  : null,
+        mirrorQty:  state.mirrorQty || 1,
+        faucetQty:  state.faucetQty || 1
+      })
+    })
+    .then(function (r) {
+      if (r.status === 401) {
+        window.location.href = '/account/login?message=save-bundle&next=' + encodeURIComponent('/bundle');
+        return null;
+      }
+      return r.json().then(function (d) {
+        if (!r.ok) throw new Error(d.error || ('Server error ' + r.status));
+        return d;
+      });
+    })
+    .then(function (d) {
+      if (!d) return;               // redirected to sign in
+      btn.textContent = 'Saved ✓';
+      var note = el('bb-save-note');
+      if (note) { note.hidden = false; }
+    })
+    .catch(function (err) {
+      btn.disabled = false;
+      btn.textContent = original;
+      alert('Could not save this bundle. ' + (err.message || ''));
+    });
   }
 
   /* ── Add to cart ──────────────────────────────────────────────── */
@@ -1434,7 +1500,8 @@
     if (selBtn && !selBtn.disabled) { selectProduct(selBtn.id.replace('bb-select-', '')); return; }
 
     /* Add bundle to cart */
-    if (e.target.closest('#bb-add-cart')) { addToCart(); return; }
+    if (e.target.closest('#bb-add-cart'))    { addToCart();  return; }
+    if (e.target.closest('#bb-save-bundle')) { saveBundle(); return; }
   }
 
   /* ── Init ─────────────────────────────────────────────────────── */

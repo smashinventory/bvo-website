@@ -3,6 +3,7 @@
 const express    = require('express');
 const router     = express.Router();
 const controller = require('../controllers/accountController');
+const bundleController = require('../controllers/bundleController');
 const { requireAuth } = require('../middleware/auth');
 
 router.get('/login',              controller.loginPage);
@@ -27,6 +28,13 @@ router.get('/secure',             controller.secureAccount);
 router.get('/orders',             requireAuth, controller.orders);
 router.get('/favorites',          requireAuth, controller.favoritesPage);
 router.post('/favorites/toggle',  requireAuth, controller.toggleFavorite);
+
+/* Saved bundles. Handled by bundleController, not accountController, so the
+   shape of a bundle — four slots, two carrying quantities — is defined in
+   ONE file. Splitting "save" from "list" across two controllers would mean
+   a fifth slot had to be added in both, and the omission would be silent. */
+router.get('/bundles',              requireAuth, bundleController.savedBundlesPage);
+router.post('/bundles/:id/delete',  requireAuth, bundleController.deleteSavedBundle);
 router.post('/newsletter',        controller.newsletter);
 router.get('/',                   requireAuth, controller.dashboard);
 
