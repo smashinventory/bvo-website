@@ -156,6 +156,23 @@ const v = main.match(/site-bundle\.css\?v=(\d+)/);
 check(v && Number(v[1]) >= 33,
   `bundle cache key >= 33 (found ${v ? v[1] : 'none'}) — numeric, so a later bump stays green`);
 
+/* ── The two buttons are one size ───────────────────────────────────────
+   They sit one above the other, so unequal widths read as a mistake. Both
+   conditions are needed and neither is sufficient alone:
+     - the group must STRETCH, or each button sizes to its own text
+     - both must share ONE size declaration, or padding drifts on one and
+       the heights stop matching
+   Asserted as the shared selector rather than as two matching rules,
+   because two rules that happen to agree today are not a guarantee. */
+for (const f of ['public/css/site2.css', 'public/css/site-bundle.css']) {
+  const css = read(f);
+  const grp = (css.match(/\.bb-sum-btn-group\{[^}]*flex-direction:column[^}]*\}/) || [''])[0];
+  check(/align-items:\s*stretch/.test(grp),
+    `${f}: the button group stretches its children (is: ${grp.match(/align-items:[^;}]*/) || 'unset'})`);
+  check(/\.bb-cart-btn,\s*\.bb-save-btn\{/.test(css),
+    `${f}: both buttons share ONE size declaration`);
+}
+
 /* ── 8. The builder wires the button ────────────────────────────────────── */
 console.log('\n8. The builder button is wired');
 const bb = read('views/pages/bundle-builder.ejs');
