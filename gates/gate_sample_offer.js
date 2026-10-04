@@ -19,6 +19,7 @@
  */
 
 const fs     = require('fs');
+const ejs    = require('ejs');
 const path   = require('path');
 const Module = require('module');
 
@@ -253,6 +254,108 @@ function checkWiring() {
   ok('no NEW class was invented for the sample rows',
      !/sample-savings|sample-badge|sample-row/.test(view),
      'a new class needs a rule in the source AND the bundle AND a ?v= bump');
+
+  console.log('--- the banner is registered in ALL FOUR lists ---');
+  /* ⚠️ FOUR SEPARATE LISTS HAVE TO AGREE, and a key missing from any one
+     of them fails SILENTLY — index.ejs's _isValidKey rejects the section
+     and it simply never renders. featured_models nearly shipped
+     invisible on a fresh install for exactly this reason; the comment in
+     themeSettings.js records it. So each list is asserted by name. */
+  const ts   = strip(fs.readFileSync(path.join(ROOT, 'src/services/themeSettings.js'), 'utf8'));
+  const idx  = fs.readFileSync(path.join(ROOT, 'views/pages/index.ejs'), 'utf8');
+  const thm  = fs.readFileSync(path.join(ROOT, 'views/pages/admin/theme.ejs'), 'utf8');
+  /* ⚠️ themeSettings IS NOT REQUIRED HERE, for two reasons found the hard
+     way. It pulls in config/database at module load and calls
+     process.exit with "DB_PASS is not set in .env" when there is no live
+     database — which killed this gate mid-run with a fatal that looked
+     nothing like a gate failure. And DEFAULTS is not exported anyway;
+     module.exports is { get, save, reload, persistToDb, initFromDb }, so
+     requiring it yields nothing useful without a database to read.
+ *
+     So the DEFAULT order is parsed out of the source, which is exactly
+     what ships to a fresh install. A gate must not need production
+     credentials to run. */
+  const orderSrc = (ts.match(/homepage_section_order:\s*\[([\s\S]*?)\]/) || ['', ''])[1];
+  const order = (orderSrc.match(/'([a-z_0-9]+)'/g) || []).map(q => q.replace(/'/g, ''));
+  ok('the default section order parsed', order.length > 5, `${order.length} keys`);
+  const sbSrc = (ts.match(/sample_banner:\s*\{([\s\S]*?)\n  \},/) || ['', ''])[1];
+  const sbHeading = (sbSrc.match(/heading:\s*'([^']*)'/) || ['', ''])[1];
+
+  ok('1/4 themeSettings has a sample_banner default block',
+     /sample_banner:\s*\{/.test(ts), 'no defaults - the section has no content');
+  ok('2/4 it is in themeSettings homepage_section_order',
+     /homepage_section_order:[\s\S]{0,400}?'sample_banner'/.test(ts), 'missing');
+  ok('3/4 it is in index.ejs _DEFAULT_ORDER',
+     /_DEFAULT_ORDER = \[[^\]]*'sample_banner'/.test(idx),
+     '_isValidKey would reject it and the section would never render');
+  ok('4/4 it is in theme.ejs _STATIC_KEYS',
+     /_STATIC_KEYS = \[[^\]]*'sample_banner'/.test(thm), 'no Theme Editor panel');
+  ok('and it has a Theme Editor panel + meta entry',
+     /id="panel-sample_banner"/.test(thm) && /sample_banner:\s*\{\s*label:/.test(thm),
+     'the panel or its label is missing');
+
+  /* The owner asked for it under the hero. Asserted as a RELATIVE
+     position, not an index, so inserting another section elsewhere does
+     not fail this. */
+  console.log('--- it sits under the hero ---');
+  const iHero = Math.max(order.indexOf('hero'), order.indexOf('hero_mobile'));
+  const iBan  = order.indexOf('sample_banner');
+  ok('sample_banner comes after the hero', iBan > -1 && iBan > iHero,
+     `hero@${iHero} banner@${iBan}`);
+  ok('and before the vanity merchandising',
+     iBan < order.indexOf('featured_section'),
+     'the cheapest yes on the site should precede the $2,000 one');
+
+  console.log('--- the FREE COUNT is not editable in the Theme Editor ---');
+  /* A field saying "3 free samples" against a cart that gives 2 is a
+     promise the site does not keep. Wording editable, arithmetic not. */
+  ok('no free-count field in the panel',
+     !/sample_banner\.(free_count|count|qty|free_qty)/.test(thm),
+     'the banner could promise a number the cart does not honour');
+  ok('the default heading matches FREE_COUNT',
+     sbHeading.indexOf(String(SAMPLE.FREE_COUNT)) > -1,
+     `heading "${sbHeading}" vs FREE_COUNT ${SAMPLE.FREE_COUNT}`);
+  ok('the banner reads the count from sampleOffer when no heading is set',
+     /sampleOffer\.FREE_COUNT/.test(idx), 'the fallback hardcodes a number');
+  ok('homeController passes sampleOffer to the view',
+     /sampleOffer:\s*require\(/.test(
+       fs.readFileSync(path.join(ROOT, 'src/controllers/homeController.js'), 'utf8')),
+     'sampleOffer would be undefined - a hard EJS error on the homepage');
+
+  console.log('--- the banner markup renders, and degrades ---');
+  const blockSrc = (idx.match(/<% if \(sectionKey === 'sample_banner'[\s\S]*?<% \} \/\* end sample_banner \*\/ %>/) || [''])[0];
+  ok('the render block exists', !!blockSrc, 'no markup');
+  const renderBanner = sb => ejs.render(
+    "<% function _safeTag(v,d){ return v === 'p' ? v : d; } %>" + blockSrc,
+    { sectionKey: 'sample_banner', sb_: sb, sampleOffer: SAMPLE });
+  const SB_FIXTURE = {
+    enabled: true, heading_level: 'p',
+    eyebrow: 'See it in your own light', heading: sbHeading,
+    subtitle: 'x', cta_text: 'Browse samples', cta_url: '/collections/samples', image: '',
+  };
+  const full = renderBanner(SB_FIXTURE);
+  ok('it renders the CTA to the samples collection',
+     /href="\/collections\/samples"/.test(full), full.slice(0, 200));
+  ok('it renders the heading', /id="sb-heading"/.test(full), 'no heading');
+  /* The CLS lesson from the hero and iwt sections: an empty image box
+     reserves space for nothing and shifts everything below it. */
+  ok('NO image column when no image is set',
+     !/iwt-image-col/.test(full), 'an empty image box would shift the page');
+  const withImg = renderBanner(Object.assign({}, SB_FIXTURE,
+    { image: 'https://images.bathroomvanitiesoutlet.com/x.webp' }));
+  ok('an image column appears when one IS set',
+     /iwt-image-col/.test(withImg) && /loading="lazy"/.test(withImg), 'image not rendered lazily');
+  ok('enabled:false renders nothing',
+     renderBanner({ enabled: false }).trim() === '', 'the toggle does not work');
+
+  console.log('--- the banner reuses existing CSS, adds none ---');
+  const bundleCss = fs.readFileSync(path.join(ROOT, 'public/css/site-bundle.css'), 'utf8');
+  const bannerClasses = new Set();
+  (blockSrc.match(/class="([^"<%]+)"/g) || []).forEach(m =>
+    m.replace(/class="|"/g, '').split(/\s+/).filter(Boolean).forEach(c => bannerClasses.add(c)));
+  bannerClasses.forEach(c => ok(`.${c} already exists in site-bundle.css`,
+    new RegExp('\\.' + c.replace(/-/g, '\\-') + '[\\s,{:>.]').test(bundleCss),
+    'a NEW class needs the source AND the bundle AND a ?v= bump'));
 
   console.log(fail ? `\n*** ${fail} GATE(S) FAILED ***` : '\nALL GATES PASS');
   process.exit(fail ? 1 : 0);

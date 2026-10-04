@@ -788,6 +788,13 @@ exports.index = async (req, res, next) => {
       categories,
       inspirationPages,
       settings: ts,
+      /* The sample offer's NUMBERS, for the banner. Passed as the config
+         module rather than copied into a theme setting: the banner must
+         say the same count the cart and checkout actually price against,
+         and a Theme Editor field reading "3 free samples" against a cart
+         that gives 2 is a promise the site does not keep. Wording is
+         editable in the Theme Editor; the arithmetic is not. */
+      sampleOffer: require('../config/sampleOffer'),
     });
   } catch (err) {
     next(err);

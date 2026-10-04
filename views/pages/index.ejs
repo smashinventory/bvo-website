@@ -179,6 +179,7 @@ function _ctaWithBrand(url, brand) {
    the per-slot `_d`. Removing the names rather than leaving them unused
    means a stray reference fails loudly instead of rendering wrong. */
 const bt_  = S.bundle_teaser       || {};
+const sb_  = S.sample_banner       || {};
 const iwt  = S.image_with_text    || {};
 const iwt2  = S.image_with_text_2  || {};
 const vt2   = S.video_text_2       || {};
@@ -234,7 +235,12 @@ function _salsifyImg(url, w, h) {
   return url.replace('/image/upload/', '/image/upload/w_' + w + ',h_' + h + ',c_fill,f_auto,q_auto/');
 }
 
-const _DEFAULT_ORDER = ['scrolling_ticker','hero','hero_mobile','brand_logos','categories_section','bundle_teaser',
+/* sample_banner sits straight after the hero - the owner's placement.
+   This list MUST stay in step with homepage_section_order in
+   themeSettings.js: a key missing here is rejected by _isValidKey and
+   the section silently never renders, which is how featured_models
+   nearly shipped invisible on a fresh install. */
+const _DEFAULT_ORDER = ['scrolling_ticker','hero','hero_mobile','sample_banner','brand_logos','categories_section','bundle_teaser',
   'featured_section','featured_models','inspiration','image_with_text','video_text','before_after','trust_band','parallax','testimonials','newsletter'];
 const _STATIC_SET  = new Set(_DEFAULT_ORDER);
 /* Must stay in step with DUPLICATABLE_BASES in adminController.themeDuplicate
@@ -2083,6 +2089,50 @@ _DEFAULT_ORDER.forEach(function(k) {
 <% } /* end testimonials */ %>
 
 <%# ── BUNDLE TEASER ──────────────────────────────────────────────── %>
+<%# ── FREE SAMPLES BANNER ───────────────────────────────────────────
+    Sits directly after the hero (homepage_section_order in
+    themeSettings.js). The cheapest thing on the site to say yes to, so
+    it earns the spot above the vanity merchandising: someone not ready
+    to spend $2,000 can still take a step here.
+
+    NO NEW CSS. Reuses the image_with_text shell (iwt-section,
+    iwt-grid, iwt-image-col, iwt-text-col, iwt-img) plus the standard
+    section-eyebrow / section-title / section-sub, all of which already
+    have rules in site-bundle.css. A new class would need the same edit
+    in the source file AND the hand-minified bundle AND a ?v= bump, and
+    this banner does not need one.
+
+    ⚠️ THE NUMBER COMES FROM sampleOffer, NOT FROM THE SETTING. The
+    heading is editable, but FREE_COUNT is read from the config the cart
+    and checkout actually price against. A Theme Editor field reading
+    "3 free samples" while the cart gives 2 would be a promise the site
+    does not keep. Wording is editable; arithmetic is not. %>
+<% if (sectionKey === 'sample_banner' && sb_.enabled !== false) { %>
+<section class="section iwt-section" data-section="sample_banner" data-section-label="Free Samples Banner" aria-labelledby="sb-heading">
+  <div class="iwt-grid">
+    <% if (sb_.image) { %>
+    <%# Rendered ONLY when an image is set. An empty <img> box reserves
+        space for nothing and shifts everything below it - the CLS bug
+        the hero and iwt sections were both fixed for. No image is a
+        perfectly good banner; a broken one is not. %>
+    <div class="iwt-image-col">
+      <img class="iwt-img" src="<%= sb_.image %>"
+           alt="<%= sb_.image_alt || '' %>" loading="lazy" decoding="async">
+    </div>
+    <% } %>
+    <div class="iwt-text-col">
+      <% if (sb_.eyebrow) { %><p class="section-eyebrow"><%= sb_.eyebrow %></p><% } %>
+      <% var _sbTag = _safeTag(sb_.heading_level, 'p'); %>
+      <<%- _sbTag %> class="section-title" id="sb-heading"><%= sb_.heading || ('Your first ' + sampleOffer.FREE_COUNT + ' samples are free') %></<%- _sbTag %>>
+      <% if (sb_.subtitle) { %><p class="section-sub"><%= sb_.subtitle %></p><% } %>
+      <a href="<%= sb_.cta_url || '/collections/samples' %>" class="btn btn-amber" style="margin-top:14px">
+        <%= sb_.cta_text || 'Browse samples' %>
+      </a>
+    </div>
+  </div>
+</section>
+<% } /* end sample_banner */ %>
+
 <% if (sectionKey === 'bundle_teaser' && bt_.enabled !== false) { %>
 <section class="section bundle-teaser-section" data-section="bundle_teaser" data-section-label="Bundle Builder Teaser" aria-labelledby="bt-heading">
   <div class="section-header" style="text-align:center">

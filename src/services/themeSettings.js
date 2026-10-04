@@ -765,11 +765,55 @@ const DEFAULTS = {
      index.ejs splices in any known key that is absent — but a fresh
      install would have shipped without it. Added so the default matches
      what the site actually shows. */
+  /* sample_banner sits DIRECTLY AFTER the hero, which is where the owner
+     asked for it. It is the cheapest thing on the site to say yes to, so
+     it earns the position above the vanity merchandising — someone who
+     is not ready to spend $2,000 can still take a step here. */
   homepage_section_order: [
-    'scrolling_ticker','hero','hero_mobile','brand_logos','categories_section','bundle_teaser',
+    'scrolling_ticker','hero','hero_mobile','sample_banner','brand_logos',
+    'categories_section','bundle_teaser',
     'featured_section','featured_models','image_with_text','video_text','before_after',
     'trust_band','parallax','testimonials','newsletter',
   ],
+
+  /* ── FREE SAMPLES BANNER ──────────────────────────────────────────
+     The acquisition driver for the sample offer. A section rather than
+     hardcoded markup so it can be turned off, reworded or reordered from
+     the Theme Editor without a deploy — an offer is the kind of thing an
+     owner wants to change on a Tuesday afternoon.
+
+     ⚠️ THE NUMBERS ARE NOT EDITABLE HERE, DELIBERATELY. "2" and the
+     $9.99 extras price come from src/config/sampleOffer.js, which is
+     also what the cart and checkout price against. A Theme Editor field
+     saying "3 free samples" while the cart gives 2 would be a promise
+     the site does not keep, and the customer would be right to be
+     annoyed. Wording is editable; arithmetic is not.
+
+     No image by default. The samples category image can be set here, but
+     the banner reads fine as text and an empty image box is worse than
+     no image box — see the CLS note on iwt above. */
+  sample_banner: {
+    enabled: true,
+    show_on: 'all',
+    /* 'p', matching bundle_teaser: a section label is not a heading the
+       page should rank for. Overridable per-section in the editor. */
+    heading_level: 'p',
+    eyebrow:  'See it in your own light',
+    heading:  'Your first 2 samples are free',
+    subtitle: 'Screens lie about colour. Wood grain and stone veining look '
+            + 'different under your own bathroom light, and a vanity is not '
+            + 'something you want to guess at. Pick any two — free, with free '
+            + 'shipping.',
+    cta_text: 'Browse samples',
+    /* The samples CATEGORY page, which already exists and already renders
+       sample images correctly (collectionsController COALESCEs
+       primary_image_url with product_images.url — all 69 sample rows have
+       the image in the join table and NULL in the column). No bespoke
+       picker was built because this page already is one. */
+    cta_url:  '/collections/samples',
+    image:    '',
+    image_alt: 'Wood, stone and metal finish samples',
+  },
 
   cart_drawer: {
     enabled: true,
