@@ -1,6 +1,9 @@
 'use strict';
 
 const Customer         = require('../models/Customer');
+/* Read-only here. The account page LISTS addresses; the only writer is
+   checkout, via CustomerAddress.record. */
+const CustomerAddress  = require('../models/CustomerAddress');
 const { bvoPool }      = require('../config/database');
 const authCode         = require('../services/authCodeService');
 const brevo            = require('../services/brevoService');
@@ -598,6 +601,34 @@ exports.orders = async (req, res, next) => {
       pageTitle: 'My Orders | BathroomVanitiesOutlet.com',
       metaDesc:  '',
       orders,
+    });
+  } catch (err) { next(err); }
+};
+
+/* ── GET /account/addresses ─────────────────────────────────────── */
+/* The Addresses link has been in the account nav of four views since the
+   nav was written; the page behind it never existed, so every signed-in
+   customer who clicked it got a 404. That is what this fixes.
+ *
+ * READ ONLY. No add, no edit, no remove — see CustomerAddress.listFor
+ * for why Remove was dropped rather than postponed. Addresses arrive from
+ * checkout (CustomerAddress.record) and nowhere else, so there is no path
+ * by which this page could hold something the customer did not type into
+ * an order themselves.
+ *
+ * The id from the SESSION, never the request. Scoped inside listFor's
+ * WHERE as well, so a bad caller returns an empty list rather than
+ * someone else's addresses. */
+exports.addressesPage = async (req, res, next) => {
+  try {
+    const addresses = await CustomerAddress.listFor(req.session.customerId);
+    res.render('pages/account/addresses', {
+      pageTitle: 'My Addresses | BathroomVanitiesOutlet.com',
+      /* noindex is irrelevant behind requireAuth — a crawler never gets
+         here — but every other account page sets metaDesc, and omitting
+         it would throw on a view that expects it. */
+      metaDesc:  '',
+      addresses,
     });
   } catch (err) { next(err); }
 };

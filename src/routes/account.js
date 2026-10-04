@@ -32,6 +32,12 @@ router.post('/name',              requireAuth, controller.saveName);
 router.get('/secure',             controller.secureAccount);
 router.get('/orders',             requireAuth, controller.orders);
 router.get('/favorites',          requireAuth, controller.favoritesPage);
+
+/* Addresses. GET only — there is no POST, no :id/delete, and that is the
+   design, not an unfinished half. The account nav has linked here from
+   four views since the nav was written and returned a 404 the whole time;
+   this is the page. Addresses are written by checkout alone. */
+router.get('/addresses',          requireAuth, controller.addressesPage);
 router.post('/favorites/toggle',  requireAuth, controller.toggleFavorite);
 
 /* Saved bundles. Handled by bundleController, not accountController, so the

@@ -132,6 +132,16 @@ function render() {
             count: 1, subtotal: 1 },
     subtotal: 1, draft: null, errors: {}, old: {}, checkoutError: null,
     mapsKey: '', addrWarning: null,
+    /* Added 2026-10-04. checkout-info.ejs calls locals.deliveryLocation
+       .normalise(), which arrived with the three-way delivery-location
+       change AFTER this harness was written. Without it the render threw
+       a TypeError and this file exited non-zero before reaching the
+       controller-wiring block below — so those six assertions had not
+       run at all for some time. A gate that dies early is worse than a
+       gate that fails: it fails for a reason unrelated to what it
+       guards, and gets written off as "the known-red one".
+       It is set on res.locals in server.js, so a real request has it. */
+    deliveryLocation: require(path.join(ROOT, 'src/utils/deliveryLocation')),
     customer: { id: 7, email: 'a@b.com', first_name: 'Sam', accepts_marketing: 0,
                 marketing_consent_at: null, delivery_sms_consent: 0,
                 delivery_sms_consent_at: null },
@@ -195,8 +205,23 @@ function render() {
   console.log('--- controller wiring ---');
   const cc = fs.readFileSync(path.join(ROOT, 'src/controllers/checkoutController.js'), 'utf8');
   const code = cc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-  ok('shipping is recorded in saveInfo',
-     /CustomerAddress\.record\(\s*req\.session\.customerId,\s*'shipping'/.test(code), 'missing');
+  /* ⚠️ THIS ASSERTION USED TO PIN `req.session.customerId` BY NAME, and
+     went red when the id was correctly renamed to orderCustomerId —
+     which is the id from findOrCreateByEmail, because a guest checkout
+     has no session yet still gets a customer row. Pinning the spelling
+     of a variable is not a condition. What matters is that saveInfo
+     records a SHIPPING address against SOME customer id that is not
+     taken from the request body.
+     (It was not noticed for a while because this file threw in its
+     render harness before reaching this block — see the note on
+     deliveryLocation in the locals above.) */
+  const saveInfo = (code.match(/exports\.saveInfo[\s\S]*?\n\};/) || [''])[0];
+  const shipRec  = (saveInfo.match(/CustomerAddress\.record\(\s*([A-Za-z0-9_.]+)\s*,\s*'shipping'/) || []);
+  ok('shipping is recorded in saveInfo', !!shipRec[1],
+     'no shipping record call in saveInfo — the address is never remembered');
+  ok('the customer id is not read off the request',
+     !!shipRec[1] && !/^req\.(body|params|query)/.test(shipRec[1]),
+     String(shipRec[1]));
   ok('billing is recorded in the webhook',
      /CustomerAddress\.record\(\s*\n?\s*row\.customer_id,\s*'billing'/.test(code)
      || /'billing'/.test(code), 'missing');

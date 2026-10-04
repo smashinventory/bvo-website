@@ -1,0 +1,106 @@
+<%# views/pages/account/addresses.ejs
+    GET /account/addresses — accountController.addressesPage
+
+    READ ONLY. No form, no Remove, no Add. Addresses get here from
+    checkout (CustomerAddress.record) and nowhere else, so there is
+    nothing on this page the customer did not type into an order
+    themselves. See CustomerAddress.listFor for why Remove was dropped.
+
+    NO NEW CSS. Every class below already exists in site-bundle.css —
+    account-* from the other account pages, favorites-empty from
+    favorites.ejs, sb-card / sb-card-head / sb-date / sb-note from
+    bundles.ejs. A new stylesheet rule would have to be written into the
+    source file AND the hand-minified bundle AND carry a ?v= bump, and
+    this page does not need one.
+
+    The nav block is copied, like the other four. That duplication is a
+    real liability (it has already drifted once) but extracting a partial
+    now would touch five views in a change that is meant to touch one.
+%>
+<div class="account-page">
+  <div class="account-sidebar">
+    <nav class="account-nav" aria-label="Account navigation">
+      <a href="/account" class="account-nav-item">Dashboard</a>
+      <a href="/account/orders" class="account-nav-item">Orders</a>
+      <a href="/account/favorites" class="account-nav-item">Saved Items</a>
+      <a href="/account/bundles" class="account-nav-item">Saved Bundles</a>
+      <a href="/account/addresses" class="account-nav-item active">Addresses</a>
+      <form action="/account/logout" method="POST" style="margin:0">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="account-nav-item account-nav-logout">Sign Out</button>
+      </form>
+    </nav>
+  </div>
+
+  <div class="account-main">
+    <h1 class="account-title">Addresses</h1>
+
+    <% if (!addresses || addresses.length === 0) { %>
+    <div class="favorites-empty">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 16px;display:block;stroke:var(--muted)" aria-hidden="true">
+        <path d="M12 21s-7-5.6-7-11a7 7 0 0 1 14 0c0 5.4-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/>
+      </svg>
+      <p style="font-size:1rem;margin-bottom:8px">No addresses on file yet.</p>
+      <p style="font-size:.875rem;margin-bottom:24px">The address you use at checkout is saved here, so your next order fills itself in.</p>
+      <a href="/collections" class="btn btn-sage">Start Shopping</a>
+    </div>
+    <% } else { %>
+
+    <%# Why these are here and that they cannot be edited, said plainly.
+        A page showing someone their own address with no obvious way to
+        change it invites a support email; one sentence prevents it. %>
+    <p class="sb-note">These come from your past orders and fill in automatically at checkout, where you can change anything before you pay. To update what's on file here, use the new address on your next order.</p>
+
+    <% addresses.forEach(function (a) { %>
+    <article class="sb-card">
+      <div class="sb-card-head">
+        <%# Shipping and billing can genuinely differ and a customer
+            looking for "the one that goes to the house" needs to tell
+            them apart. The label is the only thing distinguishing two
+            otherwise identical rows. %>
+        <span class="sb-date"><%= a.kind === 'billing' ? 'Billing' : 'Shipping' %><%
+          if (a.last_used_at) { %> &middot; last used <%= new Date(a.last_used_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) %><% }
+        %></span>
+      </div>
+
+      <div class="account-details">
+        <%
+          /* Built as a list and filtered, so a missing company or
+             address2 collapses instead of leaving a blank line or a
+             stray comma. Every value is output through the escaping
+             interpolation tag, never the raw one. */
+          var who = [a.first_name, a.last_name].filter(Boolean).join(' ').trim();
+          var cityLine = [
+            [a.city, a.state].filter(Boolean).join(', '),
+            a.zip
+          ].filter(Boolean).join(' ').trim();
+          var tel = a.phone
+            ? a.phone + (a.phone_ext ? ' ext. ' + a.phone_ext : '')
+            : '';
+        %>
+        <% if (who) { %><p><strong><%= who %></strong></p><% } %>
+        <% if (a.company) { %><p><%= a.company %></p><% } %>
+        <p><%= a.address1 %></p>
+        <% if (a.address2) { %><p><%= a.address2 %></p><% } %>
+        <% if (cityLine) { %><p><%= cityLine %></p><% } %>
+        <%# Country only when it is not the default. "United States" on
+            every card is noise that makes the real lines harder to scan. %>
+        <% if (a.country && a.country !== 'US') { %><p><%= a.country %></p><% } %>
+        <% if (tel) { %><p><%= tel %></p><% } %>
+        <%# address_type drives whether the carrier sends a liftgate
+            truck, which the customer should be able to check — a
+            residential flag on a commercial dock is a failed delivery
+            and a redelivery fee. See src/utils/deliveryLocation.js. %>
+        <% if (a.address_type) { %>
+        <%# shortLabel, NOT label — there is no label() on that module.
+            It is set on res.locals in server.js, so it is always present
+            in a real request; the guard is for the gate's render. %>
+        <p style="color:var(--muted);font-size:.875rem"><%= locals.deliveryLocation ? locals.deliveryLocation.shortLabel(a.address_type) : a.address_type %></p>
+        <% } %>
+      </div>
+    </article>
+    <% }) %>
+
+    <% } %>
+  </div>
+</div>

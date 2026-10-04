@@ -167,4 +167,52 @@ async function velocity(customerId, days = 90) {
   }
 }
 
-module.exports = { record, mostRecent, velocity };
+/**
+ * The customer's own list, for /account/addresses.
+ *
+ * ⚠️ NOTE WHAT IS NOT SELECTED. No lat/lng, no validation_verdict, no
+ * usps_dpv, no times_used, no address_key. Those exist to answer a fraud
+ * question and to dedup; putting them on a customer-facing page would
+ * show someone the inputs to a control they are the subject of, and
+ * `times_used` in particular reads as surveillance for no benefit to
+ * them. The page needs an address and a date.
+ *
+ * Shipping before billing, then most recently used first — the list is
+ * for recognising "my house" at a glance, and the one they used last is
+ * the one they are looking for.
+ *
+ * ⚠️ READ ONLY, AND THERE IS NO REMOVE. Nothing in this module writes on
+ * behalf of the account page, deliberately. The customer-facing button
+ * was considered and dropped: velocity() answers "how many distinct
+ * addresses in 90 days" on the admin order screen (items 6/9), and a
+ * Remove button would hand the subject of that control the means to
+ * reset it — ship, remove, ship, remove, count reads 1 forever. The same
+ * rule as orders.ship_*: the record of where things were sent is not
+ * editable from the storefront. If a customer wants an address gone,
+ * that is an account-deletion request, and the FK is already
+ * ON DELETE CASCADE for it.
+ *
+ * Returns [] rather than throwing: an empty list is a bad account page,
+ * an exception is a 500.
+ */
+async function listFor(customerId) {
+  const id = Number(customerId);
+  if (!id || !Number.isFinite(id)) return [];
+  try {
+    const [rows] = await bvoPool.query(
+      `SELECT id, kind, first_name, last_name, company,
+              address1, address2, city, state, zip, country,
+              phone, phone_ext, address_type, last_used_at, created_at
+         FROM customer_addresses
+        WHERE customer_id = ?
+        ORDER BY kind ASC, last_used_at DESC, id DESC`,
+      [id]
+    );
+    return rows;
+  } catch (err) {
+    console.error('[customerAddress] listFor failed:', err && err.message);
+    return [];
+  }
+}
+
+module.exports = { record, mostRecent, velocity, listFor };
