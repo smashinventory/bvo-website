@@ -162,7 +162,34 @@ const bb = read('views/pages/bundle-builder.ejs');
 check(/id="bb-save-bundle"/.test(bb), 'the Save button exists');
 check(/bb-save-bundle'\)\)\s*\{\s*saveBundle\(\)/.test(bb.replace(/\s+/g, ' ')) ||
       /saveBundle\(\)/.test(bb), 'the click handler calls saveBundle()');
-check(/fetch\('\/bundle\/save'/.test(bb), 'it posts to /bundle/save');
+/* ── THE MOUNT PREFIX ───────────────────────────────────────────────────
+   The router defines '/save'; server.js decides what that becomes. It is
+   mounted at '/bundle-builder', NOT '/bundle', and the first version of
+   this feature shipped a client posting to '/bundle/save' — a 404, which
+   fetch() reports as a failed save with no clue why. The original gate
+   checked the route path INSIDE the router and the fetch target
+   separately, so both were "correct" and the join between them was wrong.
+
+   Derived from server.js, never written out here: hardcoding the prefix
+   would make this assertion agree with itself rather than with the app. */
+const serverJs = strip(read('src/server.js'));
+const mountM   = serverJs.match(/app\.use\(\s*'([^']+)'\s*,\s*require\(\s*'\.\/routes\/bundle'\s*\)\s*\)/);
+check(!!mountM, 'the bundle router mount is found in server.js');
+if (mountM) {
+  const prefix = mountM[1];
+  console.log(`         (bundle router is mounted at ${prefix})`);
+  check(bb.includes(`fetch('${prefix}/save'`),
+    `the builder posts to ${prefix}/save — the REAL mounted path, not the router-local one`);
+  check(!/fetch\('\/bundle\/save'/.test(bb),
+    'the builder does not post to /bundle/save (that prefix is not mounted)');
+
+  /* Every link the feature emits to the builder must use the same prefix. */
+  for (const f of ['views/pages/account/bundles.ejs', 'views/pages/bundle-builder.ejs']) {
+    const t = read(f);
+    check(!/(href|encodeURIComponent\()\s*=?\s*['"]\/bundle['"]/.test(t),
+      `${f} has no link to the unmounted /bundle`);
+  }
+}
 check(/status === 401/.test(bb), 'it handles the signed-out 401 by sending them to sign in');
 check(/'Add Bundle to Cart'/.test(bb), 'Add to Cart is still present and unchanged');
 
