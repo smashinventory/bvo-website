@@ -815,6 +815,12 @@ const DEFAULTS = {
     twitter_url:   '',   // e.g. https://x.com/yourhandle
     pinterest_url: '',   // e.g. https://pinterest.com/yourprofile
     linkedin_url:  '',   // e.g. https://linkedin.com/company/yourcompany
+    /* Yelp is FOLLOW-ONLY and appears in the footer alone. The bars on
+       product.ejs and inspiration-guide.ejs are SHARE bars — they push the
+       current page to a platform — and Yelp has no share intent: you review
+       a business there, you do not post a link to a vanity. Adding it to
+       those bars would render a button that cannot do anything. */
+    yelp_url:      '',   // e.g. https://www.yelp.com/biz/your-business
   },
   footer: {
     brand_desc: 'Premium vanities, mirrors, faucets & accessories — at prices that make sense. Free shipping on every order.',

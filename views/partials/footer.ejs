@@ -31,7 +31,7 @@
         <p><%= ft.brand_desc || 'Premium vanities, mirrors, faucets &amp; accessories — at prices that make sense. Free shipping on every order.' %></p>
         <%
           var _fsoc = S.social || {};
-          var _fHasSoc = _fsoc.facebook_url || _fsoc.instagram_url || _fsoc.twitter_url || _fsoc.pinterest_url || _fsoc.linkedin_url;
+          var _fHasSoc = _fsoc.facebook_url || _fsoc.instagram_url || _fsoc.twitter_url || _fsoc.pinterest_url || _fsoc.linkedin_url || _fsoc.yelp_url;
         %>
         <% if (_fHasSoc) { %>
         <div class="footer-social" aria-label="Follow us on social media">
@@ -63,6 +63,35 @@
           <a href="<%= _fsoc.linkedin_url %>" class="social-share-btn social-share-btn--linkedin" target="_blank" rel="noopener noreferrer">
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
             <span class="sr-only">Follow us on LinkedIn</span>
+          </a>
+          <% } %>
+          <%# ── YELP ───────────────────────────────────────────────────────
+              FOLLOW ONLY. Deliberately absent from the share bars in
+              product.ejs and inspiration-guide.ejs: those push the current
+              page to a platform, and Yelp has no share intent. A Yelp button
+              there would be a control that cannot do anything.
+
+              THE ICON IS A CSS MASK, NOT AN INLINE SVG — the only one in this
+              row that is. Yelp's mark is a trademark, so it is the official
+              one-colour burst supplied by the owner rather than a path drawn
+              here. It arrived as a raster, and a raster <img> would ignore
+              the `color` the five siblings inherit, landing as a black blob
+              on a dark footer and never following the white hover.
+
+              Masking fixes that: the PNG supplies only the SHAPE, and
+              background:currentColor supplies the colour. The result inherits
+              and transitions exactly like the SVGs beside it. Yelp permits
+              one-colour reproduction of this mark, which is what makes this
+              legitimate — the full-colour burst may NOT be recoloured, so do
+              not swap this file for the red version and keep the mask.
+
+              If a real SVG is ever obtained, revert to the inline <svg>
+              pattern of the five above and drop both this span and the
+              .social-icon-mask rules. %>
+          <% if (_fsoc.yelp_url) { %>
+          <a href="<%= _fsoc.yelp_url %>" class="social-share-btn social-share-btn--yelp" target="_blank" rel="noopener noreferrer">
+            <span class="social-icon-mask social-icon-mask--yelp" aria-hidden="true"></span>
+            <span class="sr-only">Read our reviews on Yelp</span>
           </a>
           <% } %>
         </div>
