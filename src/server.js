@@ -625,6 +625,11 @@ app.use((req, res, next) => {
   const siteUrl = process.env.SITE_URL || 'https://bathroomvanitiesoutlet.com';
   res.locals.siteUrl      = siteUrl;
   res.locals.canonicalUrl = `${siteUrl}${req.path}`;
+  /* The request path, for templates that need to know WHERE they are rather
+     than what they are called. The admin nav needs this: a customer-detail
+     page's title is the customer's email, so matching the nav on pageTitle
+     loses the highlight the moment you open a record. */
+  res.locals.path         = req.path;
   res.locals.noindex      = false;   // true → <meta name="robots" content="noindex,follow">
   next();
 });

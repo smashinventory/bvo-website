@@ -11,6 +11,7 @@ const ordersCtrl    = require('../controllers/ordersController');
 const returnsCtrl   = require('../controllers/returnsController');
 const emailTplCtrl  = require('../controllers/emailTemplatesController');
 const jmvCtrl       = require('../controllers/jmvReportsController');
+const custCtrl      = require('../controllers/customerAnalyticsController');
 const shippingCtrl  = require('../controllers/shippingController');
 const { requireAdmin } = require('../middleware/adminAuth');
 
@@ -147,6 +148,13 @@ router.post('/marketing/jmv/run-rollup',     jmvCtrl.triggerRollup);
 router.get ('/marketing/jmv/stockout',       jmvCtrl.stockoutDrilldown);
 router.get ('/marketing/jmv/new-arrivals',   jmvCtrl.newArrivalsDrilldown);
 router.get ('/marketing/jmv/financials',     jmvCtrl.getFinancials);
+
+/* ── Marketing / Customers & Acquisition ────────────────────────
+   Every figure on these pages excludes rows flagged is_test. See
+   customerAnalyticsController for why that is not optional. */
+router.get ('/marketing/customers',          custCtrl.dashboard);
+router.get ('/marketing/customers/:id',      custCtrl.detail);
+router.post('/marketing/customers/:id/test', custCtrl.toggleTest);
 
 /* ── Shipping (WWEX SpeedShip) ────────────────────────────────── */
 router.get ('/shipping',                  shippingCtrl.index);

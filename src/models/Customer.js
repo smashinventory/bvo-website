@@ -1,5 +1,10 @@
 'use strict';
 
+/* Closed list of acquisition sources. An unrecognised value normalises to
+   NULL rather than creating a new category, so two callers cannot split one
+   real number into two smaller wrong ones. See the file for the reasoning. */
+const SIGNUP_SOURCES = require('../config/signupSources');
+
 /* NO BCRYPT HERE ANY MORE.
    Customer passwords are gone — the six-digit code IS the login (spec
    7.2), and `password_hash` was DROPPED from the customers table on
@@ -46,11 +51,12 @@ const Customer = {
      the login. A caller still passing one is a caller that has not been
      updated, and it is better that the argument simply does not exist
      than that it be accepted and silently discarded. */
-  async create({ email, firstName, lastName, phone, acceptsMarketing = false }) {
+  async create({ email, firstName, lastName, phone, acceptsMarketing = false, signupSource }) {
     const [result] = await bvoPool.query(
-      `INSERT INTO customers (email, first_name, last_name, phone, accepts_marketing)
-       VALUES (?, ?, ?, ?, ?)`,
-      [email.toLowerCase().trim(), firstName, lastName, phone || null, acceptsMarketing ? 1 : 0]
+      `INSERT INTO customers (email, first_name, last_name, phone, accepts_marketing, signup_source)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [email.toLowerCase().trim(), firstName, lastName, phone || null,
+       acceptsMarketing ? 1 : 0, SIGNUP_SOURCES.clean(signupSource)]
     );
     return result.insertId;
   },
@@ -72,18 +78,22 @@ const Customer = {
    * password_hash was dropped on 2026-09-27.
    * See docs/briefs/BVO_CHECKOUT_SPEC.md 7.2.
    */
-  async findOrCreateByEmail(rawEmail) {
+  async findOrCreateByEmail(rawEmail, signupSource) {
     const email = String(rawEmail || '').toLowerCase().trim();
     if (!email) return null;
 
     const existing = await this.findByEmail(email);
+    /* An existing customer keeps the source they were FIRST acquired with.
+       Overwriting it on every sign-in would turn an acquisition field into a
+       last-touch field, and the question it exists to answer — what produced
+       this customer — would quietly become unanswerable. */
     if (existing) return { id: existing.id, email: existing.email,
                            first_name: existing.first_name, created: false };
 
     const [result] = await bvoPool.query(
-      `INSERT INTO customers (email, first_name, last_name, accepts_marketing)
-       VALUES (?, '', '', 0)`,
-      [email]
+      `INSERT INTO customers (email, first_name, last_name, accepts_marketing, signup_source)
+       VALUES (?, '', '', 0, ?)`,
+      [email, SIGNUP_SOURCES.clean(signupSource)]
     );
     return { id: result.insertId, email, first_name: '', created: true };
   },

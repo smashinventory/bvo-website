@@ -318,8 +318,16 @@ exports.verifyCode = async (req, res, next) => {
       });
     }
 
-    /* Proven address. Sign in or create, one step. */
-    const customer = await Customer.findOrCreateByEmail(email);
+    /* Proven address. Sign in or create, one step.
+
+       The source comes from the client, which knows WHY it sent the visitor
+       here — the bundle builder redirects with ?message=save-bundle, the
+       heart button with ?message=save. It is normalised against a closed
+       list, so an unknown or absent value becomes NULL ("unknown" in the
+       report) rather than inventing a category. It is only ever written on
+       a row that is CREATED here; an existing customer keeps whatever
+       acquired them first. */
+    const customer = await Customer.findOrCreateByEmail(email, req.body.source);
     if (!customer) return res.status(500).json({ ok: false, error: CODE_ERRORS.send_failed });
 
     /* ── THIS IS EMAIL VERIFICATION, AND IT ALWAYS WAS ─────────────

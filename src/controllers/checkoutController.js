@@ -646,7 +646,11 @@ exports.saveInfo = async (req, res) => {
   let orderCustomerId = req.session.customerId || null;
   if (!orderCustomerId) {
     try {
-      const found = await Customer.findOrCreateByEmail(buyerEmail);
+      /* 'checkout' only ever lands on a customer created HERE — an address
+         that already exists keeps whatever acquired it first. Someone who
+         saved a bundle in March and buys in June stays attributed to the
+         bundle, which is the question the field exists to answer. */
+      const found = await Customer.findOrCreateByEmail(buyerEmail, 'checkout');
       orderCustomerId = found ? found.id : null;
     } catch (err) {
       /* Never fail an order over this. A NULL customer_id costs us the

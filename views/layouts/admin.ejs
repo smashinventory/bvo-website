@@ -254,6 +254,14 @@
               <svg viewBox="0 0 24 24" class="admin-nav-icon" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
               JMV Demand Reports
             </a>
+            <%# Active on the list AND on a customer detail page, whose title
+                is the customer's email — so match on the path instead of the
+                title, or the nav loses its highlight the moment you open a
+                record. %>
+            <a href="/admin/marketing/customers" class="admin-nav-item admin-nav-item--child <%= (locals.path || '').indexOf('/admin/marketing/customers') === 0 ? 'active' : '' %>">
+              <svg viewBox="0 0 24 24" class="admin-nav-icon" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg>
+              Customers
+            </a>
             <span class="nav-coming-soon">Email Campaigns <span class="admin-nav-soon">soon</span></span>
             <span class="nav-coming-soon">CRM / Reviews <span class="admin-nav-soon">soon</span></span>
             <span class="nav-coming-soon">CAC Reporting <span class="admin-nav-soon">soon</span></span>

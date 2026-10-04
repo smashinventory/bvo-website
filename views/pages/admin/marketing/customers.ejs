@@ -1,0 +1,331 @@
+<%
+/**
+ * Admin — Customers & Acquisition
+ *
+ * Locals: kpis, trend, sources, repeatRate, ltv, cohorts, listing,
+ *         excluded {customers, orders}, q, sort
+ *
+ * EVERY REPORT CARRIES ITS OWN `sufficient` VERDICT. When it is false the
+ * panel renders what it still needs instead of the chart. That is the whole
+ * design: a chart is read as a claim whether or not the number under it is
+ * sound, and cohort retention over nine customers is not a weak signal —
+ * it is noise wearing the costume of a finding.
+ *
+ * Nothing here computes a metric. The controller owns the arithmetic so the
+ * gate can test it; this file only decides what is drawn.
+ */
+%>
+
+<style>
+.ca-head{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1rem}
+.ca-head h1{font-size:1.35rem;font-weight:700;color:var(--navy);margin:0}
+.ca-sub{color:var(--text-muted);font-size:.85rem;margin:.35rem 0 0;line-height:1.5;max-width:70ch}
+.ca-excluded{background:#FFF8E6;border:1px solid #E8D9A8;border-radius:8px;padding:.7rem .9rem;font-size:.8rem;color:#6B5A24;margin-bottom:1.5rem;line-height:1.5}
+.ca-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.75rem;margin-bottom:1.5rem}
+.ca-kpi{background:#fff;border:1px solid var(--line,#E6E1D8);border-radius:8px;padding:.85rem}
+.ca-kpi-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);display:block;margin-bottom:.3rem}
+.ca-kpi-val{font-size:1.4rem;font-weight:700;color:var(--navy);line-height:1.1}
+.ca-kpi-sub{font-size:.72rem;color:var(--text-muted);margin-top:.2rem;display:block}
+.ca-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:1rem;margin-bottom:1.5rem}
+.ca-panel{background:#fff;border:1px solid var(--line,#E6E1D8);border-radius:8px;padding:1rem}
+.ca-panel h2{font-size:.95rem;font-weight:700;color:var(--navy);margin:0 0 .2rem}
+.ca-panel-note{font-size:.74rem;color:var(--text-muted);margin:0 0 .8rem;line-height:1.45}
+.ca-pending{background:#FAFAF8;border:1px dashed var(--line,#D8D2C6);border-radius:6px;padding:1.1rem;text-align:center}
+.ca-pending-t{font-size:.82rem;font-weight:600;color:var(--navy);margin:0 0 .3rem}
+.ca-pending-d{font-size:.76rem;color:var(--text-muted);margin:0;line-height:1.5}
+.ca-bars{display:flex;flex-direction:column;gap:.5rem}
+.ca-bar-row{display:grid;grid-template-columns:1fr auto;gap:.5rem;align-items:center;font-size:.8rem}
+.ca-bar-track{background:#EFEDE8;border-radius:4px;height:8px;overflow:hidden;margin-top:.25rem}
+.ca-bar-fill{background:var(--navy,#182840);height:100%}
+.ca-table{width:100%;border-collapse:collapse;font-size:.82rem}
+.ca-table th{text-align:left;font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);padding:.5rem .6rem;border-bottom:1px solid var(--line,#E6E1D8);white-space:nowrap}
+.ca-table td{padding:.6rem;border-bottom:1px solid #F2F0EB;vertical-align:middle}
+.ca-table tr:hover td{background:#FAFAF8}
+.ca-email{font-weight:600;color:var(--navy);text-decoration:none}
+.ca-email:hover{text-decoration:underline}
+.ca-pill{display:inline-block;font-size:.66rem;padding:.12rem .45rem;border-radius:10px;background:#EFEDE8;color:#5A5243;white-space:nowrap}
+.ca-pill--ok{background:#E3F0E4;color:#2C5E33}
+.ca-toolbar{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-bottom:.9rem}
+.ca-toolbar input,.ca-toolbar select{font-size:.82rem;padding:.4rem .6rem;border:1px solid var(--line,#D8D2C6);border-radius:6px}
+.ca-muted{color:var(--text-muted)}
+.ca-pager{display:flex;gap:.4rem;align-items:center;margin-top:.9rem;font-size:.8rem}
+.ca-pager a{padding:.3rem .6rem;border:1px solid var(--line,#D8D2C6);border-radius:5px;text-decoration:none;color:var(--navy)}
+.ca-pager .is-cur{background:var(--navy,#182840);color:#fff;border-color:var(--navy,#182840)}
+.ca-empty{padding:2rem;text-align:center;color:var(--text-muted);font-size:.85rem}
+</style>
+
+<div class="ca-head">
+  <div>
+    <h1>Customers &amp; Acquisition</h1>
+    <p class="ca-sub">
+      Who signed up, what produced them, and whether the save mechanisms are being used.
+      Panels that need more data to be meaningful say so rather than drawing a chart from it.
+    </p>
+  </div>
+</div>
+
+<%# Said out loud. A dashboard that silently drops rows is one nobody can
+    reconcile against the database. %>
+<% if (excluded.customers || excluded.orders) { %>
+<div class="ca-excluded">
+  <strong>Excluding <%= excluded.customers %> test customer<%= excluded.customers === 1 ? '' : 's' %>
+  and <%= excluded.orders %> test order<%= excluded.orders === 1 ? '' : 's' %>
+  from every figure on this page.</strong>
+  These were created during pre-cutover testing. Open a customer to change their flag.
+</div>
+<% } %>
+
+<!-- ── KPI strip: honest at any size, including zero ─────────────────── -->
+<div class="ca-kpis">
+  <div class="ca-kpi">
+    <span class="ca-kpi-label">Customers</span>
+    <span class="ca-kpi-val"><%= kpis.customers.toLocaleString('en-US') %></span>
+    <span class="ca-kpi-sub"><%= kpis.new7d %> in the last 7 days</span>
+  </div>
+  <div class="ca-kpi">
+    <span class="ca-kpi-label">New (30 days)</span>
+    <span class="ca-kpi-val"><%= kpis.new30d.toLocaleString('en-US') %></span>
+    <span class="ca-kpi-sub">&nbsp;</span>
+  </div>
+  <div class="ca-kpi">
+    <span class="ca-kpi-label">Orders</span>
+    <span class="ca-kpi-val"><%= kpis.orders.toLocaleString('en-US') %></span>
+    <span class="ca-kpi-sub"><%= kpis.guestOrders %> as guest</span>
+  </div>
+  <div class="ca-kpi">
+    <span class="ca-kpi-label">Revenue</span>
+    <span class="ca-kpi-val">$<%= Math.round(kpis.revenue).toLocaleString('en-US') %></span>
+    <span class="ca-kpi-sub">&nbsp;</span>
+  </div>
+  <div class="ca-kpi">
+    <span class="ca-kpi-label">Avg order</span>
+    <%# null, not 0, when there are no orders — "$0 AOV" is a claim; "—" is not. %>
+    <span class="ca-kpi-val"><%= kpis.aov === null ? '—' : '$' + Math.round(kpis.aov).toLocaleString('en-US') %></span>
+    <span class="ca-kpi-sub"><%= kpis.aov === null ? 'no orders yet' : '&nbsp;' %></span>
+  </div>
+  <div class="ca-kpi">
+    <span class="ca-kpi-label">Email verified</span>
+    <span class="ca-kpi-val"><%= kpis.verified %><span class="ca-muted" style="font-size:.9rem">/<%= kpis.customers %></span></span>
+    <span class="ca-kpi-sub"><%= kpis.optedIn %> opted into marketing</span>
+  </div>
+  <%# The two numbers this whole page was built to surface. %>
+  <div class="ca-kpi">
+    <span class="ca-kpi-label">Items saved</span>
+    <span class="ca-kpi-val"><%= kpis.favorites.toLocaleString('en-US') %></span>
+    <span class="ca-kpi-sub">across all customers</span>
+  </div>
+  <div class="ca-kpi">
+    <span class="ca-kpi-label">Bundles saved</span>
+    <span class="ca-kpi-val"><%= kpis.bundles.toLocaleString('en-US') %></span>
+    <span class="ca-kpi-sub">across all customers</span>
+  </div>
+</div>
+
+<!-- ── Reports ───────────────────────────────────────────────────────── -->
+<div class="ca-grid">
+
+  <div class="ca-panel">
+    <h2>Signups &amp; orders over time</h2>
+    <p class="ca-panel-note">Daily, last 90 days.</p>
+    <% if (trend.sufficient) { %>
+    <canvas id="caTrend" height="200"></canvas>
+    <% } else { %>
+    <div class="ca-pending">
+      <p class="ca-pending-t">Not enough data yet</p>
+      <p class="ca-pending-d">Needs <%= trend.need %>. You have <%= trend.have %>.</p>
+    </div>
+    <% } %>
+  </div>
+
+  <div class="ca-panel">
+    <h2>Where customers came from</h2>
+    <p class="ca-panel-note">
+      Recorded at signup from 4 Oct 2026. Customers created before then have no
+      source and cannot be backfilled — they show as Unknown.
+    </p>
+    <% if (sources.sufficient) { %>
+    <div class="ca-bars">
+      <% sources.rows.forEach(function (r) { %>
+      <div>
+        <div class="ca-bar-row">
+          <span><%= r.label %></span>
+          <span><strong><%= r.n %></strong> <span class="ca-muted"><%= r.pct.toFixed(0) %>%</span></span>
+        </div>
+        <div class="ca-bar-track"><div class="ca-bar-fill" style="width:<%= Math.max(2, r.pct) %>%"></div></div>
+      </div>
+      <% }) %>
+    </div>
+    <% } else { %>
+    <div class="ca-pending">
+      <p class="ca-pending-t">Collecting</p>
+      <p class="ca-pending-d">Needs <%= sources.need %>. You have <%= sources.have %>.</p>
+    </div>
+    <% } %>
+  </div>
+
+  <div class="ca-panel">
+    <h2>First-time vs returning</h2>
+    <p class="ca-panel-note">Share of buyers who have ordered more than once.</p>
+    <% if (repeatRate.sufficient) { %>
+    <div class="ca-bars">
+      <div>
+        <div class="ca-bar-row"><span>Returning</span><span><strong><%= repeatRate.repeat %></strong> <span class="ca-muted"><%= repeatRate.rate.toFixed(0) %>%</span></span></div>
+        <div class="ca-bar-track"><div class="ca-bar-fill" style="width:<%= Math.max(2, repeatRate.rate) %>%"></div></div>
+      </div>
+      <div>
+        <div class="ca-bar-row"><span>One-time</span><span><strong><%= repeatRate.oneTime %></strong></span></div>
+      </div>
+    </div>
+    <% } else { %>
+    <div class="ca-pending">
+      <p class="ca-pending-t">Not enough data yet</p>
+      <p class="ca-pending-d">
+        Needs <%= repeatRate.need %>. You have <%= repeatRate.have %>.
+        A repeat rate over a handful of buyers swings wildly on one order.
+      </p>
+    </div>
+    <% } %>
+  </div>
+
+  <div class="ca-panel">
+    <h2>Lifetime value</h2>
+    <p class="ca-panel-note">Customers grouped by total spend to date.</p>
+    <% if (ltv.sufficient) { %>
+    <table class="ca-table">
+      <thead><tr><th>Band</th><th>Customers</th><th>Avg spend</th></tr></thead>
+      <tbody>
+        <% ltv.rows.forEach(function (r) { %>
+        <tr><td><%= r.band %></td><td><%= r.customers %></td><td>$<%= Number(r.avg_spend).toLocaleString('en-US') %></td></tr>
+        <% }) %>
+      </tbody>
+    </table>
+    <% } else { %>
+    <div class="ca-pending">
+      <p class="ca-pending-t">Not enough data yet</p>
+      <p class="ca-pending-d">Needs <%= ltv.need %>. You have <%= ltv.have %>.</p>
+    </div>
+    <% } %>
+  </div>
+
+  <div class="ca-panel" style="grid-column:1/-1">
+    <h2>Cohort retention</h2>
+    <p class="ca-panel-note">
+      Customers grouped by signup month, then how many ordered in each month after.
+    </p>
+    <% if (cohorts.sufficient) { %>
+    <table class="ca-table">
+      <thead><tr><th>Cohort</th><th>Month</th><th>Buyers</th></tr></thead>
+      <tbody>
+        <% cohorts.rows.forEach(function (r) { %>
+        <tr><td><%= r.cohort %></td><td><%= r.month_n %></td><td><%= r.buyers %></td></tr>
+        <% }) %>
+      </tbody>
+    </table>
+    <% } else { %>
+    <div class="ca-pending">
+      <p class="ca-pending-t">Needs population and time</p>
+      <p class="ca-pending-d">
+        Needs <%= cohorts.need %>. You have <%= cohorts.have %>.<br>
+        Retention cannot be measured faster than it happens — a hundred customers
+        acquired last week still have no month-three behaviour to report.
+      </p>
+    </div>
+    <% } %>
+  </div>
+
+</div>
+
+<!-- ── The list: the screen that stays useful at every size ──────────── -->
+<div class="ca-panel">
+  <h2>All customers</h2>
+  <p class="ca-panel-note"><%= listing.total.toLocaleString('en-US') %> record<%= listing.total === 1 ? '' : 's' %>, excluding test accounts.</p>
+
+  <form class="ca-toolbar" method="GET" action="/admin/marketing/customers">
+    <input type="search" name="q" value="<%= q %>" placeholder="Search name or email" style="min-width:220px">
+    <select name="sort">
+      <option value="recent" <%= sort === 'recent' ? 'selected' : '' %>>Newest first</option>
+      <option value="spend"  <%= sort === 'spend'  ? 'selected' : '' %>>Highest spend</option>
+      <option value="orders" <%= sort === 'orders' ? 'selected' : '' %>>Most orders</option>
+      <option value="email"  <%= sort === 'email'  ? 'selected' : '' %>>Email A–Z</option>
+    </select>
+    <button type="submit" class="btn btn-sm">Apply</button>
+    <% if (q) { %><a href="/admin/marketing/customers" class="ca-muted" style="font-size:.8rem">Clear</a><% } %>
+  </form>
+
+  <% if (!listing.rows.length) { %>
+  <div class="ca-empty">
+    <% if (q) { %>No customers match &ldquo;<%= q %>&rdquo;.<% } else { %>
+    No customers yet. Every record currently in the database is flagged as a test.
+    <% } %>
+  </div>
+  <% } else { %>
+  <table class="ca-table">
+    <thead>
+      <tr>
+        <th>Customer</th><th>Signed up</th><th>Source</th>
+        <th>Orders</th><th>Spend</th><th>Last order</th><th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% listing.rows.forEach(function (c) { %>
+      <tr>
+        <td>
+          <a class="ca-email" href="/admin/marketing/customers/<%= c.id %>"><%= c.email %></a>
+          <% if (c.first_name || c.last_name) { %>
+          <div class="ca-muted" style="font-size:.74rem"><%= [c.first_name, c.last_name].filter(Boolean).join(' ') %></div>
+          <% } %>
+        </td>
+        <td class="ca-muted"><%= new Date(c.created_at).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) %></td>
+        <td><span class="ca-pill"><%= c.source_label %></span></td>
+        <td><%= c.order_count %></td>
+        <td><%= Number(c.total_spent) > 0 ? '$' + Math.round(c.total_spent).toLocaleString('en-US') : '—' %></td>
+        <td class="ca-muted"><%= c.last_order_at ? new Date(c.last_order_at).toLocaleDateString('en-US', { month:'short', day:'numeric' }) : '—' %></td>
+        <td>
+          <% if (c.verified) { %><span class="ca-pill ca-pill--ok">Verified</span><% } %>
+          <% if (String(c.accepts_marketing) === '1') { %><span class="ca-pill">Marketing</span><% } %>
+        </td>
+      </tr>
+      <% }) %>
+    </tbody>
+  </table>
+
+  <% if (listing.pages > 1) { %>
+  <div class="ca-pager">
+    <% for (var p = 1; p <= listing.pages; p++) { %>
+    <a class="<%= p === listing.page ? 'is-cur' : '' %>"
+       href="/admin/marketing/customers?page=<%= p %>&sort=<%= sort %><%= q ? '&q=' + encodeURIComponent(q) : '' %>"><%= p %></a>
+    <% } %>
+  </div>
+  <% } %>
+  <% } %>
+</div>
+
+<% if (trend.sufficient) { %>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script nonce="<%= cspNonce %>">
+/* Only loaded when there is something to draw. Loading Chart.js to render an
+   empty canvas is a request and a frame of layout for nothing. */
+(function () {
+  var data = <%- JSON.stringify(trend.rows) %>;
+  var el = document.getElementById('caTrend');
+  if (!el || !window.Chart) return;
+  new Chart(el, {
+    type: 'line',
+    data: {
+      labels: data.map(function (r) { return r.day; }),
+      datasets: [
+        { label: 'Signups', data: data.map(function (r) { return r.signups; }),
+          borderColor: '#182840', backgroundColor: 'rgba(24,40,64,.08)', fill: true, tension: .25 },
+        { label: 'Orders',  data: data.map(function (r) { return r.orders; }),
+          borderColor: '#7A8B6F', backgroundColor: 'rgba(122,139,111,.10)', fill: true, tension: .25 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+      plugins: { legend: { position: 'bottom' } }
+    }
+  });
+})();
+</script>
+<% } %>
