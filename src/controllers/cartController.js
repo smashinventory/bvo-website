@@ -7,6 +7,7 @@ const { bvoPool } = require('../config/database');
    what charges the card. See the header of cartPricing.js. */
 const pricing = require('../utils/cartPricing');
 const SAMPLE  = require('../config/sampleOffer');
+const SampleRedemption = require('../models/SampleRedemption');
 
 /* ── Cart helpers ───────────────────────────────────────────────── */
 function getCart(req) {
@@ -52,14 +53,55 @@ function stripBundleGroup(cart, bundleId) {
 }
 
 /* ── GET /cart ──────────────────────────────────────────────────── */
-exports.index = (req, res) => {
-  const cart = getCart(req);
-  res.render('pages/cart', {
-    pageTitle: `Cart (${cart.count}) | BathroomVanitiesOutlet.com`,
-    metaDesc:  '',
-    cart,
-    freeShipping: true, // BVO always free
-  });
+exports.index = async (req, res, next) => {
+  try {
+    const cart = getCart(req);
+
+    /* ── THE FREE-SAMPLE OFFER ON THE CART PAGE ────────────────────
+       Three states, and the distinction matters because one of them is
+       a promise we cannot yet keep.
+
+       signed in  -> we know their email, so eligibility is a real
+                     answer and the discount is applied and priced.
+       signed out  -> we know nothing. The samples price at full value
+                     and the page says the first two come off at
+                     checkout. NOT applied to the total, because showing
+                     a discount we have not verified is how a cart ends
+                     up promising $0.00 and a card gets charged $19.98.
+       ineligible  -> already redeemed on this email. Say so, quietly.
+
+       ⚠️ THE CART IS NEVER THE AUTHORITY. checkoutController recomputes
+       this from the typed address as well as the email, because the rule
+       is one per email AND one per mailing address and the address does
+       not exist yet at this point. */
+    let sampleEligible = false;
+    let sampleState    = 'unknown';
+    if (cart.items.some(i => pricing.isSample(i))) {
+      if (req.session.customerId) {
+        const who = req.session.customer || {};
+        const e = await SampleRedemption.isEligible(who.email, null);
+        sampleEligible = e.eligible;
+        sampleState    = e.eligible ? 'applied' : 'used';
+      }
+    } else {
+      sampleState = 'none';
+    }
+
+    const priced = pricing.priceCart(cart.items, { sampleEligible });
+    /* Rendered figures come from the SAME call that priced the cart, not
+       from cart.subtotal, which was computed without eligibility. */
+    res.render('pages/cart', {
+      pageTitle: `Cart (${cart.count}) | BathroomVanitiesOutlet.com`,
+      metaDesc:  '',
+      cart,
+      freeShipping: true, // BVO always free
+      sampleState,
+      sampleDiscount: priced.discount,
+      sampleSubtotal: priced.subtotal,
+      sampleFreeUnits: priced.freeUnits,
+      sampleOffer: SAMPLE,
+    });
+  } catch (err) { next(err); }
 };
 
 /* ── POST /cart/add ─────────────────────────────────────────────── */

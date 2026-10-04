@@ -232,8 +232,21 @@ function render() {
      /!draft && !flash\.old\.ship_address1/.test(code),
      'a saved address could overwrite this order');
   ok('savedAddress reaches the view', /savedAddress,/.test(code), 'not passed');
-  ok('the shipping write is fire-and-forget',
-     /CustomerAddress\.record\([\s\S]{0,700}?\}\)\.catch\(\(\) => \{\}\)/.test(code),
+  /* ⚠️ THIS USED TO MATCH THE FORMATTING, not the condition: it required
+     the inline object literal and the exact string "}).catch(() => {})".
+     It went red the moment the address object was hoisted into a
+     variable so the free-sample eligibility check could reuse it — a
+     correct change, flagged as a fault. Same failure as the
+     req.session.customerId assertion above, and as h1s === 2 in
+     gate_filter_landing_pages.
+     The CONDITION is: the shipping record call has a .catch attached and
+     is not awaited, so a failed address write cannot reject into a
+     checkout that has already taken a card. */
+  const shipCall = (saveInfo.match(/CustomerAddress\.record\([^;]*;/) || [''])[0];
+  ok('the shipping write has a .catch attached',
+     /\.catch\(/.test(shipCall), shipCall || 'no record call found');
+  ok('and it is NOT awaited',
+     !/await\s+CustomerAddress\.record\(/.test(saveInfo),
      'an address write could fail a checkout');
 
   console.log(fail ? `\n*** ${fail} GATE(S) FAILED ***` : '\nALL GATES PASS');

@@ -68,6 +68,10 @@ const addrVal = require('../services/addressValidationService');
    catches its own errors and returns {ok:false} — nothing in here may
    throw into a checkout. */
 const CustomerAddress = require('../models/CustomerAddress');
+/* Free-sample eligibility: one per email AND one per mailing address.
+   The two unique indexes in sample_redemptions are the real enforcement;
+   this model is how the cart and checkout ask politely in advance. */
+const SampleRedemption = require('../models/SampleRedemption');
 /* Match-or-create the customer from the address typed on page 1. Needed
    since the identity gate was removed (2026-09-28) — previously
    requireIdentity guaranteed a customerId was already on the session. */
@@ -150,6 +154,28 @@ function calcTotal(items, opts) {
      See gates/gate_cart_pricing.js, which asserts that and will fail if
      a private copy of the formula reappears in this file. */
   return pricing.priceCart(items, opts).subtotal;
+}
+
+/** The shipping address of an ORDER, in the shape addressKey() wants.
+ *
+ *  ⚠️ THE PAYMENT STEP MUST REACH THE SAME ELIGIBILITY ANSWER saveInfo
+ *  DID, or the cart shows one figure and the card is charged another —
+ *  the exact failure the single pricing module exists to prevent, just
+ *  arrived at from a different direction. saveInfo decides from the
+ *  typed body; this rebuilds the same object from the columns those
+ *  values were written to, so both hash to the same key.
+ *
+ *  Only the fields addressKey actually reads. Adding more would be
+ *  harmless to the hash but would imply they matter. */
+function shipAddrFromOrder(o) {
+  return {
+    place_id: o.ship_place_id || null,
+    address1: o.ship_address1 || '',
+    address2: o.ship_address2 || null,
+    city:     o.ship_city     || '',
+    state:    o.ship_state    || '',
+    zip:      o.ship_zip      || '',
+  };
 }
 
 /** BVO-YYYY-MM-DD-NNNNN. The +106 offset preserves continuity with the
@@ -655,6 +681,44 @@ exports.saveInfo = async (req, res) => {
      orders attach to one customer row per address and history follows
      the customer_id rather than the email string. */
   const buyerEmail = String(req.body.email || '').trim().toLowerCase();
+
+  /* The shipping address, ONCE, in the shape addressKey() and
+     CustomerAddress.record both want. It used to be built inline inside
+     the record() call; it is hoisted because the free-sample eligibility
+     check needs the same object, and a second hand-built copy of an
+     address shape is how two callers end up hashing to different keys. */
+  const shipAddr = {
+    place_id:          prov.placeId || null,
+    formatted_address: prov.formatted || null,
+    first_name:        name.first,
+    last_name:         name.last || null,
+    address1:          String(req.body.ship_address1 || '').trim(),
+    address2:          String(req.body.ship_address2 || '').trim() || null,
+    city:              String(req.body.ship_city || '').trim(),
+    state:             String(req.body.ship_state || '').trim().toUpperCase(),
+    zip:               String(req.body.ship_zip || '').trim(),
+    phone, phone_ext:  ext,
+    address_type:      req.body.ship_address_type || null,
+  };
+
+  /* ── FREE SAMPLES: may this buyer still take them? ──────────────────
+     One per email AND one per mailing address — see
+     src/models/SampleRedemption.js. Decided here because this is the
+     first point both halves are known: the email from page 1 and the
+     address they just typed.
+
+     ⚠️ NOT RECORDED YET. The redemption is written only once payment
+     succeeds, in the webhook. Recording it here would mean the payment
+     step — which recomputes eligibility from the stored order so the
+     charge matches the cart — would find the redemption already present,
+     turn the samples back to full price, and bill a card for an amount
+     the buyer never saw. It would also burn someone's one-time offer on
+     a checkout they abandoned.
+
+     Fails closed: isEligible returns not-eligible on any error. */
+  const sampleElig = await SampleRedemption.isEligible(buyerEmail, shipAddr);
+  const PRICE_OPTS = { sampleEligible: sampleElig.eligible };
+
   let orderCustomerId = req.session.customerId || null;
   if (!orderCustomerId) {
     try {
@@ -723,19 +787,7 @@ exports.saveInfo = async (req, res) => {
        point the buyer confirmed the address — a draft that never
        reaches payment is still a real address they typed, and the
        velocity signal wants it. */
-    CustomerAddress.record(orderCustomerId, 'shipping', {
-      place_id:          prov.placeId || null,
-      formatted_address: prov.formatted || null,
-      first_name:        name.first,
-      last_name:         name.last || null,
-      address1:          String(req.body.ship_address1 || '').trim(),
-      address2:          String(req.body.ship_address2 || '').trim() || null,
-      city:              String(req.body.ship_city || '').trim(),
-      state:             String(req.body.ship_state || '').trim().toUpperCase(),
-      zip:               String(req.body.ship_zip || '').trim(),
-      phone, phone_ext:  ext,
-      address_type:      req.body.ship_address_type || null,
-    }).catch(() => {});
+    CustomerAddress.record(orderCustomerId, 'shipping', shipAddr).catch(() => {});
   }
 
   const fields = {
@@ -856,7 +908,9 @@ exports.saveInfo = async (req, res) => {
       );
       await conn.query('DELETE FROM order_items WHERE order_id = ?', [orderId]);
     } else {
-      const subtotal = calcTotal(cart.items);
+      /* PRICE_OPTS, not a bare call: orders.subtotal must reflect the
+         free samples or the stored order disagrees with the charge. */
+      const subtotal = calcTotal(cart.items, PRICE_OPTS);
       const [result] = await conn.query(
         `INSERT INTO orders
            (order_number, customer_id, status, payment_status,
@@ -909,7 +963,7 @@ exports.saveInfo = async (req, res) => {
        exactly the rows it wrote before — one per cart line. The two-row
        branch below is dormant until eligibility is wired, which is how
        this commit stays a no-op. */
-    const pricedLines = pricing.priceCart(cart.items).lines;
+    const pricedLines = pricing.priceCart(cart.items, PRICE_OPTS).lines;
     for (const l of pricedLines) {
       const item = l.item;
       /* A part-free line is written as TWO rows, not one row with
@@ -1194,9 +1248,36 @@ exports.createSession = async (req, res) => {
     });
   }
 
+  /* Eligibility RECOMPUTED from the stored order, not carried in the
+     session or trusted from the client. The redemption is not written
+     until payment succeeds, so this returns the same answer saveInfo got
+     and the amount Stripe is asked for equals orders.subtotal.
+
+     If it somehow differs — someone at the same address redeemed in the
+     seconds between — this fails CLOSED and the buyer is charged full
+     price for samples they were shown as free. That is the wrong way
+     round for them, so the amount is compared below rather than assumed. */
+  const payElig = await SampleRedemption.isEligible(
+    order.guest_email, shipAddrFromOrder(order));
+  const PAY_OPTS = { sampleEligible: payElig.eligible };
+
+  const expected = pricing.priceCart(cart.items, PAY_OPTS).subtotal;
+  if (pricing.toCents(expected) !== pricing.toCents(order.subtotal)) {
+    /* Refuse rather than charge a figure the buyer has not seen. Nothing
+       has been sent to Stripe at this point. */
+    console.error('[checkout.createSession] subtotal drift:',
+      { orderId, stored: order.subtotal, expected, sampleReason: payElig.reason });
+    return res.status(409).json({
+      ok: false,
+      error: 'Your order total changed. Please review your cart and try again.',
+    });
+  }
+
   const session = await stripe.createCheckoutSession({
     orderId,
     orderNumber,
+    /* The SAME options the stored subtotal was computed with. */
+    priceOpts: PAY_OPTS,
     /* REQUIRED for canConfirm. Page 3 has no email field - page 1 owns
        that fact - so without this the session's email is never set,
        canConfirm never turns true, and Place Order is permanently dead
@@ -1725,6 +1806,58 @@ async function handleSessionCompleted(sessionStub) {
         .catch(err => console.error('[checkout] billing address record failed for order',
           orderId, '—', err && err.message));
     }
+
+    /* ── BURN THE FREE-SAMPLE OFFER ──────────────────────────────────
+       HERE, and nowhere earlier. This is the first moment the samples
+       have actually been paid for and are going to be shipped.
+
+       Recording at saveInfo instead would be the obvious place and is
+       wrong twice over:
+         1. createSession recomputes eligibility from the stored order so
+            the Stripe amount matches orders.subtotal. It would find the
+            redemption already written, price the samples at full value,
+            and bill a card for a figure the buyer never saw.
+         2. An abandoned checkout would consume someone's one-time offer.
+
+       Driven off order_items rather than the cart: the cart is gone by
+       the time a webhook runs, and the '(free sample)' rows are the
+       durable record of what was actually given. Keyed on the ORDER's
+       email and address, never a session — a webhook has neither.
+
+       Fire-and-forget. A ledger write must not fail the handler that
+       confirms a paid order; the unique indexes mean a missed write can
+       only ever cost one extra freebie, while a thrown error here would
+       leave a paid order unconfirmed. */
+    bvoPool.query(
+      `SELECT o.guest_email, o.customer_id,
+              o.ship_place_id, o.ship_address1, o.ship_address2,
+              o.ship_city, o.ship_state, o.ship_zip,
+              COALESCE(SUM(CASE WHEN oi.unit_price = 0 THEN oi.qty END), 0) AS free_qty
+         FROM orders o
+         LEFT JOIN order_items oi ON oi.order_id = o.id
+        WHERE o.id = ?
+        GROUP BY o.id`,
+      [orderId]
+    )
+      .then(([[row]]) => {
+        if (!row || !Number(row.free_qty)) return null;
+        return SampleRedemption.record({
+          email:      row.guest_email,
+          address:    shipAddrFromOrder(row),
+          customerId: row.customer_id,
+          orderId,
+          freeQty:    Number(row.free_qty),
+        });
+      })
+      .then(r => {
+        /* A duplicate is a normal outcome — Stripe retries this webhook.
+           Logged at info, not error, so it does not look like a fault. */
+        if (r && r.duplicate) {
+          console.log('[checkout] sample redemption already recorded for order', orderId);
+        }
+      })
+      .catch(err => console.error('[checkout] sample redemption failed for order',
+        orderId, '—', err && err.message));
 
     await conn.query(
       `INSERT INTO order_events (order_id, event_type, from_status, to_status, actor, notes)

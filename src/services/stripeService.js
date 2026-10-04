@@ -196,7 +196,14 @@ exports.createCheckoutSession = async (p) => {
       mode: 'payment',
       ui_mode: 'elements',
 
-      line_items: buildLineItems(p.items),
+      /* p.priceOpts carries the free-sample eligibility the caller
+         already decided and already stored in orders.subtotal. Passed
+         through rather than recomputed here: this service has no
+         database access and must not develop an opinion about who is
+         eligible — two opinions is how the cart and the charge diverge.
+         Absent means not eligible, so a caller that forgets charges full
+         price rather than giving product away. */
+      line_items: buildLineItems(p.items, p.priceOpts),
 
       /* Stripe owns the tax maths — the whole reason for Checkout Sessions
          over a bare PaymentIntent. Requires the address, collected below. */

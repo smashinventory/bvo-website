@@ -129,9 +129,38 @@
       </div>
       <% } %>
 
+      <%# FREE SAMPLES. Three states, set by cartController.index.
+          'applied' is the only one that changes the total, because it is
+          the only one where we know who they are and have checked. The
+          other two are honest about not knowing yet rather than showing
+          a discount that could evaporate at checkout. %>
+      <% var _ss = locals.sampleState || 'none'; %>
+      <% if (_ss === 'applied' && (locals.sampleDiscount || 0) > 0.01) { %>
+      <div class="summary-savings summary-savings--bundle">
+        <span class="savings-label">🎁 <%= sampleFreeUnits %> free sample<%= sampleFreeUnits === 1 ? '' : 's' %></span>
+        <strong>−$<%= sampleDiscount.toLocaleString('en-US',{minimumFractionDigits:2}) %></strong>
+      </div>
+      <% } else if (_ss === 'unknown') { %>
+      <p class="summary-note" style="margin:8px 0">
+        Your first <%= sampleOffer.FREE_COUNT %> samples come off at checkout.
+      </p>
+      <% } else if (_ss === 'used') { %>
+      <p class="summary-note" style="margin:8px 0">
+        You've already had your <%= sampleOffer.FREE_COUNT %> free samples &mdash;
+        these are <%= '$' + sampleOffer.EXTRA_PRICE.toFixed(2) %> apiece.
+      </p>
+      <% } %>
+
       <div class="summary-row summary-total">
         <span>Total</span>
-        <span>$<%= (parseFloat(cart.subtotal)||0).toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
+        <%# sampleSubtotal, NOT cart.subtotal: cart.subtotal is recalc()'s
+            figure, computed WITHOUT eligibility because recalc runs in
+            synchronous session handlers that cannot ask the database.
+            The controller prices the cart a second time with the real
+            answer and passes it here. Falling back to cart.subtotal
+            keeps the row rendering if this view is reached from a
+            handler that does not supply it. %>
+        <span>$<%= (parseFloat(locals.sampleSubtotal != null ? sampleSubtotal : cart.subtotal)||0).toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
       </div>
 
       <p class="summary-note">Taxes calculated at checkout</p>
