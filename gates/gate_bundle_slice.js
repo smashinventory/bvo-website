@@ -76,34 +76,22 @@ ok('the admin half is not present wholesale', bun.indexOf(adminSlice.slice(0, 20
 console.log('--- specific rules the owner noticed, named so the failure is legible ---');
 /* These are assertions about the SYMPTOM, not about spelling. If one of
    these goes red, the thing the owner will see is written next to it. */
-[['.bt-cards-row{flex-direction:column',
-  'bundle-teaser cards stop stacking on a phone - they wrap 2-up with the + signs stranded'],
- ['.checkout-card',       'the checkout cards lose their mobile layout'],
+[['.checkout-card',       'the checkout cards lose their mobile layout'],
  ['.pdp-color-chip',      'product-page colour chips lose their sizing'],
  ['.nav-cart-btn',        'the nav cart and hamburger lose their 44px touch targets']]
   .forEach(([needle, symptom]) => ok(`present: ${needle}`, bun.indexOf(needle) > -1, symptom));
 
-console.log('--- the bundle teaser has a rule for ALL THREE bands ---');
-/* ⚠️ The middle band is the one nobody checks. Below 600 the cards stack,
-   above 900 they sit in one row - both were fine. Between them the flex
-   row WRAPPED 3+1 and stranded the + that belonged between cards 3 and 4,
-   while align-items:center left cards of different text lengths
-   unmatched in height. "Looks right on my phone and right on my laptop"
-   is not coverage; it is two samples either side of the hole. */
-[['@media (max-width:600px){.bt-cards-row{flex-direction:column',
-  'phones: the four cards no longer stack'],
- ['@media (min-width:601px) and (max-width:900px)',
-  'TABLETS: the row wraps 3+1 and strands a + at the end of row one'],
- ['.bt-cards-row{display:grid;grid-template-columns:1fr 1fr',
-  'tablets: the cards are not a 2x2 grid, so their heights do not match']]
-  .forEach(([needle, symptom]) => ok(`present: ${needle.slice(0, 46)}`,
-    bun.indexOf(needle) > -1, symptom));
-/* 900 is .bt-cards-row's OWN max-width, not the site's 860/861 band edge.
-   Pinning this to 861 would leave 861-900 broken, because the constraint
-   is what fits inside the row, not where the nav switches. */
-ok('the tablet band reaches the row\'s own 900px max-width',
-   /max-width:900px\)\{\s*\.bt-cards-row\{display:grid/.test(bun),
-   'a gap between the band edge and the row max-width leaves a broken range');
+/* ⚠️ THE BUNDLE-TEASER BAND ASSERTIONS LIVED HERE AND HAVE MOVED to
+   gates/gate_bundle_teaser.js. They pinned the rules to this bundle, and
+   on 2026-10-05 the teaser's three bands moved OUT of the CSS files and
+   into an inline block emitted by breakpoints.bundleTeaserCss() - so
+   those assertions went red against a correct change.
+
+   That is the second time this session a gate failed for pinning a
+   SPELLING rather than a CONDITION. The replacement asserts what is
+   actually true of the design (grid in every band, separators in their
+   own tracks, the upper edge computed), which survives the rules moving
+   house. This gate is about the site4 public slice and nothing else. */
 
 console.log('--- the cache-busting version moves when the bundle does ---');
 /* Restoring 7,892 bytes and NOT bumping ?v= means every returning

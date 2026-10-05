@@ -199,6 +199,104 @@ function resolve(settings) {
   };
 }
 
+/* ── THE BUNDLE TEASER'S OWN THRESHOLD ─────────────────────────────────
+
+   Same shape of problem as desktopMenuNeeds(), and solved the same way:
+   a number that depends on the component's own sizes cannot be a
+   literal, because the sizes move and the literal does not.
+
+   The teaser is four cards with three "+" separators between them. The
+   lower edge of its tablet band is a BAND question - it belongs to the
+   owner's mobile_max. The upper edge is not: it is "do four cards and
+   three separators fit on one line", which is arithmetic about this
+   component, not about devices. Pinning it to tablet_max (1251) would
+   stack cards on a laptop; pinning it to the nav's 861 leaves 861-1027
+   wrapping, which is exactly the hole shipped in ffec986.
+
+   MEASURED 2026-10-05 via getBoundingClientRect on the real markup
+   against the real bundle, at 601/650/700/740/760/780/800/820/860/900/
+   1000/1100/1251/1300:
+
+     viewport  rowW  cardW  plusW  lines
+     700        652   172    46     3      <- wraps 3+1, + stranded
+     900        772   159    46     2
+     1000       872   184    46     2
+     1100       900   191    46     1      <- first single line
+
+   The row settles at one line only once it reaches its own 900px
+   max-width: 4x191 + 3x46 = 902. Re-measure if a card, a separator or
+   the section padding changes - and change the numbers HERE, where they
+   are named, not at a call site. */
+const TEASER_PX = {
+  row_max:     900,  // .bt-cards-row max-width
+  sep:          46,  // .bt-plus rendered width incl. its 0 .75rem padding
+  cards:         4,
+  section_pad:  128, // .section padding:64px, both sides, above 860
+};
+
+/**
+ * The narrowest viewport at which the four cards sit on ONE line.
+ * Below this the teaser uses its 2x2 grid; at or above it, one row.
+ */
+function bundleTeaserNeeds() {
+  return TEASER_PX.row_max + TEASER_PX.section_pad;
+}
+
+/* ── the teaser's three bands, as CSS ──────────────────────────────────
+
+   GRID IN EVERY BAND, and the separators get their OWN track.
+
+   The flex version could not hold the two rows in line, because "+" is a
+   flow item: at two cards per row the line reads card,+,card,+ and the
+   trailing separator pushes row one's cards off row two's edges. The
+   owner remembers that being compensated for once already. A track does
+   it structurally - the columns are declared, so nothing can drift.
+
+   The middle separator (Top <-> Mirror) is the one hidden at tablet
+   width: it would fall between the two ROWS, where there is no track for
+   it. The other two stay, so each row still reads "card + card".
+
+   align-items:stretch and 1fr rows are what make every card the same
+   size. The old align-items:center sized each card to its own content -
+   measured on the real markup, the four cards came out 154/144/154/152px
+   tall, which is the "Top looks smaller" the owner reported on desktop.
+   Same defect, visible differently in each band. */
+function bundleTeaserCss(bp) {
+  const needs = bundleTeaserNeeds();
+  const one   = `(min-width:${needs}px)`;
+  const two   = `(min-width:${bp.mobileMax + 1}px) and (max-width:${needs - 1}px)`;
+  return [
+    /* Shared in every band: grid, equal tracks, separators centred. */
+    '.bt-cards-row{display:grid;align-items:stretch;justify-content:center;'
+      + 'margin:2rem auto 0;max-width:' + TEASER_PX.row_max + 'px}',
+    '.bt-step-card{width:100%;max-width:none;min-width:0;flex:none}',
+    '.bt-plus{align-self:center;flex-shrink:0;display:block}',
+
+    /* Mobile: one column. Cards keep their narrow cap and centre. */
+    `@media ${bp.mq.mobile}{`
+      + '.bt-cards-row{grid-template-columns:1fr;gap:0;justify-items:center}'
+      + '.bt-step-card{max-width:320px}'
+      + '.bt-plus{text-align:center;padding:.25rem 0;line-height:1}}',
+
+    /* Tablet: 2x2 with a separator column. Explicit placement, because
+       auto-flow would put the 4th child (a separator) at the start of
+       row two - the bug this replaces. */
+    `@media ${two}{`
+      + '.bt-cards-row{grid-template-columns:1fr auto 1fr;grid-template-rows:1fr 1fr;gap:1rem}'
+      + '.bt-cards-row>:nth-child(1){grid-area:1/1}'
+      + '.bt-cards-row>:nth-child(2){grid-area:1/2}'
+      + '.bt-cards-row>:nth-child(3){grid-area:1/3}'
+      + '.bt-cards-row>:nth-child(4){display:none}'
+      + '.bt-cards-row>:nth-child(5){grid-area:2/1}'
+      + '.bt-cards-row>:nth-child(6){grid-area:2/2}'
+      + '.bt-cards-row>:nth-child(7){grid-area:2/3}}',
+
+    /* Desktop: one row, seven tracks, all four cards the same height. */
+    `@media ${one}{`
+      + '.bt-cards-row{grid-template-columns:1fr auto 1fr auto 1fr auto 1fr;gap:0}}',
+  ].join('');
+}
+
 /* ── show_on → the CSS that hides a section ────────────────────────────
    Replaces the two hardcoded rules at 860px with three bands driven by
    the owner's numbers. Emitted inline by the layout.
@@ -225,5 +323,6 @@ function visibilityClass(showOn) {
 const SHOW_ON_VALUES = ['all', 'desktop', 'tablet', 'mobile'];
 
 module.exports = { resolve, visibilityCss, visibilityClass, desktopMenuNeeds,
+                   bundleTeaserNeeds, bundleTeaserCss, TEASER_PX,
                    DEFAULTS, SHOW_ON_VALUES, MIN_MOBILE, MAX_TABLET, MIN_GAP,
                    MEASURED_PX, NAV_FALLBACK, DEFAULTS_ASSUME_LOGO_PX };
