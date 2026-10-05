@@ -180,6 +180,7 @@ function _ctaWithBrand(url, brand) {
    means a stray reference fails loudly instead of rendering wrong. */
 const bt_  = S.bundle_teaser       || {};
 const sb_  = S.sample_banner       || {};
+const vb_  = S.value_bar           || {};
 const iwt  = S.image_with_text    || {};
 const iwt2  = S.image_with_text_2  || {};
 const vt2   = S.video_text_2       || {};
@@ -227,6 +228,40 @@ function _isYT(url) { return !!(url && /youtu\.be|youtube\.com/.test(String(url)
 const _ALLOWED_TAGS = new Set(['h1','h2','h3','h4','h5','h6','p']);
 function _safeTag(val, def) { return _ALLOWED_TAGS.has(val) ? val : (def || 'h2'); }
 
+/* ── A CSS COLOUR, OR NOTHING ──────────────────────────────────────────
+   For the bg_color / text_color controls on trust_band and value_bar.
+
+   ⚠️ THESE CONTROLS WERE BROKEN AND THE FIX IS NOT JUST A ONE-CHARACTER
+   TAG SWAP. Found 2026-10-04. trust_band built its style attribute with
+   the ESCAPING interpolation tag to build the whole style attribute,
+   which turns the quotes into &#34; and renders
+
+       <section class="trust-band" style=&#34;background:#fff;&#34;>
+
+   The browser does not parse that as a style attribute, so setting a
+   background on the trust band in the Theme Editor did nothing at all.
+   trust_band_2 carried the same code.
+
+   Switching to the raw tag makes the control work AND opens attribute
+   injection: a bg_color of `" onload="alert(1)` would break out of the
+   attribute, and the Theme Editor is reachable by anyone with admin
+   access. So the value is VALIDATED here and the raw tag is only ever
+   given something that matched.
+
+   Accepts #rgb, #rrggbb, #rrggbbaa, rgb()/rgba()/hsl()/hsla() with only
+   digits, commas, dots, percent and spaces inside, and bare CSS keyword
+   names. Everything else returns '' — the section then renders with its
+   stylesheet default, which is the safe outcome and visibly wrong to
+   whoever typed the bad value, rather than silently half-applied. */
+function _cssColor(v) {
+  var s = String(v == null ? '' : v).trim();
+  if (!s) return '';
+  if (/^#[0-9a-fA-F]{3,8}$/.test(s)) return s;
+  if (/^(rgb|rgba|hsl|hsla)\([0-9.,%\s/]+\)$/.test(s)) return s;
+  if (/^[a-zA-Z]{3,20}$/.test(s)) return s;   /* navy, white, transparent */
+  return '';
+}
+
 /* Salsify (Cloudinary) on-the-fly resize — inserts transform params into CDN URL.
    Reduces 2–4 MB hero/featured images to ~30–60 KB at the displayed size.
    If images ever 403, remove the transform call and they fall back to originals. */
@@ -240,7 +275,7 @@ function _salsifyImg(url, w, h) {
    themeSettings.js: a key missing here is rejected by _isValidKey and
    the section silently never renders, which is how featured_models
    nearly shipped invisible on a fresh install. */
-const _DEFAULT_ORDER = ['scrolling_ticker','hero','hero_mobile','sample_banner','brand_logos','categories_section','bundle_teaser',
+const _DEFAULT_ORDER = ['scrolling_ticker','hero','hero_mobile','value_bar','sample_banner','brand_logos','categories_section','bundle_teaser',
   'featured_section','featured_models','inspiration','image_with_text','video_text','before_after','trust_band','parallax','testimonials','newsletter'];
 const _STATIC_SET  = new Set(_DEFAULT_ORDER);
 /* Must stay in step with DUPLICATABLE_BASES in adminController.themeDuplicate
@@ -1101,25 +1136,10 @@ _DEFAULT_ORDER.forEach(function(k) {
 <% } /* end phone layer */ %>
 </section>
 
-<%# ── VALUE PROPS (always follows hero) ────────────────────────── %>
-<div class="value-bar" aria-label="Why shop with us">
-  <div class="value-item">
-    <svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-    <p class="vb-title">Free Shipping</p><p>On every order, every time — no minimums</p>
-  </div>
-  <div class="value-item">
-    <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-    <p class="vb-title">Secure Checkout</p><p>256-bit SSL encryption on every transaction</p>
-  </div>
-  <div class="value-item">
-    <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-    <p class="vb-title">Easy Returns</p><p>30-day hassle-free returns on all items</p>
-  </div>
-  <div class="value-item">
-    <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.18h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.77a16 16 0 0 0 6 6l.86-.86a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-    <p class="vb-title">Expert Support</p><p>Live chat &amp; phone help from bath specialists</p>
-  </div>
-</div>
+<%# The VALUE BAR used to be hardcoded here, inside the hero's if
+    block, which is why it had no controls and why it vanished when the
+    hero was switched off. It is now its own section - see the
+    'value_bar' block further down and value_bar in themeSettings.js. %>
 <% } /* end hero */ %>
 
 <%# ── BRAND LOGOS ───────────────────────────────────────────────── %>
@@ -1959,15 +1979,83 @@ _DEFAULT_ORDER.forEach(function(k) {
 <% } %>
 <% } /* end before_after */ %>
 
+<%# ── VALUE BAR ─────────────────────────────────────────────────
+    Free Shipping / Secure Checkout / Easy Returns / Expert Support.
+
+    Was hardcoded inside the hero's if block until 2026-10-04 - see the
+    note where it used to live, and value_bar in themeSettings.js. It is
+    a section now: orderable, toggleable, and editable.
+
+    ⚠️ THE ICON SET IS CLOSED. A Theme Editor field that accepted SVG
+    markup would be stored XSS on the homepage, reachable by anyone with
+    admin access. The editor stores a KEY; this map turns it into
+    artwork. An unknown key renders no icon rather than breaking the row.
+
+    NO NEW CSS: .value-bar / .value-item / .vb-title already exist and
+    are unchanged. bg_color is applied inline, which overrides the
+    stylesheet's background:var(--hero-bg) - the thing that makes the
+    bar share the hero's colour. %>
+<% if (sectionKey === 'value_bar' && vb_.enabled !== false) { %>
+<%
+  var VALUE_BAR_ICONS = {
+    truck:   '<rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>',
+    shield:  '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+    returns: '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>',
+    phone:   '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.18h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.77a16 16 0 0 0 6 6l.86-.86a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>',
+  };
+  /* _cssColor, then the RAW tag below. The escaping tag turns the
+     quotes into &#34; and the browser ignores the attribute entirely -
+     which is exactly how trust_band's colour controls were silently
+     doing nothing. See _cssColor at the top of this file. */
+  var _vbStyle = '';
+  var _vbBg = _cssColor(vb_.bg_color), _vbFg = _cssColor(vb_.text_color);
+  if (_vbBg) _vbStyle += 'background:' + _vbBg + ';';
+  if (_vbFg) _vbStyle += 'color:' + _vbFg + ';';
+  /* Built as a list so a disabled item disappears entirely rather than
+     leaving a gap in the grid. */
+  var _vbItems = [1,2,3,4]
+    .filter(function (n) { return vb_['item' + n + '_enabled'] !== false; })
+    .map(function (n) {
+      return {
+        icon:  VALUE_BAR_ICONS[vb_['item' + n + '_icon']] || '',
+        title: vb_['item' + n + '_title'] || '',
+        text:  vb_['item' + n + '_text']  || '',
+      };
+    })
+    .filter(function (i) { return i.title || i.text; });
+%>
+<% if (_vbItems.length) { %>
+<div class="value-bar" data-section="value_bar" data-section-label="Value Bar" aria-label="Why shop with us"<%- _vbStyle ? ' style="' + _vbStyle + '"' : '' %>>
+  <% _vbItems.forEach(function (it) { %>
+  <div class="value-item">
+    <%# The icon markup comes from the closed map above, never from the
+        editor, so the unescaped interpolation tag is safe on that one
+        value. Title and text use the escaping tag. %>
+    <% if (it.icon) { %><svg viewBox="0 0 24 24"><%- it.icon %></svg><% } %>
+    <% if (it.title) { %><p class="vb-title"><%= it.title %></p><% } %>
+    <% if (it.text)  { %><p><%= it.text %></p><% } %>
+  </div>
+  <% }) %>
+</div>
+<% } %>
+<% } /* end value_bar */ %>
+
 <%# ── TRUST BAND (any copy) ─────────────────────────────────────── %>
 <% if (_baseKey === 'trust_band' && _d.enabled !== false) { %>
 <%
+  /* ⚠️ WAS BROKEN UNTIL 2026-10-04. Built below with the ESCAPING tag,
+     which rendered style=&#34;...&#34; - not a style attribute at all, so
+     the Theme Editor's background and text colour controls on this
+     section did nothing. Raw tag now, with the value validated by
+     _cssColor first, because the raw tag without validation is
+     attribute injection. */
   var _tbStyle = '';
-  if (_d.bg_color)   _tbStyle += 'background:' + _d.bg_color + ';';
-  if (_d.text_color) _tbStyle += 'color:' + _d.text_color + ';';
+  var _tbBg = _cssColor(_d.bg_color), _tbFg = _cssColor(_d.text_color);
+  if (_tbBg) _tbStyle += 'background:' + _tbBg + ';';
+  if (_tbFg) _tbStyle += 'color:' + _tbFg + ';';
   var _tbIsBase = (sectionKey === 'trust_band');
 %>
-<section class="trust-band" data-section="<%= sectionKey %>" data-section-label="Trust Band" aria-label="Trust statistics"<%= _tbStyle ? ' style="' + _tbStyle + '"' : '' %>>
+<section class="trust-band" data-section="<%= sectionKey %>" data-section-label="Trust Band" aria-label="Trust statistics"<%- _tbStyle ? ' style="' + _tbStyle + '"' : '' %>>
   <%/* STAT VALUES ARE NOT HEADINGS — changed 2026-10-01.
 
        These were <h3>, which put "10,000+", "500+" and "Free" into the page
@@ -2108,28 +2196,66 @@ _DEFAULT_ORDER.forEach(function(k) {
     "3 free samples" while the cart gives 2 would be a promise the site
     does not keep. Wording is editable; arithmetic is not. %>
 <% if (sectionKey === 'sample_banner' && sb_.enabled !== false) { %>
-<section class="section iwt-section" data-section="sample_banner" data-section-label="Free Samples Banner" aria-labelledby="sb-heading">
+<%
+  /* ⚠️ .section, NOT .iwt-section. The first version reused the
+     image_with_text shell and it laid out badly, for two reasons worth
+     recording because both are invisible until you look at the CSS:
+
+       .iwt-section { padding: 5rem 0 }   <- NO horizontal padding
+       .iwt-grid    { 40fr 60fr }         <- TWO columns
+
+     image_with_text always has both columns and the image column
+     effectively supplies the left inset. With no image, the text landed
+     in the NARROW 40% column AND ran flush to the viewport edge.
+
+     .section is padding:64px (24px on mobile) and .section-header is
+     centred, which is the bundle_teaser pattern and known good. The
+     iwt grid is still used, correctly, when there IS an image - both
+     columns present - but nested inside .section so the padding holds. */
+  var _sbBg = _cssColor(sb_.bg_color), _sbFg = _cssColor(sb_.text_color);
+  var _sbStyle = (_sbBg ? 'background:' + _sbBg + ';' : '')
+               + (_sbFg ? 'color:' + _sbFg + ';' : '');
+  /* left | center | right, validated. Anything else is center.
+     The alignment moves the capped-width block to the same side as the
+     text: left-aligned text inside a block still centred on the page
+     reads as a mistake rather than a choice. */
+  var _SB_ALIGN = { left: 1, center: 1, right: 1 };
+  var _sbAlign = _SB_ALIGN[sb_.text_align] ? sb_.text_align : 'center';
+  var _sbBox = 'max-width:760px;margin-bottom:0;text-align:' + _sbAlign + ';'
+             + (_sbAlign === 'left'  ? 'margin-right:auto;'
+             :  _sbAlign === 'right' ? 'margin-left:auto;'
+             :                         'margin-left:auto;margin-right:auto;');
+  var _sbTag = _safeTag(sb_.heading_level, 'p');
+  var _sbHeading = sb_.heading || ('Your first ' + sampleOffer.FREE_COUNT + ' samples are free');
+%>
+<section class="section" data-section="sample_banner" data-section-label="Free Samples Banner" aria-labelledby="sb-heading"<%- _sbStyle ? ' style="' + _sbStyle + '"' : '' %>>
+  <% if (sb_.image) { %>
+  <%# Image set: the two-column grid is correct here, and nesting it
+      inside .section keeps the horizontal padding the iwt shell lacks. %>
   <div class="iwt-grid">
-    <% if (sb_.image) { %>
-    <%# Rendered ONLY when an image is set. An empty <img> box reserves
-        space for nothing and shifts everything below it - the CLS bug
-        the hero and iwt sections were both fixed for. No image is a
-        perfectly good banner; a broken one is not. %>
     <div class="iwt-image-col">
       <img class="iwt-img" src="<%= sb_.image %>"
            alt="<%= sb_.image_alt || '' %>" loading="lazy" decoding="async">
     </div>
-    <% } %>
-    <div class="iwt-text-col">
+    <div class="iwt-text-col" style="text-align:<%= _sbAlign %>">
       <% if (sb_.eyebrow) { %><p class="section-eyebrow"><%= sb_.eyebrow %></p><% } %>
-      <% var _sbTag = _safeTag(sb_.heading_level, 'p'); %>
-      <<%- _sbTag %> class="section-title" id="sb-heading"><%= sb_.heading || ('Your first ' + sampleOffer.FREE_COUNT + ' samples are free') %></<%- _sbTag %>>
+      <<%- _sbTag %> class="section-title" id="sb-heading"><%= _sbHeading %></<%- _sbTag %>>
       <% if (sb_.subtitle) { %><p class="section-sub"><%= sb_.subtitle %></p><% } %>
-      <a href="<%= sb_.cta_url || '/collections/samples' %>" class="btn btn-amber" style="margin-top:14px">
-        <%= sb_.cta_text || 'Browse samples' %>
-      </a>
+      <a href="<%= sb_.cta_url || '/collections/samples' %>" class="btn btn-amber" style="margin-top:14px"><%= sb_.cta_text || 'Browse samples' %></a>
     </div>
   </div>
+  <% } else { %>
+  <%# No image: centred, and the paragraph capped so the line length
+      stays readable instead of running the full page width. %>
+  <%# .section-header is text-align:center in CSS; the inline style wins
+      and carries the chosen alignment. %>
+  <div class="section-header" style="<%= _sbBox %>">
+    <% if (sb_.eyebrow) { %><p class="section-eyebrow"><%= sb_.eyebrow %></p><% } %>
+    <<%- _sbTag %> class="section-title" id="sb-heading"><%= _sbHeading %></<%- _sbTag %>>
+    <% if (sb_.subtitle) { %><p class="section-sub"><%= sb_.subtitle %></p><% } %>
+    <a href="<%= sb_.cta_url || '/collections/samples' %>" class="btn btn-amber" style="margin-top:20px"><%= sb_.cta_text || 'Browse samples' %></a>
+  </div>
+  <% } %>
 </section>
 <% } /* end sample_banner */ %>
 

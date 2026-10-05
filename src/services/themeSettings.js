@@ -591,6 +591,54 @@ const DEFAULTS = {
     after_image: '',
     after_label: 'After',
   },
+  /* ── VALUE BAR ────────────────────────────────────────────────────
+     Free Shipping / Secure Checkout / Easy Returns / Expert Support.
+     The strip directly under the hero.
+
+     ⚠️ UNTIL 2026-10-04 THIS WAS HARDCODED INSIDE THE HERO'S if BLOCK.
+     Not styled to look attached — actually inside it: the EJS tag that
+     closes the hero's if block sits AFTER this markup, not before it.
+     That is why it
+     had no controls of any kind, why all eight strings and four icons
+     were baked into the template, and why it disappeared entirely if
+     the hero was switched off. It also sets `background: var(--hero-bg)`
+     in CSS, so it shares the hero's colour and the only thing between
+     them is a 1px border — which is what makes it read as part of the
+     hero rather than as its own band.
+
+     Now its own section: orderable, toggleable, editable, and able to
+     have its own background.
+
+     DEFAULTS ARE THE EXACT CURRENT COPY, so nothing on the live page
+     changes when this ships. To stop it bleeding into the hero, set
+     Background colour in the Theme Editor (#FFFFFF or the cream
+     #F7F4EF both separate it cleanly); the default is left alone rather
+     than changed for you, because an unannounced visual change to the
+     homepage is worse than one you make deliberately.
+
+     ICONS ARE A FIXED NAMED SET, not free SVG input. A field accepting
+     markup is a stored-XSS hole on the homepage, and the editor is
+     reachable by anyone with admin access. See VALUE_BAR_ICONS in
+     index.ejs for the available keys. */
+  value_bar: {
+    enabled: true,
+    show_on: 'all',
+    bg_color: '',    // '' = CSS default, which is var(--hero-bg)
+    text_color: '',
+    item1_enabled: true, item1_icon: 'truck',
+    item1_title: 'Free Shipping',
+    item1_text:  'On every order, every time — no minimums',
+    item2_enabled: true, item2_icon: 'shield',
+    item2_title: 'Secure Checkout',
+    item2_text:  '256-bit SSL encryption on every transaction',
+    item3_enabled: true, item3_icon: 'returns',
+    item3_title: 'Easy Returns',
+    item3_text:  '30-day hassle-free returns on all items',
+    item4_enabled: true, item4_icon: 'phone',
+    item4_title: 'Expert Support',
+    item4_text:  'Live chat & phone help from bath specialists',
+  },
+
   trust_band: {
     enabled: true,
     show_on: 'all',
@@ -770,7 +818,7 @@ const DEFAULTS = {
      it earns the position above the vanity merchandising — someone who
      is not ready to spend $2,000 can still take a step here. */
   homepage_section_order: [
-    'scrolling_ticker','hero','hero_mobile','sample_banner','brand_logos',
+    'scrolling_ticker','hero','hero_mobile','value_bar','sample_banner','brand_logos',
     'categories_section','bundle_teaser',
     'featured_section','featured_models','image_with_text','video_text','before_after',
     'trust_band','parallax','testimonials','newsletter',
@@ -804,6 +852,18 @@ const DEFAULTS = {
             + 'different under your own bathroom light, and a vanity is not '
             + 'something you want to guess at. Pick any two — free, with free '
             + 'shipping.',
+    /* left | center | right. Governs the text AND which side the
+       capped-width block sits on, because centred text in a block
+       pinned left reads as a mistake rather than a choice. Validated
+       against the three values in index.ejs - anything else falls back
+       to center. */
+    text_align: 'center',
+    /* '' = the section's stylesheet default. Validated by _cssColor in
+       index.ejs, which rejects anything that is not a real colour -
+       the attribute is written with the raw tag, so an unvalidated
+       value here would be attribute injection. */
+    bg_color: '',
+    text_color: '',
     cta_text: 'Browse samples',
     /* The samples CATEGORY page, which already exists and already renders
        sample images correctly (collectionsController COALESCEs

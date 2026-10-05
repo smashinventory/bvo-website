@@ -325,8 +325,21 @@ function checkWiring() {
   console.log('--- the banner markup renders, and degrades ---');
   const blockSrc = (idx.match(/<% if \(sectionKey === 'sample_banner'[\s\S]*?<% \} \/\* end sample_banner \*\/ %>/) || [''])[0];
   ok('the render block exists', !!blockSrc, 'no markup');
+  /* ⚠️ THE REAL HELPERS, LIFTED OUT OF index.ejs - not stubs.
+     The first version of this harness stubbed _safeTag and then broke
+     when the block started calling _cssColor too. Worse, a stub means
+     the gate tests ITS OWN copy of a helper rather than the one that
+     ships: a broken _cssColor would sail through. Same lesson as the
+     gate_saved_addresses harness that went stale against
+     locals.deliveryLocation. */
+  const _helpers = (idx.match(/const _ALLOWED_TAGS[\s\S]*?\n\}/) || [''])[0]
+                 + '\n'
+                 + (idx.match(/function _cssColor\(v\)[\s\S]*?\n\}/) || [''])[0];
+  ok('the real view helpers were found for the render harness',
+     /_ALLOWED_TAGS/.test(_helpers) && /_cssColor/.test(_helpers),
+     'the harness would be testing stubs, not shipped code');
   const renderBanner = sb => ejs.render(
-    "<% function _safeTag(v,d){ return v === 'p' ? v : d; } %>" + blockSrc,
+    '<% ' + _helpers + ' %>' + blockSrc,
     { sectionKey: 'sample_banner', sb_: sb, sampleOffer: SAMPLE });
   const SB_FIXTURE = {
     enabled: true, heading_level: 'p',
@@ -347,6 +360,45 @@ function checkWiring() {
      /iwt-image-col/.test(withImg) && /loading="lazy"/.test(withImg), 'image not rendered lazily');
   ok('enabled:false renders nothing',
      renderBanner({ enabled: false }).trim() === '', 'the toggle does not work');
+
+  console.log('--- alignment and colour controls ---');
+  /* The first version of this banner reused .iwt-section, which is
+     padding:5rem 0 (NO horizontal padding) inside a 40fr/60fr grid. With
+     no image the text landed in the narrow column AND ran flush to the
+     viewport edge. Asserted so it cannot be reintroduced. */
+  ok('the no-image banner uses .section, not .iwt-section',
+     /class="section"/.test(full) && !/iwt-section/.test(full),
+     'iwt-section has no horizontal padding and is a 2-column grid');
+  ok('and it does NOT use the 2-column grid when there is no image',
+     !/iwt-grid/.test(full), 'the text would sit in the narrow 40% column');
+  ok('with an image it DOES use the grid, still inside .section',
+     /iwt-grid/.test(withImg) && /class="section"/.test(withImg), 'padding would be lost');
+
+  const alignOf = a => {
+    const h = renderBanner(Object.assign({}, SB_FIXTURE, { text_align: a }));
+    return (h.match(/<div class="section-header" style="([^"]*)"/) || [])[1] || '';
+  };
+  ['left', 'center', 'right'].forEach(a =>
+    ok(`text_align ${a} is applied`, alignOf(a).indexOf('text-align:' + a) > -1, alignOf(a)));
+  ok('left pins the block left',  /margin-right:auto/.test(alignOf('left'))
+                                  && !/margin-left:auto/.test(alignOf('left')), alignOf('left'));
+  ok('right pins the block right', /margin-left:auto/.test(alignOf('right'))
+                                  && !/margin-right:auto/.test(alignOf('right')), alignOf('right'));
+  ok('an invalid alignment falls back to center',
+     alignOf('../../etc').indexOf('text-align:center') > -1, alignOf('../../etc'));
+
+  /* The colour attribute is written with the RAW tag, so the value must
+     be validated or it is attribute injection. */
+  const styleOf = v => {
+    const h = renderBanner(Object.assign({}, SB_FIXTURE, { bg_color: v }));
+    return (h.match(/<section[^>]*style="([^"]*)"/) || [])[1] || '';
+  };
+  ok('a valid colour is applied', styleOf('#ffffff') === 'background:#ffffff;', styleOf('#ffffff'));
+  [['" onload="alert(1)', 'quote break-out'],
+   ['red;background:url(javascript:alert(1))', 'url() payload'],
+   ['</style><script>alert(1)</script>', 'tag injection'],
+   ['expression(alert(1))', 'IE expression']]
+    .forEach(([v, label]) => ok(`injection rejected: ${label}`, styleOf(v) === '', styleOf(v)));
 
   console.log('--- the banner reuses existing CSS, adds none ---');
   const bundleCss = fs.readFileSync(path.join(ROOT, 'public/css/site-bundle.css'), 'utf8');

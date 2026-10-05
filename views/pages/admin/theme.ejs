@@ -52,7 +52,7 @@ const THEME_SECS = [
   { key:'global',  label:'Global Settings' },
 ];
 // Static (non-duplicatable) section keys — order matters for the default layout
-const _STATIC_KEYS = ['scrolling_ticker','hero','hero_mobile','sample_banner','brand_logos','categories_section','bundle_teaser','featured_section','featured_models','image_with_text','video_text','before_after','trust_band','parallax','testimonials','newsletter'];
+const _STATIC_KEYS = ['scrolling_ticker','hero','hero_mobile','value_bar','sample_banner','brand_logos','categories_section','bundle_teaser','featured_section','featured_models','image_with_text','video_text','before_after','trust_band','parallax','testimonials','newsletter'];
 /* Keep in step with DUPLICATABLE_BASES in adminController.themeDuplicate
    and _DUPL_BASES in views/pages/index.ejs. */
 const _DUPL_BASES  = new Set(['image_with_text','before_after','video_text','trust_band','parallax','testimonials',
@@ -83,6 +83,7 @@ const TEMPLATE_META = {
   hero_mobile:        { label:'Hero (Mobile)',          desc:'Phone-only hero — shown on screens ≤480px' },
   brand_logos:        { label:'Brand Logos',           desc:'Scrolling brand marquee' },
   categories_section: { label:'Category Grid',         desc:'Shop-by-category cards' },
+  value_bar:          { label:'Value Bar', desc:'Free Shipping / Secure Checkout / Easy Returns / Expert Support \u2014 the strip under the hero' },
   sample_banner:      { label:'Free Samples Banner', desc:'2 free samples offer \u2014 links to /collections/samples' },
   bundle_teaser:      { label:'Bundle Builder Teaser', desc:'James Martin bundle promo — links to /bundle-builder' },
   featured_section:   { label:'Featured Products',     desc:'Handpicked product grid' },
@@ -128,6 +129,7 @@ function secIcon(key) {
     brand_logos: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
     inspiration: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
     categories_section:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>',
+    value_bar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>',
     sample_banner: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>',
     bundle_teaser: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>',
     featured_section:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="2" width="9" height="9" rx="1"/><rect x="13" y="2" width="9" height="9" rx="1"/><rect x="2" y="13" width="9" height="9" rx="1"/><rect x="13" y="13" width="9" height="9" rx="1"/></svg>',
@@ -1543,6 +1545,42 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
           </div>
 
           <!-- ── BUNDLE TEASER ─────────────────────────────── -->
+          <%# VALUE BAR. Until 2026-10-04 this strip was hardcoded inside
+              the hero's if block in index.ejs - which is why it had no
+              panel here at all, and why it vanished whenever the hero
+              was switched off. It is a real section now.
+
+              The icon is a KEY from a closed set, never markup: a field
+              accepting SVG would be stored XSS on the homepage. %>
+          <div class="te4-panel" id="panel-value_bar">
+            <% const vbsec=t.value_bar||{};
+               const VB_ICONS=[['truck','Truck (shipping)'],['shield','Shield (security)'],['returns','Arrows (returns)'],['phone','Phone (support)']];
+               function vbIconSelect(n, cur){
+                 var h='<div class="te4-field"><label>Icon</label><select name="value_bar.item'+n+'_icon" class="te4-select">';
+                 VB_ICONS.forEach(function(o){
+                   h+='<option value="'+o[0]+'"'+(String(cur)===o[0]?' selected':'')+'>'+o[1]+'</option>';
+                 });
+                 return h+'</select></div>';
+               }
+            %>
+            <p class="te4-panel-desc">The four reassurance items directly under the hero. It shares the hero's background colour by default, which is what makes it look attached &mdash; set <strong>Background colour</strong> below to separate it.</p>
+            <%- teToggle('value_bar.enabled','Show section',vbsec.enabled!==false) %>
+
+            <div class="te4-section-label">Appearance</div>
+            <%- teField('text','value_bar.bg_color','Background colour (e.g. #FFFFFF)',vbsec.bg_color) %>
+            <%- teField('text','value_bar.text_color','Text colour',vbsec.text_color) %>
+
+            <% [1,2,3,4].forEach(function(n){ %>
+            <div class="te4-section-label">Item <%= n %></div>
+            <%- teToggle('value_bar.item'+n+'_enabled','Show this item',vbsec['item'+n+'_enabled']!==false) %>
+            <%- vbIconSelect(n, vbsec['item'+n+'_icon']) %>
+            <%- teField('text','value_bar.item'+n+'_title','Title',vbsec['item'+n+'_title']) %>
+            <%- teField('text','value_bar.item'+n+'_text','Description',vbsec['item'+n+'_text']) %>
+            <% }) %>
+
+            <%- teVisibleOn('value_bar', vbsec.show_on||'all') %>
+          </div>
+
           <%# Free samples banner. Wording only - the COUNT and the extras
               price live in src/config/sampleOffer.js, which is what the
               cart and checkout actually price against. Exposing the
@@ -1557,6 +1595,19 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
             <%- teField('text','sample_banner.heading','Heading',sbsec.heading||'Your first 2 samples are free') %>
             <%- teHeadingLevel('sample_banner.heading_level', sbsec.heading_level||'p') %>
             <%- teField('textarea','sample_banner.subtitle','Subtitle / body',sbsec.subtitle) %>
+            <div class="te4-section-label">Layout</div>
+            <%# Validated against left|center|right in index.ejs - this
+                select is the convenience, not the control. %>
+            <div class="te4-field">
+              <label>Text alignment</label>
+              <select name="sample_banner.text_align" class="te4-select">
+                <% ['left','center','right'].forEach(function(a){ %>
+                <option value="<%= a %>"<%= (sbsec.text_align||'center')===a ? ' selected' : '' %>><%= a.charAt(0).toUpperCase()+a.slice(1) %></option>
+                <% }) %>
+              </select>
+            </div>
+            <%- teField('text','sample_banner.bg_color','Background colour (e.g. #FFFFFF)',sbsec.bg_color) %>
+            <%- teField('text','sample_banner.text_color','Text colour',sbsec.text_color) %>
             <div class="te4-section-label">Call to action</div>
             <%- teField('text','sample_banner.cta_text','Button text',sbsec.cta_text||'Browse samples') %>
             <%- teField('text','sample_banner.cta_url','Button link',sbsec.cta_url||'/collections/samples') %>
