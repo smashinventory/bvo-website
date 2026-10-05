@@ -5,7 +5,6 @@ const rateLimit     = require('express-rate-limit');
 const router        = express.Router();
 const ctrl          = require('../controllers/adminController');
 const pagesCtrl     = require('../controllers/pagesController');
-const blogCtrl      = require('../controllers/blogController');
 const menusCtrl     = require('../controllers/menusController');
 const ordersCtrl    = require('../controllers/ordersController');
 const returnsCtrl   = require('../controllers/returnsController');
@@ -125,15 +124,6 @@ router.get ('/pages/:id/edit',             pagesCtrl.adminEdit);
 router.post('/pages/:id/delete',           pagesCtrl.adminDelete);
 router.post('/pages/:id/toggle',           pagesCtrl.adminToggle);
 router.post('/pages/:id',                  pagesCtrl.adminUpdate);
-
-/* ── Blog ────────────────────────────────────────────────────── */
-router.get ('/blog',                       blogCtrl.adminList);
-router.get ('/blog/new',                   blogCtrl.adminNew);
-router.post('/blog',                       blogCtrl.adminCreate);
-router.get ('/blog/:id/edit',              blogCtrl.adminEdit);
-router.post('/blog/:id/delete',            blogCtrl.adminDelete);
-router.post('/blog/:id/toggle',            blogCtrl.adminToggle);
-router.post('/blog/:id',                   blogCtrl.adminUpdate);
 
 /* ── Menus ───────────────────────────────────────────────────── */
 router.get ('/menus',                                        menusCtrl.adminList);

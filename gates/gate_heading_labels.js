@@ -90,15 +90,21 @@ console.log('\n--- switching to Label must not change how the title looks ---');
 }
 
 /* ═══ 3. THE INVISIBLE HERO TITLES ═════════════════════════════════
-   /lookbook and /blog both put a heading inside a navy hero. The hero sets
+   /lookbook puts a heading inside a navy hero. The hero sets
    color:#fff on itself, but the h1-h6 rule sets navy ON the heading, and a
    direct match always beats inheritance. The title rendered navy on navy.
 
-   Not an SEO problem — the text was always in the HTML — but on two pages
-   the title simply was not there to look at. */
+   Not an SEO problem — the text was always in the HTML — but the title
+   simply was not there to look at.
+
+   ⚠️ .blog-hero-title WAS ASSERTED HERE TOO and was dropped 2026-10-05
+   with the /blog section. Leaving it would have been a gate guarding a
+   page that no longer exists — green forever, and misleading about what
+   the site contains. The CSS rule stays in site3.css: it is unreferenced
+   now, and dead CSS is a separate cleanup from a dead route. */
 console.log('\n--- dark-hero titles are not the same colour as their background ---');
 {
-  for (const sel of ['.lb-hero-title', '.blog-hero-title']) {
+  for (const sel of ['.lb-hero-title']) {
     const m = css3.match(new RegExp('\\' + sel + '\\{[^}]*\\}'));
     ok(`${sel} exists in site3.css`, !!m);
     ok(`${sel} sets its own colour`, !!m && /color:\s*#fff/.test(m[0]),

@@ -4,7 +4,7 @@
      • BvoSeo.autoFill()   – auto-populate meta fields from source text
      • BvoSeo.counter()    – live char counter with green/amber/red
      • BvoSeo.serpPreview()– live Google SERP snippet preview
-   Loaded by product-edit, model-edit, category-edit, blog-edit pages.
+   Loaded by product-edit, model-edit and category-edit pages.
    ───────────────────────────────────────────────────────────────── */
 (function (w) {
   'use strict';

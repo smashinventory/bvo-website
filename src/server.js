@@ -728,10 +728,18 @@ app.use('/bundle-builder', require('./routes/bundle'));
 // ── Public CMS routes ────────────────────────────────────────
 // Must come before the 404 handler
 const pagesCtrl = require('./controllers/pagesController');
-const blogCtrl  = require('./controllers/blogController');
 app.get('/pages/:slug', pagesCtrl.publicPage);
-app.get('/blog',        blogCtrl.publicList);
-app.get('/blog/:slug',  blogCtrl.publicPost);
+/* /blog REMOVED 2026-10-05. It was scaffolded at the start of the project
+   and abandoned within days when the content strategy moved to
+   /inspiration. It never held a post, was never linked from the storefront
+   (nav_menu_items confirmed empty of /blog), and the Shopify /blogs/news/*
+   redirects already point at /inspiration guides, not here - see the
+   BLOG_MAP comment in scripts/buildRedirectMap.js.
+
+   An empty hub in the sitemap and a second Article-shaped content section
+   split topical signal for nothing. /blog itself is now a 301 to
+   /inspiration, served by the url_redirects table rather than a route, so
+   any stray external link still lands somewhere real. */
 
 // ── Inspiration / Style Guide routes ─────────────────────────
 // Evergreen pillar pages at /inspiration/:slug

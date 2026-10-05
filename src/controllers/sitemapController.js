@@ -54,17 +54,12 @@ exports.xml = async (req, res) => {
       inspirationPages = [];
     }
 
-    /* ── Fetch blog posts ──────────────────────────────────────── */
-    let blogPosts;
-    try {
-      const [rows] = await bvoPool.query(`
-        SELECT slug, updated_at FROM blog_posts WHERE is_visible=1
-        ORDER BY published_at DESC LIMIT 10000
-      `);
-      blogPosts = rows;
-    } catch {
-      blogPosts = [];
-    }
+    /* /blog REMOVED 2026-10-05 — the section was scaffolded and abandoned
+       within days; it never held a post. The query and both URL blocks are
+       gone rather than left guarded by `if (blogPosts.length)`, because a
+       guard that is always false is a trap: it reads as a live feature and
+       hides that nothing was ever behind it. The blog_posts table is left
+       in place. */
 
     /* ── Fetch categories ──────────────────────────────────────── */
     let categories;
@@ -122,20 +117,10 @@ exports.xml = async (req, res) => {
     // Homepage
     urls.push(`
   <url>
-    <loc>${escUrl(siteUrl)}/</loc>${lastmod(maxDate([...products, ...cmsPages, ...blogPosts, ...inspirationPages, ...categories]))}
+    <loc>${escUrl(siteUrl)}/</loc>${lastmod(maxDate([...products, ...cmsPages, ...inspirationPages, ...categories]))}
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>`);
-
-    // Blog index
-    if (blogPosts.length) {
-      urls.push(`
-  <url>
-    <loc>${escUrl(siteUrl)}/blog</loc>${lastmod(maxDate(blogPosts))}
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>`);
-    }
 
     // Inspiration hub
     if (inspirationPages.length) {
@@ -164,16 +149,6 @@ exports.xml = async (req, res) => {
     <loc>${escUrl(`${siteUrl}/pages/${p.slug}`)}</loc>${lastmod(p.updated_at)}
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
-  </url>`);
-    }
-
-    // Blog posts
-    for (const p of blogPosts) {
-      urls.push(`
-  <url>
-    <loc>${escUrl(`${siteUrl}/blog/${p.slug}`)}</loc>${lastmod(p.updated_at)}
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
   </url>`);
     }
 
