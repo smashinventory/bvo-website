@@ -37,12 +37,21 @@
 p.section-title,p.newsletter-heading,p.product-title,p.cat-title{margin-top:0}p.product-title{margin-bottom:8px}
 
 /* ── FREE SAMPLES BANNER ALIGNMENT ──────────────────────────────────
-   MOBILE IS CENTRED, FULL STOP. At 860px and below .iwt-grid collapses to a
+   MOBILE IS CENTRED, FULL STOP. At 768px and below .iwt-grid collapses to a
    single column, so the image sits above the text and the banner is one
    stacked block. The Theme Editor's left/center/right control describes
    a TWO-COLUMN layout; at mobile width that layout does not exist, and
    honouring "left" there produces a left-pinned image above left-pinned
    text with a ragged right edge - which is what prompted this.
+
+   769, NOT the site's 860/861 band edge and not a breakpoints.js band.
+   The condition here is not "which device" - it is "is the image BESIDE
+   the text or ABOVE it", and .iwt-grid answers that itself at
+   @media (max-width:768px){.iwt-grid{grid-template-columns:1fr}}. This
+   query is the complement of that one, so the two can never disagree.
+   Shipped at 861 first, which left 769-860 rendering TWO COLUMNS while
+   still forcing the text centred - the alignment control did nothing in
+   that 92px window. Measured, not reasoned about.
 
    The desktop choice is carried in --sb-* custom properties set inline
    on the section, and READ only inside the min-width query below. This
@@ -59,7 +68,7 @@ p.section-title,p.newsletter-heading,p.product-title,p.cat-title{margin-top:0}p.
 .sb-banner .iwt-image-col{justify-content:center}
 .sb-banner .section-sub{margin-left:auto;margin-right:auto;text-align:center}
 .sb-banner .section-header{max-width:760px;margin-bottom:0;margin-left:auto;margin-right:auto;text-align:center}
-@media (min-width:861px){
+@media (min-width:769px){
 .sb-banner .iwt-text-col{align-items:var(--sb-items,center);text-align:var(--sb-text,center)}
 .sb-banner .iwt-image-col{justify-content:var(--sb-items,center)}
 .sb-banner .section-sub{margin-left:var(--sb-ml,auto);margin-right:var(--sb-mr,auto);text-align:var(--sb-text,center)}

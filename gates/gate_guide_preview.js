@@ -146,6 +146,17 @@ console.log('\n--- the styles, including the file that actually ships ---');
 {
   for (const [label, sheet] of [['site2.css (source)', css2], ['site-bundle.css (shipped)', bundle]]) {
     ok(`${label}: .hp-guide-preview exists`, /\.hp-guide-preview\s*\{/.test(sheet));
+    /* ⚠️ THE SUBHEAD MARGIN WAS AN !important. It lost on specificity:
+       .hp-gp-scroll p{margin:0 0 .9rem} is (0,1,1) and beat the bare
+       .hp-gp-subhead at (0,1,0), so the margin was forced instead of
+       being scoped. An !important left in a stylesheet is the next
+       person's unexplained override - the fix is one more class in the
+       selector, which is (0,2,1) and wins on its own. */
+    ok(`${label}: the subhead is scoped, not forced`,
+       /\.hp-gp-scroll\s+p\.hp-gp-subhead/.test(sheet)
+       && !/hp-gp-subhead[^}]*!important/.test(sheet),
+       'the !important is back, or the scoping selector was dropped');
+
     ok(`${label}: the box clips with overflow`,
        /\.hp-gp-scroll\s*\{[^}]*overflow-y:\s*auto/.test(sheet),
        'without this the full 228 words render and there is no box at all');

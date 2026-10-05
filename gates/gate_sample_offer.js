@@ -566,8 +566,20 @@ function checkWiring() {
      /\.sb-banner \.iwt-image-col\{justify-content:center\}/.test(sbCss),
      'the image would stay pinned left above centred text');
   ok('the variables are read ONLY inside a min-width query',
-     /@media \(min-width:861px\)\{[\s\S]{0,600}--sb-items/.test(sbCss),
+     /@media \(min-width:769px\)\{[\s\S]{0,600}--sb-items/.test(sbCss),
      'if the var() rules sit outside the query, mobile follows the desktop choice');
+  /* ⚠️ 769 IS THE COMPLEMENT OF .iwt-grid'S OWN COLLAPSE, not a device
+     band. The condition is "is the image beside the text or above it",
+     and .iwt-grid answers it at max-width:768. Shipped at 861 first -
+     the hero's legacy band - which left 769-860 rendering TWO COLUMNS
+     while the text was still forced centred, so the alignment control
+     did nothing in that 92px window. Asserted as a RELATIONSHIP between
+     the two queries so they cannot drift apart again. */
+  const gridCollapse = (sbCss.match(/@media \(max-width:(\d+)px\)\{[^@]{0,300}\.iwt-grid\{grid-template-columns:1fr/) || [])[1];
+  const bannerSwitch = (sbCss.match(/@media \(min-width:(\d+)px\)\{\s*\.sb-banner/) || [])[1];
+  ok('the banner switches exactly where .iwt-grid stops being one column',
+     gridCollapse && bannerSwitch && (+bannerSwitch === +gridCollapse + 1),
+     `grid collapses at ${gridCollapse}, banner switches at ${bannerSwitch}`);
   ok('every var() has a centred fallback',
      (sbCss.match(/var\(--sb-items,center\)/g) || []).length >= 2
      && /var\(--sb-ml,auto\)/.test(sbCss) && /var\(--sb-mr,auto\)/.test(sbCss),

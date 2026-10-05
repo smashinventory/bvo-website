@@ -193,12 +193,12 @@
 
 /* The guide renders this as an <h2>. Here it is a styled <p> — see the
    comment in index.ejs. Visually a subhead, structurally not one. */
-.hp-gp-subhead {
+.hp-gp-scroll p.hp-gp-subhead {
   font-family: var(--font-serif, Georgia, serif);
   font-weight: 700;
   font-size: 1rem;
   color: var(--navy, #182840);
-  margin: 1.1rem 0 .55rem !important;
+  margin: 1.1rem 0 .55rem;
 }
 
 .hp-gp-cta {
