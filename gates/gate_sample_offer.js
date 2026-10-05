@@ -33,34 +33,105 @@ const strip = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '
 
 const SAMPLE = require(path.join(ROOT, 'src/config/sampleOffer'));
 
-console.log('--- THE KILL SWITCH ---');
-/* ⚠️ THE OFFER IS OFF. A cart of just the two free samples is a $0.00
-   order; buildLineItems correctly drops fully-free lines, so Stripe was
-   handed ZERO line items and refused the session - which left the
-   Payment Element and the Billing Address Element (both Stripe iframes)
-   as empty skeletons under "We could not reach our payment provider".
-   Nobody could buy samples. Found on production by the owner.
+console.log('--- THE $0 ORDER PATH ---');
+/* ⚠️ THE BUG THIS REPLACED. Two free samples is a $0.00 order;
+   buildLineItems correctly drops fully-free lines, so Stripe was handed
+   ZERO line items and refused the session - leaving the Payment Element
+   and the Billing Address Element as empty grey boxes under "We could
+   not reach our payment provider". Nobody could get samples.
 
-   These assertions are written so that turning ENABLED back on FAILS
-   THE GATE unless a $0 path exists - the whole point is that it cannot
-   be flipped back by someone who has not built one. */
-ok('the offer is disabled', SAMPLE.ENABLED === false,
-   'ENABLED is true - see the $0 line-items assertion below');
-
+   A $0 order now takes no card. These assertions pair the switch to the
+   path: the offer may only be ON while a route exists that can complete
+   a $0 order, and that route must verify the total itself. */
 const stripeSvc0 = require(path.join(ROOT, 'src/services/stripeService'));
-const BLI0 = stripeSvc0._internals.buildLineItems;
 const allFree = [
   { product_id: 1, name: 'Sample A', price: 9.99, qty: 1, is_sample: true },
   { product_id: 2, name: 'Sample B', price: 9.99, qty: 1, is_sample: true },
 ];
-const zeroItems = BLI0(allFree, { sampleEligible: true }).length === 0;
-ok('an all-free cart still produces ZERO Stripe line items',
-   zeroItems, 'the $0 hole was fixed - update this gate and ENABLED together');
-/* The pairing that matters: the offer may only be ON if the $0 hole is
-   gone. Either both change, or neither. */
-ok('ENABLED is false while the $0 hole exists',
-   !(SAMPLE.ENABLED && zeroItems),
-   'THE OFFER IS ON AND AN ALL-FREE CART CANNOT CHECK OUT');
+const zeroItems = stripeSvc0._internals.buildLineItems(allFree, { sampleEligible: true }).length === 0;
+ok('an all-free cart still yields zero Stripe line items',
+   zeroItems, 'if this changed, the reasoning below needs revisiting');
+
+const ccFree = strip(fs.readFileSync(path.join(ROOT, 'src/controllers/checkoutController.js'), 'utf8'));
+const routes = fs.readFileSync(path.join(ROOT, 'src/routes/checkout.js'), 'utf8');
+ok('a $0 completion handler exists',
+   /exports\.completeFreeOrder\s*=/.test(ccFree), 'a $0 cart cannot check out');
+ok('it is routed',
+   /router\.post\('\/free-order'/.test(routes), 'the handler is unreachable');
+
+/* ⚠️⚠️ THE SECURITY ASSERTION. This route places an order WITHOUT
+   payment, so it is the most abusable on the site. It must recompute the
+   total itself and refuse anything non-zero - never trust a flag, a
+   posted total, or the cart as displayed. */
+const freeFn = (ccFree.match(/exports\.completeFreeOrder[\s\S]*?\n\};/) || [''])[0];
+ok('the $0 route RECOMPUTES the total server-side',
+   /buyerTotal\(cart\.items, order\)/.test(freeFn), 'it would trust the client');
+ok('and refuses anything that is not zero',
+   /toCents\(subtotal\) !== 0/.test(freeFn),
+   'a $2,000 cart could be placed without payment');
+ok('it takes no total from the request',
+   !/req\.body\.(total|subtotal|amount|free)/.test(freeFn), 'client-supplied total');
+ok('it is idempotent on a double submit',
+   /payment_status = 'draft'/.test(freeFn) && /affectedRows === 0/.test(freeFn),
+   'a double click would place two orders or send two emails');
+ok('it burns the offer like the webhook does',
+   /SampleRedemption\.record\(/.test(freeFn), 'the offer would be unlimited');
+
+ok('the offer may be ON because the $0 path exists',
+   !SAMPLE.ENABLED || (/exports\.completeFreeOrder\s*=/.test(ccFree)
+                       && /router\.post\('\/free-order'/.test(routes)),
+   'THE OFFER IS ON WITH NO $0 PATH - an all-free cart cannot check out');
+
+console.log('--- the payment page hides the card for a $0 order ---');
+const payView = fs.readFileSync(path.join(ROOT, 'views/pages/checkout-payment.ejs'), 'utf8');
+ok('paymentPage computes isFreeOrder from the real total',
+   /isFreeOrder = pricing\.toCents\(paySubtotal\) === 0/.test(ccFree), 'not computed');
+ok('the view branches on it', /locals\.isFreeOrder/.test(payView), 'not wired');
+/* ⚠️ RENDERED, not compared by source position. The first version of
+   this assertion compared indexOf('isFreeOrder') against
+   indexOf('js.stripe.com') and failed on correct code - source order
+   tells you nothing about which branch runs. Render both. */
+const payFixture = free => ({
+  pageTitle: 'x', metaDesc: '', noindex: true, csrfToken: 't', cspNonce: 'n',
+  settings: { global: {} },
+  deliveryLocation: require(path.join(ROOT, 'src/utils/deliveryLocation')),
+  cart: { items: [{ product_id: 1, slug: 's', name: 'Wood Sample', price: 9.99, qty: 1, image: '' }],
+          count: 1, subtotal: 9.99 },
+  order: { id: 1, order_number: 'DRAFT-x', guest_email: 'a@b.com',
+           ship_first_name: 'Sam', ship_last_name: 'N', ship_address1: '1 X St',
+           ship_address2: null, ship_city: 'Roswell', ship_state: 'GA', ship_zip: '30075',
+           ship_address_type: 'residential', delivery_terms_ack_at: '2026-10-04', total: 0 },
+  stripePublishableKey: 'pk_test_x',
+  subtotal: free ? 0 : 9.99, isFreeOrder: free,
+});
+const payFile = path.join(ROOT, 'views/pages/checkout-payment.ejs');
+const payFree = ejs.render(payView, payFixture(true),  { filename: payFile });
+const payPaid = ejs.render(payView, payFixture(false), { filename: payFile });
+ok('FREE order: stripe.js is not loaded at all',
+   !/js\.stripe\.com/.test(payFree), 'the Stripe script would load and fail');
+ok('FREE order: no card or billing element',
+   !/payment-element/.test(payFree) && !/billing-address-element/.test(payFree),
+   'empty Stripe iframes would render');
+ok('FREE order: Place Order posts to the $0 route',
+   /\/checkout\/free-order/.test(payFree), 'the button would do nothing');
+ok('FREE order: it says no payment is needed',
+   /No payment needed/.test(payFree), 'the customer is not told why there is no card field');
+ok('PAID order: stripe.js IS loaded',
+   /js\.stripe\.com/.test(payPaid), 'the paid path was broken');
+ok('PAID order: card and billing elements are present',
+   /payment-element/.test(payPaid) && /billing-address-element/.test(payPaid), 'broken');
+ok('PAID order: it does NOT post to the $0 route',
+   !/\/checkout\/free-order/.test(payPaid), 'a paid order could skip payment');
+
+console.log('--- all four displayed subtotals honour the offer ---');
+/* The second bug: only the STORED order was priced with the discount, so
+   every screen showed $19.98 while the order behind it was $0.00. */
+ok('no page renders a bare calcTotal(cart.items)',
+   !/subtotal:\s*calcTotal\(cart\.items\)[,)]/.test(ccFree)
+   && !/subtotal: calcTotal\(cart\.items\),/.test(ccFree),
+   'a display page still ignores the offer');
+ok('a shared buyerTotal helper exists',
+   /async function buyerTotal\(/.test(ccFree), 'the four totals can drift again');
 
 console.log('--- the promotion cannot fire anywhere while it is off ---');
 const ccSrc = strip(fs.readFileSync(path.join(ROOT, 'src/controllers/checkoutController.js'), 'utf8'));

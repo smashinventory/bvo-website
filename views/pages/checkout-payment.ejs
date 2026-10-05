@@ -51,6 +51,19 @@
         </p>
       </div>
 
+      <%# ── A $0.00 ORDER TAKES NO CARD ───────────────────────────────
+          Two free samples is a $0.00 total and Stripe cannot process
+          one - it was handed zero line items and refused the session,
+          which left BOTH Stripe iframes below (billing and payment) as
+          empty grey boxes under "We could not reach our payment
+          provider". Asking for a card to charge nothing is the wrong
+          answer, so for a free order neither section is rendered at all
+          and Place Order completes it directly.
+          isFreeOrder is computed server-side in paymentPage, and the
+          endpoint it posts to recomputes the total again and refuses
+          anything non-zero - this flag is presentation, not the
+          control. %>
+      <% if (!locals.isFreeOrder) { %>
       <!-- Billing -->
       <div class="checkout-card">
         <h2 class="checkout-card-title">Billing Address</h2>
@@ -72,6 +85,20 @@
         <div id="payment-element"></div>
         <div id="payment-error" role="alert" style="display:none;color:var(--red);margin-top:8px;font-size:14px"></div>
       </div>
+      <% } else { %>
+      <!-- Free order: nothing to pay -->
+      <div class="checkout-card">
+        <h2 class="checkout-card-title">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" aria-hidden="true" style="vertical-align:middle;margin-right:6px">
+            <path d="M20 6L9 17l-5-5"/>
+          </svg>
+          No payment needed
+        </h2>
+        <p class="checkout-card-sub">Your order comes to <strong>$0.00</strong>, so there is nothing to pay and no card required. Press Place Order and we'll send your samples.</p>
+        <div id="payment-error" role="alert" style="display:none;color:var(--red);margin-top:8px;font-size:14px"></div>
+      </div>
+      <% } %>
 
       <!-- Order items -->
       <div class="checkout-card checkout-items-card">
@@ -216,6 +243,51 @@
      payment — self-hosting it breaks PCI compliance and Stripe blocks it.
      The CSP allows this host under frame-src; script-src uses
      strict-dynamic with a nonce, so the nonce below is what admits it. */%>
+<% if (locals.isFreeOrder) { %>
+<%# ── FREE ORDER: NO STRIPE AT ALL ──────────────────────────────────
+    stripe.js is not even loaded. A $0.00 total cannot create a Stripe
+    session (zero line items), and every failure mode of this page came
+    from trying anyway. Place Order posts to /checkout/free-order, which
+    RECOMPUTES the total server-side and refuses anything non-zero - this
+    branch is presentation, never the control. %>
+<script nonce="<%= cspNonce %>">
+(function () {
+  'use strict';
+  var payBtn = document.getElementById('payBtn');
+  var errEl  = document.getElementById('payment-error');
+  if (!payBtn) return;
+
+  function fail(msg) {
+    if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
+    payBtn.disabled = false;
+    payBtn.textContent = 'Place Order';
+  }
+
+  payBtn.addEventListener('click', async function () {
+    if (payBtn.disabled) return;          /* double-click guard */
+    if (errEl) errEl.style.display = 'none';
+    payBtn.disabled = true;
+    payBtn.textContent = 'Placing your order…';
+    try {
+      /* main.ejs patches window.fetch to attach X-CSRF-Token on every
+         non-GET, so no token is assembled here. */
+      var r = await fetch('/checkout/free-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: '{}',
+      });
+      var data = await r.json().catch(function () { return {}; });
+      if (!r.ok || !data.ok) {
+        return fail(data.error || 'We could not place your order. Nothing has been charged.');
+      }
+      window.location.href = data.redirect || '/checkout/success';
+    } catch (e) {
+      fail('We could not reach the site. Nothing has been charged. Please try again.');
+    }
+  });
+})();
+</script>
+<% } else { %>
 <script src="https://js.stripe.com/dahlia/stripe.js" nonce="<%= cspNonce %>"></script>
 
 <script nonce="<%= cspNonce %>">
@@ -629,3 +701,4 @@
   });
 })();
 </script>
+<% } /* end isFreeOrder else — the Stripe path */ %>

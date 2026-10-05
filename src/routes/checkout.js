@@ -72,6 +72,11 @@ router.get ('/payment',   ctrl.paymentPage);
 // Stripe Checkout Session. Named /session because that is what it makes;
 // nothing is charged and the browser does not navigate.
 router.post('/session',   ctrl.createSession);
+/* A $0.00 order takes no card - Stripe cannot process one, and asking
+   for a card to charge nothing is the wrong answer. The handler
+   RECOMPUTES the total server-side and refuses anything that is not
+   zero, because this route places an order without payment. */
+router.post('/free-order', ctrl.completeFreeOrder);
 
 // The delivery type and phone extension: the two facts Stripe has no
 // field for. Writes through the order id held in the server session,

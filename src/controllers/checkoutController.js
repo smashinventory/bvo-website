@@ -157,6 +157,30 @@ function calcTotal(items, opts) {
   return pricing.priceCart(items, opts).subtotal;
 }
 
+/**
+ * The cart total for THIS buyer, with the free-sample offer applied.
+ *
+ * ⚠️ THE DISPLAY PAGES USED TO IGNORE THE OFFER ENTIRELY. calcTotal was
+ * called with no options on checkout page 1, the delivery page and the
+ * payment page, so every screen showed the undiscounted figure while the
+ * stored order had the discount. The customer was promised the samples
+ * came off at checkout and then watched them not come off. One helper
+ * now, used by all three, so they cannot drift again.
+ *
+ * Returns { subtotal, opts } - the opts are handed to priceCart and to
+ * Stripe so the figure shown, the figure stored and the figure charged
+ * are one computation.
+ */
+async function buyerTotal(cartItems, order) {
+  const email = order && order.guest_email;
+  const addr  = order ? shipAddrFromOrder(order) : null;
+  const elig  = (SAMPLE_OFFER.ENABLED && email)
+    ? await SampleRedemption.isEligible(email, addr)
+    : { eligible: false };
+  const opts = { sampleEligible: elig.eligible };
+  return { subtotal: calcTotal(cartItems, opts), opts };
+}
+
 /** The shipping address of an ORDER, in the shape addressKey() wants.
  *
  *  ⚠️ THE PAYMENT STEP MUST REACH THE SAME ELIGIBILITY ANSWER saveInfo
@@ -597,7 +621,21 @@ exports.show = async (req, res) => {
        last month's jobsite. Spec §7 Stage 3, item 28. */
     savedAddress,
     cart,
-    subtotal:  calcTotal(cart.items),
+    /* ⚠️ EMAIL ONLY HERE, address deliberately null. This is the page
+       where the address is typed, so the address half of the rule is not
+       knowable yet - but the email half is, and showing the
+       undiscounted total on page 1 and a discounted one on page 2 is
+       exactly the inconsistency that made this feel untrustworthy. If
+       the address turns out to be already-redeemed, saveInfo rechecks
+       with both halves and the figure corrects itself before payment. */
+    subtotal:  (await (async () => {
+      const em = (customerRow && customerRow.email)
+              || (draft && draft.guest_email) || '';
+      const el = (SAMPLE_OFFER.ENABLED && em)
+        ? await SampleRedemption.isEligible(em, null)
+        : { eligible: false };
+      return calcTotal(cart.items, { sampleEligible: el.eligible });
+    })()),
     draft,
     errors:    flash.errors,
     old:       flash.old,
@@ -1096,7 +1134,9 @@ exports.deliveryPage = async (req, res) => {
   res.render('pages/checkout-delivery', {
     pageTitle: 'Delivery | BathroomVanitiesOutlet.com',
     metaDesc:  '', noindex: true,
-    cart, subtotal: calcTotal(cart.items), order,
+    /* buyerTotal, not calcTotal: the delivery page used to show the
+       undiscounted figure while the stored order carried the discount. */
+    cart, subtotal: (await buyerTotal(cart.items, order)).subtotal, order,
     errors: flash.errors,
     /* The acknowledgement sentence and the address label both depend on
        what they chose on page 1. A buyer with a forklift must not be
@@ -1170,10 +1210,22 @@ exports.paymentPage = async (req, res) => {
      point before money moves. */
   if (!order.delivery_terms_ack_at) return res.redirect('/checkout/delivery');
 
+  /* ⚠️ A $0 ORDER TAKES NO CARD. Two free samples is a $0.00 total and
+     Stripe cannot process one - it was handed zero line items and
+     refused the session, which left the Payment Element and the Billing
+     Address Element as empty grey boxes under "We could not reach our
+     payment provider". Nobody could buy samples.
+     So the payment section is not rendered at all for a free order: the
+     page shows the summary and a Place Order button that completes it
+     directly. Asking for a card to charge nothing is the thing that felt
+     unprofessional. */
+  const { subtotal: paySubtotal } = await buyerTotal(cart.items, order);
+  const isFreeOrder = pricing.toCents(paySubtotal) === 0;
+
   res.render('pages/checkout-payment', {
     pageTitle: 'Payment | BathroomVanitiesOutlet.com',
     metaDesc:  '', noindex: true,
-    cart, subtotal: calcTotal(cart.items), order,
+    cart, subtotal: paySubtotal, order, isFreeOrder,
     /* NO checkoutError here. It belongs to page 1 - "We could not save
        your details" - and a stale one rendered above the card form telling
        a buyer a payment failed when none had been attempted. Page 1 sets
@@ -1183,6 +1235,143 @@ exports.paymentPage = async (req, res) => {
        reach a template. */
     stripePublishableKey: require('../utils/stripeKeys').publishableKey(),
   });
+};
+
+/* ── POST /checkout/free-order ──────────────────────────────────── */
+/**
+ * Complete a $0.00 order without touching Stripe.
+ *
+ * ⚠️ WHY THIS EXISTS. Two free samples is a $0.00 total and Stripe cannot
+ * process one: buildLineItems correctly drops fully-free lines, so the
+ * session request carried zero line items and was refused. With no
+ * session the Payment Element and the Billing Address Element - both
+ * Stripe iframes - rendered as empty grey boxes under "We could not
+ * reach our payment provider", and nobody could get samples.
+ *
+ * Asking for a card in order to charge nothing is the wrong answer. A
+ * free order takes no card: the payment page hides the card and billing
+ * sections and Place Order posts here.
+ *
+ * ⚠️⚠️ THE TOTAL IS RECOMPUTED HERE FROM THE DATABASE AND THE ORDER IS
+ * REFUSED UNLESS IT IS GENUINELY ZERO. This endpoint completes an order
+ * without payment, so it is the single most abusable route on the site:
+ * anyone can POST to it with a cart full of vanities. It therefore trusts
+ * NOTHING from the request - not a flag, not a total, not the cart as
+ * displayed. It reloads the draft, reprices it server-side with the same
+ * helper every other page uses, and bails on anything that is not 0.
+ *
+ * Idempotent. A double-click, or a retry on a slow connection, must not
+ * produce two orders or two emails: the UPDATE is guarded on the row
+ * still being a draft, and a second call finds nothing to update and
+ * simply returns the same redirect.
+ */
+exports.completeFreeOrder = async (req, res) => {
+  const cart = getCart(req);
+  if (cart.items.length === 0) return res.status(409).json({ ok: false, error: 'Your cart is empty.' });
+
+  const order = await requireDraft(req, res);
+  if (!order) return;
+
+  if (!order.delivery_terms_ack_at) {
+    return res.status(409).json({ ok: false, error: 'Please confirm the delivery terms first.' });
+  }
+
+  /* THE GUARD. Recomputed, not read from the row and not from the page. */
+  const { subtotal, opts } = await buyerTotal(cart.items, order);
+  if (pricing.toCents(subtotal) !== 0) {
+    console.error('[checkout.completeFreeOrder] refused: total is',
+      subtotal, 'for order', order.id);
+    return res.status(409).json({
+      ok: false,
+      error: 'This order has a balance due. Please refresh and pay by card.',
+    });
+  }
+
+  const orderId = order.id;
+  const orderNumber = (order.order_number && !order.order_number.startsWith('DRAFT-'))
+    ? order.order_number
+    : makeOrderNumber(orderId);
+
+  try {
+    /* Guarded on payment_status = 'draft' so a second submit updates
+       zero rows. affectedRows tells us which call we are. */
+    const [upd] = await bvoPool.query(
+      `UPDATE orders
+          SET order_number = ?, status = 'confirmed',
+              payment_status = 'no_payment_due',
+              subtotal = 0, total = 0, tax = 0,
+              payment_captured_at = NOW()
+        WHERE id = ? AND payment_status = 'draft'`,
+      [orderNumber, orderId]
+    );
+
+    if (upd.affectedRows === 0) {
+      /* Already completed - a retry or a double click. Not an error. */
+      req.session.cart = { items: [], count: 0, subtotal: 0 };
+      delete req.session.checkoutDraft;
+      return res.json({ ok: true, redirect: '/checkout/success?order=' + encodeURIComponent(orderNumber) });
+    }
+
+    /* Rewrite the lines with the freebie applied, so order_items match
+       the $0 total rather than the pre-discount figures page 1 wrote. */
+    await bvoPool.query('DELETE FROM order_items WHERE order_id = ?', [orderId]);
+    for (const l of pricing.priceCart(cart.items, opts).lines) {
+      const it = l.item;
+      if (l.freeQty > 0) {
+        await bvoPool.query(
+          `INSERT INTO order_items (order_id, product_id, sku, name, qty, unit_price, line_total)
+           VALUES (?,?,?,?,?,?,?)`,
+          [orderId, it.product_id || null, it.slug || '',
+           String(it.name || 'Product') + ' (free sample)', l.freeQty, '0.00', '0.00']);
+      }
+      if (l.paidQty > 0) {
+        await bvoPool.query(
+          `INSERT INTO order_items (order_id, product_id, sku, name, qty, unit_price, line_total)
+           VALUES (?,?,?,?,?,?,?)`,
+          [orderId, it.product_id || null, it.slug || '', it.name || 'Product',
+           l.paidQty, l.unitPrice.toFixed(2), l.lineTotal.toFixed(2)]);
+      }
+    }
+
+    bvoPool.query(
+      `INSERT INTO order_events (order_id, event_type, from_status, to_status, actor, notes)
+       VALUES (?, 'order_placed', 'pending', 'confirmed', 'system', 'Free order - no payment due')`,
+      [orderId]
+    ).catch(() => {});
+
+    /* Burn the offer. Same place and same reasoning as the webhook: only
+       once the order is real. Fire-and-forget - the unique indexes mean a
+       missed write costs at most one extra freebie, while throwing here
+       would leave a placed order looking failed. */
+    SampleRedemption.record({
+      email:      order.guest_email,
+      address:    shipAddrFromOrder(order),
+      customerId: order.customer_id,
+      orderId,
+      freeQty:    pricing.priceCart(cart.items, opts).freeUnits,
+    }).catch(err => console.error('[checkout.completeFreeOrder] redemption failed for order',
+      orderId, '—', err && err.message));
+
+    /* Same confirmation the paid path sends. Not awaited: the order
+       exists, and a mail failure must not look like an order failure. */
+    const [[row]] = await bvoPool.query(
+      `SELECT order_number, guest_email, ship_first_name, ship_last_name, total
+         FROM orders WHERE id = ?`, [orderId]);
+    const [items] = await bvoPool.query(
+      'SELECT name, qty, line_total FROM order_items WHERE order_id = ?', [orderId]);
+    const confirmToken = await emailVerify.issueOrderToken(orderId);
+    sendConfirmation(row, items, confirmToken);
+
+    req.session.cart = { items: [], count: 0, subtotal: 0 };
+    delete req.session.checkoutDraft;
+    return res.json({ ok: true, redirect: '/checkout/success?order=' + encodeURIComponent(orderNumber) });
+  } catch (err) {
+    console.error('[checkout.completeFreeOrder] failed for order', orderId, '—', err && err.message);
+    return res.status(500).json({
+      ok: false,
+      error: 'We could not place your order. Nothing has been charged. Please try again.',
+    });
+  }
 };
 
 /* ── POST /checkout/session ─────────────────────────────────────── */

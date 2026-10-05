@@ -2281,10 +2281,14 @@ _DEFAULT_ORDER.forEach(function(k) {
     and checkout actually price against. A Theme Editor field reading
     "3 free samples" while the cart gives 2 would be a promise the site
     does not keep. Wording is editable; arithmetic is not. %>
-<%# sampleOffer.ENABLED is the kill switch: with the offer off the
-    banner is hidden, because advertising "your first 2 samples are free"
-    while checkout charges for them is worse than not advertising it. %>
-<% if (sectionKey === 'sample_banner' && sb_.enabled !== false && sampleOffer.ENABLED) { %>
+<%# THE THEME EDITOR TOGGLE GOVERNS THIS, nothing else.
+    It was briefly also gated on sampleOffer.ENABLED so the banner would
+    hide itself while the free-sample discount was switched off. That was
+    the wrong call: a "Show section" control that does not show the
+    section is a worse problem than the one it was guarding against, and
+    it is the owner's homepage to decide about. The Theme Editor panel
+    warns, in words, when the discount is off - see theme.ejs. %>
+<% if (sectionKey === 'sample_banner' && sb_.enabled !== false) { %>
 <%
   /* ⚠️ .section, NOT .iwt-section. The first version reused the
      image_with_text shell and it laid out badly, for two reasons worth
@@ -2310,6 +2314,17 @@ _DEFAULT_ORDER.forEach(function(k) {
      reads as a mistake rather than a choice. */
   var _SB_ALIGN = { left: 1, center: 1, right: 1 };
   var _sbAlign = _SB_ALIGN[sb_.text_align] ? sb_.text_align : 'center';
+  /* ⚠️ .section-sub CARRIES `max-width:540px; margin:.4rem auto 0` IN THE
+     STYLESHEET. Those auto margins centre the paragraph BLOCK whatever
+     text-align says - so setting the control to left shifted the text
+     inside a box that stayed centred, while the heading and the button
+     (no such constraint) did not appear to move. The control looked
+     half-broken and arbitrary. Inheritance cannot fix it; the margin has
+     to be overridden on that element, per alignment. */
+  var _sbSub = 'text-align:' + _sbAlign + ';'
+             + (_sbAlign === 'left'  ? 'margin-left:0;margin-right:auto;'
+             :  _sbAlign === 'right' ? 'margin-left:auto;margin-right:0;'
+             :                         'margin-left:auto;margin-right:auto;');
   var _sbBox = 'max-width:760px;margin-bottom:0;text-align:' + _sbAlign + ';'
              + (_sbAlign === 'left'  ? 'margin-right:auto;'
              :  _sbAlign === 'right' ? 'margin-left:auto;'
@@ -2329,7 +2344,7 @@ _DEFAULT_ORDER.forEach(function(k) {
     <div class="iwt-text-col" style="text-align:<%= _sbAlign %>">
       <% if (sb_.eyebrow) { %><p class="section-eyebrow"><%= sb_.eyebrow %></p><% } %>
       <<%- _sbTag %> class="section-title" id="sb-heading"><%= _sbHeading %></<%- _sbTag %>>
-      <% if (sb_.subtitle) { %><p class="section-sub"><%= sb_.subtitle %></p><% } %>
+      <% if (sb_.subtitle) { %><p class="section-sub" style="<%= _sbSub %>"><%= sb_.subtitle %></p><% } %>
       <a href="<%= sb_.cta_url || '/collections/samples' %>" class="<%= _btnClass(sb_.btn_style) %>" style="margin-top:14px"><%= sb_.cta_text || 'Browse samples' %></a>
     </div>
   </div>
@@ -2341,7 +2356,7 @@ _DEFAULT_ORDER.forEach(function(k) {
   <div class="section-header" style="<%= _sbBox %>">
     <% if (sb_.eyebrow) { %><p class="section-eyebrow"><%= sb_.eyebrow %></p><% } %>
     <<%- _sbTag %> class="section-title" id="sb-heading"><%= _sbHeading %></<%- _sbTag %>>
-    <% if (sb_.subtitle) { %><p class="section-sub"><%= sb_.subtitle %></p><% } %>
+    <% if (sb_.subtitle) { %><p class="section-sub" style="<%= _sbSub %>"><%= sb_.subtitle %></p><% } %>
     <%# _btnClass defaults to btn-navy - the hero's primary and the most
         used button on the page. This was hardcoded btn-amber, which put
         an amber button directly below two navy hero buttons. That was an

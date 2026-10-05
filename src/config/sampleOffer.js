@@ -36,36 +36,27 @@
  * the first two, extras are simply sold at the catalogue price.
  */
 
-/* ⚠️ KILL SWITCH — OFF AS OF 2026-10-04, AND HERE IS WHY ──────────────
+/* ── THE OFFER SWITCH ──────────────────────────────────────────────────
  *
- * Set this back to true ONLY when the $0 checkout path is finished.
+ * true = the first FREE_COUNT samples come off at checkout.
  *
- * WHAT BROKE. A cart containing just the two free samples is a $0.00
- * order. buildLineItems correctly drops fully-free lines, so Stripe was
- * handed ZERO line items and refused to create the session. The payment
- * page then had no session to attach to, so the Payment Element AND the
- * Billing Address Element — both Stripe iframes — rendered as empty grey
- * skeletons, under the message "We could not reach our payment provider".
- * Nobody could buy samples. Found by the owner, on production.
+ * It was false between 2026-10-04 and the $0 fix, because an all-free
+ * cart broke checkout outright: two free samples is a $0.00 order,
+ * buildLineItems correctly drops fully-free lines, Stripe was handed
+ * ZERO line items and refused the session - which left the Payment
+ * Element and the Billing Address Element (both Stripe iframes) as empty
+ * grey boxes under "We could not reach our payment provider". Nobody
+ * could get samples.
  *
- * A SECOND, SEPARATE BUG made it worse: only the STORED order was priced
- * with the discount. The three displayed subtotals (info, delivery and
- * payment pages) still called calcTotal(cart.items) with no options, so
- * every screen showed $19.98 while the order behind it was $0.00. The
- * cart even promised "your first 2 samples come off at checkout" and
- * then they visibly never did.
+ * A $0 order now takes no card at all: the payment page hides the card
+ * and billing sections and Place Order posts to /checkout/free-order,
+ * which recomputes the total server-side and refuses anything non-zero.
+ * See checkoutController.completeFreeOrder.
  *
- * With this false the promotion cannot fire, so checkout behaves exactly
- * as it did before the offer existed: two samples, $19.98, a normal
- * Stripe session. Nothing else in the feature is removed — the ledger,
- * the banner and the cart copy all stay — so turning it back on is one
- * word once the $0 path exists.
- *
- * The banner and the cart's "first 2 come off at checkout" line are
- * suppressed while this is false; see ENABLED's use in cartController
- * and index.ejs. Promising a discount that cannot be delivered is worse
- * than not offering it. */
-const ENABLED = false;
+ * If you turn this off again, the cart note and the homepage banner
+ * suppress themselves with it - advertising an offer checkout will not
+ * honour is worse than not advertising it. */
+const ENABLED = true;
 
 /* How many the customer gets at no charge. Enforced server-side in
    checkoutController; the page's own limit is a convenience, not a
