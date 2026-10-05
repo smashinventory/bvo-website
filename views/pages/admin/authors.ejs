@@ -1,0 +1,59 @@
+<%/* Admin — Authors list */%>
+<style>
+.au-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;gap:1rem;flex-wrap:wrap}
+.au-toolbar h1{font-size:1.35rem;font-weight:700;color:var(--navy);margin:0}
+.au-flash{padding:.65rem 1rem;border-radius:6px;margin-bottom:1.1rem;font-size:.85rem}
+.au-flash--success{background:#e8f5e9;color:#1b5e20;border:1px solid #a5d6a7}
+.au-flash--error{background:#fdecea;color:#b71c1c;border:1px solid #ef9a9a}
+.au-card{background:#fff;border:1px solid var(--border-card);border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,.04);overflow:hidden}
+.au-row{display:flex;align-items:center;gap:1rem;padding:.9rem 1.15rem;border-bottom:1px solid var(--border-card)}
+.au-row:last-child{border-bottom:none}
+.au-avatar{width:44px;height:44px;border-radius:50%;flex-shrink:0;background:#f0eee9}
+.au-main{flex:1;min-width:0}
+.au-name{font-weight:700;color:var(--navy);font-size:.95rem;margin:0}
+.au-cred{font-size:.78rem;color:var(--text-muted);margin:.15rem 0 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.au-meta{font-size:.75rem;color:var(--text-muted);flex-shrink:0;text-align:right}
+.au-pill{display:inline-block;font-size:.68rem;font-weight:700;border-radius:4px;padding:1px 7px;border:1px solid}
+.au-pill--on{color:#1b5e20;background:#e8f5e9;border-color:#a5d6a7}
+.au-pill--off{color:#8a6d00;background:#fff8e8;border-color:#e0c878}
+.au-empty{padding:2rem 1.15rem;color:var(--text-muted);font-size:.9rem}
+</style>
+
+<div class="au-toolbar">
+  <h1>Authors</h1>
+  <a href="/admin/authors/new" class="btn btn-navy" style="font-size:.8rem;padding:.5rem .9rem">New Author</a>
+</div>
+
+<% if (flash) { %>
+<div class="au-flash au-flash--<%= flash.type %>"><%- flash.msg %></div>
+<% } %>
+
+<div class="au-card">
+  <% if (!authors.length) { %>
+  <div class="au-empty">No authors yet.</div>
+  <% } %>
+  <% authors.forEach(function (a) { %>
+  <div class="au-row">
+    <% if (a.image_base) { %>
+    <img class="au-avatar" src="<%= a.image_base %>-160.png" alt="" width="44" height="44" loading="lazy">
+    <% } else { %>
+    <span class="au-avatar"></span>
+    <% } %>
+    <div class="au-main">
+      <p class="au-name"><a href="/admin/authors/<%= a.id %>/edit" style="color:inherit"><%= a.name %></a></p>
+      <p class="au-cred"><%= a.credential || '—' %></p>
+    </div>
+    <div class="au-meta">
+      <%/* The guide count is the thing worth seeing at a glance: an
+           author with zero articles has a profile page that noindexes
+           itself, which is easy to forget and hard to notice. */%>
+      <div><%= a.guide_count %> guide<%= a.guide_count === 1 ? '' : 's' %></div>
+      <div style="margin-top:.3rem">
+        <span class="au-pill au-pill--<%= a.is_visible ? 'on' : 'off' %>"><%= a.is_visible ? 'Visible' : 'Hidden' %></span>
+      </div>
+    </div>
+    <a href="/authors/<%= a.slug %>" target="_blank" rel="noopener"
+       style="font-size:.78rem;color:var(--text-muted)">View ↗</a>
+  </div>
+  <% }) %>
+</div>

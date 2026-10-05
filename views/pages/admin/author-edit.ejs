@@ -1,0 +1,125 @@
+<%/* Admin — Author create / edit */%>
+<%
+  var _a = author || {};
+  var _isNew = !_a.id;
+%>
+<style>
+.ae-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;gap:1rem;flex-wrap:wrap}
+.ae-toolbar h1{font-size:1.35rem;font-weight:700;color:var(--navy);margin:0}
+.ae-flash{padding:.65rem 1rem;border-radius:6px;margin-bottom:1.1rem;font-size:.85rem}
+.ae-flash--success{background:#e8f5e9;color:#1b5e20;border:1px solid #a5d6a7}
+.ae-flash--error{background:#fdecea;color:#b71c1c;border:1px solid #ef9a9a}
+.ae-card{background:#fff;border:1px solid var(--border-card);border-radius:10px;padding:1.4rem;box-shadow:0 1px 3px rgba(0,0,0,.04);margin-bottom:1.25rem}
+.ae-card h2{font-size:.85rem;font-weight:700;color:var(--navy);margin:0 0 1.1rem;text-transform:uppercase;letter-spacing:.04em}
+.ae-field{margin-bottom:1.1rem}
+.ae-field label{display:block;font-size:.8rem;font-weight:600;color:var(--navy);margin-bottom:.3rem}
+.ae-field input[type=text],.ae-field textarea{width:100%;padding:.55rem .7rem;border:1px solid #d0cdc8;border-radius:5px;font-size:.875rem;font-family:inherit;box-sizing:border-box}
+.ae-field textarea{min-height:170px;line-height:1.6}
+.ae-hint{font-size:.74rem;color:var(--text-muted);margin-top:.3rem;line-height:1.5}
+.ae-preview{display:flex;align-items:center;gap:1rem;padding:.9rem;border:1px dashed #d0cdc8;border-radius:8px;background:#faf9f6}
+.ae-preview img{width:64px;height:64px;border-radius:50%}
+.ae-actions{display:flex;gap:.6rem;align-items:center}
+</style>
+
+<div class="ae-toolbar">
+  <h1><%= _isNew ? 'New Author' : 'Edit Author' %></h1>
+  <a href="/admin/authors" style="font-size:.82rem;color:var(--text-muted)">← Back to Authors</a>
+</div>
+
+<% if (flash) { %>
+<div class="ae-flash ae-flash--<%= flash.type %>"><%- flash.msg %></div>
+<% } %>
+
+<form method="POST" action="<%= _isNew ? '/admin/authors' : '/admin/authors/' + _a.id %>">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+  <div class="ae-card">
+    <h2>Identity</h2>
+
+    <div class="ae-field">
+      <label for="ae-name">Name</label>
+      <input type="text" id="ae-name" name="name" value="<%= _a.name || '' %>" required>
+    </div>
+
+    <div class="ae-field">
+      <label for="ae-slug">URL slug</label>
+      <input type="text" id="ae-slug" name="slug" value="<%= _a.slug || '' %>" placeholder="sam-nazer">
+      <div class="ae-hint">
+        The profile lives at <code>/authors/&lt;slug&gt;</code>. Leave blank to derive it from the name.
+        <strong>Changing it on an existing author breaks every link to the old URL</strong> — including the
+        <code>url</code> inside each article's author schema. Change it only if you are prepared to add a redirect.
+      </div>
+    </div>
+
+    <div class="ae-field">
+      <label for="ae-cred">Credential line</label>
+      <input type="text" id="ae-cred" name="credential" value="<%= _a.credential || '' %>"
+             placeholder="Founder, Bathroom Vanities Outlet · In construction since 1999">
+      <div class="ae-hint">One line under the name, and the byline on every article. This is the trust signal — say why this person is worth reading on this subject.</div>
+    </div>
+
+    <div class="ae-field">
+      <label>
+        <input type="hidden" name="is_visible" value="false">
+        <input type="checkbox" name="is_visible" value="true" <%= (_isNew || _a.is_visible) ? 'checked' : '' %>>
+        Visible
+      </label>
+      <div class="ae-hint">
+        Hiding an author removes the byline and the profile page but keeps the article links intact.
+        <strong>There is no delete</strong> — <code>pages.author_id</code> has no foreign key, so deleting a row
+        would silently orphan every article pointing at it. Hiding is the reversible version.
+      </div>
+    </div>
+  </div>
+
+  <div class="ae-card">
+    <h2>Photo</h2>
+    <div class="ae-field">
+      <label for="ae-img">Image base path</label>
+      <input type="text" id="ae-img" name="image_base" value="<%= _a.image_base || '' %>" placeholder="/images/authors/sam-nazer">
+      <div class="ae-hint">
+        Base path <em>without</em> a size or extension. Four files must exist:
+        <code>-160.webp</code>, <code>-160.png</code>, <code>-320.webp</code>, <code>-320.png</code>.
+        The 44px byline loads the 160 and the profile loads the 320, so neither downloads the other's file.
+      </div>
+    </div>
+    <div class="ae-field">
+      <label for="ae-alt">Image alt text</label>
+      <input type="text" id="ae-alt" name="image_alt" value="<%= _a.image_alt || '' %>" placeholder="Sam Nazer, founder of Bathroom Vanities Outlet">
+    </div>
+    <% if (_a.image_base) { %>
+    <div class="ae-preview">
+      <img src="<%= _a.image_base %>-320.png" alt="">
+      <div class="ae-hint" style="margin:0">Live preview from <code><%= _a.image_base %>-320.png</code>.<br>A broken image here means the files are not on the server.</div>
+    </div>
+    <% } %>
+  </div>
+
+  <div class="ae-card">
+    <h2>Bio</h2>
+    <div class="ae-field">
+      <label for="ae-bio">Biography (HTML)</label>
+      <textarea id="ae-bio" name="bio"><%= _a.bio || '' %></textarea>
+      <div class="ae-hint">Wrap each paragraph in <code>&lt;p&gt;</code>. Rendered as HTML on the profile page — admin-authored, so tags are kept.</div>
+    </div>
+  </div>
+
+  <div class="ae-card">
+    <h2>Links</h2>
+    <div class="ae-field">
+      <label for="ae-same">Profile URLs — one per line</label>
+      <textarea id="ae-same" name="same_as" style="min-height:110px"><%= _a.same_as || '' %></textarea>
+      <div class="ae-hint">
+        LinkedIn, Instagram, Facebook, X — whichever should be public. These appear on the profile and are
+        declared as <code>sameAs</code> on the Person, which is how a search engine connects this author to the
+        same person elsewhere. <strong>Anything that is not an http(s) URL is discarded on save</strong>, because
+        this value goes into both an <code>href</code> and the structured data.
+      </div>
+    </div>
+  </div>
+
+  <div class="ae-actions">
+    <button type="submit" class="btn btn-navy" style="font-size:.85rem;padding:.6rem 1.2rem">Save Author</button>
+    <a href="/admin/authors" style="font-size:.82rem;color:var(--text-muted)">Cancel</a>
+  </div>
+</form>

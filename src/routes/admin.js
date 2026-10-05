@@ -4,6 +4,7 @@ const express       = require('express');
 const rateLimit     = require('express-rate-limit');
 const router        = express.Router();
 const ctrl          = require('../controllers/adminController');
+const authorsCtrl   = require('../controllers/authorsController');
 const pagesCtrl     = require('../controllers/pagesController');
 const menusCtrl     = require('../controllers/menusController');
 const ordersCtrl    = require('../controllers/ordersController');
@@ -124,6 +125,16 @@ router.get ('/pages/:id/edit',             pagesCtrl.adminEdit);
 router.post('/pages/:id/delete',           pagesCtrl.adminDelete);
 router.post('/pages/:id/toggle',           pagesCtrl.adminToggle);
 router.post('/pages/:id',                  pagesCtrl.adminUpdate);
+
+/* ── Authors ─────────────────────────────────────────────────── */
+/* No delete route, deliberately: pages.author_id has no foreign key, so
+   removing an author would silently orphan every article pointing at it.
+   is_visible does the same job reversibly. */
+router.get ('/authors',            authorsCtrl.adminList);
+router.get ('/authors/new',        authorsCtrl.adminNew);
+router.post('/authors',            authorsCtrl.adminSave);
+router.get ('/authors/:id/edit',   authorsCtrl.adminEdit);
+router.post('/authors/:id',        authorsCtrl.adminSave);
 
 /* ── Menus ───────────────────────────────────────────────────── */
 router.get ('/menus',                                        menusCtrl.adminList);

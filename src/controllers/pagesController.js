@@ -19,6 +19,38 @@
 
 const { bvoPool } = require('../config/database');
 
+/* ⚠️ FAILS SOFT, DELIBERATELY. The authors table arrives with
+   migrations/2026-10-05_authors_RUNME.sql. Between the deploy and that
+   SQL running, this returns [] and the editor simply shows no Author
+   dropdown - it does not 500 the page editor, which is the one screen
+   the owner would need in order to fix anything else. */
+async function _authorOptions() {
+  try {
+    const [rows] = await bvoPool.query(
+      'SELECT id, name FROM authors WHERE is_visible = 1 ORDER BY name'
+    );
+    return rows;
+  } catch { return []; }
+}
+
+/* <input type="date"> speaks YYYY-MM-DD and nothing else. A DATETIME out
+   of MySQL is a Date object; a bare '' must stay '' rather than becoming
+   1970-01-01. */
+function _dateInput(v) {
+  if (!v) return '';
+  const d = v instanceof Date ? v : new Date(v);
+  return isNaN(d) ? '' : d.toISOString().slice(0, 10);
+}
+
+/* The inverse. '' means "no date" and must round-trip to NULL, not to a
+   zero date - a guide with no publish date must emit no datePublished at
+   all rather than claiming 1970. */
+function _dateValue(v) {
+  if (!v || !/^\d{4}-\d{2}-\d{2}$/.test(String(v).trim())) return null;
+  const d = new Date(String(v).trim() + 'T12:00:00Z');
+  return isNaN(d) ? null : d;
+}
+
 /* ── slug helper ─────────────────────────────────────────────── */
 function makeSlug(str) {
   return str
@@ -52,18 +84,21 @@ exports.adminList = async (req, res) => {
   }
 };
 
-exports.adminNew = (req, res) => {
+exports.adminNew = async (req, res) => {
   res.render('pages/admin/page-edit', {
     layout:     'layouts/admin',
     pageTitle:  'New Page | BVO Admin',
     activePage: 'pages',
     page:       null,
+    authors:    await _authorOptions(),
+    dateInput:  _dateInput,
     flash:      null,
   });
 };
 
 exports.adminCreate = async (req, res) => {
-  const { title, slug: rawSlug, content, meta_title, meta_desc, og_image, sort_order } = req.body;
+  const { title, slug: rawSlug, content, meta_title, meta_desc, og_image, sort_order,
+          author_id, published_at } = req.body;
   // is_visible: hidden field (value="false") + checkbox (value="true") both named is_visible.
   // Body parser creates an array when both are present — take the last element (checkbox wins).
   const _rawVis   = req.body.is_visible;
@@ -75,6 +110,8 @@ exports.adminCreate = async (req, res) => {
       pageTitle:  'New Page | BVO Admin',
       activePage: 'pages',
       page:       req.body,
+      authors:    await _authorOptions(),
+      dateInput:  _dateInput,
       flash:      { type: 'error', msg: 'Title is required.' },
     });
   }
@@ -89,6 +126,20 @@ exports.adminCreate = async (req, res) => {
        is_visible === 'true' || is_visible === '1' ? 1 : 0,
        parseInt(sort_order) || 0]
     );
+    /* Same guarded second statement as the update path - see the comment
+       there. The core INSERT must not carry columns that may not exist. */
+    if (result && result.insertId) {
+      try {
+        await bvoPool.query(
+          'UPDATE pages SET author_id=?, published_at=? WHERE id=?',
+          [parseInt(author_id) || null, _dateValue(published_at), result.insertId]
+        );
+      } catch (e) {
+        if (!e || e.code !== 'ER_BAD_FIELD_ERROR') throw e;
+        console.warn('[pages] authors migration not applied - author/date not saved');
+      }
+    }
+
     req.session.flash = { type: 'success', msg: `Page "<strong>${title}</strong>" created.` };
     res.redirect('/admin/pages');
   } catch (err) {
@@ -98,6 +149,8 @@ exports.adminCreate = async (req, res) => {
       pageTitle:  'New Page | BVO Admin',
       activePage: 'pages',
       page:       { ...req.body, slug },
+      authors:    await _authorOptions(),
+      dateInput:  _dateInput,
       flash:      { type: 'error', msg: dupSlug ? `Slug "<strong>${slug}</strong>" is already taken — choose a different one.` : err.message },
     });
   }
@@ -112,6 +165,8 @@ exports.adminEdit = async (req, res) => {
       pageTitle:  `Edit: ${page.title} | BVO Admin`,
       activePage: 'pages',
       page,
+      authors:    await _authorOptions(),
+      dateInput:  _dateInput,
       flash:      req.session.flash || null,
     });
     delete req.session.flash;
@@ -124,7 +179,8 @@ exports.adminEdit = async (req, res) => {
 exports.adminUpdate = async (req, res) => {
   const { id } = req.params;
   try {
-    const { title, slug: rawSlug, content, meta_title, meta_desc, og_image, sort_order } = req.body || {};
+    const { title, slug: rawSlug, content, meta_title, meta_desc, og_image, sort_order,
+            author_id, published_at } = req.body || {};
     // is_visible: hidden field + checkbox both named is_visible → body parser makes an array.
     // Take the last element: hidden="false" comes first, checkbox="true" comes second.
     const _rawVis    = (req.body || {}).is_visible;
@@ -136,6 +192,8 @@ exports.adminUpdate = async (req, res) => {
         pageTitle:  'Edit Page | BVO Admin',
         activePage: 'pages',
         page:       { ...(req.body || {}), id },
+        authors:    await _authorOptions(),
+        dateInput:  _dateInput,
         flash:      { type: 'error', msg: 'Title is required.' },
       });
     }
@@ -143,12 +201,28 @@ exports.adminUpdate = async (req, res) => {
     const slug = rawSlug ? makeSlug(rawSlug) : makeSlug(title);
 
     await bvoPool.query(
+      /* ⚠️ author_id and published_at are written through a GUARDED
+         statement, not added to the list above. Before the authors
+         migration runs those columns do not exist, and naming a missing
+         column is ER_BAD_FIELD_ERROR - it would take out the Save button
+         on every page in the admin. The core UPDATE always succeeds; the
+         attribution is a second statement that is allowed to fail. */
       `UPDATE pages SET slug=?, title=?, content=?, meta_title=?, meta_desc=?, og_image=?,
        is_visible=?, sort_order=? WHERE id=?`,
       [slug, title.trim(), content || '', meta_title || '', meta_desc || '', og_image || '',
        is_visible === 'true' || is_visible === '1' ? 1 : 0,
        parseInt(sort_order) || 0, id]
     );
+    try {
+      await bvoPool.query(
+        'UPDATE pages SET author_id=?, published_at=? WHERE id=?',
+        [parseInt(author_id) || null, _dateValue(published_at), id]
+      );
+    } catch (e) {
+      if (!e || e.code !== 'ER_BAD_FIELD_ERROR') throw e;
+      console.warn('[pages] authors migration not applied - author/date not saved');
+    }
+
     req.session.flash = { type: 'success', msg: `Page updated.` };
     res.redirect('/admin/pages');
 
@@ -161,6 +235,8 @@ exports.adminUpdate = async (req, res) => {
       pageTitle:  'Edit Page | BVO Admin',
       activePage: 'pages',
       page:       { ...(req.body || {}), id, slug },
+      authors:    await _authorOptions(),
+      dateInput:  _dateInput,
       flash:      { type: 'error', msg: dupSlug ? `Slug "<strong>${slug}</strong>" is already taken.` : 'An unexpected error occurred — check server logs.' },
     });
   }

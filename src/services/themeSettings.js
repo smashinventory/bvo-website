@@ -505,7 +505,23 @@ const DEFAULTS = {
          "Label (not a heading)"), which wins over this default.
          NOTE: data/theme_settings.json had no *_level key for any of these, so
          this default is what renders. If one is ever saved, it wins.*/
-    heading_level: 'p',
+          /* ── h2, NOT p. Reversed 2026-10-05, owner's call ──────────────
+         Set to 'p' on 2026-10-03 on the reasoning that "a heading should
+         name a topic the page can rank for; a section label does not".
+         That conflates two different jobs: headings mark DOCUMENT
+         STRUCTURE, keyword targeting is what the title, H1 and body copy
+         do. A section heading that targets no keyword is still doing its
+         own job.
+
+         The argument that actually decided it is accessibility, not SEO.
+         Screen-reader users navigate by heading — jumping h2 to h2 is the
+         primary way they skim. A homepage with one h1 and no h2s gives
+         them nothing to jump between. The SEO difference either way is
+         close to nil; this one is real.
+
+         Looks identical on screen. Overridable per section in the Theme
+         Editor, which is where it should be decided case by case. */
+      heading_level: 'h2',
     enabled: true,
     show_on: 'all',
     eyebrow: 'James Martin Vanities',
@@ -672,7 +688,23 @@ const DEFAULTS = {
          "Label (not a heading)"), which wins over this default.
          NOTE: data/theme_settings.json had no *_level key for any of these, so
          this default is what renders. If one is ever saved, it wins.*/
-    heading_level: 'p',
+          /* ── h2, NOT p. Reversed 2026-10-05, owner's call ──────────────
+         Set to 'p' on 2026-10-03 on the reasoning that "a heading should
+         name a topic the page can rank for; a section label does not".
+         That conflates two different jobs: headings mark DOCUMENT
+         STRUCTURE, keyword targeting is what the title, H1 and body copy
+         do. A section heading that targets no keyword is still doing its
+         own job.
+
+         The argument that actually decided it is accessibility, not SEO.
+         Screen-reader users navigate by heading — jumping h2 to h2 is the
+         primary way they skim. A homepage with one h1 and no h2s gives
+         them nothing to jump between. The SEO difference either way is
+         close to nil; this one is real.
+
+         Looks identical on screen. Overridable per section in the Theme
+         Editor, which is where it should be decided case by case. */
+      heading_level: 'h2',
     enabled: true,
     show_on: 'all',
     eyebrow: 'The BVO Difference',
@@ -880,7 +912,23 @@ const DEFAULTS = {
          "Label (not a heading)"), which wins over this default.
          NOTE: data/theme_settings.json had no *_level key for any of these, so
          this default is what renders. If one is ever saved, it wins.*/
-    heading_level: 'p',
+          /* ── h2, NOT p. Reversed 2026-10-05, owner's call ──────────────
+         Set to 'p' on 2026-10-03 on the reasoning that "a heading should
+         name a topic the page can rank for; a section label does not".
+         That conflates two different jobs: headings mark DOCUMENT
+         STRUCTURE, keyword targeting is what the title, H1 and body copy
+         do. A section heading that targets no keyword is still doing its
+         own job.
+
+         The argument that actually decided it is accessibility, not SEO.
+         Screen-reader users navigate by heading — jumping h2 to h2 is the
+         primary way they skim. A homepage with one h1 and no h2s gives
+         them nothing to jump between. The SEO difference either way is
+         close to nil; this one is real.
+
+         Looks identical on screen. Overridable per section in the Theme
+         Editor, which is where it should be decided case by case. */
+      heading_level: 'h2',
     body: '',
     cta_text: '',
     cta_url: '',
@@ -997,7 +1045,23 @@ const DEFAULTS = {
     show_on: 'all',
     /* 'p', matching bundle_teaser: a section label is not a heading the
        page should rank for. Overridable per-section in the editor. */
-    heading_level: 'p',
+          /* ── h2, NOT p. Reversed 2026-10-05, owner's call ──────────────
+         Set to 'p' on 2026-10-03 on the reasoning that "a heading should
+         name a topic the page can rank for; a section label does not".
+         That conflates two different jobs: headings mark DOCUMENT
+         STRUCTURE, keyword targeting is what the title, H1 and body copy
+         do. A section heading that targets no keyword is still doing its
+         own job.
+
+         The argument that actually decided it is accessibility, not SEO.
+         Screen-reader users navigate by heading — jumping h2 to h2 is the
+         primary way they skim. A homepage with one h1 and no h2s gives
+         them nothing to jump between. The SEO difference either way is
+         close to nil; this one is real.
+
+         Looks identical on screen. Overridable per section in the Theme
+         Editor, which is where it should be decided case by case. */
+      heading_level: 'h2',
     eyebrow:  'See it in your own light',
     heading:  'Your first 2 samples are free',
     subtitle: 'Screens lie about colour. Wood grain and stone veining look '

@@ -1,0 +1,74 @@
+<link rel="stylesheet" href="/css/site3.css?v=31"><!-- site3: injected per-page (perf) -->
+<%
+  /* The image is stored as a BASE path (/images/authors/sam-nazer) and the
+     four real files hang off it: -160/-320 in webp and png. Serving a real
+     file at each size rather than one big PNG downscaled by the browser
+     keeps the byline at 6KB instead of 99KB. */
+  var _aBase = author.image_base || '';
+  var _aAlt  = author.image_alt  || (author.name + ', BathroomVanitiesOutlet.com');
+%>
+<div class="section">
+
+  <article class="author-profile">
+
+    <header class="author-head">
+      <% if (_aBase) { %>
+      <picture>
+        <source type="image/webp"
+                srcset="<%= _aBase %>-160.webp 160w, <%= _aBase %>-320.webp 320w"
+                sizes="(max-width:600px) 120px, 160px">
+        <%/* width/height are the DISPLAYED box, not the file. A stated
+             dimension that disagrees with the layout is what caused the
+             0.25 CLS on this site in September. */%>
+        <img class="author-photo" src="<%= _aBase %>-320.png" alt="<%= _aAlt %>"
+             width="160" height="160" loading="eager" decoding="async">
+      </picture>
+      <% } %>
+
+      <div class="author-head-text">
+        <p class="section-eyebrow">About the author</p>
+        <h1 class="author-name"><%= author.name %></h1>
+        <% if (author.credential) { %>
+        <p class="author-credential"><%= author.credential %></p>
+        <% } %>
+
+        <% if (links && links.length) { %>
+        <ul class="author-links">
+          <% links.forEach(function (href) { %>
+          <li><a href="<%= href %>" rel="me noopener" target="_blank"><%= href.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '') %></a></li>
+          <% }) %>
+        </ul>
+        <% } %>
+      </div>
+    </header>
+
+    <% if (author.bio) { %>
+    <%/* Raw tag: the bio is written by an admin in the same way page.content
+         is, and carries its own <p> and <em>. No visitor can reach it. */%>
+    <div class="author-bio"><%- author.bio %></div>
+    <% } %>
+
+    <% if (guides && guides.length) { %>
+    <section class="author-guides">
+      <h2 class="author-guides-title">Guides by <%= author.name %></h2>
+      <div class="author-guides-grid">
+        <% guides.forEach(function (g) { %>
+        <a class="author-guide-card" href="/inspiration/<%= g.slug %>">
+          <% if (g.og_image) { %>
+          <img class="author-guide-img" src="<%= g.og_image %>" alt=""
+               width="400" height="210" loading="lazy" decoding="async">
+          <% } %>
+          <span class="author-guide-body">
+            <span class="author-guide-title"><%= g.title %></span>
+            <% if (g.meta_desc) { %>
+            <span class="author-guide-desc"><%= g.meta_desc %></span>
+            <% } %>
+          </span>
+        </a>
+        <% }) %>
+      </div>
+    </section>
+    <% } %>
+
+  </article>
+</div>

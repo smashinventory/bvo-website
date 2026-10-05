@@ -122,6 +122,35 @@ exports.xml = async (req, res) => {
     <priority>1.0</priority>
   </url>`);
 
+    /* ── Author profiles ──────────────────────────────────────────
+       Included because each one is the destination of a byline link and
+       of the Person.url in every guide's Article schema — an entity the
+       crawler is pointed at from 50 pages should not be left out of the
+       map. Only authors WITH visible guides: the controller noindexes an
+       author who has none, and advertising a noindexed URL in a sitemap
+       is a contradiction that Search Console reports as an error. */
+    let authorRows = [];
+    try {
+      const [rows] = await bvoPool.query(`
+        SELECT a.slug, MAX(p.updated_at) AS updated_at
+        FROM   authors a
+        JOIN   pages p ON p.author_id = a.id
+                      AND p.page_type = 'inspiration' AND p.is_visible = 1
+        WHERE  a.is_visible = 1
+        GROUP  BY a.slug
+      `);
+      authorRows = rows;
+    } catch { authorRows = []; }
+
+    for (const a of authorRows) {
+      urls.push(`
+  <url>
+    <loc>${escUrl(`${siteUrl}/authors/${a.slug}`)}</loc>${lastmod(a.updated_at)}
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>`);
+    }
+
     // Inspiration hub
     if (inspirationPages.length) {
       urls.push(`

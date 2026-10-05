@@ -1,4 +1,4 @@
-<link rel="stylesheet" href="/css/site3.css?v=30"><!-- site3: injected per-page (perf) -->
+<link rel="stylesheet" href="/css/site3.css?v=31"><!-- site3: injected per-page (perf) -->
 <%/* Inspiration Guide — /inspiration/:slug */%>
 <div class="inspo-guide-wrap">
 
@@ -16,7 +16,28 @@
     <%/* ── Full-bleed hero (shown when og_image is set) ────────────── */%>
     <% if (page.og_image) { %>
     <div class="inspo-hero">
-      <img class="inspo-hero-img" src="<%= page.og_image %>" alt="<%= page.title %>" loading="eager" width="1200" height="630">
+      <%/* ⚠️ alt="" IS DELIBERATE, not an omission.
+           This used to echo the page title, which is a verbatim copy of
+           the h1 directly below it. A screen reader then announces the
+           same sentence twice in a row - the documented anti-pattern -
+           and it tells a sighted user nothing either.
+
+           The honest options were: describe the photograph, or mark it
+           decorative. Nothing in the database describes these images, and
+           inventing a description of a picture nobody has looked at is
+           worse than silence. The heading immediately after carries the
+           meaning, so decorative is correct.
+
+           THE TRADE-OFF, stated: an empty alt forgoes Google Images
+           value. If that is wanted, the fix is an og_image_alt column and
+           a real sentence per guide - ten of them. Not a template change,
+           so it is not smuggled in here.
+
+           (This comment originally spelled the old EJS tag out in full,
+           which closed the comment early and broke the template. An EJS
+           comment cannot contain an EJS tag. Ninth instance of that trap
+           in this codebase today, and the fifth I have written myself.) */%>
+      <img class="inspo-hero-img" src="<%= page.og_image %>" alt="" loading="eager" width="1200" height="630">
       <div class="inspo-hero-overlay" aria-hidden="true"></div>
       <div class="inspo-hero-text">
         <span class="inspo-eyebrow">Inspiration Guide</span>
@@ -49,6 +70,44 @@
         <div class="inspo-guide-meta inspo-guide-meta--after-hero">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           <%= page.readTime %> min read
+        </div>
+        <% } %>
+
+        <%/* ── BYLINE ──────────────────────────────────────────────────
+             Above the content, not below it. The point of a byline is to
+             tell the reader who is talking BEFORE they decide whether to
+             trust the advice; at the foot of the page it is a footnote.
+
+             Rendered only when the guide has an author, so a page written
+             before the authors migration ran shows nothing rather than an
+             empty row. The date is shown only when the column holds one -
+             an invented date claims a maintenance history that does not
+             exist. */%>
+        <% if (page.author) { %>
+        <div class="inspo-byline">
+          <% if (page.author.image_base) { %>
+          <a class="inspo-byline-photo-link" href="/authors/<%= page.author.slug %>" aria-hidden="true" tabindex="-1">
+            <picture>
+              <source type="image/webp" srcset="<%= page.author.image_base %>-160.webp">
+              <img class="inspo-byline-photo" src="<%= page.author.image_base %>-160.png"
+                   alt="" width="44" height="44" loading="lazy" decoding="async">
+            </picture>
+          </a>
+          <% } %>
+          <div class="inspo-byline-text">
+            <p class="inspo-byline-name">
+              By <a href="/authors/<%= page.author.slug %>" rel="author"><%= page.author.name %></a>
+            </p>
+            <% if (page.author.credential) { %>
+            <p class="inspo-byline-cred"><%= page.author.credential %></p>
+            <% } %>
+            <% if (page.publishedLabel || page.updatedLabel) { %>
+            <p class="inspo-byline-dates">
+              <% if (page.publishedLabel) { %><span>Published <%= page.publishedLabel %></span><% } %>
+              <% if (page.updatedLabel) { %><span>Updated <%= page.updatedLabel %></span><% } %>
+            </p>
+            <% } %>
+          </div>
         </div>
         <% } %>
 

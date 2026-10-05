@@ -125,6 +125,39 @@
             <input type="number" id="pg-sort" name="sort_order" value="<%- _sort %>" min="0" step="10" style="width:100px">
             <div class="pe-hint">Lower = appears first in footer links.</div>
           </div>
+
+          <%/* ── AUTHOR + PUBLISH DATE ─────────────────────────────────
+               Both feed the article byline AND the Article JSON-LD
+               (author as a Person with a url, plus datePublished). They
+               are per-article data, which is why they live here rather
+               than being derived: a date the template guesses is a claim
+               about history that nobody made.
+
+               ⚠️ DEFENSIVE ON PURPOSE. `authors` is passed by six render
+               paths in pagesController, and when this was built two of
+               them were missed — a validation error on the edit form
+               would have thrown instead of showing the error. Reading it
+               through a typeof check means a seventh render site cannot
+               break the page, only omit the dropdown. */%>
+          <% var _authors = (typeof authors !== 'undefined' && authors) ? authors : []; %>
+          <% var _fmtDate = (typeof dateInput === 'function') ? dateInput : function(){ return ''; }; %>
+          <% if (_authors.length) { %>
+          <div class="pe-field">
+            <label for="pg-author">Author</label>
+            <select id="pg-author" name="author_id" style="min-width:220px">
+              <option value="">— none —</option>
+              <% _authors.forEach(function (a) { %>
+              <option value="<%= a.id %>" <%= String(_p.author_id || '') === String(a.id) ? 'selected' : '' %>><%= a.name %></option>
+              <% }) %>
+            </select>
+            <div class="pe-hint">Shown as a byline on inspiration guides, and named as the article's author for search engines.</div>
+          </div>
+          <div class="pe-field">
+            <label for="pg-pub">Published Date</label>
+            <input type="date" id="pg-pub" name="published_at" value="<%= _fmtDate(_p.published_at) %>" style="width:170px">
+            <div class="pe-hint">Leave blank for no date. Blank is better than a guess — an invented date claims a history the article does not have.</div>
+          </div>
+          <% } %>
         </div>
 
         <!-- SEO -->

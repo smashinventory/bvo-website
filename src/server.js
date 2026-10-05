@@ -741,6 +741,13 @@ app.get('/pages/:slug', pagesCtrl.publicPage);
    /inspiration, served by the url_redirects table rather than a route, so
    any stray external link still lands somewhere real. */
 
+// ── Author profiles ──────────────────────────────────────────
+// /authors/:slug — the destination for guide bylines and for the `url`
+// on the Person in each guide's Article schema. An author with no page
+// is a string; an author with a page is an entity.
+const authorsCtrl = require('./controllers/authorsController');
+app.get('/authors/:slug', authorsCtrl.profile);
+
 // ── Inspiration / Style Guide routes ─────────────────────────
 // Evergreen pillar pages at /inspiration/:slug
 // Served from `pages` table where page_type = 'inspiration'

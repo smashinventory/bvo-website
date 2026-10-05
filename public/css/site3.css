@@ -143,3 +143,128 @@
    which was written for an <a>; a span is inline by default and ignores
    the vertical padding, so the button would collapse. */
 span.lb-learn-btn{display:inline-block;cursor:pointer}
+
+/* ════════════════════════════════════════════════════════════════════
+   AUTHOR BYLINE + PROFILE PAGE — 2026-10-05
+
+   site3.css is loaded per-page by the templates that need it (product,
+   inspiration guide, checkout success, and now author). It is NOT in
+   site-bundle.css, so nothing here needs a bundle rebuild — which is
+   deliberate: the bundle is where 7,892 bytes went missing for weeks.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── Byline, above the article body ───────────────────────────────── */
+.inspo-byline {
+  display: flex;
+  align-items: center;
+  gap: .85rem;
+  margin: 0 0 1.75rem;
+  padding: .9rem 0 1.1rem;
+  border-bottom: 1px solid var(--border, #e8e4dc);
+}
+.inspo-byline-photo-link { flex-shrink: 0; line-height: 0; }
+.inspo-byline-photo {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  display: block;
+}
+.inspo-byline-text { min-width: 0; }
+.inspo-byline-name {
+  margin: 0;
+  font-size: .95rem;
+  font-weight: 600;
+  color: var(--navy, #182840);
+}
+.inspo-byline-name a { color: inherit; text-decoration: none; border-bottom: 1px solid var(--border, #e8e4dc); }
+.inspo-byline-name a:hover { border-bottom-color: var(--amber, #926a21); color: var(--amber, #926a21); }
+.inspo-byline-cred {
+  margin: .15rem 0 0;
+  font-size: .8rem;
+  color: var(--muted, #787063);
+  line-height: 1.45;
+}
+.inspo-byline-dates {
+  margin: .2rem 0 0;
+  font-size: .75rem;
+  color: var(--muted, #787063);
+}
+/* The separator is generated, so a single date never renders a stray dot. */
+.inspo-byline-dates span + span::before { content: " · "; }
+
+/* ── Profile page ─────────────────────────────────────────────────── */
+.author-profile { max-width: 760px; margin: 0 auto; }
+.author-head {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  margin-bottom: 1.75rem;
+}
+.author-photo {
+  width: 160px; height: 160px;
+  border-radius: 50%;
+  display: block;
+  flex-shrink: 0;
+}
+.author-name {
+  font-family: var(--font-serif, Georgia, serif);
+  font-size: clamp(1.6rem, 3vw, 2.1rem);
+  color: var(--navy, #182840);
+  margin: .15rem 0 .35rem;
+  line-height: 1.2;
+}
+.author-credential {
+  margin: 0;
+  font-size: .9rem;
+  color: var(--muted, #787063);
+  line-height: 1.5;
+}
+.author-links { list-style: none; margin: .6rem 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: .75rem; }
+.author-links a { font-size: .82rem; color: var(--amber, #926a21); text-decoration: none; }
+.author-links a:hover { color: var(--navy, #182840); }
+
+.author-bio { font-size: 1rem; line-height: 1.75; color: #3b3730; }
+.author-bio p { margin: 0 0 1rem; }
+.author-bio p:last-child { margin-bottom: 0; }
+
+.author-guides { margin-top: 2.5rem; border-top: 1px solid var(--border, #e8e4dc); padding-top: 1.75rem; }
+.author-guides-title {
+  font-family: var(--font-serif, Georgia, serif);
+  font-size: 1.25rem;
+  color: var(--navy, #182840);
+  margin: 0 0 1.1rem;
+}
+.author-guides-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.author-guide-card {
+  display: flex; flex-direction: column;
+  border: 1px solid var(--border, #e8e4dc);
+  border-radius: 10px;
+  overflow: hidden;
+  text-decoration: none;
+  background: #fff;
+  transition: border-color .15s, box-shadow .15s;
+}
+.author-guide-card:hover { border-color: var(--amber, #926a21); box-shadow: 0 2px 10px rgba(0,0,0,.06); }
+.author-guide-img { width: 100%; height: auto; display: block; aspect-ratio: 400 / 210; object-fit: cover; }
+.author-guide-body { padding: .85rem .95rem 1rem; }
+.author-guide-title { display: block; font-weight: 600; font-size: .92rem; color: var(--navy, #182840); line-height: 1.35; }
+.author-guide-desc { display: block; margin-top: .3rem; font-size: .78rem; color: var(--muted, #787063); line-height: 1.5; }
+
+/* Mobile: stack the header and drop to one column. 600 is the site's
+   mobile_max (src/utils/breakpoints.js), not a number picked here. */
+@media (max-width: 600px) {
+  .author-head { flex-direction: column; align-items: flex-start; gap: 1rem; }
+  .author-photo { width: 120px; height: 120px; }
+  .author-guides-grid { grid-template-columns: 1fr; }
+}
+
+/* ── IN-ARTICLE LINKS ─────────────────────────────────────────────────
+   .inspo-guide-content had no rule for `a` at all, so links inside an
+   article body inherited whatever the cascade gave them and could read
+   as plain text. A link that does not look like a link is a link nobody
+   clicks — and internal links out of a guide are the whole mechanism by
+   which a reader moves from reading to shopping.
+
+   Underline rather than colour alone: colour on its own fails WCAG 1.4.1
+   for readers who cannot distinguish it from body text. */
+.inspo-guide-content a{color:var(--amber,#926a21);text-decoration:underline;text-underline-offset:2px;text-decoration-thickness:1px}
+.inspo-guide-content a:hover,.inspo-guide-content a:focus-visible{color:var(--navy,#182840);text-decoration-thickness:2px}

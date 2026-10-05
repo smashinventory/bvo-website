@@ -154,3 +154,45 @@ should be checked.
 None of this is urgent and none of it is user-visible today. It is listed
 so the next section gets built from the helpers instead of from its
 neighbour.
+
+
+---
+
+## Heading levels on homepage sections — reversed 2026-10-05
+
+`heading_level` was set to `'p'` on four homepage sections on 2026-10-03,
+with the stated reasoning: *"a heading should name a topic the page can
+rank for; a section label does not."*
+
+**Reversed to `h2` on 2026-10-05**, owner's decision, for a reason the
+original note did not weigh.
+
+**The SEO argument is close to a non-factor in either direction.** Google
+does not rank a homepage because its section labels are `h2`, and does not
+penalise them for being `h2`. The original reasoning conflates two jobs:
+headings mark **document structure**; keyword targeting is what the title,
+`h1` and body copy do. A section heading that targets no keyword is still
+doing its own job.
+
+**The argument that decided it is accessibility.** Screen-reader users
+navigate by heading — jumping `h2` to `h2` is the primary way they skim a
+page. A homepage with one `h1` and no `h2`s gives them nothing to jump
+between; they arrow through every element in order. That is a real cost to
+real users, and it outweighs a negligible ranking difference.
+
+Changed: `bundle_teaser`, `before_after`, `video_text`, `sample_banner`.
+Not changed: the value bar and trust band, which are decorative strips
+with no real heading.
+
+**One inconsistency fixed at the same time.** `video_text` defaulted to
+`'p'` while `video_text_2` — a duplicate of the same section — defaulted
+to `'h2'`. Duplicating that section silently changed its heading level.
+Both are `h2` now, and `gate_author_byline` asserts they agree.
+
+It stays a per-section Theme Editor control, so this is a default, not a
+rule. It looks identical on screen either way.
+
+**Why this is written down at all:** the typography decision came undone
+because it was made and never recorded. This one reverses a decision that
+*was* recorded, which means the note has to say what changed and why —
+otherwise the next person flips it back on the original reasoning.

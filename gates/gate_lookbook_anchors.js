@@ -168,8 +168,25 @@ for (const f of ['public/css/site3.css', 'public/css/site-bundle.css']) {
         `site-bundle.css: the .card-stretch overlay is z-index:${m ? m[1] : 'NONE'}, which is what the lifts assume`);
 }
 
-check(/site3\.css\?v=30/.test(read('views/pages/lookbook.ejs')),
-      'the site3.css cache buster was bumped, or nobody gets the new rules');
+/* ⚠️ THIS PINNED THE LITERAL v=30 and went red the moment site3.css was
+   correctly bumped to v=31 — the third spelling-pin to fail against good
+   code in one day. The CONDITION it was reaching for is not "the version
+   is 30"; it is "lookbook.ejs is not left behind on an old stylesheet
+   while the other templates move on". site3.css is linked per-page, so a
+   single stale copy serves the old file on that page alone, which is
+   almost impossible to spot. Assert agreement, not a number. */
+{
+  const lbV = (read('views/pages/lookbook.ejs').match(/site3\.css\?v=(\d+)/) || [])[1];
+  const all = new Set();
+  require('fs').readdirSync(require('path').join(__dirname, '..', 'views/pages'))
+    .filter(f => /\.ejs$/.test(f))
+    .forEach(f => {
+      const m = read('views/pages/' + f).match(/site3\.css\?v=(\d+)/);
+      if (m) all.add(m[1]);
+    });
+  check(!!lbV && all.size === 1,
+        `lookbook.ejs asks for site3 v=${lbV}; the site uses ${[...all].join(', ')}`);
+}
 
 /* ───────────── 4. one version across LIVE templates ───────────── */
 console.log('\n-- one stylesheet version across live templates --');
