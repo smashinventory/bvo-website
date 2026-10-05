@@ -13,6 +13,7 @@
  */
 
 const { bvoPool } = require('../config/database');
+const { STYLE }   = require('../config/filterLandingPages');
 const authors    = require('./authorsController');
 
 /* ── Category groupings for hub page display ──────────────────── */
@@ -188,6 +189,77 @@ const _SHOP_LABELS = {
   '72-inch':      '72-Inch',
 };
 
+/* ── SLUG → PRODUCT MATCH ──────────────────────────────────────────────
+
+   Which products belong on which guide. Three of the four dimensions in
+   these slugs map onto data we actually hold:
+
+     colour   products.color_family              white / gray / navy / black / wood
+     width    products.width_in                  "60-inch", "small"
+     sinks    product_attribute_values.sink_count  "double-sink"
+
+     style    product_attribute_values.style     "farmhouse", "modern", ...
+
+   ⚠️ I GOT THIS WRONG ON FIRST WRITE and said no style attribute
+   existed, because I grepped for a COLUMN on products rather than for an
+   attr_key — ten minutes after finding sink_count that exact way. It is
+   there: a MULTI-VALUE EAV attribute written by insertStyleAttrs() in
+   importJamesMartinFeed.js, and the same data behind the "Shop by Style"
+   filter on collection pages.
+
+   The style names come from src/config/filterLandingPages.js, which is
+   already the single source for them (the filter landing pages, the
+   collection sidebar and now this all read the same nine). A second list
+   here would drift from it the first time a style was renamed. */
+/* slug prefix -> canonical style value. Only the prefixes that differ
+   from a simple lowercase of the style name need listing; the rest are
+   derived, so adding a tenth style to filterLandingPages needs no edit
+   here. */
+const _STYLE_ALIASES = {
+  'contemporary': 'Modern',            // the guide's word for it
+  'rustic':       'Farmhouse',         // closest bucket we actually carry
+  'mid-century':  'Mid-Century Modern',
+  'european':     'European / Old World',
+  'old-world':    'European / Old World',
+};
+
+function _slugToStyle(slug) {
+  for (const [prefix, value] of Object.entries(_STYLE_ALIASES)) {
+    if (slug.startsWith(prefix + '-')) return value;
+  }
+  for (const value of Object.keys(STYLE)) {
+    const prefix = value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '');
+    if (slug.startsWith(prefix + '-')) return value;
+  }
+  return null;
+}
+
+function _slugToProductMatch(slug) {
+  const m = { colorFamily: null, widthMin: null, widthMax: null, sinkCount: null,
+              style: _slugToStyle(slug) };
+
+  for (const [prefix, family] of _COLOR_FAMILY_MAP) {
+    if (slug.startsWith(prefix) && family) { m.colorFamily = family; break; }
+  }
+
+  /* "60-inch-bathroom-vanity-ideas" etc. Read the number out of the slug
+     rather than listing every size, so a new size guide needs no code. */
+  const size = slug.match(/^(\d{2})-inch-/);
+  if (size) {
+    const n = parseInt(size[1], 10);
+    m.widthMin = n - 2;   // a 60" guide should show 60" vanities, and
+    m.widthMax = n + 2;   // tolerate the 59/61 the catalogue actually has
+  }
+
+  if (slug.startsWith('small-'))  m.widthMax = 36;
+  if (slug.startsWith('master-')) m.widthMin = 60;
+
+  if (slug.startsWith('double-sink-')) m.sinkCount = 2;
+  if (slug.startsWith('single-sink-')) m.sinkCount = 1;
+
+  return m;
+}
+
 function _slugToShopMeta(slug) {
   // Determine color_family filter
   let colorFamily = null;
@@ -263,31 +335,97 @@ exports.guide = async (req, res) => {
     const wordCount = (page.content || '').replace(/<[^>]+>/g, ' ').trim().split(/\s+/).filter(Boolean).length;
     page.readTime   = Math.max(1, Math.round(wordCount / 200));
 
-    // Related guides: other inspiration pages (up to 4, include og_image for cards)
-    const [related] = await bvoPool.query(
-      `SELECT slug, title, meta_desc, og_image
-       FROM pages
-       WHERE page_type = 'inspiration' AND is_visible = 1 AND id <> ?
-       ORDER BY RAND()
-       LIMIT 4`,
-      [page.id]
-    );
+    /* ── Related guides ───────────────────────────────────────────
+       ⚠️ A SECOND RAND(), found 2026-10-05 only because the first one
+       was being fixed. Same three costs: the internal links out of this
+       guide changed on every request, so no link between two guides ever
+       became a stable signal; the page could not be checked twice; and a
+       returning reader saw a different "related" list each visit.
+
+       Internal linking is the one thing a ten-article library can do for
+       itself - a stable, sensible web of links between related guides is
+       worth more here than almost any markup. Random links are not a web.
+
+       NEWEST FIRST, then id. Deterministic, and it surfaces the most
+       recently published guides, which is also the more useful default
+       now that every article carries a real published_at. */
+    /* Guarded the same way the main fetch is, and for the same reason:
+       published_at arrives with the authors migration, and an unguarded
+       reference to a missing column is ER_BAD_FIELD_ERROR, which takes
+       the whole page down. Same pattern rather than a second one. */
+    const _relatedSql = order => `
+      SELECT slug, title, meta_desc, og_image
+      FROM pages
+      WHERE page_type = 'inspiration' AND is_visible = 1 AND id <> ?
+      ORDER BY ${order}
+      LIMIT 4`;
+    let related;
+    try {
+      [related] = await bvoPool.query(
+        _relatedSql('published_at DESC, sort_order ASC, id ASC'), [page.id]);
+    } catch (e) {
+      if (e && e.code !== 'ER_BAD_FIELD_ERROR') throw e;
+      [related] = await bvoPool.query(_relatedSql('sort_order ASC, id ASC'), [page.id]);
+    }
 
     // Product showcase — 4 products filtered by slug-derived color family (or featured)
     const { colorFamily, shopLabel } = _slugToShopMeta(slug);
+    const match = _slugToProductMatch(slug);
     let shopProducts = [];
     try {
-      const colorWhere = colorFamily ? 'AND LOWER(p.color_family) LIKE ?' : '';
-      const colorParam = colorFamily ? [`%${colorFamily}%`] : [];
+      /* ── WHAT THIS PICKS, AND WHY IT IS NOT RANDOM ─────────────────
+         This was `ORDER BY p.is_featured DESC, RAND() LIMIT 4`. Four
+         different vanities on every single page load, which costs three
+         things that are easy to miss:
+
+           * Google saw a different set on every crawl, so no image ever
+             built an association with the page and none of them could
+             surface in Google Images.
+           * The page could not be screenshotted, cached or debugged
+             reproducibly - "it showed the wrong vanity" was untestable.
+           * A reader who returned to a guide saw different products,
+             which reads as a glitch rather than a selection.
+
+         Deterministic now: demand first (the analytics signal we already
+         compute), then featured, then id as the tie-break so the order is
+         total and stable. Same page, same products, until the catalogue
+         or the demand data actually changes - which is the kind of
+         "dynamic" that helps rather than churns. */
+      const where  = ['p.is_active = 1'];
+      const params = [];
+      const joins  = [];
+
+      if (match.colorFamily) { where.push('LOWER(p.color_family) LIKE ?'); params.push(`%${match.colorFamily}%`); }
+      if (match.widthMin != null) { where.push('p.width_in >= ?'); params.push(match.widthMin); }
+      if (match.widthMax != null) { where.push('p.width_in <= ?'); params.push(match.widthMax); }
+      if (match.style) {
+        /* Multi-value: a vanity can be both Transitional and Farmhouse,
+           so this is a join against one of its style rows, not equality
+           on a single column. */
+        joins.push(`JOIN product_attribute_values pav_st
+                      ON pav_st.product_id = p.id AND pav_st.attr_key = 'style'`);
+        where.push('pav_st.value_text = ?');
+        params.push(match.style);
+      }
+      if (match.sinkCount != null) {
+        /* sink_count lives in the EAV table, same as the collection
+           filters read it - not a column on products. */
+        joins.push(`JOIN product_attribute_values pav_sc
+                      ON pav_sc.product_id = p.id AND pav_sc.attr_key = 'sink_count'`);
+        where.push('pav_sc.value_text = ?');
+        params.push(String(match.sinkCount));
+      }
+
       const [rows] = await bvoPool.query(
         `SELECT p.id, p.slug, p.name, p.price, p.compare_price, p.brand,
                 COALESCE(p.primary_image_url, pi.url) AS primary_image
          FROM products p
          LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
-         WHERE p.is_active = 1 ${colorWhere}
-         ORDER BY p.is_featured DESC, RAND()
+         ${joins.join('\n         ')}
+         WHERE ${where.join(' AND ')}
+         ORDER BY COALESCE(p.demand_score, 0) DESC, p.is_featured DESC, p.id ASC
          LIMIT 4`,
-        colorParam
+        params
       );
       shopProducts = rows.map(p => ({
         ...p,
