@@ -1663,7 +1663,14 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
             <%- teField('text','sample_banner.cta_text','Button text',sbsec.cta_text||'Browse samples') %>
             <%- teField('text','sample_banner.cta_url','Button link',sbsec.cta_url||'/collections/samples') %>
             <div class="te4-section-label">Image (optional)</div>
-            <%- teImage('sample_banner.image','sample_banner.image_alt','Banner image',sbsec.image,sbsec.image_alt) %>
+            <%# ⚠️ ARGUMENT ORDER: (imgName, altName, imgValue, altValue, label).
+                This was written with the LABEL third, in the imgValue slot - so
+                the image field's value became the literal string "Banner image",
+                the URL was written into the ALT field, and the alt text became
+                the label. Every save re-posted that, which dropped the image
+                each time and rendered the URL as the broken image's alt text.
+                Compare the hero calls above: names, values, THEN label. %>
+            <%- teImage('sample_banner.image','sample_banner.image_alt',sbsec.image,sbsec.image_alt,'Banner image') %>
             <%- teVisibleOn('sample_banner', sbsec.show_on||'all') %>
                       <%- teSectionLayout('sample_banner', t.sample_banner||{}) %>
             <%- teButton('sample_banner', t.sample_banner||{}) %>

@@ -2321,6 +2321,22 @@ _DEFAULT_ORDER.forEach(function(k) {
      (no such constraint) did not appear to move. The control looked
      half-broken and arbitrary. Inheritance cannot fix it; the margin has
      to be overridden on that element, per alignment. */
+  /* ⚠️⚠️ .iwt-text-col IS A COLUMN FLEXBOX:
+         display:flex; flex-direction:column; align-items:flex-start
+     In a COLUMN flex container align-items controls the HORIZONTAL
+     placement of the children, and flex-start pins every one of them
+     hard left whatever text-align says. Flex children also shrink to fit
+     their content, so text-align INSIDE them has nothing to act on and
+     is invisible.
+     That is why two earlier attempts at this control did nothing: both
+     set text-align. The only element that appeared to respond was
+     .section-sub, because its max-width:540px makes it wider than its
+     own text. The heading, eyebrow and button are shrink-to-fit, so they
+     never moved a pixel.
+     The flex axis mapping, not the text one: */
+  var _SB_FLEX = { left: 'flex-start', center: 'center', right: 'flex-end' };
+  var _sbCol = 'align-items:' + _SB_FLEX[_sbAlign] + ';text-align:' + _sbAlign + ';';
+
   var _sbSub = 'text-align:' + _sbAlign + ';'
              + (_sbAlign === 'left'  ? 'margin-left:0;margin-right:auto;'
              :  _sbAlign === 'right' ? 'margin-left:auto;margin-right:0;'
@@ -2341,7 +2357,7 @@ _DEFAULT_ORDER.forEach(function(k) {
       <img class="iwt-img" src="<%= sb_.image %>"
            alt="<%= sb_.image_alt || '' %>" loading="lazy" decoding="async">
     </div>
-    <div class="iwt-text-col" style="text-align:<%= _sbAlign %>">
+    <div class="iwt-text-col" style="<%= _sbCol %>">
       <% if (sb_.eyebrow) { %><p class="section-eyebrow"><%= sb_.eyebrow %></p><% } %>
       <<%- _sbTag %> class="section-title" id="sb-heading"><%= _sbHeading %></<%- _sbTag %>>
       <% if (sb_.subtitle) { %><p class="section-sub" style="<%= _sbSub %>"><%= sb_.subtitle %></p><% } %>

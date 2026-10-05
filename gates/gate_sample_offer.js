@@ -521,6 +521,29 @@ function checkWiring() {
   ok('an invalid alignment falls back to center',
      alignOf('../../etc').indexOf('text-align:center') > -1, alignOf('../../etc'));
 
+  /* ⚠️⚠️ THE IMAGE LAYOUT NEEDS THE FLEX AXIS, NOT text-align.
+     .iwt-text-col is display:flex; flex-direction:column;
+     align-items:flex-start. In a COLUMN flex container align-items
+     controls HORIZONTAL placement, so flex-start pins every child hard
+     left whatever text-align says - and flex children shrink to fit, so
+     text-align inside them has nothing to act on.
+     Two attempts at this control set text-align and did nothing. The only
+     element that appeared to respond was .section-sub, because its
+     max-width:540px makes it wider than its own text. Asserted here so
+     the mapping cannot quietly revert to text-align alone. */
+  const colOf = a => {
+    const h = renderBanner(Object.assign({}, SB_FIXTURE,
+      { text_align: a, image: 'https://images.bathroomvanitiesoutlet.com/x.webp' }));
+    return (h.match(/iwt-text-col" style="([^"]*)"/) || [])[1] || '';
+  };
+  [['left', 'flex-start'], ['center', 'center'], ['right', 'flex-end']].forEach(([a, f]) =>
+    ok(`image layout: ${a} sets align-items:${f}`,
+       colOf(a).indexOf('align-items:' + f) > -1,
+       colOf(a) || 'no style on .iwt-text-col'));
+  ok('image layout sets BOTH align-items and text-align',
+     /align-items:/.test(colOf('right')) && /text-align:right/.test(colOf('right')),
+     colOf('right'));
+
   /* The colour attribute is written with the RAW tag, so the value must
      be validated or it is attribute injection. */
   const styleOf = v => {

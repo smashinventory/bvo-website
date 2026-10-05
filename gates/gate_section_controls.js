@@ -157,5 +157,26 @@ ok('the samples banner no longer hardcodes a button colour',
    && /_btnClass\(sb_\.btn_style\)/.test(IDX),
    'the banner still hardcodes its button');
 
+console.log('--- teImage argument order ---');
+/* ⚠️ teImage(imgName, altName, imgValue, altValue, label) takes two NAMES,
+   then two VALUES, then the label. The sample_banner call was written
+   with the LABEL third, in the imgValue slot - so the image field's
+   value became the literal string "Banner image", the URL was written
+   into the ALT field, and the alt text became the label. Every save
+   re-posted that and dropped the image.
+   A positional-argument slip like this produces no error anywhere: the
+   panel renders, the form posts, and the only symptom is the setting
+   quietly refusing to stick. The third argument must never be a string
+   literal - a value comes from a settings object. */
+const teImageCalls = [...THM.matchAll(/teImage\(([^)]*)\)/g)]
+  .map(m => ({ raw: m[0], args: m[1].split(',').map(a => a.trim()) }))
+  .filter(c => c.args.length >= 5 && c.args[0] !== 'imgName');
+ok(`${teImageCalls.length} teImage call(s) found`, teImageCalls.length > 0, 'none');
+teImageCalls.forEach(c => {
+  const lit = /^['"]/.test(c.args[2]);
+  ok(`teImage(${c.args[0]}) passes a value, not a label, third`,
+     !lit, `3rd arg is the literal ${c.args[2]} - the label is in the value slot`);
+});
+
 console.log(fail ? `\n*** ${fail} GATE(S) FAILED ***` : '\nALL GATES PASS');
 process.exit(fail ? 1 : 0);
