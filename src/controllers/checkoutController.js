@@ -72,6 +72,7 @@ const CustomerAddress = require('../models/CustomerAddress');
    The two unique indexes in sample_redemptions are the real enforcement;
    this model is how the cart and checkout ask politely in advance. */
 const SampleRedemption = require('../models/SampleRedemption');
+const SAMPLE_OFFER     = require('../config/sampleOffer');
 /* Match-or-create the customer from the address typed on page 1. Needed
    since the identity gate was removed (2026-09-28) — previously
    requireIdentity guaranteed a customerId was already on the session. */
@@ -716,7 +717,14 @@ exports.saveInfo = async (req, res) => {
      a checkout they abandoned.
 
      Fails closed: isEligible returns not-eligible on any error. */
-  const sampleElig = await SampleRedemption.isEligible(buyerEmail, shipAddr);
+  /* ⚠️ SAMPLE_OFFER.ENABLED IS THE KILL SWITCH and it is checked FIRST,
+     before the database is even asked. With it false the promotion
+     cannot fire anywhere: no $0 orders, no empty Stripe line items, and
+     checkout behaves exactly as it did before the offer existed.
+     See the header of src/config/sampleOffer.js for what broke. */
+  const sampleElig = SAMPLE_OFFER.ENABLED
+    ? await SampleRedemption.isEligible(buyerEmail, shipAddr)
+    : { eligible: false, reason: 'offer_disabled' };
   const PRICE_OPTS = { sampleEligible: sampleElig.eligible };
 
   let orderCustomerId = req.session.customerId || null;
@@ -1257,8 +1265,9 @@ exports.createSession = async (req, res) => {
      seconds between — this fails CLOSED and the buyer is charged full
      price for samples they were shown as free. That is the wrong way
      round for them, so the amount is compared below rather than assumed. */
-  const payElig = await SampleRedemption.isEligible(
-    order.guest_email, shipAddrFromOrder(order));
+  const payElig = SAMPLE_OFFER.ENABLED
+    ? await SampleRedemption.isEligible(order.guest_email, shipAddrFromOrder(order))
+    : { eligible: false, reason: 'offer_disabled' };
   const PAY_OPTS = { sampleEligible: payElig.eligible };
 
   const expected = pricing.priceCart(cart.items, PAY_OPTS).subtotal;

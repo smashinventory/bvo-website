@@ -33,6 +33,51 @@ const strip = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '
 
 const SAMPLE = require(path.join(ROOT, 'src/config/sampleOffer'));
 
+console.log('--- THE KILL SWITCH ---');
+/* ⚠️ THE OFFER IS OFF. A cart of just the two free samples is a $0.00
+   order; buildLineItems correctly drops fully-free lines, so Stripe was
+   handed ZERO line items and refused the session - which left the
+   Payment Element and the Billing Address Element (both Stripe iframes)
+   as empty skeletons under "We could not reach our payment provider".
+   Nobody could buy samples. Found on production by the owner.
+
+   These assertions are written so that turning ENABLED back on FAILS
+   THE GATE unless a $0 path exists - the whole point is that it cannot
+   be flipped back by someone who has not built one. */
+ok('the offer is disabled', SAMPLE.ENABLED === false,
+   'ENABLED is true - see the $0 line-items assertion below');
+
+const stripeSvc0 = require(path.join(ROOT, 'src/services/stripeService'));
+const BLI0 = stripeSvc0._internals.buildLineItems;
+const allFree = [
+  { product_id: 1, name: 'Sample A', price: 9.99, qty: 1, is_sample: true },
+  { product_id: 2, name: 'Sample B', price: 9.99, qty: 1, is_sample: true },
+];
+const zeroItems = BLI0(allFree, { sampleEligible: true }).length === 0;
+ok('an all-free cart still produces ZERO Stripe line items',
+   zeroItems, 'the $0 hole was fixed - update this gate and ENABLED together');
+/* The pairing that matters: the offer may only be ON if the $0 hole is
+   gone. Either both change, or neither. */
+ok('ENABLED is false while the $0 hole exists',
+   !(SAMPLE.ENABLED && zeroItems),
+   'THE OFFER IS ON AND AN ALL-FREE CART CANNOT CHECK OUT');
+
+console.log('--- the promotion cannot fire anywhere while it is off ---');
+const ccSrc = strip(fs.readFileSync(path.join(ROOT, 'src/controllers/checkoutController.js'), 'utf8'));
+ok('checkout gates eligibility on ENABLED before asking the database',
+   /SAMPLE_OFFER\.ENABLED[\s\S]{0,120}?isEligible\(/.test(ccSrc),
+   'the promotion could still fire');
+ok('the payment step gates on it too',
+   (ccSrc.match(/SAMPLE_OFFER\.ENABLED/g) || []).length >= 2,
+   'only one of the two eligibility calls is gated');
+const cartSrc0 = strip(fs.readFileSync(path.join(ROOT, 'src/controllers/cartController.js'), 'utf8'));
+ok('the cart suppresses the promise when off',
+   /!SAMPLE\.ENABLED/.test(cartSrc0),
+   'the cart would still say the samples come off at checkout');
+ok('the banner is hidden when off',
+   /sampleOffer\.ENABLED/.test(fs.readFileSync(path.join(ROOT, 'views/pages/index.ejs'), 'utf8')),
+   'the homepage would advertise an offer checkout will not honour');
+
 console.log('--- the offer config says what the owner decided ---');
 ok('FREE_COUNT is 2', SAMPLE.FREE_COUNT === 2, String(SAMPLE.FREE_COUNT));
 ok('CATEGORY_ID is 10', SAMPLE.CATEGORY_ID === 10, String(SAMPLE.CATEGORY_ID));
@@ -347,9 +392,18 @@ function checkWiring() {
      /_ALLOWED_TAGS/.test(_helpers) && /_cssColor/.test(_helpers)
      && /_btnClass/.test(_helpers),
      'the harness would be testing stubs, not shipped code');
+  /* ⚠️ ENABLED IS FORCED TRUE FOR THESE RENDERS, and only for them.
+     The block is now gated on sampleOffer.ENABLED, which ships false
+     while the $0 checkout path is missing - so rendering with the real
+     config produces an empty string and every layout assertion below
+     would "pass" by testing nothing. The kill switch is asserted
+     separately at the top of this file, against the real config. These
+     assertions are about the MARKUP, which must stay correct so the
+     offer can be switched back on without re-finding the layout bugs. */
+  const SAMPLE_ON = Object.assign({}, SAMPLE, { ENABLED: true });
   const renderBanner = sb => ejs.render(
     '<% ' + _helpers + ' %>' + blockSrc,
-    { sectionKey: 'sample_banner', sb_: sb, sampleOffer: SAMPLE });
+    { sectionKey: 'sample_banner', sb_: sb, sampleOffer: SAMPLE_ON });
   const SB_FIXTURE = {
     enabled: true, heading_level: 'p',
     eyebrow: 'See it in your own light', heading: sbHeading,

@@ -2281,7 +2281,10 @@ _DEFAULT_ORDER.forEach(function(k) {
     and checkout actually price against. A Theme Editor field reading
     "3 free samples" while the cart gives 2 would be a promise the site
     does not keep. Wording is editable; arithmetic is not. %>
-<% if (sectionKey === 'sample_banner' && sb_.enabled !== false) { %>
+<%# sampleOffer.ENABLED is the kill switch: with the offer off the
+    banner is hidden, because advertising "your first 2 samples are free"
+    while checkout charges for them is worse than not advertising it. %>
+<% if (sectionKey === 'sample_banner' && sb_.enabled !== false && sampleOffer.ENABLED) { %>
 <%
   /* ⚠️ .section, NOT .iwt-section. The first version reused the
      image_with_text shell and it laid out badly, for two reasons worth

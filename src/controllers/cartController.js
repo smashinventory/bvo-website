@@ -76,7 +76,13 @@ exports.index = async (req, res, next) => {
        not exist yet at this point. */
     let sampleEligible = false;
     let sampleState    = 'unknown';
-    if (cart.items.some(i => pricing.isSample(i))) {
+    /* The kill switch, checked first. With the offer off the cart must
+       not say "your first 2 come off at checkout", because they will
+       not - that promise is what made the broken checkout feel
+       dishonest rather than merely broken. 'none' renders no note. */
+    if (!SAMPLE.ENABLED) {
+      sampleState = 'none';
+    } else if (cart.items.some(i => pricing.isSample(i))) {
       if (req.session.customerId) {
         const who = req.session.customer || {};
         const e = await SampleRedemption.isEligible(who.email, null);
