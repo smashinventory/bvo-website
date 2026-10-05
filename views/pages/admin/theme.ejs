@@ -233,6 +233,49 @@ function teFilters(pk,d,base){
     + brandSel + catSel + typeSel;
 }
 
+/* ── THE SHARED SECTION CONTROLS ───────────────────────────────────────
+   Alignment, container width and padding, emitted identically for EVERY
+   section. Added 2026-10-04 because these had been built one section at
+   a time, as each was asked about, leaving a rich hero panel and
+   near-empty panels everywhere else - so the owner had to ask again for
+   every section. One helper means a new control reaches all of them, and
+   a new section gets the whole set for free.
+
+   Rendered by _sectionFrame / _sectionInner in index.ejs, which VALIDATE
+   every value. These inputs are a convenience, not the control: the
+   style attribute is written with the raw tag, so validation has to live
+   where it renders, not here.
+
+   All default to blank = inherit, which is why switching this on for
+   seventeen sections at once changed nothing visually. */
+function teSectionLayout(pk, d) {
+  d = d || {};
+  var h = '<div class="te4-section-label">Layout</div>';
+  h += teAlignment(pk + '.text_align', d.text_align);
+  h += teField('text', pk + '.max_width',      'Container width (e.g. 1100px, or blank for full)', d.max_width);
+  h += teField('text', pk + '.padding_top',    'Padding top (e.g. 64px)',    d.padding_top);
+  h += teField('text', pk + '.padding_bottom', 'Padding bottom (e.g. 64px)', d.padding_bottom);
+  return h;
+}
+
+/* Button style + alignment, for sections that have a CTA.
+   btn-navy is the hero's primary and the most-used button on the page;
+   it is the default because a section picking its own colour is how the
+   samples banner ended up amber directly below two navy hero buttons. */
+function teButton(pk, d, label) {
+  d = d || {};
+  var styles = [['navy','Navy (primary)'],['sage','Sage'],['amber','Amber'],['outline','Outline']];
+  var cur = d.btn_style || 'navy';
+  var h = '<div class="te4-section-label">' + (label || 'Button') + '</div>';
+  h += '<div class="te4-field"><label>Button style</label><select name="' + pk + '.btn_style" class="te4-select">';
+  styles.forEach(function (o) {
+    h += '<option value="' + o[0] + '"' + (cur === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
+  });
+  h += '</select></div>';
+  h += teAlignment(pk + '.btn_align', d.btn_align);
+  return h;
+}
+
 function teVisibleOn(pk,d){
   return '<div class="te4-field" style="margin-top:.5rem;padding-top:.75rem;border-top:1px solid var(--te-border)">'
     + '<label>Visible on</label><select name="'+pk+'.show_on" class="te4-select">'
@@ -1150,7 +1193,8 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
                 <option value="mobile"  <%=stk.show_on==='mobile'          ?'selected':''%>>Mobile only</option>
               </select>
             </div>
-          </div>
+                      <%- teSectionLayout('scrolling_ticker', t.scrolling_ticker||{}) %>
+</div>
 
           <!-- ── HERO ───────────────────────────────────────── -->
           <div class="te4-panel" id="panel-hero">
@@ -1332,7 +1376,8 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
                 <option value="mobile"  <%=h.show_on==='mobile'          ?'selected':''%>>Mobile only</option>
               </select>
             </div>
-          </div>
+                      <%- teSectionLayout('hero', t.hero||{}) %>
+</div>
 
           <!-- ── HERO (MOBILE) ──────────────────────────────── -->
           <div class="te4-panel" id="panel-hero_mobile">
@@ -1493,7 +1538,9 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
             <div class="te4-row2">
               <%- teColorBrand('hero_mobile.sub2_color','Brand list line',hm2.sub2_color||'') %>
             </div>
-          </div>
+                      <%- teSectionLayout('hero_mobile', t.hero_mobile||{}) %>
+            <%- teVisibleOn('hero_mobile', (t.hero_mobile||{}).show_on||'all') %>
+</div>
 
           <!-- ── BRAND LOGOS ─────────────────────────────────── -->
           <div class="te4-panel" id="panel-brand_logos">
@@ -1535,14 +1582,17 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
                 <option value="mobile"  <%=bll.show_on==='mobile'          ?'selected':''%>>Mobile only</option>
               </select>
             </div>
-          </div>
+                      <%- teSectionLayout('brand_logos', t.brand_logos||{}) %>
+</div>
 
           <!-- ── CATEGORIES ─────────────────────────────────── -->
           <%# Body comes from teFeaturedBody so the base panel and every _N
               copy render the identical field set. See its definition above. %>
           <div class="te4-panel" id="panel-categories_section">
             <%- teFeaturedBody('categories_section', t.categories_section||{}, 'categories_section') %>
-          </div>
+                      <%- teSectionLayout('categories_section', t.categories_section||{}) %>
+            <%- teButton('categories_section', t.categories_section||{}) %>
+</div>
 
           <!-- ── BUNDLE TEASER ─────────────────────────────── -->
           <%# VALUE BAR. Until 2026-10-04 this strip was hardcoded inside
@@ -1579,7 +1629,8 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
             <% }) %>
 
             <%- teVisibleOn('value_bar', vbsec.show_on||'all') %>
-          </div>
+                      <%- teSectionLayout('value_bar', t.value_bar||{}) %>
+</div>
 
           <%# Free samples banner. Wording only - the COUNT and the extras
               price live in src/config/sampleOffer.js, which is what the
@@ -1614,7 +1665,9 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
             <div class="te4-section-label">Image (optional)</div>
             <%- teImage('sample_banner.image','sample_banner.image_alt','Banner image',sbsec.image,sbsec.image_alt) %>
             <%- teVisibleOn('sample_banner', sbsec.show_on||'all') %>
-          </div>
+                      <%- teSectionLayout('sample_banner', t.sample_banner||{}) %>
+            <%- teButton('sample_banner', t.sample_banner||{}) %>
+</div>
 
           <div class="te4-panel" id="panel-bundle_teaser">
             <% const btsec=t.bundle_teaser||{}; %>
@@ -1660,17 +1713,23 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
                 <option value="mobile"  <%=btsec.show_on==='mobile'          ?'selected':''%>>Mobile only</option>
               </select>
             </div>
-          </div>
+                      <%- teSectionLayout('bundle_teaser', t.bundle_teaser||{}) %>
+            <%- teButton('bundle_teaser', t.bundle_teaser||{}) %>
+</div>
 
           <!-- ── FEATURED PRODUCTS ──────────────────────────── -->
           <div class="te4-panel" id="panel-featured_section">
             <%- teFeaturedBody('featured_section', t.featured_section||{}, 'featured_section') %>
-          </div>
+                      <%- teSectionLayout('featured_section', t.featured_section||{}) %>
+            <%- teButton('featured_section', t.featured_section||{}) %>
+</div>
 
           <!-- ── FEATURED MODELS ───────────────────────────────── -->
           <div class="te4-panel" id="panel-featured_models">
             <%- teFeaturedBody('featured_models', t.featured_models||{}, 'featured_models') %>
-          </div>
+                      <%- teSectionLayout('featured_models', t.featured_models||{}) %>
+            <%- teButton('featured_models', t.featured_models||{}) %>
+</div>
 
           <!-- ── DUPLICATABLE SECTION PANELS (dynamic loop) ── -->
           <!-- Renders one panel per duplicatable key in orderedKeys.
@@ -1892,7 +1951,15 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
             </div>
             <% } %>
 
-          </div><!-- /panel-<%= pk %> -->
+                      <%# The shared layout + button group, so the duplicatable
+                sections (image_with_text, video_text, before_after,
+                trust_band, parallax, testimonials) and every _2/_3 copy
+                get the same controls as the hand-written panels. %>
+            <%- teSectionLayout(pk, d) %>
+            <% if (/image_with_text|video_text|parallax/.test(pkBase)) { %>
+            <%- teButton(pk, d) %>
+            <% } %>
+</div><!-- /panel-<%= pk %> -->
           <% }); /* end duplicatable panel loop */ %>
 
           <!-- ── NEWSLETTER ─────────────────────────────────── -->
@@ -1923,7 +1990,9 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
                 <option value="mobile"  <%=newsec.show_on==='mobile'          ?'selected':''%>>Mobile only</option>
               </select>
             </div>
-          </div>
+                      <%- teSectionLayout('newsletter', t.newsletter||{}) %>
+            <%- teButton('newsletter', t.newsletter||{}) %>
+</div>
 
           <!-- ── STYLE GUIDES (content group) ───────────────── -->
           <div class="te4-panel" id="panel-inspiration">

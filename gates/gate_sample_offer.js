@@ -332,11 +332,20 @@ function checkWiring() {
      ships: a broken _cssColor would sail through. Same lesson as the
      gate_saved_addresses harness that went stale against
      locals.deliveryLocation. */
-  const _helpers = (idx.match(/const _ALLOWED_TAGS[\s\S]*?\n\}/) || [''])[0]
-                 + '\n'
-                 + (idx.match(/function _cssColor\(v\)[\s\S]*?\n\}/) || [''])[0];
+  /* ⚠️ LIFT THE WHOLE HELPER REGION, not named functions one at a time.
+     This harness previously named _safeTag, then had to add _cssColor,
+     then broke again when the banner started calling _btnClass - three
+     failures from the same cause. The region runs from _ALLOWED_TAGS to
+     the end of _cssColor and covers every shared helper the section
+     blocks use, so adding another does not break the gate. */
+  const _hStart = idx.indexOf('const _ALLOWED_TAGS');
+  const _hEndM  = idx.match(/function _cssColor\(v\)[\s\S]*?\n\}/);
+  const _helpers = (_hStart > -1 && _hEndM)
+    ? idx.slice(_hStart, idx.indexOf(_hEndM[0]) + _hEndM[0].length)
+    : '';
   ok('the real view helpers were found for the render harness',
-     /_ALLOWED_TAGS/.test(_helpers) && /_cssColor/.test(_helpers),
+     /_ALLOWED_TAGS/.test(_helpers) && /_cssColor/.test(_helpers)
+     && /_btnClass/.test(_helpers),
      'the harness would be testing stubs, not shipped code');
   const renderBanner = sb => ejs.render(
     '<% ' + _helpers + ' %>' + blockSrc,

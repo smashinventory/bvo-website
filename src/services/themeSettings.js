@@ -241,6 +241,14 @@ const DEFAULTS = {
     },
   },
   scrolling_ticker: {
+    /* ── SHARED SECTION CONTROLS (added 2026-10-04) ──────────────────
+       Every homepage section carries the same set, so the Theme Editor
+       stops being rich for the hero and near-empty everywhere else. All
+       default to '' = inherit, so adding them changed nothing visually.
+       Rendered by _sectionFrame / _sectionInner in index.ejs, which
+       validate every value - the style attribute is written with the raw
+       tag, so an unchecked setting here would be attribute injection. */
+    text_align: '', max_width: '', padding_top: '', padding_bottom: '',
     enabled: true,
     show_on: 'all',
     speed_seconds: 40,
@@ -256,6 +264,18 @@ const DEFAULTS = {
     ],
   },
   hero: {
+    /* ── SHARED SECTION CONTROLS (added 2026-10-04) ──────────────────
+       Every homepage section carries the same set, so the Theme Editor
+       stops being rich for the hero and near-empty everywhere else. All
+       default to '' = inherit, so adding them changed nothing visually.
+       Rendered by _sectionFrame / _sectionInner in index.ejs, which
+       validate every value - the style attribute is written with the raw
+       tag, so an unchecked setting here would be attribute injection. */
+    /* text_align is defined below with a real default for this
+       section - NOT repeated here. A duplicate key in an object
+       literal is silently resolved by position, so listing it twice
+       means reordering the file can flip the default. */
+    max_width: '', padding_top: '', padding_bottom: '',
     show_on: 'all',
     eyebrow: 'Curated for Your Bathroom Renovation',
     heading_line1: 'Premium Vanities.',
@@ -342,6 +362,18 @@ const DEFAULTS = {
     text_shadow:         true,       // drop shadow behind heading text
   },
   hero_mobile: {
+    /* ── SHARED SECTION CONTROLS (added 2026-10-04) ──────────────────
+       Every homepage section carries the same set, so the Theme Editor
+       stops being rich for the hero and near-empty everywhere else. All
+       default to '' = inherit, so adding them changed nothing visually.
+       Rendered by _sectionFrame / _sectionInner in index.ejs, which
+       validate every value - the style attribute is written with the raw
+       tag, so an unchecked setting here would be attribute injection. */
+    /* text_align is defined below with a real default for this
+       section - NOT repeated here. A duplicate key in an object
+       literal is silently resolved by position, so listing it twice
+       means reordering the file can flip the default. */
+    max_width: '', padding_top: '', padding_bottom: '',
     enabled:             true,
     // Background image — blank falls back to desktop hero image
     image_url:           '',
@@ -410,6 +442,14 @@ const DEFAULTS = {
     cta2_url:            '',
   },
   brand_logos: {
+    /* ── SHARED SECTION CONTROLS (added 2026-10-04) ──────────────────
+       Every homepage section carries the same set, so the Theme Editor
+       stops being rich for the hero and near-empty everywhere else. All
+       default to '' = inherit, so adding them changed nothing visually.
+       Rendered by _sectionFrame / _sectionInner in index.ejs, which
+       validate every value - the style attribute is written with the raw
+       tag, so an unchecked setting here would be attribute injection. */
+    text_align: '', max_width: '', padding_top: '', padding_bottom: '',
     enabled: true,
     show_on: 'all',
     eyebrow: 'Trusted Brands We Carry',
@@ -422,6 +462,14 @@ const DEFAULTS = {
     ],
   },
   categories_section: {
+    /* ── SHARED SECTION CONTROLS (added 2026-10-04) ──────────────────
+       Every homepage section carries the same set, so the Theme Editor
+       stops being rich for the hero and near-empty everywhere else. All
+       default to '' = inherit, so adding them changed nothing visually.
+       Rendered by _sectionFrame / _sectionInner in index.ejs, which
+       validate every value - the style attribute is written with the raw
+       tag, so an unchecked setting here would be attribute injection. */
+    text_align: '', max_width: '', padding_top: '', padding_bottom: '',
       /* 'p' = looks identical, left out of the page outline. A heading should
          name a topic the page can rank for; a section label does not. Sam,
          2026-10-03. Override per-section in the Theme Editor (Heading Level ->
@@ -443,6 +491,14 @@ const DEFAULTS = {
     brand: '',
   },
   bundle_teaser: {
+    /* ── SHARED SECTION CONTROLS (added 2026-10-04) ──────────────────
+       Every homepage section carries the same set, so the Theme Editor
+       stops being rich for the hero and near-empty everywhere else. All
+       default to '' = inherit, so adding them changed nothing visually.
+       Rendered by _sectionFrame / _sectionInner in index.ejs, which
+       validate every value - the style attribute is written with the raw
+       tag, so an unchecked setting here would be attribute injection. */
+    text_align: '', max_width: '', padding_top: '', padding_bottom: '',
       /* 'p' = looks identical, left out of the page outline. A heading should
          name a topic the page can rank for; a section label does not. Sam,
          2026-10-03. Override per-section in the Theme Editor (Heading Level ->
@@ -500,6 +556,14 @@ const DEFAULTS = {
      Defaulting both to '' would have quietly let non-vanity models onto
      the homepage the moment this deployed. */
   featured_section: {
+    /* ── SHARED SECTION CONTROLS (added 2026-10-04) ──────────────────
+       Every homepage section carries the same set, so the Theme Editor
+       stops being rich for the hero and near-empty everywhere else. All
+       default to '' = inherit, so adding them changed nothing visually.
+       Rendered by _sectionFrame / _sectionInner in index.ejs, which
+       validate every value - the style attribute is written with the raw
+       tag, so an unchecked setting here would be attribute injection. */
+    text_align: '', max_width: '', padding_top: '', padding_bottom: '',
     enabled: true,
     show_on: 'all',
     eyebrow: 'Staff Picks',
@@ -517,6 +581,14 @@ const DEFAULTS = {
     ptype: '',
   },
   featured_models: {
+    /* ── SHARED SECTION CONTROLS (added 2026-10-04) ──────────────────
+       Every homepage section carries the same set, so the Theme Editor
+       stops being rich for the hero and near-empty everywhere else. All
+       default to '' = inherit, so adding them changed nothing visually.
+       Rendered by _sectionFrame / _sectionInner in index.ejs, which
+       validate every value - the style attribute is written with the raw
+       tag, so an unchecked setting here would be attribute injection. */
+    text_align: '', max_width: '', padding_top: '', padding_bottom: '',
     enabled: true,
     show_on: 'all',
     eyebrow: 'Shop by Collection',
@@ -530,6 +602,18 @@ const DEFAULTS = {
     ptype: '',
   },
   image_with_text: {
+    /* ── SHARED SECTION CONTROLS (added 2026-10-04) ──────────────────
+       Every homepage section carries the same set, so the Theme Editor
+       stops being rich for the hero and near-empty everywhere else. All
+       default to '' = inherit, so adding them changed nothing visually.
+       Rendered by _sectionFrame / _sectionInner in index.ejs, which
+       validate every value - the style attribute is written with the raw
+       tag, so an unchecked setting here would be attribute injection. */
+    /* text_align is defined below with a real default for this
+       section - NOT repeated here. A duplicate key in an object
+       literal is silently resolved by position, so listing it twice
+       means reordering the file can flip the default. */
+    max_width: '', padding_top: '', padding_bottom: '',
     enabled: true,
     show_on: 'all',
     image_url: '',
@@ -574,6 +658,14 @@ const DEFAULTS = {
     cta_url: '/pages/about-us',
   },
   before_after: {
+    /* ── SHARED SECTION CONTROLS (added 2026-10-04) ──────────────────
+       Every homepage section carries the same set, so the Theme Editor
+       stops being rich for the hero and near-empty everywhere else. All
+       default to '' = inherit, so adding them changed nothing visually.
+       Rendered by _sectionFrame / _sectionInner in index.ejs, which
+       validate every value - the style attribute is written with the raw
+       tag, so an unchecked setting here would be attribute injection. */
+    text_align: '', max_width: '', padding_top: '', padding_bottom: '',
       /* 'p' = looks identical, left out of the page outline. A heading should
          name a topic the page can rank for; a section label does not. Sam,
          2026-10-03. Override per-section in the Theme Editor (Heading Level ->
@@ -621,6 +713,14 @@ const DEFAULTS = {
      reachable by anyone with admin access. See VALUE_BAR_ICONS in
      index.ejs for the available keys. */
   value_bar: {
+    /* ── SHARED SECTION CONTROLS (added 2026-10-04) ──────────────────
+       Every homepage section carries the same set, so the Theme Editor
+       stops being rich for the hero and near-empty everywhere else. All
+       default to '' = inherit, so adding them changed nothing visually.
+       Rendered by _sectionFrame / _sectionInner in index.ejs, which
+       validate every value - the style attribute is written with the raw
+       tag, so an unchecked setting here would be attribute injection. */
+    text_align: '', max_width: '', padding_top: '', padding_bottom: '',
     enabled: true,
     show_on: 'all',
     bg_color: '',    // '' = CSS default, which is var(--hero-bg)
@@ -640,6 +740,14 @@ const DEFAULTS = {
   },
 
   trust_band: {
+    /* ── SHARED SECTION CONTROLS (added 2026-10-04) ──────────────────
+       Every homepage section carries the same set, so the Theme Editor
+       stops being rich for the hero and near-empty everywhere else. All
+       default to '' = inherit, so adding them changed nothing visually.
+       Rendered by _sectionFrame / _sectionInner in index.ejs, which
+       validate every value - the style attribute is written with the raw
+       tag, so an unchecked setting here would be attribute injection. */
+    text_align: '', max_width: '', padding_top: '', padding_bottom: '',
     enabled: true,
     show_on: 'all',
     bg_color: '',   // '' = CSS default (whisper)
@@ -649,6 +757,14 @@ const DEFAULTS = {
     stat3_value: 'Free', stat3_label: 'Shipping on every single order', stat3_icon: '🚚',
   },
   parallax: {
+    /* ── SHARED SECTION CONTROLS (added 2026-10-04) ──────────────────
+       Every homepage section carries the same set, so the Theme Editor
+       stops being rich for the hero and near-empty everywhere else. All
+       default to '' = inherit, so adding them changed nothing visually.
+       Rendered by _sectionFrame / _sectionInner in index.ejs, which
+       validate every value - the style attribute is written with the raw
+       tag, so an unchecked setting here would be attribute injection. */
+    text_align: '', max_width: '', padding_top: '', padding_bottom: '',
     enabled: true,
     show_on: 'all',
     eyebrow: 'Design Inspiration',
@@ -698,6 +814,14 @@ const DEFAULTS = {
     preview_cta_url:  '/inspiration/farmhouse-bathroom-vanity-ideas',
   },
   testimonials: {
+    /* ── SHARED SECTION CONTROLS (added 2026-10-04) ──────────────────
+       Every homepage section carries the same set, so the Theme Editor
+       stops being rich for the hero and near-empty everywhere else. All
+       default to '' = inherit, so adding them changed nothing visually.
+       Rendered by _sectionFrame / _sectionInner in index.ejs, which
+       validate every value - the style attribute is written with the raw
+       tag, so an unchecked setting here would be attribute injection. */
+    text_align: '', max_width: '', padding_top: '', padding_bottom: '',
     enabled: true,
     show_on: 'all',
     eyebrow: 'Customer Reviews',
@@ -710,6 +834,14 @@ const DEFAULTS = {
     ],
   },
   newsletter: {
+    /* ── SHARED SECTION CONTROLS (added 2026-10-04) ──────────────────
+       Every homepage section carries the same set, so the Theme Editor
+       stops being rich for the hero and near-empty everywhere else. All
+       default to '' = inherit, so adding them changed nothing visually.
+       Rendered by _sectionFrame / _sectionInner in index.ejs, which
+       validate every value - the style attribute is written with the raw
+       tag, so an unchecked setting here would be attribute injection. */
+    text_align: '', max_width: '', padding_top: '', padding_bottom: '',
     enabled: true,
     show_on: 'all',
     eyebrow: 'Join the Community',
@@ -721,6 +853,14 @@ const DEFAULTS = {
     disclaimer: 'No spam. Unsubscribe anytime.',
   },
   video_text: {
+    /* ── SHARED SECTION CONTROLS (added 2026-10-04) ──────────────────
+       Every homepage section carries the same set, so the Theme Editor
+       stops being rich for the hero and near-empty everywhere else. All
+       default to '' = inherit, so adding them changed nothing visually.
+       Rendered by _sectionFrame / _sectionInner in index.ejs, which
+       validate every value - the style attribute is written with the raw
+       tag, so an unchecked setting here would be attribute injection. */
+    text_align: '', max_width: '', padding_top: '', padding_bottom: '',
     enabled: false,
     show_on: 'all',
     video_url: '',          // YouTube URL or direct .mp4 URL
@@ -841,6 +981,18 @@ const DEFAULTS = {
      the banner reads fine as text and an empty image box is worse than
      no image box — see the CLS note on iwt above. */
   sample_banner: {
+    /* ── SHARED SECTION CONTROLS (added 2026-10-04) ──────────────────
+       Every homepage section carries the same set, so the Theme Editor
+       stops being rich for the hero and near-empty everywhere else. All
+       default to '' = inherit, so adding them changed nothing visually.
+       Rendered by _sectionFrame / _sectionInner in index.ejs, which
+       validate every value - the style attribute is written with the raw
+       tag, so an unchecked setting here would be attribute injection. */
+    /* text_align is defined below with a real default for this
+       section - NOT repeated here. A duplicate key in an object
+       literal is silently resolved by position, so listing it twice
+       means reordering the file can flip the default. */
+    max_width: '', padding_top: '', padding_bottom: '',
     enabled: true,
     show_on: 'all',
     /* 'p', matching bundle_teaser: a section label is not a heading the
@@ -864,6 +1016,10 @@ const DEFAULTS = {
        value here would be attribute injection. */
     bg_color: '',
     text_color: '',
+    /* navy = the hero's primary, so the banner's button matches the two
+       directly above it. It was hardcoded amber, which clashed. */
+    btn_style: 'navy',
+    btn_align: '',
     cta_text: 'Browse samples',
     /* The samples CATEGORY page, which already exists and already renders
        sample images correctly (collectionsController COALESCEs

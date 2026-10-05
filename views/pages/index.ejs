@@ -253,6 +253,76 @@ function _safeTag(val, def) { return _ALLOWED_TAGS.has(val) ? val : (def || 'h2'
    names. Everything else returns '' — the section then renders with its
    stylesheet default, which is the safe outcome and visibly wrong to
    whoever typed the bad value, rather than silently half-applied. */
+/* ── THE SHARED SECTION FRAME ──────────────────────────────────────────
+   Alignment, container width, padding and button style, for EVERY
+   homepage section rather than whichever one was asked about last.
+
+   ⚠️ WHY THIS EXISTS. These controls were added one at a time, to one
+   section at a time, as they were requested - so the Theme Editor ended
+   up with a rich hero panel and near-empty panels everywhere else, and
+   the owner had to ask again for every section. One helper here plus one
+   helper in admin/theme.ejs means a new control reaches all of them, and
+   a new SECTION gets the whole set for free.
+
+   APPLIED ON THE SHARED VISIBILITY WRAPPER, which every section already
+   passes through, rather than inside seventeen render blocks. Checked
+   before doing it: no CSS selector depends on sections being direct
+   siblings (no `> .section`, no :nth-child), so an always-present
+   wrapper changes nothing on its own.
+
+   NOT BACKGROUND, deliberately. Several sections paint their own
+   (.iwt-section, .trust-band, .value-bar), and a colour on the wrapper
+   would sit behind theirs and look broken. Background stays a
+   per-section control on the sections whose CSS allows it.
+
+   EVERY VALUE IS VALIDATED. The style attribute is written with the raw
+   tag, so an unchecked setting here is attribute injection. */
+var _SEC_ALIGN = { left: 1, center: 1, right: 1 };
+
+/* A CSS length, or ''. Digits with an optional unit - nothing else, so
+   "100px;background:url(x)" cannot get through. A bare number is taken
+   as px, which is what someone typing "900" into a width box means. */
+function _cssLen(v) {
+  var s = String(v == null ? '' : v).trim();
+  if (!s) return '';
+  if (/^\d{1,5}$/.test(s)) return s + 'px';
+  if (/^\d{1,5}(\.\d{1,2})?(px|rem|em|%|vw|vh)$/.test(s)) return s;
+  return '';
+}
+
+/* The frame style for one section. Empty settings produce an empty
+   string, so a section nobody has touched renders exactly as before -
+   which is what makes it safe to apply this to all seventeen at once. */
+function _sectionFrame(d) {
+  d = d || {};
+  var out = '';
+  if (_SEC_ALIGN[d.text_align]) out += 'text-align:' + d.text_align + ';';
+  var pt = _cssLen(d.padding_top), pb = _cssLen(d.padding_bottom);
+  if (pt) out += 'padding-top:' + pt + ';';
+  if (pb) out += 'padding-bottom:' + pb + ';';
+  var fg = _cssColor(d.text_color);
+  if (fg) out += 'color:' + fg + ';';
+  return out;
+}
+
+/* The inner container width. Separate from the frame because it goes on
+   a nested div: putting max-width on the wrapper would also crop any
+   full-bleed background the section paints. */
+function _sectionInner(d) {
+  d = d || {};
+  var w = _cssLen(d.max_width);
+  return w ? 'max-width:' + w + ';margin-left:auto;margin-right:auto;' : '';
+}
+
+/* btn-navy is the hero's primary and the most-used button on the page.
+   Anything unrecognised falls back to it rather than to whatever the
+   section happened to hardcode - which is how the samples banner ended
+   up amber directly below two navy hero buttons. */
+var _BTN_STYLES = { navy: 1, sage: 1, amber: 1, outline: 1 };
+function _btnClass(v) {
+  return 'btn btn-' + (_BTN_STYLES[v] ? v : 'navy');
+}
+
 function _cssColor(v) {
   var s = String(v == null ? '' : v).trim();
   if (!s) return '';
@@ -324,7 +394,23 @@ _DEFAULT_ORDER.forEach(function(k) {
     : (_showOn === 'desktop' ? 'sec--desktop-only'
       : _showOn === 'mobile' ? 'sec--mobile-only' : '');
 %>
-<% if (_visClass) { %><div class="<%= _visClass %>"><% } %>
+<%
+  /* THE SHARED SECTION FRAME. One wrapper for every section, carrying
+     alignment, padding and text colour; an inner div carries the
+     container width. Both are '' unless the owner set something, so a
+     section nobody has touched renders byte-identical to before - which
+     is what made it safe to switch all seventeen on at once.
+
+     The wrapper now always renders (it used to appear only when a
+     visibility class applied). Checked first: no CSS selector depends on
+     sections being direct siblings - no `> .section`, no :nth-child. */
+  var _secFrame = _sectionFrame(_d);
+  var _secInner = _sectionInner(_d);
+  var _secAttrs = (_visClass ? ' class="' + _visClass + '"' : '')
+                + (_secFrame ? ' style="' + _secFrame + '"' : '');
+%>
+<% if (_secAttrs) { %><div<%- _secAttrs %>><% } %>
+<% if (_secInner) { %><div style="<%- _secInner %>"><% } %>
 
 <%# ── SCROLLING TICKER ──────────────────────────────────────────── %>
 <% if (sectionKey === 'scrolling_ticker' && tick.enabled !== false && tick.items && tick.items.length) { %>
@@ -2241,7 +2327,7 @@ _DEFAULT_ORDER.forEach(function(k) {
       <% if (sb_.eyebrow) { %><p class="section-eyebrow"><%= sb_.eyebrow %></p><% } %>
       <<%- _sbTag %> class="section-title" id="sb-heading"><%= _sbHeading %></<%- _sbTag %>>
       <% if (sb_.subtitle) { %><p class="section-sub"><%= sb_.subtitle %></p><% } %>
-      <a href="<%= sb_.cta_url || '/collections/samples' %>" class="btn btn-amber" style="margin-top:14px"><%= sb_.cta_text || 'Browse samples' %></a>
+      <a href="<%= sb_.cta_url || '/collections/samples' %>" class="<%= _btnClass(sb_.btn_style) %>" style="margin-top:14px"><%= sb_.cta_text || 'Browse samples' %></a>
     </div>
   </div>
   <% } else { %>
@@ -2253,7 +2339,11 @@ _DEFAULT_ORDER.forEach(function(k) {
     <% if (sb_.eyebrow) { %><p class="section-eyebrow"><%= sb_.eyebrow %></p><% } %>
     <<%- _sbTag %> class="section-title" id="sb-heading"><%= _sbHeading %></<%- _sbTag %>>
     <% if (sb_.subtitle) { %><p class="section-sub"><%= sb_.subtitle %></p><% } %>
-    <a href="<%= sb_.cta_url || '/collections/samples' %>" class="btn btn-amber" style="margin-top:20px"><%= sb_.cta_text || 'Browse samples' %></a>
+    <%# _btnClass defaults to btn-navy - the hero's primary and the most
+        used button on the page. This was hardcoded btn-amber, which put
+        an amber button directly below two navy hero buttons. That was an
+        oversight, not a decision. %>
+    <a href="<%= sb_.cta_url || '/collections/samples' %>" class="<%= _btnClass(sb_.btn_style) %>" style="margin-top:20px"><%= sb_.cta_text || 'Browse samples' %></a>
   </div>
   <% } %>
 </section>
@@ -2383,7 +2473,8 @@ _DEFAULT_ORDER.forEach(function(k) {
 </section>
 <% } /* end newsletter */ %>
 
-<% if (_visClass) { %></div><% } %>
+<% if (_secInner) { %></div><% } %>
+<% if (_secAttrs) { %></div><% } %>
 <% }); /* end _sectionOrder.forEach */ %>
 
 <%# ── THEME EDITOR INTEGRATION — click-to-edit + section scroll ──── %>
