@@ -2334,21 +2334,32 @@ _DEFAULT_ORDER.forEach(function(k) {
      own text. The heading, eyebrow and button are shrink-to-fit, so they
      never moved a pixel.
      The flex axis mapping, not the text one: */
-  var _SB_FLEX = { left: 'flex-start', center: 'center', right: 'flex-end' };
-  var _sbCol = 'align-items:' + _SB_FLEX[_sbAlign] + ';text-align:' + _sbAlign + ';';
+  /* ⚠️⚠️⚠️ AND THE ALIGNMENT IS CARRIED AS CUSTOM PROPERTIES, NOT AS
+     INLINE DECLARATIONS ON EACH ELEMENT. The reason is the mobile
+     layout. At 860px and below .iwt-grid collapses to one column, so the image
+     sits above the text and the whole banner is a single stacked block -
+     which has to be CENTRED. A desktop choice of "left" is a choice
+     about a two-column layout that no longer exists at that width.
 
-  var _sbSub = 'text-align:' + _sbAlign + ';'
-             + (_sbAlign === 'left'  ? 'margin-left:0;margin-right:auto;'
-             :  _sbAlign === 'right' ? 'margin-left:auto;margin-right:0;'
-             :                         'margin-left:auto;margin-right:auto;');
-  var _sbBox = 'max-width:760px;margin-bottom:0;text-align:' + _sbAlign + ';'
-             + (_sbAlign === 'left'  ? 'margin-right:auto;'
-             :  _sbAlign === 'right' ? 'margin-left:auto;'
-             :                         'margin-left:auto;margin-right:auto;');
+     An inline declaration cannot be overridden by a media query at all:
+     inline beats every stylesheet rule regardless of specificity, and
+     the only escape is !important. A custom property has no such
+     problem - the VALUE is inline, but where it is CONSUMED is up to
+     the stylesheet, so the rule that reads it can be confined to the
+     desktop media query and mobile simply never looks at it.
+
+     Hence four variables and no element-level styles here. The rules
+     that read them are .sb-banner in site.css. */
+  var _SB_FLEX = { left: 'flex-start', center: 'center', right: 'flex-end' };
+  var _SB_MARG = { left: ['0', 'auto'], center: ['auto', 'auto'], right: ['auto', '0'] };
+  var _sbVars = '--sb-items:' + _SB_FLEX[_sbAlign] + ';'
+              + '--sb-text:'  + _sbAlign + ';'
+              + '--sb-ml:'    + _SB_MARG[_sbAlign][0] + ';'
+              + '--sb-mr:'    + _SB_MARG[_sbAlign][1] + ';';
   var _sbTag = _safeTag(sb_.heading_level, 'p');
   var _sbHeading = sb_.heading || ('Your first ' + sampleOffer.FREE_COUNT + ' samples are free');
 %>
-<section class="section" data-section="sample_banner" data-section-label="Free Samples Banner" aria-labelledby="sb-heading"<%- _sbStyle ? ' style="' + _sbStyle + '"' : '' %>>
+<section class="section sb-banner" data-section="sample_banner" data-section-label="Free Samples Banner" aria-labelledby="sb-heading" style="<%= _sbStyle + _sbVars %>">
   <% if (sb_.image) { %>
   <%# Image set: the two-column grid is correct here, and nesting it
       inside .section keeps the horizontal padding the iwt shell lacks. %>
@@ -2357,22 +2368,24 @@ _DEFAULT_ORDER.forEach(function(k) {
       <img class="iwt-img" src="<%= sb_.image %>"
            alt="<%= sb_.image_alt || '' %>" loading="lazy" decoding="async">
     </div>
-    <div class="iwt-text-col" style="<%= _sbCol %>">
+    <div class="iwt-text-col">
       <% if (sb_.eyebrow) { %><p class="section-eyebrow"><%= sb_.eyebrow %></p><% } %>
       <<%- _sbTag %> class="section-title" id="sb-heading"><%= _sbHeading %></<%- _sbTag %>>
-      <% if (sb_.subtitle) { %><p class="section-sub" style="<%= _sbSub %>"><%= sb_.subtitle %></p><% } %>
+      <% if (sb_.subtitle) { %><p class="section-sub"><%= sb_.subtitle %></p><% } %>
       <a href="<%= sb_.cta_url || '/collections/samples' %>" class="<%= _btnClass(sb_.btn_style) %>" style="margin-top:14px"><%= sb_.cta_text || 'Browse samples' %></a>
     </div>
   </div>
   <% } else { %>
   <%# No image: centred, and the paragraph capped so the line length
       stays readable instead of running the full page width. %>
-  <%# .section-header is text-align:center in CSS; the inline style wins
-      and carries the chosen alignment. %>
-  <div class="section-header" style="<%= _sbBox %>">
+  <%# The alignment arrives through the --sb-* custom properties on the
+      section, read by the .sb-banner rules in site.css. Nothing is set
+      inline here on purpose: an inline declaration cannot be overridden
+      by the mobile media query. %>
+  <div class="section-header">
     <% if (sb_.eyebrow) { %><p class="section-eyebrow"><%= sb_.eyebrow %></p><% } %>
     <<%- _sbTag %> class="section-title" id="sb-heading"><%= _sbHeading %></<%- _sbTag %>>
-    <% if (sb_.subtitle) { %><p class="section-sub" style="<%= _sbSub %>"><%= sb_.subtitle %></p><% } %>
+    <% if (sb_.subtitle) { %><p class="section-sub"><%= sb_.subtitle %></p><% } %>
     <%# _btnClass defaults to btn-navy - the hero's primary and the most
         used button on the page. This was hardcoded btn-amber, which put
         an amber button directly below two navy hero buttons. That was an

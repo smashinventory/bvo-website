@@ -501,54 +501,86 @@ function checkWiring() {
      no image the text landed in the narrow column AND ran flush to the
      viewport edge. Asserted so it cannot be reintroduced. */
   ok('the no-image banner uses .section, not .iwt-section',
-     /class="section"/.test(full) && !/iwt-section/.test(full),
+     /class="section sb-banner"/.test(full) && !/iwt-section/.test(full),
      'iwt-section has no horizontal padding and is a 2-column grid');
   ok('and it does NOT use the 2-column grid when there is no image',
      !/iwt-grid/.test(full), 'the text would sit in the narrow 40% column');
   ok('with an image it DOES use the grid, still inside .section',
-     /iwt-grid/.test(withImg) && /class="section"/.test(withImg), 'padding would be lost');
+     /iwt-grid/.test(withImg) && /class="section sb-banner"/.test(withImg), 'padding would be lost');
 
-  const alignOf = a => {
+  /* ⚠️⚠️⚠️ THE ALIGNMENT IS CARRIED AS CUSTOM PROPERTIES AND READ ONLY
+     ABOVE 861px. Everything below is about one fact: an INLINE style
+     declaration cannot be overridden by a media query. Inline beats every
+     stylesheet rule regardless of specificity; the only escape hatch is
+     !important. So as long as the alignment was written inline on each
+     element, mobile was stuck with the desktop choice - and mobile has to
+     centre, because below 861px .iwt-grid collapses to one column and the
+     two-column layout the control describes no longer exists. Honouring
+     "left" there gave a left-pinned image above left-pinned text.
+
+     A custom property fixes this because the VALUE is inline but the
+     DECISION ABOUT WHERE IT APPLIES moves back into the stylesheet. The
+     three assertions below are therefore: the variables are emitted, no
+     element carries an inline alignment any more, and the stylesheet
+     confines them to the desktop query while the mobile base centres.
+
+     The earlier history is still worth knowing, because the variable
+     values encode it: .iwt-text-col is display:flex; flex-direction:
+     column, so align-items is the HORIZONTAL axis and text-align alone
+     did nothing - two attempts failed that way. Hence --sb-items carries
+     flex-start/center/flex-end, not the text keyword. */
+  const varsOf = a => {
     const h = renderBanner(Object.assign({}, SB_FIXTURE, { text_align: a }));
-    return (h.match(/<div class="section-header" style="([^"]*)"/) || [])[1] || '';
+    return (h.match(/<section[^>]*style="([^"]*)"/) || [])[1] || '';
   };
-  ['left', 'center', 'right'].forEach(a =>
-    ok(`text_align ${a} is applied`, alignOf(a).indexOf('text-align:' + a) > -1, alignOf(a)));
-  ok('left pins the block left',  /margin-right:auto/.test(alignOf('left'))
-                                  && !/margin-left:auto/.test(alignOf('left')), alignOf('left'));
-  ok('right pins the block right', /margin-left:auto/.test(alignOf('right'))
-                                  && !/margin-right:auto/.test(alignOf('right')), alignOf('right'));
+  [['left', 'flex-start', '0', 'auto'],
+   ['center', 'center', 'auto', 'auto'],
+   ['right', 'flex-end', 'auto', '0']].forEach(([a, items, ml, mr]) => {
+    const v = varsOf(a);
+    ok(`${a} emits --sb-items:${items}`, v.indexOf('--sb-items:' + items + ';') > -1, v);
+    ok(`${a} emits --sb-text:${a}`,      v.indexOf('--sb-text:' + a + ';') > -1, v);
+    ok(`${a} emits --sb-ml:${ml} --sb-mr:${mr}`,
+       v.indexOf('--sb-ml:' + ml + ';') > -1 && v.indexOf('--sb-mr:' + mr + ';') > -1, v);
+  });
   ok('an invalid alignment falls back to center',
-     alignOf('../../etc').indexOf('text-align:center') > -1, alignOf('../../etc'));
+     varsOf('../../etc').indexOf('--sb-items:center;') > -1, varsOf('../../etc'));
 
-  /* ⚠️⚠️ THE IMAGE LAYOUT NEEDS THE FLEX AXIS, NOT text-align.
-     .iwt-text-col is display:flex; flex-direction:column;
-     align-items:flex-start. In a COLUMN flex container align-items
-     controls HORIZONTAL placement, so flex-start pins every child hard
-     left whatever text-align says - and flex children shrink to fit, so
-     text-align inside them has nothing to act on.
-     Two attempts at this control set text-align and did nothing. The only
-     element that appeared to respond was .section-sub, because its
-     max-width:540px makes it wider than its own text. Asserted here so
-     the mapping cannot quietly revert to text-align alone. */
-  const colOf = a => {
-    const h = renderBanner(Object.assign({}, SB_FIXTURE,
-      { text_align: a, image: 'https://images.bathroomvanitiesoutlet.com/x.webp' }));
-    return (h.match(/iwt-text-col" style="([^"]*)"/) || [])[1] || '';
-  };
-  [['left', 'flex-start'], ['center', 'center'], ['right', 'flex-end']].forEach(([a, f]) =>
-    ok(`image layout: ${a} sets align-items:${f}`,
-       colOf(a).indexOf('align-items:' + f) > -1,
-       colOf(a) || 'no style on .iwt-text-col'));
-  ok('image layout sets BOTH align-items and text-align',
-     /align-items:/.test(colOf('right')) && /text-align:right/.test(colOf('right')),
-     colOf('right'));
+  /* If any of these grows an inline style again, mobile silently stops
+     centring - and nothing else would catch it. */
+  ['iwt-text-col', 'section-sub', 'section-header'].forEach(c => {
+    const withImgAligned = renderBanner(Object.assign({}, SB_FIXTURE,
+      { text_align: 'left', image: 'https://images.bathroomvanitiesoutlet.com/x.webp' }));
+    const both = full + withImgAligned;
+    ok(`.${c} carries NO inline style`,
+       !new RegExp('class="[^"]*' + c + '[^"]*" style=').test(both),
+       'an inline style here cannot be overridden by the mobile media query');
+  });
+
+  /* The rendered markup is only half the contract - the stylesheet is the
+     other half, and the bundle is what browsers actually load. */
+  const sbCss = fs.readFileSync(path.join(ROOT, 'public/css/site-bundle.css'), 'utf8');
+  ok('the mobile base centres .sb-banner .iwt-text-col',
+     /\.sb-banner \.iwt-text-col\{align-items:center;text-align:center\}/.test(sbCss),
+     'mobile would inherit the desktop alignment');
+  ok('the mobile base centres the image column too',
+     /\.sb-banner \.iwt-image-col\{justify-content:center\}/.test(sbCss),
+     'the image would stay pinned left above centred text');
+  ok('the variables are read ONLY inside a min-width query',
+     /@media \(min-width:861px\)\{[\s\S]{0,600}--sb-items/.test(sbCss),
+     'if the var() rules sit outside the query, mobile follows the desktop choice');
+  ok('every var() has a centred fallback',
+     (sbCss.match(/var\(--sb-items,center\)/g) || []).length >= 2
+     && /var\(--sb-ml,auto\)/.test(sbCss) && /var\(--sb-mr,auto\)/.test(sbCss),
+     'a page rendered without the variables would lose its layout entirely');
 
   /* The colour attribute is written with the RAW tag, so the value must
-     be validated or it is attribute injection. */
+     be validated or it is attribute injection. The --sb-* variables now
+     share that attribute, so they are stripped before the comparison -
+     they are generated from a validated whitelist, not from user text. */
   const styleOf = v => {
     const h = renderBanner(Object.assign({}, SB_FIXTURE, { bg_color: v }));
-    return (h.match(/<section[^>]*style="([^"]*)"/) || [])[1] || '';
+    return ((h.match(/<section[^>]*style="([^"]*)"/) || [])[1] || '')
+      .replace(/--sb-[a-z]+:[^;]*;/g, '');
   };
   ok('a valid colour is applied', styleOf('#ffffff') === 'background:#ffffff;', styleOf('#ffffff'));
   [['" onload="alert(1)', 'quote break-out'],

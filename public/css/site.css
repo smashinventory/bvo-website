@@ -35,3 +35,33 @@
    amber one-liner treatment .cat-header p gives the category blurb. */
 .cat-header .cat-intro{font-size:.95rem;line-height:1.6;color:var(--navy);max-width:68ch;margin-top:10px}.model-copy{margin-top:18px;max-width:68ch}.model-copy-title{font-size:1.05rem;line-height:1.35;font-weight:600;color:var(--navy);margin:0 0 8px}.model-copy-body{font-size:.95rem;line-height:1.65;color:var(--navy);margin:0 0 10px}.model-copy-body:last-child{margin-bottom:0}
 p.section-title,p.newsletter-heading,p.product-title,p.cat-title{margin-top:0}p.product-title{margin-bottom:8px}
+
+/* ── FREE SAMPLES BANNER ALIGNMENT ──────────────────────────────────
+   MOBILE IS CENTRED, FULL STOP. At 860px and below .iwt-grid collapses to a
+   single column, so the image sits above the text and the banner is one
+   stacked block. The Theme Editor's left/center/right control describes
+   a TWO-COLUMN layout; at mobile width that layout does not exist, and
+   honouring "left" there produces a left-pinned image above left-pinned
+   text with a ragged right edge - which is what prompted this.
+
+   The desktop choice is carried in --sb-* custom properties set inline
+   on the section, and READ only inside the min-width query below. This
+   is the whole reason for the custom properties: an inline declaration
+   beats every stylesheet rule regardless of specificity, so a media
+   query could not override it without !important. A custom property
+   moves the decision about WHERE a value applies back into the
+   stylesheet, where it belongs.
+
+   The fallbacks are 'center'/'auto' so a section rendered without the
+   variables - an older cached page, a copy of the block elsewhere -
+   degrades to the centred layout rather than to nothing. */
+.sb-banner .iwt-text-col{align-items:center;text-align:center}
+.sb-banner .iwt-image-col{justify-content:center}
+.sb-banner .section-sub{margin-left:auto;margin-right:auto;text-align:center}
+.sb-banner .section-header{max-width:760px;margin-bottom:0;margin-left:auto;margin-right:auto;text-align:center}
+@media (min-width:861px){
+.sb-banner .iwt-text-col{align-items:var(--sb-items,center);text-align:var(--sb-text,center)}
+.sb-banner .iwt-image-col{justify-content:var(--sb-items,center)}
+.sb-banner .section-sub{margin-left:var(--sb-ml,auto);margin-right:var(--sb-mr,auto);text-align:var(--sb-text,center)}
+.sb-banner .section-header{text-align:var(--sb-text,center);margin-left:var(--sb-ml,auto);margin-right:var(--sb-mr,auto)}
+}
