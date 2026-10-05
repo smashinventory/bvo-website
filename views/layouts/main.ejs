@@ -168,6 +168,29 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
      preserved in docs/briefs/BVO_TYPOGRAPHY_DECISION.md in case a
      self-hosted face is ever added. %>
 
+  <%# ⚠️⚠️⚠️ READ THIS BEFORE TOUCHING site-bundle.css.
+       On 2026-09-?? commit 83e81b4 rebuilt this bundle with a plain
+       `cat brand.css site.css site2.css` and silently dropped 7,892
+       bytes — the whole PUBLIC half of site4.css, 46 selector groups:
+       checkout layout, PDP colour chips, nav touch targets, the split
+       hero, the mobile mega-menu, button hover states, and the rule that
+       stacks the bundle-teaser cards on a phone. Nothing failed. Every
+       gate passed. The site just lost a layer of responsive polish on
+       every page and stayed that way until the owner noticed cards that
+       used to line up no longer did.
+
+       THE BOUNDARY IS NOT A BYTE COUNT. It is the
+       `/* ==== ORDER MANAGEMENT` banner comment inside site4.css:
+       everything ABOVE it is public and belongs in this bundle,
+       everything BELOW is admin-only and is loaded by layouts/admin.ejs.
+       The old recipe below said `head -c 7984`, which drifts every time
+       site4.css is edited and tells you nothing when it is wrong — that
+       is a large part of why the loss was silent.
+
+       gates/gate_bundle_slice.js now asserts byte-for-byte that the
+       public slice is present and the admin half is not. Do not rebuild
+       from the recipe; patch the source file and this bundle with the
+       same edit, and run that gate. %>
   <%# CSS bundle: brand.css + site.css + site2.css concatenated into one file.
        One blocking request instead of three — eliminates 2 extra HTTP round trips on critical path.
        SOURCE FILES: public/css/brand.css, site.css, site2.css (edit these, then rebuild).
@@ -209,13 +232,16 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
         v=25 (2026-10-01) footer column labels h4 -> h2 (heading order)
         v=26 (2026-10-01) font-weight pinned on .section-title/.hero-h1 so
                           the "Label (not a heading)" option cannot unbold them
+        v=36 (2026-10-05) RESTORED the public slice of site4.css, dropped
+                          by a plain cat in 83e81b4 - 7,892 bytes, 46
+                          selector groups, missing from every public page
         v=35 (2026-10-05) .sb-banner alignment rules — the samples banner
                           centres on mobile and reads the desktop choice
                           from --sb-* custom properties
       The source rules live in site.css / site2.css and are hand-minified
       into this bundle, per the instruction above — those files reach no
       browser on their own. %>
-  <link rel="stylesheet" href="/css/site-bundle.css?v=35">
+  <link rel="stylesheet" href="/css/site-bundle.css?v=36">
   <%# ── SECTION VISIBILITY, FROM THE OWNER'S BREAKPOINTS ─────────────
       "Visible on" offered All / Desktop / Mobile and was implemented as
       two rules hardcoded at 861px. There was no Tablet option because
