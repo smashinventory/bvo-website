@@ -232,6 +232,8 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
         v=25 (2026-10-01) footer column labels h4 -> h2 (heading order)
         v=26 (2026-10-01) font-weight pinned on .section-title/.hero-h1 so
                           the "Label (not a heading)" option cannot unbold them
+        v=37 (2026-10-05) bundle-teaser 2x2 grid in the 601-900px tablet
+                          band - the flex row wrapped 3+1 and stranded a +
         v=36 (2026-10-05) RESTORED the public slice of site4.css, dropped
                           by a plain cat in 83e81b4 - 7,892 bytes, 46
                           selector groups, missing from every public page
@@ -241,7 +243,7 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
       The source rules live in site.css / site2.css and are hand-minified
       into this bundle, per the instruction above — those files reach no
       browser on their own. %>
-  <link rel="stylesheet" href="/css/site-bundle.css?v=36">
+  <link rel="stylesheet" href="/css/site-bundle.css?v=37">
   <%# ── SECTION VISIBILITY, FROM THE OWNER'S BREAKPOINTS ─────────────
       "Visible on" offered All / Desktop / Mobile and was implemented as
       two rules hardcoded at 861px. There was no Tablet option because

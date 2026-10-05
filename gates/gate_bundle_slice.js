@@ -83,6 +83,28 @@ console.log('--- specific rules the owner noticed, named so the failure is legib
  ['.nav-cart-btn',        'the nav cart and hamburger lose their 44px touch targets']]
   .forEach(([needle, symptom]) => ok(`present: ${needle}`, bun.indexOf(needle) > -1, symptom));
 
+console.log('--- the bundle teaser has a rule for ALL THREE bands ---');
+/* ⚠️ The middle band is the one nobody checks. Below 600 the cards stack,
+   above 900 they sit in one row - both were fine. Between them the flex
+   row WRAPPED 3+1 and stranded the + that belonged between cards 3 and 4,
+   while align-items:center left cards of different text lengths
+   unmatched in height. "Looks right on my phone and right on my laptop"
+   is not coverage; it is two samples either side of the hole. */
+[['@media (max-width:600px){.bt-cards-row{flex-direction:column',
+  'phones: the four cards no longer stack'],
+ ['@media (min-width:601px) and (max-width:900px)',
+  'TABLETS: the row wraps 3+1 and strands a + at the end of row one'],
+ ['.bt-cards-row{display:grid;grid-template-columns:1fr 1fr',
+  'tablets: the cards are not a 2x2 grid, so their heights do not match']]
+  .forEach(([needle, symptom]) => ok(`present: ${needle.slice(0, 46)}`,
+    bun.indexOf(needle) > -1, symptom));
+/* 900 is .bt-cards-row's OWN max-width, not the site's 860/861 band edge.
+   Pinning this to 861 would leave 861-900 broken, because the constraint
+   is what fits inside the row, not where the nav switches. */
+ok('the tablet band reaches the row\'s own 900px max-width',
+   /max-width:900px\)\{\s*\.bt-cards-row\{display:grid/.test(bun),
+   'a gap between the band edge and the row max-width leaves a broken range');
+
 console.log('--- the cache-busting version moves when the bundle does ---');
 /* Restoring 7,892 bytes and NOT bumping ?v= means every returning
    visitor and the Hostinger CDN keep serving the broken bundle. */
