@@ -548,13 +548,35 @@ Deliberate, decided 2026-09-26: testing continues in the sandbox, so the
 app still holds sandbox credentials. That is safe today — the live
 endpoint cannot be reached while the app transacts against the sandbox.
 
-**The code reads exactly three names.** Anything else is inert:
+**One module resolves every Stripe credential: `src/utils/stripeKeys.js`.**
+Nothing else reads one from the environment — `gate_cutover_config` fails the
+push if any file tries.
 
-| Name the code reads | Where |
+**Which name it reads depends on `STRIPE_MODE`.** Until 2026-10-06 this
+section listed three variable names and called everything else inert. That was
+accurate on 2026-09-26 and stopped being accurate the moment `stripeKeys.js`
+introduced `STRIPE_MODE` — and nobody noticed for ten days, because prose
+cannot go red. `gate_cutover_config` now derives this table from the resolver
+itself, so changing `stripeKeys.js` fails the push until this section is
+updated to match.
+
+| `STRIPE_MODE` | Names actually read |
 |---|---|
-| `STRIPE_SECRET_KEY` | `src/services/stripeService.js:64` |
-| `STRIPE_WEBHOOK_SECRET` | `src/services/stripeService.js:349` |
-| `STRIPE_PUBLISHABLE_KEY` | `src/controllers/checkoutController.js:524` |
+| **unset** (what production uses today) | `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` |
+| `live` | `STRIPE_*_LIVE`, falling back to the unsuffixed name if empty |
+| `sandbox` or `test` | `STRIPE_*_SANDBOX`, same fallback |
+| anything unrecognised | treated as unset |
+
+**Leave `STRIPE_MODE` unset unless you have a reason not to.** With it unset
+the behaviour is exactly what the cutover steps below describe, and the suffix
+machinery is inert. It exists so a live and a sandbox set can sit side by side
+during a swap; it is not required for cutover.
+
+The read path, for reference: `stripeService.js` takes the secret and the
+webhook secret from `stripeKeys`, `checkoutController` takes the publishable
+key from it. `assertCoherent()` runs before the Stripe client is built and
+throws if the set is incoherent — a `sk_test_` key under `STRIPE_MODE=live`,
+a half-swap, or a missing variable. `gate_stripe_keys.js` covers all of it.
 
 At cutover, in hPanel → Environment variables:
 
@@ -567,10 +589,25 @@ At cutover, in hPanel → Environment variables:
    they do nothing. Leaving them is how the wrong one gets used later.
 5. Redeploy, then send a test event and confirm a 2xx.
 
-**Do not "fix" this by teaching the code to prefer a `_LIVE` suffix.**
-That makes which account takes real money depend on which variables
-happen to exist, so a single leftover variable silently redirects live
-payments. One canonical name per fact — Rule 10.
+**The `_LIVE` suffix rule, restated precisely.** The original warning here
+was: do not teach the code to *prefer* a `_LIVE` suffix, because that makes
+which account takes real money depend on which variables happen to exist —
+one leftover variable silently redirects live payments. That reasoning still
+holds and is why step 4 above deletes them.
+
+`stripeKeys.js` does read suffixed names, but only when `STRIPE_MODE`
+**explicitly asks for a mode** — never because a variable happens to exist.
+That is the distinction the original warning was protecting, and it is
+gated: `gate_cutover_config` asserts an unrecognised `STRIPE_MODE` falls back
+to the unsuffixed names rather than guessing. One canonical name per fact —
+Rule 10 — still applies.
+
+⚠️ **The webhook secret is the one value no check can validate.** Live and
+sandbox signing secrets both start `whsec_`, so the prefix test that catches a
+wrong secret key cannot tell them apart, and a sandbox secret under
+`STRIPE_MODE=live` passes every automated check while failing every real
+event. There is no static fix for this. **Send a test event and confirm a 2xx
+after swapping it** — that is the only verification that exists.
 
 A mismatched `STRIPE_WEBHOOK_SECRET` fails every event at signature
 verification: orders authorise the customer's card, then sit at

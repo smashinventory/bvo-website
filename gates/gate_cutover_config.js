@@ -167,6 +167,48 @@ console.log('\n--- the cutover docs name the real variables ---');
        !/STRIPE_[A-Z_]*_LIVE/.test(doc),
        'the checklist would be instructing the inert name');
   }
+
+  /* ═══ THE DOC MUST DESCRIBE THE CODE ═════════════════════════════════
+     PRE_LAUNCH_CHECKLIST said "the code reads exactly three names, anything
+     else is inert". True on 2026-09-26, false the moment stripeKeys.js
+     landed with STRIPE_MODE — and nobody noticed for ten days, because
+     prose cannot go red. The cutover steps are read once, at night, under
+     pressure, and a checklist that misdescribes the code is worse than no
+     checklist.
+
+     So this derives the claim FROM the resolver: whatever names the code
+     can read, the doc has to name. Change stripeKeys and this fails until
+     the doc catches up. */
+  const pre = read('docs/reference/PRE_LAUNCH_CHECKLIST.md');
+  const keys = require('../src/utils/stripeKeys');
+
+  ok('the pre-launch checklist no longer claims only three names are read',
+     !/reads exactly three names/i.test(pre),
+     'that sentence is false while STRIPE_MODE exists');
+
+  ok('the checklist documents STRIPE_MODE',
+     /STRIPE_MODE/.test(pre),
+     'an operator cannot be expected to guess that a variable they have '
+     + 'never seen decides which credentials are used');
+
+  const unnamed = [];
+  for (const mode of ['', 'live', 'sandbox']) {
+    const env = mode ? { STRIPE_MODE: mode } : {};
+    for (const f of ['SECRET_KEY', 'PUBLISHABLE_KEY', 'WEBHOOK_SECRET']) {
+      const n = keys.nameFor(f, env);
+      if (!pre.includes(n) && !pre.includes(n.replace(/_(SECRET_KEY|PUBLISHABLE_KEY|WEBHOOK_SECRET)/, '_*'))
+          && !pre.includes('STRIPE_*_' + (mode ? mode.toUpperCase() : ''))) unnamed.push(n);
+    }
+  }
+  ok('every name the resolver can read is named in the checklist',
+     unnamed.length === 0,
+     [...new Set(unnamed)].join(', ') + ' — the doc does not mention it');
+
+  ok('the checklist states the webhook secret cannot be validated',
+     /whsec_/.test(pre) && /test event/i.test(pre),
+     'live and sandbox signing secrets share a prefix, so no automated '
+     + 'check can tell them apart — the doc must say a test event is the '
+     + 'only verification');
 }
 
 
