@@ -34,7 +34,11 @@ function defaultPool() {
   return require('../config/database').bvoPool;
 }
 
-const CANON = 'https://www.bathroomvanitiesoutlet.com';
+/* Role A — the site's canonical name, from the one source. Was a literal
+   here, which made this the 18th copy and the highest-reach one: it is the
+   `link:` on every product Google Merchant Center receives. Same value, so
+   the emitted feed is byte-identical. See utils/siteUrl.js. */
+const CANON = require('../utils/siteUrl').base();
 
 /* Google fetches once a day. Rendering 6,000 items on every hit would let a
    crawler or a curious visitor turn one URL into a sustained table scan. */

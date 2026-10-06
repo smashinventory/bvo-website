@@ -141,7 +141,11 @@ async function establishSession(req, customer, email) {
        not enough to alarm or to dox.
      ANTI-PHISHING BOX — the strongest element in the original. It
        teaches the reader to check every future mail claiming to be us. */
-function newDeviceEmail({ email, deviceLabel, when, secureUrl }) {
+/* PURE ON PURPOSE. gate_remember_device EXECUTES this function (the
+   cfce433 lesson: source text is not behaviour), eval'ing it outside this
+   module — so it may contain no require() and no free variables. The
+   canonical host is injected like every other value. */
+function newDeviceEmail({ email, deviceLabel, when, secureUrl, siteBase }) {
   return {
     subject: 'New sign-in to your BVO account',
     html: `<p>Hi,</p>
@@ -158,7 +162,7 @@ device and cancels any sign-in codes we have sent:</p>
 <p style="font-size:13px;color:#666">That link works for 24 hours.</p>
 <div style="margin-top:24px;padding:14px;background:#f7f5f1;border-left:3px solid #b8860b;font-size:13px;line-height:1.6">
 <strong>How do you know this email is really from us?</strong><br>
-Every link we send starts with <strong>https://www.bathroomvanitiesoutlet.com</strong>.
+Every link we send starts with <strong>${siteBase}</strong>.
 If a link claiming to be from BVO starts with anything else, it is not from us.
 </div>`,
   };
@@ -403,6 +407,7 @@ exports.verifyCode = async (req, res, next) => {
         const mail = newDeviceEmail({
           email, deviceLabel: label,
           when: signInTimeLabel(), secureUrl,
+          siteBase: require('../utils/siteUrl').base(),
         });
         brevo.sendTemplate('auth_new_device', email, {
           email, device_label: label,

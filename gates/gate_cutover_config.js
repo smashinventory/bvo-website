@@ -79,6 +79,24 @@ console.log('--- one definition of the site address ---');
   for (const [n, env, want] of cases) if (siteUrl.base(env) !== want) bad.push(n);
   ok('the env value is normalised (slash, scheme, whitespace, empty)',
      bad.length === 0, bad.join(', '));
+  /* WIDER THAN THE FALLBACK IDIOM. The first version of this section only
+     looked for `process.env.SITE_URL || '<literal>'`, so a plain
+     `const CANON = 'https://www.bathroomvanitiesoutlet.com'` sailed through —
+     and one was sitting in feedController, supplying the `link:` on every
+     product in the Google Merchant Center feed. Asserting the IDIOM instead
+     of the CONDITION is the same mistake as pinning a spelling.
+
+     Scheme-prefixed only, deliberately. checkoutController's
+     ALLOWED_RETURN_HOSTS lists both hosts WITHOUT a scheme because it is a
+     Role B allowlist and has to name them; matching bare hostnames would
+     flag that correct code and invite an exemption list that rots. */
+  const hostLiterals = SRC.filter(f =>
+    f !== 'src/utils/siteUrl.js' &&
+    /https?:\/\/(www\.)?bathroomvanitiesoutlet\.com/.test(stripComments(read(f))));
+  ok('no file outside siteUrl.js writes the host as a literal URL',
+     hostLiterals.length === 0,
+     hostLiterals.join(', ') + ' — a second literal is how the split started');
+
   ok('url() joins with exactly one slash',
      siteUrl.url('/sitemap.xml', {}) === 'https://www.bathroomvanitiesoutlet.com/sitemap.xml' &&
      siteUrl.url('sitemap.xml', {})  === 'https://www.bathroomvanitiesoutlet.com/sitemap.xml',

@@ -298,14 +298,15 @@ function statics() {
        /catch\s*\{/.test(tmCode),
        'a timestamp is never worth an exception on the sign-in path');
 
-    const nm = src.match(/function newDeviceEmail\(\{ email, deviceLabel, when, secureUrl \}\) \{[\s\S]*?\n\}/);
+    const nm = src.match(/function newDeviceEmail\(\{[^}]*\}\) \{[\s\S]*?\n\}/);
     ok('newDeviceEmail is extractable', !!nm, 'not found');
     const newDeviceEmail = eval('(function(){' + nm[0] + '; return newDeviceEmail; })()');
 
     let mail = null; threw = null;
     try {
       mail = newDeviceEmail({ email: 'a@b.com', deviceLabel: 'Mac (Web)',
-                              when: label, secureUrl: 'https://x/account/secure?t=abc' });
+                              when: label, secureUrl: 'https://x/account/secure?t=abc',
+                              siteBase: 'https://example.test' });
     } catch (e) { threw = e; }
     ok('newDeviceEmail does NOT throw', !threw,
        threw && `${threw.constructor.name}: ${threw.message}`);
@@ -313,6 +314,14 @@ function statics() {
     ok('it produces html', !!(mail && mail.html && mail.html.length > 200), 'none');
     ok('the address is interpolated, not left as a token',
        mail && /a@b\.com/.test(mail.html) && !/\$\{email\}/.test(mail.html), 'not substituted');
+    /* The anti-phishing line tells the customer which host our links start
+       with. If it ever hardcodes a host again it can drift from the real
+       one and teach people to distrust genuine BVO mail. */
+    ok('the canonical host in the anti-phishing line comes from siteBase',
+       mail && mail.html.includes('https://example.test')
+            && !/bathroomvanitiesoutlet/.test(mail.html),
+       'a hardcoded host here can drift from the real one');
+
     ok('the secure URL is interpolated',
        mail && mail.html.includes('https://x/account/secure?t=abc'), 'missing');
     ok('the device label is interpolated',

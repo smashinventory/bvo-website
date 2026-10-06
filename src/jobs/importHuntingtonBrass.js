@@ -272,7 +272,12 @@ async function fetchShopifyFeed({ log = console.log } = {}) {
     const url = `${HB_SHOP}/products.json?limit=250&page=${page}`;
     const res = await axios.get(url, {
       timeout: 30000,
-      headers: { 'User-Agent': 'BVO-catalogue-sync/1.0 (+https://bathroomvanitiesoutlet.com)' },
+      /* Courtesy identifier for the remote host's logs — not a Role A URL,
+         but taken from the same source so there is no second literal to
+         drift. NOTE: BVO_BASE above is a Hostinger FILESYSTEM PATH that
+         happens to contain the domain name. It is not a URL and must not
+         be routed through siteUrl. */
+      headers: { 'User-Agent': `BVO-catalogue-sync/1.0 (+${require('../utils/siteUrl').base()})` },
     });
     const list = (res.data && res.data.products) || [];
     if (!list.length) break;
