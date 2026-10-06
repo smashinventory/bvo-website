@@ -221,7 +221,11 @@ console.log('\n--- footer social links have anchor text, not just aria-label ---
        inside the attribute and matches nothing. That exact bug silently
        rewrote zero links on the first attempt at this very fix. */
     const block = (() => {
-      const re = new RegExp('<a[\\s\\S]{0,200}?social-share-btn--' + net + '[\\s\\S]{0,2600}?</a>');
+      /* Class renamed 2026-10-06: the footer's FOLLOW links used to wear
+         social-share-btn, which is what made every reader of the source report
+         share buttons on pages that had none. The shared visual class is now
+         the neutral social-icon-btn. The rule this gate enforces is unchanged. */
+      const re = new RegExp('<a[\\s\\S]{0,200}?social-icon-btn--' + net + '[\\s\\S]{0,2600}?</a>');
       const m = foot.match(re);
       return m ? m[0] : '';
     })();

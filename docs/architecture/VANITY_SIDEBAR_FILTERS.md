@@ -676,3 +676,87 @@ including reintroducing the second `seo:` block, and catches all seven.
 A code default is not the live value. If a setting is stored, the stored copy
 wins, and "I changed the default and deployed" proves nothing. Check what the
 live site actually reads before believing a config change took.
+
+---
+
+## 13. SHARE LINKS vs FOLLOW LINKS — 2026-10-06
+
+Sam, on a Seobility "few social sharing options" warning: *"Are the ones we
+have identifiable as social media sharing links to crawlers. I noticed earlier
+today even you got confused on the social media links."*
+
+He was right, and the answer splits in two.
+
+**A crawler was never confused.** It reads the `href`. The footer icons point at
+`facebook.com/BathroomVanitiesOutlet/`, `x.com/BVOutlet`, `yelp.com/biz/...` —
+profile URLs, plainly FOLLOW links. Seobility correctly reported no sharing
+options on pages that have none.
+
+**Every human and assistant reading the source was**, because those follow links
+carried `class="social-share-btn"`. Class names mean nothing to a crawler and
+everything to the next person. That was the actual bug.
+
+### Three fixes
+
+1. **Share buttons were gated on owning a profile.** Each was wrapped in
+   `if (settings.social.<network>_url)`. Sharing TO LinkedIn has nothing to do
+   with whether BVO HAS a LinkedIn page, so LinkedIn sharing was off site-wide
+   because that field was blank. Now unconditional.
+2. **An Instagram FOLLOW link sat inside the share bar**, labeled "Follow us on
+   Instagram", under a heading reading "Share this product". Instagram has no
+   web share intent — it cannot be a share button. Removed; so is Yelp, for the
+   same reason.
+3. **The class names lied.** The shared visual class (a 32px circle) is now the
+   neutral `social-icon-btn`; the semantic classes are `social-share-btn` and
+   `social-follow-btn`. Both uses can share styling without either pretending to
+   be the other.
+
+### One definition
+
+`views/partials/social-share.ejs`. The bar was written inline in `product.ejs`
+AND `inspiration-guide.ejs`, which is how the gating bug got written twice. Both
+now include the partial. Added to the homepage, collections, the collection
+index, inspiration hub, lookbook, CMS pages, author pages and the bundle
+builder. **Not** on cart, checkout, order confirmation, search results, 404 or
+admin — share buttons on a checkout step are noise, and search results should
+not be shared.
+
+### The sr-only correction, which is the part that answers Sam's question
+
+The first version named each share link with `aria-label`. `gate_icon_link_text`
+went red and was right to:
+
+> a crawler reads link text and does not count aria-label
+
+An icon-only link named only by `aria-label` has **no text for a crawler or an
+assistant to read** — the precise failure this work was about. Every share link
+now carries an `.sr-only` span. The container keeps its `aria-label`, because
+that names a region rather than a link, and the two must never both sit on the
+same anchor or the label wins and the span is never announced.
+
+### Two gates went red from the class rename, and only one was cosmetic
+
+* `gate_icon_link_text` — a real finding, above.
+* `gate_bundle_slice` — appending the new CSS at end-of-file disturbed the
+  trailing bytes of the site4 public slice, which that gate requires verbatim in
+  `site-bundle.css`. The CSS is inserted mid-file instead. Worth knowing before
+  anyone appends to that bundle again.
+
+### Enforcement
+
+`gates/gate_social_share.js` — 24 checks. It renders the partial and inspects
+the output, asserts every link is a real share intent rather than a profile URL,
+and asserts the share/follow class boundary in both directions. It strips
+template comments before matching: the partial documents these bugs by name, and
+the first run flagged the documentation as the bug. Comment-vs-code, again.
+
+`./mutate_social_share_gate.sh` — 10 mutations, including reinstating each
+original bug and hiding a violation on the same line as a comment to prove the
+stripper did not blind the gate. All 10 caught.
+
+### Worth saying plainly
+
+Share buttons are not a Google ranking factor, and Seobility files this under
+"Nice to have". None of this will move a ranking. It was worth doing because
+three were real logic errors costing a working feature, and because the code now
+says what it means.

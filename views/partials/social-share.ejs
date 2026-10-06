@@ -1,0 +1,119 @@
+<%#
+  social-share.ejs — THE share bar. One definition, included everywhere.
+
+  SHARE IS NOT FOLLOW. This file emits SHARE links only: URLs that hand the
+  current page to a network's share intent. The FOLLOW links — your own
+  profile URLs — live in views/partials/footer.ejs and are a different thing
+  with a different purpose. Keeping them apart is the whole point of this
+  file existing, because they were tangled before:
+
+   1. Every share button was wrapped in `if (social.linkedin_url)` and so on.
+      Sharing TO LinkedIn has nothing to do with whether BVO HAS a LinkedIn
+      page, so LinkedIn sharing was silently off site-wide purely because that
+      settings field was blank. Share buttons are now unconditional.
+
+   2. An Instagram link sat inside the share bar labeled "Follow us on
+      Instagram". Instagram has no web share intent, so it cannot be a share
+      button at all — it was a follow link in the wrong container, under a
+      heading that said "Share this product".
+
+   3. The footer's follow links wore class="social-share-btn". Crawlers were
+      never fooled (they read the href, which plainly says profile URL — which
+      is why Seobility correctly reports no sharing options on pages that have
+      none), but every human and every assistant reading the source was. The
+      shared visual class is now `social-icon-btn`, which is true of both, and
+      the semantic classes are `social-share-btn` / `social-follow-btn`.
+
+  WHICH NETWORKS. Only ones with a real, documented web share intent:
+  Pinterest, Facebook, X, LinkedIn, and email. Instagram and Yelp are absent
+  on purpose — neither accepts a shared URL from the web. Adding them back
+  would recreate bug 2.
+
+  PARAMETERS, all optional:
+    shareUrl    - defaults to canonicalUrl (a global res.locals, server.js:626)
+    shareTitle  - defaults to pageTitle with the " | BVO" suffix trimmed
+    shareImage  - Pinterest only; the Pinterest button is omitted without it,
+                  because a pin with no image is a bad pin
+    shareLabel  - the bar's aria-label, e.g. "Share this product"
+
+  Include with an include() call passing shareLabel, and shareTitle /
+  shareImage where the page has something better than the defaults.
+-%>
+<%
+  var _ssUrl = (typeof shareUrl !== 'undefined' && shareUrl)
+             ? shareUrl
+             : (typeof canonicalUrl !== 'undefined' && canonicalUrl ? canonicalUrl : '');
+
+  var _ssTitle = (typeof shareTitle !== 'undefined' && shareTitle)
+               ? shareTitle
+               : (typeof pageTitle !== 'undefined' && pageTitle
+                   ? String(pageTitle).split('|')[0].trim()
+                   : 'BathroomVanitiesOutlet.com');
+
+  var _ssImg   = (typeof shareImage !== 'undefined' && shareImage) ? shareImage : '';
+  var _ssLabel = (typeof shareLabel !== 'undefined' && shareLabel) ? shareLabel : 'Share this page';
+
+  var _u = encodeURIComponent(_ssUrl);
+  var _t = encodeURIComponent(_ssTitle);
+  var _i = encodeURIComponent(_ssImg);
+%>
+<% if (_ssUrl) { %>
+<%# LINK TEXT IS AN .sr-only SPAN, NOT aria-label. That is the project rule
+    (gates/gate_icon_link_text.js) and the reason is exactly the question that
+    started this work: a crawler reads link text and does not count
+    aria-label. An icon-only share link labeled only by aria-label has NO text
+    for a crawler or an assistant to read. aria-label on the anchor would also
+    win the accessible name and silence the span, so the two must never both be
+    present. The CONTAINER keeps its aria-label — that names a region, not a
+    link.
+
+    rel carries nofollow as well as noopener noreferrer. These point at third
+    party share endpoints; there is nothing to gain by passing equity to
+    facebook.com/sharer, and nofollow is the convention for outbound utility
+    links. noopener/noreferrer are the security half and are not optional on
+    target="_blank". %>
+<div class="social-share-bar" aria-label="<%= _ssLabel %>">
+  <span class="social-share-label">Share</span>
+  <div class="social-share-icons">
+
+    <% if (_ssImg) { %>
+    <a href="https://pinterest.com/pin/create/button/?url=<%- _u %>&media=<%- _i %>&description=<%- _t %>"
+       class="social-icon-btn social-share-btn social-icon-btn--pinterest"
+       target="_blank" rel="nofollow noopener noreferrer">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.373 0 0 5.373 0 12c0 5.084 3.163 9.426 7.627 11.174-.105-.949-.2-2.405.042-3.441.218-.937 1.407-5.965 1.407-5.965s-.359-.719-.359-1.782c0-1.668.967-2.914 2.171-2.914 1.023 0 1.518.769 1.518 1.69 0 1.029-.655 2.568-.994 3.995-.283 1.194.599 2.169 1.777 2.169 2.133 0 3.772-2.249 3.772-5.495 0-2.873-2.064-4.882-5.012-4.882-3.414 0-5.418 2.561-5.418 5.207 0 1.031.397 2.138.893 2.738a.36.36 0 0 1 .083.345l-.333 1.36c-.053.22-.174.267-.402.161-1.499-.698-2.436-2.889-2.436-4.649 0-3.785 2.75-7.262 7.929-7.262 4.163 0 7.398 2.967 7.398 6.931 0 4.136-2.607 7.464-6.227 7.464-1.216 0-2.359-.632-2.75-1.378l-.748 2.853c-.271 1.043-1.002 2.35-1.492 3.146C9.57 23.812 10.763 24 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0z"/></svg>
+    <span class="sr-only">Pin on Pinterest</span>
+    </a>
+    <% } %>
+
+    <a href="https://www.facebook.com/sharer/sharer.php?u=<%- _u %>"
+       class="social-icon-btn social-share-btn social-icon-btn--facebook"
+       target="_blank" rel="nofollow noopener noreferrer">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.513c-1.491 0-1.956.93-1.956 1.886v2.268h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>
+    <span class="sr-only">Share on Facebook</span>
+    </a>
+
+    <a href="https://twitter.com/intent/tweet?url=<%- _u %>&text=<%- _t %>"
+       class="social-icon-btn social-share-btn social-icon-btn--twitter"
+       target="_blank" rel="nofollow noopener noreferrer">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+    <span class="sr-only">Share on X</span>
+    </a>
+
+    <a href="https://www.linkedin.com/sharing/share-offsite/?url=<%- _u %>"
+       class="social-icon-btn social-share-btn social-icon-btn--linkedin"
+       target="_blank" rel="nofollow noopener noreferrer">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+    <span class="sr-only">Share on LinkedIn</span>
+    </a>
+
+    <%# Email. No account needed on either end, and the one share route that
+        works for a contractor forwarding a vanity to a client. %>
+    <a href="mailto:?subject=<%- _t %>&body=<%- _t %>%0A%0A<%- _u %>"
+       class="social-icon-btn social-share-btn social-icon-btn--email">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 4.236-8 4.882-8-4.882V6l8 4.882L20 6z"/></svg>
+    <span class="sr-only">Share by email</span>
+    </a>
+
+  </div>
+</div>
+<% } %>

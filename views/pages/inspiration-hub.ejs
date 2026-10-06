@@ -48,3 +48,13 @@
 
   </div>
 </div>
+
+<%# Site-wide share bar. ONE definition in views/partials/social-share.ejs.
+    Appended at the foot of the page here; product.ejs and
+    inspiration-guide.ejs include it inline instead, where it sits in a
+    deliberate spot in the layout. Deliberately NOT on cart, checkout,
+    account, admin, search results, 404 or error — share buttons on a
+    checkout step are noise, and search results should not be shared. %>
+<section class="page-share" aria-label="Share">
+  <%- include('../partials/social-share', { shareLabel: 'Share our design guides' }) %>
+</section>
