@@ -316,3 +316,121 @@ this whole piece of work.
 
 Five of the eight are `category_id = NULL`, i.e. global. Retiring them
 cleared vanities, mirrors, faucets and accessories together.
+
+---
+
+## 10. THE FILTER PANEL DOES NOT NAVIGATE BY SUBMITTING THE FORM — 2026-10-06
+
+This is the single most load-bearing fact about the sidebar, and two commits were
+wasted before it was established. Write it down once.
+
+`#filter-form` has `method="GET"` and looks like it navigates. **It does not.**
+`public/js/site.js` has four handlers that intercept the interaction and navigate
+themselves:
+
+| control | selector |
+|---|---|
+| checkboxes (style, size, type, flags) | `.filter-panel` `change` listener |
+| primary color families | `#color-family-row` `[data-color-key]` |
+| hardware finishes | `#hw-color-family-row` `[data-hw-color-key]` |
+| stone material swatches | `.stone-mat-sw` |
+
+Every one of them built a `URLSearchParams` and then did `window.location.search = …`.
+
+### Why that was the bug
+
+Assigning to `location.search` **keeps the current path**. On a clean-path URL —
+
+    /collections/bathroom-vanities/style/farmhouse
+
+unchecking Farmhouse wrote an empty query, the `/style/farmhouse` path survived,
+`pathToFilter` re-applied `style=Farmhouse`, and the checkbox re-selected itself.
+The filter could not be cleared. Reported as *"still stuck on farmhouse it
+re-selects farmhouse."*
+
+Two earlier attempts set the `action` on `#filter-form` instead. Both were reverted
+(`321defe`, `36dbf71`) because **the form was never what navigated.**
+
+### The fix
+
+Two facts the browser URL does not carry on a clean path are handed to the JS as
+attributes on `#filter-form`:
+
+| attribute | value | source |
+|---|---|---|
+| `data-base-path` | `/collections/<category.slug>` | the view — the same expression "Clear all" uses |
+| `data-filter-query` | the query the request is actually filtered by | `src/middleware/publishFilterQuery.js` |
+
+`site.js` then has exactly two shared helpers, and all four controls go through them:
+
+* `window._bvoFilterParams()` — seeds from `data-filter-query`, falling back to
+  `window.location.search`. This is what makes a *delete* work: the handler's
+  `params.delete('style')` now acts on a set that **contains** the path facet.
+* `window._bvoFilterGo(query)` — navigates to `data-base-path` + query, falling back
+  to `window.location.pathname`. This is what drops the `/style/farmhouse` segment.
+
+`src/middleware/publishFilterQuery.js` is **read only** and mounted AFTER
+`pathToFilter`, so `req.url` is already rewritten. That one ordering fact is why the
+published value is correct for both URL shapes with no branching:
+
+    /bathroom-vanities/style/farmhouse            -> style=Farmhouse
+    /bathroom-vanities?size_in=36                 -> size_in=36
+    /bathroom-vanities/style/farmhouse?size_in=36 -> size_in=36&style=Farmhouse
+
+### What is deliberately accepted
+
+Adding a second filter on a clean path moves the URL to param format
+(`?style=Farmhouse&size_in=36`). Sam ruled on this: *"the url changing to param
+format after a new filter is selected … is not a problem. 1. This action is not a
+consideration for SEO. 2. I dont think the user will even notice."*
+
+Note the useful side effect: when deselecting leaves exactly **one** facet,
+`filterToPath` 301s the param URL straight back to its clean path. Single-facet
+state is always canonical.
+
+`sort` survives every navigation — the JM-feed popularity order is not dropped.
+`page` is deleted on purpose, as before.
+
+### Rollback
+
+1. **Fastest, no deploy of JS:** comment out the `publishFilterQuery` mount in
+   `src/routes/collections.js`. `res.locals.filterQuery` goes undefined,
+   `_bvoFilterParams` falls back to `window.location.search`, and the seeding is
+   gone. **The base-path navigation stays**, so the deselect still works — this
+   only reverts the seeding half.
+2. **Full revert:** `git revert` the commit. It touches four files and nothing else:
+   `src/middleware/publishFilterQuery.js` (new), `src/routes/collections.js` (one
+   mount line), `views/pages/collection.ejs` (two attributes on the form tag),
+   `public/js/site.js` (two helpers + four call sites), plus the `?v=` bump in
+   `views/layouts/main.ejs`.
+3. **Nothing in the filter pipeline was touched.** `pathToFilter`, `filterToPath`,
+   `pathFilters.js`, the controller, the filter SQL, `product_type`, the color
+   families, the bundle builder and the importer are all unmodified. Verify with
+   `git show --stat` on the commit.
+
+### site.js is the source, not a build artifact
+
+Checked before editing, because editing a build output gets silently reverted.
+`public/js/site.js` was 1,012 lines and was minified **in place** at `5b90312`;
+all four commits since have edited the minified file directly. `terser` is in
+`devDependencies` but **no npm script invokes it** and no build regenerates the
+file. Edit it directly. Bump `?v=` in `views/layouts/main.ejs` so clients refetch.
+
+### Enforcement
+
+`gates/gate_filter_deselect.js` — 22 checks. It extracts the two helper bodies from
+the shipped `site.js` and **executes** them against a stub (no DOM library: `jsdom`
+is not a dependency of this project), runs the real middleware chain, and asserts
+`data-base-path` is byte-identical to the "Clear all" href so the two cannot drift.
+Its first assertion is that **zero** assignments to `location.search` survive — that
+is the condition, not an idiom, because any navigation that only rewrites the search
+preserves the path, and preserving the path *is* the bug.
+
+`./mutate_deselect_gate.sh` re-breaks the fix seven ways and confirms the gate goes
+red for each. Run it if you change the gate.
+
+### Related files
+
+* `src/middleware/publishFilterQuery.js` — read-only publisher
+* `gates/gate_filter_deselect.js` — enforcement
+* `mutate_deselect_gate.sh` — negative tests for the gate

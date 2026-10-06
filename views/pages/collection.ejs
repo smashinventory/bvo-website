@@ -136,7 +136,13 @@
 
   <!-- ── Filter sidebar ──────────────────────────────────────────── -->
   <aside class="filter-panel" aria-label="Filter products">
-    <form method="GET" id="filter-form">
+    <%# data-base-path / data-filter-query: read by public/js/site.js so the
+        filter panel navigates to the collection root plus a query, instead of
+        rewriting location.search and keeping a /style/<value> path that makes a
+        deselected filter re-apply itself. The form itself is unchanged. %>
+    <form method="GET" id="filter-form"
+          data-base-path="/collections/<%= category.slug %>"
+          data-filter-query="<%= typeof filterQuery !== 'undefined' && filterQuery ? filterQuery : '' %>">
       <input type="hidden" name="sort" value="<%= sort %>">
       <%/* Preserve all color params when any other filter fires form.submit() */%>
       <% colorFamilyActive.forEach(function(f) { %><input type="hidden" name="color_family" value="<%= f %>"><% }) %>
