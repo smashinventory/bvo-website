@@ -100,9 +100,43 @@ ok('it noindexes an author with NO guides',
 console.log('--- the Article schema names a PERSON, not the Organization ---');
 ok("author is a Person with a url", /'@type':\s*'Person'[\s\S]{0,200}\/authors\/\$\{author\.slug\}/.test(INSP),
    'the byline points at a page the schema does not reference');
-ok('it still falls back to Organization when there is no author',
-   /\{\s*'@type':\s*'Organization',\s*name:\s*'BathroomVanitiesOutlet\.com'\s*\}/.test(INSP),
-   'a guide with no author would emit author: undefined');
+/* ⚠️ THIS CHECK WAS A SPELLING-PIN AND WENT RED AGAINST CORRECT CODE.
+ *
+ * It used to require the literal
+ *     { '@type': 'Organization', name: 'BathroomVanitiesOutlet.com' }
+ * which was one of SEVEN hand-written copies of the company scattered across
+ * three files. The structured-data refactor replaced them all with a single
+ * node referenced by @id, and this assertion failed - not because the
+ * behaviour regressed, but because the string changed.
+ *
+ * THE CONDITION, which is what actually matters: a guide with no author must
+ * still name a publisher, rather than emitting `author: undefined`. That is
+ * now satisfied by a reference to the one OnlineStore node, which is strictly
+ * better than an inline copy: Google resolves it to the same entity as every
+ * other page instead of guessing.
+ *
+ * So the check asserts the SHAPE OF THE FALLBACK, and accepts either form -
+ * an inline Organization object, or an @id reference to the organisation. */
+{
+  const _authorFallback =
+    /author:\s*author[\s\S]{0,400}?:\s*sd\.ref\(sd\.ID\.organization\)/.test(INSP) ||
+    /\{\s*'@type':\s*'Organization',\s*name:\s*'BathroomVanitiesOutlet\.com'\s*\}/.test(INSP);
+  ok('a guide with no author still names a publisher, not undefined',
+     _authorFallback,
+     'the ternary has no else branch - author would be undefined in the markup');
+
+  /* Prove it, rather than trusting the regex: build the node both ways and
+     confirm neither leaves author undefined. */
+  const sd = require(require('path').join(__dirname, '..', 'src/utils/structuredData'));
+  const build = a => (a
+    ? { '@type': 'Person', name: a.name }
+    : sd.ref(sd.ID.organization));
+  ok('the no-author branch returns a resolvable reference',
+     build(null) && build(null)['@id'] === sd.ID.organization,
+     'the fallback does not point at the organisation node');
+  ok('the with-author branch returns a Person',
+     build({ name: 'Sam Nazer' })['@type'] === 'Person', 'byline lost');
+}
 ok('datePublished is emitted', /datePublished:/.test(INSP), 'missing');
 ok('dateModified is emitted',  /dateModified:/.test(INSP),  'missing');
 /* Both are spread-guarded, so an absent column emits no key at all

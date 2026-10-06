@@ -1031,30 +1031,87 @@ const _pdImages = (product.images && product.images.length)
 const _pdAvail  = product.inStock
   ? 'https://schema.org/InStock'
   : 'https://schema.org/OutOfStock';
+/* ── Merchant identifiers ─────────────────────────────────────────────
+   Google wants gtin or mpn alongside brand for a merchant listing. Both
+   columns are already populated by the James Martin importer.
+
+   Measured across 6,059 active products (2026-10-05):
+     valid 12-digit UPC   5,959   98.3%
+     mpn non-empty        5,292   87.3%
+     brand                6,059    100%
+     13-digit UPC             0           - so gtin13 is never emitted
+
+   ⚠️ gtin12 IS GUARDED ON THE FORMAT, NOT ON PRESENCE. 5,966 rows have a
+   non-empty upc but only 5,959 hold a real 12-digit code - one row
+   literally contains the text "Stone Sample - Grey Expo Quart", and Side
+   Cabinet has four rows with none. A malformed gtin is WORSE than no
+   gtin: Google raises an error on the item rather than ignoring the
+   field. Presence is not validity. */
+const _pdGtin = /^[0-9]{12}$/.test(String(product.upc || '').trim())
+  ? String(product.upc).trim() : null;
+const _pdMpn  = String(product.mpn || '').trim() || null;
+
 const _pdJsonLd = {
-  '@context': 'https://schema.org/',
   '@type':    'Product',
+  '@id':      `${_pdUrl}/products/${product.slug}#product`,
   name:        product.name,
   description: product.short_desc || '',
   sku:         product.sku || product.slug,
+  ...(_pdGtin ? { gtin12: _pdGtin } : {}),
+  ...(_pdMpn  ? { mpn:    _pdMpn  } : {}),
   image:       _pdImages,
   brand: product.brand ? { '@type': 'Brand', name: product.brand } : undefined,
-  offers: {
+  mainEntityOfPage: { '@id': `${_pdUrl}/products/${product.slug}#webpage` },
+};
+
+/* ── NO OFFER ON A ZERO-PRICED ITEM ──────────────────────────────────
+   An Offer with price 0 is not "free" to Google, it is INVALID. Merchant
+   listings reject it and the item is reported as an error rather than
+   quietly skipped, which can drag the whole feed's quality score.
+
+   Items legitimately reach this page at zero: free samples from the
+   samples promotion, and any catalogue row that arrived unpriced from
+   the feed - the JMV reports already surface an "unpriced" count, so
+   this is a real population, not a hypothetical.
+
+   The Product node still renders with its name, images, brand and
+   identifiers. It simply makes no price claim. That costs the rich
+   result, which an unpriced item was never eligible for anyway, and it
+   is the honest output.
+
+   ⚠️ Number() FIRST. product.price arrives from MySQL DECIMAL as a
+   STRING, so a bare truthiness check passes on "0.00" - the string is
+   truthy - and would have emitted exactly the invalid offer this guard
+   exists to prevent. */
+const _pdPrice = Number(product.price);
+const _pdHasPrice = Number.isFinite(_pdPrice) && _pdPrice > 0;
+
+if (_pdHasPrice) {
+  /* seller, shippingDetails and hasMerchantReturnPolicy resolve by @id to
+     the one OnlineStore and its policy nodes, so the store's terms apply
+     to this product without being copied onto it. */
+  _pdJsonLd.offers = {
     '@type':          'Offer',
     url:              `${_pdUrl}/products/${product.slug}`,
     priceCurrency:    'USD',
-    price:            product.price.toFixed(2),
+    price:            _pdPrice.toFixed(2),
     availability:     _pdAvail,
     itemCondition:    'https://schema.org/NewCondition',
-    seller: {
-      '@type': 'Organization',
-      name:    'BathroomVanitiesOutlet.com',
-    },
-  },
-};
-if (product.compare_price && product.compare_price > product.price) {
-  _pdJsonLd.offers.priceValidUntil = new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0];
+    seller:           { '@id': `${_pdUrl}/#organization` },
+    shippingDetails:  { '@id': `${_pdUrl}/#shipping` },
+    hasMerchantReturnPolicy: { '@id': `${_pdUrl}/#returnpolicy` },
+  };
+  if (product.compare_price && Number(product.compare_price) > _pdPrice) {
+    _pdJsonLd.offers.priceValidUntil = new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0];
+  }
 }
+/* ⚠️ NO aggregateRating. The 4.9 / 150 shown on this page is a SITE-WIDE
+   Google seller rating, hardcoded in themeSettings (google_reviews_rating
+   / google_reviews_count). Google requires Product.aggregateRating to
+   describe reviews OF THIS PRODUCT; publishing one identical rating
+   across 6,059 products is the textbook structured-data manual action.
+   Add it only when real per-product reviews exist.
+   gates/gate_structured_data.js asserts its absence. */
 %>
 <%/* PDP controls, delegated. These were ten onclick=""/onkeydown="" attributes,
      all of which the CSP blocks (script-src-attr 'none') - the gallery, the
@@ -1088,28 +1145,46 @@ if (product.compare_price && product.compare_price > product.price) {
   });
 })();
 </script>
-<script type="application/ld+json"><%- JSON.stringify(_pdJsonLd) %></script>
 <%
   var _pdVideos = [];
   if (product.video_url) _pdVideos.push({ url: product.video_url, title: product.name + ' — Product Video' });
   if (typeof productVideos !== 'undefined') productVideos.forEach(function(v){ _pdVideos.push(v); });
   var _pdPrimaryImg = (product.images && product.images[0] && product.images[0].url) || product.primary_image_url || '';
 %>
-<% if (_pdVideos.length) { %>
-<% _pdVideos.forEach(function(vid) {
-  var _vldIsYT = !!(vid.url && /youtu\.be|youtube\.com/.test(vid.url));
-  var _vldYTId = null;
-  if (_vldIsYT) { var _mm = vid.url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?.*?v=|shorts\/))([a-zA-Z0-9_-]{11})/); _vldYTId = _mm ? _mm[1] : null; }
-  var _vldObj = {
-    '@context':     'https://schema.org',
-    '@type':        'VideoObject',
-    name:           vid.title || (product.name + ' — Product Video'),
-    description:    product.short_desc || product.name,
-    thumbnailUrl:   _pdPrimaryImg,
-    uploadDate:     (product.updated_at || product.created_at || new Date()).toISOString ? new Date(product.updated_at || product.created_at || Date.now()).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-  };
-  if (_vldIsYT && _vldYTId) { _vldObj.embedUrl = 'https://www.youtube-nocookie.com/embed/' + _vldYTId; }
-  else { _vldObj.contentUrl = vid.url; }
+<%
+  /* ── ONE GRAPH FOR THE WHOLE PAGE ──────────────────────────────────
+     Product and every VideoObject are collected into a single @graph
+     alongside OnlineStore, WebSite, WebPage and BreadcrumbList, instead
+     of the page emitting three or more unrelated <script> islands.
+
+     ⚠️ ASSEMBLED HERE RATHER THAN IN THE CONTROLLER because everything
+     these nodes derive from - the image array, the in-stock flag, the
+     YouTube id parsing below - already lives in this file. Rebuilding it
+     in productsController would duplicate those derivations on the page
+     that carries the revenue. The controller supplies what the view
+     cannot know: `sd` (the builder) and `sdCtx` (url, title, trail and
+     theme settings for the organisation's sameAs).
+
+     Each VideoObject keeps its own fields unchanged; only the standalone
+     '@context' is dropped, because the graph declares it once. */
+  var _pdNodes = [_pdJsonLd];
+  _pdVideos.forEach(function (vid) {
+    var _isYT = !!(vid.url && /youtu\.be|youtube\.com/.test(vid.url));
+    var _ytId = null;
+    if (_isYT) { var _m = vid.url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?.*?v=|shorts\/))([a-zA-Z0-9_-]{11})/); _ytId = _m ? _m[1] : null; }
+    var _v = {
+      '@type':      'VideoObject',
+      name:         vid.title || (product.name + ' — Product Video'),
+      description:  product.short_desc || product.name,
+      thumbnailUrl: _pdPrimaryImg,
+      uploadDate:   new Date(product.updated_at || product.created_at || Date.now()).toISOString().split('T')[0],
+    };
+    if (_isYT && _ytId) { _v.embedUrl = 'https://www.youtube-nocookie.com/embed/' + _ytId; }
+    else { _v.contentUrl = vid.url; }
+    _pdNodes.push(_v);
+  });
 %>
-<script type="application/ld+json"><%- JSON.stringify(_vldObj) %></script>
-<% }); } %>
+<% if (typeof sd !== 'undefined' && typeof sdCtx !== 'undefined') { %><%- sd.scriptTag(sd.pageGraph(Object.assign({}, sdCtx, { nodes: _pdNodes }))) %><% } %>
+<%/* The per-video <script> blocks that used to sit here are gone: every
+     VideoObject is now a node in the single graph emitted above, built in
+     the same loop. Leaving them would have published each video twice. */%>

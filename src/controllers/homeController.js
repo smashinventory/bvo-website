@@ -16,6 +16,7 @@ const { pickBadge }        = require('../utils/cardBadge');
 const { FAMILIES, normalize }   = require('../config/colorFamilies');
 const { SIZE_BUCKETS }          = require('../config/sizeBuckets');
 const themeSettings            = require('../services/themeSettings');
+const sd                       = require('../utils/structuredData');
 
 /* Convert a raw integer width → {label, key} bucket object, or null */
 function toBucket(rawSize) {
@@ -775,9 +776,42 @@ exports.index = async (req, res, next) => {
       getFeaturedInspirationPages(),
     ]);
 
+    const _title = ts.seo?.home_title || 'BathroomVanitiesOutlet.com — Premium Vanities at Outlet Prices';
+    const _desc  = ts.seo?.home_description || 'Shop premium bathroom vanities, mirrors, faucets and accessories. Free shipping on all orders. Outlet prices on top brands.';
+
+    /* ── Structured data ────────────────────────────────────────────
+       The homepage had NO JSON-LD at all, which is what an SEO audit
+       meant by "No Schema.org data found". This is the site's root
+       identity: the OnlineStore node every other page references by
+       @id, plus WebSite for the sitelinks search box.
+
+       ⚠️ PASSED AS `jsonLd`, NOT AS `script`. express-ejs-layouts runs
+       with `layout extractScripts` enabled (server.js:504), and its
+       extractor does `locals.script = ''` and then refills it ONLY from
+       <script> tags found in the rendered view (express-layouts.js:98).
+       A controller that passes `script:` has that value silently thrown
+       away.
+
+       That is not hypothetical. inspirationController and
+       authorsController both pass JSON-LD as `script:` today, and
+       NEITHER HAS EVER RENDERED - which is the real reason the audit
+       found no schema on the guide pages. Fixed separately.
+
+       So the tag is emitted inside index.ejs instead, where the
+       extractor picks it up and joins it with the page's own four
+       scripts rather than replacing them. No breadcrumb node here: the
+       homepage is the root, and a single-item trail is not a trail. */
+    const jsonLd = sd.scriptTag(sd.pageGraph({
+      url:         '/',
+      name:        _title,
+      description: _desc,
+      settings:    ts,
+    }));
+
     res.render('pages/index', {
-      pageTitle: ts.seo?.home_title || 'BathroomVanitiesOutlet.com — Premium Vanities at Outlet Prices',
-      metaDesc:  ts.seo?.home_description || 'Shop premium bathroom vanities, mirrors, faucets and accessories. Free shipping on all orders. Outlet prices on top brands.',
+      pageTitle: _title,
+      metaDesc:  _desc,
+      jsonLd,
       /* `products` and `featuredModels` are kept as aliases for the base
          slot. index.ejs reads sectionData now, but other includes and any
          cached view could still reference these, and an undefined local is

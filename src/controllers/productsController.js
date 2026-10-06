@@ -5,6 +5,7 @@ const Category  = require('../models/Category');
 const Customer  = require('../models/Customer');
 const { bvoPool } = require('../config/database');
 const { FAMILIES } = require('../config/colorFamilies');
+const sd          = require('../utils/structuredData');
 
 /* Four inline `.catch(() => [])` swallows lived in this file — product
    documents, product videos, and both "Complete the Look" mirror queries.
@@ -189,6 +190,35 @@ exports.show = async (req, res, next) => {
       productVideos: videoRows,
       isFavorited,
       variantConfig,
+      /* ── Structured data ──────────────────────────────────────────
+         ⚠️ THE MODULE IS PASSED IN, NOT A FINISHED STRING, and that is
+         deliberate. Everything the Product and VideoObject nodes are
+         built from - the image array, the in-stock flag, the YouTube id
+         parsing - already lives in product.ejs. Rebuilding it here would
+         mean maintaining the same derivations twice on the page that
+         carries the revenue, which is exactly the duplication this whole
+         module exists to remove.
+
+         So the view assembles the graph and emits it. The pieces it is
+         given are the shared ones: the organisation node depends on
+         theme settings, which the view has no business reading.
+
+         The breadcrumb mirrors the trail already rendered at the top of
+         product.ejs - Home > <category> > <product> - and the category
+         crumb is dropped when there is no category, exactly as the
+         visible trail does. */
+      sd,
+      sdCtx: {
+        url:         `/products/${product.slug}`,
+        name:        product.name,
+        description: product.meta_desc || product.short_desc || '',
+        settings:    res.locals.settings,
+        trail: [
+          { name: 'Home', url: '/' },
+          ...(category ? [{ name: category.name, url: `/collections/${category.slug}` }] : []),
+          { name: product.name },
+        ],
+      },
     });
   } catch (err) { next(err); }
 };

@@ -4,6 +4,25 @@
 
   <div class="inspo-guide-container">
 
+    <%/* ── Structured data ────────────────────────────────────────────
+         OnlineStore + WebSite + WebPage + BreadcrumbList + Article, built
+         by src/utils/structuredData.js and passed in by
+         inspirationController.
+
+         ⚠️ EMITTED HERE, IN THE VIEW, NOT AS THE `script` LOCAL. This
+         page previously passed its Article JSON-LD to res.render as
+         `script:`, and it NEVER REACHED THE PAGE: express-ejs-layouts
+         runs with `layout extractScripts` enabled (server.js:504) and
+         sets locals.script = '' before refilling it from <script> tags
+         found in this rendered output. A controller's value is thrown
+         away. That is why an SEO audit of these pages reported no
+         structured data at all.
+
+         The BreadcrumbList below mirrors the visible trail immediately
+         following this block - same three crumbs, same order. Google
+         requires markup to match visible content. */%>
+    <% if (typeof jsonLd !== 'undefined' && jsonLd) { %><%- jsonLd %><% } %>
+
     <%/* Breadcrumb */%>
     <nav class="inspo-breadcrumb" aria-label="Breadcrumb">
       <a href="/">Home</a>

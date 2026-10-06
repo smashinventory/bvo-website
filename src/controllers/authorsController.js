@@ -23,6 +23,7 @@
  */
 
 const { bvoPool } = require('../config/database');
+const sd          = require('../utils/structuredData');
 
 /* Shared with the inspiration controller so the byline, the profile page
    and the JSON-LD cannot disagree about what an author is. */
@@ -105,20 +106,51 @@ exports.profile = async (req, res) => {
 
     /* Person JSON-LD. worksFor ties the author to the Organization, which
        is what makes the two entities one graph rather than two strings. */
-    const jsonLd = JSON.stringify({
-      '@context': 'https://schema.org',
-      '@type':    'Person',
-      name:       author.name,
-      url:        `${siteUrl}/authors/${author.slug}`,
+    /* ⚠️ THIS NEVER RENDERED EITHER. Same cause as the guide pages: it was
+       passed to res.render as `script:`, and express-ejs-layouts wipes
+       that local and refills it only from <script> tags found in the
+       rendered view (express-layouts.js:98-99, `layout extractScripts`
+       is on in server.js:504). Author pages have been serving with no
+       structured data since they shipped.
+
+       Now emitted by views/pages/author.ejs from the `jsonLd` local, and
+       joined to the shared graph so worksFor resolves by @id to the one
+       OnlineStore node instead of declaring a third copy of the company.
+
+       The Person's own fields are unchanged. Its @id matches the one the
+       guide pages use for the same author, so Google resolves the byline
+       on an article and this profile page to a single entity. */
+    const _person = {
+      '@type': 'Person',
+      '@id':   `${siteUrl}/authors/${author.slug}#person`,
+      name:    author.name,
+      url:     `${siteUrl}/authors/${author.slug}`,
       ...(author.image_base ? { image: `${siteUrl}${author.image_base}-320.png` } : {}),
       ...(author.credential ? { jobTitle: String(author.credential).split('·')[0].trim() } : {}),
-      worksFor: {
-        '@type': 'Organization',
-        name:    'BathroomVanitiesOutlet.com',
-        url:     siteUrl,
-      },
+      worksFor: sd.ref(sd.ID.organization),
       ...(links.length ? { sameAs: links } : {}),
-    });
+    };
+
+    /* ⚠️ NO BREADCRUMB NODE HERE, DELIBERATELY. The first version of this
+       emitted Home > Authors > <name>, and both halves of that were
+       wrong:
+
+         * views/pages/author.ejs renders NO visible breadcrumb trail, and
+           Google requires BreadcrumbList to describe markup the user can
+           actually see. Inventing a trail to look more organised is a
+           guidelines violation, not a free win.
+         * there is no public /authors index to link to. The only route is
+           /admin/authors (src/routes/admin.js:133), so the middle crumb
+           would have pointed at a 404.
+
+       If a visible trail is ever added to this template, add the node
+       then - and only then. */
+    const jsonLd = sd.scriptTag(sd.pageGraph({
+      url:      `/authors/${author.slug}`,
+      name:     author.name,
+      settings: res.locals.settings,
+      nodes:    [_person],
+    }));
 
     res.render('pages/author', {
       layout:       'layouts/main',
@@ -135,7 +167,7 @@ exports.profile = async (req, res) => {
          while looking correct. */
       noindex:      guides.length === 0,
       style:        '',
-      script:       `<script type="application/ld+json">${jsonLd}</script>`,
+      jsonLd,
       author,
       links,
       guides,

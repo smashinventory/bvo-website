@@ -75,6 +75,37 @@
 <%# On a model page the trail gains a level: the collection becomes a LINK
     and the model is the leaf. Leaving the collection as the leaf would have
     the breadcrumb contradict both the H1 and the canonical. %>
+<%
+  /* ── Structured data ──────────────────────────────────────────────────
+     OnlineStore + WebSite + CollectionPage + BreadcrumbList, built by
+     src/utils/structuredData.js from the sdCtx that collectionsController
+     supplies at all three of its render sites.
+
+     ⚠️ EMITTED HERE, IN THE VIEW, NOT AS THE `script` LOCAL.
+     express-ejs-layouts runs with `layout extractScripts` on
+     (server.js:504) and sets locals.script = '' before refilling it from
+     <script> tags found in this rendered output, so a controller's
+     `script:` value is discarded. Two controllers were already losing
+     their JSON-LD that way.
+
+     ASSEMBLED HERE because only the view knows whether this render is a
+     product listing or model-group mode - the same template serves both,
+     and only one of them has products to put in an ItemList.
+
+     The ItemList is capped inside collectionPage(). A listing page shows
+     48 per page; naming every one of them is noise to a crawler that has
+     the links in the HTML anyway. */
+  var _colNodes = [];
+  if (typeof sd !== 'undefined' && typeof sdCtx !== 'undefined') {
+    var _colItems = (typeof products !== 'undefined' && Array.isArray(products)) ? products : [];
+    _colNodes.push(sd.collectionPage(sdCtx.url, sdCtx.name, _colItems, {
+      description:   sdCtx.description,
+      hasBreadcrumb: true,
+    }));
+  }
+%>
+<% if (typeof sd !== 'undefined' && typeof sdCtx !== 'undefined') { %><%- sd.scriptTag(sd.pageGraph(Object.assign({}, sdCtx, { pageOverride: _colNodes[0] }))) %><% } %>
+
 <div class="breadcrumb">
   <a href="/">Home</a> &rsaquo;
   <a href="/collections">Collections</a> &rsaquo;

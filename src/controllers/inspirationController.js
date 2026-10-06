@@ -15,6 +15,7 @@
 const { bvoPool } = require('../config/database');
 const { STYLE }   = require('../config/filterLandingPages');
 const authors    = require('./authorsController');
+const sd         = require('../utils/structuredData');
 
 /* ── Category groupings for hub page display ──────────────────── */
 const CATEGORIES = [
@@ -490,29 +491,68 @@ exports.guide = async (req, res) => {
     const _pub = _iso(page.published_at);
     const _mod = _iso(page.updated_at);
 
-    const jsonLd = JSON.stringify({
-      '@context':       'https://schema.org',
-      '@type':          'Article',
-      headline:         page.title,
-      description:      page.meta_desc || '',
-      image:            page.og_image || `${siteUrl}/images/og-default.jpg`,
+    /* ⚠️ THIS BLOCK NEVER RENDERED. It was built as a standalone Article
+       object and passed to res.render as `script:`. express-ejs-layouts
+       runs with `layout extractScripts` enabled (server.js:504) and its
+       extractor does `locals.script = ''` and then refills it ONLY from
+       <script> tags found in the rendered view
+       (express-ejs-layouts/lib/express-layouts.js:98-99). Anything a
+       controller passes as `script:` is discarded before the layout sees
+       it.
+
+       So every guide page has been serving with NO structured data at
+       all - no Article, no author, no dates - which is exactly what the
+       owner's SEO audit reported as "No Schema.org data found". The
+       authors work shipped earlier today was invisible to Google.
+
+       Two things change here:
+         1. the tag is emitted by the VIEW (inspiration-guide.ejs) from
+            the `jsonLd` local, so the extractor finds it;
+         2. the Article joins the shared @graph instead of standing
+            alone, so its publisher and author resolve by @id against the
+            one OnlineStore node rather than re-declaring the company.
+
+       The Article's own fields are unchanged - same headline, image,
+       Person author, datePublished and dateModified, all still guarded
+       on presence. */
+    const _article = {
+      '@type':    'Article',
+      '@id':      `${siteUrl}/inspiration/${page.slug}#article`,
+      headline:   page.title,
+      description: page.meta_desc || '',
+      image:      page.og_image || `${siteUrl}/images/og-default.jpg`,
       author: author
         ? {
             '@type': 'Person',
+            '@id':   `${siteUrl}/authors/${author.slug}#person`,
             name:    author.name,
             url:     `${siteUrl}/authors/${author.slug}`,
             ...(author.image_base ? { image: `${siteUrl}${author.image_base}-320.png` } : {}),
           }
-        : { '@type': 'Organization', name: 'BathroomVanitiesOutlet.com' },
+        : sd.ref(sd.ID.organization),
       ...(_pub && !isNaN(_pub) ? { datePublished: _pub.toISOString() } : {}),
       ...(_mod && !isNaN(_mod) ? { dateModified:  _mod.toISOString() } : {}),
-      publisher:        {
-        '@type': 'Organization',
-        name:    'BathroomVanitiesOutlet.com',
-        logo:    { '@type': 'ImageObject', url: `${siteUrl}/images/logos/BVOLOGOSQ_512.png` },
-      },
-      mainEntityOfPage: { '@type': 'WebPage', '@id': `${siteUrl}/inspiration/${page.slug}` },
-    });
+      publisher:        sd.ref(sd.ID.organization),
+      mainEntityOfPage: sd.ref(sd.ID.webPage(`${siteUrl}/inspiration/${page.slug}`)),
+    };
+
+    /* The breadcrumb mirrors the trail already rendered at the top of
+       inspiration-guide.ejs: Home > Inspiration > <title>. Google requires
+       the markup to match what the user sees, and it does because both
+       read the same three values. */
+    const jsonLd = sd.scriptTag(sd.pageGraph({
+      url:          `/inspiration/${page.slug}`,
+      name:         page.title,
+      description:  page.meta_desc || '',
+      primaryImage: page.og_image || null,
+      settings:     res.locals.settings,
+      trail: [
+        { name: 'Home',        url: '/' },
+        { name: 'Inspiration', url: '/inspiration' },
+        { name: page.title },
+      ],
+      nodes: [_article],
+    }));
 
     res.render('pages/inspiration-guide', {
       layout:            'layouts/main',
@@ -520,7 +560,7 @@ exports.guide = async (req, res) => {
       metaDesc:          page.meta_desc || '',
       canonicalUrl:      `${siteUrl}/inspiration/${page.slug}`,
       style:             '',
-      script:            `<script type="application/ld+json">${jsonLd}</script>`,
+      jsonLd,
       page,
       related,
       shopProducts,

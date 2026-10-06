@@ -1,4 +1,16 @@
 <link rel="stylesheet" href="/css/site3.css?v=31"><!-- site3: injected per-page (perf) -->
+<%/* ── Structured data ──────────────────────────────────────────────────
+     OnlineStore + WebSite + WebPage + Person, from authorsController.
+
+     ⚠️ EMITTED HERE, NOT PASSED AS `script`. This page previously passed
+     its Person JSON-LD to res.render as `script:` and it NEVER REACHED
+     THE PAGE - express-ejs-layouts runs with `layout extractScripts` on
+     (server.js:504) and sets locals.script = '' before refilling it from
+     <script> tags found in this rendered output.
+
+     No BreadcrumbList: this template renders no visible trail, and there
+     is no public /authors index to link to. */%>
+<% if (typeof jsonLd !== 'undefined' && jsonLd) { %><%- jsonLd %><% } %>
 <%
   /* The image is stored as a BASE path (/images/authors/sam-nazer) and the
      four real files hang off it: -160/-320 in webp and png. Serving a real

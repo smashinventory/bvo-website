@@ -1,3 +1,23 @@
+<%/* ── Structured data ──────────────────────────────────────────────────
+     The site's root identity graph: OnlineStore, WebSite, WebPage, built
+     by src/utils/structuredData.js and passed in by homeController.
+
+     ⚠️ IT IS EMITTED HERE, IN THE VIEW, AND NOT PASSED AS THE `script`
+     LOCAL. express-ejs-layouts runs with `layout extractScripts` enabled
+     (server.js:504). Its extractor sets locals.script = '' and then
+     refills it ONLY from <script> tags found in this rendered output, so
+     anything a controller passes as `script:` is discarded before the
+     layout ever sees it. Emitting the tag here means the extractor finds
+     it and joins it with this page's own four scripts.
+
+     No nonce, matching the existing ld+json blocks in product.ejs:
+     application/ld+json is data rather than executable script, and the
+     CSP script-src is not applied to it by browsers.
+
+     Guarded on typeof because index.ejs is also rendered by the Theme
+     Editor preview path, which does not go through homeController. An
+     undefined local is a hard EJS error, not an empty string. */%>
+<% if (typeof jsonLd !== 'undefined' && jsonLd) { %><%- jsonLd %><% } %>
 <%/* site3.css is loaded per-page via the layout's style slot, not globally.
      On THIS page everything it styles is below the fold — the featured-card
      save badge (~L684) and the whole hp-inspo block (~L901-932). Audited

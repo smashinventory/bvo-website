@@ -158,6 +158,43 @@ exports.add = async (req, res) => {
     return res.redirect('/cart');
   }
 
+  /* ── NOTHING WITH NO PRICE GETS INTO A CART ──────────────────────────
+     A standing commercial control, not a response to a live defect: as of
+     2026-10-05 all 6,059 active products carry a real price and none is
+     null, zero or negative. This exists so that the day someone adds a
+     product and forgets the price, the site cannot take an order for it.
+
+     ⚠️ THE LINE ABOVE IS WHY THIS IS NEEDED. `parseFloat(rows[0].price)
+     || 0` turns a NULL price into the NUMBER 0, so an unpriced row does
+     not error - it silently becomes free and is perfectly addable. The
+     coercion that makes the rest of the handler safe is the same one that
+     would hand away stock.
+
+     NO EXEMPTION FOR SAMPLES, deliberately. All 69 samples carry a real
+     price (they are $10); the free-sample promotion discounts the two
+     most expensive UNITS IN THE CART inside cartPricing.js, after this
+     point. So a sample reaching here at zero is itself a defect, and
+     blocking it is right. Adding an is_sample bypass would open the exact
+     hole this closes.
+
+     Fails CLOSED and says little: the customer gets a neutral message
+     rather than "this product has no price", which is an invitation.
+     The real reason goes to the log for whoever has to fix the data. */
+  if (!Number.isFinite(pricef) || pricef <= 0) {
+    console.error(
+      `[cart/add] BLOCKED: product_id=${product_id} has a non-positive price ` +
+      `(${pricef}). A product is live with no usable price - fix the catalogue row.`
+    );
+    if (req.headers['x-requested-with'] === 'XMLHttpRequest' ||
+        req.headers.accept?.includes('application/json')) {
+      return res.status(400).json({
+        ok: false,
+        error: 'This item is not available to order right now. Please contact us and we will help.',
+      });
+    }
+    return res.redirect('/cart');
+  }
+
   const qty = Math.min(99, Math.max(1, parseInt(rawQty || '1', 10) || 1));
 
   // Validate bundle discount is exactly one of the allowed tier values (0, 5, 10, 15%).
@@ -229,6 +266,45 @@ exports.update = (req, res) => {
   } else {
     const item = cart.items.find(i => i.product_id === product_id);
     if (item) item.qty = qty;
+  }
+
+  /* ── BELT AND BRACES ON THE $0 RULE ──────────────────────────────────
+     cart/add refuses to put a non-positive price in the cart, which is
+     the control that matters. This is the second line: a line item can
+     reach this handler at zero WITHOUT ever passing through that check.
+
+     Two ways it happens, neither hypothetical:
+       * a session that predates the add-guard, still live in the session
+         store, carrying an item priced before anyone was looking;
+       * a product that was correctly priced when it was added and has
+         since been edited to zero. The add-guard ran, and passed, before
+         the mistake existed.
+
+     Quantity changes are the moment to re-check, because that is the
+     customer actively moving toward checkout with that line.
+
+     Removed rather than zero-priced: leaving it visible at $0 invites
+     the order this exists to prevent. Logged with the product id so the
+     catalogue row can be fixed.
+
+     ⚠️ Number() FIRST. Cart lines are session JSON, so a price can come
+     back as the STRING "0.00", which is truthy. A bare `!item.price`
+     check would pass it straight through. */
+  const _zeroLines = cart.items.filter(i => {
+    const p = Number(i && i.price);
+    return !Number.isFinite(p) || p <= 0;
+  });
+  if (_zeroLines.length) {
+    _zeroLines.forEach(l => console.error(
+      `[cart/update] DROPPED zero-priced line: product_id=${l.product_id} ` +
+      `price=${l.price} - a live product has no usable price, fix the catalogue row.`
+    ));
+    const _drop = new Set(_zeroLines.map(l => l.product_id));
+    cart.items = cart.items.filter(i => !_drop.has(i.product_id));
+    /* Bundle-mates lose their discount, same as any other removal. */
+    _zeroLines.forEach(l => {
+      if (l.bundle_discount_pct > 0) stripBundleGroup(cart, l.bundle_id);
+    });
   }
 
   recalc(cart);

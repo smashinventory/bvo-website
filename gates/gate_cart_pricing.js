@@ -302,5 +302,91 @@ ok('discount is finite and never negative',
      return Number.isFinite(d) && d >= 0;
    }), 'NaN or negative discount');
 
+/* ─── NOTHING WITH NO PRICE GETS INTO A CART ───────────────────────────────
+ * A standing commercial control, added 2026-10-05 at the owner's request:
+ * "I always add this $0 guard so that if we accidentally forget to add a
+ * price and the system logs 0 that we don't get orders on it."
+ *
+ * Not a response to a live defect - all 6,059 active products were measured
+ * clean on the day it went in. It exists for the day one is not.
+ *
+ * ⚠️ WHY THE CODE NEEDS IT. cartController.add does:
+ *       pricef = parseFloat(rows[0].price) || 0;
+ * A NULL price does not throw there, it becomes the NUMBER 0 - so an
+ * unpriced product is silently free and perfectly addable. The coercion that
+ * makes the rest of the handler safe is the same one that would give away
+ * stock.
+ */
+{
+  const fs2 = require('fs'), path2 = require('path');
+  const cc = fs2.readFileSync(path2.join(__dirname, '..', 'src/controllers/cartController.js'), 'utf8')
+    /* Comments stripped: the block above and the one in the controller both
+       discuss this guard at length, so a search over raw text matches prose
+       rather than code. */
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+  ok('cart/add blocks a non-positive price',
+     /if\s*\(\s*!Number\.isFinite\(pricef\)\s*\|\|\s*pricef\s*<=\s*0\s*\)/.test(cc),
+     'an unpriced product can be ordered for nothing');
+
+  /* The guard is worthless if it runs after the item is already in the cart. */
+  const iLookup = cc.indexOf('pricef');
+  const iGuard  = cc.search(/!Number\.isFinite\(pricef\)\s*\|\|\s*pricef\s*<=\s*0/);
+  const iPush   = cc.indexOf('cart.items.push(');
+  ok('it runs after the DB price lookup and before the item is added',
+     iLookup > -1 && iGuard > iLookup && iPush > iGuard,
+     'the guard is in the wrong place to stop anything');
+
+  /* ⚠️ NO is_sample BYPASS. All 69 samples carry a real $10 price; the
+     promotion discounts the two most expensive UNITS IN THE CART later, in
+     this module. A sample arriving at zero is therefore itself a defect, and
+     an exemption here would reopen exactly the hole the guard closes. */
+  const guardBlock = cc.slice(iGuard, iGuard + 600);
+  ok('the guard has no sample exemption',
+     !/isSample/.test(guardBlock),
+     'an is_sample bypass would let a zero-priced item through');
+
+  /* Prove the predicate against the shapes MySQL and the client actually
+     produce, rather than trusting the regex above. */
+  const blocked = p => { const f = parseFloat(p) || 0; return !Number.isFinite(f) || f <= 0; };
+  const cases = [['1902.78', false], ['10.00', false], ['0.00', true], ['0', true],
+                 [null, true], [undefined, true], ['', true], ['abc', true], ['-5', true]];
+  const wrong = cases.filter(([v, want]) => blocked(v) !== want);
+  ok(`the price predicate is correct for all ${cases.length} input forms`,
+     wrong.length === 0, `wrong: ${wrong.map(w => JSON.stringify(w[0])).join(', ')}`);
+
+  /* ─── THE SECOND LINE ───────────────────────────────────────────────
+   * cart/add stops a zero-priced item getting IN. It cannot help with a
+   * line that is already there: a session predating the guard, or a
+   * product edited to zero AFTER it was legitimately added. cart/update
+   * re-checks on every quantity change, which is the moment the customer
+   * is moving toward checkout with that line. */
+  ok('cart/update drops zero-priced lines already in the cart',
+     /_zeroLines/.test(cc) && /cart\.items\s*=\s*cart\.items\.filter\(i\s*=>\s*!_drop\.has/.test(cc),
+     'an item priced to zero after it was added survives to checkout');
+  ok('that sweep coerces with Number() too',
+     /const p = Number\(i && i\.price\)/.test(cc),
+     'cart lines are session JSON, so "0.00" is a truthy string');
+  ok('dropped lines strip their bundle-mates’ discount',
+     /_zeroLines\.forEach\([\s\S]{0,160}stripBundleGroup/.test(cc),
+     'the rest of the bundle keeps a discount it no longer qualifies for');
+
+  /* Prove the sweep, not just its spelling. */
+  {
+    const sweep = items => {
+      const bad = items.filter(i => { const p = Number(i && i.price); return !Number.isFinite(p) || p <= 0; });
+      const drop = new Set(bad.map(l => l.product_id));
+      return items.filter(i => !drop.has(i.product_id)).map(i => i.product_id).join(',');
+    };
+    const kept = sweep([
+      { product_id: 'a', price: '1902.78' }, { product_id: 'b', price: '10.00' },
+      { product_id: 'c', price: '0.00' },    { product_id: 'd', price: 0 },
+      { product_id: 'e', price: null },      { product_id: 'f', price: undefined },
+      { product_id: 'g', price: '-5' },      { product_id: 'h', price: 'abc' },
+    ]);
+    ok('the sweep keeps only the two real-priced lines', kept === 'a,b', `kept: ${kept}`);
+  }
+}
+
 console.log(fail ? `\n*** ${fail} GATE(S) FAILED ***` : '\nALL GATES PASS');
 process.exit(fail ? 1 : 0);

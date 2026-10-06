@@ -24,6 +24,7 @@
  * ───────────────────────────────────────────────────────────────────── */
 
 
+const sd                                                = require('../utils/structuredData');
 const Category                                          = require('../models/Category');
 const Product                                           = require('../models/Product');
 const Customer                                          = require('../models/Customer');
@@ -75,6 +76,50 @@ const mk = r => `${r.model}||${r.brand}`;
  * Returns page numbers with null for ellipsis gaps.
  * e.g. page=16, pages=177 → [1, null, 14, 15, 16, 17, 18, null, 177]
  */
+/**
+ * Structured-data context for a collection render.
+ *
+ * ⚠️ ONE HELPER, THREE CALL SITES. pages/collection is rendered from three
+ * places in this file - the sale pseudo-category, model-group mode, and the
+ * main listing - and each passes a different shape. Writing the trail out
+ * three times is how two of them end up subtly different six months from
+ * now, which is the pattern catalogued in docs/briefs/ONE_OFF_PATTERNS.md.
+ *
+ * THE TRAIL MIRRORS THE VISIBLE ONE in views/pages/collection.ejs:78-87 -
+ * Home > Collections > <category>, with the category becoming a link and
+ * the model label taking the last place when modelSeo is set. Google
+ * requires BreadcrumbList to match what the user sees, so both read the
+ * same two values rather than being written twice.
+ *
+ * @param {object} res        for res.locals.settings (sameAs)
+ * @param {object} category   the category row, or the sale pseudo-category
+ * @param {string} canonical  the page's OWN canonical, so the WebPage @id
+ *                            agrees with the canonical tag. The filter
+ *                            landing pages set this deliberately; deriving a
+ *                            URL here instead would disagree with them.
+ * @param {object} modelSeo   present only on model-scoped listings
+ */
+function sdCollectionCtx(res, category, canonical, modelSeo) {
+  const name = modelSeo ? modelSeo.label : (category && category.name) || 'Collections';
+  const trail = [
+    { name: 'Home',        url: '/' },
+    { name: 'Collections', url: '/collections' },
+  ];
+  if (modelSeo && category && category.slug) {
+    trail.push({ name: category.name, url: `/collections/${category.slug}` });
+    trail.push({ name: modelSeo.label });
+  } else {
+    trail.push({ name: (category && category.name) || 'Collections' });
+  }
+  return {
+    url:         canonical || '/collections',
+    name,
+    description: (category && (category.meta_desc || category.description)) || '',
+    settings:    res.locals.settings,
+    trail,
+  };
+}
+
 function buildPageWindow(page, pages) {
   if (pages <= 9) return Array.from({ length: pages }, (_, i) => i + 1);
   const out = [1];
@@ -127,6 +172,8 @@ exports.show = async (req, res, next) => {
       });
       const products = Array.isArray(saleRows[0]) ? saleRows[0] : saleRows;
       return res.render('pages/collection', {
+        sd,
+        sdCtx: sdCollectionCtx(res, { slug: 'sale', name: 'Sale' }, '/collections/sale', null),
         pageTitle:    'Sale | BathroomVanitiesOutlet.com',
         metaDesc:     'Shop discounted bathroom vanities, mirrors, faucets and accessories.',
         category:     { id: null, slug: 'sale', name: 'Sale', description: 'Discounted products — limited time offers', meta_title: 'Sale', meta_desc: '' },
@@ -681,6 +728,8 @@ exports.show = async (req, res, next) => {
       const mgNoindex = mgFilterCount >= 2;
 
       return res.render('pages/collection', {
+        sd,
+        sdCtx: sdCollectionCtx(res, category, mgCanonicalUrl, null),
         pageTitle:    `${category.meta_title || category.name} | BathroomVanitiesOutlet.com`,
         metaDesc:     category.meta_desc || category.description || '',
         canonicalUrl: mgCanonicalUrl,
@@ -1377,6 +1426,8 @@ exports.show = async (req, res, next) => {
       : canonicalUrl;
 
     res.render('pages/collection', {
+      sd,
+      sdCtx: sdCollectionCtx(res, category, effectiveCanonical, _modelSeo),
       pageTitle:    _modelSeo ? _modelSeo.title
                   : _landing  ? _landing.title
                               : `${category.meta_title || category.name} | BathroomVanitiesOutlet.com`,
