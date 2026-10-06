@@ -36,7 +36,8 @@ exports.index = async (req, res, next) => {
        empty q, where the shopper reached /search with no term at all. */
     const popular = result.total === 0 ? await fetchPopular(bvoPool, 8) : [];
 
-    const siteUrl = `${req.protocol}://${req.get('host')}`;
+    /* Role A — canonical/og host comes from config, never the request. */
+    const siteUrl = require('../utils/siteUrl').base();
 
     res.render('pages/search', {
       layout:    'layouts/main',

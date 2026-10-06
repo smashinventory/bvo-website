@@ -61,6 +61,10 @@ git_push_swatches_and_samples.sh
 _to_delete/
 instant
 git_amend_*.sh
+# git_rollback_*.sh is the undo twin of a push script — same kind of one-off
+# operational file, not part of the codebase. The durable record of HOW to
+# roll a change back lives in docs/, not in a shell script that may be absent.
+git_rollback_*.sh
 
 # Local pre-change CSS backups (2026-09-29). Git history is the real
 # backup; these exist so a rollback needs no git knowledge.

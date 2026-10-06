@@ -393,8 +393,13 @@ exports.verifyCode = async (req, res, next) => {
       const secureToken = await authCode.issueSecureToken(email, clientIp(req));
       if (secureToken) {
         const label = require('../utils/deviceLabel')(req.get('user-agent'));
-        const secureUrl = `${req.protocol}://${req.get('host')}`
-                        + `/account/secure?t=${encodeURIComponent(secureToken)}`;
+        /* Role A — the site's canonical name, NOT the request host.
+           This link goes into an outbound security email; building it from
+           req.get('host') would mail a link to whatever hostname the
+           sign-in arrived on (apex, the hostingersite temp domain, or an
+           injected Host header). See utils/siteUrl.js. */
+        const secureUrl = require('../utils/siteUrl')
+          .url(`/account/secure?t=${encodeURIComponent(secureToken)}`);
         const mail = newDeviceEmail({
           email, deviceLabel: label,
           when: signInTimeLabel(), secureUrl,

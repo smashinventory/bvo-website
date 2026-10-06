@@ -169,7 +169,7 @@ exports.show = async (req, res, next) => {
       product.savingsPct = Math.round((1 - product.price / product.compare_price) * 100);
     }
 
-    const siteUrl     = process.env.SITE_URL || 'https://bathroomvanitiesoutlet.com';
+    const siteUrl     = require('../utils/siteUrl').base();
     const canonicalUrl = `${siteUrl}/products/${product.slug}`;
 
     const isFavorited = req.session.customerId

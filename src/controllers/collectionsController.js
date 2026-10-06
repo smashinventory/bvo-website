@@ -719,7 +719,7 @@ exports.show = async (req, res, next) => {
       const mgOffset = (mgPage - 1) * MODELS_PER_PAGE;
       const mgPaged  = mgModels.slice(mgOffset, mgOffset + MODELS_PER_PAGE);
 
-      const mgSiteUrl      = process.env.SITE_URL || 'https://bathroomvanitiesoutlet.com';
+      const mgSiteUrl      = require('../utils/siteUrl').base();
       const mgCanonicalUrl = `${mgSiteUrl}/collections/${slug}`;
       const mgFilterCount  = (mgActiveSizes.length > 0 ? 1 : 0)
                            + (mgActiveBrands.length > 0 ? 1 : 0)
@@ -1092,7 +1092,7 @@ exports.show = async (req, res, next) => {
     );
 
     // ── SEO ───────────────────────────────────────────────────────
-    const siteUrl      = process.env.SITE_URL || 'https://bathroomvanitiesoutlet.com';
+    const siteUrl      = require('../utils/siteUrl').base();
     const canonicalUrl = `${siteUrl}/collections/${slug}`;
 
     const activeFilterGroupCount = [

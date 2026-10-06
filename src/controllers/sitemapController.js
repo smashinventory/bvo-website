@@ -21,7 +21,7 @@ const Product     = require('../models/Product');
  *   - Priority is relative: homepage 1.0 > collections 0.8 > products 0.6
  */
 exports.xml = async (req, res) => {
-  const siteUrl = process.env.SITE_URL || 'https://bathroomvanitiesoutlet.com';
+  const siteUrl = require('../utils/siteUrl').base();
   /* A `today` constant lived here and is deliberately gone. Nothing in a
      sitemap should be dated from the clock — every <lastmod> now comes from a
      row's updated_at, or from the newest child for an index page, or is

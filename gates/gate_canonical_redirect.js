@@ -163,10 +163,22 @@ console.log('\n--- server.js is wired to this module ---');
      'a duplicate rule next to the module is a rule that will drift');
 
   /* CANONICAL_HOST is what gets passed in, so it has to be the www form
-     or the redirect points at the wrong place with every test still green. */
-  ok('CANONICAL_HOST derives from SITE_URL with a www fallback',
-     /CANONICAL_HOST\s*=\s*\(process\.env\.SITE_URL\s*\|\|\s*['"]https:\/\/www\./.test(s),
-     'a non-www fallback would 301 www → apex, the exact inverse of the intent');
+     or the redirect points at the wrong place with every test still green.
+
+     ASSERT THE VALUE, NOT THE SPELLING. This used to regex server.js for
+     `CANONICAL_HOST = (process.env.SITE_URL || 'https://www.` — which went
+     red the moment the literal was replaced by utils/siteUrl, even though
+     the resolved host was identical. That is the fifth spelling-pin on this
+     project. Resolve the host and check it. */
+  const canonicalHost = require('../src/utils/siteUrl').host({});
+  ok('the canonical host resolves to the www form',
+     canonicalHost.startsWith('www.'),
+     `resolved "${canonicalHost}" — a non-www host would 301 www -> apex, `
+     + 'the exact inverse of the intent');
+  ok('server.js takes CANONICAL_HOST from the shared module, not a literal',
+     /CANONICAL_HOST\s*=[\s\S]{0,120}?siteUrl/.test(s) &&
+     !/CANONICAL_HOST\s*=\s*\(?\s*process\.env\.SITE_URL\s*\|\|/.test(s),
+     'a second host literal is how the two-host split happened the first time');
 }
 
 /* ═══ 5. THE ROBOTS ROUTE STILL CLOSES NON-CANONICAL HOSTS ══════════

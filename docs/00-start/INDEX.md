@@ -101,6 +101,15 @@ line — add one to the top of that file, under its H1, then reindex.
 | `docs/history/JOURNAL_2026-08-29.md` | Work journal, 29 Aug 2026. |
 | `docs/history/VANITY_MODELS_CUTOVER_NOTES.md` | Notes from the vanity models cutover. |
 
+## ⚠ UNFILED — these folders are not in the section list
+
+Either move them into an existing section, or add the folder to
+`SECTIONS` in `reindex.js`.
+
+| Document | Purpose |
+|---|---|
+| `docs/MODEL_DESCRIPTIONS_PREVIEW.md` | ⚠ NO DESCRIPTION — titled "Model descriptions - preview" |
+
 ---
 
 ## WHERE NEW NOTES GO

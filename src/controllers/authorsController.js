@@ -77,7 +77,7 @@ exports.byId   = byId;
 exports.sameAsList = sameAsList;
 
 exports.profile = async (req, res) => {
-  const siteUrl = process.env.SITE_URL || 'https://www.bathroomvanitiesoutlet.com';
+  const siteUrl = require('../utils/siteUrl').base();
 
   try {
     const author = await bySlug(req.params.slug);

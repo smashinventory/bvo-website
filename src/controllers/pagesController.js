@@ -281,7 +281,7 @@ exports.publicPage = async (req, res) => {
       });
     }
 
-    const siteUrl = process.env.SITE_URL || 'https://bathroomvanitiesoutlet.com';
+    const siteUrl = require('../utils/siteUrl').base();
 
     res.render('pages/cms-page', {
       layout:       'layouts/main',

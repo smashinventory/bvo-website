@@ -253,7 +253,7 @@ function returnOrigin(req) {
 
   console.warn('[checkout] unrecognised Host header:', host,
     '— falling back to SITE_URL. Add it to ALLOWED_RETURN_HOSTS if legitimate.');
-  return (process.env.SITE_URL || 'https://www.bathroomvanitiesoutlet.com')
+  return (require('../utils/siteUrl').base())
     .replace(/\/+$/, '');
 }
 
@@ -2125,7 +2125,7 @@ function sendConfirmation(order, items, confirmToken) {
      confirm. Mail scanners follow links — Gmail's "Loaded by proxy"
      shows against our own messages in Brevo's log — and a scanner that
      auto-confirmed would destroy the only signal this flag carries. */
-  const base = (process.env.SITE_URL || 'https://www.bathroomvanitiesoutlet.com')
+  const base = (require('../utils/siteUrl').base())
     .replace(/\/+$/, '');
   const confirmHtml = confirmToken
     ? `<div style="border:1px solid #e5e0d8;border-radius:8px;padding:18px 20px;margin:0 0 24px;background:#faf8f5">

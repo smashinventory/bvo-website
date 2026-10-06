@@ -108,7 +108,7 @@ const CATEGORIES = [
  * Renders the inspiration hub — a curated grid of all 50 guides.
  */
 exports.hub = async (req, res) => {
-  const siteUrl = process.env.SITE_URL || 'https://bathroomvanitiesoutlet.com';
+  const siteUrl = require('../utils/siteUrl').base();
 
   try {
     const [pages] = await bvoPool.query(
@@ -283,7 +283,7 @@ function _slugToShopMeta(slug) {
  */
 exports.guide = async (req, res) => {
   const { slug } = req.params;
-  const siteUrl  = process.env.SITE_URL || 'https://bathroomvanitiesoutlet.com';
+  const siteUrl  = require('../utils/siteUrl').base();
 
   try {
     /* ⚠️ THE COLUMNS MAY NOT EXIST YET, AND THAT MUST NOT 500 THE PAGE.

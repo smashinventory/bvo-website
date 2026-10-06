@@ -1253,6 +1253,141 @@ not proposed.
 - `docs/00-start/VERIFY_QUEUE.md` — the feed is pushed and live but not yet
   seen working by Sam beyond the counts; belongs there.
 
+### 21. The same job is done more than one way, in seven places
+*Logged 2026-10-06 · full-codebase audit · read-only, nothing changed*
+
+**This is item 20 again, one level up.** Item 20 found two maps deriving one
+fact. This found the same shape across the codebase: **the shared helper
+usually already exists and is ignored.** The duplication is not a missing
+abstraction — it is each new piece of work being copied from whichever file
+was nearest. Rule 8 and Rule 10 in `BVO_AUDIT_BRIEF.md` are the governing
+rules; Rule 10 now carries the code-level extension.
+
+Measured on git-tracked files only — 27 controllers, 19 utils, 15 services,
+5 models, 11 routes, 8 jobs, 79 views, 49 gates, ~68,500 lines. `*.bak*` and
+`*-1.js` excluded; including them inflated the first pass badly.
+
+**Nothing here is user-visible and nothing is urgent.** It is logged so the
+next piece of work is built from the helpers instead of from its neighbour.
+
+#### 21a. The two that carry real bug-class risk
+
+**Slugify — 15 implementations, 7 different rules.** In
+`config/pathFilters.js`, `adminController` (x5), `authorsController`,
+`inspirationController`, `importHuntingtonBrass`, `importJamesMartinFeed`,
+`services/rflposSync`, and four templates (`category-edit`, `product-edit`,
+`collection`, `index`).
+
+| rule | count |
+|---|---|
+| `[^a-z0-9]+/g` -> `-`, trim `^-\|-$` | 4 |
+| `[^a-z0-9]+/g` -> `-`, trim `^-+\|-+$` | 4 |
+| `[^a-z0-9]/gi` -> `-`, then `.toLowerCase()` | 3 |
+| as #1, no spaces in source | 1 |
+| as #2 plus `.slice(0, 120)` | 1 |
+| trailing trim only | 1 |
+| no trim at all | 1 |
+
+These produce **different slugs for the same input**. Without the `+`,
+`"60 - inch"` becomes `60---inch`; with it, `60-inch`. The `/gi` variants
+lowercase *after* substituting. `^-|-$` strips one leading dash, `^-+|-+$`
+strips all. Slugs are permanent URLs, so a product saved through the admin
+form and the same product written by the importer can disagree, and the
+disagreement surfaces as a 404 or a duplicate-content pair weeks later.
+
+Fix is `src/utils/slug.js`, one function, every caller routed through it,
+plus a gate forbidding that regex shape elsewhere. **The helper must adopt
+the dominant existing behaviour exactly** — the migration is "call the
+helper", not "normalise the output" — and it needs a before/after slug diff
+over the real catalogue before anything ships. Effort small, risk moderate.
+
+**The product card is written five times.** `index.ejs`, `collection.ejs`,
+`search.ejs`, `product.ejs`, `account/favorites.ejs`. There are five partials
+in the whole project (`header`, `footer`, `cart-drawer`, `checkout-steps`,
+`wwex-env-banner`) and none is a card.
+
+This has already cost real work three times: the badge-inside-the-anchor fix,
+the inverted image structure, and the card-framing rules each had to be
+applied per copy. **`gate_card_anchors`, `gate_card_badge_anchor` and
+`gate_card_framing` exist purely to keep the five copies in sync — a test
+suite standing in for a partial.** A gate is the right tool for a decision
+that could be undone (the typography revert, the `script:` trap); it is the
+wrong tool for keeping copies honest. Fix is
+`views/partials/product-card.ejs` taking a normalised item; it retires three
+gates. Effort medium, risk medium — visible markup on the pages that make
+money, so it wants doing alone with screenshots, never bundled.
+
+#### 21b. Inconsistency where a helper is already available
+
+| what | where | fix | risk |
+|---|---|---|---|
+| `process.env.SITE_URL \|\| '…'` | 11 files — `server.js` (x3), `inspirationController` (x2), `collectionsController` (x2), `checkoutController` (x2), + `sitemapController`, `productsController`, `pagesController`, `lookbookController`, `bundleController`, `authorsController`, `utils/structuredData.js` | export it from `structuredData.js`, already imported by 5 files | **very low** |
+| primary-image `COALESCE(p.primary_image_url, (SELECT url FROM product_images …))` | 17 occurrences / 10 files — `models/Product.js` (x4), `homeController` (x3), `utils/modelHero` (x2), `services/searchService` (x2), + `routes/search`, `models/Customer`, `jobs/searchSync`, `inspirationController`, `collectionsController`, `adminController` | one exported `PRIMARY_IMAGE_SQL` fragment | low, but **touches product queries — needs explicit sign-off under the standing filtering rule** |
+| `canonicalUrl` assembly | 10 files — `collectionsController` (x3), `inspirationController` (x2), + `productsController`, `pagesController`, `lookbookController`, `bundleController`, `authorsController`, `searchPageController`, `main.ejs`, `server.js` | `canonicalFor(req, opts)` | medium — SEO-critical, and `gate_filter_landing_pages` + `gate_canonical_redirect` both constrain it. Deliberately or not at all |
+| two DB idioms: `safeQuery` (9 files) vs `bvoPool.query` (36) | **six controllers use both** — `adminController`, `jmvReportsController`, `ordersController`, `productsController`, `returnsController`, `shippingController` | route through `src/db/query.js`, which exists | low per site, broad — in slices by controller, never one commit |
+
+`safeQuery` wraps errors and the raw pool does not, so inside one controller
+one failing query is handled and the next takes a different path. Invisible
+until something fails.
+
+#### 21c. Cosmetic — only if already in the file
+
+- **Money formatting.** `toFixed(2)` in 25 files, `toLocaleString('en-US')`
+  in 33, `parseFloat` in 43, no `Intl.NumberFormat` anywhere. Consistent in
+  practice; fixes no known bug.
+- **Width rounding / size bucketing** in 10 files. `config/sizeBuckets.js`
+  exists. **This is filter logic — not to be touched without a specific
+  decision.**
+- **Controller error handling.** `next(err)` in 13 files,
+  `res.status(500).render('pages/error')` in 8. Both defensible, not the same
+  contract.
+
+#### 21d. The homepage case, in detail
+
+Seventeen sections in `index.ejs` each re-derive what the shared helper
+already provides — the pattern of 21 in one file, and where it was first
+noticed. Same conclusion, no separate action.
+
+#### 21e. What is already shared and working
+
+The picture is not uniformly bad. `structuredData` (5 importers) ·
+`searchQuery` (4) · `modelKey`, `modelHero`, `deliveryLocation`, `cdnUrl`,
+`cartPricing`, `cardBadge` (3 each) · `stripeKeys`, `modelScope`,
+`breakpoints`, `addressKey`, `deviceLabel`, `seoDefaults` (2 each).
+
+Five have exactly one importer — `googleProductCategory`, `fontStacks`,
+`cardFraming`, `canonicalRedirect`, `addressProvenance` — either
+single-purpose by design or built and never adopted. Not a problem alone.
+
+#### 21f. Order, if this gets scheduled
+
+1. **`SITE_URL` constant** — trivial, zero risk, removes 11 copies.
+2. **`utils/slug.js`** — highest bug-class risk. Catalogue slug diff first.
+3. **`product-card.ejs`** — biggest ongoing cost, retires three gates. Alone,
+   with screenshots.
+4. **One DB idiom** — in slices, by controller.
+5. **Primary-image SQL fragment** — only with sign-off.
+6. Tier 21c — only when touching those files anyway.
+
+#### 21g. `mount_type` importer defect — found during the same pass
+
+`mount_type` is single-valued in `product_attribute_values` (4,784 rows /
+4,784 products) while `style` is correctly multi-valued (6,312 / 4,854). A
+vanity offered both floating and floor-standing can only carry one, so the
+importer writes whichever it derives first and the sidebar under-reports.
+Sam's instruction on 2026-10-05 was **"this is not a core issue, use best
+effort and move on"** — logged, not scheduled. Fix belongs in the importer
+(Rule 8), never downstream.
+
+#### 21h. Housekeeping, separate from the above
+
+- **50 `*.bak*` files, 31,574 lines** in the working tree. All gitignored so
+  the repo is clean, but they are indistinguishable from live files when
+  grepping and they inflated the first pass of this audit. Delete or move to
+  one folder.
+- **`typescript`** — stray file at repo root, untracked. Delete.
+- `node docs/00-start/reindex.js` — still owed from 20g, and again here.
+
 ---
 
 ## Cutover — completed 2026-09-30 ~02:00, verified

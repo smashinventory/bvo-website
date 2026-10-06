@@ -87,6 +87,40 @@ Every piece of product data has exactly one authoritative DB field. No code — 
 
 **Violation example (corrected July 2026):** JM feed wrote width to EAV `size_in`; the collection sidebar read from EAV; `homeController` read from `products.width_in`; `vanity-models` route read from EAV. Three paths for one fact. Fixed by: migrating all 4237 products to `products.width_in`, switching all reads to `width_in`, updating the JM importer to write `width_in`.
 
+#### Rule 10 applies to methods, not only to fields
+
+The rule above governs *data*: one canonical DB field per fact. It governs
+*code* the same way. **No new method for a job that already has one.** Before
+writing a helper, a formatter, a validator, a query fragment or a block of
+markup, find the existing one and use it. If the existing one is wrong, fix it
+in place — never write a second one beside it and leave both.
+
+```
+grep -rn "<the concept>" src/utils src/config src/services views/partials
+```
+
+`src/utils/` has 19 modules and `views/partials/` has 5. Look there first. A
+second module that does 80% of the same job is the failure, not the fix.
+
+Sam's standing rule, stated across many sessions. Recorded here 2026-10-06
+because it had only ever been said in chat, and because the measured scale is
+in `OPEN_ITEMS.md` item 21: **slugify written 15 times under 7 different
+rules** (which produce different slugs for the same input, and slugs are
+permanent URLs), **the product card written 5 times** with three gates
+existing purely to keep the copies in sync, `SITE_URL` in 11 files, the
+image `COALESCE` in 10, `canonicalUrl` in 10.
+
+⚠️ `src/utils/structuredData.js` was created on 2026-10-05 — correctly, as the
+single source for JSON-LD — and declared `process.env.SITE_URL || '…'` for the
+**eleventh** time, hours after the eleventh copy had been catalogued as a
+defect in that same session. Knowing the rule is not the same as checking.
+Run the grep.
+
+Where duplication would be expensive — slugs, cards — the durable fix is a
+gate asserting the condition, not a paragraph asking nicely (Rule 14 bounds
+what a gate can check).
+
+
 ### Rule 9 — Code Must Be Self-Documenting
 
 Every file must have a header comment explaining:

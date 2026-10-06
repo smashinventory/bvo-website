@@ -420,8 +420,7 @@ app.use('/images/uploads', express.static(uploadDir, {
 // The canonical host must be open, or the migration is invisible. Deciding
 // per-request means there is nothing to remember on cutover day: the same
 // deploy serves the right file on both hosts, and DNS flips the behaviour.
-const CANONICAL_HOST = (process.env.SITE_URL || 'https://www.bathroomvanitiesoutlet.com')
-  .replace(/^https?:\/\//, '').replace(/\/+$/, '').toLowerCase();
+const CANONICAL_HOST = require('./utils/siteUrl').host();
 
 /* ── Canonical host redirect — apex → www ─────────────────────────
  *
@@ -446,7 +445,7 @@ app.use((req, res, next) => {
 
 app.get('/robots.txt', (req, res) => {
   const host = String(req.hostname || '').toLowerCase();
-  const siteUrl = process.env.SITE_URL || 'https://www.bathroomvanitiesoutlet.com';
+  const siteUrl = require('./utils/siteUrl').base();
   res.type('text/plain');
   res.setHeader('Cache-Control', 'public, max-age=300');
 
@@ -622,7 +621,7 @@ app.use((req, res, next) => {
   res.locals.pageTitle  = 'BathroomVanitiesOutlet.com';
   res.locals.metaDesc   = 'Premium bathroom vanities, mirrors, faucets and accessories at outlet prices. Free shipping on all orders.';
   // SEO defaults — controllers override these as needed
-  const siteUrl = process.env.SITE_URL || 'https://bathroomvanitiesoutlet.com';
+  const siteUrl = require('./utils/siteUrl').base();
   res.locals.siteUrl      = siteUrl;
   res.locals.canonicalUrl = `${siteUrl}${req.path}`;
   /* The request path, for templates that need to know WHERE they are rather

@@ -347,7 +347,7 @@ exports.index = async (req, res, next) => {
     );
 
     // ── Render ────────────────────────────────────────────────────────
-    const siteUrl = process.env.SITE_URL || 'https://bathroomvanitiesoutlet.com';
+    const siteUrl = require('../utils/siteUrl').base();
     res.render('pages/lookbook', {
       layout:       'layouts/main',
       pageTitle:    'Lookbook | BathroomVanitiesOutlet.com',

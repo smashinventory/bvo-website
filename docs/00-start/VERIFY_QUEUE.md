@@ -19,6 +19,78 @@ depend on earlier ones having produced data.
 
 ---
 
+## One canonical host — pushed 2026-10-06, NOT yet seen working
+
+`utils/siteUrl.js` is now the only source for the site's own address. 30 call
+sites repointed; two that built absolute URLs from `req.get('host')` corrected
+(the `/search` canonical tag, and the `/account/secure` link inside the "new
+device" security email).
+
+**Run this first, from a machine that can reach the site:**
+
+```
+node gates/gate_canonical_host_live.js
+```
+
+Then run it again **against a non-canonical host**, which is the whole point —
+canonical tags must still say `www`, not follow the request:
+
+```
+BVO_BASE=https://slategrey-falcon-350174.hostingersite.com \
+  node gates/gate_canonical_host_live.js
+```
+
+If the second run reports the temp hostname in a canonical tag, the regression
+is back.
+
+### What the gate cannot check — do these by hand
+
+- [ ] **The security email link.** Sign in from a device that has never signed
+      in, so `auth_new_device` fires. The **Secure my account** button must
+      point at `www.bathroomvanitiesoutlet.com/account/secure?t=…`. This is the
+      one that mattered: it used to be built from the request `Host` header.
+- [ ] **Stripe `return_url`.** Place a test order. The return must come back to
+      the host the shopper was actually on — this is Role B and was left
+      alone deliberately; confirm it still works.
+- [ ] **Sitemap count.** The gate asserts every `<loc>` is www; eyeball that the
+      total is still ~6,076 and did not collapse.
+
+### If it has to come back out
+
+Tag `pre-canonical-host` is pushed to origin, so the rollback point does not
+depend on a sha anyone copied out of a terminal. **No migration, no `.sql`, and
+no INSERT/UPDATE/ALTER/CREATE/DROP is in that commit** — verified before
+pushing — so there is nothing to un-migrate and no backup table to restore.
+Code and docs only: revert, redeploy, done.
+
+**Partial, and this is the right first move:**
+
+```
+git checkout pre-canonical-host -- \
+  src/controllers/accountController.js src/controllers/searchPageController.js
+```
+
+Only those two files changed behaviour. The other 28 call sites resolve
+identically under the production `SITE_URL`, so reverting them fixes nothing and
+re-introduces the two-literal split. **`gate_cutover_config` section 3 will then
+fail on purpose** — it is reporting that absolute URLs are being built from the
+request host again. Expected during a rollback. Do not silence it.
+
+**Full:** `git revert --no-edit <sha>` — revert, not reset; main is pushed.
+
+The original 2026-09-29 work is also still in `stash@{0}` as an independent
+copy. **Do not drop that stash until this is verified working.**
+
+### Self-test status, so nobody re-derives it
+
+Sections 1-2 (canonical, og:url, JSON-LD, sitemap) were self-tested against a
+local fixture serving both a correct site and a regressed one: 14/14 pass on
+correct, 14 failures on regressed. Section 3 (robots + the apex 301) targets
+the real canonical host and apex by design, so it cannot be exercised against
+a fixture and is **unverified until it runs for real.**
+
+---
+
 ## HOW TO RUN THIS
 
 Deploy the latest commit first, and confirm hPanel → Deployments shows it as

@@ -42,7 +42,7 @@
  *    This is the single most tempting mistake available here.
  */
 
-const SITE_URL = (process.env.SITE_URL || 'https://bathroomvanitiesoutlet.com')
+const SITE_URL = require('./siteUrl').base()
   .replace(/\/+$/, '');
 
 /* The company, declared once. Everything else references these. */

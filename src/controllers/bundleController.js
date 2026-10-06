@@ -5,7 +5,7 @@ const { FAMILIES }             = require('../config/colorFamilies');
 const { SIZE_BUCKETS }         = require('../config/sizeBuckets');
 
 const JM_BRAND = 'James Martin Vanities';
-const SITE_URL = process.env.SITE_URL || 'https://bathroomvanitiesoutlet.com';
+const SITE_URL = require('../utils/siteUrl').base();
 
 /* ── Color family hex lookup (sent to client as JSON for fallback swatches) */
 const FAMILY_HEX = {};
