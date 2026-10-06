@@ -99,15 +99,41 @@ const mk = r => `${r.model}||${r.brand}`;
  *                            URL here instead would disagree with them.
  * @param {object} modelSeo   present only on model-scoped listings
  */
-function sdCollectionCtx(res, category, canonical, modelSeo) {
-  const name = modelSeo ? modelSeo.label : (category && category.name) || 'Collections';
+function sdCollectionCtx(res, category, canonical, modelSeo, landing) {
+  const name = modelSeo ? modelSeo.label
+             : landing  ? landing.h1
+             : (category && category.name) || 'Collections';
   const trail = [
     { name: 'Home',        url: '/' },
     { name: 'Collections', url: '/collections' },
   ];
+
+  /* As an INTERMEDIATE step the category is a level in the hierarchy, so the
+     "- All" suffix is wrong there: "Bathroom Vanities- All > Farmhouse" says
+     all-of-them and then a subset of them in the same breath. As the LEAF on
+     the unfiltered page it stays whole, because that page really is the
+     all-vanities page. Display only — the category name itself is untouched,
+     and Rule 12 slugs are not involved. */
+  const parentLabel = String((category && category.name) || 'Collections')
+    .replace(/\s*[-–—]\s*All\s*$/i, '')
+    .trim();
   if (modelSeo && category && category.slug) {
-    trail.push({ name: category.name, url: `/collections/${category.slug}` });
+    trail.push({ name: parentLabel, url: `/collections/${category.slug}` });
     trail.push({ name: modelSeo.label });
+  } else if (landing && landing.crumb && category && category.slug) {
+    /* A filter landing page is a page in its own right - own title, H1, meta
+       and self-canonical. The trail still said "Bathroom Vanities- All" while
+       the H1 said "Farmhouse Bathroom Vanities", so the page contradicted
+       itself on screen AND in the BreadcrumbList - which is what Google
+       renders in place of the URL on the result line, on exactly the 27 URLs
+       with the highest commercial intent.
+
+       Same shape as the model branch above: category becomes a link, the
+       filter takes the leaf. `crumb` is a SHORT label ("Farmhouse", `60"`),
+       not the H1 - a leaf reading "60 Inch Bathroom Vanities" inside a trail
+       that already says Bathroom Vanities reads as a stutter. */
+    trail.push({ name: parentLabel, url: `/collections/${category.slug}` });
+    trail.push({ name: landing.crumb });
   } else {
     trail.push({ name: (category && category.name) || 'Collections' });
   }
@@ -1427,7 +1453,7 @@ exports.show = async (req, res, next) => {
 
     res.render('pages/collection', {
       sd,
-      sdCtx: sdCollectionCtx(res, category, effectiveCanonical, _modelSeo),
+      sdCtx: sdCollectionCtx(res, category, effectiveCanonical, _modelSeo, _landing),
       pageTitle:    _modelSeo ? _modelSeo.title
                   : _landing  ? _landing.title
                               : `${category.meta_title || category.name} | BathroomVanitiesOutlet.com`,

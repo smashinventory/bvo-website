@@ -106,12 +106,23 @@
 %>
 <% if (typeof sd !== 'undefined' && typeof sdCtx !== 'undefined') { %><%- sd.scriptTag(sd.pageGraph(Object.assign({}, sdCtx, { pageOverride: _colNodes[0] }))) %><% } %>
 
+<%# Mirrors parentLabel in sdCollectionCtx — as an intermediate step the
+    category drops its "- All" suffix, as the leaf it keeps it. %>
+<% const _parentLabel = String((category && category.name) || 'Collections')
+     .replace(/\s*[-\u2013\u2014]\s*All\s*$/i, '').trim(); %>
 <div class="breadcrumb">
   <a href="/">Home</a> &rsaquo;
   <a href="/collections">Collections</a> &rsaquo;
   <% if (typeof modelSeo !== 'undefined' && modelSeo) { %>
-  <a href="/collections/<%= category.slug %>"><%= category.name %></a> &rsaquo;
+  <a href="/collections/<%= category.slug %>"><%= _parentLabel %></a> &rsaquo;
   <%= modelSeo.label %>
+  <%# A filter landing page takes the leaf too - see the matching branch in
+      sdCollectionCtx. THESE TWO MUST MOVE TOGETHER: the BreadcrumbList is
+      built to mirror this markup and Google requires them to agree.
+      gate_filter_landing_crumb asserts they do. %>
+  <% } else if (typeof landing !== 'undefined' && landing && landing.crumb) { %>
+  <a href="/collections/<%= category.slug %>"><%= _parentLabel %></a> &rsaquo;
+  <%= landing.crumb %>
   <% } else { %>
   <%= category.name %>
   <% } %>
