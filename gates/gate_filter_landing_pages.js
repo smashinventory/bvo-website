@@ -51,7 +51,16 @@ console.log('\n=== gate_filter_landing_pages ===\n');
 /* ───────────── 1. the content itself ───────────── */
 console.log('-- content map --');
 const all = LAND.allEntries();
-check(all.length === 27, `27 filter values have content (found ${all.length})`);
+check(all.length === 38, `38 filter values have content (found ${all.length})`);
+{
+  const byC = {};
+  for (const e of all) byC[e.collection] = (byC[e.collection] || 0) + 1;
+  check(byC['bathroom-vanities'] === 27, `27 vanity values (found ${byC['bathroom-vanities']})`);
+  check(byC['faucets']           ===  6, `6 faucet types (found ${byC['faucets']})`);
+  check(byC['accessories']       ===  5, `5 accessory types (found ${byC['accessories']})`);
+  check(all.every(e => e.collection && e.param && e.value),
+        'every entry carries a collection, a param and a value');
+}
 
 const dup = a => [...new Set(a.filter((v, i) => a.indexOf(v) !== i))];
 for (const [field, vals] of [['title', all.map(e => e.title)],
@@ -112,12 +121,22 @@ console.log('\n-- content keys match the live filter values --');
 
 /* ───────────── 3. the threshold ───────────── */
 console.log('\n-- the promotion threshold --');
-check(/filter_landing_min_products:\s*25/.test(sett),
-      'themeSettings defaults the threshold to 25');
+/* THE NUMBER IS NOT PINNED HERE, ON PURPOSE. It was — three assertions on the
+   literal 25 — and that meant changing a tunable setting turned this gate red
+   for no reason, which is the same spelling-pin failure that has bitten this
+   project repeatedly. What must actually hold is that the two defaults AGREE
+   and that neither is zero: a fallback of 0 would promote every thin page on a
+   config slip, which is the one outcome the threshold exists to prevent. */
+const settDefault = (sett.match(/filter_landing_min_products:\s*(\d+)/) || [])[1];
+const ctrlDefault = (ctrl.match(/filter_landing_min_products\s*\?\?\s*(\d+)/) || [])[1];
+check(settDefault !== undefined, 'themeSettings defines a threshold default');
+check(ctrlDefault !== undefined, 'the controller defines a fallback threshold');
+check(settDefault === ctrlDefault,
+      `the two defaults agree (themeSettings ${settDefault}, controller ${ctrlDefault})`);
+check(Number(ctrlDefault) > 0,
+      'the fallback is not 0 (0 would promote every thin page on a config slip)');
 check(/filter_landing_min_products/.test(ctrl),
       'the controller reads the threshold by name');
-check(/\?\?\s*25/.test(ctrl),
-      'a missing settings block falls back to 25, NOT to 0 (0 would promote every thin page)');
 check(!/<\s*25\b/.test(ctrl.split('const _landing')[1] || '') ||
       /minProducts/.test(ctrl),
       'the comparison uses the settings value, not a hardcoded number');
@@ -138,14 +157,20 @@ console.log('\n-- promotion logic (real code, lifted and run) --');
     const run = o => {
       const c = {
         filterLandingPages: LAND,
+        /* `slug` is new: lookup() is keyed by collection first, so the lifted
+           block cannot run without knowing which collection it is on.
+           Defaulting to bathroom-vanities leaves every case below unchanged. */
+        slug: o.slug || 'bathroom-vanities',
         isVanityCategory: o.isVanityCategory !== false,
         activeFilterGroupCount: o.groups === undefined ? 1 : o.groups,
         attrFilters: o.attrFilters || {},
         colorFamilyParam: o.colorFamilyParam || [],
         colorExactParam: o.colorExactParam || [],
         result: { total: o.total === undefined ? 1000 : o.total },
-        res: { locals: { settings: o.min === undefined ? { seo: { filter_landing_min_products: 25 } }
-                                                       : { seo: { filter_landing_min_products: o.min } } } },
+        /* Follows the real default rather than a literal, so this harness
+           cannot drift from the shipped threshold. */
+        res: { locals: { settings: { seo: { filter_landing_min_products:
+                 o.min === undefined ? Number(settDefault) : o.min } } } },
         console,
       };
       vm.createContext(c);
@@ -165,10 +190,18 @@ console.log('\n-- promotion logic (real code, lifted and run) --');
       run({ attrFilters: { size_in: ['36'] }, total: 742 }),
       '36 Inch Bathroom Vanities | Single Sink | BVO');
 
-    T('thin page (7) does NOT promote',       run({ attrFilters: { style: ['Coastal'] }, total: 7 }), null);
-    T('one below threshold (24) does NOT',    run({ attrFilters: { style: ['Coastal'] }, total: 24 }), null);
-    T('exactly at threshold (25) DOES',       run({ attrFilters: { style: ['Coastal'] }, total: 25 }),
+    /* The boundary is derived from the shipped default, not written as a
+       literal. Pinning 24/25 meant that retuning a setting broke this gate —
+       which is what happened when the threshold moved to 10. What matters is
+       that the boundary HOLDS wherever it is set, not where it currently is. */
+    const TH = Number(settDefault);
+    T(`one below threshold (${TH - 1}) does NOT`,
+      run({ attrFilters: { style: ['Coastal'] }, total: TH - 1 }), null);
+    T(`exactly at threshold (${TH}) DOES`,
+      run({ attrFilters: { style: ['Coastal'] }, total: TH }),
       'Coastal Bathroom Vanities | Light & Airy Designs | BVO');
+    T('a 2-product value never promotes at any sane threshold',
+      run({ attrFilters: { style: ['Coastal'] }, total: 2 }), null);
     T('two PROMOTABLE filters do NOT promote',
       run({ attrFilters: { style: ['Farmhouse'] }, colorFamilyParam: ['white'], groups: 2, total: 500 }), null);
 
@@ -189,7 +222,38 @@ console.log('\n-- promotion logic (real code, lifted and run) --');
     T('...and three groups does NOT either',
       run({ attrFilters: { size_in: ['60'] }, groups: 3, total: 1277 }), null);
     T('two values in one group do NOT',       run({ attrFilters: { style: ['Farmhouse', 'Modern'] }, total: 900 }), null);
-    T('non-vanity category does NOT',         run({ attrFilters: { style: ['Farmhouse'] }, isVanityCategory: false, total: 900 }), null);
+    /* THE DUPLICATE-COPY GUARD, and the reason the isVanityCategory gate could
+       be removed. style/color_family/size_in are facets on three collections.
+       Only bathroom-vanities has copy written for them, so the other two must
+       return null — if they ever start promoting, three collections are
+       serving one identical title and meta, self-canonical, which is the exact
+       failure this whole file exists to prevent. */
+    T('vanities-with-tops + style=Farmhouse does NOT (no copy for it)',
+      run({ slug: 'bathroom-vanities-with-tops', attrFilters: { style: ['Farmhouse'] }, total: 900 }), null);
+    T('vanity-cabinets + style=Farmhouse does NOT (no copy for it)',
+      run({ slug: 'bathroom-vanity-cabinets', attrFilters: { style: ['Farmhouse'] }, total: 900 }), null);
+    T('an unknown collection does NOT',
+      run({ slug: 'zzz-not-a-collection', attrFilters: { style: ['Farmhouse'] }, total: 900 }), null);
+
+    /* product_type — faucets and accessories. Keyed off attrFilters, NOT the
+       `productTypes` variable, which reads req.query.type and is empty on a
+       clean /product-type/ path. If this is ever re-keyed to productTypes
+       these go null and nothing else reports it. */
+    T('faucets + product_type=Kitchen Faucets (84) promotes',
+      run({ slug: 'faucets', attrFilters: { product_type: ['Kitchen Faucets'] }, total: 84 }),
+      'Kitchen Faucets | Pull-Down Sprayer & Single Handle | BVO');
+    T('faucets + product_type=Shower Fixtures (376) promotes',
+      run({ slug: 'faucets', attrFilters: { product_type: ['Shower Fixtures'] }, total: 376 }),
+      'Shower Fixtures & Trim Kits | Heads, Arms & Valves | BVO');
+    T('accessories + product_type=Knobs & Legs (21) promotes',
+      run({ slug: 'accessories', attrFilters: { product_type: ['Knobs & Legs'] }, total: 21 }),
+      'Vanity Knobs & Leg Sets | James Martin Parts | BVO');
+    T('accessories + Bench (2) does NOT — below threshold',
+      run({ slug: 'accessories', attrFilters: { product_type: ['Bench'] }, total: 2 }), null);
+    T('a faucet type on the accessories collection does NOT',
+      run({ slug: 'accessories', attrFilters: { product_type: ['Kitchen Faucets'] }, total: 84 }), null);
+    T('an accessory type on the faucets collection does NOT',
+      run({ slug: 'faucets', attrFilters: { product_type: ['Bench'] }, total: 84 }), null);
     T('unknown value does NOT',               run({ attrFilters: { style: ['ZZZUnknown'] }, total: 900 }), null);
     T('colour + exact-colour does NOT',       run({ colorFamilyParam: ['white'], colorExactParam: ['Pure White'], total: 900 }), null);
     T('threshold 0 promotes a thin page',     run({ attrFilters: { style: ['Coastal'] }, total: 7, min: 0 }),
@@ -201,8 +265,54 @@ console.log('\n-- promotion logic (real code, lifted and run) --');
 /* ───────────── 5. canonical + template ───────────── */
 console.log('\n-- canonical and template --');
 check(/effectiveCanonical/.test(ctrl), 'a separate effective canonical is computed');
+/* THE CANONICAL MUST BE THE CLEAN PATH. Until 2026-10-06 it was built as
+   `${canonicalUrl}?${param}=${value}` — but filterToPath 301s that form to the
+   clean path, so every promoted page declared a canonical that redirected back
+   to the page itself, while the sitemap listed the clean path. Verified live
+   before changing it: /collections/bathroom-vanities/style/farmhouse was
+   canonicalling to /collections/bathroom-vanities?style=Farmhouse. */
+check(/pathFilters\.pathFor\(slug,\s*_landing\.param,\s*_landing\.value\)/.test(ctrl),
+      'the landing canonical is built from pathFor(), i.e. the clean path');
 check(/\$\{canonicalUrl\}\?\$\{_landing\.param\}=\$\{encodeURIComponent\(_landing\.value\)\}/.test(ctrl),
-      'the self-canonical carries the query string, not the bare collection URL');
+      'the ?param= form survives as the fallback for a value with no clean path');
+
+/* ── every promotable value must HAVE a clean path, and must not leak ──
+   A landing value with no entry in pathFilters still works, but silently
+   falls back to the ?param= canonical and loses the keyword from the URL —
+   which is most of the point of promoting it. This catches the half-done
+   case: copy written, slug forgotten. */
+{
+  const PF = require(path.join(ROOT, 'src/config/pathFilters'));
+  const noPath = all.filter(e => !PF.pathFor(e.collection, e.param, e.value))
+                    .map(e => `${e.collection}/${e.value}`);
+  check(noPath.length === 0,
+        `every landing value has a clean path${noPath.length ? ' — missing: ' + noPath.join(', ') : ''}`);
+
+  /* The disjoint-value invariant. product-type and accessory-type share the
+     param `product_type` and are kept apart only by their `on` lists. Merging
+     them into one facet would make every value valid on both collections, and
+     /collections/accessories/product-type/kitchen-faucets would resolve to a
+     200 page with zero products — which allPaths() would then put in the
+     sitemap. */
+  const collections = [...new Set(all.map(e => e.collection))];
+  const leaks = [];
+  for (const e of all) {
+    for (const c of collections) {
+      if (c === e.collection) continue;
+      if (PF.pathFor(c, e.param, e.value)) leaks.push(`${e.value} resolves on ${c}`);
+    }
+  }
+  check(leaks.length === 0,
+        `no filter value resolves on a collection it does not belong to${leaks.length ? ' — ' + leaks.join('; ') : ''}`);
+
+  /* allPaths feeds the sitemap directly, so a value in pathFilters with no
+     products behind it becomes an indexed empty page. Checked the other way
+     round: every product-type/accessory-type path must be one we have copy
+     for, because those two facets exist only to serve these landing pages. */
+  const typePaths = PF.allPaths().filter(p => /\/(product-type|accessory-type)\//.test(p));
+  check(typePaths.length === 11,
+        `11 product/accessory type paths in the sitemap (found ${typePaths.length})`);
+}
 check(/canonicalUrl:\s*effectiveCanonical/.test(ctrl), 'the render uses it');
 check(/landing:\s+_landing/.test(ctrl), 'landing is passed to the template');
 

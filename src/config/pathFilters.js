@@ -83,10 +83,42 @@ const FACETS = {
     },
   },
 
+  /* FAUCET TYPES. Only bathroom-faucets was mapped until 2026-10-06, which
+     is why Kitchen Faucets and the rest stayed on ?product_type= and never
+     got the keyword into the URL. */
   'product-type': {
     param: 'product_type',
     on: ['faucets'],
-    values: { 'bathroom-faucets': 'Bathroom Faucets' },
+    values: {
+      'bathroom-faucets': 'Bathroom Faucets',
+      'kitchen-faucets':  'Kitchen Faucets',
+      'shower-fixtures':  'Shower Fixtures',
+      'tub-fillers':      'Tub Fillers',
+      'bar-faucets':      'Bar Faucets',
+      'laundry-faucets':  'Laundry Faucets',
+    },
+  },
+  /* ACCESSORY TYPES — A SEPARATE FACET SLUG ON PURPOSE.
+     The obvious move was to add 'accessories' to the `on` list above and
+     put these values in with the faucets. That would be wrong: `on` and
+     `values` are independent, so every value would become valid on every
+     listed collection, and /collections/accessories/product-type/
+     kitchen-faucets would resolve to a 200 page with zero products —
+     which allPaths() would then put in the sitemap. Two entries with
+     disjoint `on` lists keep the value sets apart. facet(), pathFor(),
+     clean() and allPaths() all already handle two facets sharing a param,
+     so this costs a data row and no code.
+     It also matches the sidebar, which labels this group "Accessory Type". */
+  'accessory-type': {
+    param: 'product_type',
+    on: ['accessories'],
+    values: {
+      'bathroom-accessories': 'Bathroom Accessories',
+      'plumbing-accessories': 'Plumbing Accessories',
+      'knobs-legs':           'Knobs & Legs',
+      'metal-base':           'Metal Base',
+      'bench':                'Bench',
+    },
   },
 };
 

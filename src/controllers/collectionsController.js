@@ -1327,8 +1327,14 @@ exports.show = async (req, res, next) => {
        existing noindex rule already handles that case; this just declines
        to promote it. */
     const _landing = (() => {
-      // Vanities only. The content map is written about vanities.
-      if (!isVanityCategory) return null;
+      /* NO COLLECTION GATE HERE ANY MORE, 2026-10-06. It used to read
+         `if (!isVanityCategory) return null;` because the content map was
+         keyed by (param, value) alone and would otherwise have served
+         vanity copy on bathroom-vanities-with-tops and
+         bathroom-vanity-cabinets, which carry the same style/finish/size
+         facets. The map is now keyed by COLLECTION first, so an unwritten
+         collection returns null by itself and the gate is redundant —
+         see the long note in src/config/filterLandingPages.js. */
       // Exactly one filter group, reusing the count computed in the SEO block.
       if (activeFilterGroupCount !== 1) return null;
 
@@ -1344,10 +1350,21 @@ exports.show = async (req, res, next) => {
       if (colorFamilyParam.length === 1 && colorExactParam.length === 0) {
         candidates.push(['color_family', colorFamilyParam[0]]);
       }
+      /* product_type — faucets and accessories. It belongs in attrFilters,
+         NOT in the `productTypes` variable above, and the difference is not
+         cosmetic. There are two Type groups in the sidebar and the view
+         picks one: where product_type exists as an attribute def (faucets,
+         accessories) the generic attribute loop renders it as
+         name="product_type" and the legacy name="type" group is suppressed.
+         `productTypes` reads req.query.type, so on a /product-type/ clean
+         path it is EMPTY and keying off it would promote nothing, silently. */
+      if ((attrFilters.product_type || []).length === 1) {
+        candidates.push(['product_type', attrFilters.product_type[0]]);
+      }
       if (candidates.length !== 1) return null;
 
       const [param, value] = candidates[0];
-      const content = filterLandingPages.lookup(param, value);
+      const content = filterLandingPages.lookup(slug, param, value);
       if (!content) return null;   // no copy written for this value — leave the page alone
 
       /* The threshold. Read from settings so it is tunable without a deploy;
@@ -1355,7 +1372,7 @@ exports.show = async (req, res, next) => {
          than to 0, because defaulting to "promote everything" on a config
          slip is the failure that ships thin pages. */
       const minProducts = Number(
-        ((res.locals.settings || {}).seo || {}).filter_landing_min_products ?? 25
+        ((res.locals.settings || {}).seo || {}).filter_landing_min_products ?? 10
       );
       if (!Number.isFinite(minProducts)) return null;
       if ((result.total || 0) < minProducts) return null;
@@ -1448,7 +1465,18 @@ exports.show = async (req, res, next) => {
        describe. Model is the more specific of the two, so it takes it. */
     const effectiveCanonical =
         (_modelSeo && _modelSeo.canonical) ? _modelSeo.canonical
-      : _landing ? `${canonicalUrl}?${_landing.param}=${encodeURIComponent(_landing.value)}`
+      /* The CLEAN path, not ?param=. Until 2026-10-06 this emitted the
+         query form, which filterToPath 301s straight back to the clean
+         path the visitor is already on — so the page declared a canonical
+         that redirected to itself, while the sitemap listed the clean
+         path. pathFor() returns null for a value with no clean-path slug,
+         and the ?param= form is still the right answer for those. */
+      : _landing ? (() => {
+          const cleanPath = pathFilters.pathFor(slug, _landing.param, _landing.value);
+          return cleanPath
+            ? `${siteUrl}${cleanPath}`   // siteUrl here is the base STRING, not the module
+            : `${canonicalUrl}?${_landing.param}=${encodeURIComponent(_landing.value)}`;
+        })()
       : canonicalUrl;
 
     res.render('pages/collection', {

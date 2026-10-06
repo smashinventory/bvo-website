@@ -434,3 +434,120 @@ red for each. Run it if you change the gate.
 * `src/middleware/publishFilterQuery.js` — read-only publisher
 * `gates/gate_filter_deselect.js` — enforcement
 * `mutate_deselect_gate.sh` — negative tests for the gate
+
+---
+
+## 11. FILTER LANDING PAGES BEYOND VANITIES — 2026-10-06
+
+Sam: *"in the menu if I select bath faucets the header is plumbing fixtures
+despite the filter being set to bathroom faucets… This is not a major issue,
+but it does cost us on the keyword kitchen faucets, bathroom faucets, Shower
+Fixtures."* Same on Accessories.
+
+Not a bug. `collectionsController.js` opened the landing block with
+`if (!isVanityCategory) return null;` — the content map was vanity-only and
+the gate stopped it escaping. Faucets never reached the lookup.
+
+### Why the gate could not simply be deleted
+
+Sam's first instinct was to remove the category restriction outright. That
+would have been wrong, and the reason is worth keeping: `lookup()` was keyed
+by `(param, value)` with no notion of collection, and **style, color_family
+and size_in are facets on three collections** —
+
+    bathroom-vanities, bathroom-vanities-with-tops, bathroom-vanity-cabinets
+
+— so all three would have served the identical H1, title and meta. 27 pages
+become 81, of which 54 are exact duplicates of one another, every one
+self-canonical. That is the failure the content map exists to prevent.
+
+The fix was to make **collection part of the key**, which removes the need
+for the gate without the duplication. A collection with no entry returns
+null and behaves exactly as before.
+
+### Known gap, recorded rather than hidden
+
+`bathroom-vanities-with-tops` and `bathroom-vanity-cabinets` have **no copy**
+and therefore do not promote. That is a content job — 27 distinct intros each
+— not an oversight. Borrowing the vanity copy is the bug above.
+
+### The threshold moved 25 -> 10
+
+Sam: *"Remove the category restriction and the qty of products restriction.
+As the inventory grows, I dont want to have to remember."*
+
+The automation he wanted already existed: copy is written for every value and
+the controller promotes it the moment the count crosses the line, with no
+deploy. Removing the line entirely only changes what happens *below* it, and
+below it a shopper searching "bathroom bench" lands on a page of two products.
+Lowered to 10 instead, which takes in Knobs & Legs (21) and Metal Base (13)
+and still keeps the 2- and 3-product values out. It is a setting; retune it in
+the Theme Editor. **No gate pins the number** — they assert only that the
+themeSettings default and the controller fallback agree and that neither is 0.
+
+### Counts measured live, 2026-10-06
+
+| collection | value | products | promotes at 10 |
+|---|---|---|---|
+| faucets | Shower Fixtures | 376 | yes |
+| faucets | Bathroom Faucets | 149 | yes |
+| faucets | Kitchen Faucets | 84 | yes |
+| faucets | Tub Fillers | 55 | yes |
+| faucets | Bar Faucets | 3 | no |
+| faucets | Laundry Faucets | 2 | no |
+| accessories | Bathroom Accessories | 72 | yes |
+| accessories | Plumbing Accessories | 27 | yes |
+| accessories | Knobs & Legs | 21 | yes |
+| accessories | Metal Base | 13 | yes |
+| accessories | Bench | 2 | no |
+
+Copy exists for all 11. The three below the line hold their place and switch
+on by themselves if the catalogue grows.
+
+### Two traps found on the way in
+
+**1. `product_type` is NOT the `productTypes` variable.** There are two Type
+groups in the sidebar and the view picks one: where `product_type` exists as
+an attribute def (faucets, accessories) the generic attribute loop renders it
+as `name="product_type"` and the legacy `name="type"` group is suppressed.
+`productTypes` reads `req.query.type`, so on a `/product-type/` clean path it
+is **empty**. Keying the landing candidate off it would have promoted nothing,
+silently. It is keyed off `attrFilters.product_type`, like style and size.
+
+**2. `accessory-type` is a separate facet from `product-type` on purpose.**
+Adding `accessories` to the existing facet's `on` list looked obvious and was
+wrong: `on` and `values` are independent, so every faucet value would become
+valid on the accessories collection and
+`/collections/accessories/product-type/kitchen-faucets` would resolve to a
+200 page with zero products — which `allPaths()` would then put in the
+sitemap. Two entries with disjoint `on` lists keep the value sets apart, and
+`facet()`, `pathFor()`, `clean()` and `allPaths()` already handle two facets
+sharing a param, so it cost a data row and no code.
+
+### A pre-existing defect fixed in passing
+
+Promoted pages were canonicalling to `?param=value`, which `filterToPath`
+301s straight back to the clean path the visitor is on — so a page declared a
+canonical that redirected to itself, while the sitemap listed the clean path.
+Verified live before changing it:
+`/collections/bathroom-vanities/style/farmhouse` canonicalled to
+`/collections/bathroom-vanities?style=Farmhouse`. Now built from
+`pathFor()`, with the `?param=` form kept as the fallback for any value with
+no clean-path slug. **This changes the canonical on 18 live vanity pages.**
+
+### The Accessories rename
+
+The parent category was named "Bathroom Accessories" — the same phrase as one
+of its own filter values. A self-canonical child competing with its parent is
+the opposite of the point. Sam's call: rename the parent to "Accessories".
+`database/rename_accessories_category.sql`, run once. The slug is unchanged,
+so no URL moves. The child page now owns the phrase.
+
+### Enforcement
+
+* `gates/gate_filter_landing_pages.js` — 77 assertions. Lifts the real
+  `_landing` block and executes it, including the cross-collection cases.
+* `gates/gate_filter_landing_crumb.js` — breadcrumb coverage for all 38
+  entries, not just the three vanity blocks.
+* `./mutate_landing_collection_gate.sh` — 12 mutations across both gates,
+  all caught.

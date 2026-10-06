@@ -56,7 +56,7 @@ console.log('--- every filter landing value carries a crumb ---');
   for (const [param, block] of Object.entries(keys)) {
     if (!block) { missing.push(param + ' (block not found)'); continue; }
     for (const m of block[1].matchAll(/\n\s*'([^']+)':\s*\{/g)) {
-      const entry = flp.lookup(param, m[1]);
+      const entry = flp.lookup('bathroom-vanities', param, m[1]);
       total++;
       if (!entry || !entry.crumb || !String(entry.crumb).trim()) {
         missing.push(`${param}=${m[1]}`);
@@ -105,6 +105,50 @@ console.log('\n--- the markup and the structured data both take the filter leaf 
      'the helper would receive undefined and fall through to the category leaf');
 }
 
+/* ───────── EVERY collection's entries, not just the three vanity blocks ─────
+   The loop above scrapes the STYLE/COLOR/SIZE source blocks by name, so it
+   cannot see faucets or accessories. allEntries() covers all of them and will
+   keep covering any collection added later without this gate being touched. */
+{
+  const all = flp.allEntries();
+  const noCrumb = all.filter(e => !e.crumb || !String(e.crumb).trim())
+                     .map(e => `${e.collection}/${e.value}`);
+  ok('every landing entry in every collection defines a crumb',
+     noCrumb.length === 0, noCrumb.join(', '));
+
+  /* NOT ASSERTED GLOBALLY: "crumb must differ from h1". That rule belongs to
+     the vanity blocks above and is enforced there. It does not generalise —
+     it exists because "60 Inch Bathroom Vanities" sitting under a trail that
+     already says "Bathroom Vanities" stutters, so the crumb is the short form
+     '60"'. On faucets the H1 is "Kitchen Faucets" under a parent called
+     "Plumbing Fixtures": the crumb and H1 being identical is correct there,
+     and nothing is repeated. Asserting it anyway would be pinning the shape of
+     one collection's copy onto every other one. */
+
+  /* The rule that DOES generalise: a crumb must not be longer than its H1.
+     The crumb is the short form by definition, so a longer one means the two
+     were filled in the wrong way round. */
+  const inverted = all.filter(e => e.h1 && e.crumb.trim().length > e.h1.trim().length)
+                      .map(e => `${e.collection}/${e.value}`);
+  ok('no crumb is longer than its own H1 (they are not swapped)',
+     inverted.length === 0, inverted.join(', '));
+
+  /* The parent-collision rule. A crumb equal to the collection it sits under
+     produces "Accessories > Accessories". This is why the Accessories category
+     was renamed from "Bathroom Accessories" — see
+     database/rename_accessories_category.sql. */
+  const PARENT_LABELS = { 'bathroom-vanities': 'Bathroom Vanities',
+                          'faucets': 'Plumbing Fixtures',
+                          'accessories': 'Accessories' };
+  const collide = all.filter(e => {
+    const parent = PARENT_LABELS[e.collection];
+    return parent && e.crumb.trim().toLowerCase() === parent.trim().toLowerCase();
+  }).map(e => `${e.collection}/${e.value}`);
+  ok('no crumb duplicates the name of the collection above it',
+     collide.length === 0, collide.join(', '));
+}
+
+
 /* ═══ 3. THE RESOLVED LEAF — behaviour, not spelling ═════════════════ */
 console.log('\n--- the helper, called for real ---');
 {
@@ -123,7 +167,7 @@ console.log('\n--- the helper, called for real ---');
        + 'name, and this is also the proof the change is scoped to filtered views');
 
     for (const [param, value] of [['style','Farmhouse'], ['size_in','60'], ['color_family','wood_l']]) {
-      const l   = flp.lookup(param, value);
+      const l   = flp.lookup('bathroom-vanities', param, value);
       const ctx = fn(res, cat, '/x', null, l);
       const leaf = ctx.trail[ctx.trail.length - 1];
       const prev = ctx.trail[ctx.trail.length - 2];

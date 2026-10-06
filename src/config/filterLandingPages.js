@@ -49,11 +49,27 @@
  * James Martin feed adds products nightly, and Coastal at 7 today could be
  * 60 next quarter. So EVERY value below has content written for it, and the
  * controller decides at request time whether that value currently clears
- * seo.filter_landing_min_products (default 25). The set corrects itself.
+ * seo.filter_landing_min_products (default 10). The set corrects itself.
  *
- * 25 because the grid serves 24 per page: a promoted page therefore always
- * has at least one full grid plus a second page, which makes the line
- * defensible rather than arbitrary.
+ * THE NUMBER WAS 25, AND IS NOW 10 (changed 2026-10-06 at Sam's direction).
+ *
+ * 25 was chosen because the grid serves 24 per page, so a promoted page
+ * always had at least one full grid plus a second page. That is a tidy
+ * argument but it was costing real pages: Knobs & Legs at 21 and Metal
+ * Base at 13 are legitimate, searched-for categories that a 25 line keeps
+ * out of the index for no benefit to anyone.
+ *
+ * 10 keeps the mechanism — thin values still do not self-canonicalize, and
+ * still promote themselves automatically the moment they cross the line —
+ * while letting a half-page of genuine products rank. Values at 2 and 3
+ * (Bench, Laundry Faucets, Bar Faucets) remain excluded, which is the
+ * point: those would be a bad landing for the shopper, not just a thin
+ * page for the crawler.
+ *
+ * It is a SETTING, not a constant. If 10 proves wrong in either direction,
+ * change seo.filter_landing_min_products in the Theme Editor — no deploy.
+ * Nothing in this file or the gate pins the number; the gate asserts only
+ * that the themeSettings default and the controller fallback AGREE.
  *
  * ── WRITING RULES, so these do not drift into filler ────────────────
  * - Every title and meta must be UNIQUE. Two pages sharing a meta is the
@@ -268,35 +284,174 @@ const SIZE = {
   },
 };
 
-/* The parameter each group maps to, so the controller does not hardcode
-   param names in two places. */
-const GROUPS = {
-  style:        { param: 'style',        values: STYLE },
-  color_family: { param: 'color_family', values: COLOR },
-  size_in:      { param: 'size_in',      values: SIZE  },
+/* ── FAUCET TYPES — /collections/faucets ──────────────────────────────
+   The parent collection is "Plumbing Fixtures", which is accurate for the
+   mixed set but matches no search anyone performs. These five words —
+   bathroom faucets, kitchen faucets, shower fixtures, tub fillers — are
+   what people actually type, and until this file existed the pages that
+   should answer them all served the title "Plumbing Fixtures". */
+const FAUCET_TYPE = {
+  'Bathroom Faucets': {
+    crumb: 'Bathroom Faucets',
+    h1:    'Bathroom Sink Faucets',
+    title: 'Bathroom Sink Faucets | Centerset & Widespread | BVO',
+    meta:  'Bathroom sink faucets in single-hole, 4-inch centerset and 8-inch widespread configurations, finished in chrome, satin nickel, brass and matte black.',
+    intro: 'Configuration matters more than style here, because a faucet has to match the holes already drilled in your sink or countertop. Single hole takes one, a 4-inch centerset takes three on 4-inch centers, and an 8-inch widespread takes three spread 8 to 16 inches apart. Measure the existing drilling first and choose the finish second — changing configuration usually means replacing the sink or the vanity top as well.',
+  },
+  'Kitchen Faucets': {
+    crumb: 'Kitchen Faucets',
+    h1:    'Kitchen Faucets',
+    title: 'Kitchen Faucets | Pull-Down Sprayer & Single Handle | BVO',
+    meta:  'Kitchen faucets with pull-down and pull-out sprayers, single and dual handle, in chrome, PVD satin nickel, PVD satin brass and matte black.',
+    intro: 'Spout height and reach decide whether a kitchen faucet works day to day. A tall arc clears a stock pot but splashes in a shallow sink, and the spray head needs to land near the drain rather than against the back wall. PVD finishes are worth the difference in a kitchen, where the handle gets touched with wet and oily hands several times a day and a plated finish wears through at exactly that spot.',
+  },
+  'Shower Fixtures': {
+    crumb: 'Shower Fixtures',
+    h1:    'Shower Fixtures, Trim & Shower Heads',
+    title: 'Shower Fixtures & Trim Kits | Heads, Arms & Valves | BVO',
+    meta:  'Shower trim kits, shower heads, arms and flanges, wall bars and replacement handles in chrome, satin nickel, brass and matte black.',
+    intro: 'This covers both ends of a shower job: complete trim kits with the handle, escutcheon and head matched as a set, and the individual pieces — arms, flanges, supply elbows, replacement handles — you need when repairing rather than starting over. Trim is only half of a shower: the valve body behind the wall has to match the trim brand and series, so confirm what is already installed before ordering a kit.',
+  },
+  'Tub Fillers': {
+    crumb: 'Tub Fillers',
+    h1:    'Roman Tub Fillers & Tub Faucets',
+    title: 'Roman Tub Fillers & Deck Mount Tub Faucets | BVO',
+    meta:  'Roman tub fillers and deck-mount tub faucets with matching handles and hand showers, in chrome, satin nickel, satin brass and matte black.',
+    intro: 'A Roman tub filler mounts on the tub deck or platform rather than the wall, and moves far more water than a sink faucet so a large tub fills in a reasonable time. Most are sold as a trim set over a separate rough-in valve, and many take an optional hand shower on an additional hole. Decide on the hand shower before the deck is drilled, because adding one afterwards means drilling finished stone.',
+  },
+  'Bar Faucets': {
+    crumb: 'Bar Faucets',
+    h1:    'Bar & Prep Sink Faucets',
+    title: 'Bar & Prep Sink Faucets | Compact Single Hole | BVO',
+    meta:  'Compact bar and prep sink faucets with high-clearance spouts, sized for the smaller basins in an island or wet bar.',
+    intro: 'A bar faucet is a scaled-down kitchen faucet built for a shallow prep or wet-bar basin rather than the main sink. The spout sits high enough to fill a pitcher, but the footprint stays narrow, which matters on an island where deck space is shared between the sink rim and the counter edge. Most bar sinks are drilled single-hole, so check the drilling before ordering.',
+  },
+  'Laundry Faucets': {
+    crumb: 'Laundry Faucets',
+    h1:    'Laundry & Utility Sink Faucets',
+    title: 'Laundry & Utility Sink Faucets | High Spout | BVO',
+    meta:  'Laundry and utility sink faucets built for deep basins, with a high spout and hose-thread outlet for filling buckets.',
+    intro: 'A utility faucet is chosen for clearance and durability rather than looks. The spout has to sit high above a deep laundry basin so a bucket fits underneath, and a hose-thread outlet lets you attach a fill hose directly. These mount either on the sink deck or on the wall depending on how the basin is plumbed, so confirm which you have before ordering.',
+  },
+};
+
+/* ── ACCESSORY TYPES — /collections/accessories ───────────────────────
+   Two brands with genuinely different products behind one label: the
+   Huntington Brass hardware and drain lines, and the James Martin vanity
+   parts. Contents verified against the live catalog 2026-10-06 rather
+   than inferred from the type name — "Plumbing Accessories" is drains and
+   pop-up assemblies, which is a far better search term than the label. */
+const ACCESSORY_TYPE = {
+  'Bathroom Accessories': {
+    /* THIS PAGE OWNS THE TERM, NOT ITS PARENT. The parent category was
+       renamed from "Bathroom Accessories" to "Accessories" on 2026-10-06
+       precisely so this page could take the phrase without the two
+       competing — see db/rename_accessories_category.sql. The parent is a
+       genuinely mixed set (hardware, drains, vanity parts), so "Accessories"
+       describes it honestly and the specific term lands on the specific
+       page. If the parent is ever renamed back, this entry has to change
+       with it or they will fight each other again. */
+    crumb: 'Bathroom Accessories',
+    h1:    'Bathroom Accessories — Towel Bars, Hooks & Rings',
+    title: 'Bathroom Accessories | Towel Bars, Robe Hooks & Rings | BVO',
+    meta:  'Bathroom accessories from Huntington Brass — towel bars, towel rings, robe hooks and paper holders in chrome, satin nickel, satin brass and matte black.',
+    intro: 'Hardware either matches the faucet or quietly does not, so it is worth buying the whole finish in one order rather than a piece at a time over several years. Mounting is the other thing to settle early: most of these fix to a wall anchor rather than a stud, and the anchor has to go in before the tile if the wall is being redone. Matched packages cover a full bathroom in one line.',
+  },
+  'Plumbing Accessories': {
+    crumb: 'Drains & Pop-Ups',
+    h1:    'Sink Drains & Pop-Up Assemblies',
+    title: 'Sink Drains & Pop-Up Assemblies | Matched Finishes | BVO',
+    meta:  'Pop-up drain assemblies and grid-style sink drains in chrome, satin nickel, satin brass and matte black, to match a faucet finish.',
+    intro: 'The drain is the piece people forget until the new faucet arrives and the old chrome pop-up is the only mismatched metal left at the sink. Pop-ups come in overflow and non-overflow versions: a vessel basin usually has no overflow and takes a grid-style drain, while a standard undermount does have one and takes the pop-up. Check which your basin is before ordering, since the two are not interchangeable.',
+  },
+  'Knobs & Legs': {
+    crumb: 'Knobs & Legs',
+    h1:    'Vanity Knobs & Leg Sets',
+    title: 'Vanity Knobs & Leg Sets | James Martin Parts | BVO',
+    meta:  'Replacement knob and leg sets for James Martin vanities, sold per model and cabinet width, in brushed nickel and matte black.',
+    intro: 'These are factory parts sold per model and per cabinet width, not universal hardware — a set listed for a 30 and 36 inch cabinet will not fit a 60. They are how you change the metal finish on a vanity you already own without replacing the cabinet, and how you replace a leg damaged in shipping or installation. Match the model name and the cabinet width from your original order.',
+  },
+  'Metal Base': {
+    crumb: 'Metal Bases',
+    h1:    'Stainless Steel Vanity Bases',
+    title: 'Stainless Steel Console Vanity Bases | James Martin | BVO',
+    meta:  'Stainless steel console bases from James Martin Vanities, sized by top width, in brushed nickel and matte black.',
+    intro: 'A metal base turns a vanity top into an open console — no cabinet, no doors, with the plumbing visible underneath. It suits a powder room where an uninterrupted floor matters more than storage, and a small bathroom that would feel closed in by a full cabinet. Each base is sized to a specific top width, so order the two together rather than trying to match one to the other later.',
+  },
+  'Bench': {
+    crumb: 'Benches',
+    h1:    'Upholstered Vanity Benches',
+    title: 'Upholstered Vanity Benches & Stools | James Martin | BVO',
+    meta:  'Upholstered vanity benches from James Martin Vanities, sized for a seated makeup section in a double or extra-wide vanity run.',
+    intro: 'A vanity bench belongs with a seated section — a lower run of counter, usually around 30 inches high rather than 36, set between two basins or at one end of a long vanity. Measure the knee space under that section before choosing a width, because the bench has to tuck fully underneath when it is not in use or it sits in the walkway.',
+  },
+};
+
+/* ── THE MAP, KEYED BY COLLECTION ────────────────────────────────────
+ * WHY COLLECTION IS PART OF THE KEY, 2026-10-06
+ *
+ * This used to be keyed by (param, value) alone, with the controller
+ * gating on `isVanityCategory` to stop the content escaping. That gate
+ * was doing real work, not being cautious: style, color_family and
+ * size_in are facets on THREE collections —
+ *
+ *   bathroom-vanities, bathroom-vanities-with-tops, bathroom-vanity-cabinets
+ *
+ * — so a (param, value) lookup with the gate removed would serve the
+ * identical H1, title and meta on all three. 27 pages would become 81,
+ * of which 54 would be exact duplicates of each other, every one of them
+ * self-canonical. That is precisely the failure this file exists to
+ * prevent, which is why the uniqueness rule above is asserted by a gate.
+ *
+ * Keying by collection removes the need for the gate without the
+ * duplication. A collection with no entry here returns null and behaves
+ * exactly as it does today — which is the current state of
+ * bathroom-vanities-with-tops and bathroom-vanity-cabinets. They are a
+ * KNOWN GAP, not an oversight: writing a distinct 27 for each is a
+ * content job, and borrowing the vanity copy is the bug above.
+ */
+const COLLECTIONS = {
+  'bathroom-vanities': {
+    style:        STYLE,
+    color_family: COLOR,
+    size_in:      SIZE,
+  },
+  'faucets': {
+    product_type: FAUCET_TYPE,
+  },
+  'accessories': {
+    product_type: ACCESSORY_TYPE,
+  },
 };
 
 /**
- * Look up landing content for a single active filter.
- * Returns null when the group or value is not one we have written for —
- * which is the correct outcome, not an error: the page then behaves
- * exactly as it does today.
+ * Look up landing content for a single active filter on a given collection.
+ * Returns null when the collection, the group or the value is not one we
+ * have written for — which is the correct outcome, not an error: the page
+ * then behaves exactly as it does today.
  */
-function lookup(param, value) {
-  const group = Object.values(GROUPS).find(g => g.param === param);
-  if (!group) return null;
-  return group.values[String(value)] || null;
+function lookup(collection, param, value) {
+  const groups = COLLECTIONS[String(collection || '').toLowerCase()];
+  if (!groups) return null;
+  const values = groups[param];
+  if (!values) return null;
+  return values[String(value)] || null;
 }
 
-/** Every (param, value) pair we have content for — used by the gate. */
+/** Every (collection, param, value) we have content for — used by the gate. */
 function allEntries() {
   const out = [];
-  for (const { param, values } of Object.values(GROUPS)) {
-    for (const [value, content] of Object.entries(values)) {
-      out.push({ param, value, ...content });
+  for (const [collection, groups] of Object.entries(COLLECTIONS)) {
+    for (const [param, values] of Object.entries(groups)) {
+      for (const [value, content] of Object.entries(values)) {
+        out.push({ collection, param, value, ...content });
+      }
     }
   }
   return out;
 }
 
-module.exports = { GROUPS, STYLE, COLOR, SIZE, lookup, allEntries };
+module.exports = {
+  COLLECTIONS, STYLE, COLOR, SIZE, FAUCET_TYPE, ACCESSORY_TYPE,
+  lookup, allEntries,
+};

@@ -1130,7 +1130,7 @@ const DEFAULTS = {
      defensible rather than arbitrary. Raise it to be more conservative;
      set it to 0 to promote every value that has content written. */
   seo: {
-    filter_landing_min_products: 25,
+    filter_landing_min_products: 10,
   },
 
   social: {
