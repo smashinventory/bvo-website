@@ -1,3 +1,8 @@
+<%# The VIEW emits the JSON-LD, not the controller. express-ejs-layouts
+   runs with `layout extractScripts`, which wipes locals.script and
+   refills it only from <script> tags found in the rendered view — so a
+   controller passing `script:` has it silently discarded. %>
+<% if (typeof jsonLd !== 'undefined' && jsonLd) { %><%- jsonLd %><% } %>
 <link rel="stylesheet" href="/css/site3.css?v=31"><!-- site3: injected per-page (perf) -->
 <%/* Inspiration Hub — /inspiration */%>
 <div class="inspo-hub-wrap">

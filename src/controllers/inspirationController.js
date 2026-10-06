@@ -128,7 +128,23 @@ exports.hub = async (req, res) => {
       pages: cat.slugs.map(s => bySlug[s]).filter(Boolean),
     })).filter(g => g.pages.length > 0);
 
+    /* NO BreadcrumbList. inspiration-hub.ejs renders no visible trail, and
+       Google requires markup to match what the user sees — the same call
+       made for author.ejs. Add `trail:` here if a visible trail is ever
+       added to the view and the node appears on its own.
+
+       A plain WebPage, not CollectionPage: sd.collectionPage() builds
+       /products/<slug> URLs for its ItemList and these are guides, not
+       products. Bending it would be a second method for one job. */
+    const jsonLd = sd.scriptTag(sd.pageGraph({
+      url:         '/inspiration',
+      name:        'Bathroom Vanity Ideas & Inspiration',
+      description: 'Browse expert bathroom vanity guides — styles, sizes and buying advice.',
+      settings:    res.locals.settings,
+    }));
+
     res.render('pages/inspiration-hub', {
+      jsonLd,
       layout:       'layouts/main',
       pageTitle:    'Bathroom Vanity Ideas & Inspiration | BathroomVanitiesOutlet.com',
       metaDesc:     'Browse 50+ expert bathroom vanity guides — from farmhouse and floating styles to size charts and buying advice. Find the perfect vanity for your bathroom.',

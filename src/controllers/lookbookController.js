@@ -348,7 +348,17 @@ exports.index = async (req, res, next) => {
 
     // ── Render ────────────────────────────────────────────────────────
     const siteUrl = require('../utils/siteUrl').base();
+    /* NO BreadcrumbList — lookbook.ejs renders no visible trail either.
+       See the note in inspirationController.hub. */
+    const sd     = require('../utils/structuredData');
+    const jsonLd = sd.scriptTag(sd.pageGraph({
+      url:      '/lookbook',
+      name:     'Lookbook',
+      settings: res.locals.settings,
+    }));
+
     res.render('pages/lookbook', {
+      jsonLd,
       layout:       'layouts/main',
       pageTitle:    'Lookbook | BathroomVanitiesOutlet.com',
       metaDesc:     'Browse our visual vanity lookbook — shop by size, color, configuration, and style. No distractions, just beautiful bathrooms.',
