@@ -646,11 +646,20 @@ syntax error: JavaScript keeps the last. So `DEFAULTS.seo` was
     home_title  home_description  og_image  og_image_alt
     og_title    og_description    google_analytics_id
 
-Mostly masked, because the saved settings file supplied four of them. Three had
-no saved value: `og_title` and `og_description` default to `''` so nothing
-showed, but **`og_image_alt` was undefined on every page** and fell back to the
-page title via `_seo.og_image_alt || _pageTitle` in `main.ejs`. A soft failure,
-which is why nobody saw it.
+**Fully masked in production, as it turned out.** The first write-up of this
+said `og_image_alt` was undefined on every page. That was wrong, and worth
+recording as a caution: it was inferred from the LOCAL `data/theme_settings.json`,
+which is a stale copy. Checked against the live site afterwards, the server's
+file supplies `og_title`, `og_image`, `og_image_alt` and the rest, so every
+consumer got a real value and nothing rendered differently.
+
+So the impact was zero — but only by luck, and only for as long as that file
+keeps the values. The moment a key is absent from the saved file, its default is
+gone too, and the `|| fallback` guards in `main.ejs` turn that into a quiet
+substitution rather than an error. Fixing it is cheap insurance, not a rescue.
+
+The local settings file is not the server's. That mistake was made twice in one
+session — once here, and once when assuming a changed code default was live.
 
 This was self-inflicted: the threshold was added in a new `seo:` block rather
 than into the existing one. Both are now one block.
