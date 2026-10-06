@@ -767,6 +767,41 @@ re-run the redirect build.
 ### 14. Every cron wrapper hardcodes the OLD domain directory
 *Logged 2026-09-30, ~03:00, during DNS cutover night · START HERE tomorrow*
 
+> ## ✅ THE BLOCKING QUESTION IS ANSWERED — 2026-10-06, confirmed by Sam
+>
+> **"Does the old path still exist?"** — moot. The wrappers AND the crontab
+> entries were updated to the new directory on the day of the rename, and the
+> JM feed has run every night since. Confirmed by Sam 2026-10-06, with the
+> hPanel Cron Jobs list showing all nine entries invoking
+> `/home/u222311468/domains/bathroomvanitiesoutlet.com/…`.
+>
+> **Therefore:**
+> - **Item 14's emergency is over.** Do not spend the "first hour tomorrow" on
+>   it. Nothing is silently dead.
+> - **Item 15 (four half-hourly crons not running) is RESOLVED** — they run.
+> - **Item 17 (JM feed did not arrive 2026-09-30) is EXPLAINED and CLOSED** —
+>   the rename, fixed the same day. The "deploy wipe" hypothesis is DISPROVED:
+>   four deploys ran on 2026-10-06 and the feed kept working, so the deploy
+>   does not overwrite the account-root wrappers.
+> - **Item 16 (`jm_feed_guard.sh` cannot prove it is alive) is UNCHANGED.**
+>   That is observability, not breakage, and nothing above touches it.
+>
+> **What is still genuinely open from this item — the only part.** The scripts
+> were repaired by writing the new literal into each one. Item 14's own advice
+> was not to do that: *"Do not hand-edit 14 files with a new literal — that is
+> the same bug again, one rename later. Derive BASE from the script's own
+> location."* That remains the right fix and remains undone. It is not urgent;
+> it matters only on the next rename. Needs server-side edits.
+>
+> **The repo copies of five wrappers are stale** — `bundle_catalogue.sh`,
+> `bvosync_cloudinary.sh`, `bvosync_manuals.sh`, `jmv_rollup.sh`,
+> `shipment_status_poll.sh` are tracked in git and still carry the old literal
+> (13 references). They are NOT deployed, so this is harmless day to day. Not
+> worth syncing: Sam takes a nightly server backup on a rolling week, which is
+> the real restore path. `jmsync.sh`, `gvssync.sh` and `jm_feed_guard.sh` are
+> server-only and were never in git.
+
+
 > **SUPERSEDED IN DETAIL by `docs/architecture/SERVER_CRON_TOPOLOGY.md`**
 > (written 2026-09-30). The rename is now CONFIRMED, not suspected — the
 > Hostinger activity log records it at 00:37:54 and the live directory
