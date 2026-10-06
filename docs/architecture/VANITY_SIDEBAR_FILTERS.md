@@ -485,6 +485,42 @@ and still keeps the 2- and 3-product values out. It is a setting; retune it in
 the Theme Editor. **No gate pins the number** — they assert only that the
 themeSettings default and the controller fallback agree and that neither is 0.
 
+#### The threshold did not take effect on the first push, and why
+
+Shipped, deployed, faucets promoted — and Knobs & Legs (21) and Metal Base
+(13) still did not. Measured live: 27 promoted, 21 and 13 did not, putting the
+effective threshold at 25, not 10.
+
+`themeSettings.save()` does this:
+
+```js
+const settings = deepMerge({}, load());   // load() = deepMerge(DEFAULTS, file)
+fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2));
+```
+
+It writes the **fully merged** object back to disk. So every Theme Editor save
+freezes every current default into `data/theme_settings.json` as an explicit
+value, and from then on the code default is dead for that key. Someone saved a
+theme setting after the threshold feature shipped at 25, so 25 is pinned in the
+server's file.
+
+**This is general, not specific to this key.** Measured against the live file:
+109 of 130 scalar keys are byte-identical to their defaults and exist only to
+shadow them. 17 are real admin choices. The file is 10,615 bytes; the part that
+carries actual decisions is about half that.
+
+A prototype of a sparse writer — write only what differs from the defaults,
+arrays atomic — was checked against the real file: `deepMerge(DEFAULTS, sparse)`
+reproduces today's rendered settings **byte for byte**, and the read path needs
+no change at all because `load()` already merges over defaults. Not shipped yet;
+it changes how every setting is stored and that decision is Sam's.
+
+Two claims in this file and in `filterLandingPages.js` were wrong and have been
+corrected: the threshold was described as "tunable in the Theme Editor" when no
+such field existed. One has been added, and
+`gate_filter_landing_pages.js` now asserts it is there so the claim cannot go
+stale again.
+
 ### Counts measured live, 2026-10-06
 
 | collection | value | products | promotes at 10 |
@@ -551,3 +587,83 @@ so no URL moves. The child page now owns the phrase.
   entries, not just the three vanity blocks.
 * `./mutate_landing_collection_gate.sh` — 12 mutations across both gates,
   all caught.
+
+---
+
+## 12. SETTINGS STORAGE — WHY A NEW DEFAULT WAS IGNORED, 2026-10-06
+
+Section 11 ends with the threshold shipped and not taking effect. Here is the
+whole chain, because two separate bugs were stacked on top of each other and
+the first one hid the second.
+
+### Bug 1 — every save froze the defaults
+
+```js
+function save(flat) {
+  const settings = deepMerge({}, load());   // load() = deepMerge(DEFAULTS, file)
+  ...
+  fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2));
+}
+```
+
+The fully merged object went back to disk, so each Theme Editor save wrote
+every current default into the file as an explicit value. After that, changing
+a default in `themeSettings.js` did nothing for that key — permanently, with no
+error and nothing logged.
+
+Measured against the live file: **109 of 130 scalar keys were byte-identical to
+their defaults** and existed only to shadow them. 17 were real admin choices.
+
+There were **three** writers of that one file — `save()`, the `initFromDb()`
+restore branch, and a duplicate in `adminController._persistSettings` that ran
+last and overwrote the other two. That is why the problem survived: thinning any
+one of them would have been silently undone by another. Now there is one,
+`themeSettings.writeSettingsFile()`, and it thins.
+
+The DB copy is thinned too. It is the restore source on a fresh Hostinger
+deploy, so leaving it fat would have handed the stale defaults straight back on
+the next wipe — the fix would have lasted exactly until then.
+
+**The trade, stated plainly:** a value an admin set deliberately that happens to
+equal the current default is now indistinguishable from "not set", so if that
+default later changes, their value follows it. For theme settings that is the
+wanted behavior; it is the whole point. But it is a behavior change, not a
+no-op. The in-memory cache still holds the full object, so no reader sees less
+than it did before.
+
+Proof, run against the real 10,615-byte file: the thinned 5,236-byte version
+renders byte-identical settings, and a default changed after the save now takes
+effect.
+
+### Bug 2 — DEFAULTS had two `seo:` keys
+
+Found while debugging bug 1, because a gate assertion that should have passed
+did not. `DEFAULTS` contained `seo: {}` at line 41 **and** at line 1132, about a
+thousand lines apart. Two keys of the same name in one object literal is not a
+syntax error: JavaScript keeps the last. So `DEFAULTS.seo` was
+`{ filter_landing_min_products }` alone and these seven were silently discarded:
+
+    home_title  home_description  og_image  og_image_alt
+    og_title    og_description    google_analytics_id
+
+Mostly masked, because the saved settings file supplied four of them. Three had
+no saved value: `og_title` and `og_description` default to `''` so nothing
+showed, but **`og_image_alt` was undefined on every page** and fell back to the
+page title via `_seo.og_image_alt || _pageTitle` in `main.ejs`. A soft failure,
+which is why nobody saw it.
+
+This was self-inflicted: the threshold was added in a new `seo:` block rather
+than into the existing one. Both are now one block.
+
+### Enforcement
+
+`gates/gate_settings_storage.js` — 22 checks, including a structural scan of
+`DEFAULTS` for duplicate keys at every nesting level, so bug 2 cannot recur in
+any settings group. `./mutate_settings_storage_gate.sh` re-breaks it seven ways,
+including reintroducing the second `seo:` block, and catches all seven.
+
+### The lesson worth keeping
+
+A code default is not the live value. If a setting is stored, the stored copy
+wins, and "I changed the default and deployed" proves nothing. Check what the
+live site actually reads before believing a config change took.

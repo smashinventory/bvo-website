@@ -137,6 +137,19 @@ check(Number(ctrlDefault) > 0,
       'the fallback is not 0 (0 would promote every thin page on a config slip)');
 check(/filter_landing_min_products/.test(ctrl),
       'the controller reads the threshold by name');
+
+/* THE SETTING MUST BE REACHABLE. For days the comment in filterLandingPages.js
+   and the architecture doc both said this number was "tunable in the Theme
+   Editor without a deploy". It was not — the key existed in the defaults and
+   the controller read it, but no field rendered it, so the only way to change
+   it was to hand-edit data/theme_settings.json on the server. A setting nobody
+   can reach is a constant with extra steps, and a doc that says otherwise is
+   worse than no doc. Asserted here so the claim cannot go stale again. */
+{
+  const theme = read('views/pages/admin/theme.ejs');
+  check(/seo\.filter_landing_min_products/.test(theme),
+        'the Theme Editor renders a field for the threshold (the docs claim it is tunable)');
+}
 check(!/<\s*25\b/.test(ctrl.split('const _landing')[1] || '') ||
       /minProducts/.test(ctrl),
       'the comparison uses the settings value, not a hardcoded number');

@@ -66,10 +66,19 @@
  * point: those would be a bad landing for the shopper, not just a thin
  * page for the crawler.
  *
- * It is a SETTING, not a constant. If 10 proves wrong in either direction,
- * change seo.filter_landing_min_products in the Theme Editor — no deploy.
- * Nothing in this file or the gate pins the number; the gate asserts only
- * that the themeSettings default and the controller fallback AGREE.
+ * It is a SETTING, not a constant: Theme Editor -> SEO -> "Filter landing
+ * page — min products to rank". No deploy. Nothing here or in the gate pins
+ * the number; the gate asserts only that the themeSettings default and the
+ * controller fallback AGREE, and that the Theme Editor field exists.
+ *
+ * THE DEFAULT BELOW IS NOT NECESSARILY WHAT IS LIVE. themeSettings.save()
+ * writes the FULL merged object back to data/theme_settings.json, so every
+ * Theme Editor save freezes the then-current defaults into the file as
+ * explicit values. Once a key is in that file, changing the default here
+ * does nothing. Measured 2026-10-06: 109 of 130 scalar keys in the live file
+ * are identical to their defaults and exist only to shadow them. If you
+ * change the number below and nothing moves on the site, that is why —
+ * check the file, or just use the Theme Editor field.
  *
  * ── WRITING RULES, so these do not drift into filler ────────────────
  * - Every title and meta must be UNIQUE. Two pages sharing a meta is the

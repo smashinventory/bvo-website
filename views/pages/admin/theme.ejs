@@ -828,6 +828,25 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
                 <%- teField('text','seo.og_image_alt','OG Image Alt Text',seo.og_image_alt) %>
                 <div class="te4-section-label" style="margin-top:.75rem">Analytics</div>
                 <%- teField('text','seo.google_analytics_id','Google Analytics ID',seo.google_analytics_id) %>
+                <%# FILTER LANDING THRESHOLD — added 2026-10-06.
+                    The code comments and docs had claimed for days that this
+                    was "tunable in the Theme Editor without a deploy". It was
+                    not: the key existed in the defaults and the controller read
+                    it, but there was no field, so the only way to change it was
+                    to edit data/theme_settings.json on the server by hand.
+                    A setting nobody can reach is a constant with extra steps. %>
+                <%- teField('number','seo.filter_landing_min_products',
+                      'Filter landing page — min products to rank',
+                      (typeof seo.filter_landing_min_products !== 'undefined'
+                        ? seo.filter_landing_min_products : 10)) %>
+                <p class="te4-hint">How many products a filtered collection
+                  (Farmhouse, 36 Inch, Kitchen Faucets…) needs behind it before
+                  it gets its own title, H1 and canonical instead of pointing at
+                  the parent collection. Below this it still works for shoppers,
+                  it just does not compete for its own keyword. Raise it if thin
+                  pages start showing in Search Console; lower it to let smaller
+                  categories rank. 0 would promote everything, including
+                  2-product pages — don't.</p>
 
                 <div class="te4-section-label" style="margin-top:.75rem">Social Accounts</div>
                 <p style="font-size:.74rem;color:var(--te4-muted,#888);margin:-.2rem 0 .6rem">Paste your full profile URL for each platform you use. Icons only appear on product &amp; inspiration pages when a URL is set.</p>

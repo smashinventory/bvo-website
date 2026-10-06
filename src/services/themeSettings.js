@@ -46,6 +46,42 @@ const DEFAULTS = {
     og_title:            '',
     og_description:      '',
     google_analytics_id: '',
+
+    /* THIS KEY LIVED IN A SECOND `seo: {}` BLOCK UNTIL 2026-10-06, about
+       1,000 lines further down. Two keys of the same name in one object
+       literal is not an error — JavaScript keeps the LAST one — so
+       DEFAULTS.seo silently became { filter_landing_min_products } alone
+       and the seven defaults above were thrown away. Masked, because the
+       saved settings file supplied most of them; og_image_alt had no
+       saved value and was simply undefined on every page. Found while
+       chasing why a changed default was being ignored. Add SEO defaults
+       HERE. */
+  /* ── SEO ────────────────────────────────────────────────────────────
+       filter_landing_min_products — how many products a filtered collection
+       page must have before it is promoted to a real, indexable landing page
+       with its own title, meta description, H1 and intro, canonicalising to
+       ITSELF rather than to the parent collection.
+
+       Below the threshold the page behaves exactly as it always has: parent
+       canonical, parent title and meta, no intro. That is deliberate. A page
+       with seven products and a paragraph of copy is the thin-content case
+       that makes indexing faceted navigation backfire — Google sees a
+       near-duplicate of the parent with little unique value, and a shopper
+       arriving from "coastal bathroom vanity" finds seven results where the
+       search promised a category.
+
+       A THRESHOLD RATHER THAN A HAND-PICKED LIST, because the catalogue
+       moves: the James Martin feed adds products nightly, so Coastal at 7
+       today may be 60 next quarter, and a list of "the good ones" would be
+       wrong in both directions within weeks. Content is written for all 27
+       filter values (src/config/filterLandingPages.js); this number decides
+       which of them are live at any moment, and the set self-corrects.
+
+       25 because the grid serves 24 per page, so a promoted page always has
+       at least one full grid and a second page. That makes the line
+       defensible rather than arbitrary. Raise it to be more conservative;
+       set it to 0 to promote every value that has content written. */
+    filter_landing_min_products: 10,
   },
   global: {
     site_name:              'BathroomVanitiesOutlet.com',
@@ -1104,34 +1140,6 @@ const DEFAULTS = {
     empty_cta_text: 'Start Shopping',
     empty_cta_url: '/collections/bathroom-vanities',
   },
-  /* ── SEO ────────────────────────────────────────────────────────────
-     filter_landing_min_products — how many products a filtered collection
-     page must have before it is promoted to a real, indexable landing page
-     with its own title, meta description, H1 and intro, canonicalising to
-     ITSELF rather than to the parent collection.
-
-     Below the threshold the page behaves exactly as it always has: parent
-     canonical, parent title and meta, no intro. That is deliberate. A page
-     with seven products and a paragraph of copy is the thin-content case
-     that makes indexing faceted navigation backfire — Google sees a
-     near-duplicate of the parent with little unique value, and a shopper
-     arriving from "coastal bathroom vanity" finds seven results where the
-     search promised a category.
-
-     A THRESHOLD RATHER THAN A HAND-PICKED LIST, because the catalogue
-     moves: the James Martin feed adds products nightly, so Coastal at 7
-     today may be 60 next quarter, and a list of "the good ones" would be
-     wrong in both directions within weeks. Content is written for all 27
-     filter values (src/config/filterLandingPages.js); this number decides
-     which of them are live at any moment, and the set self-corrects.
-
-     25 because the grid serves 24 per page, so a promoted page always has
-     at least one full grid and a second page. That makes the line
-     defensible rather than arbitrary. Raise it to be more conservative;
-     set it to 0 to promote every value that has content written. */
-  seo: {
-    filter_landing_min_products: 10,
-  },
 
   social: {
     facebook_url:  '',   // e.g. https://facebook.com/YourPage
@@ -1196,7 +1204,11 @@ function persistToDb(settings) {
   bvoPool.query(
     'INSERT INTO app_settings (`key`, value) VALUES (?, ?) ' +
     'ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = NOW()',
-    ['theme_settings', JSON.stringify(settings)]
+    /* Thinned, same as the file. The DB copy is the restore source on a
+       fresh Hostinger deploy, so storing the fat object here would hand the
+       stale defaults straight back on the next wipe — the fix would last
+       exactly until the next deploy. */
+    ['theme_settings', JSON.stringify(thinForStorage(settings))]
   ).catch(e => {
     if (!e.message.includes("doesn't exist")) {
       console.error('[theme] DB save failed:', e.message);
@@ -1240,7 +1252,7 @@ async function initFromDb() {
       const settings = deepMerge(DEFAULTS, JSON.parse(rows[0].value));
       const dir = path.dirname(SETTINGS_PATH);
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf8');
+      writeSettingsFile(settings);
       _cache = settings;
       console.log('[theme] Settings restored from DB to disk ✓');
     } else {
@@ -1274,6 +1286,78 @@ function reload() {
   return load();
 }
 
+/* ── STORAGE: write only what DIFFERS from the defaults ────────────────
+ *
+ * WHY THIS EXISTS — 2026-10-06
+ *
+ * save() used to write the FULLY MERGED settings object back to disk:
+ *
+ *     const settings = deepMerge({}, load());   // load() = DEFAULTS + file
+ *     fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2));
+ *
+ * So every Theme Editor save froze every current default into the file as an
+ * explicit value. Once a key was in that file, changing its default in this
+ * file did nothing, for ever, with no error and nothing in the logs.
+ *
+ * That is not theoretical. seo.filter_landing_min_products was changed from
+ * 25 to 10, deployed, and the site carried on behaving as 25 because a save
+ * months earlier had pinned it. Measured against the live file the same day:
+ * 109 of 130 scalar keys were byte-identical to their defaults and existed
+ * only to shadow them. 17 were real admin choices.
+ *
+ * THE READ PATH NEEDS NO CHANGE. load() already does deepMerge(DEFAULTS,
+ * file), so a file holding only the differences produces exactly the same
+ * settings object it produced before. Verified against the real 10,615-byte
+ * file: the thinned 5,236-byte version renders byte-identical settings.
+ *
+ * ARRAYS ARE ATOMIC, deliberately. deepMerge only recurses into plain
+ * objects — an array hits the else branch and REPLACES wholesale. So an array
+ * is written entire when it differs and omitted when it does not; there is no
+ * such thing as a partial array here, and trying to diff one per-item would
+ * produce a file deepMerge cannot read back.
+ *
+ * THE TRADE, stated plainly: a value an admin set deliberately that happens
+ * to equal the current default becomes indistinguishable from "not set". If
+ * that default later changes, their value follows it. For theme settings that
+ * is the wanted behaviour — it is the whole point — but it IS a behaviour
+ * change, not a no-op.
+ *
+ * A key with no default at all is always written. Those are real data with
+ * nothing to fall back to.
+ */
+function thinForStorage(settings, defaults) {
+  const def = defaults === undefined ? DEFAULTS : defaults;
+  const out = {};
+  for (const key of Object.keys(settings || {})) {
+    const cur = settings[key];
+    const dft = def ? def[key] : undefined;
+
+    if (Array.isArray(cur)) {
+      if (JSON.stringify(cur) !== JSON.stringify(dft)) out[key] = cur;
+      continue;
+    }
+    if (cur && typeof cur === 'object') {
+      const sub = thinForStorage(cur, dft || {});
+      if (Object.keys(sub).length) out[key] = sub;
+      continue;
+    }
+    // No default to fall back to, or genuinely different -> keep it.
+    if (dft === undefined || String(cur) !== String(dft)) out[key] = cur;
+  }
+  return out;
+}
+
+/* The ONE place the settings file is written. There used to be three — here,
+   in initFromDb's restore branch, and again in adminController._persistSettings
+   which ran last and undid the other two. Three writers of one file is how the
+   fat-file problem survived: thinning any one of them would have been silently
+   overwritten by another. */
+function writeSettingsFile(settings) {
+  const dir = path.dirname(SETTINGS_PATH);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(SETTINGS_PATH, JSON.stringify(thinForStorage(settings), null, 2), 'utf8');
+}
+
 /**
  * Save a flat key=value map from the admin form back to JSON.
  * Keys use dot notation: "hero.heading_line1", "footer.col_shop_links[0].label"
@@ -1286,11 +1370,9 @@ function save(flat) {
     setDotPath(settings, dotKey, value);
   }
 
-  // Ensure data dir exists
-  const dir = path.dirname(SETTINGS_PATH);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
-  fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf8');
+  writeSettingsFile(settings);
+  /* The CACHE keeps the full merged object. Only the FILE is thinned —
+     every reader still sees every key, exactly as before. */
   _cache = settings;
   return settings;
 }
@@ -1327,4 +1409,5 @@ function deepMerge(target, source) {
   return out;
 }
 
-module.exports = { get, save, reload, persistToDb, initFromDb };
+module.exports = { get, save, reload, persistToDb, initFromDb,
+                   writeSettingsFile, thinForStorage };

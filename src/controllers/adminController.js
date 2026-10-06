@@ -1981,10 +1981,15 @@ function _buildSettingsFromBody(body) {
 }
 
 function _persistSettings(settings) {
-  const p = path.join(__dirname, '../../data/theme_settings.json');
-  const dir = path.dirname(p);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(p, JSON.stringify(settings, null, 2), 'utf8');
+  /* THE FILE WRITE USED TO BE DUPLICATED HERE — its own path join, its own
+     mkdir, its own writeFileSync of the FULL object. It ran after
+     themeSettings.save() had already written the same file, so this copy won,
+     and it was the one writing every default back as an explicit value. Both
+     now go through themeSettings.writeSettingsFile(), which stores only what
+     differs from the defaults. Two writers of one file is how that problem
+     survived unnoticed: thinning one would have been overwritten by the other.
+     See the long note on thinForStorage in src/services/themeSettings.js. */
+  themeSettings.writeSettingsFile(settings);
   // Also persist to DB so settings survive a fresh Hostinger deploy (file wipe).
   // persistToDb is fire-and-forget; errors are swallowed non-fatally inside the service.
   themeSettings.persistToDb(settings);
