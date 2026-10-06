@@ -58,15 +58,40 @@ ok('it has an action',
    'without one the form submits to the current path, and on a landing page '
    + 'the path is the filter — unchecking the box does nothing');
 
-ok('the action is CONDITIONAL on landing',
-   /if\s*\([^)]*landing[^)]*\)[\s\S]*action=/.test(tag),
+ok('the action is CONDITIONAL',
+   /if\s*\([\s\S]*\)[\s\S]*action=/.test(tag),
    'an unconditional action drops the model on /vanity-models/<brand>/<model>, '
    + 'where `model` is not a hidden input and survives only via the path');
+
+/* ⚠️ THE REGRESSION THIS GATE EXISTS FOR, SECOND EDITION.
+   The first version keyed the action off `landing`. `landing` is set only
+   while EXACTLY ONE filter is active, so /style/farmhouse?size_in=36 lost
+   the action, the form fell back to submitting at the path, and farmhouse
+   could not be cleared. Reported from the live site within the hour.
+   The question is what the PATH carries, which is pathFilterKind. */
+ok('it is keyed off pathFilterKind, NOT landing',
+   /pathFilterKind/.test(tag) && !/\blanding\b/.test(tag),
+   'landing exists only for a single active filter — adding a second one '
+   + 'drops the action and re-locks the path filter');
 
 ok('the action points at a bare collection, never a filtered path',
    /action="\/collections\/<%=\s*category\.slug\s*%>"/.test(tag)
      && !/action="[^"]*\/(style|size|color)\//.test(tag),
    'pointing it at a filtered path reintroduces exactly the bug');
+
+/* BEHAVIOUR, not spelling: render the real tag for each kind. */
+{
+  const ejs = require('ejs');
+  const cat = { slug: 'bathroom-vanities' };
+  const render = (kind, c) => ejs.render(tag, { pathFilterKind: kind, category: c || cat, landing: null });
+  const has = (kind, c) => /action=/.test(render(kind, c));
+  ok('a facet path gets the action',            has('facet'));
+  ok('a flag path gets the action',             has('flag'));
+  ok('a MODEL path does NOT (it would be lost)', !has('model', { slug: 'vanity-models' }),
+     '/vanity-models/<brand>/<model> survives only by inheriting its path');
+  ok('a plain ?param= page does NOT',           !has(null),
+     'nothing there re-applies a filter, so there is nothing to fix');
+}
 
 /* The dependency this is scoped around. If someone later adds `model` as a
    hidden input to #filter-form, the conditional CAN be widened — and this

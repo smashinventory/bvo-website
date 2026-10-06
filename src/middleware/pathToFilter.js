@@ -20,6 +20,16 @@
  * 2. An unresolved path is left completely alone. '/:slug' then answers it
  *    exactly as it does today.
  *
+ * 3. req.pathFilterKind records WHICH branch fired - 'facet', 'flag' or
+ *    'model'. The filter form needs this: a GET form with no action submits
+ *    to the current path, so on a path-filtered URL the path re-applies the
+ *    filter AFTER the form is read and unchecking the box does nothing. The
+ *    form points at the bare collection when this is 'facet' or 'flag'.
+ *
+ *    NOT for 'model': /vanity-models/<brand>/<model> survives only by
+ *    inheriting its path, because `model` is not a hidden input in either
+ *    form. See docs/rollbacks/ROLLBACK_filter_form_action.md
+ *
  * To disable: comment out the router.use line in src/routes/collections.js.
  * Every ?param= URL still works — none were removed.
  */
@@ -56,18 +66,18 @@ module.exports = function pathToFilter(req, res, next) {
     // still resolves. Returning here would shadow it.
     if (p.length === 3 && p[0] === 'vanity-models') {
       const hit = P.model(p[1], p[2]);
-      if (hit) { rewrite(req, 'bathroom-vanities', hit); return next(); }
+      if (hit) { rewrite(req, 'bathroom-vanities', hit); req.pathFilterKind = 'model'; return next(); }
     }
     // /<collection>/<facet>/<value>
     if (p.length === 3) {
       const hit = P.facet(p[0], p[1], p[2]);
-      if (hit) rewrite(req, p[0], hit);
+      if (hit) { rewrite(req, p[0], hit); req.pathFilterKind = 'facet'; }
       return next();
     }
     // /<collection>/<flag>
     if (p.length === 2) {
       const hit = P.flag(p[0], p[1]);
-      if (hit) rewrite(req, p[0], hit);
+      if (hit) { rewrite(req, p[0], hit); req.pathFilterKind = 'flag'; }
       return next();
     }
     return next();
