@@ -89,6 +89,7 @@ line — add one to the top of that file, under its H1, then reindex.
 | Document | Purpose |
 |---|---|
 | `docs/rollbacks/HERO_CURRENT_STATE_2026-09-13.md` | State of the hero before the duplicate-h1 fix, so it can be restored exactly. |
+| `docs/rollbacks/HERO_UNWIND_2026-10-06.md` | Written BEFORE any change, at Sam's instruction: *"create a detailed set of |
 | `docs/rollbacks/ROLLBACK_hero_bg_video.md` | How to undo the hero background video. |
 | `docs/rollbacks/ROLLBACK_jmv_rollup_env.md` | How to undo the jmv_rollup.sh credential conversion. |
 | `docs/rollbacks/ROLLBACK_product_variant_selector.md` | How to undo the product page variant selector. |
