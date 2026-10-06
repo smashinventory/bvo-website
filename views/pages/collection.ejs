@@ -136,7 +136,31 @@
 
   <!-- ── Filter sidebar ──────────────────────────────────────────── -->
   <aside class="filter-panel" aria-label="Filter products">
-    <form method="GET" id="filter-form">
+    <%# ── WHY THIS FORM SOMETIMES HAS AN ACTION ──────────────────────────
+        A GET form with no action submits to the CURRENT path. On a filter
+        landing page the path IS the filter
+        (/collections/bathroom-vanities/style/farmhouse), and pathToFilter
+        re-applies it AFTER the form is read - so unchecking the box did
+        nothing. The checkbox cleared, the results did not.
+
+        Pointing the action at the bare collection makes the form the only
+        source of filter state, so an unchecked box genuinely disappears.
+
+        ONLY on landing pages, deliberately. Elsewhere the inherited path is
+        load-bearing: /collections/vanity-models/<brand>/<model> survives ONLY
+        because the form inherits it - `model` is not a hidden input in either
+        form. Setting the action everywhere would drop the model on the first
+        filter click. Completing the hidden-input set is the real fix and is
+        its own piece of work; this is scoped to the 27 pages with the bug.
+
+        CONSEQUENCE, accepted: re-selecting a filter afterwards leaves the
+        URL as ?style=Farmhouse rather than returning to the clean path.
+        filterToPath only 301s when the query is EXACTLY one key, and this
+        form always submits a hidden sort plus empty price bounds.
+
+        TO UNDO: delete the action attribute below. See
+        docs/rollbacks/ROLLBACK_filter_form_action.md %>
+    <form method="GET" id="filter-form"<% if (typeof landing !== 'undefined' && landing && category && category.slug) { %> action="/collections/<%= category.slug %>"<% } %>>
       <input type="hidden" name="sort" value="<%= sort %>">
       <%/* Preserve all color params when any other filter fires form.submit() */%>
       <% colorFamilyActive.forEach(function(f) { %><input type="hidden" name="color_family" value="<%= f %>"><% }) %>
