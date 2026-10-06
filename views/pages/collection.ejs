@@ -146,15 +146,7 @@
         Pointing the action at the bare collection makes the form the only
         source of filter state, so an unchecked box genuinely disappears.
 
-        CONDITIONED ON pathFilterKind, NOT on `landing`. The first version used
-        `landing`, which exists only while EXACTLY ONE filter is active - so
-        adding a second filter dropped the action, the form fell back to the
-        path, and the style re-locked. Reported from the live site:
-        /style/farmhouse?size_in=36 could not clear farmhouse.
-        pathFilterKind is set by pathToFilter and says what the PATH carries,
-        which is the actual question.
-
-        'facet' and 'flag' only. Elsewhere the inherited path is
+        ONLY on landing pages, deliberately. Elsewhere the inherited path is
         load-bearing: /collections/vanity-models/<brand>/<model> survives ONLY
         because the form inherits it - `model` is not a hidden input in either
         form. Setting the action everywhere would drop the model on the first
@@ -168,7 +160,7 @@
 
         TO UNDO: delete the action attribute below. See
         docs/rollbacks/ROLLBACK_filter_form_action.md %>
-    <form method="GET" id="filter-form"<% if (typeof pathFilterKind !== 'undefined' && (pathFilterKind === 'facet' || pathFilterKind === 'flag') && category && category.slug) { %> action="/collections/<%= category.slug %>"<% } %>>
+    <form method="GET" id="filter-form"<% if (typeof landing !== 'undefined' && landing && category && category.slug) { %> action="/collections/<%= category.slug %>"<% } %>>
       <input type="hidden" name="sort" value="<%= sort %>">
       <%/* Preserve all color params when any other filter fires form.submit() */%>
       <% colorFamilyActive.forEach(function(f) { %><input type="hidden" name="color_family" value="<%= f %>"><% }) %>

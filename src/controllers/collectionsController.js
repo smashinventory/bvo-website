@@ -1453,11 +1453,6 @@ exports.show = async (req, res, next) => {
 
     res.render('pages/collection', {
       sd,
-      /* 'facet' | 'flag' | 'model' | undefined — set by pathToFilter when the
-         URL PATH carries the filter. The form needs this, not `landing`:
-         landing exists only while exactly ONE filter is active, so adding a
-         second one dropped the form's action and re-locked the path filter. */
-      pathFilterKind: req.pathFilterKind || null,
       sdCtx: sdCollectionCtx(res, category, effectiveCanonical, _modelSeo, _landing),
       pageTitle:    _modelSeo ? _modelSeo.title
                   : _landing  ? _landing.title
