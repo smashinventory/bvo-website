@@ -140,8 +140,66 @@ section honestly.
 | `cta1_url` | `/collections/bathroom-vanities` | index.ejs:549 |
 | `cta2_url` | `/collections/sale` | index.ejs:551 |
 
-**Seeding these defaults must use the values in this table, not tidy-looking
-numbers.** Anything else silently changes the rendered page.
+**Seeding these defaults must use SENTINELS, not resolved values.** The
+distinction matters and is the whole risk:
+
+* `heading_size` is read as `hero.heading_size ? 'font-size:'+x+'px' : ''`.
+  Seed it `0` and it stays falsy, so the CSS rule still wins. Seed it with the
+  *resolved* 2.6rem as 42px and you have REPLACED a responsive CSS rule with a
+  fixed pixel size. Same for `subtext_size`.
+* `heading_level` seeds `'h1'`, `cta1_url` / `cta2_url` seed the paths already
+  rendering. Identical output either way.
+
+### CORRECTION — these fields are NOT all absent from the settings file
+
+An earlier draft of this document said the eight are absent from
+`data/theme_settings.json`. That was read off the LOCAL copy of that file,
+which is stale. The same mistake was made with `og_image_alt` earlier the same
+day. **The local settings file is not the server's.**
+
+The live render disproves it. From the inline style captured in section 1:
+
+```
+--ov-clr:#ffffff    --ov-op:0.00    --hero-sub2:#926A21
+```
+
+So `overlay_color`, `overlay_opacity` and `sub2_color` ARE set on the server —
+to white, zero and gold respectively. Whatever default is added for those three
+is irrelevant; the stored value wins and the page cannot move.
+
+| field | live evidence | stored on server? | safe default |
+|---|---|---|---|
+| `overlay_color` | `--ov-clr:#ffffff` | yes | `'#0f1f35'` (overridden) |
+| `overlay_opacity` | `--ov-op:0.00` | yes | `55` (overridden) |
+| `sub2_color` | `--hero-sub2:#926A21` | yes | `''` (overridden) |
+| `heading_size` | no inline font-size | no | **`0`** sentinel |
+| `subtext_size` | no inline font-size | no | **`0`** sentinel |
+| `heading_level` | renders `<h1>` | unknown, same either way | `'h1'` |
+| `cta1_url` | `/collections/bathroom-vanities` | unknown, same either way | that path |
+| `cta2_url` | `/collections/sale` | unknown, same either way | that path |
+
+**Derive from the live render, never from the local settings file.**
+
+### RULE — enabling a read publishes whatever is stored
+
+Raised by Sam before any code was written, and it is a real hazard here.
+`badge_text` is stored as `'Free Shipping'`. It has been dormant only because
+nothing reads it. The moment the badge renders, that value publishes itself to
+the live homepage unasked.
+
+> **Before wiring a field that nothing currently reads, check what is stored for
+> it.** An orphaned field is not an empty field — it may carry a value from
+> before it was orphaned. Enabling the read publishes that value.
+> **New output ships OFF.**
+
+Hence `badge_enabled: false`. The capability exists, the stored text is
+preserved, nothing renders until it is deliberately switched on. Enabling a
+capability and enabling its output are two different decisions.
+
+The distinction Sam drew is worth keeping: something *appearing* is additive
+and obvious; something *replacing* existing content is silent and far worse.
+The seeding rules above exist to make sure nothing in this work replaces
+anything.
 
 ### One orphan
 
