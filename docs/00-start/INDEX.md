@@ -25,7 +25,7 @@ line — add one to the top of that file, under its H1, then reindex.
 | `docs/00-start/OPEN_ITEMS.md` | Outstanding work, numbered. Check here before starting anything — it may already be logged. |
 | `docs/00-start/PROJECT_BRIEF.md` | What BVO is, its scope and history, and the owner preferences every session should follow. |
 | `docs/00-start/SCOPE_45.md` | The owner's 45-point scope, verbatim and numbered. THE canonical numbering: an item number quoted anywhere — commit, gate, conversation — means the number in this file. Check status here before starting anything in the payment-risk, address or checkout-stage work. |
-| `docs/00-start/VERIFY_QUEUE.md` | Built, gated and pushed, but NOT yet seen working by Sam. One list, run in one pass. Append here as work ships; tick and move to Verified when it passes. |
+| `docs/00-start/VERIFY_QUEUE.md` | ## ⚠️ THIS LIST WAS STALE — READ BEFORE TREATING ANYTHING BELOW AS OPEN |
 
 ## ARCHITECTURE — how a thing is built and why
 
