@@ -1322,9 +1322,28 @@ money, so it wants doing alone with screenshots, never bundled.
 | what | where | fix | risk |
 |---|---|---|---|
 | `process.env.SITE_URL \|\| '…'` | 11 files — `server.js` (x3), `inspirationController` (x2), `collectionsController` (x2), `checkoutController` (x2), + `sitemapController`, `productsController`, `pagesController`, `lookbookController`, `bundleController`, `authorsController`, `utils/structuredData.js` | export it from `structuredData.js`, already imported by 5 files | **very low** |
-| primary-image `COALESCE(p.primary_image_url, (SELECT url FROM product_images …))` | 17 occurrences / 10 files — `models/Product.js` (x4), `homeController` (x3), `utils/modelHero` (x2), `services/searchService` (x2), + `routes/search`, `models/Customer`, `jobs/searchSync`, `inspirationController`, `collectionsController`, `adminController` | one exported `PRIMARY_IMAGE_SQL` fragment | low, but **touches product queries — needs explicit sign-off under the standing filtering rule** |
+| ~~primary-image `COALESCE`~~ **CLOSED 2026-10-06 — cosmetic, do not re-open** | 3 spellings: `COALESCE(p.primary_image_url, pi.url)` (15, mostly un-grouped), `COALESCE(MIN(CASE WHEN …), MIN(pi.url))` (4, `GROUP BY p.id`), `COALESCE(p.primary_image_url, MIN(pi.url))` (2, both in `utils/modelHero.js`, `GROUP BY p.id`) | **none — leave all three alone** | **none** |
 | `canonicalUrl` assembly | 10 files — `collectionsController` (x3), `inspirationController` (x2), + `productsController`, `pagesController`, `lookbookController`, `bundleController`, `authorsController`, `searchPageController`, `main.ejs`, `server.js` | `canonicalFor(req, opts)` | medium — SEO-critical, and `gate_filter_landing_pages` + `gate_canonical_redirect` both constrain it. Deliberately or not at all |
 | two DB idioms: `safeQuery` (9 files) vs `bvoPool.query` (36) | **six controllers use both** — `adminController`, `jmvReportsController`, `ordersController`, `productsController`, `returnsController`, `shippingController` | route through `src/db/query.js`, which exists | low per site, broad — in slices by controller, never one commit |
+
+**Why the primary-image row is closed, so nobody re-derives it.** The three
+spellings look like three behaviours and are not. Under `GROUP BY p.id`,
+`p.primary_image_url` is functionally dependent on the primary key, so
+`MIN(CASE WHEN p.primary_image_url IS NOT NULL THEN … END)` and a bare
+`p.primary_image_url` are the SAME value — both forms reduce to "the primary
+image if set, else `MIN(pi.url)`". The earlier claim that they could return
+different images for one product assumed grouping by MODEL; the grouping is by
+product id.
+
+The only condition that could have made them differ is a product carrying more
+than one `is_primary = 1` row — which would also fan out the un-grouped
+queries, showing a product twice in grids and search while once on the
+homepage. **Measured on the live database 2026-10-06: zero such products.**
+`is_primary = 1` is also identical in all 39 places it appears.
+
+Consolidating these would touch product queries for no behavioural gain, which
+is against the standing rule on filtering and product data. The earlier count
+of "17 occurrences / 10 files" was wrong and is corrected above.
 
 `safeQuery` wraps errors and the raw pool does not, so inside one controller
 one failing query is handled and the next takes a different path. Invisible
