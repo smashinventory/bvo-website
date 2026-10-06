@@ -153,3 +153,75 @@ domain. Using it here would be wrong.
 DNS back to Shopify. Nothing in this migration is destructive: the Shopify
 store is untouched, and `url_redirects` only ever affects requests the
 Node.js app receives.
+
+---
+
+## Authority baseline — measured 2026-10-06
+
+Logged so the next reading has something to compare against. Taken the same day
+the faucet/accessory landing pages went live and the sitemap was resubmitted,
+so this is the floor, not a steady state.
+
+All figures are for `https://www.bathroomvanitiesoutlet.com/`.
+
+| Source | Metric | Value |
+|---|---|---|
+| Ahrefs (free backlink checker) | Domain Rating | **13** |
+| Ahrefs | Backlinks | 690 (56% dofollow) |
+| Ahrefs | Linking websites | 583 (58% dofollow) |
+| dapachecker (Ahrefs data) | DR / UR / ST | 13 / 8 / 1.2K |
+| dapachecker (Moz data) | DA / PA / Spam Score | **55** / 41 / 2% |
+| Seobility | Referring domains | 7 |
+| Seobility | Backlinks | 25 |
+| Seobility | Referring IPs | 7 |
+
+### Reading these honestly
+
+**The page-level spread (Seobility 25 vs Ahrefs 690) is expected and partly
+cutover noise.** Two causes stacked: Seobility's link index is a small fraction
+of Ahrefs', and page-level link data is exactly what a URL migration scrambles.
+Links still point at old Shopify URLs; Ahrefs follows the 301 and credits the
+target, smaller crawlers often do not, and every tool recrawls on its own
+cadence. This gap should narrow on its own.
+
+**The domain-level spread (Moz DA 55 vs Ahrefs DR 13) is NOT cutover noise, and
+this was checked rather than assumed.** We migrated URLs, not the domain —
+the domain-level link graph barely moved, so a platform change cannot explain a
+42-point divergence. The first suspicion was that dapachecker was serving stale
+or junk data; its DR tab then returned **13, identical to Ahrefs**, which rules
+that out. Both numbers are faithfully reported. Moz and Ahrefs simply see
+different link graphs and score them differently.
+
+**None of these are Google metrics.** DA, DR, PA and UR are third-party
+estimates Google neither uses nor sees. They are useful only as direction over
+time, measured with ONE tool consistently. Search Console's Links report is the
+only link data Google will ever show, and it is the one that reflects what they
+actually counted.
+
+### Re-measure
+
+**Week of 2026-10-13** — one week on, by which point redirects, the resubmitted
+sitemap and the 11 new filter-landing URLs should have been crawled. Re-take the
+same table from the same sources so the comparison is like for like.
+
+### The open piece of work this baseline is for
+
+**Recover link equity already earned before chasing new links.** The cutover
+redirect map covers 661 old URLs. Any inbound link pointing at a URL *not* in
+that map hits a 404 and its equity is discarded — that is authority already paid
+for and currently being thrown away.
+
+Not started, deliberately deferred until the numbers settle. When picked up:
+
+1. Crawl the old-URL inventory against the live site and list which 404 rather
+   than redirect. Cross-reference against Ahrefs "Best by links" filtered to
+   404, and Search Console → Pages → Not found.
+2. Add any with referring domains to the redirect map, pointed at the closest
+   live equivalent.
+3. Confirm no redirect chains on link-receiving pages — a chain leaks a little
+   on every hop. The canonical-host work is already done, so this should be
+   clean, but it is worth proving rather than assuming.
+
+Only after that is new link acquisition worth time: supplier and brand dealer
+listings (James Martin, Huntington Brass), trade directories, and the
+`/inspiration` guides, which are the site's only genuinely linkable assets.

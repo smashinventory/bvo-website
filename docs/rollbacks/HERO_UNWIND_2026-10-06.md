@@ -55,12 +55,24 @@ Content, in DOM order inside `.hero-content-box`:
 | **`h1.hero-h1`** | Bathroom Vanities Outlet |
 | `p.hero-h2` | Premium Quality at Outlet Prices |
 | `div.hero-rule` | — |
-| `p.hero-sub` | Top brands, delivered free to your door. |
+| `p.hero-sub` | Top brands, wide selection, great service. |
 | `p.hero-sub2` | James Martin · Huntington Brass · & more |
 
 CTAs: `btn btn-navy` → `/collections/bathroom-vanities` "Shop Now", and
 `btn btn-sage` → `/collections/sale` "See Deals".
 Desktop image alt: `Bathroom Vanities Outlet- Premium Bath Vanity Cabinets`.
+
+**Corrected 2026-10-06, post-commit, from the live render.** The `hero-sub` row
+first read "Top brands, delivered free to your door." That string is the
+DEFAULT, and it is also what the stale local `data/theme_settings.json` holds —
+which is where it came from. The live page renders "Top brands, wide selection,
+great service." Same trap as `og_image_alt` and the eight-missing-defaults
+claim: THE LOCAL SETTINGS FILE IS NOT THE SERVER'S. Capture from the rendered
+page, never from that file.
+
+Incidentally this is the cleanest available proof that storage thinning is not
+replacing copy: live shows a value that is neither the default nor the local
+file, i.e. the server's stored value, honored.
 
 ### THE LIVE VALUES ARE NOT THE DEFAULTS
 
@@ -290,6 +302,38 @@ Re-capture and diff against section 1:
 Gates that must stay green: the full suite, currently 52, with the three known
 reds (`gate_canonical_host_live`, `gate_model_card_scope_live` — both network —
 and `gate_consent_checkboxes`, pre-existing).
+
+### RESULT — commit `814fb87`, verified live 2026-10-06
+
+All seven items pass. Measured in the browser, not asserted:
+
+1. Class list byte-identical: `hero hero--bg hero--no-mobile-video
+   hero--has-mobile-img hero--text-shadow`.
+2. Inline `style` string byte-identical, all fifteen declarations including
+   `min-height:300px;max-height:620px`.
+3. Six copy elements, same tags, classes, order and text — `div.hero-rule`
+   included.
+4. Exactly one `h1` on the page, still `h1.hero-h1`.
+5. Both CTAs: classes, hrefs and labels unchanged.
+6. Desktop and mobile `alt` unchanged.
+7. At 375px the `h1` center and the CTA row center both sit 0px from the
+   content box center — copy and buttons aligned the same way.
+
+`.hero-badge` element count on the live homepage: **0**. The badge ships off and
+stays off until someone enables it.
+
+One thing the verification turned up that the checklist does not cover: the
+`@media (max-width:480px)` phone block in `index.ejs` sets
+`--ov-op:0.40 !important`, so the overlay is transparent on desktop and a 40%
+white wash on phones. Both confirmed — 0.00 at 1440px, 0.40 at 375px. That is
+pre-existing tuning, not a change, but the `!important` means the Theme Editor's
+overlay control CANNOT affect phones. Worth knowing before the overlay goes
+under a toggle.
+
+Also observed, unrelated to this commit and unverified as a fault: the desktop
+and mobile hero `<img>` both resolve `currentSrc` to the 1x1 data-URI
+placeholder that task #236 was meant to remove. Only the `.hero-poster` resolves
+to a real file. Needs its own look, separately.
 
 ---
 
