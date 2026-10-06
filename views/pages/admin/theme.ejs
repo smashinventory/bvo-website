@@ -1357,10 +1357,39 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
             <%- teField('text','hero.sub2_text','Text',h.sub2_text) %>
 
             <div class="te4-section-label">Badge</div>
+            <%# REBUILT 2026-10-06, SHIPS OFF. The badge existed early, was pulled
+                over alignment, and left two controls behind that did nothing.
+                It defaults to OFF because badge_text has been stored as
+                'Free Shipping' the whole time - wiring the render without this
+                switch would have published that to the live homepage unasked. %>
+            <%- teToggle('hero.badge_enabled','Show badge',h.badge_enabled === true) %>
             <div class="te4-row2">
               <%- teField('text','hero.badge_text','Badge text',h.badge_text) %>
               <%- teTextSize('hero.badge_size',h.badge_size||10,'Size',6,18) %>
             </div>
+            <div class="te4-field">
+              <label>Placement</label>
+              <select name="hero.badge_placement">
+                <% var _bp = h.badge_placement || 'in-box'; %>
+                <% [['in-box','In content box (recommended)'],
+                    ['top-left','Top left'],['top-center','Top center'],['top-right','Top right'],
+                    ['mid-left','Middle left'],['mid-center','Middle center'],['mid-right','Middle right'],
+                    ['bottom-left','Bottom left'],['bottom-center','Bottom center'],
+                    ['bottom-right','Bottom right']].forEach(function(o){ %>
+                <option value="<%= o[0] %>"<%= _bp === o[0] ? ' selected' : '' %>><%= o[1] %></option>
+                <% }) %>
+              </select>
+            </div>
+            <p class="te4-hint">In content box keeps the badge in normal flow above the
+              eyebrow, so it inherits the box alignment and offsets and cannot collide
+              with anything. The nine anchors position it against the hero corners - free
+              placement, but check it at phone width before you leave it.</p>
+            <div class="te4-row2">
+              <%- teField('color','hero.badge_bg','Background',h.badge_bg) %>
+              <%- teField('color','hero.badge_color','Text color',h.badge_color) %>
+            </div>
+            <%- teField('number','hero.badge_radius','Corner radius (px)',
+                  (typeof h.badge_radius !== 'undefined' ? h.badge_radius : 3)) %>
 
             <div class="te4-section-label">Buttons</div>
             <div class="te4-row2"><%- teField('text','hero.cta1_text','Button 1 label',h.cta1_text) %><%- teField('url','hero.cta1_url','Button 1 URL',h.cta1_url) %></div>

@@ -320,7 +320,42 @@ const DEFAULTS = {
     sub2_text: 'James Martin · Kohler · Moen · Delta and more',
     cta1_text: 'Shop Vanities', cta1_url: '/collections/bathroom-vanities',
     cta2_text: 'View Sale',    cta2_url: '/collections/sale',
+    /* ── BADGE — REBUILT 2026-10-06, SHIPS OFF ─────────────────────────
+       History: built early, then REMOVED because of alignment problems. The
+       residual CSS shows exactly why —
+
+           .hero-badge{position:absolute;top:28px;left:28px}
+
+       a FIXED pixel offset from the hero's top-left corner. The hero has two
+       layouts, a variable height with min/max bounds, a content box with its
+       own v/h offsets, and a separate mobile image with its own aspect ratio.
+       top:28px lands somewhere different in every combination — over the nav
+       in one, on the heading in another. Rebuilding with fixed pixels would
+       reproduce the original bug exactly. It does not.
+
+       WHY badge_enabled DEFAULTS TO FALSE, and this is the important part:
+       badge_text has been stored as 'Free Shipping' on the server all along,
+       dormant only because nothing read it. Wiring the render WITHOUT this
+       flag would publish that value to the live homepage unasked. Sam's rule,
+       raised before any code was written: enabling a read publishes whatever
+       is stored, so new output ships OFF. The capability exists, the text is
+       preserved, nothing renders until it is deliberately switched on.
+
+       badge_placement:
+         'in-box'  (default) — renders inside .hero-content-box above the
+                   eyebrow, in normal flow. Inherits the box's alignment,
+                   offsets and max-width, so it CANNOT collide and it moves
+                   correctly when layout, height or offsets change.
+         'top-left' … 'bottom-right' — anchored to one of nine points on the
+                   hero. Free placement, but relative to the hero's corners
+                   rather than absolute pixels, so it survives layout and
+                   height changes. Collision is then the operator's call. */
+    badge_enabled:   false,
     badge_text: 'Free Shipping',
+    badge_placement: 'in-box',
+    badge_bg:        '',   // '' = CSS default (sage)
+    badge_color:     '',   // '' = CSS default (white)
+    badge_radius:    3,    // px
     image_url: '',
     image_alt: 'Premium bathroom vanity',
     video_url: '',        // YouTube URL or direct .mp4 URL — autoplay muted loop background
@@ -387,6 +422,40 @@ const DEFAULTS = {
     h2_size: 0,
     sub2_size: 14,
     badge_size: 10,
+
+    /* ── SIX DEFAULTS ADDED 2026-10-06 — every one a SENTINEL ──────────
+       These six were live editor fields with NO default. They worked, via
+       inline fallbacks in index.ejs, but the editor could not show a true
+       current value and this file did not describe the section honestly.
+
+       EACH VALUE BELOW REPRODUCES THE TEMPLATE'S EXISTING FALLBACK EXACTLY.
+       That is the whole requirement — adding a default must not move the
+       rendered page. Sam's rule: a new control preloads with reality.
+
+       Two are falsy ON PURPOSE. index.ejs reads them as
+           hero.heading_size ? 'font-size:'+x+'px' : ''
+       so 0 means "write no inline style, let the CSS rule win". Seeding the
+       RESOLVED size instead (2.6rem = ~42px) would replace a responsive CSS
+       rule with a fixed pixel value — a silent change at every viewport.
+       Sentinels, not resolved values.
+
+       overlay_color / overlay_opacity / sub2_color are already SET on the
+       server (verified live: --ov-clr:#ffffff, --ov-op:0.00,
+       --hero-sub2:#926A21), so the stored value wins and these defaults are
+       never reached in production. They are here for honesty and for a fresh
+       install, not because they change anything today.
+
+       NOT ADDED: cta1_url / cta2_url. They already have defaults, written
+       mid-line beside cta1_text / cta2_text. An earlier pass of this audit
+       missed them because the regex only matched keys at line start; adding
+       them here would have created DUPLICATE KEYS — the exact failure the
+       comment above warns about. Evaluate the object, do not grep the text. */
+    heading_level:   'h1',       // _safeTag(hero.heading_level, 'h1')
+    heading_size:    0,          // 0 -> no inline style -> CSS .hero-h1 2.6rem
+    subtext_size:    0,          // 0 -> no inline style -> CSS .hero-sub 1rem
+    sub2_color:      '',         // '' -> no var written -> CSS --hero-sub2
+    overlay_color:   '#0f1f35',  // hero.overlay_color || '#0f1f35'
+    overlay_opacity: 55,         // template falls back to '0.55'; 55/100 = 0.55
     // Content box (bg-video layout) — semi-transparent panel behind text
     content_box_color:   '#0f1f35', // box background color (hex)
     content_box_opacity: 60,         // box opacity 0–100%
