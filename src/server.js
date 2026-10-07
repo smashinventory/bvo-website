@@ -513,6 +513,12 @@ app.use((req, res, next) => {
   const isPreview = req.query.te_preview === '1' && req.session.isAdmin && req.session.tePreviewSettings;
   res.locals.settings    = isPreview ? req.session.tePreviewSettings : themeSettings.get();
   res.locals.isTePreview = !!isPreview;
+  /* The DEFAULTS, alongside the merged settings. A Default/Manual switch in
+     the OFF position has to render the DEFAULT value, and a template cannot
+     recover it from res.locals.settings: that object is
+     deepMerge(DEFAULTS, storedFile), so the stored value has already
+     replaced the default by the time a view sees it. Frozen at export. */
+  res.locals.themeDefaults = themeSettings.DEFAULTS;
   next();
 });
 
