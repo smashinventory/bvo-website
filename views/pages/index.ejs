@@ -2031,6 +2031,30 @@ _DEFAULT_ORDER.forEach(function(k) {
   var _iwtIsOverlay = _d.image_position === 'center';
   var _iwtIsRight   = _d.image_position === 'right';
   var _iwtTextAlign = _d.text_align     || 'left';
+  /* ── ALIGNMENT TRAVELS AS CUSTOM PROPERTIES, same as the samples banner.
+     .iwt-text-col is `display:flex; flex-direction:column;
+     align-items:flex-start`, so writing text-align on it moves the TEXT
+     INSIDE each child but not the children themselves. Every child except
+     the paragraph shrinks to fit its own text, so centering is invisible
+     on them - the paragraph is the only box wide enough (max-width:520px)
+     to show it. That is the whole "only the paragraph moves" symptom:
+     align-items was never being set.
+
+     Setting align-items inline here would fix desktop and create the bug
+     the samples banner already documents - an inline declaration beats
+     every stylesheet rule regardless of specificity, so no media query
+     could ever override it. The value is published as custom properties
+     and the stylesheet decides where to read them. Same two maps, same
+     fallbacks, so the two sections cannot drift apart.
+
+     Overlay mode resolves to center because .iwt-overlay-mode centers in
+     CSS; feeding the same value in keeps the inline vars and that rule
+     from disagreeing. */
+  var _IWT_FLEX     = { left: 'flex-start', center: 'center', right: 'flex-end' };
+  var _iwtAlignKey  = _iwtIsOverlay ? 'center'
+                    : (_IWT_FLEX[_iwtTextAlign] ? _iwtTextAlign : 'left');
+  var _iwtVars      = '--iwt-items:' + _IWT_FLEX[_iwtAlignKey] + ';'
+                    + '--iwt-text:'  + _iwtAlignKey + ';';
   var _iwtGridCls   = 'iwt-grid'
                     + (_iwtIsRight && !_iwtIsOverlay ? ' iwt-reverse' : '')
                     + (_iwtIsOverlay                 ? ' iwt-overlay-mode' : '');
@@ -2112,7 +2136,7 @@ _DEFAULT_ORDER.forEach(function(k) {
     _iwtImgStyle = _iwtImgStyle ? (_iwtImgStyle + ';' + _iwtImgBoxCss) : _iwtImgBoxCss;
   }
 %>
-<section class="section iwt-section" data-section="<%= sectionKey %>" data-section-label="Image with Text" aria-labelledby="iwt-heading-<%= sectionKey %>">
+<section class="section iwt-section" data-section="<%= sectionKey %>" data-section-label="Image with Text" aria-labelledby="iwt-heading-<%= sectionKey %>" style="<%= _iwtVars %>">
   <div class="container">
     <div class="<%= _iwtGridCls %>">
       <div class="iwt-image-col"<%= !_iwtIsOverlay ? ' style="flex:0 0 '+_iwtImgW+'; max-width:'+_iwtImgW+'"' : '' %>>
@@ -2120,7 +2144,9 @@ _DEFAULT_ORDER.forEach(function(k) {
         <img src="<%= _d.image_url %>" alt="<%= _d.image_alt || '' %>" loading="lazy" class="iwt-img" width="<%= _iwtBox.w %>" height="<%= _iwtBox.h %>"<% if (_iwtImgStyle) { %> style="<%= _iwtImgStyle %>"<% } %>>
         <% } %>
       </div>
-      <div class="iwt-text-col" style="text-align:<%= _iwtIsOverlay ? 'center' : _iwtTextAlign %>">
+      <%# No inline alignment here - see _iwtVars above. The section's
+          --iwt-items / --iwt-text are read by .iwt-text-col in site.css. %>
+      <div class="iwt-text-col">
         <% if (_d.eyebrow) { %><p class="section-eyebrow"><%= _d.eyebrow %></p><% } %>
         <<%- _iwtTag %> class="iwt-heading" id="iwt-heading-<%= sectionKey %>" style="<%= _iwtHSize %>"><%= _d.heading || _iwtDefault %></<%- _iwtTag %>>
         <% if (_d.body) { %><p class="iwt-body" style="<%= _iwtBSize %>"><%= _d.body %></p><% } %>
