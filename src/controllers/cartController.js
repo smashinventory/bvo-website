@@ -8,6 +8,11 @@ const { bvoPool } = require('../config/database');
 const pricing = require('../utils/cartPricing');
 const SAMPLE  = require('../config/sampleOffer');
 const SampleRedemption = require('../models/SampleRedemption');
+/* First-party behaviour events. Recorded here rather than from the browser
+   because an ad-blocker cannot drop a server-side insert, and because this
+   handler has already fetched the authoritative price. Never throws - see
+   the header of siteEvents.js. */
+const siteEvents = require('../services/siteEvents');
 
 /* ── Cart helpers ───────────────────────────────────────────────── */
 function getCart(req) {
@@ -244,6 +249,18 @@ exports.add = async (req, res) => {
   // session.save() blocks the response until MySQL confirms the write.
   const isAjax = req.headers['x-requested-with'] === 'XMLHttpRequest' ||
                  req.headers.accept?.includes('application/json');
+
+  /* RECORDED HERE, past every guard, so the number means "a line was
+     actually added to a cart". Recording it earlier would count the blocked
+     $0-price adds and the missing-product_id rejects as cart adds, which is
+     exactly the kind of flattering-but-wrong metric a dashboard should not
+     invent. Not awaited: the customer waits for the cart, not for analytics. */
+  siteEvents.record(req, 'add_to_cart', {
+    product_id: product_id,
+    qty:        qty,
+    value:      pricef * qty,
+  });
+
   req.session.save(err => {
     if (err) console.error('[cart/add] session save error:', err.message);
     if (isAjax) return res.json({ ok: true, count: cart.count, subtotal: cart.subtotal });

@@ -6,6 +6,7 @@ const Customer  = require('../models/Customer');
 const { bvoPool } = require('../config/database');
 const { FAMILIES } = require('../config/colorFamilies');
 const sd          = require('../utils/structuredData');
+const siteEvents  = require('../services/siteEvents');
 
 /* Four inline `.catch(() => [])` swallows lived in this file — product
    documents, product videos, and both "Complete the Look" mirror queries.
@@ -175,6 +176,18 @@ exports.show = async (req, res, next) => {
     const isFavorited = req.session.customerId
       ? (await Customer.getFavoriteIds(req.session.customerId)).has(product.id)
       : false;
+
+    /* view_item — the top of the funnel. Recorded before the render rather
+       than from the browser so it survives ad-blockers, and so it counts the
+       same way add_to_cart does; a funnel whose two steps are measured by
+       different mechanisms compares nothing. Bots are flagged, not dropped,
+       so "views with no adds" stays visible rather than silently shrinking
+       the denominator. Not awaited - the page does not wait on analytics. */
+    siteEvents.record(req, 'view_item', {
+      product_id: product.id,
+      qty:        1,
+      value:      product.price,
+    });
 
     res.render('pages/product', {
       pageTitle:    `${product.meta_title || product.name} | BathroomVanitiesOutlet.com`,

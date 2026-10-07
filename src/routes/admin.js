@@ -12,6 +12,7 @@ const returnsCtrl   = require('../controllers/returnsController');
 const emailTplCtrl  = require('../controllers/emailTemplatesController');
 const jmvCtrl       = require('../controllers/jmvReportsController');
 const custCtrl      = require('../controllers/customerAnalyticsController');
+const siteCtrl = require('../controllers/siteAnalyticsController');
 const shippingCtrl  = require('../controllers/shippingController');
 const { requireAdmin } = require('../middleware/adminAuth');
 
@@ -154,6 +155,7 @@ router.get ('/marketing/jmv/financials',     jmvCtrl.getFinancials);
    Every figure on these pages excludes rows flagged is_test. See
    customerAnalyticsController for why that is not optional. */
 router.get ('/marketing/customers',          custCtrl.dashboard);
+router.get ('/marketing/site',               siteCtrl.dashboard);
 router.get ('/marketing/customers/:id',      custCtrl.detail);
 router.post('/marketing/customers/:id/test', custCtrl.toggleTest);
 

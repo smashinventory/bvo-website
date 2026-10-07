@@ -1,0 +1,241 @@
+<%
+/**
+ * Admin — Site Analytics (storefront funnel)
+ *
+ * Locals: days, funnel, series, topAdded, viewedNotCarted, bots, coverage,
+ *         gaConfigured
+ *
+ * SAME DISCIPLINE AS THE CUSTOMERS PAGE: a panel that does not have enough
+ * data says so instead of drawing a chart. A funnel over eleven sessions is
+ * not a weak signal, it is noise with a percentage sign on it — and this
+ * page will spend its first week in exactly that state, because recording
+ * only begins when it deploys.
+ *
+ * Nothing here computes a metric; the controller owns the arithmetic.
+ */
+%>
+
+<style>
+.sa-head{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1rem}
+.sa-head h1{font-size:1.35rem;font-weight:700;color:var(--navy);margin:0}
+.sa-sub{color:var(--text-muted);font-size:.85rem;margin:.35rem 0 0;line-height:1.5;max-width:70ch}
+.sa-range{display:flex;gap:.3rem}
+.sa-range a{font-size:.78rem;padding:.35rem .6rem;border:1px solid var(--line,#E6E1D8);border-radius:6px;color:var(--text-muted);text-decoration:none}
+.sa-range a.is-active{background:var(--navy,#182840);border-color:var(--navy,#182840);color:#fff;font-weight:600}
+.sa-note{border-radius:8px;padding:.7rem .9rem;font-size:.8rem;line-height:1.5;margin-bottom:1rem}
+.sa-note--warn{background:#FFF8E6;border:1px solid #E8D9A8;color:#6B5A24}
+.sa-note--info{background:#FAFAF8;border:1px solid var(--line,#E6E1D8);color:var(--text-muted)}
+.sa-funnel{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.75rem;margin-bottom:1rem}
+.sa-step{background:#fff;border:1px solid var(--line,#E6E1D8);border-radius:8px;padding:.85rem}
+.sa-step-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);display:block;margin-bottom:.3rem}
+.sa-step-value{font-size:1.4rem;font-weight:700;color:var(--navy);line-height:1.1}
+.sa-step-rate{font-size:.72rem;color:var(--text-muted);margin-top:.2rem}
+.sa-step-rate strong{color:var(--navy)}
+.sa-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.75rem;margin-bottom:1.5rem}
+.sa-kpi{background:#fff;border:1px solid var(--line,#E6E1D8);border-radius:8px;padding:.85rem}
+.sa-kpi-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);display:block;margin-bottom:.3rem}
+.sa-kpi-val{font-size:1.4rem;font-weight:700;color:var(--navy);line-height:1.1}
+.sa-kpi-sub{font-size:.72rem;color:var(--text-muted);margin-top:.2rem;display:block}
+.sa-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:1rem;margin-bottom:1.5rem}
+.sa-panel{background:#fff;border:1px solid var(--line,#E6E1D8);border-radius:8px;padding:1rem}
+.sa-panel h2{font-size:.95rem;font-weight:700;color:var(--navy);margin:0 0 .2rem}
+.sa-panel-note{font-size:.74rem;color:var(--text-muted);margin:0 0 .8rem;line-height:1.45}
+.sa-pending{background:#FAFAF8;border:1px dashed var(--line,#D8D2C6);border-radius:6px;padding:1.1rem;text-align:center}
+.sa-pending-t{font-size:.82rem;font-weight:600;color:var(--navy);margin:0 0 .3rem}
+.sa-pending-d{font-size:.76rem;color:var(--text-muted);margin:0;line-height:1.5}
+.sa-table{width:100%;border-collapse:collapse;font-size:.82rem}
+.sa-table th{text-align:left;font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);border-bottom:1px solid var(--line,#E6E1D8);padding:.4rem .5rem}
+.sa-table td{padding:.42rem .5rem;border-bottom:1px solid #F2F0EB}
+.sa-table td.num,.sa-table th.num{text-align:right;font-variant-numeric:tabular-nums}
+.sa-muted{color:var(--text-muted)}
+</style>
+
+<div class="sa-head">
+  <div>
+    <h1>Site Analytics</h1>
+    <p class="sa-sub">What people do on the storefront, recorded on the server so
+       ad-blockers cannot thin it. Visitors, sessions and time on page are
+       collected by GA4 and arrive here once that connection is set up.</p>
+  </div>
+  <div class="sa-range">
+    <% [7, 30, 90, 365].forEach(function (d) { %>
+      <a href="/admin/marketing/site?days=<%= d %>" class="<%= days === d ? 'is-active' : '' %>"><%= d %>d</a>
+    <% }); %>
+  </div>
+</div>
+
+<%# COVERAGE FIRST. The first mistake anyone makes with a new dashboard is
+    reading "0 adds to cart" as a business problem when it means "recording
+    started an hour ago". %>
+<% var _hours = 0;
+   if (coverage.firstEvent) {
+     _hours = Math.max(1, Math.round((Date.now() - new Date(coverage.firstEvent).getTime()) / 36e5));
+   } %>
+<% if (!coverage.firstEvent || coverage.total === 0) { %>
+  <div class="sa-note sa-note--warn">
+    <strong>No events recorded yet.</strong>
+    Recording begins the moment this deploys. Until a shopper views a product,
+    the panels below are empty — which is not the same as zero.
+  </div>
+<% } else if (_hours < days * 24) { %>
+  <div class="sa-note sa-note--warn">
+    Recording began <strong><%= _hours < 48 ? _hours + ' hours' : Math.round(_hours / 24) + ' days' %> ago</strong>,
+    so the <%= days %>-day window is only partly covered. Totals are real;
+    period-over-period comparisons are not meaningful yet.
+  </div>
+<% } %>
+
+<%# ── the funnel ─────────────────────────────────────────────────────── %>
+<div class="sa-funnel">
+  <%
+    var steps = [
+      { label: 'Viewed a product', v: funnel.viewed,   rate: null,                of: 'sessions' },
+      { label: 'Added to cart',    v: funnel.carted,   rate: funnel.viewToCart,   of: 'of viewers' },
+      { label: 'Started checkout', v: funnel.checkout, rate: funnel.cartToCheck,  of: 'of carts' },
+      { label: 'Ordered',          v: funnel.orders,   rate: funnel.checkToOrder, of: 'of checkouts' }
+    ];
+  %>
+  <% steps.forEach(function (s) { %>
+    <div class="sa-step">
+      <span class="sa-step-label"><%= s.label %></span>
+      <div class="sa-step-value"><%= Number(s.v).toLocaleString() %></div>
+      <div class="sa-step-rate">
+        <% if (s.rate === null) { %><span class="sa-muted"><%= s.of %></span>
+        <% } else { %><strong><%= s.rate %>%</strong> <span class="sa-muted"><%= s.of %></span><% } %>
+      </div>
+    </div>
+  <% }); %>
+</div>
+
+<div class="sa-kpis">
+  <div class="sa-kpi">
+    <span class="sa-kpi-label">Revenue</span>
+    <div class="sa-kpi-val">$<%= Number(funnel.revenue).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) %></div>
+    <span class="sa-kpi-sub">from the orders table, never from events</span>
+  </div>
+  <div class="sa-kpi">
+    <span class="sa-kpi-label">View → order</span>
+    <div class="sa-kpi-val"><%= funnel.viewToOrder === null ? '—' : funnel.viewToOrder + '%' %></div>
+    <span class="sa-kpi-sub">whole funnel, by session</span>
+  </div>
+  <div class="sa-kpi">
+    <span class="sa-kpi-label">Bot share</span>
+    <div class="sa-kpi-val"><%= bots.pct === null ? '—' : bots.pct + '%' %></div>
+    <span class="sa-kpi-sub"><%= Number(bots.bot).toLocaleString() %> of <%= Number(bots.total).toLocaleString() %> events, excluded above</span>
+  </div>
+  <div class="sa-kpi">
+    <span class="sa-kpi-label">Visitors &amp; sessions</span>
+    <div class="sa-kpi-val sa-muted">GA4</div>
+    <span class="sa-kpi-sub"><%= gaConfigured ? 'property set — wiring in progress' : 'not connected yet' %></span>
+  </div>
+</div>
+
+<%# ── trend ──────────────────────────────────────────────────────────── %>
+<div class="sa-panel" style="margin-bottom:1.5rem">
+  <h2>Daily trend</h2>
+  <p class="sa-panel-note">Sessions that reached each step, per day. A day with
+     no activity is a zero on the line, not a gap.</p>
+  <% if (coverage.total === 0) { %>
+    <div class="sa-pending">
+      <p class="sa-pending-t">Nothing to chart yet</p>
+      <p class="sa-pending-d">The line starts once the first product view is recorded.</p>
+    </div>
+  <% } else { %>
+    <div style="height:260px"><canvas id="saTrend"></canvas></div>
+  <% } %>
+</div>
+
+<%# ── where it leaks ─────────────────────────────────────────────────── %>
+<div class="sa-grid">
+  <div class="sa-panel">
+    <h2>Most added to cart</h2>
+    <p class="sa-panel-note">Counted per add, with distinct sessions beside it so
+       one person adding six times is visible as one person.</p>
+    <% if (!topAdded.length) { %>
+      <div class="sa-pending">
+        <p class="sa-pending-t">No cart adds recorded yet</p>
+        <p class="sa-pending-d">This is the metric that existed nowhere before —
+           not in GA4, not in the database. It fills in from the next add.</p>
+      </div>
+    <% } else { %>
+    <table class="sa-table">
+      <thead><tr><th>Product</th><th class="num">Adds</th><th class="num">Sessions</th><th class="num">Units</th></tr></thead>
+      <tbody>
+        <% topAdded.forEach(function (r) { %>
+        <tr>
+          <td><% if (r.slug) { %><a href="/products/<%= r.slug %>" target="_blank" rel="noopener"><%= r.name %></a><% } else { %><%= r.name %><% } %></td>
+          <td class="num"><%= Number(r.adds).toLocaleString() %></td>
+          <td class="num"><%= Number(r.sessions).toLocaleString() %></td>
+          <td class="num"><%= Number(r.units).toLocaleString() %></td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+    <% } %>
+  </div>
+
+  <div class="sa-panel">
+    <h2>Seen a lot, carted rarely</h2>
+    <p class="sa-panel-note">Products with at least 20 viewing sessions, worst
+       add rate first. Interest is real on these; something after the click is
+       losing it — price, photography, or a stock message.</p>
+    <% if (!viewedNotCarted.length) { %>
+      <div class="sa-pending">
+        <p class="sa-pending-t">Not enough views yet</p>
+        <p class="sa-pending-d">A product needs 20 viewing sessions before it
+           appears, so that one bad afternoon cannot top the list.</p>
+      </div>
+    <% } else { %>
+    <table class="sa-table">
+      <thead><tr><th>Product</th><th class="num">Views</th><th class="num">Adds</th><th class="num">Rate</th></tr></thead>
+      <tbody>
+        <% viewedNotCarted.forEach(function (r) { %>
+        <tr>
+          <td><% if (r.slug) { %><a href="/products/<%= r.slug %>" target="_blank" rel="noopener"><%= r.name %></a><% } else { %><%= r.name %><% } %></td>
+          <td class="num"><%= Number(r.views).toLocaleString() %></td>
+          <td class="num"><%= Number(r.adds).toLocaleString() %></td>
+          <td class="num"><%= r.rate %>%</td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+    <% } %>
+  </div>
+</div>
+
+<div class="sa-note sa-note--info">
+  <strong>What this page measures.</strong>
+  Views, cart adds and checkout starts are recorded server-side, so they
+  survive ad-blockers and tracking prevention. Orders and revenue come from
+  the orders table and never from events, so this page cannot disagree with
+  your order list. Visitors, sessions, time on page and traffic sources are
+  GA4's and appear here once that connection is made.
+</div>
+
+<% if (coverage.total > 0) { %>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+(function () {
+  var series = <%- JSON.stringify(series) %>;
+  var el = document.getElementById('saTrend');
+  if (!el || !window.Chart) return;
+  new Chart(el, {
+    type: 'line',
+    data: {
+      labels: series.map(function (d) { return d.day.slice(5); }),
+      datasets: [
+        { label: 'Viewed',  data: series.map(function (d) { return d.viewed; }), borderColor: '#182840', backgroundColor: 'rgba(24,40,64,.08)',  fill: true,  tension: .3 },
+        { label: 'Carted',  data: series.map(function (d) { return d.carted; }), borderColor: '#926A21', backgroundColor: 'rgba(146,106,33,.08)', fill: true,  tension: .3 },
+        { label: 'Ordered', data: series.map(function (d) { return d.orders; }), borderColor: '#5A7A5A', backgroundColor: 'transparent',          fill: false, tension: .3 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { position: 'bottom' } },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+    }
+  });
+})();
+</script>
+<% } %>

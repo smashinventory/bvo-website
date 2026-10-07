@@ -1,5 +1,7 @@
 'use strict';
 
+const siteEvents = require('../services/siteEvents');
+
 /* ═══════════════════════════════════════════════════════════════════════
    Checkout Controller — Stripe, embedded Payment Element
 
@@ -607,6 +609,16 @@ exports.show = async (req, res) => {
   const savedAddress = (req.session.customerId && !draft && !flash.old.ship_address1)
     ? await CustomerAddress.mostRecent(req.session.customerId, 'shipping')
     : null;
+
+  /* begin_checkout — recorded on checkout-info, the first step where the
+     shopper has a cart and has committed to buying. NOT on checkout-identify,
+     which is only an email gate and is reached by people who then leave. The
+     step that is counted decides what the funnel means, so it is named here
+     rather than left to whoever reads the chart. */
+  siteEvents.record(req, 'begin_checkout', {
+    qty:   (req.session.cart && req.session.cart.count) || 0,
+    value: (req.session.cart && req.session.cart.subtotal) || 0,
+  });
 
   res.render('pages/checkout-info', {
     pageTitle: 'Checkout | BathroomVanitiesOutlet.com',
