@@ -1218,6 +1218,32 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
           <!-- ── HERO ───────────────────────────────────────── -->
           <div class="te4-panel" id="panel-hero">
             <% const h=t.hero||{}; %>
+            <%# THE AUTO VALUES, for the greyed fields to display.
+                Sam's rule, his words: "show the current setting when in
+                default then show the underlying manual value when toggled to
+                manual." The first cut showed the STORED value in both
+                positions, so Auto displayed numbers it was not using.
+
+                These are the DEFAULTS, which cannot be recovered from `t` -
+                load() is deepMerge(DEFAULTS, file), so by the time this view
+                has `t.hero` the stored value has already replaced the
+                default. They arrive via res.locals.themeDefaults
+                (src/server.js, theme-settings middleware).
+
+                Emitted as JSON in a script tag rather than as data attributes
+                on each input, because the companion controls (the unnamed
+                slider number box, the colour swatch, the brand buttons) need
+                the same value and are not where the name lives. %>
+            <% var _hAuto = (typeof themeDefaults !== 'undefined' && themeDefaults && themeDefaults.hero)
+                              ? themeDefaults.hero : {}; %>
+            <% var _autoKeys = ['height_vh','min_height_px','max_height_px',
+                                'eyebrow_size','heading_size','h2_size','subtext_size','sub2_size',
+                                'eyebrow_color','heading_color','h2_color','subtext_color','sub2_color',
+                                'content_box_color','content_box_opacity','content_box_padding',
+                                'content_box_radius','content_max_width','content_v_offset','content_h_offset']; %>
+            <% var _autoMap = {}; _autoKeys.forEach(function(k){
+                 if (_hAuto[k] !== undefined) _autoMap['hero.'+k] = _hAuto[k]; }); %>
+            <script type="application/json" id="heroAutoValues"><%- JSON.stringify(_autoMap).replace(/</g,'\\u003c') %></script>
 
             <div class="te4-section-label">Background Image <small style="opacity:.6;font-weight:400">(desktop)</small></div>
             <%- teImage('hero.image_url','hero.image_alt',h.image_url,h.image_alt,'Hero Image — Desktop') %>
@@ -2886,6 +2912,35 @@ document.querySelectorAll('.te4-align-group').forEach(function (group) {
      server-side code. Never swap disabled for readonly: readonly still
      posts, so the off position would overwrite the stored values with
      whatever happened to be on screen. */
+  /* The Auto values, for display while a group is greyed. Parsed once. */
+  var AUTO = {};
+  try {
+    var _an = document.getElementById('heroAutoValues');
+    if (_an) AUTO = JSON.parse(_an.textContent || '{}');
+  } catch (e) { AUTO = {}; }
+
+  /* Swap what a control SHOWS without changing what it would post.
+     In Auto the inputs are disabled, so nothing they display is submitted -
+     which is what makes it safe to show the Auto value there. The manual
+     value is parked on the element and put back when the switch returns to
+     Manual, so a save after toggling twice still posts the admin's number
+     and not the default. */
+  function showValue(el, v) {
+    if (el.dataset.manualVal === undefined) el.dataset.manualVal = el.value;
+    el.value = v;
+    /* The companions mirror the named field: the unnamed number box beside a
+       slider, and the colour swatch beside a hex input. */
+    var wrap = el.closest('.te4-slider-wrap');
+    if (wrap) wrap.querySelectorAll('.te4-slider-num').forEach(function (x) { x.value = v; });
+    var cf = el.closest('.te4-color-field');
+    if (cf) cf.querySelectorAll('.te4-color-swatch').forEach(function (x) {
+      if (/^#[0-9a-fA-F]{6}$/.test(String(v))) x.value = v;
+    });
+  }
+  function restoreValue(el) {
+    if (el.dataset.manualVal !== undefined) showValue(el, el.dataset.manualVal);
+  }
+
   function lockGroup(flag, names) {
     var cb = document.querySelector('.te4-toggle-cb[name="' + flag + '"]');
     if (!cb) return;
@@ -2928,6 +2983,15 @@ document.querySelectorAll('.te4-align-group').forEach(function (group) {
            rest, the element itself if neither (a loose swatch button). */
         var row = el.closest('.te4-field') || el.closest('.te4-color-field') || el;
         row.style.opacity = off ? '.45' : '';
+      });
+      /* AND SHOW THE RIGHT NUMBER. Off shows the Auto value, on shows the
+         admin's own. Driven off the names, not the collected fields, because
+         the companions are handled inside showValue. */
+      names.forEach(function (n) {
+        var el = document.querySelector('[name="' + n + '"]');
+        if (!el) return;
+        if (off) { if (AUTO[n] !== undefined) showValue(el, AUTO[n]); }
+        else     { restoreValue(el); }
       });
     }
     cb.addEventListener('change', function () { sync(); markDirty(); schedulePreview(); });

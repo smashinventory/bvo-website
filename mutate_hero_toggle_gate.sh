@@ -179,6 +179,38 @@ old = \"'hero.subtext_size', 'hero.sub2_size',\"
 assert old in thm
 thm = thm.replace(old, \"'hero.subtext_size', 'hero.sub2_size', 'hero.badge_size',\")"
 
+mutate "greyed fields show the stored value again (the bug Sam found)" "
+i = thm.index('function sync()')
+j = thm.index('cb.addEventListener', i)
+head, body, tail = thm[:i], thm[i:j], thm[j:]
+assert 'showValue(el, AUTO[n])' in body
+body = body.replace('if (off) { if (AUTO[n] !== undefined) showValue(el, AUTO[n]); }', 'if (off) { }')
+thm = head + body + tail"
+
+mutate "the manual value is not parked, so toggling loses it" "
+assert 'if (el.dataset.manualVal === undefined) el.dataset.manualVal = el.value;' in thm
+thm = thm.replace('if (el.dataset.manualVal === undefined) el.dataset.manualVal = el.value;', '')"
+
+mutate "restoreValue stops putting the admin value back" "
+assert 'if (el.dataset.manualVal !== undefined) showValue(el, el.dataset.manualVal);' in thm
+thm = thm.replace('if (el.dataset.manualVal !== undefined) showValue(el, el.dataset.manualVal);', '')"
+
+mutate "the slider companion no longer mirrors the displayed value" "
+i = thm.index('function showValue')
+j = thm.index('function lockGroup')
+head, body, tail = thm[:i], thm[i:j], thm[j:]
+assert 'te4-slider-num' in body
+body = body.replace('te4-slider-num', 'te4-nope-num')
+thm = head + body + tail"
+
+mutate "the Auto value map is emitted from the stored settings, not the defaults" "
+assert 'themeDefaults.hero' in thm
+thm = thm.replace('? themeDefaults.hero : {}', '? t.hero : {}')"
+
+mutate "the Auto JSON node is dropped" "
+assert 'id=\\\"heroAutoValues\\\"' in thm
+thm = thm.replace('id=\\\"heroAutoValues\\\"', 'id=\\\"heroAutoValuesX\\\"')"
+
 echo
 echo "caught $pass, missed $fail"
 if [ "$fail" -eq 0 ]; then

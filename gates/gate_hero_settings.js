@@ -399,6 +399,72 @@ const readFields   = new Set([...strip(index).matchAll(/hero\.([a-z_0-9]+)/g)].m
     }
   }
 
+  /* ── THE GREYED FIELDS MUST SHOW THE AUTO VALUE ───────────────────────
+     Sam's rule: Auto shows the Auto value, Manual shows his own. The first
+     cut rendered the STORED value in both positions, so Auto displayed
+     numbers it was not using - which is how he found it.
+
+     Checked by EXECUTION, because the mechanism is a value swap and a
+     regex cannot tell a working swap from a broken one. The stub below is
+     the pair that matters: a named input plus the UNNAMED slider companion,
+     which has to mirror it. */
+  {
+    check(/id="heroAutoValues"/.test(t),
+          'the editor emits the Auto values as JSON for the greyed fields');
+    /* Anchored on the ASSIGNMENT, not on the name. `themeDefaults.hero`
+       appears twice in that expression - once in the typeof guard and once
+       as the value - so repointing the value at t.hero left the name present
+       and the loose check green. Caught by mutation. Fourth time today. */
+    check(/\?\s*themeDefaults\.hero\s*:/.test(t),
+          'the Auto map is assigned FROM themeDefaults.hero, not from the stored settings');
+    check(!/\?\s*t\.hero\s*:\s*\{\}/.test(t),
+          'and not from t.hero (that would make Auto show the stored value again)');
+    for (const k of ['content_box_color', 'content_max_width', 'heading_size', 'sub2_color']) {
+      check(t.includes(`'${k}'`), `${k} is in the Auto value map`);
+    }
+
+    const i2 = theme.indexOf('function showValue');
+    const j2 = theme.indexOf('function lockGroup');
+    if (i2 === -1 || j2 === -1 || j2 < i2) bad('showValue / restoreValue are liftable');
+    else {
+      const code = theme.slice(i2, j2);
+      const num   = { value:'20', className:'te4-slider-num', dataset:{}, style:{},
+                      closest: () => null };
+      const wrap  = { querySelectorAll: s => s === '.te4-slider-num' ? [num] : [] };
+      const named = { value:'20', dataset:{}, style:{},
+                      closest: s => s === '.te4-slider-wrap' ? wrap : null };
+      const ctx = { document: { querySelectorAll: () => [] } };
+      vm.runInNewContext(code + '\nthis.showValue = showValue; this.restoreValue = restoreValue;', ctx);
+
+      ctx.showValue(named, 42);
+      check(named.value === 42, 'Auto: the named field displays the Auto value',
+            'got ' + JSON.stringify(named.value));
+      check(num.value === 42, 'Auto: the unnamed slider companion mirrors it',
+            'got ' + JSON.stringify(num.value));
+      check(named.dataset.manualVal === '20',
+            "the admin's own value is parked, not lost",
+            'got ' + JSON.stringify(named.dataset.manualVal));
+
+      ctx.restoreValue(named);
+      check(named.value === '20', 'Manual: the field shows the admin value again',
+            'got ' + JSON.stringify(named.value));
+      check(num.value === '20', 'Manual: the companion comes back too',
+            'got ' + JSON.stringify(num.value));
+
+      /* Toggling twice must not leave the Auto value staged to be posted -
+         that would silently overwrite the admin's number on the next save. */
+      ctx.showValue(named, 42); ctx.restoreValue(named);
+      check(named.value === '20', 'two round trips still end on the admin value');
+    }
+
+    /* And sync() must actually call them, in the right direction. */
+    const syncBody = t.slice(t.indexOf('function sync()'), t.indexOf('cb.addEventListener'));
+    check(/if \(off\)[^\n]*showValue/.test(syncBody),
+          'sync shows the Auto value when the switch is off');
+    check(/else[^\n]*restoreValue/.test(syncBody),
+          'sync restores the admin value when it is on');
+  }
+
   /* The companion controls must be locked too. Both are unnamed, so a lock
      that only matched the named input would leave the number box typeable
      and the colour swatches clickable, each of which writes back into the
