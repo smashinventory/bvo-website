@@ -4,20 +4,22 @@ set -u
 cd "$(dirname "$0")"
 U=src/utils/buttonStyles.js; S=src/services/themeSettings.js; L=views/layouts/main.ejs
 B=public/css/site-bundle.css
+T=views/pages/admin/theme.ejs
+A=src/controllers/adminController.js
 pass=0; fail=0
 mutate () {
-  cp "$U" /tmp/t.u; cp "$S" /tmp/t.s; cp "$L" /tmp/t.l; cp "$B" /tmp/t.b
-  python3 - "$U" "$S" "$L" <<PY
+  cp "$U" /tmp/t.u; cp "$S" /tmp/t.s; cp "$L" /tmp/t.l; cp "$B" /tmp/t.b; cp "$T" /tmp/t.t; cp "$A" /tmp/t.a
+  python3 - "$U" "$S" "$L" "$T" "$A" <<PY
 import sys
-up,sp,lp = sys.argv[1],sys.argv[2],sys.argv[3]
-u=open(up).read(); s=open(sp).read(); l=open(lp).read()
+up,sp,lp,tp,ap = sys.argv[1],sys.argv[2],sys.argv[3],sys.argv[4],sys.argv[5]
+u=open(up).read(); s=open(sp).read(); l=open(lp).read(); t=open(tp).read(); a=open(ap).read()
 $2
-open(up,'w').write(u); open(sp,'w').write(s); open(lp,'w').write(l)
+open(up,'w').write(u); open(sp,'w').write(s); open(lp,'w').write(l); open(tp,'w').write(t); open(ap,'w').write(a)
 PY
-  if [ $? -ne 0 ]; then echo "  SKIP $1 — mutation did not apply"; cp /tmp/t.u "$U"; cp /tmp/t.s "$S"; cp /tmp/t.l "$L"; cp /tmp/t.b "$B"; fail=$((fail+1)); return; fi
+  if [ $? -ne 0 ]; then echo "  SKIP $1 — mutation did not apply"; cp /tmp/t.u "$U"; cp /tmp/t.s "$S"; cp /tmp/t.l "$L"; cp /tmp/t.b "$B"; cp /tmp/t.t "$T"; cp /tmp/t.a "$A"; fail=$((fail+1)); return; fi
   if node gates/gate_button_templates.js >/dev/null 2>&1; then echo "  MISSED  $1"; fail=$((fail+1));
   else echo "  caught  $1"; pass=$((pass+1)); fi
-  cp /tmp/t.u "$U"; cp /tmp/t.s "$S"; cp /tmp/t.l "$L"; cp /tmp/t.b "$B"
+  cp /tmp/t.u "$U"; cp /tmp/t.s "$S"; cp /tmp/t.l "$L"; cp /tmp/t.b "$B"; cp /tmp/t.t "$T"; cp /tmp/t.a "$A"
   node gates/gate_button_templates.js >/dev/null 2>&1 || { echo "  ABORT — restore failed"; exit 1; }
 }
 
@@ -87,6 +89,35 @@ open('public/css/site-bundle.css','w').write(b)"
 mutate "buttons.radius reverts to the dead 6px" "
 assert \"radius: '5px',\" in s
 s = s.replace(\"radius: '5px',\", \"radius: '6px',\")"
+
+mutate "buttons.templates dropped from ARRAY_PREFIXES (deletion silently fails)" "
+assert chr(39)+'buttons.templates['+chr(39)+',' in a
+a = a.replace(chr(39)+'buttons.templates['+chr(39)+',', '')"
+
+mutate "the array is no longer assigned wholesale" "
+assert 'settings.buttons.templates = buttonTemplates' in a
+a = a.replace('settings.buttons.templates = buttonTemplates', 'void 0')"
+
+mutate "the length guard goes, so an empty post wipes every style" "
+assert 'if (buttonTemplates.length) {' in a
+a = a.replace('if (buttonTemplates.length) {', 'if (true) {')"
+
+mutate "the built-in five become deletable" "
+import re
+assert re.search(r'_locked\s*=\s*\[', t)
+t = re.sub(r'_locked\s*=\s*\[[^\]]*\]', '_locked = []', t, count=1)"
+
+mutate "colour slots revert to a raw colour input (brand links get severed)" "
+assert 'teBtnColor(' in t
+t = t.replace('teBtnColor(n + ', 'teColor(n + ')"
+
+mutate "the renumbering after a delete is removed" "
+assert 'function renumber()' in t
+t = t.replace('function renumber()', 'function renumberDISABLED()')"
+
+mutate "the Add prototype is dropped" "
+assert 'id=' + chr(34) + 'btnTemplateProto' + chr(34) in t
+t = t.replace('id=' + chr(34) + 'btnTemplateProto' + chr(34), 'id=' + chr(34) + 'gone' + chr(34))"
 
 echo
 echo "caught $pass, missed $fail"

@@ -1923,6 +1923,20 @@ function _buildSettingsFromBody(body) {
   const megaTypeLinks  = _extractIndexedArray(body, 'nav.vanities_mega.links',       ['label','url']);
   const megaStyleLinks = _extractIndexedArray(body, 'nav.vanities_mega.style_links', ['label','url']);
 
+  /* ── BUTTON TEMPLATES ────────────────────────────────────────────────
+     All three parts are required, per the long note above testimonials and
+     the mega menus: the extraction, the ARRAY_PREFIXES entry, and the
+     wholesale assignment. Two of the three gives you an array where editing
+     works and DELETING DOES NOT - remove the 6th of 6 templates and the form
+     posts indices 0-4, which overwrite 0-4 and leave index 5 untouched, so
+     the deleted button reappears on the next page load.
+
+     This is the third time that exact shape of bug is being pre-empted in
+     this function, which is why the gate for the button panel asserts the
+     prefix exists the moment the panel does. */
+  const buttonTemplates = _extractIndexedArray(body, 'buttons.templates',
+    ['key','name','bg','border','fg','hover_bg','hover_fg','hover_effect','radius']);
+
   /* footer.col_*_links[ prefixes retained here ON PURPOSE. The editor no
      longer renders those fields, but a browser tab opened before this
      deployed still has them in its form and will POST them. Without these
@@ -1934,6 +1948,7 @@ function _buildSettingsFromBody(body) {
                           'footer.col_company_links[','brand_logos.logos[',
                           'scrolling_ticker.items[','testimonials.items[',
                           'nav.vanities_mega.links[','nav.vanities_mega.style_links[',
+                          'buttons.templates[',
                           'homepage_section_order'];
   const flat = {};
   for (const [k, v] of Object.entries(body)) {
@@ -1975,6 +1990,20 @@ function _buildSettingsFromBody(body) {
   if (!settings.nav.vanities_mega) settings.nav.vanities_mega = {};
   if (megaTypeLinks.length)  settings.nav.vanities_mega.links       = megaTypeLinks;
   if (megaStyleLinks.length) settings.nav.vanities_mega.style_links = megaStyleLinks;
+
+  /* Button templates, assigned wholesale so a deletion is a real deletion.
+     Guarded on length for the same reason as the mega menus: an empty
+     extraction means "this form did not carry them" - a different admin
+     screen, or a tab opened before the panel existed - not "the admin
+     deleted every button style". Overwriting with [] there would leave the
+     site with no button styles at all.
+
+     The five built-in keys cannot be deleted from the UI, so an intentional
+     empty list is not reachable anyway. */
+  if (buttonTemplates.length) {
+    if (!settings.buttons) settings.buttons = {};
+    settings.buttons.templates = buttonTemplates;
+  }
   if (sectionOrder) settings.homepage_section_order = sectionOrder;
 
   return settings;

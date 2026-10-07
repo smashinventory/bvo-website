@@ -226,19 +226,73 @@ const rules  = bs.cssRules(D);
   check(bs.list(dupe).length === 1, 'a duplicate key is dropped, not emitted twice');
 }
 
-/* ── 7. nothing is exposed yet ──────────────────────────────────────────── */
+/* ── 7. THE PANEL (2b) ──────────────────────────────────────────────────
+   An array in this settings object needs THREE things or deleting a row
+   silently fails: the extraction, the ARRAY_PREFIXES entry, and a wholesale
+   assignment. Two of the three gives you an array where editing works and
+   deletion does not - remove the last of six and the form posts indices
+   0-4, which overwrite 0-4 and leave index 5 untouched, so the deleted
+   button reappears on reload. The long comment above testimonials in
+   _buildSettingsFromBody is about this exact failure, twice over. */
 {
   const thm = read('views/pages/admin/theme.ejs');
-  check(!/buttons\.templates/.test(thm),
-        'no editor field for the templates yet — the panel is the next commit');
-  /* And when it IS exposed, the array needs declaring in adminController or
-     deleting a template will not stick. There is a long comment in
-     _buildSettingsFromBody about exactly this failure. Asserted now so the
-     panel commit cannot forget it. */
   const adm = read('src/controllers/adminController.js');
-  const exposed = /buttons\.templates/.test(thm);
-  check(!exposed || /ARRAY_PREFIXES[\s\S]{0,400}buttons\.templates\[/.test(adm),
-        'if the panel exists, buttons.templates[ is in ARRAY_PREFIXES');
+
+  check(/teButtonCard\(/.test(thm), 'the editor renders button template cards');
+  check(/id="btnTemplates"/.test(thm) && /id="btnAddTemplate"/.test(thm),
+        'the panel has a container and an Add button');
+  check(/id="btnTemplateProto"/.test(thm),
+        'and a <template> prototype for the Add button to stamp out');
+
+  /* Each field is written as n + '.<field>' in the card builder. Checking
+     for that literal is enough and does not need a regex - the first
+     attempt at one had an unescaped quote and would not even parse. */
+  /* Four of the nine are built inline with the rest of their markup
+     (n + '.key" value="'), the other five go through teBtnColor as
+     n + '.bg'. Matching only the bare form found five of nine - the gate
+     reporting four missing fields that were plainly there. Match the
+     field name followed by either a closing quote or a quote-plus-markup. */
+  for (const f of ['key','name','bg','border','fg','hover_bg','hover_fg','hover_effect','radius']) {
+    check(thm.includes("'." + f + "'") || thm.includes("'." + f + '"'),
+          `the card emits a ${f} field`);
+  }
+
+  check(/ARRAY_PREFIXES[\s\S]{0,500}'buttons\.templates\['/.test(adm),
+        'buttons.templates[ is in ARRAY_PREFIXES — without it, deletion silently fails');
+  check(/_extractIndexedArray\(body, 'buttons\.templates'/.test(adm),
+        'the controller extracts the array');
+  check(/settings\.buttons\.templates = buttonTemplates/.test(adm),
+        'and assigns it WHOLESALE, so a shorter list is actually shorter');
+  check(/if \(buttonTemplates\.length\)/.test(adm),
+        'guarded on length — an empty extraction means "not this form", not "delete everything"');
+
+  /* The five built-in keys are the bridge to CSS classes written into the
+     views in over a hundred places. Deleting one would leave those buttons
+     unstyled, so the card for them has no delete control. */
+  check(/_locked\s*=\s*\['navy','sage','primary','amber','outline'\]/.test(thm),
+        'the five built-in styles cannot be deleted from the UI');
+  check(/locked\)[\s\S]{0,120}te4-btn-del/.test(thm),
+        'the delete control is conditional on the template not being built in');
+
+  /* A colour slot has to be able to hold var(--navy). An <input type=color>
+     cannot, and nudging one would silently sever the brand link - which is
+     what the previous three commits were protecting. */
+  /* COUNT THE CALLS, NOT THE NAME. The first version matched /teBtnColor\(/,
+     which the function DEFINITION satisfies - so repointing all five call
+     sites at teColor left the gate green. Fifth time today that a check
+     matched a string living in two places; the mutation test found every
+     one of them. */
+  const btnColorCalls = (thm.match(/teBtnColor\(n \+ /g) || []).length;
+  check(btnColorCalls === 5,
+        `all five colour slots use the var()-aware control (${btnColorCalls})`,
+        'a raw colour input cannot hold var(--navy) and would sever the brand link');
+  check(/var\(--navy\)'\s*,\s*'Brand navy'/.test(thm),
+        'the brand colours are offered by name, so following the brand is a choice');
+
+  /* Renumbering after a delete: a gap in the indices makes
+     _extractIndexedArray stop, dropping every row after the hole. */
+  check(/function renumber\(\)/.test(thm) && /buttons\.templates\[' \+ i \+ '\]/.test(thm),
+        'the script renumbers indices after an add or delete');
 }
 
 console.log('\n' + (fails

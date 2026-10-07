@@ -165,6 +165,112 @@ function teField(type,name,label,value,compact){
   if(type==='textarea') return '<div class="'+cls+'"><label>'+label+'</label><textarea name="'+name+'" rows="3">'+v+'</textarea></div>';
   return '<div class="'+cls+'"><label>'+label+'</label><input type="'+type+'" name="'+name+'" value="'+v+'"></div>';
 }
+/* ── ONE BUTTON TEMPLATE CARD ──────────────────────────────────────────
+   `i` is the array index, or the literal __i__ for the clone prototype that
+   the Add button stamps out.
+
+   THE KEY IS READONLY AND HIDDEN-BACKED. A section stores the key it was
+   assigned, so letting it be edited would orphan every section pointing at
+   it. The display NAME is the editable label - rename "Button 1" to
+   "Sale CTA" all you like, the key underneath does not move.
+
+   The five seeded keys are also the bridge to CSS classes that appear in
+   over a hundred places in the views (navy -> .btn-navy), which is the
+   second reason they are not editable.
+
+   PADDING, HEIGHT AND WIDTH ARE ABSENT on purpose - Sam's call, they stay
+   in the hardcoded .btn base. Note also that btn-sm carries !important in
+   site4.css, so a size control would lose to it. */
+function teButtonCard(i, b, locked) {
+  b = b || {};
+  var n   = 'buttons.templates[' + i + ']';
+  var key = esc(b.key || '');
+  var eff = ['swap','brighten','darken','none'];
+  var effLabels = { swap:'Swap to hover colors', brighten:'Brighten',
+                    darken:'Darken', none:'No change' };
+  var cur = eff.indexOf(b.hover_effect) > -1 ? b.hover_effect : 'swap';
+
+  var h = '<div class="te4-btn-card" data-key="' + key + '">';
+  h += '<div class="te4-btn-card-head">';
+  h += '<input type="hidden" name="' + n + '.key" value="' + key + '">';
+  h += '<input type="text" class="te4-input te4-btn-name" name="' + n + '.name" value="' + esc(b.name || '') + '" placeholder="Button name">';
+  /* A live sample, styled from the same values the page will use. Not a
+     screenshot of the real button - the real one also carries the .btn base
+     (padding, font, uppercase), which this deliberately mimics rather than
+     imports, so the card cannot drift if that base changes. */
+  h += '<span class="te4-btn-sample" style="background:' + esc(b.bg || 'transparent') +
+       ';color:' + esc(b.fg || '#000') +
+       ';border:2px solid ' + esc(b.border || 'transparent') + '">Sample</span>';
+  if (!locked) h += '<button type="button" class="te4-btn-del" title="Remove this template">&times;</button>';
+  else h += '<span class="te4-btn-lock" title="Used by existing sections and CSS classes">built in</span>';
+  h += '</div>';
+
+  /* ── THE COLOUR FIELDS CANNOT JUST BE teColor ─────────────────────────
+     Four of these values are var(--navy) / var(--sage) / var(--amber), and
+     an <input type="color"> cannot hold that - it silently falls back to
+     black, so every brand-linked slot would have shown a black swatch next
+     to a text box reading "var(--navy)". Worse, nudging that swatch writes
+     a hex and quietly severs the brand link, which is the thing the last
+     three commits worked to keep alive.
+
+     So the TEXT field stays the source of truth (it is what posts, and it
+     accepts a hex or a var reference), and the swatch beside it displays
+     the RESOLVED colour for reference. A dropdown offers the brand colours
+     by name so following the brand is a choice you can make deliberately
+     rather than a string you have to know how to type. */
+  var brand = (typeof desC !== 'undefined' && desC) ? desC : {};
+  var BRAND = { '--navy': brand.navy || '#182840', '--color-navy': brand.navy || '#182840',
+                '--sage': brand.sage || '#5A7A5A', '--color-sage': brand.sage || '#5A7A5A',
+                '--amber': brand.amber || '#926A21', '--color-amber': brand.amber || '#926A21',
+                '--sage-deep': '#486854',
+                '--color-white': brand.white || '#FFFFFF', '--white': brand.white || '#FFFFFF' };
+  function _resolve(v) {
+    var m = String(v || '').match(/^var\(\s*(--[\w-]+)\s*\)$/);
+    if (m) return BRAND[m[1]] || '#000000';
+    if (/^#[0-9a-fA-F]{3,8}$/.test(String(v || ''))) return v;
+    return '#000000';            // transparent and anything odd
+  }
+  function teBtnColor(fieldName, label, value) {
+    var v = String(value === 0 || value ? value : '');
+    var opts = [['', 'Custom…'], ['transparent', 'Transparent'],
+                ['var(--navy)', 'Brand navy'], ['var(--sage)', 'Brand sage'],
+                ['var(--amber)', 'Brand amber'], ['var(--color-white)', 'Brand white']];
+    var known = opts.some(function (o) { return o[0] && o[0] === v; });
+    var h2 = '<div class="te4-field"><label>' + label + '</label>';
+    h2 += '<div class="te4-btn-color">';
+    h2 += '<span class="te4-btn-chip" style="background:' + esc(_resolve(v)) + '"></span>';
+    h2 += '<select class="te4-select te4-btn-colsel">';
+    opts.forEach(function (o) {
+      h2 += '<option value="' + esc(o[0]) + '"' +
+            ((o[0] === v) || (!known && o[0] === '') ? ' selected' : '') + '>' + o[1] + '</option>';
+    });
+    h2 += '</select>';
+    h2 += '<input type="text" class="te4-input te4-btn-colhex" name="' + fieldName +
+          '" value="' + esc(v) + '" placeholder="#RRGGBB"' +
+          (known ? ' hidden' : '') + '>';
+    h2 += '</div></div>';
+    return h2;
+  }
+
+  h += '<div class="te4-row2">';
+  h += teBtnColor(n + '.bg',     'Background',  b.bg);
+  h += teBtnColor(n + '.fg',     'Text color',  b.fg);
+  h += '</div><div class="te4-row2">';
+  h += teBtnColor(n + '.border', 'Border color', b.border);
+  h += teBtnColor(n + '.hover_bg', 'Hover background', b.hover_bg);
+  h += '</div><div class="te4-row2">';
+  h += teBtnColor(n + '.hover_fg', 'Hover text color', b.hover_fg);
+  h += '<div class="te4-field"><label>Hover effect</label><select name="' + n + '.hover_effect" class="te4-select">';
+  eff.forEach(function (e) {
+    h += '<option value="' + e + '"' + (cur === e ? ' selected' : '') + '>' + effLabels[e] + '</option>';
+  });
+  h += '</select></div>';
+  h += '</div>';
+  h += '<div class="te4-field compact"><label>Corner radius <small style="opacity:.6;font-weight:400">(blank = use the shared radius)</small></label>' +
+       '<input type="text" name="' + n + '.radius" value="' + esc(b.radius || '') + '" placeholder="e.g. 5px"></div>';
+  h += '</div>';
+  return h;
+}
 function teToggle(name,label,checked,compact){
   var cls=compact?'te4-toggle compact':'te4-toggle'; var chk=checked?'checked':'';
   return '<label class="'+cls+'"><input type="hidden" name="'+name+'" value="false"><input type="checkbox" name="'+name+'" value="true" '+chk+' class="te4-toggle-cb"><span class="te4-toggle-track"><span class="te4-toggle-thumb"></span></span><span class="te4-toggle-lbl">'+label+'</span></label>';
@@ -483,7 +589,7 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
    it is in git. */
 %>
 
-<link rel="stylesheet" href="/css/admin-theme-editor.css?v=4">
+<link rel="stylesheet" href="/css/admin-theme-editor.css?v=5">
 
 <!-- ════════════════════════════════════════════════════════
      THEME EDITOR SHELL
@@ -726,7 +832,7 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
             <details class="te4-accord">
               <summary class="te4-accord-head">
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-                Colors
+                Colors &amp; Buttons
                 <svg class="te4-accord-arrow" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
               </summary>
               <div class="te4-accord-body">
@@ -737,10 +843,52 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
                   <%- teColor('design.colors.whisper','Whisper (alt bg)',     desC.whisper||'#F8F6F2') %>
                   <%- teColor('design.colors.white',  'White (main bg)',      desC.white  ||'#FFFFFF') %>
                 </div>
-                <div class="te4-row2">
-                  <%- teField('text','design.button_radius','Button Radius',des.button_radius||'6px') %>
-                  <%- teField('text','design.card_radius',  'Card Radius',  des.card_radius  ||'12px') %>
+                <div class="te4-hint" style="margin:.5rem 0 1rem">
+                  These five feed the button styles below &mdash; a button set to
+                  <em>Navy</em> follows whatever Navy is here.
                 </div>
+
+                <%# THE BUTTON RADIUS FIELD THAT USED TO SIT HERE WAS A PLACEBO.
+                    It wrote --radius-btn; every .btn reads --btn-radius. The only
+                    two rules reading --radius-btn are the newsletter input and its
+                    submit, so that field has only ever changed those corners - and
+                    it showed 6px while every button rendered at 5px. The live
+                    control is buttons.radius below. design.button_radius is still
+                    stored and still feeds the newsletter; it is simply no longer
+                    offered here under a name that promises buttons. %>
+                <div class="te4-row2">
+                  <%- teField('text','buttons.radius','Button radius (all buttons)', (t.buttons&&t.buttons.radius)||'5px') %>
+                  <%- teField('text','design.card_radius',  'Card radius',  des.card_radius  ||'12px') %>
+                </div>
+
+                <div class="te4-section-label" style="margin-top:1.25rem">Button Styles</div>
+                <div class="te4-hint" style="margin-bottom:.75rem">
+                  Every button on the site uses one of these. The five built-in styles
+                  are wired to the classes already in the templates, so editing one
+                  changes those buttons everywhere. Size and padding stay fixed in the
+                  theme &mdash; colors, border, hover and corners are yours.
+                </div>
+                <%
+                  var _btpl   = (t.buttons && Array.isArray(t.buttons.templates)) ? t.buttons.templates : [];
+                  /* The five seeded keys cannot be deleted: each is the bridge to a
+                     CSS class written into the views in over a hundred places, so
+                     removing one would leave those buttons unstyled. */
+                  var _locked = ['navy','sage','primary','amber','outline'];
+                %>
+                <div id="btnTemplates">
+                  <% _btpl.forEach(function (b, i) { %>
+                    <%- teButtonCard(i, b, _locked.indexOf(b.key) > -1) %>
+                  <% }) %>
+                </div>
+                <button type="button" id="btnAddTemplate" class="te4-add-btn">+ Add button template</button>
+                <%# The prototype the Add button stamps out. __i__ and __k__ are
+                    replaced with the next index and a generated key. It lives in a
+                    <template> so its inputs are inert until cloned - inside the
+                    form they would post empty values on every save. %>
+                <template id="btnTemplateProto"><%- teButtonCard('__i__', {
+                      key:'__k__', name:'New button', bg:'#182840', border:'transparent',
+                      fg:'#ffffff', hover_bg:'#0e1e38', hover_fg:'#ffffff',
+                      hover_effect:'swap', radius:'' }, false) %></template>
               </div>
             </details>
 
@@ -3012,6 +3160,112 @@ document.querySelectorAll('.te4-align-group').forEach(function (group) {
              'hero.content_box_padding', 'hero.content_box_radius',
              'hero.content_max_width', 'hero.content_v_offset',
              'hero.content_h_offset']);
+})();
+
+/* ════════════════════════════════════════════════════════════════
+   BUTTON TEMPLATES — add, remove, and keep the sample honest
+   ════════════════════════════════════════════════════════════════ */
+(function () {
+  var wrap  = document.getElementById('btnTemplates');
+  var proto = document.getElementById('btnTemplateProto');
+  var add   = document.getElementById('btnAddTemplate');
+  if (!wrap || !proto || !add) return;
+
+  /* The index is the array position the server reads, so it must be
+     contiguous after a delete - leave a hole and _extractIndexedArray stops
+     at the gap and silently drops everything after it. Renumber on every
+     change rather than trusting the DOM order to match. */
+  function renumber() {
+    [].slice.call(wrap.querySelectorAll('.te4-btn-card')).forEach(function (card, i) {
+      card.querySelectorAll('[name^="buttons.templates["]').forEach(function (el) {
+        el.name = el.name.replace(/^buttons\.templates\[[^\]]*\]/, 'buttons.templates[' + i + ']');
+      });
+    });
+  }
+
+  /* A key must be unique and must never change once a section points at it.
+     Generated from the clock plus a random tail: two Adds in the same
+     millisecond would otherwise collide, and buttonStyles.js silently drops
+     the second of two identical keys. */
+  function newKey() {
+    return 'btn' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  }
+
+  add.addEventListener('click', function () {
+    var i    = wrap.querySelectorAll('.te4-btn-card').length;
+    var html = proto.innerHTML.split('__i__').join(i).split('__k__').join(newKey());
+    var box  = document.createElement('div');
+    box.innerHTML = html;
+    var card = box.firstElementChild;
+    wrap.appendChild(card);
+    renumber();
+    bindCard(card);
+    markDirty();
+    card.scrollIntoView({ block: 'nearest' });
+  });
+
+  /* Brand colours, for resolving a var() reference to something the chip can
+     paint. Read from the live brand fields in this same form, so changing
+     Navy above updates the chips below without a reload. */
+  function brandHex(ref) {
+    var map = { '--navy':'design.colors.navy', '--color-navy':'design.colors.navy',
+                '--sage':'design.colors.sage', '--color-sage':'design.colors.sage',
+                '--amber':'design.colors.amber', '--color-amber':'design.colors.amber',
+                '--color-white':'design.colors.white', '--white':'design.colors.white' };
+    var m = String(ref || '').match(/^var\(\s*(--[\w-]+)\s*\)$/);
+    if (!m) return /^#[0-9a-fA-F]{3,8}$/.test(ref) ? ref : '#000000';
+    if (m[1] === '--sage-deep') return '#486854';
+    var f = map[m[1]] && document.querySelector('[name="' + map[m[1]] + '"]');
+    return (f && f.value) || '#000000';
+  }
+
+  /* The dropdown writes into the hex field, which is the thing that posts.
+     Picking Custom reveals the box; picking a brand colour hides it and
+     stores the var() reference, so the brand link is made deliberately
+     rather than by typing a string you had to know. */
+  function bindColorField(wrapEl) {
+    var sel = wrapEl.querySelector('.te4-btn-colsel');
+    var hex = wrapEl.querySelector('.te4-btn-colhex');
+    var chip = wrapEl.querySelector('.te4-btn-chip');
+    if (!sel || !hex) return;
+    function paintChip() { if (chip) chip.style.background = brandHex(hex.value); }
+    sel.addEventListener('change', function () {
+      if (sel.value === '') { hex.hidden = false; hex.focus(); }
+      else { hex.value = sel.value; hex.hidden = true; }
+      paintChip();
+      hex.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    hex.addEventListener('input', paintChip);
+    paintChip();
+  }
+
+  function bindCard(card) {
+    card.querySelectorAll('.te4-btn-color').forEach(bindColorField);
+    var del = card.querySelector('.te4-btn-del');
+    if (del) del.addEventListener('click', function () {
+      card.remove(); renumber(); markDirty(); schedulePreview();
+    });
+    /* Keep the little sample in step with the colour fields, so the card
+       shows what it is about to do rather than what it used to do. */
+    var sample = card.querySelector('.te4-btn-sample');
+    function paint() {
+      if (!sample) return;
+      var v = function (f) {
+        var el = card.querySelector('[name$=".' + f + '"]');
+        return el ? el.value : '';
+      };
+      sample.style.background  = v('bg')     || 'transparent';
+      sample.style.color       = v('fg')     || '#000';
+      sample.style.borderColor = v('border') || 'transparent';
+    }
+    card.querySelectorAll('input,select').forEach(function (el) {
+      el.addEventListener('input',  function () { paint(); markDirty(); });
+      el.addEventListener('change', function () { paint(); schedulePreview(); });
+    });
+    paint();
+  }
+
+  wrap.querySelectorAll('.te4-btn-card').forEach(bindCard);
 })();
 
 /* ════════════════════════════════════════════════════════════════
