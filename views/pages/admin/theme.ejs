@@ -429,10 +429,30 @@ function teFilters(pk,d,base){
 
    All default to blank = inherit, which is why switching this on for
    seventeen sections at once changed nothing visually. */
+/* ── NO ALIGNMENT CONTROL HERE ────────────────────────────────────────
+   This used to emit teAlignment(pk + '.text_align', d.text_align), and it
+   was the cause of a long-standing "alignment will not save" bug.
+
+   teSectionLayout was added on 2026-10-04 to give every section the same
+   four layout controls. Most panels ALREADY had their own alignment
+   control, so those panels ended up with TWO <input name="X.text_align">
+   in one form. The browser posts both; the admin only ever sees and
+   clicks the first one; the second still carries the old value and, being
+   later in the form, is the one that lands. Changing alignment therefore
+   appeared to do nothing - confirmed live on image_with_text, where
+   setting Left and saving left the page on center.
+
+   Eleven panels were affected: hero, hero_mobile, categories_section,
+   featured_section, featured_models (and their copies, through
+   teFeaturedBody), sample_banner, newsletter, image_with_text,
+   before_after, parallax and testimonials.
+
+   The six panels that had NO control of their own now get an explicit one
+   at their own call site, seeded to what they render today. One control
+   per panel, where the admin already expects it. */
 function teSectionLayout(pk, d) {
   d = d || {};
   var h = '<div class="te4-section-label">Layout</div>';
-  h += teAlignment(pk + '.text_align', d.text_align);
   h += teField('text', pk + '.max_width',      'Container width (e.g. 1100px, or blank for full)', d.max_width);
   h += teField('text', pk + '.padding_top',    'Padding top (e.g. 64px)',    d.padding_top);
   h += teField('text', pk + '.padding_bottom', 'Padding bottom (e.g. 64px)', d.padding_bottom);
@@ -1457,6 +1477,8 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
                 <option value="mobile"  <%=stk.show_on==='mobile'          ?'selected':''%>>Mobile only</option>
               </select>
             </div>
+                      <%# alignment lives here now, not in teSectionLayout - measured live %>
+                      <%- teAlignment('scrolling_ticker.text_align', (t.scrolling_ticker||{}).text_align || 'left') %>
                       <%- teSectionLayout('scrolling_ticker', t.scrolling_ticker||{}) %>
 </div>
 
@@ -1959,6 +1981,8 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
                 <option value="mobile"  <%=bll.show_on==='mobile'          ?'selected':''%>>Mobile only</option>
               </select>
             </div>
+                      <%# alignment lives here now, not in teSectionLayout - from .brand-logos-eyebrow{text-align:center} - section is off, nothing to measure %>
+                      <%- teAlignment('brand_logos.text_align', (t.brand_logos||{}).text_align || 'center') %>
                       <%- teSectionLayout('brand_logos', t.brand_logos||{}) %>
 </div>
 
@@ -2011,6 +2035,8 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
             <% }) %>
 
             <%- teVisibleOn('value_bar', vbsec.show_on||'all') %>
+                      <%# alignment lives here now, not in teSectionLayout - measured live %>
+                      <%- teAlignment('value_bar.text_align', (t.value_bar||{}).text_align || 'center') %>
                       <%- teSectionLayout('value_bar', t.value_bar||{}) %>
 </div>
 
@@ -2103,6 +2129,8 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
                 <option value="mobile"  <%=btsec.show_on==='mobile'          ?'selected':''%>>Mobile only</option>
               </select>
             </div>
+                      <%# alignment lives here now, not in teSectionLayout - measured live %>
+                      <%- teAlignment('bundle_teaser.text_align', (t.bundle_teaser||{}).text_align || 'left') %>
                       <%- teSectionLayout('bundle_teaser', t.bundle_teaser||{}) %>
             <%- teTextGroup('bundle_teaser', t.bundle_teaser||{}, 'bundle_teaser') %>
             <div class="te4-section-label">Button style</div>
@@ -2192,6 +2220,10 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
             </div>
 
             <% } else if (pkBase === 'video_text') { %>
+            <%# video_text had no alignment control of its own - it only ever
+                got one from teSectionLayout, which no longer emits it.
+                'left' is what the section renders today, measured live. %>
+            <%- teAlignment(pk+'.text_align', d.text_align || 'left') %>
             <% if (!pkIsCopy) { %>
             <div class="te4-hint" style="margin-bottom:.75rem">Paste a YouTube URL or a direct .mp4 URL. Upload a local video file using the button below.</div>
             <% } %>
@@ -2238,6 +2270,8 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
             <div class="te4-field"><label>Starting position</label><div class="te4-slider-wrap"><input type="range" class="te4-slider" name="<%= pk %>.initial_pos" min="10" max="90" step="5" value="<%=d.initial_pos||50%>"><input type="number" class="te4-slider-num" min="10" max="90" step="5" value="<%=d.initial_pos||50%>"><span class="te4-slider-unit">%</span></div></div>
 
             <% } else if (pkBase === 'trust_band') { %>
+            <%# same as video_text; 'center' is what it renders today. %>
+            <%- teAlignment(pk+'.text_align', d.text_align || 'center') %>
             <div class="te4-section-label">Colors <small style="font-weight:400;opacity:.6">(leave blank for defaults)</small></div>
             <div class="te4-row2">
               <%- teColor(pk+'.bg_color',   'Background', d.bg_color  ||'#F8F6F2') %>
