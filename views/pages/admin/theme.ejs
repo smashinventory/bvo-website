@@ -469,7 +469,13 @@ function teButton(pk, d, label) {
          esc(b.name || b.key) + '</option>';
   });
   h += '</select></div>';
-  h += teAlignment(pk + '.btn_align', d.btn_align);
+  /* THE BUTTON ALIGNMENT CONTROL IS GONE. It emitted <section>.btn_align on
+     every panel that called teButton and absolutely nothing read it - not
+     index.ejs, not any partial, not any stylesheet. A control that stores a
+     value and changes nothing is worse than a missing one: it reads as a
+     feature, and the next person to "fix" it by wiring it up moves the page.
+     Section alignment is already covered by teSectionLayout's text_align,
+     which is read, so there is nothing to replace this with. */
   return h;
 }
 
@@ -1963,7 +1969,11 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
             <%- teFeaturedBody('categories_section', t.categories_section||{}, 'categories_section') %>
                       <%- teSectionLayout('categories_section', t.categories_section||{}) %>
             <%- teTextGroup('categories_section', t.categories_section||{}, 'categories_section') %>
-            <%- teButton('categories_section', t.categories_section||{}) %>
+            <%# NO BUTTON PICKER HERE. The category grid renders
+                <article class="cat-card"> tiles and no section-level button
+                at all - teFeaturedBody even excludes it from the CTA fields.
+                teButton was being called anyway, offering a style for a
+                button that does not exist. %>
 </div>
 
           <!-- ── BUNDLE TEASER ─────────────────────────────── -->

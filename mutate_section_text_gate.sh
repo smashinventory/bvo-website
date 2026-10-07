@@ -149,6 +149,35 @@ mutate "the copy sweep is removed, so _N copies never lock" "
 assert \"['before_after', 'testimonials', 'categories_section',\" in t
 t = t.replace(\"['before_after', 'testimonials', 'categories_section',\", \"['before_after', 'testimonials'][0:0].concat([\")"
 
+echo; echo "mutating the dead-control cleanup"; echo
+
+mutate "the newsletter subtitle goes back to the class with no CSS rule" "
+assert 'class=\"newsletter-subtitle\" style=' in i
+i = i.replace('class=\"newsletter-subtitle\" style=', 'class=\"newsletter-sub\" style=')"
+
+mutate "the btn_align control is reinstated in teButton" "
+assert \"h += '</select></div>';\" in t
+t = t.replace(\"h += '</select></div>';\",
+              \"h += '</select></div>';\n  h += teAlignment(pk + '.btn_align', d.btn_align);\", 1)"
+
+mutate "the orphaned btn_align default comes back" "
+assert \"btn_style: 'navy',\" in s
+s = s.replace(\"btn_style: 'navy',\", \"btn_style: 'navy',\n    btn_align: '',\", 1)"
+
+mutate "the categories grid gets a button picker for a button it has not got" "
+assert \"teTextGroup('categories_section', t.categories_section||{}, 'categories_section') %>\" in t
+t = t.replace(\"teTextGroup('categories_section', t.categories_section||{}, 'categories_section') %>\",
+              \"teTextGroup('categories_section', t.categories_section||{}, 'categories_section') %>\n            <%- teButton('categories_section', t.categories_section||{}) %>\")"
+
+mutate "sample_banner loses the button picker it genuinely needs" "
+import re
+assert \"teButton('sample_banner'\" in t
+t = re.sub(r\"<%- teButton\('sample_banner'[^\n]*\n\", '', t)"
+
+mutate "the inferred-value label is quietly dropped from the defaults" "
+assert 'newsletter.body_color is the one INFERRED value' in s
+s = s.replace('newsletter.body_color is the one INFERRED value', 'newsletter.body_color is a measured value')"
+
 echo
 echo "caught $pass, missed $fail"
 if [ "$fail" -eq 0 ]; then echo "All $pass mutations detected. The gate can fail."

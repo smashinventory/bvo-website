@@ -137,7 +137,11 @@ const SITES = [
   ['newsletter heading', /_newsTag %> class="newsletter-heading" id="news-heading" style="<%= _textStyle\(news,'heading_size','heading_color'\)/],
   ['sample_banner sub',  /<p class="section-sub" style="<%= _textStyle\(sb_,'body_size','body_color'\)/],
   ['bundle_teaser sub',  /<p class="section-sub" style="<%= _textStyle\(bt_,'body_size','body_color'\)/],
-  ['newsletter sub',     /<p class="newsletter-sub" style="<%= _textStyle\(news,'body_size','body_color'\)/],
+  /* .newsletter-subtitle, not .newsletter-sub. The markup said -sub and the
+     stylesheet only ever defined -subtitle, so that element had no CSS rule
+     at all; renamed 2026-10-07. No visual change, because the subtitle is
+     empty today - which is also why nobody noticed. */
+  ['newsletter sub',     /<p class="newsletter-subtitle" style="<%= _textStyle\(news,'body_size','body_color'\)/],
 ];
 SITES.forEach(([label, re]) => check(re.test(IDX), label + ' reads its own object and its own field'));
 
@@ -207,6 +211,36 @@ check(/lockGroup\(s \+ '\.text_manual',\s*\[s \+ '\.heading_size', s \+ '\.headi
       'and each flag locks all four of its fields');
 const dupM = THM.match(/\['before_after', 'testimonials', 'categories_section',\s*'featured_section', 'featured_models'\]\.forEach/);
 check(!!dupM, 'the copy sweep covers every base whose copies render a title');
+
+/* ── 6. the three dead controls, and the class rename ───────────────────── */
+console.log('--- dead controls stay dead ---');
+{
+  const CSS = read('public/css/site-bundle.css');
+  check(/\.newsletter-subtitle\{/.test(CSS),
+        'the stylesheet defines .newsletter-subtitle');
+  check(!/\.newsletter-sub[,{ ]/.test(CSS),
+        'and never defined .newsletter-sub, which is why the markup was renamed');
+  check(!/class="newsletter-sub"/.test(IDX),
+        'no element is left on the class that has no rule');
+
+  /* btn_align: emitted on every teButton panel, read by nothing. Asserted as
+     "not emitted" rather than "absent from the file" so the comment
+     explaining the removal is allowed to keep the word. */
+  check(!/teAlignment\(pk \+ '\.btn_align'/.test(THM) && !/'\.btn_align'/.test(THM),
+        'teButton no longer emits a btn_align control');
+  check(!/btn_align: *''/.test(svc),
+        'and its orphaned default is gone from themeSettings');
+
+  /* categories_section has no section-level button to style. */
+  check(!/teButton\('categories_section'/.test(THM),
+        'the category grid gets no button picker - it renders no button');
+  check(/teButton\('sample_banner'/.test(THM) && /teButton\('inspiration'/.test(THM),
+        'the two sections that DO render a btn_style button keep theirs');
+
+  /* The one value in this commit that is inferred rather than measured. */
+  check(/newsletter\.body_color is the one INFERRED value/.test(svc),
+        'the inferred newsletter body colour is still labelled as inferred');
+}
 
 console.log('\n' + (fails
   ? 'gate_section_text: FAILED ' + fails + ' of ' + checks

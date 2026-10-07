@@ -1744,7 +1744,8 @@ const DEFAULTS = {
     /* navy = the hero's primary, so the banner's button matches the two
        directly above it. It was hardcoded amber, which clashed. */
     btn_style: 'navy',
-    btn_align: '',
+    /* btn_align removed 2026-10-07 along with the control that wrote it -
+       it was never read anywhere. */
     cta_text: 'Browse samples',
     /* The samples CATEGORY page, which already exists and already renders
        sample images correctly (collectionsController COALESCEs

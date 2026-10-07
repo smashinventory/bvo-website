@@ -2679,7 +2679,7 @@ _DEFAULT_ORDER.forEach(function(k) {
     <div class="newsletter-copy" style="text-align:<%= _newsAlign %>">
       <% if (news.eyebrow) { %><p class="section-eyebrow" style="color:rgba(255,255,255,.7)"><%= news.eyebrow %></p><% } %>
       <<%- _newsTag %> class="newsletter-heading" id="news-heading" style="<%= _textStyle(news,'heading_size','heading_color') %>"><%= news.heading || 'Get Exclusive Deals & Design Ideas' %></<%- _newsTag %>>
-      <% if (news.subtitle) { %><p class="newsletter-sub" style="<%= _textStyle(news,'body_size','body_color') %>"><%= news.subtitle %></p><% } %>
+      <% if (news.subtitle) { %><p class="newsletter-subtitle" style="<%= _textStyle(news,'body_size','body_color') %>"><%= news.subtitle %></p><% } %>
     </div>
     <form class="newsletter-form" id="newsletterForm" novalidate>
       <div class="newsletter-input-wrap">
