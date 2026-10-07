@@ -113,6 +113,34 @@ const rules  = bs.cssRules(D);
      stays, because removing it would move those two corners. */
   check(/--radius-btn:/.test(lay),
         '--radius-btn is still emitted for the newsletter rules that read it');
+
+  /* ── THE RADIUS WAS A PLACEBO TOO, found on the live page ─────────────
+     site-bundle.css has TWO .btn base rules and the SECOND wins. It
+     hardcoded border-radius:5px, so --btn-radius was never read by the
+     button that renders - the emitted 6px was decoration and a
+     buttons.radius control would have changed nothing. Measured: every .btn
+     computed to 5px.
+
+     The winning rule now reads the variable and the default carries 5px,
+     the value the page already showed. Third duplicate-base-rule placebo of
+     the day, and the fifth placebo overall - the pattern is always the
+     same, a later rule quietly overriding the one that reads settings. */
+  /* SIX .btn rules, not two - several are inside media queries
+     (.btn{width:100%} on phones, and so on). "The last one wins" was the
+     wrong frame; what matters is which rules declare border-radius. */
+  const btnBases = (bundle.match(/\.btn\{[^}]*\}/g) || []);
+  const withRadius = btnBases.filter(r => /border-radius/.test(r));
+  check(withRadius.length === 2,
+        `exactly 2 .btn rules declare a radius (${withRadius.length})`);
+  check(withRadius.every(r => /border-radius:var\(--btn-radius\)/.test(r)),
+        'EVERY .btn rule that declares a radius reads --btn-radius',
+        withRadius.filter(r => !/var\(--btn-radius\)/.test(r)).join(' | ').slice(0, 160));
+  check(!btnBases.some(r => /border-radius:\s*\d/.test(r)),
+        'no .btn rule hardcodes a radius any more',
+        btnBases.filter(r => /border-radius:\s*\d/.test(r)).join(' | ').slice(0, 160));
+  check(D.buttons.radius === '5px',
+        "buttons.radius defaults to 5px — what the page already rendered, not the dead 6px",
+        JSON.stringify(D.buttons.radius));
   /* And the blocks themselves must be in the layout, or none of the above
      reaches a page. The gate never asserted this and the mutation test
      found the hole. */

@@ -3,9 +3,10 @@
 set -u
 cd "$(dirname "$0")"
 U=src/utils/buttonStyles.js; S=src/services/themeSettings.js; L=views/layouts/main.ejs
+B=public/css/site-bundle.css
 pass=0; fail=0
 mutate () {
-  cp "$U" /tmp/t.u; cp "$S" /tmp/t.s; cp "$L" /tmp/t.l
+  cp "$U" /tmp/t.u; cp "$S" /tmp/t.s; cp "$L" /tmp/t.l; cp "$B" /tmp/t.b
   python3 - "$U" "$S" "$L" <<PY
 import sys
 up,sp,lp = sys.argv[1],sys.argv[2],sys.argv[3]
@@ -13,10 +14,10 @@ u=open(up).read(); s=open(sp).read(); l=open(lp).read()
 $2
 open(up,'w').write(u); open(sp,'w').write(s); open(lp,'w').write(l)
 PY
-  if [ $? -ne 0 ]; then echo "  SKIP $1 — mutation did not apply"; cp /tmp/t.u "$U"; cp /tmp/t.s "$S"; cp /tmp/t.l "$L"; fail=$((fail+1)); return; fi
+  if [ $? -ne 0 ]; then echo "  SKIP $1 — mutation did not apply"; cp /tmp/t.u "$U"; cp /tmp/t.s "$S"; cp /tmp/t.l "$L"; cp /tmp/t.b "$B"; fail=$((fail+1)); return; fi
   if node gates/gate_button_templates.js >/dev/null 2>&1; then echo "  MISSED  $1"; fail=$((fail+1));
   else echo "  caught  $1"; pass=$((pass+1)); fi
-  cp /tmp/t.u "$U"; cp /tmp/t.s "$S"; cp /tmp/t.l "$L"
+  cp /tmp/t.u "$U"; cp /tmp/t.s "$S"; cp /tmp/t.l "$L"; cp /tmp/t.b "$B"
   node gates/gate_button_templates.js >/dev/null 2>&1 || { echo "  ABORT — restore failed"; exit 1; }
 }
 
@@ -75,6 +76,17 @@ assert \"{ key:'primary', name:'Button 3\" in s
 i = s.index(\"{ key:'primary', name:'Button 3\")
 j = s.index(\"{ key:'amber'\", i)
 s = s[:i] + s[j:]"
+
+mutate "the winning .btn rule hardcodes a radius again" "
+import re
+b=open('public/css/site-bundle.css').read()
+assert 'border-radius:var(--btn-radius)' in b
+b=b.replace('padding:.7rem 1.6rem;border-radius:var(--btn-radius)', 'padding:.7rem 1.6rem;border-radius:5px')
+open('public/css/site-bundle.css','w').write(b)"
+
+mutate "buttons.radius reverts to the dead 6px" "
+assert \"radius: '5px',\" in s
+s = s.replace(\"radius: '5px',\", \"radius: '6px',\")"
 
 echo
 echo "caught $pass, missed $fail"

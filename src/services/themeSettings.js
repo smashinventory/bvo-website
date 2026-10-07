@@ -78,7 +78,14 @@ const DEFAULTS = {
      stylesheet rule, which reads --btn-amber-hover-bg - so the hover colour
      below is live too. */
   buttons: {
-    radius: '6px',        // -> --btn-radius, the shared corner for every .btn
+    /* 5px, NOT 6px. There are two .btn base rules in site-bundle.css and the
+       SECOND one wins; it hardcoded border-radius:5px, so --btn-radius was
+       never read by the button that actually renders and the 6px it declared
+       was decoration. Measured in the browser: every .btn computes to 5px.
+       The winning rule now reads the variable, and the variable now carries
+       what the page shows. Fifth placebo of the day, and the third of the
+       duplicate-base-rule kind. */
+    radius: '5px',        // -> --btn-radius, the shared corner for every .btn
     templates: [
       { key:'navy',    name:'Button 1 — Navy',
         bg:'var(--navy)',  border:'transparent', fg:'#fff',
