@@ -8,23 +8,26 @@ A=src/controllers/cartController.js
 P=src/controllers/productsController.js
 K=src/controllers/checkoutController.js
 V=views/pages/admin/marketing/site-analytics.ejs
+G=src/services/ga4.js
+J=package.json
 pass=0; fail=0
 mutate () {
-  cp "$S" /tmp/sa.s; cp "$C" /tmp/sa.c; cp "$A" /tmp/sa.a; cp "$P" /tmp/sa.p; cp "$K" /tmp/sa.k; cp "$V" /tmp/sa.v
-  python3 - "$S" "$C" "$A" "$P" "$K" "$V" <<PY
+  cp "$S" /tmp/sa.s; cp "$C" /tmp/sa.c; cp "$A" /tmp/sa.a; cp "$P" /tmp/sa.p; cp "$K" /tmp/sa.k; cp "$V" /tmp/sa.v; cp "$G" /tmp/sa.g; cp "$J" /tmp/sa.j
+  python3 - "$S" "$C" "$A" "$P" "$K" "$V" "$G" "$J" <<PY
 import sys
-sp,cp_,ap,pp,kp,vp = sys.argv[1:7]
-s=open(sp).read(); c=open(cp_).read(); a=open(ap).read(); p=open(pp).read(); k=open(kp).read(); v=open(vp).read()
+sp,cp_,ap,pp,kp,vp,gp,jp = sys.argv[1:9]
+s=open(sp).read(); c=open(cp_).read(); a=open(ap).read(); p=open(pp).read(); k=open(kp).read(); v=open(vp).read(); g=open(gp).read(); j=open(jp).read()
 $2
 open(sp,'w').write(s); open(cp_,'w').write(c); open(ap,'w').write(a)
 open(pp,'w').write(p); open(kp,'w').write(k); open(vp,'w').write(v)
+open(gp,'w').write(g); open(jp,'w').write(j)
 PY
   if [ $? -ne 0 ]; then echo "  SKIP $1 — mutation did not apply"
-    cp /tmp/sa.s "$S"; cp /tmp/sa.c "$C"; cp /tmp/sa.a "$A"; cp /tmp/sa.p "$P"; cp /tmp/sa.k "$K"; cp /tmp/sa.v "$V"
+    cp /tmp/sa.s "$S"; cp /tmp/sa.c "$C"; cp /tmp/sa.a "$A"; cp /tmp/sa.p "$P"; cp /tmp/sa.k "$K"; cp /tmp/sa.v "$V"; cp /tmp/sa.g "$G"; cp /tmp/sa.j "$J"
     fail=$((fail+1)); return; fi
   if node gates/gate_site_analytics.js >/dev/null 2>&1; then echo "  MISSED  $1"; fail=$((fail+1));
   else echo "  caught  $1"; pass=$((pass+1)); fi
-  cp /tmp/sa.s "$S"; cp /tmp/sa.c "$C"; cp /tmp/sa.a "$A"; cp /tmp/sa.p "$P"; cp /tmp/sa.k "$K"; cp /tmp/sa.v "$V"
+  cp /tmp/sa.s "$S"; cp /tmp/sa.c "$C"; cp /tmp/sa.a "$A"; cp /tmp/sa.p "$P"; cp /tmp/sa.k "$K"; cp /tmp/sa.v "$V"; cp /tmp/sa.g "$G"; cp /tmp/sa.j "$J"
   node gates/gate_site_analytics.js >/dev/null 2>&1 || { echo "  ABORT — restore failed"; exit 1; }
 }
 
@@ -97,6 +100,39 @@ s = s.replace('value_cents  INT', 'value_cents  FLOAT')"
 
 mutate "the table stops self-healing, so a fresh server has no table" "
 s = s.replace('CREATE TABLE IF NOT EXISTS site_events', 'SELECT 1 FROM site_events')"
+
+echo; echo "mutating the GA4 half"; echo
+
+mutate "a Google client library is added as a dependency" "
+import json
+d = json.loads(j)
+d.setdefault('dependencies', {})['@google-analytics/data'] = '^4.0.0'
+j = json.dumps(d, indent=2)"
+
+mutate "the read-only scope is widened to edit" "
+g = g.replace('auth/analytics.readonly', 'auth/analytics.edit')"
+
+mutate "a failing GA4 call propagates instead of being caught" "
+g = g.replace(\"    console.error('[ga4] traffic failed (ignored):', err && err.message);\", '    throw err;')"
+
+mutate "an unconfigured GA4 throws instead of returning ok:false" "
+g = g.replace('    return { ok: false, configured: false,', '    throw new Error(')"
+
+mutate "the response cache is removed, so refreshing burns GA quota" "
+g = g.replace('const TTL_MS = 10 * 60 * 1000;', 'const TTL_MS = 0;')
+g = g.replace('const _cache = new Map();', '')"
+
+mutate "the private key is read from theme settings instead of env" "
+g = g.replace(\"(process.env.GA4_SA_KEY      || '')\", \"(require('./themeSettings').get().seo.ga_key || '')\")"
+
+mutate "traffic is awaited separately, stalling the local queries" "
+c = c.replace('botShare(days), coverage(), ga4.traffic(days),', 'botShare(days), coverage(),')
+c = c.replace('const [f, series, added, leaking, bots, cov, traffic] = await Promise.all([',
+              'const traffic = await ga4.traffic(days);\n    const [f, series, added, leaking, bots, cov] = await Promise.all([')"
+
+mutate "a Measurement ID in GA4_PROPERTY_ID is silently accepted" "
+g = g.replace(\"const looksLikeMeasurementId = /^(G|UA|AW|GT)-/i.test(id);\", 'const looksLikeMeasurementId = false;')
+g = g.replace(\"const looksNumeric           = /^\\\\d+\$/.test(id);\", 'const looksNumeric = true;')"
 
 echo
 echo "caught $pass, missed $fail"

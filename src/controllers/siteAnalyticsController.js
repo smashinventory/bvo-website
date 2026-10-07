@@ -23,6 +23,7 @@
 
 const { bvoPool } = require('../config/database');
 const siteEvents  = require('../services/siteEvents');
+const ga4         = require('../services/ga4');
 
 /* Orders are authoritative, and the same two conditions the customer
    analytics page uses. Kept identical on purpose: two pages reporting
@@ -209,9 +210,14 @@ exports.dashboard = async (req, res, next) => {
     await siteEvents.ensureTable();
 
     const days = windowDays(req.query.days);
-    const [f, series, added, leaking, bots, cov] = await Promise.all([
+    /* GA4 joins the same Promise.all rather than being awaited after it:
+       it is a network round trip and the four local queries should not sit
+       waiting on it. ga4.traffic() resolves to {ok:false} instead of
+       rejecting, so a dead or unconfigured GA cannot take the page down -
+       the first-party funnel is ours and must render regardless. */
+    const [f, series, added, leaking, bots, cov, traffic] = await Promise.all([
       funnel(days), daily(days), topAdded(days), viewedNotCarted(days),
-      botShare(days), coverage(),
+      botShare(days), coverage(), ga4.traffic(days),
     ]);
 
     res.render('pages/admin/marketing/site-analytics', {
@@ -219,7 +225,8 @@ exports.dashboard = async (req, res, next) => {
       path:      req.originalUrl,
       days, funnel: f, series, topAdded: added,
       viewedNotCarted: leaking, bots, coverage: cov,
-      gaConfigured: !!process.env.GA4_PROPERTY_ID,
+      traffic,
+      gaConfigured: ga4.config().ready,
     });
   } catch (err) { next(err); }
 };

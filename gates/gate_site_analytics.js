@@ -156,6 +156,10 @@ function finish(se) {
       series: [], topAdded: [], viewedNotCarted: [],
       bots: { bot: 0, total: 0, pct: null },
       coverage: { firstEvent: null, total: 0 }, gaConfigured: false,
+      /* EJS throws ReferenceError on an undeclared local, so every local the
+         template reads must be present in the fixture - including the ones
+         added later. Leaving `traffic` out is how this gate first failed. */
+      traffic: { ok: false, configured: false, reason: 'not configured' },
     };
     try {
       const html = fn(empty);
@@ -185,7 +189,12 @@ function finish(se) {
         viewedNotCarted: [{ product_id: 9, name: 'Chatham 48', slug: 'chatham-48', views: 140, adds: 3, rate: 2.1 }],
         bots: { bot: 900, total: 6300, pct: 14.3 },
         coverage: { firstEvent: new Date(Date.now() - 86400e3 * 45), total: 5400 },
-        gaConfigured: false,
+        gaConfigured: true,
+        traffic: { ok: true, configured: true, users: 4210, newUsers: 3380,
+                   sessions: 5120, views: 18400, avgEngagementSec: 112,
+                   engagementRate: 54.2, cached: false,
+                   topPages: [{ path: '/', views: 4100, avgSec: 95 }],
+                   channels: [{ name: 'Organic Search', sessions: 2600 }] },
       });
       check(/48,231\.50/.test(html2), 'renders with data, and formats revenue with separators');
       check(/<canvas/.test(html2),   'and draws the chart once there is something to plot');
@@ -203,8 +212,98 @@ function finish(se) {
   check(/value_cents  INT/.test(SVC),
         'money is stored in integer cents, not a float');
 
+
+  /* ── 9. GA4: read-only, zero-dependency, and never load-bearing ───── */
+  console.log('--- GA4 traffic ---');
+  const GA = read('src/services/ga4.js');
+  const PKG = JSON.parse(read('package.json'));
+  const deps = Object.keys(PKG.dependencies || {});
+
+  check(!deps.some(d => /^@google-analytics|^google-gax|^googleapis$/.test(d)),
+        'no Google client library was added as a dependency',
+        'node_modules is gitignored, so the host npm-installs on every deploy; a ' +
+        'failed install of the gRPC tree would take the storefront down to render four admin numbers');
+  check(/require\('crypto'\)/.test(GA) && /createSign\('RSA-SHA256'\)/.test(GA),
+        'the service-account JWT is signed with the crypto module Node already ships');
+  check(/analyticsdata\.googleapis\.com/.test(GA) && /runReport/.test(GA),
+        'and the Data API is called over plain REST');
+
+  /* The whole point of GA being optional. */
+  check(/return \{ ok: false, configured: false,/.test(GA),
+        'an unconfigured GA4 resolves to ok:false rather than throwing');
+  check(/catch \(err\) \{[\s\S]{0,400}console\.error\('\[ga4\]/.test(GA),
+        'and a failing GA4 call is caught and logged, not propagated');
+  check(/analytics\.readonly/.test(GA) && !/analytics\.edit|analytics\.manage/.test(GA),
+        'the scope requested is read-only');
+
+  /* Credentials are env-only. A private key in theme settings would be
+     readable by anyone who can open the Theme Editor. */
+  check(/process\.env\.GA4_PROPERTY_ID/.test(GA) &&
+        /process\.env\.GA4_SA_EMAIL/.test(GA) &&
+        /process\.env\.GA4_SA_KEY/.test(GA),
+        'credentials come from env vars');
+  check(!/GA4_SA_KEY/.test(read('src/services/themeSettings.js')),
+        'and the private key is never stored in theme settings');
+
+  /* GA4_ID (the G- measurement id for the page tag) already exists in env,
+     one word away from GA4_PROPERTY_ID. Pasting the wrong one is the single
+     likeliest setup mistake and fails as an opaque 403 deep in the API. */
+  check(/looksLikeMeasurementId\s*=\s*\/\^\(G\|UA\|AW\|GT\)-\/i\.test\(id\)/.test(GA),
+        'a Measurement ID pasted into GA4_PROPERTY_ID is detected by shape');
+  check(/looksNumeric\s*=\s*\/\^\\d\+\$\/\.test\(id\)/.test(GA),
+        'and the property id must be digits only');
+  check(/idProblem/.test(GA) && /which is a Measurement ID/.test(GA),
+        'and the page is told exactly which id was pasted where');
+
+  /* Quota: an admin leaning on refresh must not burn the daily allowance. */
+  /* GREP FOR A REAL DURATION, not the identifier. The first version was
+     /TTL_MS/ && /_cache/, which still matched after a mutation set the TTL
+     to 0 and deleted the Map - the words survive in _cache.get/.set. */
+  check(/const TTL_MS = \d+ \* 60 \* 1000;/.test(GA),
+        'the cache TTL is a real duration, not zero');
+  check(/if \(hit && hit\.expiresAt > Date\.now\(\)\) return/.test(GA),
+        'and a live cache entry short-circuits the API call, so refreshing does not spend quota');
+
+  /* It must not stall the page, and must not be able to fail it. */
+  check(/ga4\.traffic\(days\),/.test(CTRL) && /Promise\.all\(\[/.test(CTRL),
+        'traffic is fetched inside the same Promise.all as the local queries');
+  check(!/await ga4\.traffic[\s\S]{0,40};\s*\n\s*const \[/.test(CTRL),
+        'and not awaited separately after them');
+
+  /* EXECUTED, not asserted: with no env set it must resolve, not reject. */
+  {
+    const ga = require(path.join(ROOT, 'src/services/ga4.js'));
+    const saved = [process.env.GA4_PROPERTY_ID, process.env.GA4_SA_EMAIL, process.env.GA4_SA_KEY];
+    delete process.env.GA4_PROPERTY_ID; delete process.env.GA4_SA_EMAIL; delete process.env.GA4_SA_KEY;
+    ga.traffic(30).then(r => {
+      check(r && r.ok === false && r.configured === false,
+            'calling traffic() with no credentials resolves to a reason, not an exception',
+            JSON.stringify(r));
+      /* EXECUTED: the wrong id must be reported as a configured mistake,
+         not as "not set up", or the admin goes looking for the wrong thing. */
+      process.env.GA4_PROPERTY_ID = 'G-PLBNP2YD9K';
+      process.env.GA4_SA_EMAIL    = 'x@y.iam.gserviceaccount.com';
+      process.env.GA4_SA_KEY      = 'not-a-key';
+      return ga.traffic(30).then(r2 => {
+        check(r2 && r2.ok === false && r2.configured === true &&
+              /Measurement ID/.test(r2.reason || ''),
+              'a Measurement ID in GA4_PROPERTY_ID is refused with a message naming the mistake',
+              JSON.stringify(r2));
+        delete process.env.GA4_PROPERTY_ID; delete process.env.GA4_SA_EMAIL; delete process.env.GA4_SA_KEY;
+      });
+    }).then(() => {
+      if (saved[0]) process.env.GA4_PROPERTY_ID = saved[0];
+      if (saved[1]) process.env.GA4_SA_EMAIL    = saved[1];
+      if (saved[2]) process.env.GA4_SA_KEY      = saved[2];
+      done();
+    }).catch(e => { bad('traffic() must not reject', e.message); done(); });
+  }
+  return;
+
+  function done() {
   console.log('\n' + (fails
     ? 'gate_site_analytics: FAILED ' + fails + ' of ' + checks
     : 'gate_site_analytics: all ' + checks + ' checks pass'));
-  process.exit(fails ? 1 : 0);
+    process.exit(fails ? 1 : 0);
+  }
 }

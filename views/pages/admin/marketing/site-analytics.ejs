@@ -85,6 +85,57 @@
   </div>
 <% } %>
 
+<%# ── traffic, from GA4 ───────────────────────────────────────────────
+    Separated from the funnel below on purpose. These are GA4's numbers,
+    measured its way (its own bot filtering, its own session window), and
+    they will NOT tie out to the first-party funnel. Presenting them in one
+    row would invite exactly that comparison. %>
+<% if (traffic && traffic.ok) { %>
+  <div class="sa-kpis">
+    <div class="sa-kpi">
+      <span class="sa-kpi-label">Visitors</span>
+      <div class="sa-kpi-val"><%= traffic.users.toLocaleString() %></div>
+      <span class="sa-kpi-sub"><%= traffic.newUsers.toLocaleString() %> new</span>
+    </div>
+    <div class="sa-kpi">
+      <span class="sa-kpi-label">Sessions</span>
+      <div class="sa-kpi-val"><%= traffic.sessions.toLocaleString() %></div>
+      <span class="sa-kpi-sub"><%= traffic.engagementRate %>% engaged</span>
+    </div>
+    <div class="sa-kpi">
+      <span class="sa-kpi-label">Avg session</span>
+      <%
+        var _s = traffic.avgEngagementSec;
+        var _m = Math.floor(_s / 60), _r = _s % 60;
+      %>
+      <div class="sa-kpi-val"><%= _m %>m <%= _r %>s</div>
+      <span class="sa-kpi-sub">time on site per session</span>
+    </div>
+    <div class="sa-kpi">
+      <span class="sa-kpi-label">Page views</span>
+      <div class="sa-kpi-val"><%= traffic.views.toLocaleString() %></div>
+      <span class="sa-kpi-sub">
+        GA4<%= traffic.stale ? ' — last good figures, refresh failed' : (traffic.cached ? ' — cached' : '') %>
+      </span>
+    </div>
+  </div>
+<% } else if (traffic && !traffic.configured) { %>
+  <div class="sa-note sa-note--info">
+    <strong>Visitors, sessions and time on site are not connected yet.</strong>
+    GA4 is already collecting them on the storefront; this page needs
+    read access to report them. Set <code>GA4_PROPERTY_ID</code>,
+    <code>GA4_SA_EMAIL</code> and <code>GA4_SA_KEY</code> in the Hostinger
+    environment variables and they appear here. Everything below is
+    first-party and does not depend on it.
+  </div>
+<% } else if (traffic) { %>
+  <div class="sa-note sa-note--warn">
+    <strong>GA4 is configured but did not answer.</strong>
+    <%= traffic.reason %><br>
+    Everything below is first-party and unaffected.
+  </div>
+<% } %>
+
 <%# ── the funnel ─────────────────────────────────────────────────────── %>
 <div class="sa-funnel">
   <%
@@ -122,11 +173,6 @@
     <span class="sa-kpi-label">Bot share</span>
     <div class="sa-kpi-val"><%= bots.pct === null ? '—' : bots.pct + '%' %></div>
     <span class="sa-kpi-sub"><%= Number(bots.bot).toLocaleString() %> of <%= Number(bots.total).toLocaleString() %> events, excluded above</span>
-  </div>
-  <div class="sa-kpi">
-    <span class="sa-kpi-label">Visitors &amp; sessions</span>
-    <div class="sa-kpi-val sa-muted">GA4</div>
-    <span class="sa-kpi-sub"><%= gaConfigured ? 'property set — wiring in progress' : 'not connected yet' %></span>
   </div>
 </div>
 
@@ -203,13 +249,55 @@
   </div>
 </div>
 
+<% if (traffic && traffic.ok && (traffic.topPages.length || traffic.channels.length)) { %>
+<div class="sa-grid">
+  <div class="sa-panel">
+    <h2>Most viewed pages</h2>
+    <p class="sa-panel-note">GA4 page views for the window, with average session
+       length beside them.</p>
+    <table class="sa-table">
+      <thead><tr><th>Page</th><th class="num">Views</th><th class="num">Avg session</th></tr></thead>
+      <tbody>
+        <% traffic.topPages.forEach(function (r) { %>
+        <tr>
+          <td><a href="<%= r.path %>" target="_blank" rel="noopener"><%= r.path %></a></td>
+          <td class="num"><%= r.views.toLocaleString() %></td>
+          <td class="num"><%= Math.floor(r.avgSec / 60) %>m <%= r.avgSec % 60 %>s</td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+  <div class="sa-panel">
+    <h2>Where sessions come from</h2>
+    <p class="sa-panel-note">GA4 default channel grouping.</p>
+    <table class="sa-table">
+      <thead><tr><th>Channel</th><th class="num">Sessions</th><th class="num">Share</th></tr></thead>
+      <tbody>
+        <% var _tot = traffic.channels.reduce(function (a, c) { return a + c.sessions; }, 0) || 1; %>
+        <% traffic.channels.forEach(function (c) { %>
+        <tr>
+          <td><%= c.name %></td>
+          <td class="num"><%= c.sessions.toLocaleString() %></td>
+          <td class="num"><%= Math.round(c.sessions / _tot * 1000) / 10 %>%</td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<% } %>
+
 <div class="sa-note sa-note--info">
   <strong>What this page measures.</strong>
   Views, cart adds and checkout starts are recorded server-side, so they
   survive ad-blockers and tracking prevention. Orders and revenue come from
   the orders table and never from events, so this page cannot disagree with
-  your order list. Visitors, sessions, time on page and traffic sources are
-  GA4's and appear here once that connection is made.
+  your order list. Visitors, sessions, time on site and traffic sources are
+  GA4's, read through its Data API and cached for ten minutes. GA4 counts
+  with its own bot filtering and its own session window, so its numbers will
+  not tie out exactly to the funnel below — they are not measuring the same
+  thing and should not be expected to agree.
 </div>
 
 <% if (coverage.total > 0) { %>
