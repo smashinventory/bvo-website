@@ -485,12 +485,31 @@ _DEFAULT_ORDER.forEach(function(k) {
      badge_size is deliberately NOT in this group. The badge has its own
      enable switch, and one control governing another control's group is
      the kind of cross-wiring that gets forgotten. */
+  /* DEFAULT MEANS THE TUNED STATE, NOT "write nothing".
+     _heroT is the object the typography group reads from: the admin's
+     settings when the switch is on, the DEFAULTS when it is off. The
+     defaults now hold the tuned values, so OFF renders the optimal hero
+     rather than whatever the stylesheet happened to fall back to - which
+     is what it did on the first cut of this, and it looked terrible.
+
+     themeDefaults comes from res.locals (src/server.js, the theme-settings
+     middleware). The fallback to `hero` is for any render path that does
+     not go through that middleware: worst case the switch does nothing,
+     rather than the hero losing its type. */
+  var _heroDef    = (typeof themeDefaults !== 'undefined' && themeDefaults && themeDefaults.hero)
+                      ? themeDefaults.hero : hero;
   var _typeMan    = hero.typography_manual !== false;
-  var _heroHSize  = (_typeMan && hero.heading_size)  ? 'font-size:'+hero.heading_size+'px;' : '';
-  var _heroSSize  = (_typeMan && hero.subtext_size)  ? 'font-size:'+hero.subtext_size+'px;' : '';
-  var _heroH2Size = (_typeMan && +hero.h2_size > 0) ? 'font-size:'+hero.h2_size+'px;' : '';
-  var _heroESize  = (_typeMan && +hero.eyebrow_size > 0 && hero.eyebrow_size != 11) ? 'font-size:'+hero.eyebrow_size+'px;' : '';
-  var _heroS2Size = (_typeMan && +hero.sub2_size > 0 && hero.sub2_size != 14) ? 'font-size:'+hero.sub2_size+'px;' : '';
+  var _heroT      = _typeMan ? hero : _heroDef;
+  /* The comparisons against 11 and 14 are GONE on purpose. They meant
+     "don't write an inline size just to restate the default", and they were
+     written when the defaults were 11 and 14. The defaults are now 22 and
+     15, so the old guards would have suppressed exactly the values they
+     were meant to let through. Write the size whenever there is one. */
+  var _heroHSize  = (+_heroT.heading_size > 0) ? 'font-size:'+_heroT.heading_size+'px;' : '';
+  var _heroSSize  = (+_heroT.subtext_size > 0) ? 'font-size:'+_heroT.subtext_size+'px;' : '';
+  var _heroH2Size = (+_heroT.h2_size      > 0) ? 'font-size:'+_heroT.h2_size+'px;'      : '';
+  var _heroESize  = (+_heroT.eyebrow_size > 0) ? 'font-size:'+_heroT.eyebrow_size+'px;' : '';
+  var _heroS2Size = (+_heroT.sub2_size    > 0) ? 'font-size:'+_heroT.sub2_size+'px;'     : '';
   var _heroBSize  = (+hero.badge_size > 0 && hero.badge_size != 10) ? 'font-size:'+hero.badge_size+'px;' : '';
   /* ── BADGE, rebuilt 2026-10-06. Ships OFF — see themeSettings for why:
      badge_text has been stored as 'Free Shipping' all along and would
@@ -536,16 +555,18 @@ _DEFAULT_ORDER.forEach(function(k) {
      treatment rather than splitting sizes from colours. Every one of these
      vars has a CSS fallback (var(--hero-h1,#fff) and friends), which is
      what OFF hands the colour back to. */
-  if (_typeMan) {
-    if (hero.eyebrow_color)    _heroStyle += '--hero-eyebrow:'+hero.eyebrow_color+';';
-    if (hero.heading_color)    _heroStyle += '--hero-h1:'+hero.heading_color+';';
-    if (hero.h2_color)         _heroStyle += '--hero-h2:'+hero.h2_color+';';
-    if (hero.subtext_color)    _heroStyle += '--hero-sub:'+hero.subtext_color+';';
-    if (hero.sub2_color)       _heroStyle += '--hero-sub2:'+hero.sub2_color+';';
-  }
+  if (_heroT.eyebrow_color)    _heroStyle += '--hero-eyebrow:'+_heroT.eyebrow_color+';';
+  if (_heroT.heading_color)    _heroStyle += '--hero-h1:'+_heroT.heading_color+';';
+  if (_heroT.h2_color)         _heroStyle += '--hero-h2:'+_heroT.h2_color+';';
+  if (_heroT.subtext_color)    _heroStyle += '--hero-sub:'+_heroT.subtext_color+';';
+  if (_heroT.sub2_color)       _heroStyle += '--hero-sub2:'+_heroT.sub2_color+';';
   /* Content box CSS vars (bg-video layout) */
-  var _boxColor = hero.content_box_color || '#0f1f35';
-  var _boxOp    = hero.content_box_opacity !== undefined ? hero.content_box_opacity : 60;
+  /* Same pattern as typography: OFF reads the DEFAULTS, which now hold the
+     tuned box (white 70%, 12px, 320px, 4%/3%). It used to write nothing and
+     land on the stylesheet's pre-tuning navy box. */
+  var _boxSrc   = (hero.content_box_manual !== false) ? hero : _heroDef;
+  var _boxColor = _boxSrc.content_box_color || '#ffffff';
+  var _boxOp    = _boxSrc.content_box_opacity !== undefined ? _boxSrc.content_box_opacity : 70;
   var _boxHex   = _boxColor.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i);
   /* ── CONTENT BOX GUARD — 2026-10-07 ──────────────────────────────────
      THE ONE TO BE CAREFUL WITH. Every var here has a CSS fallback, so OFF
@@ -555,14 +576,12 @@ _DEFAULT_ORDER.forEach(function(k) {
      is a VISIBLE change, by design, and the stored values come straight
      back when it goes on again. That asymmetry with the height group - where
      OFF is subtle - is worth knowing before flipping it on a live site. */
-  if (hero.content_box_manual !== false) {
-    if (_boxHex) _heroStyle += '--content-box-bg:rgba('+parseInt(_boxHex[1],16)+','+parseInt(_boxHex[2],16)+','+parseInt(_boxHex[3],16)+','+(_boxOp/100).toFixed(2)+');';
-    if (+hero.content_box_padding > 0)  _heroStyle += '--content-box-pad:'+hero.content_box_padding+'px;';
-    if (+hero.content_box_radius  >= 0) _heroStyle += '--content-box-radius:'+hero.content_box_radius+'px;';
-    if (+hero.content_max_width   > 0)  _heroStyle += '--content-max-w:'+hero.content_max_width+'px;';
-    if (hero.content_v_offset !== undefined && hero.content_v_offset !== '') _heroStyle += '--content-v-offset:'+hero.content_v_offset+'%;';
-    if (hero.content_h_offset !== undefined && hero.content_h_offset !== '') _heroStyle += '--content-h-offset:'+hero.content_h_offset+'%;';
-  }
+  if (_boxHex) _heroStyle += '--content-box-bg:rgba('+parseInt(_boxHex[1],16)+','+parseInt(_boxHex[2],16)+','+parseInt(_boxHex[3],16)+','+(_boxOp/100).toFixed(2)+');';
+  if (+_boxSrc.content_box_padding > 0)  _heroStyle += '--content-box-pad:'+_boxSrc.content_box_padding+'px;';
+  if (+_boxSrc.content_box_radius  >= 0) _heroStyle += '--content-box-radius:'+_boxSrc.content_box_radius+'px;';
+  if (+_boxSrc.content_max_width   > 0)  _heroStyle += '--content-max-w:'+_boxSrc.content_max_width+'px;';
+  if (_boxSrc.content_v_offset !== undefined && _boxSrc.content_v_offset !== '') _heroStyle += '--content-v-offset:'+_boxSrc.content_v_offset+'%;';
+  if (_boxSrc.content_h_offset !== undefined && _boxSrc.content_h_offset !== '') _heroStyle += '--content-h-offset:'+_boxSrc.content_h_offset+'%;';
   var _ctaAlign = _heroAlign==='center'?'justify-content:center':_heroAlign==='right'?'justify-content:flex-end':'';
 %>
 <%/* ONE hero section, ONE <h1>. The phone hero used to be a second

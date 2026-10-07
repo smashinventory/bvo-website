@@ -93,21 +93,43 @@ const readFields   = new Set([...strip(index).matchAll(/hero\.([a-z_0-9]+)/g)].m
 
 /* ── 2. style defaults are sentinels ─────────────────────────────────────── */
 {
-  /* These are read as `x ? inline : ''`, so a truthy default would write an
-     inline style and beat the stylesheet. The sentinel keeps the CSS. */
-  for (const f of ['heading_size', 'subtext_size']) {
-    check(hero[f] === 0,
-          `${f} defaults to the sentinel 0, so the CSS rule still wins`,
-          'got ' + JSON.stringify(hero[f]));
-    /* The optional `)` is the typography guard added 2026-10-07: the read is
-       now `(_typeMan && hero.heading_size) ? ... : ''`. Still a truthiness
-       test, which is what the sentinel 0 depends on — a `>= 0` or a
-       `!== undefined` here would start writing an inline size of 0px. */
-    check(new RegExp('hero\\.' + f + '\\s*\\)?\\s*\\?').test(strip(index)),
-          `${f} is still read as a truthiness test (the sentinel means something)`);
+  /* ── THE SENTINELS ARE GONE FOR THE TYPOGRAPHY GROUP, 2026-10-07 ─────
+     heading_size and subtext_size were sentinel 0, and sub2_color was '',
+     on the reasoning that writing no inline style lets the responsive CSS
+     rule win. That was right while nothing ever read these in a DEFAULT
+     position.
+
+     The Typography switch broke it. OFF means "use the default", so a
+     sentinel default meant OFF produced the stylesheet's type instead of
+     the tuned type — the hero fell apart the first time Sam tried it. The
+     defaults now hold the live values and the template reads from the
+     defaults when the switch is off, so DEFAULT means CURRENT.
+
+     The sentinel convention is untouched everywhere else in this file, and
+     for the fields outside the two toggle groups. */
+  check(hero.heading_size === 20, 'heading_size default is the live 20px, not a sentinel',
+        'got ' + JSON.stringify(hero.heading_size));
+  check(hero.subtext_size === 16, 'subtext_size default is the live 16px, not a sentinel',
+        'got ' + JSON.stringify(hero.subtext_size));
+  check(hero.eyebrow_size === 22 && hero.h2_size === 20 && hero.sub2_size === 15,
+        'the other three sizes carry their live values too (22 / 20 / 15)');
+  for (const [f, v] of [['eyebrow_color','#5A7A5A'], ['heading_color','#182840'],
+                        ['h2_color','#926A21'], ['subtext_color','#182840'],
+                        ['sub2_color','#926A21']]) {
+    check(hero[f] === v, `${f} default is the live ${v}`, 'got ' + JSON.stringify(hero[f]));
   }
-  check(hero.sub2_color === '',
-        "sub2_color defaults to '' so no CSS var is written");
+  /* Still a truthiness test, so a 0 or a blank writes nothing rather than
+     `font-size:0px` or `--hero-h1:;`. */
+  for (const f of ['heading_size', 'subtext_size', 'h2_size', 'eyebrow_size', 'sub2_size']) {
+    check(new RegExp('\\+_heroT\\.' + f + '\\s*>\\s*0').test(strip(index)),
+          `${f} is written only when positive`);
+  }
+  /* The 11 and 14 comparisons MUST be gone. They meant "don't restate the
+     default" and were written when the defaults were 11 and 14. With the
+     defaults now 22 and 15 they would suppress the very values they were
+     meant to pass through. */
+  check(!/eyebrow_size\s*!=\s*11/.test(strip(index)) && !/sub2_size\s*!=\s*14/.test(strip(index)),
+        'the stale != 11 / != 14 guards are gone (they would now suppress the tuned sizes)');
   /* overlay defaults must equal the template's own fallbacks, or adding them
      moves the page on any install that has not overridden them. */
   check(hero.overlay_color === '#0f1f35',
@@ -300,6 +322,15 @@ const readFields   = new Set([...strip(index).matchAll(/hero\.([a-z_0-9]+)/g)].m
 {
   const idx = strip(index), t = strip(theme);
 
+  /* ── THE POINT OF THE WHOLE EXERCISE, asserted below by execution ─────
+     AUTO MUST REPRODUCE THE CURRENT STATE. Sam's objective, his words: so
+     that a seasonal or promotional change can be undone by flipping one
+     switch back, with no need to remember what the numbers were.
+
+     The first cut failed this. OFF wrote nothing, the browser fell back to
+     the stylesheet, and the stylesheet still described the hero as it
+     looked before it was tuned. Flipping to Auto produced a hero nobody
+     wanted - the opposite of a safe return path. */
   for (const flag of ['typography_manual', 'content_box_manual']) {
     check(hero[flag] === true,
           `${flag} defaults to TRUE — the values it governs are already live`,
@@ -323,6 +354,49 @@ const readFields   = new Set([...strip(index).matchAll(/hero\.([a-z_0-9]+)/g)].m
                       'hero.cta2_text', 'hero.cta1_url', 'hero.cta2_url']) {
     check(!governed.includes(copy),
           `${copy.replace(/'$/, '')} is NOT governed by any switch — text is content, not styling`);
+  }
+
+  /* ── AUTO REPRODUCES CURRENT, PROVEN BY EXECUTION ─────────────────────
+     The whole hero var region is lifted and run three ways against the
+     server's stored values: both switches on, typography off, box off.
+     All three must produce an identical inline style and identical inline
+     font sizes. That is the safe return path Sam asked for, and it is the
+     only check here that would have caught the first cut being wrong. */
+  {
+    const a = index.indexOf('var _heroDef'), b = index.indexOf('var _ctaAlign');
+    if (a === -1 || b === -1 || b < a) bad('the hero var region is liftable');
+    else {
+      const block = index.slice(a, b);
+      const STORED = {
+        heading_size:20, subtext_size:16, h2_size:20, eyebrow_size:22, sub2_size:15,
+        eyebrow_color:'#5A7A5A', heading_color:'#182840', h2_color:'#926A21',
+        subtext_color:'#182840', sub2_color:'#926A21',
+        content_box_color:'#ffffff', content_box_opacity:70, content_box_padding:12,
+        content_box_radius:6, content_max_width:320, content_v_offset:4, content_h_offset:3,
+        layout:'bg', overlay_color:'#ffffff', overlay_opacity:0,
+        min_height_px:300, max_height_px:620
+      };
+      const run = flags => {
+        const ctx = { hero: Object.assign({}, STORED, flags), themeDefaults: DEFAULTS,
+                      _heroStyle:'', _heroLayout:'bg', _heroAlign:'center' };
+        vm.runInNewContext(block, ctx);
+        return ctx._heroStyle + '||' +
+               [ctx._heroHSize, ctx._heroSSize, ctx._heroH2Size, ctx._heroESize, ctx._heroS2Size].join('');
+      };
+      const on = run({});
+      check(run({ typography_manual: false }) === on,
+            'TYPOGRAPHY AUTO reproduces the current state exactly');
+      check(run({ content_box_manual: false }) === on,
+            'CONTENT BOX AUTO reproduces the current state exactly');
+      check(run({ typography_manual: false, content_box_manual: false }) === on,
+            'both on Auto together still reproduce the current state');
+      /* And the current state is the live one, not merely self-consistent. */
+      check(on.includes('--content-box-bg:rgba(255,255,255,0.70);') &&
+            on.includes('--content-max-w:320px;') &&
+            on.includes('--hero-h1:#182840;') &&
+            on.includes('font-size:20px;'),
+            'the reproduced state is the LIVE hero (white 70% box, 320px, navy h1, 20px)');
+    }
   }
 
   /* The companion controls must be locked too. Both are unnamed, so a lock
@@ -359,8 +433,26 @@ const readFields   = new Set([...strip(index).matchAll(/hero\.([a-z_0-9]+)/g)].m
      doing nothing for reasons nobody can find. */
   check(!governed.includes('hero.badge_size'),
         'badge_size stays with the badge, out of the typography group');
-  check(/_typeMan\s*&&/.test(idx) && !/_typeMan[^\n]*badge_size/.test(idx),
-        'the template does not gate badge_size on the typography flag');
+  /* The mechanism changed from `_typeMan && hero.x` to `_heroT.x`, where
+     _heroT is the settings object or the defaults. So the check is that
+     badge_size is NOT read through _heroT — it keeps reading hero directly,
+     because the badge owns its own switch. */
+  check(/_heroT\./.test(idx), 'the typography group reads through _heroT');
+
+  /* THE PLUMBING, both ends. The gate lifts DEFAULTS by parsing the service
+     file, so it cannot notice that the module stopped EXPORTING them — and
+     without the export the template's `themeDefaults` is undefined, the
+     fallback kicks in, and Auto silently becomes a no-op. Caught by
+     mutation; asserted here at both ends of the wire. */
+  check(/DEFAULTS:\s*Object\.freeze\(DEFAULTS\)/.test(strip(svc)),
+        'themeSettings exports DEFAULTS, frozen');
+  const server = strip(read('src/server.js'));
+  check(/res\.locals\.themeDefaults\s*=\s*themeSettings\.DEFAULTS/.test(server),
+        'server.js puts the defaults in res.locals as themeDefaults');
+  check(/typeof themeDefaults !== 'undefined'/.test(idx),
+        'the template guards against themeDefaults being absent rather than throwing');
+  check(!/_heroT\.badge_size/.test(idx) && /hero\.badge_size/.test(idx),
+        'badge_size still reads hero directly, outside the typography group');
 }
 
 console.log('\n' + (fails

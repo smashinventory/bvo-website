@@ -94,6 +94,36 @@ mutate "typography guard changed to === true" "
 assert 'hero.typography_manual !== false' in idx
 idx = idx.replace('hero.typography_manual !== false', 'hero.typography_manual === true')"
 
+mutate "typography AUTO falls back to the stylesheet again (the original bug)" "
+assert '_typeMan ? hero : _heroDef' in idx
+idx = idx.replace('_typeMan ? hero : _heroDef', '_typeMan ? hero : {}')"
+
+mutate "content box AUTO falls back to the stylesheet again" "
+old = \"(hero.content_box_manual !== false) ? hero : _heroDef\"
+assert old in idx
+idx = idx.replace(old, '(hero.content_box_manual !== false) ? hero : {}')"
+
+mutate "a typography default reverted to its pre-tuning value" "
+assert 'heading_size:    20,' in svc
+svc = svc.replace('heading_size:    20,', 'heading_size:    0,')"
+
+mutate "a content box default reverted to its pre-tuning value" "
+assert 'content_box_max' not in svc
+assert 'content_max_width:   320,' in svc
+svc = svc.replace('content_max_width:   320,', 'content_max_width:   520,')"
+
+mutate "box colour default reverted to navy" "
+assert \"content_box_color:   '#ffffff'\" in svc
+svc = svc.replace(\"content_box_color:   '#ffffff'\", \"content_box_color:   '#0f1f35'\")"
+
+mutate "the stale != 11 guard comes back (suppresses the tuned eyebrow size)" "
+assert '+_heroT.eyebrow_size > 0' in idx
+idx = idx.replace('(+_heroT.eyebrow_size > 0)', '(+_heroT.eyebrow_size > 0 && _heroT.eyebrow_size != 11)')"
+
+mutate "DEFAULTS no longer exported, so AUTO has nothing to read" "
+assert 'DEFAULTS: Object.freeze(DEFAULTS)' in svc
+svc = svc.replace('DEFAULTS: Object.freeze(DEFAULTS)', 'DEFAULTS_DISABLED: Object.freeze(DEFAULTS)')"
+
 mutate "content box guard changed to === true" "
 assert 'hero.content_box_manual !== false' in idx
 idx = idx.replace('hero.content_box_manual !== false', 'hero.content_box_manual === true')"

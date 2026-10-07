@@ -381,10 +381,16 @@ const DEFAULTS = {
        is worse than not reserving. */
     mobile_image_aspect: '',
     // Text & Colors — CSS custom props emitted on section element
-    eyebrow_color:      '',   // '' = CSS default (sage)
-    heading_color:      '',   // '' = CSS default (white on mobile, navy on desktop)
-    h2_color:           '',   // '' = CSS default (amber)
-    subtext_color:      '',   // '' = CSS default
+    /* ── TYPOGRAPHY COLOURS — RESET TO THE TUNED STATE, 2026-10-07 ────
+       '' used to mean "let the CSS decide", and the CSS decides different
+       things in different layouts (--hero-h1 falls back to white in one
+       rule and navy in another). With the Typography switch, OFF landed on
+       whichever of those applied. These are the live desktop values, so
+       Default now means Current. Typography group only. */
+    eyebrow_color:      '#5A7A5A',   // was '' (CSS sage)
+    heading_color:      '#182840',   // was '' (CSS white or navy by layout)
+    h2_color:           '#926A21',   // was '' (CSS amber)
+    subtext_color:      '#182840',   // was ''
     /* DESKTOP alignment (>860px). Added 2026-09-23 — it had no default at
        all before, which meant the value lived only in
        data/theme_settings.json and the DB. Lose or reset that file and the
@@ -467,11 +473,13 @@ const DEFAULTS = {
        default state is 'broken' is not a default. */
     typography_manual:  true,
     content_box_manual: true,
-    // Per-element font sizes (0 = CSS default)
-    eyebrow_size: 11,
-    h2_size: 0,
-    sub2_size: 14,
-    badge_size: 10,
+    /* ── TYPOGRAPHY SIZES — RESET TO THE TUNED STATE, 2026-10-07 ──────
+       Scoped to the Typography toggle group ONLY. badge_size is left
+       alone (it belongs to the badge), and no other section is touched. */
+    eyebrow_size: 22,   // was 11
+    h2_size:      20,   // was 0 (sentinel)
+    sub2_size:    15,   // was 14
+    badge_size:   10,   // NOT part of the typography group — untouched
 
     /* ── SIX DEFAULTS ADDED 2026-10-06 — every one a SENTINEL ──────────
        These six were live editor fields with NO default. They worked, via
@@ -501,19 +509,41 @@ const DEFAULTS = {
        them here would have created DUPLICATE KEYS — the exact failure the
        comment above warns about. Evaluate the object, do not grep the text. */
     heading_level:   'h1',       // _safeTag(hero.heading_level, 'h1')
-    heading_size:    0,          // 0 -> no inline style -> CSS .hero-h1 2.6rem
-    subtext_size:    0,          // 0 -> no inline style -> CSS .hero-sub 1rem
-    sub2_color:      '',         // '' -> no var written -> CSS --hero-sub2
-    overlay_color:   '#0f1f35',  // hero.overlay_color || '#0f1f35'
-    overlay_opacity: 55,         // template falls back to '0.55'; 55/100 = 0.55
-    // Content box (bg-video layout) — semi-transparent panel behind text
-    content_box_color:   '#0f1f35', // box background color (hex)
-    content_box_opacity: 60,         // box opacity 0–100%
-    content_box_padding: 36,         // px padding inside box
-    content_box_radius:  6,          // px border radius
-    content_max_width:   520,        // px max-width of text box
-    content_v_offset:    0,          // % vertical offset from center (negative = raise, positive = lower)
-    content_h_offset:    5,          // % left padding / horizontal position of text box
+    /* heading_size / subtext_size WERE sentinel 0, on the reasoning that a
+       resolved pixel value would replace a responsive CSS rule. That
+       reasoning held while nothing read them in a Default position. It
+       stopped holding when the Typography switch shipped: OFF means "use
+       the default", and a sentinel 0 default meant OFF produced the
+       stylesheet's size, not the tuned one. These are the live values.
+       Scoped to the Typography group; the sentinel convention is untouched
+       everywhere else in this file. */
+    heading_size:    20,         // was 0 (sentinel) — live desktop value
+    subtext_size:    16,         // was 0 (sentinel) — live desktop value
+    sub2_color:      '#926A21',  // was '' — live value
+    overlay_color:   '#0f1f35',  // NOT in a toggle group — untouched
+    overlay_opacity: 55,         // NOT in a toggle group — untouched
+    /* ── CONTENT BOX — RESET TO THE TUNED STATE, 2026-10-07 ───────────
+       These were the pre-tuning values: navy 60% at 36px/520px with no
+       offsets. They were never what the site looks like - they were what
+       it looked like before the hero was tuned, and nothing had reached
+       them in months because the server's stored values won every time.
+
+       That stopped being harmless the moment the Content Box switch
+       existed, because OFF means "use the default" and the default was
+       the old look. Sam turned it off and got a hero nobody wanted.
+       The defaults file is supposed to describe the optimal state.
+
+       Read off the live desktop render on 2026-10-07. DEFAULT NOW MEANS
+       CURRENT. Thinning will drop these keys from the stored file the
+       next time settings are saved, since they equal the defaults - which
+       is correct, and makes this file the single description of the box. */
+    content_box_color:   '#ffffff', // was #0f1f35 navy
+    content_box_opacity: 70,        // was 60
+    content_box_padding: 12,        // was 36
+    content_box_radius:  6,         // unchanged
+    content_max_width:   320,       // was 520
+    content_v_offset:    4,         // was 0
+    content_h_offset:    3,         // was 5
     text_shadow:         true,       // drop shadow behind heading text
   },
   hero_mobile: {
@@ -1528,5 +1558,15 @@ function deepMerge(target, source) {
   return out;
 }
 
+/* DEFAULTS is exported so a template can render the DEFAULT position of a
+   Default/Manual switch. It cannot read them from the settings object it is
+   given, because load() is deepMerge(DEFAULTS, file) — by the time a
+   template sees `settings.hero`, the stored value has already replaced the
+   default and the two are indistinguishable.
+
+   Exported frozen. Nothing outside this file has any business editing the
+   defaults at runtime, and a template that did so would change the site for
+   every later request in the process. */
 module.exports = { get, save, reload, persistToDb, initFromDb,
-                   writeSettingsFile, thinForStorage };
+                   writeSettingsFile, thinForStorage,
+                   DEFAULTS: Object.freeze(DEFAULTS) };
