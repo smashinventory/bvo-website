@@ -49,18 +49,40 @@ assert old in s4
 s4 = s4.replace(old, '.btn-sage:active,.btn-sage:hover{background:#486854!important;color:#fff!important}')"
 
 mutate "cache bust not moved" "
-assert 'site-bundle.css?v=42' in lay
-lay = lay.replace('site-bundle.css?v=42', 'site-bundle.css?v=41')"
+assert 'site-bundle.css?v=43' in lay
+lay = lay.replace('site-bundle.css?v=43', 'site-bundle.css?v=42')"
 
 mutate "a duplicate base rule for navy sneaks in (would kill its variables)" "
 old = '.btn-navy{background:var(--btn-navy-bg);color:var(--btn-navy-fg)}'
 assert old in bun
 bun = bun.replace(old, old + '.btn-navy{background:var(--navy)}')"
 
-mutate "the amber duplicate gets silently deduplicated" "
-old = '.btn-amber{background:var(--amber);color:#fff}'
+mutate "a duplicate amber base rule comes back (tokens go inert again)" "
+old = '.btn-amber{background:var(--btn-amber-bg);color:var(--btn-amber-fg)}'
 assert old in bun
-bun = bun.replace(old, '')"
+bun = bun.replace(old, old + '.btn-amber{background:var(--amber);color:#fff}')"
+
+mutate "the amber local --amber pin comes back (brand edits stop reaching it)" "
+old = '.btn-amber{background:var(--btn-amber-bg);color:var(--btn-amber-fg)}'
+assert old in bun
+bun = bun.replace(old, old + '.btn-amber{--amber:#926A21}')"
+
+mutate "amber bg frozen to a literal (brand edits stop reaching it)" "
+assert '--btn-amber-bg:var(--amber)' in bun
+bun = bun.replace('--btn-amber-bg:var(--amber)', '--btn-amber-bg:#926A21')"
+
+mutate "outline fg repointed away from the original expression" "
+assert '--btn-outline-fg:var(--navy)' in bun
+bun = bun.replace('--btn-outline-fg:var(--navy)', '--btn-outline-fg:#1a2a44')"
+
+mutate "outline background stops being transparent" "
+assert '--btn-outline-bg:transparent' in bun
+bun = bun.replace('--btn-outline-bg:transparent', '--btn-outline-bg:#fff')"
+
+mutate "outline hover reverts to a hardcoded #fff" "
+old = '.btn-outline:hover{background:var(--btn-outline-hover-bg);color:var(--btn-outline-hover-fg)}'
+assert old in bun
+bun = bun.replace(old, '.btn-outline:hover{background:var(--navy);color:#fff}')"
 
 echo
 echo "caught $pass, missed $fail"

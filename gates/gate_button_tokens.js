@@ -53,6 +53,12 @@ const site4  = read('public/css/site4.css');
    below pass for the wrong reason. */
 function collectRootVars(css) {
   const vars = {};
+  /* STRIP COMMENTS FIRST. Splitting a :root block on ';' glues the comment
+     that precedes a declaration onto it, so the key parsed out of
+     "/* Short aliases ... *\/ --navy: #182840" is the comment text, not
+     --navy. That silently dropped --navy from the map while picking up
+     --sage and --amber, and made four correct checks go red. */
+  css = String(css).replace(/\/\*[\s\S]*?\*\//g, '');
   const re = /:root\s*\{([^}]*)\}/g;
   let m;
   while ((m = re.exec(css))) {
@@ -83,7 +89,21 @@ const norm = v => {
   return v;
 };
 
-const vars = collectRootVars(bundle);
+/* RUNTIME, NOT JUST THE FILE. main.ejs emits its own :root from the brand
+   settings (--navy, --amber, --sage, --color-* aliases), and because it is
+   parsed as part of the document it decides the real value. Resolving the
+   stylesheet alone reports --color-amber as #C4885A when the page actually
+   serves #926A21, which is how the amber check went red against correct
+   CSS. Merge the template's block in, with its EJS tags stripped, so the
+   gate resolves what a visitor gets. */
+const layout = read('views/layouts/main.ejs');
+const injected = collectRootVars(layout.replace(/<%[-=]?([\s\S]*?)%>/g, 'EJS'));
+const vars = Object.assign({}, collectRootVars(bundle), injected);
+/* Values the template fills from settings arrive here as the literal 'EJS'.
+   Those are brand colours the admin owns; the gate must not pretend to know
+   them, so any check that would depend on one is skipped rather than
+   guessed. */
+const fromSettings = k => String(vars[k] || '').includes('EJS');
 
 /* ── 1. the six new variables exist and resolve to today's colours ─────── */
 {
@@ -166,14 +186,28 @@ const vars = collectRootVars(bundle);
      which fields can be driven and which still need the same treatment.
      If someone tokenises them later, this check goes red and gets updated
      with the change - which is the point. */
-  check(hardcodes('btn-amber').length === 2,
-        'btn-amber still has 2 rules hardcoding #fff (known, not this commit)',
-        'count changed: ' + hardcodes('btn-amber').length);
-  check(hardcodes('btn-outline').length === 2,
-        'btn-outline still has 2 rules hardcoding #fff (known, not this commit)',
-        'count changed: ' + hardcodes('btn-outline').length);
-  check(hardcodes('btn-primary').length === 0,
-        'btn-primary is fully tokenised, as it already was');
+  /* ── AMBER AND OUTLINE ARE NOW TOKENISED TOO (step 1b, 2026-10-07) ────
+     They were not, and worse, each had a DUPLICATE BASE RULE later in the
+     bundle overriding the tokenised one, so five of the thirteen --btn-*
+     variables were inert. Three dead rules removed:
+
+       .btn-amber{background:var(--amber);color:#fff}
+       .btn-amber{--amber:#926A21;--color-amber:#926A21}
+       .btn-outline{background:0 0;color:var(--navy);border-color:var(--navy)}
+
+     plus a THIRD outline hover duplicate using --color-navy/--color-white,
+     which my first hardcode scan missed entirely because it used variables
+     rather than hex. That is the same lesson as every other miss today:
+     scanning for a shape finds only that shape.
+
+     Deleting them is pixel-identical because the surviving variables
+     resolve to the same colours - asserted below rather than asserted of
+     me. ONE named behaviour change: the amber local-variable pin is gone,
+     so brand-colour edits now reach amber buttons. They did not before. */
+  for (const v of ['btn-amber', 'btn-outline', 'btn-primary']) {
+    check(hardcodes(v).length === 0, `${v}: no rule hardcodes a colour any more`,
+          hardcodes(v).join(' | '));
+  }
 
   /* ── THE WORSE PROBLEM, PINNED SO THE MANAGER STARTS FROM TRUTH ──────
      amber and outline each have TWO base rules in the bundle, and the
@@ -196,18 +230,66 @@ const vars = collectRootVars(bundle);
      is its own job with its own blast radius (16 amber buttons, 35
      outline). Pinned here so it cannot be forgotten and so the count going
      down is a visible event rather than a silent one. */
+  /* ONE base rule each, so every variable is actually live. This is the
+     check that makes the manager honest: a second base rule anywhere turns
+     a control into a placebo. */
   const dupBase = v => (bundle.match(new RegExp('\\.' + v + '\\{', 'g')) || []).length;
-  check(dupBase('btn-amber') === 3,
-        'btn-amber has 3 base rules, the later ones overriding the tokenised one (known)',
-        'count changed: ' + dupBase('btn-amber'));
-  check(dupBase('btn-outline') === 2,
-        'btn-outline has 2 base rules, the later overriding the tokenised one (known)',
-        'count changed: ' + dupBase('btn-outline'));
-  for (const v of ['btn-navy', 'btn-sage', 'btn-primary']) {
+  for (const v of ['btn-primary', 'btn-navy', 'btn-sage', 'btn-amber', 'btn-outline']) {
     check(dupBase(v) === 1,
-          `${v} has exactly ONE base rule, so its variables are actually live`,
-          'found ' + dupBase(v));
+          `${v} has exactly ONE base rule, so its variables are live`,
+          'found ' + dupBase(v) + ' - a later duplicate makes the tokens inert');
   }
+
+  /* And every variable the manager will drive must resolve to the colour
+     measured on the live site before the dedupe. These are the numbers from
+     the browser on 2026-10-07, with the amber ones read off a real
+     .btn-amber and the outline ones off a real .btn-outline. */
+  /* EQUIVALENCE TO THE DELETED EXPRESSION, declaration by declaration.
+     Comparing against a measured colour cannot work for the brand-driven
+     ones: --amber and --navy are filled by main.ejs from settings, so the
+     gate legitimately does not know their values. What it CAN know is that
+     each token carries the same expression the deleted rule did, which
+     makes the dedupe equivalent by construction rather than by my
+     reasoning about which alias wins.
+
+     The deleted rules were:
+       .btn-amber   { background: var(--amber);  color: #fff }
+       .btn-outline { background: 0 0; color: var(--navy); border-color: var(--navy) }
+       .btn-outline:hover { background: var(--navy); color: #fff } */
+  const SAME_AS_DELETED = {
+    '--btn-amber-bg':         'var(--amber)',
+    '--btn-amber-fg':         '#fff',
+    '--btn-outline-fg':       'var(--navy)',
+    '--btn-outline-border':   'var(--navy)',
+    '--btn-outline-hover-bg': 'var(--navy)',
+    '--btn-outline-hover-fg': '#fff',
+  };
+  for (const [k, was] of Object.entries(SAME_AS_DELETED)) {
+    check((vars[k] || '').trim() === was,
+          `${k} carries exactly the expression the deleted rule used: ${was}`,
+          'got ' + JSON.stringify(vars[k]));
+  }
+  /* `background:0 0` and a transparent background-color are the same paint;
+     the token spells it the readable way. */
+  check(norm(resolve(vars['--btn-outline-bg'], vars)) === 'transparent',
+        '--btn-outline-bg is transparent, as `background:0 0` was');
+
+  /* The four brand-driven tokens must still END at a settings-filled
+     variable, not at a frozen copy of today's colour - otherwise editing
+     Navy or Amber in the Theme Editor stops reaching the buttons. */
+  for (const k of ['--btn-navy-bg', '--btn-sage-bg', '--btn-amber-bg',
+                   '--btn-outline-fg', '--btn-outline-border', '--btn-outline-hover-bg']) {
+    const chain = (vars[k] || '').match(/^var\(\s*(--[\w-]+)\s*\)$/);
+    check(!!chain && fromSettings(chain[1]),
+          `${k} resolves through a brand variable the admin can edit`,
+          'got ' + JSON.stringify(vars[k]));
+  }
+
+  /* THE AMBER PIN MUST STAY GONE. While it existed, editing Amber in the
+     brand palette did nothing to amber buttons - the rule re-pinned
+     --amber on the element itself. */
+  check(!/\.btn-amber\{--amber:/.test(bundle),
+        'the .btn-amber local --amber pin is gone, so brand edits reach amber buttons');
 }
 
 /* ── 3. the site4 public slice and the bundle still agree ───────────────
@@ -232,7 +314,7 @@ const vars = collectRootVars(bundle);
 {
   const lay = read('views/layouts/main.ejs');
   const v = Number((lay.match(/site-bundle\.css\?v=(\d+)/) || [])[1]);
-  check(v >= 42, `the bundle ?v= is at least 42 (this change) — got ${v}`,
+  check(v >= 43, `the bundle ?v= is at least 43 (this change) — got ${v}`,
         'without a bump, returning visitors and the CDN keep the old bundle');
 }
 
