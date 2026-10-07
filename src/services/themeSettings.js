@@ -35,8 +35,67 @@ const DEFAULTS = {
     base_size_px:   16,
     heading_weight: '600',
     colors: { navy:'#182840', amber:'#926A21', sage:'#5A7A5A', whisper:'#F8F6F2', white:'#FFFFFF' },
-    button_radius: '6px',
+    /* button_radius WROTE --radius-btn, and .btn reads --btn-radius. Two
+       variables one letter-order apart, so this field never changed a single
+       .btn on the site - it moved the newsletter input and its submit, the
+       only two rules that read --radius-btn. The real control is
+       buttons.radius below, which writes --btn-radius. Kept here because the
+       newsletter rules still read --radius-btn with a 6px fallback; removing
+       it would change those two corners. Renamed in the editor so nobody
+       reaches for it expecting buttons. */
+    button_radius: '6px',   // -> --radius-btn, newsletter input + submit only
     card_radius:   '12px',
+  },
+
+  /* ── BUTTON TEMPLATES ──────────────────────────────────────────────────
+     Seeded with the FIVE STYLES THAT EXIST TODAY, carrying the values the
+     site renders right now, measured in the browser on 2026-10-07. Editing
+     one of these moves the real buttons, because the variable names below
+     are the ones site-bundle.css already reads - that is what the two
+     button-token commits were for.
+
+     WHY THE BACKGROUNDS ARE var() AND NOT HEX. --navy, --sage and --amber
+     are filled by main.ejs from the brand palette. A hex here would freeze
+     them, so editing Sage in the Theme Editor would stop moving the sage
+     buttons. The editor writes a hex only when the admin picks one, which is
+     the point at which they have asked for an override.
+
+     KEYS ARE PERMANENT. A section stores the key it was assigned, so
+     renaming "Button 1" must not orphan it. The five below are also the
+     bridge to the existing CSS classes (navy -> .btn-navy), so renaming one
+     of these keys would detach it from the hundred-odd places the class is
+     written into the views.
+
+     PADDING, HEIGHT AND WIDTH ARE DELIBERATELY ABSENT. Sam's call: they stay
+     in the hardcoded .btn base. Note also that btn-sm in site4.css carries
+     !important, so a size control here would lose to it - another reason not
+     to pretend to offer one yet.
+
+     AMBER'S HOVER IS 'darken', NOT 'swap', and that is not a tidy-up
+     waiting to happen: the live stylesheet applies filter:brightness(.88)
+     on amber hover ON TOP of swapping the background to #A87040. 'darken'
+     reproduces the filter; the background swap still comes from the
+     stylesheet rule, which reads --btn-amber-hover-bg - so the hover colour
+     below is live too. */
+  buttons: {
+    radius: '6px',        // -> --btn-radius, the shared corner for every .btn
+    templates: [
+      { key:'navy',    name:'Button 1 — Navy',
+        bg:'var(--navy)',  border:'transparent', fg:'#fff',
+        hover_bg:'#0e1e38', hover_fg:'#fff', hover_effect:'swap', radius:'' },
+      { key:'sage',    name:'Button 2 — Sage',
+        bg:'var(--sage)',  border:'transparent', fg:'#fff',
+        hover_bg:'var(--sage-deep)', hover_fg:'#fff', hover_effect:'swap', radius:'' },
+      { key:'primary', name:'Button 3 — Primary',
+        bg:'var(--color-navy)', border:'transparent', fg:'var(--color-white)',
+        hover_bg:'#0E1E38', hover_fg:'var(--color-white)', hover_effect:'swap', radius:'' },
+      { key:'amber',   name:'Button 4 — Amber',
+        bg:'var(--amber)', border:'transparent', fg:'#fff',
+        hover_bg:'#A87040', hover_fg:'#fff', hover_effect:'darken', radius:'' },
+      { key:'outline', name:'Button 5 — Outline',
+        bg:'transparent',  border:'var(--navy)',  fg:'var(--navy)',
+        hover_bg:'var(--navy)', hover_fg:'#fff', hover_effect:'swap', radius:'' },
+    ],
   },
   seo: {
     home_title:          'BathroomVanitiesOutlet.com | Premium Vanities at Outlet Prices',

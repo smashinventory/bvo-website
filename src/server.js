@@ -519,6 +519,23 @@ app.use((req, res, next) => {
      deepMerge(DEFAULTS, storedFile), so the stored value has already
      replaced the default by the time a view sees it. Frozen at export. */
   res.locals.themeDefaults = themeSettings.DEFAULTS;
+  /* The button templates, already turned into CSS. Computed HERE rather than
+     in the layout because every value is interpolated into a stylesheet and
+     the validation that makes that safe belongs in a module a gate can
+     execute - the same reasoning that put _safeColor in main.ejs after
+     MED-3, taken one step further. See src/utils/buttonStyles.js. */
+  try {
+    const bs = require('./utils/buttonStyles');
+    const s  = res.locals.settings || {};
+    res.locals.buttonVars  = bs.cssVars(s);
+    res.locals.buttonRules = bs.cssRules(s);
+  } catch (err) {
+    /* A malformed templates array must not take the whole site down: the
+       stylesheet already contains working rules for the five legacy styles,
+       so emitting nothing falls back to them. */
+    res.locals.buttonVars = '';
+    res.locals.buttonRules = '';
+  }
   next();
 });
 
