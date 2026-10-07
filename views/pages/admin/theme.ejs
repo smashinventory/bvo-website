@@ -306,6 +306,46 @@ function teButtonCard(i, b, locked) {
   h += '</div>';
   return h;
 }
+/* ── SECTION TITLE + BODY TEXT (Wave 2, 2026-10-07) ───────────────────
+   One group, emitted by every panel that renders a .section-title and a
+   subtitle. The toggle is the safety mechanism as much as the feature:
+   before_after, testimonials and their copies have carried heading_size
+   and body_size controls that index.ejs never applied, and their defaults
+   were undefined, so thinForStorage kept whatever got posted. Any stale
+   value is still in the live settings. Auto off by default keeps it inert.
+
+   d.text_manual === true, not !== false: a _N copy created before this
+   shipped has the key undefined, and undefined has to mean Auto. */
+function teTextGroup(pk, d, base) {
+  d = d || {};
+  /* FALL BACK TO THE BASE SECTION'S VALUES. A _N copy is created at runtime
+     and has no DEFAULTS entry of its own, so every field here arrives
+     undefined - and teTextSize renders undefined as 16 while teColor
+     renders it as #000000. Under Auto that is only cosmetic, because
+     nothing is emitted. The moment the admin flipped such a copy to Manual
+     and saved, though, 16px black is exactly what would have posted. The
+     base's merged values are the right starting point: they are what the
+     copy renders today. */
+  var b = (base && typeof t !== 'undefined' && t && t[base]) ? t[base] : {};
+  var pick = function (f) { return (d[f] !== undefined && d[f] !== '') ? d[f] : b[f]; };
+  var h = '<div class="te4-section-label">Title &amp; body text</div>';
+  h += teToggle(pk + '.text_manual', 'Manual text size and color', d.text_manual === true);
+  h += '<div class="te4-hint" style="margin:.35rem 0 .6rem">Auto keeps the'
+     + ' stylesheet’s sizes, which scale with the global base font size.'
+     + ' Manual pins them in pixels.</div>';
+  h += teTextSize(pk + '.heading_size', pick('heading_size'), 'Title size', 16, 56);
+  h += teColor(pk + '.heading_color', 'Title color', pick('heading_color'));
+  h += teTextSize(pk + '.body_size', pick('body_size'), 'Body text size', 11, 26);
+  h += teColor(pk + '.body_color', 'Body text color', pick('body_color'));
+  return h;
+}
+
+/* The sections carrying the group, so the panels and the lockGroup calls at
+   the bottom of this file cannot drift apart - one list, read twice. */
+var TEXT_GROUP_SECTIONS = ['categories_section','featured_section','featured_models',
+                           'before_after','testimonials','sample_banner',
+                           'bundle_teaser','newsletter'];
+
 function teToggle(name,label,checked,compact){
   var cls=compact?'te4-toggle compact':'te4-toggle'; var chk=checked?'checked':'';
   return '<label class="'+cls+'"><input type="hidden" name="'+name+'" value="false"><input type="checkbox" name="'+name+'" value="true" '+chk+' class="te4-toggle-cb"><span class="te4-toggle-track"><span class="te4-toggle-thumb"></span></span><span class="te4-toggle-lbl">'+label+'</span></label>';
@@ -1922,6 +1962,7 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
           <div class="te4-panel" id="panel-categories_section">
             <%- teFeaturedBody('categories_section', t.categories_section||{}, 'categories_section') %>
                       <%- teSectionLayout('categories_section', t.categories_section||{}) %>
+            <%- teTextGroup('categories_section', t.categories_section||{}, 'categories_section') %>
             <%- teButton('categories_section', t.categories_section||{}) %>
 </div>
 
@@ -2004,6 +2045,7 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
             <%- teImage('sample_banner.image','sample_banner.image_alt',sbsec.image,sbsec.image_alt,'Banner image') %>
             <%- teVisibleOn('sample_banner', sbsec.show_on||'all') %>
                       <%- teSectionLayout('sample_banner', t.sample_banner||{}) %>
+            <%- teTextGroup('sample_banner', t.sample_banner||{}, 'sample_banner') %>
             <%- teButton('sample_banner', t.sample_banner||{}) %>
 </div>
 
@@ -2052,6 +2094,7 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
               </select>
             </div>
                       <%- teSectionLayout('bundle_teaser', t.bundle_teaser||{}) %>
+            <%- teTextGroup('bundle_teaser', t.bundle_teaser||{}, 'bundle_teaser') %>
             <div class="te4-section-label">Button style</div>
             <%- teButtonStyle('bundle_teaser.cta_style', 'Button style', btsec.cta_style, 'navy', t) %>
 </div>
@@ -2060,6 +2103,7 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
           <div class="te4-panel" id="panel-featured_section">
             <%- teFeaturedBody('featured_section', t.featured_section||{}, 'featured_section') %>
                       <%- teSectionLayout('featured_section', t.featured_section||{}) %>
+            <%- teTextGroup('featured_section', t.featured_section||{}, 'featured_section') %>
             <div class="te4-section-label">Button style</div>
             <%- teButtonStyle('featured_section.cta_style', 'Button style', (t.featured_section||{}).cta_style, 'outline', t) %>
 </div>
@@ -2068,6 +2112,7 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
           <div class="te4-panel" id="panel-featured_models">
             <%- teFeaturedBody('featured_models', t.featured_models||{}, 'featured_models') %>
                       <%- teSectionLayout('featured_models', t.featured_models||{}) %>
+            <%- teTextGroup('featured_models', t.featured_models||{}, 'featured_models') %>
             <div class="te4-section-label">Button style</div>
             <%- teButtonStyle('featured_models.cta_style', 'Button style', (t.featured_models||{}).cta_style, 'navy', t) %>
 </div>
@@ -2304,6 +2349,32 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
                 Parallax draws TWO buttons with DIFFERENT styles (amber and
                 outline), so one control could not have driven both without
                 collapsing them to the same look. %>
+            <%# before_after and testimonials render .section-title / .section-sub
+                and now read heading_* / body_* through _textStyle, so they get
+                the whole group.
+
+                I first wrote this as toggle-plus-colours only, on the belief
+                that this panel already emitted heading_size and body_size for
+                them. It does not: those two teTextSize calls live inside the
+                `pkBase === 'image_with_text'` branch and end at the video_text
+                branch, so they only ever reached image+text and video+text.
+                before_after and testimonials had no size control at all - and
+                shipping the trimmed group would have left them READING a
+                setting with nothing in the editor able to set it. Checked by
+                finding which branch the calls sit in rather than by trusting
+                that a name appearing in the file meant the control existed. %>
+            <%# Also the three featured bases, whose COPIES come through this
+                loop via teFeaturedBody. featured_models_2 is live on the
+                homepage right now, so leaving them out would have given the
+                copies a title they render but cannot restyle, while their
+                base panels got the group. The base keys are excluded because
+                their hand-written panels call teTextGroup directly - adding
+                them here too would emit every name twice, and on POST the
+                last duplicate wins. %>
+            <% if (/^(before_after|testimonials)/.test(pkBase)
+                   || (_DUPL_BASE_HAS_OWN_PANEL.has(pkBase) && pk !== pkBase)) { %>
+            <%- teTextGroup(pk, d, pkBase) %>
+            <% } %>
             <% if (/^parallax/.test(pkBase)) { %>
             <div class="te4-section-label">Button styles</div>
             <div class="te4-row2">
@@ -2346,6 +2417,7 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
               </select>
             </div>
                       <%- teSectionLayout('newsletter', t.newsletter||{}) %>
+            <%- teTextGroup('newsletter', newsec, 'newsletter') %>
             <div class="te4-section-label">Button style</div>
             <%- teButtonStyle('newsletter.cta_style', 'Button style', newsec.cta_style, 'amber', t) %>
 </div>
@@ -3230,6 +3302,23 @@ document.querySelectorAll('.te4-align-group').forEach(function (group) {
              'hero.subtext_size', 'hero.sub2_size',
              'hero.eyebrow_color', 'hero.heading_color', 'hero.h2_color',
              'hero.subtext_color', 'hero.sub2_color']);
+
+  /* WAVE 2: one group per section, names built from the shared list so a
+     section cannot be added to the panels and forgotten here. The two
+     duplicatable bases take _N copies too, and lockGroup no-ops when the
+     flag is absent, so asking for copies that do not exist is harmless. */
+  (function () {
+    var secs = <%- JSON.stringify(TEXT_GROUP_SECTIONS) %>;
+    ['before_after', 'testimonials', 'categories_section',
+     'featured_section', 'featured_models'].forEach(function (b) {
+      for (var i = 2; i <= 6; i++) secs.push(b + '_' + i);
+    });
+    secs.forEach(function (s) {
+      lockGroup(s + '.text_manual',
+                [s + '.heading_size', s + '.heading_color',
+                 s + '.body_size',    s + '.body_color']);
+    });
+  })();
 
   lockGroup('hero.content_box_manual',
             ['hero.content_box_color', 'hero.content_box_opacity',

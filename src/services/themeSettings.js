@@ -738,6 +738,44 @@ const DEFAULTS = {
     title_level: 'p',
     enabled: true,
     show_on: 'all',
+    /* ── SECTION TEXT (added 2026-10-07, Wave 2) ────────────────────
+       Size and colour for this section's title and its subtitle/body.
+
+       text_manual:false means AUTO, and Auto emits no override at all -
+       see _textStyle in index.ejs for why pixels are the wrong snapshot
+       here. The practical consequence is the important one: before_after,
+       testimonials and their copies have had heading_size and body_size
+       controls in the editor for a while that index.ejs never applied,
+       and because their defaults were undefined, thinForStorage KEPT
+       whatever those controls posted. Any such value is still in the live
+       settings. Wiring them up ungated would have moved the page the
+       moment this shipped; behind an Auto that defaults to off, a stale
+       value stays inert until someone deliberately switches to Manual.
+
+       THE VALUES ARE THE MEASURED ONES, NOT BLANKS. teColor renders an
+       empty value as #000000, so a blank heading_color would turn every
+       title black the first time someone flipped to Manual and saved
+       without touching the colour. Seeding today's measured colour makes
+       the Manual flip start from what is on screen, which is the rule for
+       every control we have added: preload with what exists today.
+
+       Measured off the live 1440px desktop render on 2026-10-07. The one
+       sub-pixel compromise: the subtitle is 0.95rem = 14.25px, and the
+       slider is integer-only, so Manual starts at 14px. Auto is unaffected
+       - it emits nothing - but flipping to Manual moves the subtitle by
+       0.25px. Noted rather than hidden.
+
+       newsletter.body_color is the one INFERRED value, not a measured
+       one: .newsletter-sub has no CSS rule at all (the stylesheet defines
+       .newsletter-subtitle - a class-name mismatch in index.ejs), and the
+       element does not render today because the subtitle is empty, so
+       there was nothing to measure. White is taken from its two siblings
+       on that navy band, the heading (#FFFFFF) and the eyebrow
+       (rgba(255,255,255,.7)); black would have been the only alternative
+       and is certainly wrong. */
+    text_manual: false,
+    heading_size: 36, heading_color: '#182840',
+    body_size:    14, body_color:    '#6B717F',
     eyebrow: 'Browse by Category',
     title: 'Everything Your Bathroom Needs',
     subtitle: 'Curated collections from the top brands in bath design',
@@ -783,6 +821,44 @@ const DEFAULTS = {
       heading_level: 'h2',
     enabled: true,
     show_on: 'all',
+    /* ── SECTION TEXT (added 2026-10-07, Wave 2) ────────────────────
+       Size and colour for this section's title and its subtitle/body.
+
+       text_manual:false means AUTO, and Auto emits no override at all -
+       see _textStyle in index.ejs for why pixels are the wrong snapshot
+       here. The practical consequence is the important one: before_after,
+       testimonials and their copies have had heading_size and body_size
+       controls in the editor for a while that index.ejs never applied,
+       and because their defaults were undefined, thinForStorage KEPT
+       whatever those controls posted. Any such value is still in the live
+       settings. Wiring them up ungated would have moved the page the
+       moment this shipped; behind an Auto that defaults to off, a stale
+       value stays inert until someone deliberately switches to Manual.
+
+       THE VALUES ARE THE MEASURED ONES, NOT BLANKS. teColor renders an
+       empty value as #000000, so a blank heading_color would turn every
+       title black the first time someone flipped to Manual and saved
+       without touching the colour. Seeding today's measured colour makes
+       the Manual flip start from what is on screen, which is the rule for
+       every control we have added: preload with what exists today.
+
+       Measured off the live 1440px desktop render on 2026-10-07. The one
+       sub-pixel compromise: the subtitle is 0.95rem = 14.25px, and the
+       slider is integer-only, so Manual starts at 14px. Auto is unaffected
+       - it emits nothing - but flipping to Manual moves the subtitle by
+       0.25px. Noted rather than hidden.
+
+       newsletter.body_color is the one INFERRED value, not a measured
+       one: .newsletter-sub has no CSS rule at all (the stylesheet defines
+       .newsletter-subtitle - a class-name mismatch in index.ejs), and the
+       element does not render today because the subtitle is empty, so
+       there was nothing to measure. White is taken from its two siblings
+       on that navy band, the heading (#FFFFFF) and the eyebrow
+       (rgba(255,255,255,.7)); black would have been the only alternative
+       and is certainly wrong. */
+    text_manual: false,
+    heading_size: 36, heading_color: '#182840',
+    body_size:    14, body_color:    '#6B717F',
     eyebrow: 'James Martin Vanities',
     heading: 'Build Your Dream Bathroom',
     subtitle: 'Mix and match cabinets, tops, and mirrors from the James Martin collection — and save up to 15% when you bundle.',
@@ -849,6 +925,44 @@ const DEFAULTS = {
     text_align: '', max_width: '', padding_top: '', padding_bottom: '',
     enabled: true,
     show_on: 'all',
+    /* ── SECTION TEXT (added 2026-10-07, Wave 2) ────────────────────
+       Size and colour for this section's title and its subtitle/body.
+
+       text_manual:false means AUTO, and Auto emits no override at all -
+       see _textStyle in index.ejs for why pixels are the wrong snapshot
+       here. The practical consequence is the important one: before_after,
+       testimonials and their copies have had heading_size and body_size
+       controls in the editor for a while that index.ejs never applied,
+       and because their defaults were undefined, thinForStorage KEPT
+       whatever those controls posted. Any such value is still in the live
+       settings. Wiring them up ungated would have moved the page the
+       moment this shipped; behind an Auto that defaults to off, a stale
+       value stays inert until someone deliberately switches to Manual.
+
+       THE VALUES ARE THE MEASURED ONES, NOT BLANKS. teColor renders an
+       empty value as #000000, so a blank heading_color would turn every
+       title black the first time someone flipped to Manual and saved
+       without touching the colour. Seeding today's measured colour makes
+       the Manual flip start from what is on screen, which is the rule for
+       every control we have added: preload with what exists today.
+
+       Measured off the live 1440px desktop render on 2026-10-07. The one
+       sub-pixel compromise: the subtitle is 0.95rem = 14.25px, and the
+       slider is integer-only, so Manual starts at 14px. Auto is unaffected
+       - it emits nothing - but flipping to Manual moves the subtitle by
+       0.25px. Noted rather than hidden.
+
+       newsletter.body_color is the one INFERRED value, not a measured
+       one: .newsletter-sub has no CSS rule at all (the stylesheet defines
+       .newsletter-subtitle - a class-name mismatch in index.ejs), and the
+       element does not render today because the subtitle is empty, so
+       there was nothing to measure. White is taken from its two siblings
+       on that navy band, the heading (#FFFFFF) and the eyebrow
+       (rgba(255,255,255,.7)); black would have been the only alternative
+       and is certainly wrong. */
+    text_manual: false,
+    heading_size: 36, heading_color: '#182840',
+    body_size:    14, body_color:    '#6B717F',
     eyebrow: 'Staff Picks',
     title: 'Featured Products',
     subtitle: 'Handpicked vanities and accessories our customers love',
@@ -875,6 +989,44 @@ const DEFAULTS = {
     text_align: '', max_width: '', padding_top: '', padding_bottom: '',
     enabled: true,
     show_on: 'all',
+    /* ── SECTION TEXT (added 2026-10-07, Wave 2) ────────────────────
+       Size and colour for this section's title and its subtitle/body.
+
+       text_manual:false means AUTO, and Auto emits no override at all -
+       see _textStyle in index.ejs for why pixels are the wrong snapshot
+       here. The practical consequence is the important one: before_after,
+       testimonials and their copies have had heading_size and body_size
+       controls in the editor for a while that index.ejs never applied,
+       and because their defaults were undefined, thinForStorage KEPT
+       whatever those controls posted. Any such value is still in the live
+       settings. Wiring them up ungated would have moved the page the
+       moment this shipped; behind an Auto that defaults to off, a stale
+       value stays inert until someone deliberately switches to Manual.
+
+       THE VALUES ARE THE MEASURED ONES, NOT BLANKS. teColor renders an
+       empty value as #000000, so a blank heading_color would turn every
+       title black the first time someone flipped to Manual and saved
+       without touching the colour. Seeding today's measured colour makes
+       the Manual flip start from what is on screen, which is the rule for
+       every control we have added: preload with what exists today.
+
+       Measured off the live 1440px desktop render on 2026-10-07. The one
+       sub-pixel compromise: the subtitle is 0.95rem = 14.25px, and the
+       slider is integer-only, so Manual starts at 14px. Auto is unaffected
+       - it emits nothing - but flipping to Manual moves the subtitle by
+       0.25px. Noted rather than hidden.
+
+       newsletter.body_color is the one INFERRED value, not a measured
+       one: .newsletter-sub has no CSS rule at all (the stylesheet defines
+       .newsletter-subtitle - a class-name mismatch in index.ejs), and the
+       element does not render today because the subtitle is empty, so
+       there was nothing to measure. White is taken from its two siblings
+       on that navy band, the heading (#FFFFFF) and the eyebrow
+       (rgba(255,255,255,.7)); black would have been the only alternative
+       and is certainly wrong. */
+    text_manual: false,
+    heading_size: 36, heading_color: '#182840',
+    body_size:    14, body_color:    '#6B717F',
     eyebrow: 'Shop by Collection',
     title: 'Featured Models',
     subtitle: 'Explore our most popular vanity collections — click a finish to see it in action.',
@@ -977,6 +1129,44 @@ const DEFAULTS = {
       heading_level: 'h2',
     enabled: true,
     show_on: 'all',
+    /* ── SECTION TEXT (added 2026-10-07, Wave 2) ────────────────────
+       Size and colour for this section's title and its subtitle/body.
+
+       text_manual:false means AUTO, and Auto emits no override at all -
+       see _textStyle in index.ejs for why pixels are the wrong snapshot
+       here. The practical consequence is the important one: before_after,
+       testimonials and their copies have had heading_size and body_size
+       controls in the editor for a while that index.ejs never applied,
+       and because their defaults were undefined, thinForStorage KEPT
+       whatever those controls posted. Any such value is still in the live
+       settings. Wiring them up ungated would have moved the page the
+       moment this shipped; behind an Auto that defaults to off, a stale
+       value stays inert until someone deliberately switches to Manual.
+
+       THE VALUES ARE THE MEASURED ONES, NOT BLANKS. teColor renders an
+       empty value as #000000, so a blank heading_color would turn every
+       title black the first time someone flipped to Manual and saved
+       without touching the colour. Seeding today's measured colour makes
+       the Manual flip start from what is on screen, which is the rule for
+       every control we have added: preload with what exists today.
+
+       Measured off the live 1440px desktop render on 2026-10-07. The one
+       sub-pixel compromise: the subtitle is 0.95rem = 14.25px, and the
+       slider is integer-only, so Manual starts at 14px. Auto is unaffected
+       - it emits nothing - but flipping to Manual moves the subtitle by
+       0.25px. Noted rather than hidden.
+
+       newsletter.body_color is the one INFERRED value, not a measured
+       one: .newsletter-sub has no CSS rule at all (the stylesheet defines
+       .newsletter-subtitle - a class-name mismatch in index.ejs), and the
+       element does not render today because the subtitle is empty, so
+       there was nothing to measure. White is taken from its two siblings
+       on that navy band, the heading (#FFFFFF) and the eyebrow
+       (rgba(255,255,255,.7)); black would have been the only alternative
+       and is certainly wrong. */
+    text_manual: false,
+    heading_size: 36, heading_color: '#FFFFFF',
+    body_size:    14, body_color:    '#FFFFFF',
     eyebrow: 'The BVO Difference',
     heading: 'See the Transformation',
     subtitle: 'Real bathrooms renovated with products from BathroomVanitiesOutlet.com',
@@ -1132,6 +1322,44 @@ const DEFAULTS = {
     text_align: '', max_width: '', padding_top: '', padding_bottom: '',
     enabled: true,
     show_on: 'all',
+    /* ── SECTION TEXT (added 2026-10-07, Wave 2) ────────────────────
+       Size and colour for this section's title and its subtitle/body.
+
+       text_manual:false means AUTO, and Auto emits no override at all -
+       see _textStyle in index.ejs for why pixels are the wrong snapshot
+       here. The practical consequence is the important one: before_after,
+       testimonials and their copies have had heading_size and body_size
+       controls in the editor for a while that index.ejs never applied,
+       and because their defaults were undefined, thinForStorage KEPT
+       whatever those controls posted. Any such value is still in the live
+       settings. Wiring them up ungated would have moved the page the
+       moment this shipped; behind an Auto that defaults to off, a stale
+       value stays inert until someone deliberately switches to Manual.
+
+       THE VALUES ARE THE MEASURED ONES, NOT BLANKS. teColor renders an
+       empty value as #000000, so a blank heading_color would turn every
+       title black the first time someone flipped to Manual and saved
+       without touching the colour. Seeding today's measured colour makes
+       the Manual flip start from what is on screen, which is the rule for
+       every control we have added: preload with what exists today.
+
+       Measured off the live 1440px desktop render on 2026-10-07. The one
+       sub-pixel compromise: the subtitle is 0.95rem = 14.25px, and the
+       slider is integer-only, so Manual starts at 14px. Auto is unaffected
+       - it emits nothing - but flipping to Manual moves the subtitle by
+       0.25px. Noted rather than hidden.
+
+       newsletter.body_color is the one INFERRED value, not a measured
+       one: .newsletter-sub has no CSS rule at all (the stylesheet defines
+       .newsletter-subtitle - a class-name mismatch in index.ejs), and the
+       element does not render today because the subtitle is empty, so
+       there was nothing to measure. White is taken from its two siblings
+       on that navy band, the heading (#FFFFFF) and the eyebrow
+       (rgba(255,255,255,.7)); black would have been the only alternative
+       and is certainly wrong. */
+    text_manual: false,
+    heading_size: 36, heading_color: '#182840',
+    body_size:    14, body_color:    '#6B717F',
     eyebrow: 'Customer Reviews',
     heading: 'What Our Customers Say',
     subtitle: 'Join thousands of happy homeowners who transformed their bathrooms',
@@ -1152,6 +1380,44 @@ const DEFAULTS = {
     text_align: '', max_width: '', padding_top: '', padding_bottom: '',
     enabled: true,
     show_on: 'all',
+    /* ── SECTION TEXT (added 2026-10-07, Wave 2) ────────────────────
+       Size and colour for this section's title and its subtitle/body.
+
+       text_manual:false means AUTO, and Auto emits no override at all -
+       see _textStyle in index.ejs for why pixels are the wrong snapshot
+       here. The practical consequence is the important one: before_after,
+       testimonials and their copies have had heading_size and body_size
+       controls in the editor for a while that index.ejs never applied,
+       and because their defaults were undefined, thinForStorage KEPT
+       whatever those controls posted. Any such value is still in the live
+       settings. Wiring them up ungated would have moved the page the
+       moment this shipped; behind an Auto that defaults to off, a stale
+       value stays inert until someone deliberately switches to Manual.
+
+       THE VALUES ARE THE MEASURED ONES, NOT BLANKS. teColor renders an
+       empty value as #000000, so a blank heading_color would turn every
+       title black the first time someone flipped to Manual and saved
+       without touching the colour. Seeding today's measured colour makes
+       the Manual flip start from what is on screen, which is the rule for
+       every control we have added: preload with what exists today.
+
+       Measured off the live 1440px desktop render on 2026-10-07. The one
+       sub-pixel compromise: the subtitle is 0.95rem = 14.25px, and the
+       slider is integer-only, so Manual starts at 14px. Auto is unaffected
+       - it emits nothing - but flipping to Manual moves the subtitle by
+       0.25px. Noted rather than hidden.
+
+       newsletter.body_color is the one INFERRED value, not a measured
+       one: .newsletter-sub has no CSS rule at all (the stylesheet defines
+       .newsletter-subtitle - a class-name mismatch in index.ejs), and the
+       element does not render today because the subtitle is empty, so
+       there was nothing to measure. White is taken from its two siblings
+       on that navy band, the heading (#FFFFFF) and the eyebrow
+       (rgba(255,255,255,.7)); black would have been the only alternative
+       and is certainly wrong. */
+    text_manual: false,
+    heading_size: 33, heading_color: '#FFFFFF',
+    body_size:    14, body_color:    '#FFFFFF',
     eyebrow: 'Join the Community',
     heading: 'Get Exclusive Deals & Design Ideas',
     subtitle: '',
@@ -1226,6 +1492,44 @@ const DEFAULTS = {
   before_after_2: {
     enabled: false,
     show_on: 'all',
+    /* ── SECTION TEXT (added 2026-10-07, Wave 2) ────────────────────
+       Size and colour for this section's title and its subtitle/body.
+
+       text_manual:false means AUTO, and Auto emits no override at all -
+       see _textStyle in index.ejs for why pixels are the wrong snapshot
+       here. The practical consequence is the important one: before_after,
+       testimonials and their copies have had heading_size and body_size
+       controls in the editor for a while that index.ejs never applied,
+       and because their defaults were undefined, thinForStorage KEPT
+       whatever those controls posted. Any such value is still in the live
+       settings. Wiring them up ungated would have moved the page the
+       moment this shipped; behind an Auto that defaults to off, a stale
+       value stays inert until someone deliberately switches to Manual.
+
+       THE VALUES ARE THE MEASURED ONES, NOT BLANKS. teColor renders an
+       empty value as #000000, so a blank heading_color would turn every
+       title black the first time someone flipped to Manual and saved
+       without touching the colour. Seeding today's measured colour makes
+       the Manual flip start from what is on screen, which is the rule for
+       every control we have added: preload with what exists today.
+
+       Measured off the live 1440px desktop render on 2026-10-07. The one
+       sub-pixel compromise: the subtitle is 0.95rem = 14.25px, and the
+       slider is integer-only, so Manual starts at 14px. Auto is unaffected
+       - it emits nothing - but flipping to Manual moves the subtitle by
+       0.25px. Noted rather than hidden.
+
+       newsletter.body_color is the one INFERRED value, not a measured
+       one: .newsletter-sub has no CSS rule at all (the stylesheet defines
+       .newsletter-subtitle - a class-name mismatch in index.ejs), and the
+       element does not render today because the subtitle is empty, so
+       there was nothing to measure. White is taken from its two siblings
+       on that navy band, the heading (#FFFFFF) and the eyebrow
+       (rgba(255,255,255,.7)); black would have been the only alternative
+       and is certainly wrong. */
+    text_manual: false,
+    heading_size: 36, heading_color: '#FFFFFF',
+    body_size:    14, body_color:    '#FFFFFF',
     eyebrow: '',
     heading: '',
     subtitle: '',
@@ -1272,6 +1576,44 @@ const DEFAULTS = {
   testimonials_2: {
     enabled: false,
     show_on: 'all',
+    /* ── SECTION TEXT (added 2026-10-07, Wave 2) ────────────────────
+       Size and colour for this section's title and its subtitle/body.
+
+       text_manual:false means AUTO, and Auto emits no override at all -
+       see _textStyle in index.ejs for why pixels are the wrong snapshot
+       here. The practical consequence is the important one: before_after,
+       testimonials and their copies have had heading_size and body_size
+       controls in the editor for a while that index.ejs never applied,
+       and because their defaults were undefined, thinForStorage KEPT
+       whatever those controls posted. Any such value is still in the live
+       settings. Wiring them up ungated would have moved the page the
+       moment this shipped; behind an Auto that defaults to off, a stale
+       value stays inert until someone deliberately switches to Manual.
+
+       THE VALUES ARE THE MEASURED ONES, NOT BLANKS. teColor renders an
+       empty value as #000000, so a blank heading_color would turn every
+       title black the first time someone flipped to Manual and saved
+       without touching the colour. Seeding today's measured colour makes
+       the Manual flip start from what is on screen, which is the rule for
+       every control we have added: preload with what exists today.
+
+       Measured off the live 1440px desktop render on 2026-10-07. The one
+       sub-pixel compromise: the subtitle is 0.95rem = 14.25px, and the
+       slider is integer-only, so Manual starts at 14px. Auto is unaffected
+       - it emits nothing - but flipping to Manual moves the subtitle by
+       0.25px. Noted rather than hidden.
+
+       newsletter.body_color is the one INFERRED value, not a measured
+       one: .newsletter-sub has no CSS rule at all (the stylesheet defines
+       .newsletter-subtitle - a class-name mismatch in index.ejs), and the
+       element does not render today because the subtitle is empty, so
+       there was nothing to measure. White is taken from its two siblings
+       on that navy band, the heading (#FFFFFF) and the eyebrow
+       (rgba(255,255,255,.7)); black would have been the only alternative
+       and is certainly wrong. */
+    text_manual: false,
+    heading_size: 36, heading_color: '#182840',
+    body_size:    14, body_color:    '#6B717F',
     eyebrow: '',
     heading: '',
     subtitle: '',
@@ -1324,6 +1666,44 @@ const DEFAULTS = {
     max_width: '', padding_top: '', padding_bottom: '',
     enabled: true,
     show_on: 'all',
+    /* ── SECTION TEXT (added 2026-10-07, Wave 2) ────────────────────
+       Size and colour for this section's title and its subtitle/body.
+
+       text_manual:false means AUTO, and Auto emits no override at all -
+       see _textStyle in index.ejs for why pixels are the wrong snapshot
+       here. The practical consequence is the important one: before_after,
+       testimonials and their copies have had heading_size and body_size
+       controls in the editor for a while that index.ejs never applied,
+       and because their defaults were undefined, thinForStorage KEPT
+       whatever those controls posted. Any such value is still in the live
+       settings. Wiring them up ungated would have moved the page the
+       moment this shipped; behind an Auto that defaults to off, a stale
+       value stays inert until someone deliberately switches to Manual.
+
+       THE VALUES ARE THE MEASURED ONES, NOT BLANKS. teColor renders an
+       empty value as #000000, so a blank heading_color would turn every
+       title black the first time someone flipped to Manual and saved
+       without touching the colour. Seeding today's measured colour makes
+       the Manual flip start from what is on screen, which is the rule for
+       every control we have added: preload with what exists today.
+
+       Measured off the live 1440px desktop render on 2026-10-07. The one
+       sub-pixel compromise: the subtitle is 0.95rem = 14.25px, and the
+       slider is integer-only, so Manual starts at 14px. Auto is unaffected
+       - it emits nothing - but flipping to Manual moves the subtitle by
+       0.25px. Noted rather than hidden.
+
+       newsletter.body_color is the one INFERRED value, not a measured
+       one: .newsletter-sub has no CSS rule at all (the stylesheet defines
+       .newsletter-subtitle - a class-name mismatch in index.ejs), and the
+       element does not render today because the subtitle is empty, so
+       there was nothing to measure. White is taken from its two siblings
+       on that navy band, the heading (#FFFFFF) and the eyebrow
+       (rgba(255,255,255,.7)); black would have been the only alternative
+       and is certainly wrong. */
+    text_manual: false,
+    heading_size: 36, heading_color: '#182840',
+    body_size:    14, body_color:    '#6B717F',
     /* 'p', matching bundle_teaser: a section label is not a heading the
        page should rank for. Overridable per-section in the editor. */
           /* ── h2, NOT p. Reversed 2026-10-05, owner's call ──────────────

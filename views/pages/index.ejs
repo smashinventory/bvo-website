@@ -361,6 +361,38 @@ function _btnClass(v, fb) {
     : ({ navy:1, sage:1, amber:1, outline:1, primary:1 }[v] ? 'btn-' + v : fb));
 }
 
+/* ── SECTION HEADER TEXT (Wave 2, 2026-10-07) ─────────────────────────
+   Size and colour for a section's title and its subtitle/body.
+
+   AUTO EMITS NOTHING, and that is deliberate. Today's rendered values are
+   the stylesheet's, and they are in rem: measured live at 1440px the
+   title is 2.4rem, the sub 0.95rem and the eyebrow 0.7rem against a
+   15px html base that is itself a setting (design.base_size). Freezing
+   Auto as the pixel values those resolve to - 36px and 14.25px - would
+   reproduce today and then silently stop scaling: change the global base
+   size afterwards and every other heading on the page moves while these
+   six sections stay put. Emitting no override reproduces today exactly
+   AND keeps the rem relationship, so Auto is a true no-op.
+
+   This is why these sections default to text_manual:false while the
+   hero's groups default to true. The hero's live values were MANUALLY
+   TUNED away from its stylesheet, so its Auto had to carry them
+   explicitly. Nothing here has been tuned, so there is nothing to carry.
+
+   Only === true emits. A section whose defaults predate this (or a _2
+   copy created before it) has text_manual undefined, which must mean
+   Auto, not "manual with every field blank". */
+function _textStyle(d, sizeField, colorField) {
+  d = d || {};
+  if (d.text_manual !== true) return '';
+  var raw = d[sizeField];
+  /* 0 is the no-override sentinel. _cssLen would turn it into '0px',
+     which is a real declaration and would collapse the text. */
+  var sz = (raw === 0 || raw === '0' || raw == null || raw === '') ? '' : _cssLen(raw);
+  var c  = _cssColor(d[colorField]);
+  return (sz ? 'font-size:' + sz + ';' : '') + (c ? 'color:' + c + ';' : '');
+}
+
 function _cssColor(v) {
   var s = String(v == null ? '' : v).trim();
   if (!s) return '';
@@ -1400,8 +1432,8 @@ _DEFAULT_ORDER.forEach(function(k) {
 <section class="section" data-section="<%= sectionKey %>" data-section-label="Category Grid" aria-labelledby="<%= _csId %>">
   <div class="section-header" style="text-align:<%= _csAlign %>">
     <p class="section-eyebrow"><%= _d.eyebrow || 'Browse by Category' %></p>
-    <<%- _csTag %> class="section-title" id="<%= _csId %>"><%= _d.title || 'Everything Your Bathroom Needs' %></<%- _csTag %>>
-    <% if (_d.subtitle) { %><p class="section-sub"><%= _d.subtitle %></p><% } %>
+    <<%- _csTag %> class="section-title" id="<%= _csId %>" style="<%= _textStyle(_d,'heading_size','heading_color') %>"><%= _d.title || 'Everything Your Bathroom Needs' %></<%- _csTag %>>
+    <% if (_d.subtitle) { %><p class="section-sub" style="<%= _textStyle(_d,'body_size','body_color') %>"><%= _d.subtitle %></p><% } %>
   </div>
 
   <%# Bound by data attribute in /js/carousels.js. The old id="catCarouselTrack"
@@ -1494,8 +1526,8 @@ _DEFAULT_ORDER.forEach(function(k) {
 <section class="section section-alt" data-section="<%= sectionKey %>" data-section-label="Featured Products" aria-labelledby="<%= _fsId %>">
   <div class="section-header" style="text-align:<%= _fsAlign %>">
     <p class="section-eyebrow"><%= _d.eyebrow || 'Staff Picks' %></p>
-    <<%- _fsTag %> class="section-title" id="<%= _fsId %>"><%= _d.title || 'Featured Products' %></<%- _fsTag %>>
-    <% if (_d.subtitle) { %><p class="section-sub"><%= _d.subtitle %></p><% } %>
+    <<%- _fsTag %> class="section-title" id="<%= _fsId %>" style="<%= _textStyle(_d,'heading_size','heading_color') %>"><%= _d.title || 'Featured Products' %></<%- _fsTag %>>
+    <% if (_d.subtitle) { %><p class="section-sub" style="<%= _textStyle(_d,'body_size','body_color') %>"><%= _d.subtitle %></p><% } %>
   </div>
   <%
     /* Columns control — Theme Editor. Was a live dropdown that nothing read:
@@ -1701,8 +1733,8 @@ _DEFAULT_ORDER.forEach(function(k) {
 <section class="section section-alt" id="featured-models-<%= sectionKey %>" data-section="<%= sectionKey %>" data-section-label="Featured Models" aria-labelledby="<%= _fmId %>">
   <div class="section-header" style="text-align:<%= _d.text_align || 'center' %>">
     <p class="section-eyebrow"><%= _d.eyebrow || 'Shop by Collection' %></p>
-    <h2 class="section-title" id="<%= _fmId %>"><%= _d.title || 'Featured Models' %></h2>
-    <p class="section-sub"><%= _d.subtitle || 'Explore our most popular vanity collections — click a finish to see it in action.' %></p>
+    <h2 class="section-title" id="<%= _fmId %>" style="<%= _textStyle(_d,'heading_size','heading_color') %>"><%= _d.title || 'Featured Models' %></h2>
+    <p class="section-sub" style="<%= _textStyle(_d,'body_size','body_color') %>"><%= _d.subtitle || 'Explore our most popular vanity collections — click a finish to see it in action.' %></p>
   </div>
 
   <%# data-carousel, not id="fmCarouselTrack" — see carousels.js. %>
@@ -2168,8 +2200,8 @@ _DEFAULT_ORDER.forEach(function(k) {
 <section class="section section-alt ba-section" data-section="<%= sectionKey %>" data-section-label="Before / After" aria-labelledby="ba-heading-<%= sectionKey %>">
   <div class="section-header" style="text-align:<%= _baAlign %>">
     <% if (_d.eyebrow) { %><p class="section-eyebrow"><%= _d.eyebrow %></p><% } %>
-    <<%- _baTag %> class="section-title" id="ba-heading-<%= sectionKey %>"><%= _d.heading || 'See the Transformation' %></<%- _baTag %>>
-    <% if (_d.subtitle) { %><p class="section-sub"><%= _d.subtitle %></p><% } %>
+    <<%- _baTag %> class="section-title" id="ba-heading-<%= sectionKey %>" style="<%= _textStyle(_d,'heading_size','heading_color') %>"><%= _d.heading || 'See the Transformation' %></<%- _baTag %>>
+    <% if (_d.subtitle) { %><p class="section-sub" style="<%= _textStyle(_d,'body_size','body_color') %>"><%= _d.subtitle %></p><% } %>
   </div>
   <div class="ba-slider-wrap">
     <div class="ba-slider" data-initial="<%= _baInitPos %>">
@@ -2368,8 +2400,8 @@ _DEFAULT_ORDER.forEach(function(k) {
 <section class="section testimonials-section" data-section="<%= sectionKey %>" data-section-label="Testimonials" aria-labelledby="test-heading-<%= sectionKey %>">
   <div class="section-header" style="text-align:<%= _testAlign %>">
     <% if (_d.eyebrow) { %><p class="section-eyebrow"><%= _d.eyebrow %></p><% } %>
-    <<%- _testTag %> class="section-title" id="test-heading-<%= sectionKey %>"><%= _d.heading || 'What Our Customers Say' %></<%- _testTag %>>
-    <% if (_d.subtitle) { %><p class="section-sub"><%= _d.subtitle %></p><% } %>
+    <<%- _testTag %> class="section-title" id="test-heading-<%= sectionKey %>" style="<%= _textStyle(_d,'heading_size','heading_color') %>"><%= _d.heading || 'What Our Customers Say' %></<%- _testTag %>>
+    <% if (_d.subtitle) { %><p class="section-sub" style="<%= _textStyle(_d,'body_size','body_color') %>"><%= _d.subtitle %></p><% } %>
   </div>
   <div class="testimonials-grid">
     <% _testItems.forEach(function(ti) { %>
@@ -2511,8 +2543,8 @@ _DEFAULT_ORDER.forEach(function(k) {
     </div>
     <div class="iwt-text-col">
       <% if (sb_.eyebrow) { %><p class="section-eyebrow"><%= sb_.eyebrow %></p><% } %>
-      <<%- _sbTag %> class="section-title" id="sb-heading"><%= _sbHeading %></<%- _sbTag %>>
-      <% if (sb_.subtitle) { %><p class="section-sub"><%= sb_.subtitle %></p><% } %>
+      <<%- _sbTag %> class="section-title" id="sb-heading" style="<%= _textStyle(sb_,'heading_size','heading_color') %>"><%= _sbHeading %></<%- _sbTag %>>
+      <% if (sb_.subtitle) { %><p class="section-sub" style="<%= _textStyle(sb_,'body_size','body_color') %>"><%= sb_.subtitle %></p><% } %>
       <a href="<%= sb_.cta_url || '/collections/samples' %>" class="<%= _btnClass(sb_.btn_style) %>" style="margin-top:14px"><%= sb_.cta_text || 'Browse samples' %></a>
     </div>
   </div>
@@ -2525,8 +2557,8 @@ _DEFAULT_ORDER.forEach(function(k) {
       by the mobile media query. %>
   <div class="section-header">
     <% if (sb_.eyebrow) { %><p class="section-eyebrow"><%= sb_.eyebrow %></p><% } %>
-    <<%- _sbTag %> class="section-title" id="sb-heading"><%= _sbHeading %></<%- _sbTag %>>
-    <% if (sb_.subtitle) { %><p class="section-sub"><%= sb_.subtitle %></p><% } %>
+    <<%- _sbTag %> class="section-title" id="sb-heading" style="<%= _textStyle(sb_,'heading_size','heading_color') %>"><%= _sbHeading %></<%- _sbTag %>>
+    <% if (sb_.subtitle) { %><p class="section-sub" style="<%= _textStyle(sb_,'body_size','body_color') %>"><%= sb_.subtitle %></p><% } %>
     <%# _btnClass defaults to btn-navy - the hero's primary and the most
         used button on the page. This was hardcoded btn-amber, which put
         an amber button directly below two navy hero buttons. That was an
@@ -2542,8 +2574,8 @@ _DEFAULT_ORDER.forEach(function(k) {
   <div class="section-header" style="text-align:center">
     <% if (bt_.eyebrow) { %><p class="section-eyebrow"><%= bt_.eyebrow %></p><% } %>
     <% var _btTag = _safeTag(bt_.heading_level, 'p'); %>
-    <<%- _btTag %> class="section-title" id="bt-heading"><%= bt_.heading || 'Build Your Dream Bathroom' %></<%- _btTag %>>
-    <% if (bt_.subtitle) { %><p class="section-sub"><%= bt_.subtitle %></p><% } %>
+    <<%- _btTag %> class="section-title" id="bt-heading" style="<%= _textStyle(bt_,'heading_size','heading_color') %>"><%= bt_.heading || 'Build Your Dream Bathroom' %></<%- _btTag %>>
+    <% if (bt_.subtitle) { %><p class="section-sub" style="<%= _textStyle(bt_,'body_size','body_color') %>"><%= bt_.subtitle %></p><% } %>
   </div>
 
   <div class="bt-cards-row">
@@ -2646,8 +2678,8 @@ _DEFAULT_ORDER.forEach(function(k) {
 %>
     <div class="newsletter-copy" style="text-align:<%= _newsAlign %>">
       <% if (news.eyebrow) { %><p class="section-eyebrow" style="color:rgba(255,255,255,.7)"><%= news.eyebrow %></p><% } %>
-      <<%- _newsTag %> class="newsletter-heading" id="news-heading"><%= news.heading || 'Get Exclusive Deals & Design Ideas' %></<%- _newsTag %>>
-      <% if (news.subtitle) { %><p class="newsletter-sub"><%= news.subtitle %></p><% } %>
+      <<%- _newsTag %> class="newsletter-heading" id="news-heading" style="<%= _textStyle(news,'heading_size','heading_color') %>"><%= news.heading || 'Get Exclusive Deals & Design Ideas' %></<%- _newsTag %>>
+      <% if (news.subtitle) { %><p class="newsletter-sub" style="<%= _textStyle(news,'body_size','body_color') %>"><%= news.subtitle %></p><% } %>
     </div>
     <form class="newsletter-form" id="newsletterForm" novalidate>
       <div class="newsletter-input-wrap">
