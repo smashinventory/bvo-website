@@ -252,10 +252,22 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
         v=35 (2026-10-05) .sb-banner alignment rules — the samples banner
                           centres on mobile and reads the desktop choice
                           from --sb-* custom properties
+        v=45 (2026-10-07) .iwt-text-col reads --iwt-items / --iwt-text, the
+                          same method as v=35. SHIPPED ONE COMMIT LATE: the
+                          CSS went out in c40e959 without this bump, and
+                          because that commit also REMOVED the inline
+                          text-align from the column, returning visitors had
+                          new markup with no override and an old stylesheet
+                          that still hardcoded align-items:flex-start. Fresh
+                          contexts looked right and a real phone stayed left
+                          aligned. Removing an inline style is exactly when
+                          this bump stops being cosmetic and becomes load
+                          bearing. gate_bundle_cache_bust.js now fails the
+                          build if the bundle moves without the version.
       The source rules live in site.css / site2.css and are hand-minified
       into this bundle, per the instruction above — those files reach no
       browser on their own. %>
-  <link rel="stylesheet" href="/css/site-bundle.css?v=44">
+  <link rel="stylesheet" href="/css/site-bundle.css?v=45">
   <%# ── SECTION VISIBILITY, FROM THE OWNER'S BREAKPOINTS ─────────────
       "Visible on" offered All / Desktop / Mobile and was implemented as
       two rules hardcoded at 861px. There was no Tablet option because

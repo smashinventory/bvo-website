@@ -1,0 +1,5 @@
+{
+  "v": 45,
+  "sha256": "54e2d4c43fe5aa50d56e36c925ad3042efe3d349f83fffe478aefe730708ede9",
+  "why": "Bumped together, always. gate_bundle_cache_bust.js recomputes the hash and fails if the bundle changed without the version moving - the exact miss that left a real phone on the old stylesheet after the inline override was removed."
+}
