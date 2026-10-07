@@ -153,6 +153,21 @@ mutate "cta1_style default stops being the empty sentinel" "
 assert \"cta1_style:          ''\" in s
 s = s.replace(\"cta1_style:          ''\", \"cta1_style:          'amber'\")"
 
+mutate "the bespoke deferred-only button comes back" "
+x=open('views/pages/index.ejs').read()
+assert '_btnClass(_ip.btn_style)' in x
+x=x.replace('class=\"<%= _btnClass(_ip.btn_style) %>\"', 'class=\"hp-inspo-browse-btn\"')
+open('views/pages/index.ejs','w').write(x)"
+
+mutate "inspiration.btn_style default changed off Button 1" "
+assert \"btn_style:        'navy',\" in s
+s = s.replace(\"btn_style:        'navy',\", \"btn_style:        'amber',\")"
+
+mutate "the inspiration style picker is removed" "
+import re
+assert \"teButton('inspiration'\" in t
+t = re.sub(r'<%- teButton\(.inspiration.[^\n]*\n', '', t)"
+
 echo
 echo "caught $pass, missed $fail"
 if [ "$fail" -eq 0 ]; then echo "All $pass mutations detected. The gate can fail."

@@ -1094,6 +1094,11 @@ const DEFAULTS = {
      stronger one. Sam was shown the figure and accepted it. If the guide
      ever underperforms on "farmhouse vanity" terms, shorten this first. */
   inspiration: {
+    /* Which button style the "Browse All Style Guides" link uses. 'navy' is
+       Button 1, which is what it looked like before it stopped being a
+       bespoke .hp-inspo-browse-btn - same colour, now from the shared
+       system and the blocking stylesheet, so it cannot flash unstyled. */
+    btn_style:        'navy',
     preview_enabled:  true,
     preview_eyebrow:  'From the guide',
     preview_heading:  'Farmhouse Bathroom Vanity Ideas',

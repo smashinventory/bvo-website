@@ -1961,7 +1961,19 @@ _DEFAULT_ORDER.forEach(function(k) {
     <% } %>
 
     <div class="hp-inspo-footer">
-      <a href="/inspiration" class="hp-inspo-browse-btn">Browse All Style Guides</a>
+      <%# WAS class="hp-inspo-browse-btn", a bespoke button styled only in
+          site3.css - which this page loads with media="print" and flips to
+          "all" after it downloads, to save 570ms of blocking CSS. Between
+          first paint and that flip the button had NO styling: dark body text
+          with no fill, which is what Sam photographed. It was the only button
+          on the homepage with that problem, because every other one is a
+          .btn styled by the blocking bundle.
+
+          Now it is Button 1 from the manager, styled by site-bundle.css,
+          which blocks - so it paints correctly on the first frame. It also
+          gains a style picker like every other section's button, and stops
+          being a one-off nobody would think to look for. %>
+      <a href="/inspiration" class="<%= _btnClass(_ip.btn_style) %>">Browse All Style Guides</a>
     </div>
   </div>
 </section>

@@ -2339,6 +2339,11 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
               The Style Guides section itself (the three cards and the heading above
               them) is not editable here — only the preview box underneath it.
             </p>
+            <%# The "Browse All Style Guides" button. It used to be styled only
+                in site3.css, which this page defers - so it rendered unstyled
+                until that sheet swapped in. It is a normal button now, which
+                means it is pickable here like every other section's. %>
+            <%- teButton('inspiration', inspsec, 'Browse All Style Guides button') %>
             <%- teToggle('inspiration.preview_enabled','Show the guide preview box', inspsec.preview_enabled !== false) %>
             <div class="te4-section-label">Preview box</div>
             <%- teField('text','inspiration.preview_eyebrow','Eyebrow', inspsec.preview_eyebrow) %>

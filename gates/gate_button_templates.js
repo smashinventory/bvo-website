@@ -373,6 +373,48 @@ const rules  = bs.cssRules(D);
   }
 }
 
+/* ── 9. THE DEFERRED-STYLESHEET BUTTON ──────────────────────────────────
+   .hp-inspo-browse-btn was the ONLY button on the homepage styled solely in
+   site3.css, which that page loads with media="print" and flips to "all"
+   once it downloads - a deliberate trick that saves 570ms of blocking CSS.
+   Between first paint and the flip the button had no fill and no white
+   text: dark body text on cream, which is what Sam photographed.
+
+   It is a .btn now, styled by the blocking bundle, so it paints on the
+   first frame. The checks below are about the CONDITION - a homepage button
+   must not depend on the deferred sheet - not about this one class name. */
+{
+  const idxRaw = read('views/pages/index.ejs');
+  const idxNoComments = idxRaw
+    .replace(/<%#[\s\S]*?%>/g, '')
+    .replace(/<%\/\*[\s\S]*?\*\/%>/g, '');
+
+  check(!/class="hp-inspo-browse-btn"/.test(idxNoComments),
+        'the bespoke .hp-inspo-browse-btn is gone from the homepage markup');
+  check(/_btnClass\(_ip\.btn_style\)/.test(idxNoComments),
+        'the Browse All Style Guides link resolves through the button system');
+  check(D.inspiration && D.inspiration.btn_style === 'navy',
+        "inspiration.btn_style defaults to Button 1 — the colour it already was",
+        JSON.stringify(D.inspiration && D.inspiration.btn_style));
+  check(/teButton\('inspiration'/.test(read('views/pages/admin/theme.ejs')),
+        'and the section gets a style picker like every other one');
+
+  /* THE GENERAL RULE, so the next bespoke button is caught too. Any class
+     the homepage renders on a link that looks like a button must be
+     styleable from the BLOCKING bundle, not only from the deferred sheet. */
+  const s3 = read('public/css/site3.css');
+  const bundleCss = read('public/css/site-bundle.css');
+  const btnish = [...idxNoComments.matchAll(/class="([a-z0-9 _-]*btn[a-z0-9 _-]*)"/g)]
+    .map(m => m[1].trim()).filter(Boolean);
+  const deferredOnly = [...new Set(btnish)].filter(cls => {
+    const first = cls.split(/\s+/)[0];
+    return s3.includes('.' + first) && !bundleCss.includes('.' + first);
+  });
+  check(deferredOnly.length === 0,
+        'no homepage button is styled ONLY by the deferred site3.css',
+        deferredOnly.join(', ') + ' — these flash unstyled until site3 swaps in');
+}
+
 console.log('\n' + (fails
   ? 'gate_button_templates: FAILED ' + fails + ' of ' + checks
   : 'gate_button_templates: all ' + checks + ' checks pass'));
