@@ -168,16 +168,121 @@ const readFields   = new Set([...strip(index).matchAll(/hero\.([a-z_0-9]+)/g)].m
   check(anchors.size === 9, `all nine anchor positions exist (${anchors.size})`);
 }
 
-/* ── 6. the orphans are still orphans, or gone ───────────────────────────── */
+/* ── 6. the shared layout trio is wired through HELPERS, not by name ──────
+   CORRECTED 2026-10-06. This section previously asserted that max_width,
+   padding_top and padding_bottom were "unexposed orphans scheduled for the
+   toggle commit". That was FALSE, and it passed anyway, which is worse than
+   failing: it searched for the literal strings `hero.max_width` and
+   `hero.padding_top`, which appear nowhere in the project.
+
+   They appear nowhere because BOTH SIDES ARE GENERIC. theme.ejs builds the
+   inputs in teSectionLayout(pk, d) as `pk + '.max_width'`, and index.ejs
+   reads them in _sectionFrame as `d.padding_top` / `d.max_width`. Every
+   homepage section gets them the same way; the hero is not special.
+
+   The damage of the wrong comment was not the green tick, it was the
+   instruction it left behind: the next reader would have gone and "wired"
+   three fields that are already wired, producing a second writer of the same
+   style and a value that silently beats the tuned one.
+
+   So the assertion is now about the WIRING MECHANISM. Match the helper
+   definition and the helper call, not a field name that is never written
+   out in full. Same lesson as rule 3 at the top of this file: evaluate what
+   the code does, do not grep for what you expect it to say. */
 {
-  /* padding_top / padding_bottom / max_width are defined but unexposed. They
-     are scheduled for the toggle commit, not this one. Asserted so that if they
-     get wired, it is deliberate and the gate is updated with it. */
+  const themeRaw = strip(theme);
+  const indexRaw = strip(index);
+
+  check(/function teSectionLayout\s*\(\s*pk\s*,/.test(themeRaw),
+        'teSectionLayout(pk, d) is the one builder for the shared layout trio');
   for (const f of ['max_width', 'padding_top', 'padding_bottom']) {
-    const exposed = editorFields.has(f), used = readFields.has(f);
-    check(!exposed && !used,
-          `${f} is still an unexposed orphan (scheduled for the toggle commit)`,
-          exposed ? 'now in the editor' : used ? 'now read by the template' : '');
+    check(new RegExp("pk\\s*\\+\\s*'\\." + f + "'").test(themeRaw),
+          `${f} input is built generically as pk + '.${f}'`);
+  }
+  check(/teSectionLayout\(\s*'hero'\s*,/.test(themeRaw),
+        'the hero panel CALLS teSectionLayout, so the trio is exposed for the hero');
+  for (const f of ['max_width', 'padding_top', 'padding_bottom']) {
+    check(new RegExp('d\\.' + f + '\\b').test(indexRaw),
+          `${f} is READ generically as d.${f} in the section frame`);
+  }
+  /* And the defaults must exist, or the generic read has nothing behind it. */
+  for (const f of ['max_width', 'padding_top', 'padding_bottom']) {
+    check(hero[f] !== undefined, `hero.${f} has a default ('' = inherit)`);
+  }
+}
+
+/* ── 7. DEFAULT / MANUAL — the sizing group ──────────────────────────────
+   The flag must default ON, the three height writes must sit inside it, and
+   turning it off must remove EXACTLY those three declarations and nothing
+   else. The third of those is the only one that proves the feature is safe,
+   so it is executed rather than pattern-matched. */
+{
+  check(hero.sizing_manual === true,
+        'sizing_manual defaults to TRUE — the heights are already live, so OFF would move the page',
+        'got ' + JSON.stringify(hero.sizing_manual));
+
+  const idx = strip(index);
+  check(/hero\.sizing_manual\s*!==\s*false/.test(idx),
+        "the guard tests `!== false`, so a settings file predating the flag still renders the heights");
+  check(!/hero\.sizing_manual\s*===\s*true/.test(idx),
+        'the guard is NOT `=== true` (that would drop the heights on every install that has not saved since)');
+  /* MATCH THE BUILDER CALL, NOT THE NAME. The first version of this check
+     tested for `hero.sizing_manual` anywhere in theme.ejs, and deleting the
+     switch left it green — because the name also appears in the editor's own
+     JS, in the querySelector that finds the checkbox. Two occurrences, one
+     check, false confidence. Caught by the mutation test, which is what it
+     is for. */
+  check(/teToggle\('hero\.sizing_manual'/.test(strip(theme)),
+        'the Theme Editor builds the switch via teToggle (not merely mentions the key)');
+
+  /* The editor must DISABLE the inputs, not merely grey them. A readonly or
+     CSS-only treatment still posts, and the off position would then
+     overwrite the stored numbers with whatever is on screen. */
+  const t = strip(theme);
+  /* BOTH ENDS, for the same reason as the check above: renaming the id in
+     the markup left `heroSizingGroup` present in getElementById and the
+     single-string check stayed green. The wrapper is only useful if the
+     markup and the script agree, so assert each side separately. */
+  check(/id="heroSizingGroup"/.test(t),
+        'the three height inputs are wrapped in a div carrying id="heroSizingGroup"');
+  check(/getElementById\('heroSizingGroup'\)/.test(t),
+        'the editor script addresses that same id');
+  check(/\.disabled\s*=\s*off/.test(t),
+        'the group is disabled when off — a disabled input is not posted, which is what preserves the stored value');
+  check(!/readOnly\s*=\s*off/i.test(t),
+        'readonly is NOT used (readonly still posts and would overwrite the stored numbers)');
+
+  /* EXECUTE the guard both ways, against the server's tuned values. */
+  const gi = index.indexOf('if (hero.sizing_manual !== false) {');
+  if (gi === -1) { bad('the sizing guard block is liftable from index.ejs'); }
+  else {
+    let d = 0, end = -1;
+    for (let j = index.indexOf('{', gi); j < index.length; j++) {
+      if (index[j] === '{') d++;
+      else if (index[j] === '}') { d--; if (d === 0) { end = j + 1; break; } }
+    }
+    const block = index.slice(gi, end);
+    const LIVE = { height_vh: 0, min_height_px: 300, max_height_px: 620 };
+    const run = manual => {
+      const ctx = { hero: Object.assign({}, LIVE, { sizing_manual: manual }), _heroStyle: '' };
+      vm.runInNewContext(block, ctx);
+      return ctx._heroStyle;
+    };
+    const on  = run(true);
+    const off = run(false);
+    const missing = run(undefined);   // key absent, as in a pre-flag settings file
+
+    check(on === 'min-height:300px;max-height:620px;',
+          'ON reproduces the live declarations exactly',
+          JSON.stringify(on));
+    check(off === '', 'OFF writes no height declarations at all', JSON.stringify(off));
+    check(missing === on,
+          'a settings file with the key MISSING renders identically to ON',
+          JSON.stringify(missing));
+    /* Nothing but heights may move. Proven by construction: the block is
+       lifted whole, so any other declaration it wrote would show up here. */
+    check(!/--ov-|content-box|grid-template/.test(on + off),
+          'the guard touches heights only — no overlay, box or grid declarations inside it');
   }
 }
 

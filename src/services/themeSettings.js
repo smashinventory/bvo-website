@@ -417,6 +417,35 @@ const DEFAULTS = {
     height_vh: 0,          // 0 = CSS default (calc 100vh - navbar); 40-100 = custom vh
     min_height_px: 520,    // 0 = no override
     max_height_px: 900,    // 0 = no cap
+
+    /* ── SIZING: DEFAULT vs MANUAL — added 2026-10-06 ──────────────────
+       TRUE on purpose, and the reasoning matters because it is the
+       opposite of the badge rule two blocks down.
+
+       'Ships off' is the rule for NEW OUTPUT. This is not new output: the
+       three height fields above are already applied on the live homepage
+       (min-height:300px, max-height:620px, verified in the render). TRUE
+       means index.ejs keeps writing them exactly as it does today, so
+       deploying this flag changes nothing. Defaulting it FALSE would
+       stop those writes and the hero would jump to the CSS height - the
+       one outcome this whole exercise exists to prevent.
+
+       So the semantics are Sam's, stated his way: the value is kept
+       either way, and the flag decides whether it is OBEYED or IGNORED.
+         true  -> the three heights are written (today, and until changed)
+         false -> they are NOT written; the stylesheet decides the height.
+                  The stored numbers stay in the file, greyed in the editor,
+                  ready for the next time the flag goes back on.
+
+       The use case is his: stand a taller banner up for a sale week, then
+       flip back to the tuned solution without having to remember what the
+       numbers were.
+
+       ONE GROUP ONLY for now. Typography, Image & Media and Content Box
+       get the same treatment once this one has been seen working on the
+       live site. Four at once would mean four untested render paths in a
+       single deploy, on the section Sam has tuned most. */
+    sizing_manual: true,
     // Per-element font sizes (0 = CSS default)
     eyebrow_size: 11,
     h2_size: 0,

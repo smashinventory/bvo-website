@@ -499,10 +499,23 @@ _DEFAULT_ORDER.forEach(function(k) {
   /* Build section inline style — CSS custom props + layout/height overrides */
   var _heroStyle  = '--ov-clr:'+_ovColor+';--ov-op:'+_ovOp+';';
   if (_heroLayout === 'split') _heroStyle += 'grid-template-columns:'+_textPct+'% '+_imgPct+'%;';
-  if (+hero.height_vh > 0)           _heroStyle += 'height:'+hero.height_vh+'vh;';
-  if (+hero.min_height_px > 0)       _heroStyle += 'min-height:'+hero.min_height_px+'px;';
-  if (+hero.max_height_px === 0)     _heroStyle += 'max-height:none;';
-  else if (+hero.max_height_px > 0)  _heroStyle += 'max-height:'+hero.max_height_px+'px;';
+  /* ── SIZING GUARD — 2026-10-06 ───────────────────────────────────────
+     The three height writes below are UNCHANGED. They are now wrapped in
+     the Default/Manual flag, which is TRUE by default precisely so that
+     this block behaves exactly as it did before the flag existed. See the
+     long note on sizing_manual in src/services/themeSettings.js.
+
+     `!== false` and not a truthy test: the flag arrives from a form as
+     the string 'false', which setDotPath coerces to a real boolean, but a
+     settings file written before this flag existed has the key MISSING.
+     Missing must mean ON, or the first page render after deploy drops the
+     heights. */
+  if (hero.sizing_manual !== false) {
+    if (+hero.height_vh > 0)           _heroStyle += 'height:'+hero.height_vh+'vh;';
+    if (+hero.min_height_px > 0)       _heroStyle += 'min-height:'+hero.min_height_px+'px;';
+    if (+hero.max_height_px === 0)     _heroStyle += 'max-height:none;';
+    else if (+hero.max_height_px > 0)  _heroStyle += 'max-height:'+hero.max_height_px+'px;';
+  }
   /* Per-section text color CSS custom properties */
   if (hero.eyebrow_color)    _heroStyle += '--hero-eyebrow:'+hero.eyebrow_color+';';
   if (hero.heading_color)    _heroStyle += '--hero-h1:'+hero.heading_color+';';
