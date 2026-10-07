@@ -1325,6 +1325,13 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
 
             <div class="te4-section-label">Content Box <small style="opacity:.6;font-weight:400">(background layout — panel behind text)</small></div>
             <div class="te4-hint" style="margin-bottom:6px">A semi-transparent panel constrains the text to a readable width. Only visible in Background layout mode.</div>
+            <%- teToggle('hero.content_box_manual','Manual content box',h.content_box_manual !== false) %>
+            <div class="te4-hint" style="margin-bottom:.5rem">
+              <strong>Turning this off is a visible change</strong>, unlike the height switch.
+              The stylesheet's box is the original navy at 60%, 36px padding, 520px wide and
+              no offsets &mdash; your white 70% box at 320px is these seven values. They are
+              kept and come straight back when you switch it on again.
+            </div>
             <div class="te4-row2">
               <%- teColor('hero.content_box_color','Box color',h.content_box_color||'#0f1f35') %>
               <div class="te4-field"><label>Box opacity</label><div class="te4-slider-wrap"><input type="range" class="te4-slider" name="hero.content_box_opacity" min="0" max="100" step="5" value="<%=h.content_box_opacity!==undefined?h.content_box_opacity:60%>"><input type="number" class="te4-slider-num" min="0" max="100" step="5" value="<%=h.content_box_opacity!==undefined?h.content_box_opacity:60%>"><span class="te4-slider-unit">%</span></div></div>
@@ -1359,6 +1366,26 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
               </div>
             </div>
             <%- teToggle('hero.text_shadow','Text shadow on headings',h.text_shadow!==false) %>
+
+            <%# TYPOGRAPHY SWITCH. Placed here because this is where the type
+                controls begin, but it governs every SIZE and every COLOUR
+                down to the end of the Text & Colors block - five of each,
+                interleaved with the copy fields.
+
+                IT DOES NOT GOVERN THE COPY. The words stay editable with the
+                switch off: text is content, not styling, and a switch that
+                greys out your headline while claiming to be about typography
+                would be a trap. That is also why the lock in the script at
+                the foot of this file works from a list of field NAMES rather
+                than a container - a wrapper round these rows would catch the
+                text boxes sitting beside the size sliders. %>
+            <div class="te4-section-label">Typography</div>
+            <%- teToggle('hero.typography_manual','Manual type sizes and colors',h.typography_manual !== false) %>
+            <div class="te4-hint" style="margin-bottom:.5rem">
+              Governs the five sizes and five colors below, together. Off hands them to the
+              stylesheet &mdash; your values are kept, greyed, and ignored until you switch
+              it back. <strong>The text itself stays editable either way.</strong>
+            </div>
 
             <div class="te4-section-label">Eyebrow</div>
             <div class="te4-row2">
@@ -2839,20 +2866,88 @@ document.querySelectorAll('.te4-align-group').forEach(function (group) {
    stored values with whatever is on screen.
    ════════════════════════════════════════════════════════════════ */
 (function () {
-  var group = document.getElementById('heroSizingGroup');
-  if (!group) return;
-  /* The toggle's own checkbox, found through the shared .te4-toggle-cb
-     class rather than by id, because teToggle does not emit one. */
-  var cb = document.querySelector('.te4-toggle-cb[name="hero.sizing_manual"]');
-  if (!cb) return;
-  function sync() {
-    var off = !cb.checked;
-    group.style.opacity       = off ? '.45' : '';
-    group.style.pointerEvents = off ? 'none' : '';
-    group.querySelectorAll('input').forEach(function (i) { i.disabled = off; });
+  /* ONE locker for every Default/Manual group. It takes the flag's name and
+     a list of FIELD NAMES rather than a container id, which the first
+     version did.
+
+     Why names and not a wrapper: the typography fields are interleaved with
+     the COPY fields - "Eyebrow text" sits in the same row as "Size", and
+     the same for both headings, the subtext and the brand line. A wrapper
+     round the type controls would therefore also grey out the words, and
+     the copy is explicitly NOT governed by these switches. Restructuring
+     the markup to separate them would have been the alternative, on the
+     panel Sam has tuned most. Names are the smaller change.
+
+     DISABLED IS THE MECHANISM, NOT THE STYLING. A disabled input is not
+     submitted, so with a switch off those keys never reach
+     themeSettings.save(), and save() merges the posted keys onto the stored
+     object rather than replacing it. The stored values therefore survive by
+     themselves - "they keep the manual value, but are ignored" - with no
+     server-side code. Never swap disabled for readonly: readonly still
+     posts, so the off position would overwrite the stored values with
+     whatever happened to be on screen. */
+  function lockGroup(flag, names) {
+    var cb = document.querySelector('.te4-toggle-cb[name="' + flag + '"]');
+    if (!cb) return;
+    /* THE COMPANION CONTROLS ARE UNNAMED, and locking by name alone would
+       have left every one of them live. Found by reading the helpers rather
+       than by testing the page, which is the only reason it is handled here:
+
+         teTextSize / the height sliders emit <input type=range name=X>
+           followed by <input type=number class=te4-slider-num> with NO
+           name - it is kept in sync by script and never posted. Disable the
+           range only and the number box stays typeable.
+
+         teColor / teColorBrand emit <input type=color class=te4-color-swatch
+           data-for="X"> beside the named hex field, and teColorBrand adds a
+           row of <button class=te4-bs> brand swatches. All unnamed, all
+           still clickable, and each one writes into the hex field through
+           the sync handlers further down this file.
+
+       So the lock has to cover the whole control, not just the input that
+       carries the name. */
+    var fields = [];
+    names.forEach(function (n) {
+      document.querySelectorAll('[name="' + n + '"]').forEach(function (el) {
+        fields.push(el);
+        var wrap = el.closest('.te4-slider-wrap');
+        if (wrap) wrap.querySelectorAll('.te4-slider-num').forEach(function (x) { fields.push(x); });
+        var cf = el.closest('.te4-color-field');
+        if (cf) cf.querySelectorAll('.te4-color-swatch, .te4-bs').forEach(function (x) { fields.push(x); });
+      });
+      document.querySelectorAll('.te4-color-swatch[data-for="' + n + '"]')
+              .forEach(function (x) { fields.push(x); });
+    });
+    if (!fields.length) return;
+    function sync() {
+      var off = !cb.checked;
+      fields.forEach(function (el) {
+        el.disabled = off;
+        /* Grey the row the field sits in, not the field alone, so the label
+           dims with it. .te4-color-field for colours, .te4-field for the
+           rest, the element itself if neither (a loose swatch button). */
+        var row = el.closest('.te4-field') || el.closest('.te4-color-field') || el;
+        row.style.opacity = off ? '.45' : '';
+      });
+    }
+    cb.addEventListener('change', function () { sync(); markDirty(); schedulePreview(); });
+    sync();
   }
-  cb.addEventListener('change', function () { sync(); markDirty(); schedulePreview(); });
-  sync();
+
+  lockGroup('hero.sizing_manual',
+            ['hero.height_vh', 'hero.min_height_px', 'hero.max_height_px']);
+
+  lockGroup('hero.typography_manual',
+            ['hero.eyebrow_size', 'hero.heading_size', 'hero.h2_size',
+             'hero.subtext_size', 'hero.sub2_size',
+             'hero.eyebrow_color', 'hero.heading_color', 'hero.h2_color',
+             'hero.subtext_color', 'hero.sub2_color']);
+
+  lockGroup('hero.content_box_manual',
+            ['hero.content_box_color', 'hero.content_box_opacity',
+             'hero.content_box_padding', 'hero.content_box_radius',
+             'hero.content_max_width', 'hero.content_v_offset',
+             'hero.content_h_offset']);
 })();
 
 /* ════════════════════════════════════════════════════════════════

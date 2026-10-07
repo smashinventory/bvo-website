@@ -471,11 +471,26 @@ _DEFAULT_ORDER.forEach(function(k) {
     return (v === 'left' || v === 'center' || v === 'right') ? v : 'center';
   }
   var _heroAlign  = _safeAlign(hero.text_align);
-  var _heroHSize  = hero.heading_size  ? 'font-size:'+hero.heading_size+'px;' : '';
-  var _heroSSize  = hero.subtext_size  ? 'font-size:'+hero.subtext_size+'px;' : '';
-  var _heroH2Size = (+hero.h2_size > 0) ? 'font-size:'+hero.h2_size+'px;' : '';
-  var _heroESize  = (+hero.eyebrow_size > 0 && hero.eyebrow_size != 11) ? 'font-size:'+hero.eyebrow_size+'px;' : '';
-  var _heroS2Size = (+hero.sub2_size > 0 && hero.sub2_size != 14) ? 'font-size:'+hero.sub2_size+'px;' : '';
+  /* ── TYPOGRAPHY GUARD — 2026-10-07 ───────────────────────────────────
+     Same shape as the sizing guard below, and the same `!== false` for the
+     same reason: a settings file written before this flag existed has the
+     key missing, and missing must mean ON.
+
+     The five expressions are UNCHANGED, including their odd-looking
+     comparisons against 11 and 14. Those are not sentinels, they are
+     "don't write an inline style merely to restate the default", and
+     rewriting them to look tidier would change which installs get an
+     inline size. Left exactly as they were.
+
+     badge_size is deliberately NOT in this group. The badge has its own
+     enable switch, and one control governing another control's group is
+     the kind of cross-wiring that gets forgotten. */
+  var _typeMan    = hero.typography_manual !== false;
+  var _heroHSize  = (_typeMan && hero.heading_size)  ? 'font-size:'+hero.heading_size+'px;' : '';
+  var _heroSSize  = (_typeMan && hero.subtext_size)  ? 'font-size:'+hero.subtext_size+'px;' : '';
+  var _heroH2Size = (_typeMan && +hero.h2_size > 0) ? 'font-size:'+hero.h2_size+'px;' : '';
+  var _heroESize  = (_typeMan && +hero.eyebrow_size > 0 && hero.eyebrow_size != 11) ? 'font-size:'+hero.eyebrow_size+'px;' : '';
+  var _heroS2Size = (_typeMan && +hero.sub2_size > 0 && hero.sub2_size != 14) ? 'font-size:'+hero.sub2_size+'px;' : '';
   var _heroBSize  = (+hero.badge_size > 0 && hero.badge_size != 10) ? 'font-size:'+hero.badge_size+'px;' : '';
   /* ── BADGE, rebuilt 2026-10-06. Ships OFF — see themeSettings for why:
      badge_text has been stored as 'Free Shipping' all along and would
@@ -516,22 +531,38 @@ _DEFAULT_ORDER.forEach(function(k) {
     if (+hero.max_height_px === 0)     _heroStyle += 'max-height:none;';
     else if (+hero.max_height_px > 0)  _heroStyle += 'max-height:'+hero.max_height_px+'px;';
   }
-  /* Per-section text color CSS custom properties */
-  if (hero.eyebrow_color)    _heroStyle += '--hero-eyebrow:'+hero.eyebrow_color+';';
-  if (hero.heading_color)    _heroStyle += '--hero-h1:'+hero.heading_color+';';
-  if (hero.h2_color)         _heroStyle += '--hero-h2:'+hero.h2_color+';';
-  if (hero.subtext_color)    _heroStyle += '--hero-sub:'+hero.subtext_color+';';
-  if (hero.sub2_color)       _heroStyle += '--hero-sub2:'+hero.sub2_color+';';
+  /* Per-section text color CSS custom properties — same Typography group as
+     the five sizes above, so one switch governs the whole of the type
+     treatment rather than splitting sizes from colours. Every one of these
+     vars has a CSS fallback (var(--hero-h1,#fff) and friends), which is
+     what OFF hands the colour back to. */
+  if (_typeMan) {
+    if (hero.eyebrow_color)    _heroStyle += '--hero-eyebrow:'+hero.eyebrow_color+';';
+    if (hero.heading_color)    _heroStyle += '--hero-h1:'+hero.heading_color+';';
+    if (hero.h2_color)         _heroStyle += '--hero-h2:'+hero.h2_color+';';
+    if (hero.subtext_color)    _heroStyle += '--hero-sub:'+hero.subtext_color+';';
+    if (hero.sub2_color)       _heroStyle += '--hero-sub2:'+hero.sub2_color+';';
+  }
   /* Content box CSS vars (bg-video layout) */
   var _boxColor = hero.content_box_color || '#0f1f35';
   var _boxOp    = hero.content_box_opacity !== undefined ? hero.content_box_opacity : 60;
   var _boxHex   = _boxColor.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i);
-  if (_boxHex) _heroStyle += '--content-box-bg:rgba('+parseInt(_boxHex[1],16)+','+parseInt(_boxHex[2],16)+','+parseInt(_boxHex[3],16)+','+(_boxOp/100).toFixed(2)+');';
-  if (+hero.content_box_padding > 0)  _heroStyle += '--content-box-pad:'+hero.content_box_padding+'px;';
-  if (+hero.content_box_radius  >= 0) _heroStyle += '--content-box-radius:'+hero.content_box_radius+'px;';
-  if (+hero.content_max_width   > 0)  _heroStyle += '--content-max-w:'+hero.content_max_width+'px;';
-  if (hero.content_v_offset !== undefined && hero.content_v_offset !== '') _heroStyle += '--content-v-offset:'+hero.content_v_offset+'%;';
-  if (hero.content_h_offset !== undefined && hero.content_h_offset !== '') _heroStyle += '--content-h-offset:'+hero.content_h_offset+'%;';
+  /* ── CONTENT BOX GUARD — 2026-10-07 ──────────────────────────────────
+     THE ONE TO BE CAREFUL WITH. Every var here has a CSS fallback, so OFF
+     is well defined — but the fallbacks are the ORIGINAL NAVY DEFAULTS:
+     rgba(15,31,53,.6) at 36px padding, 520px wide, no offsets. The live box
+     is white at 70%, 12px, 320px, offset 4%/3%. So turning this group off
+     is a VISIBLE change, by design, and the stored values come straight
+     back when it goes on again. That asymmetry with the height group - where
+     OFF is subtle - is worth knowing before flipping it on a live site. */
+  if (hero.content_box_manual !== false) {
+    if (_boxHex) _heroStyle += '--content-box-bg:rgba('+parseInt(_boxHex[1],16)+','+parseInt(_boxHex[2],16)+','+parseInt(_boxHex[3],16)+','+(_boxOp/100).toFixed(2)+');';
+    if (+hero.content_box_padding > 0)  _heroStyle += '--content-box-pad:'+hero.content_box_padding+'px;';
+    if (+hero.content_box_radius  >= 0) _heroStyle += '--content-box-radius:'+hero.content_box_radius+'px;';
+    if (+hero.content_max_width   > 0)  _heroStyle += '--content-max-w:'+hero.content_max_width+'px;';
+    if (hero.content_v_offset !== undefined && hero.content_v_offset !== '') _heroStyle += '--content-v-offset:'+hero.content_v_offset+'%;';
+    if (hero.content_h_offset !== undefined && hero.content_h_offset !== '') _heroStyle += '--content-h-offset:'+hero.content_h_offset+'%;';
+  }
   var _ctaAlign = _heroAlign==='center'?'justify-content:center':_heroAlign==='right'?'justify-content:flex-end':'';
 %>
 <%/* ONE hero section, ONE <h1>. The phone hero used to be a second

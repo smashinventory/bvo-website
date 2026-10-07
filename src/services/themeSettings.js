@@ -446,6 +446,27 @@ const DEFAULTS = {
        live site. Four at once would mean four untested render paths in a
        single deploy, on the section Sam has tuned most. */
     sizing_manual: true,
+
+    /* The other two groups, added 2026-10-07 on the same pattern and for the
+       same reason - TRUE keeps today's render. See sizing_manual above for
+       the full argument; it applies unchanged to both.
+
+       typography_manual governs the five font sizes AND the five text
+       colours together, because splitting a type treatment in half gives
+       you a control that produces navy text at a size the stylesheet chose.
+       badge_size is NOT in it: the badge has its own switch.
+
+       content_box_manual is the one with a visible OFF. Those CSS fallbacks
+       are the original navy 60% box at 36px/520px with no offsets, so
+       flipping it off on the live site is a real change of look - reversible,
+       but not subtle like the height group.
+
+       IMAGE & MEDIA GETS NO SWITCH, deliberately. There is nothing to hand
+       the image back TO: no stylesheet rule supplies a hero photo, so an
+       'off' position would simply be a hero with no image. A toggle whose
+       default state is 'broken' is not a default. */
+    typography_manual:  true,
+    content_box_manual: true,
     // Per-element font sizes (0 = CSS default)
     eyebrow_size: 11,
     h2_size: 0,

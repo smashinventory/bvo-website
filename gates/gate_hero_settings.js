@@ -99,7 +99,11 @@ const readFields   = new Set([...strip(index).matchAll(/hero\.([a-z_0-9]+)/g)].m
     check(hero[f] === 0,
           `${f} defaults to the sentinel 0, so the CSS rule still wins`,
           'got ' + JSON.stringify(hero[f]));
-    check(new RegExp('hero\\.' + f + '\\s*\\?').test(strip(index)),
+    /* The optional `)` is the typography guard added 2026-10-07: the read is
+       now `(_typeMan && hero.heading_size) ? ... : ''`. Still a truthiness
+       test, which is what the sentinel 0 depends on — a `>= 0` or a
+       `!== undefined` here would start writing an inline size of 0px. */
+    check(new RegExp('hero\\.' + f + '\\s*\\)?\\s*\\?').test(strip(index)),
           `${f} is still read as a truthiness test (the sentinel means something)`);
   }
   check(hero.sub2_color === '',
@@ -239,14 +243,17 @@ const readFields   = new Set([...strip(index).matchAll(/hero\.([a-z_0-9]+)/g)].m
      CSS-only treatment still posts, and the off position would then
      overwrite the stored numbers with whatever is on screen. */
   const t = strip(theme);
-  /* BOTH ENDS, for the same reason as the check above: renaming the id in
-     the markup left `heroSizingGroup` present in getElementById and the
-     single-string check stayed green. The wrapper is only useful if the
-     markup and the script agree, so assert each side separately. */
-  check(/id="heroSizingGroup"/.test(t),
-        'the three height inputs are wrapped in a div carrying id="heroSizingGroup"');
-  check(/getElementById\('heroSizingGroup'\)/.test(t),
-        'the editor script addresses that same id');
+  /* The wrapper-id checks that used to sit here are GONE, because the
+     mechanism changed and a check must describe the mechanism in use. The
+     sizing group was originally locked by disabling everything inside a
+     container div. That could not work for typography, whose size sliders
+     share their rows with the copy fields, so the lock now works from a
+     list of field names and all three groups go through it. Asserting a
+     container id would now be asserting a leftover. */
+  check(/lockGroup\('hero\.sizing_manual'/.test(t),
+        'the sizing group goes through the shared lockGroup');
+  check(/function lockGroup\s*\(/.test(t),
+        'there is ONE locker for every group, not one per group');
   check(/\.disabled\s*=\s*off/.test(t),
         'the group is disabled when off — a disabled input is not posted, which is what preserves the stored value');
   check(!/readOnly\s*=\s*off/i.test(t),
@@ -284,6 +291,76 @@ const readFields   = new Set([...strip(index).matchAll(/hero\.([a-z_0-9]+)/g)].m
     check(!/--ov-|content-box|grid-template/.test(on + off),
           'the guard touches heights only — no overlay, box or grid declarations inside it');
   }
+}
+
+/* ── 8. the other two groups, same rules ─────────────────────────────────
+   Typography and Content Box, added 2026-10-07. Every assertion that
+   applied to sizing applies to these, so they are checked in a loop rather
+   than written out three times - if the rule changes it changes once. */
+{
+  const idx = strip(index), t = strip(theme);
+
+  for (const flag of ['typography_manual', 'content_box_manual']) {
+    check(hero[flag] === true,
+          `${flag} defaults to TRUE — the values it governs are already live`,
+          'got ' + JSON.stringify(hero[flag]));
+    check(new RegExp('hero\\.' + flag + '\\s*!==\\s*false').test(idx),
+          `${flag} is read as !== false, so a pre-flag settings file still renders`);
+    check(new RegExp("teToggle\\('hero\\." + flag + "'").test(t),
+          `${flag} has a switch built by teToggle in the editor`);
+    check(new RegExp("lockGroup\\('hero\\." + flag + "'").test(t),
+          `${flag} is wired to the shared lockGroup`);
+  }
+
+  /* THE COPY MUST STAY EDITABLE. A typography switch that greys out the
+     headline would be a different feature, and a nastier one. Asserted by
+     name: none of the content fields may appear in any lockGroup list. */
+  const lists = [...t.matchAll(/lockGroup\('hero\.[a-z_]+',\s*(\[[^\]]*\])/g)].map(m => m[1]);
+  check(lists.length === 3, `all three groups declare a field list (${lists.length})`);
+  const governed = lists.join(' ');
+  for (const copy of ['hero.eyebrow\'', 'hero.heading_line1', 'hero.heading_line2',
+                      'hero.subtext\'', 'hero.sub2_text', 'hero.cta1_text',
+                      'hero.cta2_text', 'hero.cta1_url', 'hero.cta2_url']) {
+    check(!governed.includes(copy),
+          `${copy.replace(/'$/, '')} is NOT governed by any switch — text is content, not styling`);
+  }
+
+  /* The companion controls must be locked too. Both are unnamed, so a lock
+     that only matched the named input would leave the number box typeable
+     and the colour swatches clickable, each of which writes back into the
+     named field through the sync handlers. */
+  check(/te4-slider-num/.test(t.slice(t.indexOf('function lockGroup'))),
+        'lockGroup also disables the unnamed .te4-slider-num companion');
+  /* TWO checks, because the colour controls are reached two different ways
+     and breaking either one leaves clickable controls behind. A single
+     check on the string 'te4-color-swatch' stayed green when the first
+     mechanism was removed, because the second mentions the same class —
+     the mutation test found that. Same trap as the two checks above it. */
+  const locker = t.slice(t.indexOf('function lockGroup'));
+  /* Anchored on the CALL, not on the two class names appearing somewhere
+     after lockGroup. The looser version matched the brand-swatch click
+     handlers further down the file, which mention .te4-bs for their own
+     reasons — so removing the sweep left it green. Third time today that a
+     check matched a string living in two places. */
+  check(/querySelectorAll\('\.te4-color-swatch, \.te4-bs'\)/.test(locker),
+        'lockGroup sweeps the whole .te4-color-field, catching the brand swatch buttons');
+  check(/te4-color-swatch\[data-for=/.test(locker),
+        'lockGroup also catches a colour swatch by its data-for attribute');
+
+  /* Image & Media deliberately has NO switch: nothing in the stylesheet
+     supplies a hero photo, so an off position would just blank the hero. */
+  check(!/teToggle\('hero\.(media|image)_manual'/.test(t),
+        'Image & Media has no Default/Manual switch — there is no stylesheet fallback to hand an image back to');
+  check(hero.media_manual === undefined && hero.image_manual === undefined,
+        'and no stray default was added for one');
+
+  /* badge_size must not be swept into typography — the badge owns its own
+     switch, and two switches governing one field is how a control ends up
+     doing nothing for reasons nobody can find. */
+  check(!governed.includes('hero.badge_size'),
+        'badge_size stays with the badge, out of the typography group');
+  check(/_typeMan\s*&&/.test(idx) && !/_typeMan[^\n]*badge_size/.test(idx),
+        'the template does not gate badge_size on the typography flag');
 }
 
 console.log('\n' + (fails
