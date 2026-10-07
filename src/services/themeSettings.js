@@ -611,6 +611,14 @@ const DEFAULTS = {
     content_v_offset:    4,         // was 0
     content_h_offset:    3,         // was 5
     text_shadow:         true,       // drop shadow behind heading text
+    /* WHICH BUTTON TEMPLATE EACH CTA USES. '' means "whatever this section
+       renders today" - btn-navy for the first, btn-sage for the second -
+       so the sentinel keeps the current look and nothing moves until the
+       admin picks something. The fallback is passed at the call site in
+       index.ejs rather than stored here, so a section can never be left
+       pointing at a template that has been deleted. */
+    cta1_style:          '',
+    cta2_style:          '',
   },
   hero_mobile: {
     /* ── SHARED SECTION CONTROLS (added 2026-10-04) ──────────────────

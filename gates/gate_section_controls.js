@@ -146,7 +146,20 @@ console.log('--- the button default matches the hero ---');
 /* The samples banner shipped amber directly below two navy hero buttons.
    An unrecognised style must fall back to the hero's primary, not to
    whatever a section hardcoded. */
-const heroBtn = (IDX.match(/hero\.cta1_url[\s\S]{0,120}?class="btn (btn-[a-z]+)"/) || [])[1];
+/* HOW THE HERO'S PRIMARY IS FOUND CHANGED, 2026-10-07. The class used to be
+   written literally - class="btn btn-navy" - and this gate scraped it. The
+   hero's CTAs now resolve their class through btnClass(key, fallback), where
+   the fallback IS the class the slot renders, so that is where the answer
+   lives now. The old literal pattern is kept as a second chance for any
+   other section that still hardcodes one.
+
+   The assertion below is unchanged and still the point: an unrecognised
+   style must fall back to the hero's primary, not to whatever a section
+   happened to hardcode. That is why the samples banner shipped amber
+   underneath two navy hero buttons. */
+const heroBtn =
+  (IDX.match(/hero\.cta1_style\s*,\s*'(btn-[a-z-]+)'/) || [])[1] ||
+  (IDX.match(/hero\.cta1_url[\s\S]{0,160}?class="btn (btn-[a-z]+)"/) || [])[1];
 ok('the hero primary button was found', !!heroBtn, 'cannot check the default against anything');
 ok(`_btnClass defaults to the hero primary (${heroBtn})`,
    _btnClass(undefined) === 'btn ' + heroBtn, _btnClass(undefined));

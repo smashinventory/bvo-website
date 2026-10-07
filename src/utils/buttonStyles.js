@@ -199,6 +199,29 @@ function cssRules(settings) {
   return out.join('');
 }
 
+/* ── THE CLASS A SECTION SHOULD RENDER ─────────────────────────────────
+   Given a template key, the class that paints it. The five seeded keys map
+   to the classes already written into the views; anything else gets the
+   generated .btn--<key>.
+
+   `fallback` is the class that section renders TODAY. It is required, not
+   optional, and that is the whole safety story for the section dropdown: an
+   unset setting, a key that no longer exists, or a typo all resolve to the
+   class the section already used, so a section cannot end up unstyled
+   because a template was deleted or renamed.
+
+   Returns the MODIFIER only. The caller keeps writing `class="btn ..."`,
+   so the base rule - padding, font, uppercase - is never in question. */
+function classFor(settings, key, fallback) {
+  fallback = fallback || 'btn-navy';
+  const k = safeKey(key);
+  if (!k) return fallback;
+  if (isLegacy(k)) return LEGACY[k];
+  /* A generated template only paints if it still exists; otherwise the
+     section would render .btn--deleted and lose its colours entirely. */
+  return list(settings).some(t => t.key === k) ? 'btn--' + k : fallback;
+}
+
 module.exports = { list, normalize, cssVars, cssRules,
-                   isLegacy, LEGACY, HOVER_EFFECTS,
+                   isLegacy, LEGACY, HOVER_EFFECTS, classFor,
                    SAFE_VALUE, SAFE_LENGTH, SAFE_KEY };

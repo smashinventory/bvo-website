@@ -295,6 +295,84 @@ const rules  = bs.cssRules(D);
         'the script renumbers indices after an add or delete');
 }
 
+/* ── 8. THE SECTION DROPDOWN (step 3) ───────────────────────────────────
+   The whole safety story is the FALLBACK. A section passes the class it
+   renders today, so an unset setting, a deleted template or a typo all land
+   back on the current look. A section can never end up unstyled because
+   somebody removed a button style in the manager. */
+{
+  const thm = read('views/pages/admin/theme.ejs');
+  /* This gate has no strip() helper - that lives in the hero gate. Comments
+     are stripped inline here so a commented-out btnClass call cannot be
+     counted as a live one. */
+  const idx = read('views/pages/index.ejs')
+    .replace(/<%#[\s\S]*?%>/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+  const srv = read('src/server.js').replace(/\/\*[\s\S]*?\*\//g, '');
+
+  check(/function classFor\(/.test(read('src/utils/buttonStyles.js')),
+        'buttonStyles exposes classFor(settings, key, fallback)');
+  check(/res\.locals\.btnClass\s*=/.test(srv),
+        'server.js binds btnClass for the views');
+
+  /* EVERY call site must pass a fallback. classFor defaults to btn-navy if
+     one is omitted, which would silently restyle a sage button - so the
+     gate requires the argument rather than trusting the default. */
+  /* MATCH THE BARE CALL, NOT THE SUBSTRING. index.ejs also has _btnClass,
+     the samples-banner helper, and /btnClass\(/ matches inside it - so the
+     first version counted _btnClass(sb_.btn_style) as a hero call site and
+     failed for having no fallback. The negative lookbehind keeps them
+     apart; _btnClass is checked separately below. */
+  const calls = [...idx.matchAll(/(?<![\w_])btnClass\(([^)]*)\)/g)].map(m => m[1]);
+  check(calls.length >= 2, `the hero's two CTAs resolve their class (${calls.length})`);
+  check(calls.every(c => /,\s*'btn-/.test(c)),
+        'every btnClass call passes the class that slot renders today',
+        calls.filter(c => !/,\s*'btn-/.test(c)).join(' | '));
+
+  /* ONE RESOLVER, NOT TWO. _btnClass had its own four-key map that could
+     never name a template the admin created - so a new style would appear
+     in the hero dropdown and be invisible to every section using that
+     helper. It delegates now. */
+  check(/_btnClass[\s\S]{0,400}btnClass\(v, 'btn-navy'\)/.test(idx),
+        '_btnClass delegates to the shared resolver');
+  check(!/_BTN_STYLES\s*=\s*\{/.test(idx),
+        'its private four-key style map is gone');
+  check(/tpls\.forEach/.test(thm) && /btn_style/.test(thm),
+        "teButton's dropdown lists the templates, not a hardcoded four");
+  /* PAIR THE SLOT WITH ITS FALLBACK. Checking that btn-navy and btn-sage
+     appear SOMEWHERE among the calls passed even when cta1's fallback was
+     changed to btn-amber - because _btnClass's own delegation supplies
+     'btn-navy' and satisfied the test. Assert each slot keeps the class it
+     actually renders. */
+  check(/btnClass\(hero\.cta1_style,\s*'btn-navy'\)/.test(idx),
+        "the hero's first CTA falls back to btn-navy, which is what it renders");
+  check(/btnClass\(hero\.cta2_style,\s*'btn-sage'\)/.test(idx),
+        "the hero's second CTA falls back to btn-sage, which is what it renders");
+
+  check(/cta1_style:\s*''/.test(svc) && /cta2_style:\s*''/.test(svc),
+        "both style keys default to '' — the sentinel that keeps today's look");
+  check(/teButtonStyle\('hero\.cta1_style'/.test(thm) &&
+        /teButtonStyle\('hero\.cta2_style'/.test(thm),
+        'the hero panel offers a style dropdown for each button');
+  check(/\(current\)/.test(thm),
+        "the blank option is labelled with the current style, not left empty");
+
+  /* EXECUTED: the fallback must hold under every bad input. */
+  const S = { buttons: { templates: [{ key:'navy' }, { key:'sage' }, { key:'tpl6', bg:'#123456' }] } };
+  const cases = [
+    ['',          'btn-sage', 'btn-sage', 'unset falls back to the current look'],
+    ['deleted',   'btn-sage', 'btn-sage', 'a deleted template falls back, not .btn--deleted'],
+    ['BAD KEY',   'btn-sage', 'btn-sage', 'an invalid key falls back'],
+    [null,        'btn-amber','btn-amber','null falls back'],
+    ['navy',      'btn-sage', 'btn-navy', 'a built-in key maps to its existing class'],
+    ['tpl6',      'btn-sage', 'btn--tpl6','a generated template maps to its own class'],
+  ];
+  for (const [key, fb, want, why] of cases) {
+    const got = bs.classFor(S, key, fb);
+    check(got === want, why, `classFor(${JSON.stringify(key)}, '${fb}') = ${got}`);
+  }
+}
+
 console.log('\n' + (fails
   ? 'gate_button_templates: FAILED ' + fails + ' of ' + checks
   : 'gate_button_templates: all ' + checks + ' checks pass'));

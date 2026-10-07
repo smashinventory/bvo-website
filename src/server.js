@@ -529,6 +529,12 @@ app.use((req, res, next) => {
     const s  = res.locals.settings || {};
     res.locals.buttonVars  = bs.cssVars(s);
     res.locals.buttonRules = bs.cssRules(s);
+    /* The class a section should render for a chosen template. The fallback
+       argument is the class that section uses TODAY, so an unset setting, a
+       deleted template or a typo all land back on the current look rather
+       than leaving a button unstyled. Bound here so the views do not need
+       the settings object in hand at every call site. */
+    res.locals.btnClass = (key, fallback) => bs.classFor(s, key, fallback);
   } catch (err) {
     /* A malformed templates array must not take the whole site down: the
        stylesheet already contains working rules for the five legacy styles,

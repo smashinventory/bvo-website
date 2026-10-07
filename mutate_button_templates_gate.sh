@@ -4,11 +4,12 @@ set -u
 cd "$(dirname "$0")"
 U=src/utils/buttonStyles.js; S=src/services/themeSettings.js; L=views/layouts/main.ejs
 B=public/css/site-bundle.css
+I=views/pages/index.ejs
 T=views/pages/admin/theme.ejs
 A=src/controllers/adminController.js
 pass=0; fail=0
 mutate () {
-  cp "$U" /tmp/t.u; cp "$S" /tmp/t.s; cp "$L" /tmp/t.l; cp "$B" /tmp/t.b; cp "$T" /tmp/t.t; cp "$A" /tmp/t.a
+  cp "$U" /tmp/t.u; cp "$S" /tmp/t.s; cp "$L" /tmp/t.l; cp "$B" /tmp/t.b; cp "$I" /tmp/t.i; cp "$T" /tmp/t.t; cp "$A" /tmp/t.a
   python3 - "$U" "$S" "$L" "$T" "$A" <<PY
 import sys
 up,sp,lp,tp,ap = sys.argv[1],sys.argv[2],sys.argv[3],sys.argv[4],sys.argv[5]
@@ -16,10 +17,10 @@ u=open(up).read(); s=open(sp).read(); l=open(lp).read(); t=open(tp).read(); a=op
 $2
 open(up,'w').write(u); open(sp,'w').write(s); open(lp,'w').write(l); open(tp,'w').write(t); open(ap,'w').write(a)
 PY
-  if [ $? -ne 0 ]; then echo "  SKIP $1 — mutation did not apply"; cp /tmp/t.u "$U"; cp /tmp/t.s "$S"; cp /tmp/t.l "$L"; cp /tmp/t.b "$B"; cp /tmp/t.t "$T"; cp /tmp/t.a "$A"; fail=$((fail+1)); return; fi
+  if [ $? -ne 0 ]; then echo "  SKIP $1 — mutation did not apply"; cp /tmp/t.u "$U"; cp /tmp/t.s "$S"; cp /tmp/t.l "$L"; cp /tmp/t.b "$B"; cp /tmp/t.i "$I"; cp /tmp/t.t "$T"; cp /tmp/t.a "$A"; fail=$((fail+1)); return; fi
   if node gates/gate_button_templates.js >/dev/null 2>&1; then echo "  MISSED  $1"; fail=$((fail+1));
   else echo "  caught  $1"; pass=$((pass+1)); fi
-  cp /tmp/t.u "$U"; cp /tmp/t.s "$S"; cp /tmp/t.l "$L"; cp /tmp/t.b "$B"; cp /tmp/t.t "$T"; cp /tmp/t.a "$A"
+  cp /tmp/t.u "$U"; cp /tmp/t.s "$S"; cp /tmp/t.l "$L"; cp /tmp/t.b "$B"; cp /tmp/t.i "$I"; cp /tmp/t.t "$T"; cp /tmp/t.a "$A"
   node gates/gate_button_templates.js >/dev/null 2>&1 || { echo "  ABORT — restore failed"; exit 1; }
 }
 
@@ -118,6 +119,39 @@ t = t.replace('function renumber()', 'function renumberDISABLED()')"
 mutate "the Add prototype is dropped" "
 assert 'id=' + chr(34) + 'btnTemplateProto' + chr(34) in t
 t = t.replace('id=' + chr(34) + 'btnTemplateProto' + chr(34), 'id=' + chr(34) + 'gone' + chr(34))"
+
+mutate "a hero CTA loses its fallback (an unset style would restyle it)" "
+import re
+assert \"btnClass(hero.cta2_style, 'btn-sage')\" in open('views/pages/index.ejs').read()
+x=open('views/pages/index.ejs').read()
+x=x.replace(\"btnClass(hero.cta2_style, 'btn-sage')\", 'btnClass(hero.cta2_style)')
+open('views/pages/index.ejs','w').write(x)"
+
+mutate "the hero fallback is changed to the wrong class" "
+x=open('views/pages/index.ejs').read()
+assert \"btnClass(hero.cta1_style, 'btn-navy')\" in x
+x=x.replace(\"btnClass(hero.cta1_style, 'btn-navy')\", \"btnClass(hero.cta1_style, 'btn-amber')\")
+open('views/pages/index.ejs','w').write(x)"
+
+mutate "a deleted template no longer falls back (section renders unstyled)" "
+assert 'return list(settings).some' in u
+u = u.replace('return list(settings).some(t => t.key === k) ? ' + chr(39) + 'btn--' + chr(39) + ' + k : fallback;',
+              'return ' + chr(39) + 'btn--' + chr(39) + ' + k;')"
+
+mutate "_btnClass goes back to its own four-key map" "
+x=open('views/pages/index.ejs').read()
+assert 'btnClass(v, ' in x
+x=x.replace(\"btnClass(v, 'btn-navy')\", \"'btn-' + ({navy:1,sage:1,amber:1,outline:1}[v] ? v : 'navy')\")
+open('views/pages/index.ejs','w').write(x)"
+
+mutate "the style dropdowns are removed from the hero panel" "
+import re
+assert \"teButtonStyle('hero.cta1_style'\" in t
+t = re.sub(r'<%- teButtonStyle\([^\n]*\n', '', t)"
+
+mutate "cta1_style default stops being the empty sentinel" "
+assert \"cta1_style:          ''\" in s
+s = s.replace(\"cta1_style:          ''\", \"cta1_style:          'amber'\")"
 
 echo
 echo "caught $pass, missed $fail"

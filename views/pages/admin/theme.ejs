@@ -165,6 +165,41 @@ function teField(type,name,label,value,compact){
   if(type==='textarea') return '<div class="'+cls+'"><label>'+label+'</label><textarea name="'+name+'" rows="3">'+v+'</textarea></div>';
   return '<div class="'+cls+'"><label>'+label+'</label><input type="'+type+'" name="'+name+'" value="'+v+'"></div>';
 }
+/* ── A SECTION'S "WHICH BUTTON STYLE" DROPDOWN ─────────────────────────
+   Lists the templates by their display names, so renaming "Button 1" to
+   "Sale CTA" in the manager renames it here too. The stored value is the
+   KEY, which never changes - that is why renaming is safe.
+
+   THE FIRST OPTION IS THE CURRENT LOOK, not a blank. `dflt` is the key this
+   slot renders today, so the empty value reads "Button 1 — Navy (current)"
+   rather than an unlabelled gap that leaves the admin guessing what doing
+   nothing means. An empty value also keeps the sentinel convention: nothing
+   is stored until a deliberate choice is made.
+
+   A template that has since been deleted is not in the list, so the select
+   falls back to showing the current-look option - and index.ejs resolves
+   the same way through classFor's fallback. The editor and the page agree
+   because they agree on the rule, not because they were written twice. */
+function teButtonStyle(name, label, value, dflt, settings) {
+  var list = (settings && settings.buttons && Array.isArray(settings.buttons.templates))
+    ? settings.buttons.templates : [];
+  var cur  = String(value || '');
+  var dn   = '';
+  list.forEach(function (b) { if (b && b.key === dflt) dn = b.name || b.key; });
+
+  var h = '<div class="te4-field"><label>' + label + '</label>';
+  h += '<select name="' + name + '" class="te4-select">';
+  h += '<option value=""' + (cur === '' ? ' selected' : '') + '>' +
+       (dn ? esc(dn) + ' (current)' : 'Current style') + '</option>';
+  list.forEach(function (b) {
+    if (!b || !b.key) return;
+    h += '<option value="' + esc(b.key) + '"' + (cur === b.key ? ' selected' : '') + '>' +
+         esc(b.name || b.key) + '</option>';
+  });
+  h += '</select></div>';
+  return h;
+}
+
 /* ── ONE BUTTON TEMPLATE CARD ──────────────────────────────────────────
    `i` is the array index, or the literal __i__ for the clone prototype that
    the Add button stamps out.
@@ -370,12 +405,28 @@ function teSectionLayout(pk, d) {
    samples banner ended up amber directly below two navy hero buttons. */
 function teButton(pk, d, label) {
   d = d || {};
-  var styles = [['navy','Navy (primary)'],['sage','Sage'],['amber','Amber'],['outline','Outline']];
+  /* THE FOUR-STYLE LIST USED TO BE HARDCODED HERE, and it was wrong in two
+     directions: it offered amber and outline but not primary, and it could
+     never offer a template the admin created. Now it reads the same
+     templates the manager edits, so a new button style appears in every
+     section's dropdown the moment it exists.
+
+     Note this control stores a bare key with 'navy' as its default, which
+     predates the template work - unlike the hero's cta1_style, where ''
+     means "keep what this slot renders today". Left as it is rather than
+     migrated: changing the default here would repoint any section that has
+     never been saved. */
+  var tpls = (typeof t !== 'undefined' && t && t.buttons && Array.isArray(t.buttons.templates))
+    ? t.buttons.templates : [];
   var cur = d.btn_style || 'navy';
   var h = '<div class="te4-section-label">' + (label || 'Button') + '</div>';
   h += '<div class="te4-field"><label>Button style</label><select name="' + pk + '.btn_style" class="te4-select">';
-  styles.forEach(function (o) {
-    h += '<option value="' + o[0] + '"' + (cur === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
+  if (!tpls.length) tpls = [{key:'navy',name:'Navy (primary)'},{key:'sage',name:'Sage'},
+                            {key:'amber',name:'Amber'},{key:'outline',name:'Outline'}];
+  tpls.forEach(function (b) {
+    if (!b || !b.key) return;
+    h += '<option value="' + esc(b.key) + '"' + (cur === b.key ? ' selected' : '') + '>' +
+         esc(b.name || b.key) + '</option>';
   });
   h += '</select></div>';
   h += teAlignment(pk + '.btn_align', d.btn_align);
@@ -1623,7 +1674,9 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
 
             <div class="te4-section-label">Buttons</div>
             <div class="te4-row2"><%- teField('text','hero.cta1_text','Button 1 label',h.cta1_text) %><%- teField('url','hero.cta1_url','Button 1 URL',h.cta1_url) %></div>
+            <%- teButtonStyle('hero.cta1_style', 'Button 1 style', h.cta1_style, 'navy', t) %>
             <div class="te4-row2"><%- teField('text','hero.cta2_text','Button 2 label',h.cta2_text) %><%- teField('url','hero.cta2_url','Button 2 URL',h.cta2_url) %></div>
+            <%- teButtonStyle('hero.cta2_style', 'Button 2 style', h.cta2_style, 'sage', t) %>
 
             <div class="te4-section-label" style="margin-top:1.25rem">Text &amp; Colors</div>
             <p class="te4-hint" style="margin-bottom:8px">Leave blank to use brand defaults. On mobile the hero goes full-bleed, so light text (white/whisper) usually works best.</p>

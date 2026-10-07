@@ -338,9 +338,18 @@ function _sectionInner(d) {
    Anything unrecognised falls back to it rather than to whatever the
    section happened to hardcode - which is how the samples banner ended
    up amber directly below two navy hero buttons. */
-var _BTN_STYLES = { navy: 1, sage: 1, amber: 1, outline: 1 };
+/* DELEGATES to the one resolver (src/utils/buttonStyles.js via
+   res.locals.btnClass) rather than keeping its own four-key map. That map
+   could never name a template the admin created, so a new button style
+   would have been invisible to every section using this helper while
+   appearing in the hero's dropdown - two mechanisms, one of them stale.
+
+   The behaviour is unchanged: an unrecognised value still falls back to
+   btn-navy, for the reason the comment above gives. */
 function _btnClass(v) {
-  return 'btn btn-' + (_BTN_STYLES[v] ? v : 'navy');
+  return 'btn ' + (typeof btnClass === 'function'
+    ? btnClass(v, 'btn-navy')
+    : 'btn-' + ({ navy:1, sage:1, amber:1, outline:1 }[v] ? v : 'navy'));
 }
 
 function _cssColor(v) {
@@ -637,9 +646,9 @@ _DEFAULT_ORDER.forEach(function(k) {
       <p class="hero-sub2" style="<%= _heroS2Size %>"><%= hero.sub2_text || 'James Martin · Kohler · Moen · Delta and more' %></p>
       <%/* inline style removed — see the note on .hero-content above */%>
       <div class="hero-ctas">
-        <a href="<%= hero.cta1_url || '/collections/bathroom-vanities' %>" class="btn btn-navy"><%= hero.cta1_text || 'Shop Vanities' %></a>
+        <a href="<%= hero.cta1_url || '/collections/bathroom-vanities' %>" class="btn <%= btnClass(hero.cta1_style, 'btn-navy') %>"><%= hero.cta1_text || 'Shop Vanities' %></a>
         <% if (hero.cta2_text || hero.cta2_url) { %>
-        <a href="<%= hero.cta2_url || '/collections/sale' %>" class="btn btn-sage"><%= hero.cta2_text || 'View Sale' %></a>
+        <a href="<%= hero.cta2_url || '/collections/sale' %>" class="btn <%= btnClass(hero.cta2_style, 'btn-sage') %>"><%= hero.cta2_text || 'View Sale' %></a>
         <% } %>
       </div>
     </div>
