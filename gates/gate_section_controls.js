@@ -103,8 +103,16 @@ ok('_sectionFrame is defined',   /function _sectionFrame\(/.test(IDX), 'missing'
 ok('_sectionInner is defined',   /function _sectionInner\(/.test(IDX), 'missing');
 ok('_btnClass is defined',       /function _btnClass\(/.test(IDX), 'missing');
 
-const code = (IDX.match(/var _SEC_ALIGN[\s\S]*?\nfunction _btnClass\(v\) \{[\s\S]*?\n\}/) || [''])[0]
+/* The signature is matched loosely on purpose. It was `_btnClass(v)` and
+   Wave 1 made it `_btnClass(v, fb)`; pinning the exact argument list made
+   this slice come back EMPTY, and an empty slice does not fail loudly - it
+   evals to nothing and the crash surfaces ten lines later as
+   "Cannot access '_sectionFrame' before initialization". The non-empty
+   assertion below is what turns that into a real failure. */
+const code = (IDX.match(/var _SEC_ALIGN[\s\S]*?\nfunction _btnClass\([^)]*\) \{[\s\S]*?\n\}/) || [''])[0]
            + '\n' + (IDX.match(/function _cssColor\(v\)[\s\S]*?\n\}/) || [''])[0];
+ok('the helper slice is not empty', /function _btnClass\(/.test(code),
+   'the extraction regex no longer matches index.ejs - every helper check below is vacuous');
 /* ⚠️ eval UNDER 'use strict' SCOPES ITS DECLARATIONS TO ITSELF, so the
    functions are returned explicitly rather than expected to leak into
    this scope - the first version of this gate crashed on exactly that.

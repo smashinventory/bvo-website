@@ -2052,21 +2052,24 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
               </select>
             </div>
                       <%- teSectionLayout('bundle_teaser', t.bundle_teaser||{}) %>
-            <%- teButton('bundle_teaser', t.bundle_teaser||{}) %>
+            <div class="te4-section-label">Button style</div>
+            <%- teButtonStyle('bundle_teaser.cta_style', 'Button style', btsec.cta_style, 'navy', t) %>
 </div>
 
           <!-- ── FEATURED PRODUCTS ──────────────────────────── -->
           <div class="te4-panel" id="panel-featured_section">
             <%- teFeaturedBody('featured_section', t.featured_section||{}, 'featured_section') %>
                       <%- teSectionLayout('featured_section', t.featured_section||{}) %>
-            <%- teButton('featured_section', t.featured_section||{}) %>
+            <div class="te4-section-label">Button style</div>
+            <%- teButtonStyle('featured_section.cta_style', 'Button style', (t.featured_section||{}).cta_style, 'outline', t) %>
 </div>
 
           <!-- ── FEATURED MODELS ───────────────────────────────── -->
           <div class="te4-panel" id="panel-featured_models">
             <%- teFeaturedBody('featured_models', t.featured_models||{}, 'featured_models') %>
                       <%- teSectionLayout('featured_models', t.featured_models||{}) %>
-            <%- teButton('featured_models', t.featured_models||{}) %>
+            <div class="te4-section-label">Button style</div>
+            <%- teButtonStyle('featured_models.cta_style', 'Button style', (t.featured_models||{}).cta_style, 'navy', t) %>
 </div>
 
           <!-- ── DUPLICATABLE SECTION PANELS (dynamic loop) ── -->
@@ -2294,8 +2297,22 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
                 trust_band, parallax, testimonials) and every _2/_3 copy
                 get the same controls as the hand-written panels. %>
             <%- teSectionLayout(pk, d) %>
-            <% if (/image_with_text|video_text|parallax/.test(pkBase)) { %>
-            <%- teButton(pk, d) %>
+            <%# ONE PICKER PER BUTTON THE SECTION ACTUALLY RENDERS.
+                teButton used to be called here for all three bases, but it
+                emits a single pk.btn_style that index.ejs never read - a
+                placebo - plus a pk.btn_align that nothing reads anywhere.
+                Parallax draws TWO buttons with DIFFERENT styles (amber and
+                outline), so one control could not have driven both without
+                collapsing them to the same look. %>
+            <% if (/^parallax/.test(pkBase)) { %>
+            <div class="te4-section-label">Button styles</div>
+            <div class="te4-row2">
+              <%- teButtonStyle(pk+'.cta1_style', 'Button 1 style', d.cta1_style, 'amber',   t) %>
+              <%- teButtonStyle(pk+'.cta2_style', 'Button 2 style', d.cta2_style, 'outline', t) %>
+            </div>
+            <% } else if (/image_with_text|video_text/.test(pkBase)) { %>
+            <div class="te4-section-label">Button style</div>
+            <%- teButtonStyle(pk+'.cta_style', 'Button style', d.cta_style, 'navy', t) %>
             <% } %>
 </div><!-- /panel-<%= pk %> -->
           <% }); /* end duplicatable panel loop */ %>
@@ -2329,7 +2346,8 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
               </select>
             </div>
                       <%- teSectionLayout('newsletter', t.newsletter||{}) %>
-            <%- teButton('newsletter', t.newsletter||{}) %>
+            <div class="te4-section-label">Button style</div>
+            <%- teButtonStyle('newsletter.cta_style', 'Button style', newsec.cta_style, 'amber', t) %>
 </div>
 
           <!-- ── STYLE GUIDES (content group) ───────────────── -->

@@ -323,17 +323,29 @@ const rules  = bs.cssRules(D);
      first version counted _btnClass(sb_.btn_style) as a hero call site and
      failed for having no fallback. The negative lookbehind keeps them
      apart; _btnClass is checked separately below. */
+  /* WAVE 1 WIDENED THE ACCEPTED SHAPE, not the requirement. The fallback
+     may now arrive as the variable `fb` - that is _btnClass's own body
+     forwarding the caller's argument, which is the one call in the file
+     where a literal would be wrong. Every OTHER call still has to name a
+     class. The variable is allowed by name, so `btnClass(v, x)` or a
+     dropped argument still fails. */
   const calls = [...idx.matchAll(/(?<![\w_])btnClass\(([^)]*)\)/g)].map(m => m[1]);
   check(calls.length >= 2, `the hero's two CTAs resolve their class (${calls.length})`);
-  check(calls.every(c => /,\s*'btn-/.test(c)),
+  const noFallback = calls.filter(c => !/,\s*'btn-/.test(c) && !/,\s*fb$/.test(c.trim()));
+  check(noFallback.length === 0,
         'every btnClass call passes the class that slot renders today',
-        calls.filter(c => !/,\s*'btn-/.test(c)).join(' | '));
+        noFallback.join(' | '));
+  check(calls.filter(c => /,\s*fb$/.test(c.trim())).length === 1,
+        "exactly one call forwards a variable fallback - _btnClass's own body");
 
   /* ONE RESOLVER, NOT TWO. _btnClass had its own four-key map that could
      never name a template the admin created - so a new style would appear
      in the hero dropdown and be invisible to every section using that
      helper. It delegates now. */
-  check(/_btnClass[\s\S]{0,400}btnClass\(v, 'btn-navy'\)/.test(idx),
+  /* The delegated call is `btnClass(v, fb)` since Wave 1 gave callers their
+     own fallback. The btn-navy default moved one line up, into `fb = fb ||
+     'btn-navy'`, and is asserted there in the Wave 1 block below. */
+  check(/_btnClass[\s\S]{0,600}btnClass\(v, fb\)/.test(idx),
         '_btnClass delegates to the shared resolver');
   check(!/_BTN_STYLES\s*=\s*\{/.test(idx),
         'its private four-key style map is gone');
@@ -413,6 +425,133 @@ const rules  = bs.cssRules(D);
   check(deferredOnly.length === 0,
         'no homepage button is styled ONLY by the deferred site3.css',
         deferredOnly.join(', ') + ' — these flash unstyled until site3 swaps in');
+}
+
+/* ══ WAVE 1: THE TEN SECTION CTAs ══════════════════════════════════════
+   Every homepage CTA outside the hero now resolves through the button
+   system. Three things had to be true at once and each is asserted as a
+   PAIR, because every one of these strings also lives somewhere else:
+
+   1. The DEFAULT names the variant the slot renders TODAY. Not '' - a
+      blank would have been correct only if the fallback were the whole
+      story, and the editor would then open on "Current style" instead of
+      naming the button the admin can see on the page.
+   2. The CALL SITE passes its own fallback. A shared btn-navy fallback
+      would quietly restyle featured products (outline), the newsletter
+      submit (amber) and both parallax buttons the moment a stored key
+      went missing. The fallback and the settings key are matched in ONE
+      regex so a right key with a wrong fallback cannot pass.
+   3. The EDITOR picker writes the key the template reads.
+
+   WHY cta_style AND NOT btn_style: teButton already emitted a
+   <section>.btn_style select for featured_section, featured_models,
+   bundle_teaser, newsletter, image_with_text, video_text and parallax -
+   and index.ejs read none of them. Seven placebos. thinForStorage keeps
+   any value whose default is undefined, which btn_style's was on all
+   seven, so a stale 'navy' from any past save of those panels is sitting
+   in the live settings waiting to be honoured. Reading btn_style here
+   would have turned that dead value live and flipped featured products
+   from outline to navy, the newsletter from amber to navy, and both
+   parallax buttons to navy - a visual change nobody asked for, arriving
+   as a side effect of wiring a control up. A fresh key cannot inherit
+   it, and needs no migration to be safe. */
+{
+  const idx   = read('views/pages/index.ejs')
+                  .replace(/<%#[\s\S]*?%>/g, '').replace(/<%\/\*[\s\S]*?\*\/%>/g, '');
+  const admin = read('views/pages/admin/theme.ejs')
+                  .replace(/<%#[\s\S]*?%>/g, '').replace(/<%\/\*[\s\S]*?\*\/%>/g, '');
+  const S0    = { buttons: D.buttons };
+
+  /* [settings path, field, class the slot renders today] */
+  const SLOTS = [
+    ['featured_section',  'cta_style',  'btn-outline'],
+    ['featured_models',   'cta_style',  'btn-navy'],
+    ['image_with_text',   'cta_style',  'btn-navy'],
+    ['image_with_text_2', 'cta_style',  'btn-navy'],
+    ['video_text',        'cta_style',  'btn-navy'],
+    ['video_text_2',      'cta_style',  'btn-navy'],
+    ['bundle_teaser',     'cta_style',  'btn-navy'],
+    ['newsletter',        'cta_style',  'btn-amber'],
+    ['parallax',          'cta1_style', 'btn-amber'],
+    ['parallax',          'cta2_style', 'btn-outline'],
+    ['parallax_2',        'cta1_style', 'btn-amber'],
+    ['parallax_2',        'cta2_style', 'btn-outline'],
+  ];
+
+  /* (1) default == today, resolved through the real resolver */
+  SLOTS.forEach(([sec, field, today]) => {
+    const stored = D[sec] && D[sec][field];
+    check(bs.classFor(S0, stored, today) === today,
+          sec + '.' + field + ' defaults to the class the slot renders today (' + today + ')',
+          'stored=' + JSON.stringify(stored) + ' resolves to ' + bs.classFor(S0, stored, today));
+  });
+
+  /* (2) call site: key AND fallback in one regex, so a mismatch cannot pass.
+     The duplicatable blocks render from the generic _d, so they are keyed by
+     the href that identifies the block rather than by section name. */
+  const CALLSITES = [
+    ["featured products CTA",   /cta_url \|\| '\/collections\/bathroom-vanities', _d\.brand\) %>" class="<%= _btnClass\(_d\.cta_style, 'btn-outline'\)/],
+    ["featured models CTA",     /cta_url \|\| '\/collections\/vanity-models', _d\.brand\) %>" class="<%= _btnClass\(_d\.cta_style, 'btn-navy'\)/],
+    ["image+text CTA",          /_d\.cta_url \|\| '#' %>" class="<%= _btnClass\(_d\.cta_style, 'btn-navy'\)/],
+    ["video+text CTA",          /<%= _d\.cta_url %>" class="<%= _btnClass\(_d\.cta_style, 'btn-navy'\)/],
+    ["parallax CTA 1",          /_d\.cta1_url \|\| '\/collections\/bathroom-vanities' %>" class="<%= _btnClass\(_d\.cta1_style, 'btn-amber'\)/],
+    ["parallax CTA 2",          /_d\.cta2_url \|\| '\/lookbook' %>" class="<%= _btnClass\(_d\.cta2_style, 'btn-outline'\)/],
+    ["bundle teaser CTA",       /href="\/bundle-builder" class="<%= _btnClass\(bt_\.cta_style, 'btn-navy'\)/],
+    ["newsletter submit",       /_btnClass\(news\.cta_style, 'btn-amber'\) %> newsletter-btn/],
+  ];
+  CALLSITES.forEach(([label, re]) => {
+    check(re.test(idx), label + ' passes its own settings key AND its own current class as the fallback');
+  });
+
+  /* (3) the editor writes exactly those keys */
+  [['featured_section.cta_style',  'outline'],
+   ['featured_models.cta_style',   'navy'],
+   ['bundle_teaser.cta_style',     'navy'],
+   ['newsletter.cta_style',        'amber'],
+  ].forEach(([name, dflt]) => {
+    /* [^%]*? not [^)]*? - featured_section passes
+       (t.featured_section||{}).cta_style, whose own parenthesis ended the
+       first version of this match before it ever reached the default. */
+    const re = new RegExp("teButtonStyle\\('" + name.replace('.', '\\.') +
+                          "'[^%]*?'" + dflt + "'");
+    check(re.test(admin),
+          'the editor picker for ' + name + " labels its current option '" + dflt + "'");
+  });
+  check(/teButtonStyle\(pk\+'\.cta1_style',[^)]*'amber'/.test(admin) &&
+        /teButtonStyle\(pk\+'\.cta2_style',[^)]*'outline'/.test(admin),
+        'the parallax panel gets TWO pickers, amber and outline, not one for both');
+  check(/teButtonStyle\(pk\+'\.cta_style',[^)]*'navy'/.test(admin),
+        'image+text and video+text panels get a cta_style picker defaulting to navy');
+
+  /* (4) the placebo selects are gone from the seven panels that had them.
+     teButton survives only where index.ejs actually reads btn_style. */
+  ['featured_section', 'featured_models', 'bundle_teaser', 'newsletter'].forEach(k => {
+    check(!new RegExp("teButton\\('" + k + "'").test(admin),
+          k + " no longer gets teButton's placebo btn_style select");
+  });
+  check(!/teButton\(pk, d\)/.test(admin),
+        'the duplicatable loop no longer calls teButton for parallax/image+text/video+text');
+  ['inspiration', 'sample_banner'].forEach(k => {
+    check(new RegExp("teButton\\('" + k + "'").test(admin),
+          k + " keeps teButton - index.ejs really does read its btn_style");
+  });
+
+  /* (5) and no CTA on the page is hardcoded any more. Product cards and the
+     per-model card links are deliberately excluded: they are per-record,
+     not per-section, and have no settings slot to drive them. */
+  const hardcoded = [...idx.matchAll(/class="btn btn-[a-z]+"/g)].map(m => m[0]);
+  const allowed   = ['class="btn btn-sage"', 'class="btn btn-outline model-card-cta"'];
+  const leftovers = hardcoded.filter(h => !allowed.includes(h));
+  check(leftovers.length === 0,
+        'every section-level CTA resolves through _btnClass, none is hardcoded',
+        leftovers.join(', '));
+
+  /* (6) the second argument has to REACH classFor. _btnClass defaulting its
+     own fallback to btn-navy is fine; silently dropping the caller's is not. */
+  check(/function _btnClass\(v, fb\)/.test(idx) && /btnClass\(v, fb\)/.test(idx),
+        "_btnClass forwards the caller's fallback to the resolver");
+  check(/fb = fb \|\| 'btn-navy';/.test(idx),
+        'and still falls back to btn-navy when a caller passes nothing');
 }
 
 console.log('\n' + (fails

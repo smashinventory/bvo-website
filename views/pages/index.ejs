@@ -346,10 +346,19 @@ function _sectionInner(d) {
 
    The behaviour is unchanged: an unrecognised value still falls back to
    btn-navy, for the reason the comment above gives. */
-function _btnClass(v) {
+/* SECOND ARGUMENT (added 2026-10-07, Wave 1): the class THIS slot renders
+   today. Omitting it keeps the btn-navy fallback the two existing callers
+   rely on, so this is an extension, not a change.
+
+   Every Wave 1 caller passes its own - parallax CTA 1 is amber, CTA 2 is
+   outline, featured products is outline. A shared btn-navy fallback would
+   have silently restyled those three slots the moment a stored key went
+   missing, which is the one thing these controls must never do. */
+function _btnClass(v, fb) {
+  fb = fb || 'btn-navy';
   return 'btn ' + (typeof btnClass === 'function'
-    ? btnClass(v, 'btn-navy')
-    : 'btn-' + ({ navy:1, sage:1, amber:1, outline:1 }[v] ? v : 'navy'));
+    ? btnClass(v, fb)
+    : ({ navy:1, sage:1, amber:1, outline:1, primary:1 }[v] ? 'btn-' + v : fb));
 }
 
 function _cssColor(v) {
@@ -1670,7 +1679,7 @@ _DEFAULT_ORDER.forEach(function(k) {
     <% }) %>
   </div>
   <div class="section-cta">
-    <a href="<%= _ctaWithBrand(_d.cta_url || '/collections/bathroom-vanities', _d.brand) %>" class="btn btn-outline"><%= _d.cta_text || 'View All Products' %></a>
+    <a href="<%= _ctaWithBrand(_d.cta_url || '/collections/bathroom-vanities', _d.brand) %>" class="<%= _btnClass(_d.cta_style, 'btn-outline') %>"><%= _d.cta_text || 'View All Products' %></a>
   </div>
 </section>
 <% } /* end _fsRows.length */ %>
@@ -1872,7 +1881,7 @@ _DEFAULT_ORDER.forEach(function(k) {
   <div class="section-cta">
     <%# The reason for all of this: "See All Our JM Models" now lands on the
         JM-filtered list rather than the mixed one. %>
-    <a href="<%= _ctaWithBrand(_d.cta_url || '/collections/vanity-models', _d.brand) %>" class="btn btn-navy"><%= _d.cta_text || 'See All Our Models' %></a>
+    <a href="<%= _ctaWithBrand(_d.cta_url || '/collections/vanity-models', _d.brand) %>" class="<%= _btnClass(_d.cta_style, 'btn-navy') %>"><%= _d.cta_text || 'See All Our Models' %></a>
   </div>
 </section>
 <% } /* end _carouselModels.length */ %>
@@ -2084,7 +2093,7 @@ _DEFAULT_ORDER.forEach(function(k) {
         <<%- _iwtTag %> class="iwt-heading" id="iwt-heading-<%= sectionKey %>" style="<%= _iwtHSize %>"><%= _d.heading || _iwtDefault %></<%- _iwtTag %>>
         <% if (_d.body) { %><p class="iwt-body" style="<%= _iwtBSize %>"><%= _d.body %></p><% } %>
         <% if (_d.cta_text) { %>
-        <a href="<%= _d.cta_url || '#' %>" class="btn btn-navy"><%= _d.cta_text %></a>
+        <a href="<%= _d.cta_url || '#' %>" class="<%= _btnClass(_d.cta_style, 'btn-navy') %>"><%= _d.cta_text %></a>
         <% } %>
       </div>
     </div>
@@ -2140,7 +2149,7 @@ _DEFAULT_ORDER.forEach(function(k) {
       <% if (_d.eyebrow) { %><p class="vt-eyebrow"><%= _d.eyebrow %></p><% } %>
       <% if (_d.heading) { %><<%- _vtTag %> class="vt-heading"><%= _d.heading %></<%- _vtTag %>><% } %>
       <% if (_d.body) { %><p class="vt-body"><%= _d.body %></p><% } %>
-      <% if (_d.cta_text && _d.cta_url) { %><a href="<%= _d.cta_url %>" class="btn btn-navy"><%= _d.cta_text %></a><% } %>
+      <% if (_d.cta_text && _d.cta_url) { %><a href="<%= _d.cta_url %>" class="<%= _btnClass(_d.cta_style, 'btn-navy') %>"><%= _d.cta_text %></a><% } %>
     </div>
   </div>
 </section>
@@ -2321,8 +2330,8 @@ _DEFAULT_ORDER.forEach(function(k) {
     <div class="parallax-rule"></div>
     <% if (_d.subtitle) { %><p class="parallax-sub"><%= _d.subtitle %></p><% } %>
     <div class="hero-ctas">
-      <% if (_d.cta1_text || _parIsBase) { %><a href="<%= _d.cta1_url || '/collections/bathroom-vanities' %>" class="btn btn-amber"><%= _d.cta1_text || 'Shop All Vanities' %></a><% } %>
-      <% if (_d.cta2_text || _parIsBase) { %><a href="<%= _d.cta2_url || '/lookbook' %>" class="btn btn-outline" style="color:#fff;border-color:rgba(255,255,255,.6)"><%= _d.cta2_text || 'View Lookbook' %></a><% } %>
+      <% if (_d.cta1_text || _parIsBase) { %><a href="<%= _d.cta1_url || '/collections/bathroom-vanities' %>" class="<%= _btnClass(_d.cta1_style, 'btn-amber') %>"><%= _d.cta1_text || 'Shop All Vanities' %></a><% } %>
+      <% if (_d.cta2_text || _parIsBase) { %><a href="<%= _d.cta2_url || '/lookbook' %>" class="<%= _btnClass(_d.cta2_style, 'btn-outline') %>" style="color:#fff;border-color:rgba(255,255,255,.6)"><%= _d.cta2_text || 'View Lookbook' %></a><% } %>
     </div>
   </div>
 </section>
@@ -2621,7 +2630,7 @@ _DEFAULT_ORDER.forEach(function(k) {
   <p class="bt-pair-note"><%= bt_.pair_note || 'Mirrors & faucets can be added as a matched pair for double vanities — a pair still counts as one bundle step.' %></p>
 
   <div class="bt-cta-wrap">
-    <a href="/bundle-builder" class="btn btn-navy"><%= bt_.cta_text || 'Build Your Bundle' %></a>
+    <a href="/bundle-builder" class="<%= _btnClass(bt_.cta_style, 'btn-navy') %>"><%= bt_.cta_text || 'Build Your Bundle' %></a>
   </div>
 
 </section>
@@ -2643,7 +2652,7 @@ _DEFAULT_ORDER.forEach(function(k) {
     <form class="newsletter-form" id="newsletterForm" novalidate>
       <div class="newsletter-input-wrap">
         <input type="email" name="email" placeholder="<%= news.placeholder || 'Your email address' %>" class="newsletter-input" required aria-label="Email address">
-        <button type="submit" class="btn btn-amber newsletter-btn"><%= news.button_text || 'Get Early Access' %></button>
+        <button type="submit" class="<%= _btnClass(news.cta_style, 'btn-amber') %> newsletter-btn"><%= news.button_text || 'Get Early Access' %></button>
       </div>
       <p class="newsletter-success" id="newsletterSuccess" hidden><%= news.success_message || "You're in!" %></p>
       <p class="newsletter-disclaimer"><%= news.disclaimer || 'No spam. Unsubscribe anytime.' %></p>

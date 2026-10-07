@@ -786,6 +786,14 @@ const DEFAULTS = {
     eyebrow: 'James Martin Vanities',
     heading: 'Build Your Dream Bathroom',
     subtitle: 'Mix and match cabinets, tops, and mirrors from the James Martin collection — and save up to 15% when you bundle.',
+    /* ── BUTTON STYLE (added 2026-10-07, Wave 1) ────────────────────
+       Names a template from settings.buttons.templates. The default is
+       the variant this slot ALREADY renders, not a blank sentinel, so
+       the dropdown opens showing today's reality and saving without
+       touching it is a no-op. index.ejs passes the same value as
+       classFor's fallback, so a deleted or bad key still renders the
+       class that is on the page right now. */
+    cta_style: 'navy',
     cta_text: 'Build Your Bundle',
     // Step card text — editable in Theme Editor > Bundle Builder Teaser
     step1_name: 'Cabinet',
@@ -846,6 +854,7 @@ const DEFAULTS = {
     subtitle: 'Handpicked vanities and accessories our customers love',
     cta_text: 'View All Products',
     cta_url: '/collections/bathroom-vanities',
+    cta_style: 'outline',
     limit: 4,
     // 4 matches the CSS fallback, so behaviour on deploy is unchanged.
     // The Theme Editor has always offered this control; nothing read it
@@ -871,6 +880,7 @@ const DEFAULTS = {
     subtitle: 'Explore our most popular vanity collections — click a finish to see it in action.',
     cta_text: 'See All Our Models',
     cta_url: '/collections/vanity-models',
+    cta_style: 'navy',
     limit: 8,
     brand: '',
     category: 'bathroom-vanities',   // was a hardcoded join — see note above
@@ -931,6 +941,7 @@ const DEFAULTS = {
        vanitiesoutlet.com. It is corrected so a FRESH environment, which
        starts from these defaults, does not ship the same dead button. */
     cta_url: '/pages/about-us',
+    cta_style: 'navy',
   },
   before_after: {
     /* ── SHARED SECTION CONTROLS (added 2026-10-04) ──────────────────
@@ -1064,6 +1075,7 @@ const DEFAULTS = {
     subtitle: 'From contemporary minimalism to classic elegance — we carry the brands and styles to bring your vision to life.',
     cta1_text: 'Shop All Vanities', cta1_url: '/collections/bathroom-vanities',
     cta2_text: 'View Lookbook',     cta2_url: '/lookbook',
+    cta1_style: 'amber', cta2_style: 'outline',
     image_url: '/images/parallax-bg.jpg',
     image_alt: 'Luxury bathroom inspiration',
   },
@@ -1145,6 +1157,7 @@ const DEFAULTS = {
     subtitle: '',
     placeholder: 'Your email address',
     button_text: 'Get Early Access',
+    cta_style: 'amber',
     success_message: "You're in! Check your inbox for a welcome gift.",
     disclaimer: 'No spam. Unsubscribe anytime.',
   },
@@ -1196,6 +1209,7 @@ const DEFAULTS = {
     body: '',
     cta_text: '',
     cta_url: '',
+    cta_style: 'navy',
   },
   image_with_text_2: {
     enabled: false,
@@ -1207,6 +1221,7 @@ const DEFAULTS = {
     body: '',
     cta_text: '',
     cta_url: '',
+    cta_style: 'navy',
   },
   before_after_2: {
     enabled: false,
@@ -1230,6 +1245,7 @@ const DEFAULTS = {
     body: '',
     cta_text: '',
     cta_url: '',
+    cta_style: 'navy',
   },
   trust_band_2: {
     enabled: false,
@@ -1248,6 +1264,7 @@ const DEFAULTS = {
     subtitle: '',
     cta1_text: '', cta1_url: '',
     cta2_text: '', cta2_url: '',
+    cta1_style: 'amber', cta2_style: 'outline',
     image_url: '', image_alt: '',
     overlay_color: '#0f1f35',
     overlay_opacity: 65,

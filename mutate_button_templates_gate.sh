@@ -138,10 +138,15 @@ assert 'return list(settings).some' in u
 u = u.replace('return list(settings).some(t => t.key === k) ? ' + chr(39) + 'btn--' + chr(39) + ' + k : fallback;',
               'return ' + chr(39) + 'btn--' + chr(39) + ' + k;')"
 
+# The delegated call was btnClass(v, 'btn-navy') until Wave 1 gave callers
+# their own fallback. This mutation went on asserting the OLD literal was
+# present - which it still was, inside _btnClass's comment - so the replace
+# matched nothing, the gate passed, and the harness reported a MISS for a
+# mutation that had never been applied. Anchored on the live text now.
 mutate "_btnClass goes back to its own four-key map" "
 x=open('views/pages/index.ejs').read()
-assert 'btnClass(v, ' in x
-x=x.replace(\"btnClass(v, 'btn-navy')\", \"'btn-' + ({navy:1,sage:1,amber:1,outline:1}[v] ? v : 'navy')\")
+assert 'btnClass(v, fb)' in x
+x=x.replace('btnClass(v, fb)', \"'btn-' + ({navy:1,sage:1,amber:1,outline:1}[v] ? v : 'navy')\")
 open('views/pages/index.ejs','w').write(x)"
 
 mutate "the style dropdowns are removed from the hero panel" "
@@ -167,6 +172,76 @@ mutate "the inspiration style picker is removed" "
 import re
 assert \"teButton('inspiration'\" in t
 t = re.sub(r'<%- teButton\(.inspiration.[^\n]*\n', '', t)"
+
+echo; echo "mutating Wave 1 - the ten section CTAs"; echo
+
+mutate "featured_section default flipped off the outline it renders today" "
+assert \"cta_url: '/collections/bathroom-vanities',\n    cta_style: 'outline',\" in s
+s = s.replace(\"cta_style: 'outline',\", \"cta_style: 'navy',\", 1)"
+
+mutate "newsletter default flipped off the amber it renders today" "
+assert \"cta_style: 'amber',\" in s
+s = s.replace(\"cta_style: 'amber',\", \"cta_style: 'navy',\")"
+
+mutate "parallax CTA 2 default flipped off outline" "
+assert \"cta1_style: 'amber', cta2_style: 'outline',\" in s
+s = s.replace(\"cta1_style: 'amber', cta2_style: 'outline',\",
+              \"cta1_style: 'amber', cta2_style: 'amber',\", 1)"
+
+mutate "a call site drops its fallback entirely" "
+x=open('views/pages/index.ejs').read()
+assert \"_btnClass(_d.cta_style, 'btn-outline')\" in x
+x=x.replace(\"_btnClass(_d.cta_style, 'btn-outline')\", '_btnClass(_d.cta_style)')
+open('views/pages/index.ejs','w').write(x)"
+
+mutate "a call site keeps a fallback but the WRONG one (navy on featured products)" "
+x=open('views/pages/index.ejs').read()
+assert \"_btnClass(_d.cta_style, 'btn-outline')\" in x
+x=x.replace(\"_btnClass(_d.cta_style, 'btn-outline')\", \"_btnClass(_d.cta_style, 'btn-navy')\")
+open('views/pages/index.ejs','w').write(x)"
+
+mutate "the newsletter submit goes back to a hardcoded class" "
+x=open('views/pages/index.ejs').read()
+assert \"_btnClass(news.cta_style, 'btn-amber')\" in x
+x=x.replace('class=\"<%= _btnClass(news.cta_style, \'btn-amber\') %> newsletter-btn\"',
+            'class=\"btn btn-amber newsletter-btn\"')
+open('views/pages/index.ejs','w').write(x)"
+
+mutate "_btnClass swallows the caller's fallback" "
+x=open('views/pages/index.ejs').read()
+assert 'btnClass(v, fb)' in x
+x=x.replace('btnClass(v, fb)', \"btnClass(v, 'btn-navy')\")
+open('views/pages/index.ejs','w').write(x)"
+
+mutate "_btnClass loses its own btn-navy default for the two legacy callers" "
+x=open('views/pages/index.ejs').read()
+assert \"fb = fb || 'btn-navy';\" in x
+x=x.replace(\"fb = fb || 'btn-navy';\", '')
+open('views/pages/index.ejs','w').write(x)"
+
+mutate "the parallax panel goes back to ONE picker for both buttons" "
+import re
+assert \"teButtonStyle(pk+'.cta1_style'\" in t
+t = re.sub(r\"<%- teButtonStyle\(pk\+'\.cta1_style'[^\n]*\n\", '', t)"
+
+mutate "the editor picker is renamed back to the placebo btn_style key" "
+assert \"featured_section.cta_style\" in t
+t = t.replace('featured_section.cta_style', 'featured_section.btn_style')"
+
+mutate "a Wave 1 picker is removed from the bundle teaser panel" "
+import re
+assert \"teButtonStyle('bundle_teaser.cta_style'\" in t
+t = re.sub(r\"<%- teButtonStyle\('bundle_teaser\.cta_style'[^\n]*\n\", '', t)"
+
+mutate "the placebo teButton select is reinstated alongside the live one" "
+assert \"teButtonStyle('newsletter.cta_style'\" in t
+t = t.replace(\"<%- teButtonStyle('newsletter.cta_style'\",
+              \"<%- teButton('newsletter', t.newsletter||{}) %>\n            <%- teButtonStyle('newsletter.cta_style'\")"
+
+mutate "teButton is stripped from inspiration, which really does read btn_style" "
+import re
+assert \"teButton('inspiration'\" in t
+t = re.sub(r\"<%- teButton\('inspiration'[^\n]*\n\", '', t)"
 
 echo
 echo "caught $pass, missed $fail"
