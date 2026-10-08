@@ -136,17 +136,73 @@ console.log('--- executed: row validation ---');
 const { readRow, ZERO_FLOOR, QTY_CEILING } = require(path.join(ROOT, 'src/jobs/ervInventorySync')).__test;
 {
   const q = (row) => { const b = []; const r = readRow(row, b); return r ? r.qtyLocal : null; };
+  const f = (row) => { const b = []; return readRow(row, b); };
   check(q({ sku: 'PR1269', qty_local: '3' }) === 3, 'a normal PR row reads through');
   check(q({ sku: 'Kensington-41.5-DOAK-MB', qty_local: '4' }) === 4,
         'a DESCRIPTIVE sku reads through — the 7 Kensingtons survive');
   check(q({ sku: 'PR0969', qty_local: '0' }) === 0, 'zero is a legitimate quantity, not a rejection');
   check(q({ sku: 'PR1270', qty_local: '0.5' }) === 0,
         'a fractional quantity floors down, so half a cabinet is not sold as one');
-  check(q({ sku: 'PR1272', qty_local: '-1' }) === null, 'a negative quantity is rejected');
+  check(q({ sku: 'PR1271', qty_local: '3.8' }) === 3,
+        'floor not round — 3.8 is 3 cabinets, not 4');
   check(q({ sku: 'PR1273', qty_local: 'abc' }) === null, 'a non-numeric quantity is rejected');
   check(q({ sku: 'PR1274', qty_local: '99999' }) === null,
         'an absurd quantity is rejected (ceiling ' + QTY_CEILING + ')');
   check(q({ sku: '', qty_local: '5' }) === null, 'a row with no sku is rejected');
+
+  /* NEGATIVE IS CLAMPED, NOT REJECTED. The old behaviour returned null, which
+     left BVO's existing quantity standing — a cabinet oversold at the POS kept
+     advertising stock. Asserted on both sides: the value is 0, and the row is
+     NOT rejected, because returning null would also satisfy "quantity is not
+     positive" and must not pass as a clamp. */
+  check(q({ sku: 'PR1272', qty_local: '-1' }) === 0,
+        'a negative quantity is CLAMPED to zero, not rejected');
+  check(q({ sku: 'PR1275', qty_local: '-0.6' }) === 0,
+        'a negative FRACTION clamps to zero too (SKU 100376, the live case)');
+  {
+    const b = []; readRow({ sku: 'PR1272', qty_local: '-1' }, b);
+    check(b.length === 0, 'and a clamped negative is not pushed onto the rejected list');
+  }
+
+  /* The adjustment must be REPORTABLE, not just applied. A silently floored
+     quantity is indistinguishable in the database from one RFLPOS really sent,
+     which is the whole point of this change. */
+  check(f({ sku: 'PR1271', qty_local: '3.8' }).adjusted === 'floored',
+        'a floored row is flagged adjusted:floored');
+  check(f({ sku: 'PR1271', qty_local: '3.8' }).rawLocal === 3.8,
+        'and carries the figure the feed displayed, for the log line');
+  check(f({ sku: 'PR1275', qty_local: '-0.6' }).adjusted === 'negative',
+        'a clamped row is flagged adjusted:negative — reported apart from clean zeros');
+  check(f({ sku: 'PR1275', qty_local: '-0.6' }).rawLocal === -0.6,
+        'and carries -0.6, so the log names the figure not just the sku');
+  check(f({ sku: 'PR1269', qty_local: '3' }).adjusted === null,
+        'an untouched quantity is NOT flagged — the lists stay actionable');
+  check(f({ sku: 'PR0969', qty_local: '0' }).adjusted === null,
+        'a genuine zero is not reported as an adjustment');
+
+  /* qty_all feeds the sellable-vs-all-locations line; a negative there must not
+     surface as "all locations -3". */
+  check(f({ sku: 'PR1276', qty_local: '2', qty_all: '-3' }).qtyAll === 0,
+        'qty_all is clamped the same way, so the two figures stay comparable');
+
+  /* formatSummary must actually PRINT them. The buckets existing is not the
+     deliverable; the named lines in the cron mail are. */
+  {
+    const { formatSummary } = require(path.join(ROOT, 'src/jobs/ervInventorySync')).__test;
+    const out = formatSummary({
+      feedRows: 1, matched: 1, written: 0, zeroed: 0,
+      notInBvo: [], notInFeed: [], rejected: [], duplicateSku: [], localVsAll: [],
+      zeroSkus: [], dryRun: true,
+      negativeQty: ['100376  (no BVO product)  feed -0.6 → 0'],
+      flooredQty:  ['PR1004  (London-59.5S-DOAK-MB)  feed 3.8 → 3'],
+    });
+    check(/100376/.test(out) && /-0\.6/.test(out),
+          'the summary names the negative sku AND the figure it displayed');
+    check(/London-59\.5S-DOAK-MB/.test(out) && /3\.8/.test(out),
+          'and names the floored sku with its BVO sku and the figure');
+    check(/NEGATIVE AT SOURCE/.test(out),
+          'negatives print under their own heading, not folded into the zero list');
+  }
   let threw = false;
   try { readRow(null, []); readRow(undefined, []); } catch (e) { threw = true; }
   check(!threw, 'readRow does not throw on a null row');
@@ -235,6 +291,50 @@ console.log('--- executed: the guards refuse bad feeds ---');
     r = await attempt([P(1, 'a', 'PR1'), P(2, 'b', 'PR2')], [F('PR1', 3), F('PR2', 5)]);
     check(!r.err && r.out.written === 2 && !r.out.rejected.length,
           'a clean two-row run writes two and rejects none');
+
+    /* ── the adjustment lists, end to end ───────────────────────────────
+       readRow flags the row; run() has to turn the flag into a named line
+       carrying BOTH skus. Exercised through run() because the pairing with
+       product.sku only exists there. */
+    r = await attempt([P(1, 'London-59.5S-DOAK-MB', 'PR1004'), P(2, 'b', 'PR2')],
+                      [F('PR1004', 3.8), F('PR2', 5)]);
+    check(!r.err && r.out.flooredQty.length === 1 &&
+          /PR1004/.test(r.out.flooredQty[0]) &&
+          /London-59\.5S-DOAK-MB/.test(r.out.flooredQty[0]) &&
+          /3\.8/.test(r.out.flooredQty[0]),
+          'a floored row is listed with the sync key, the BVO sku and the feed figure',
+          r.err || JSON.stringify(r.out && r.out.flooredQty));
+    check(!r.err && wrote.some(p => p && p[1] === 3),
+          'and 3 is what actually reaches the database, not 3.8');
+
+    r = await attempt([P(1, 'London-59.5S-DOAK-MB', 'PR1004'), P(2, 'b', 'PR2')],
+                      [F('PR1004', -0.6), F('PR2', 5)]);
+    check(!r.err && r.out.negativeQty.length === 1 && /-0\.6/.test(r.out.negativeQty[0]),
+          'a negative row is listed under negativeQty with the figure it displayed',
+          r.err || JSON.stringify(r.out && r.out.negativeQty));
+    check(!r.err && !r.out.rejected.length && r.out.matched === 2,
+          'the clamped row still MATCHES and is not counted as an error',
+          r.err || JSON.stringify({ rej: r.out && r.out.rejected, m: r.out && r.out.matched }));
+    check(!r.err && wrote.some(p => p && p[1] === 0),
+          'and zero is written, so the oversold cabinet stops advertising stock');
+
+    /* SKU 100376 — negative at source AND absent from BVO. The live dry run's
+       only rejected row was exactly this shape. It must still be reported:
+       reporting only matched rows would have hidden the one piece of evidence
+       that RFLPOS is emitting negatives at all. */
+    r = await attempt([P(1, 'a', 'PR1'), P(2, 'b', 'PR2')],
+                      [F('PR1', 3), F('PR2', 5), F('100376', -0.6)]);
+    check(!r.err && r.out.negativeQty.length === 1 && /100376/.test(r.out.negativeQty[0]),
+          'an adjusted row with NO BVO product is still reported, not silently dropped',
+          r.err || JSON.stringify(r.out && r.out.negativeQty));
+    check(!r.err && /no BVO product/.test(r.out.negativeQty[0]),
+          'and says so in place of a BVO sku rather than printing a bare key');
+    check(!r.err && r.out.written === 2,
+          'while writing only the two that matched');
+
+    r = await attempt([P(1, 'a', 'PR1'), P(2, 'b', 'PR2')], [F('PR1', 3), F('PR2', 5)]);
+    check(!r.err && !r.out.flooredQty.length && !r.out.negativeQty.length,
+          'a clean feed reports NO adjustments — the lists mean something when non-empty');
 
     /* dry run must not write */
     BVO = [P(1, 'a', 'PR1'), P(2, 'b', 'PR2')]; FEED = [F('PR1', 3), F('PR2', 5)]; wrote = [];

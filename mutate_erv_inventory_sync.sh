@@ -116,17 +116,55 @@ mutate "importer forks its own copy back" "$IMP" \
 
 echo
 echo "──── row validation ────"
-mutate "negative quantities accepted" "$JOB" \
-  "s=s.replace('if (qtyLocal < 0)', 'if (false && qtyLocal < 0)')"
-
 mutate "quantity ceiling removed" "$JOB" \
-  "s=s.replace('if (qtyLocal > QTY_CEILING)', 'if (false && qtyLocal > QTY_CEILING)')"
+  "s=s.replace('if (rawLocal > QTY_CEILING)', 'if (false && rawLocal > QTY_CEILING)')"
 
 mutate "fractional quantities round up instead of floor" "$JOB" \
-  "s=s.replace('qtyLocal: Math.floor(qtyLocal),', 'qtyLocal: Math.ceil(qtyLocal),')"
+  "s=s.replace('Math.floor(Math.max(0, rawLocal))', 'Math.ceil(Math.max(0, rawLocal))')"
 
 mutate "empty sku accepted" "$JOB" \
   "s=s.replace(\"if (!sku) { bad.push('row with empty sku'); return null; }\", 'if (!sku) { return { sku: \\'\\', qtyLocal: 0, qtyAll: 0 }; }')"
+
+echo
+echo "──── the negative clamp and the adjustment log (2026-10-08) ────"
+# The clamp replaced an outright rejection. Both failure directions are
+# mutated: losing the clamp (a negative reaches the database) and reverting to
+# rejection (a stale positive quantity stays live on an oversold cabinet).
+mutate "negative written through unclamped" "$JOB" \
+  "s=s.replace('Math.floor(Math.max(0, rawLocal))', 'Math.floor(rawLocal)')"
+
+mutate "negative rejected again instead of clamped" "$JOB" \
+  "s=s.replace('  const qtyLocal = Math.floor(Math.max(0, rawLocal));', \"  if (rawLocal < 0) { bad.push(sku + ': negative'); return null; }\\n  const qtyLocal = Math.floor(Math.max(0, rawLocal));\")"
+
+mutate "qty_all left unclamped" "$JOB" \
+  "s=s.replace('Math.floor(Math.max(0, qtyAll))', 'Math.floor(qtyAll)')"
+
+# The whole point of the change: an adjustment that is applied but not
+# reported is indistinguishable from a figure RFLPOS really sent.
+mutate "adjustment flag never set" "$JOB" \
+  "s=s.replace(\"if (rawLocal < 0)                      adjusted = 'negative';\", 'if (false) adjusted = null;').replace(\"else if (!Number.isInteger(rawLocal))  adjusted = 'floored';\", '')"
+
+mutate "floored rows flagged but negatives not" "$JOB" \
+  "s=s.replace(\"if (rawLocal < 0)                      adjusted = 'negative';\", 'if (false) adjusted = null;')"
+
+mutate "negatives conflated with floored rows" "$JOB" \
+  "s=s.replace(\"adjusted = 'negative';\", \"adjusted = 'floored';\")"
+
+mutate "raw feed figure not carried for the log" "$JOB" \
+  "s=s.replace('    rawLocal,\n', '    rawLocal: null,\n')"
+
+# The live case: SKU 100376 is negative AND has no BVO product. Reporting
+# after the no-product branch drops it, hiding the only evidence that the POS
+# side emits negatives at all.
+mutate "adjusted rows dropped when they have no BVO product" "$JOB" \
+  "s=s.replace('''      if (r.adjusted) {''', '''      if (!product) { summary.notInBvo.push(sku); continue; }
+      if (r.adjusted) {''')"
+
+mutate "summary stops printing the adjustment lists" "$JOB" \
+  "s=s.replace(\"list('NEGATIVE AT SOURCE, written as 0', s.negativeQty);\", '').replace(\"list('fractional at source, floored',    s.flooredQty);\", '')"
+
+mutate "negatives folded into the zero list, losing the figure" "$JOB" \
+  "s=s.replace(\"list('NEGATIVE AT SOURCE, written as 0', s.negativeQty);\", '')"
 
 echo
 echo "──── the three guards ────"

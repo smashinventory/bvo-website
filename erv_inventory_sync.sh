@@ -14,7 +14,7 @@
 # src/jobs/ervInventorySync.js.
 #
 # CRON (hPanel → Cron Jobs, UTC):
-#   30 6 * * *   /bin/bash /home/u222311468/domains/slategrey-falcon-350174.hostingersite.com/erv_inventory_sync.sh
+#   30 6 * * *   /bin/bash /home/u222311468/domains/bathroomvanitiesoutlet.com/erv_inventory_sync.sh
 #
 # Timing rationale — 06:30 UTC sits clear of everything else on this box:
 #   04:30 UTC  jmsync.sh        → BVO DB import + archive XLSX
@@ -26,7 +26,7 @@
 #
 # SETUP — before first run:
 #   1. Copy this file to the server root:
-#      /home/u222311468/domains/slategrey-falcon-350174.hostingersite.com/erv_inventory_sync.sh
+#      /home/u222311468/domains/bathroomvanitiesoutlet.com/erv_inventory_sync.sh
 #      Plain copy, nothing to edit afterwards.
 #   2. Upload the updated bvo_sync.php to rflpos.com/public_html/ — this script
 #      is useless until the proxy serves action=inventory.
@@ -44,7 +44,14 @@
 
 set -euo pipefail
 
-BASE=/home/u222311468/domains/slategrey-falcon-350174.hostingersite.com
+# THE DOMAIN WAS RENAMED. Every other wrapper in this repo still says
+# slategrey-falcon-350174.hostingersite.com, which no longer exists on disk —
+# their SERVER copies were hand-edited after the rename and the repo copies
+# were never updated (see commit 1e498b9 and SERVER_CRON_TOPOLOGY.md on the
+# hand-mirroring problem). Copying the old path from jmv_rollup.sh is exactly
+# how this script failed its first cron run with "No such file or directory".
+# The live crons all use the path below; match them.
+BASE=/home/u222311468/domains/bathroomvanitiesoutlet.com
 
 # ── Logging ─────────────────────────────────────────────────────────
 LOG_DIR=$BASE/jmv_sync/logs
@@ -156,6 +163,12 @@ set +e
     console.log('[erv] feed=' + s.feedRows + '  matched=' + s.matched +
                 '  written=' + s.written + '  zero=' + s.zeroed +
                 (dryRun ? '  (DRY RUN)' : ''));
+    /* Named, because these are the ones that vanish from the bundle builder.
+       A count alone tells you something changed but not what to go look at. */
+    if (s.zeroSkus.length) {
+      console.log('[erv] at zero sellable stock (' + s.zeroSkus.length + '):');
+      s.zeroSkus.forEach(l => console.log('        ' + l));
+    }
     if (s.notInBvo.length)     console.log('[erv] in RFLPOS, no BVO product: ' + s.notInBvo.length);
     if (s.notInFeed.length)    console.log('[erv] in BVO, absent from feed:  ' + s.notInFeed.join(', '));
     if (s.rejected.length)     console.error('[erv] rejected rows: ' + s.rejected.join(' | '));
@@ -181,7 +194,16 @@ set +e
     console.error('[FATAL] ' + err.message);
     process.exit(1);
   });
-" "$@" >> "$LOG" 2>&1
+" -- "$@" >> "$LOG" 2>&1
+# THE -- IS LOAD-BEARING. Without it, `node -e "script" --dry` makes node
+# parse --dry as one of ITS OWN options and die with "bad option: --dry",
+# exit 9, before a line of the script runs. The separator tells node that
+# everything after it belongs to the script, where process.argv picks it up.
+#
+# jmv_rollup.sh has this exact bug with $INCLUDE_DIMS and nobody noticed,
+# because that variable is empty six days a week. On Saturdays the wrapper
+# dies the same way — which is why the weekly dimension refresh has only ever
+# worked when run by hand from the admin UI.
 
 EXIT=$?
 set -e

@@ -303,8 +303,36 @@ plausible-looking result:
    like a simultaneous sell-out. 8 of 78 were at zero in the 2026-09-04 export,
    so the real figure sits near 10%.
 
-Plus per-row rejection of negative, non-numeric and absurd quantities, and
-multi-variation SKUs flagged and skipped.
+Plus per-row rejection of non-numeric and absurd quantities, and multi-variation
+SKUs flagged and skipped.
+
+#### Quantities RFLPOS sends that BVO cannot store as-is (amended 2026-10-08)
+
+`qty_available` is a decimal column in UltimatePOS, so the feed carries figures
+that are not whole cabinets. Two are adjusted rather than rejected, and **both
+are named in the run summary with the figure the feed displayed** — an adjusted
+quantity is otherwise indistinguishable in the database from one RFLPOS really
+sent.
+
+| Feed value | Written | Reported under | Why |
+|---|---|---|---|
+| `3.8` | `3` | `fractional at source, floored` | Floor, not round: 0.5 of a cabinet is not advertised as one. |
+| `-0.6` | `0` | `NEGATIVE AT SOURCE, written as 0` | Negative means oversold — a sale keyed against stock never received. Nothing is on the shelf. |
+
+The negative case **was** an outright rejection, which left whatever BVO already
+held standing. That is the one error that can sell air: a cabinet oversold at
+the POS kept advertising a stale positive quantity. Writing 0 is both the
+truthful sellable figure and the safe direction to be wrong in.
+
+The cost is that a keying error at the POS now zeroes a cabinet instead of being
+held back for a human, which is why the clamp gets its own heading rather than
+being folded into the zero list. GUARD 3 is the backstop: a feed gone negative
+across the brand trips the zero-share ceiling and aborts the whole run.
+
+The first live dry run found one such row — SKU `100376` at `-0.6`, which is not
+one of the 78 ER Vanities cabinets. It is reported even though it matches no BVO
+product, because reporting only matched rows would hide the only evidence that
+the POS side emits negatives at all.
 
 ### Files
 

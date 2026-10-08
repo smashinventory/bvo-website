@@ -111,27 +111,56 @@ async function fetchInventory(brandIds) {
 }
 
 /* ── normalise one feed row ───────────────────────────────────────────────── */
-/* Returns { sku, qtyLocal, qtyAll } or null with a reason pushed to `bad`.
-   The key is trimmed but otherwise untouched — no case folding, no pattern
-   check (see the header). */
+/* Returns { sku, qtyLocal, qtyAll, rawLocal, adjusted } or null with a reason
+   pushed to `bad`. The key is trimmed but otherwise untouched — no case
+   folding, no pattern check (see the header).
+
+   `adjusted` is null when the feed figure passed through untouched, and
+   otherwise names why it did not: 'floored' or 'negative'. run() turns it into
+   a named log line. Every adjustment is reported, because a quantity that was
+   quietly altered on the way in is indistinguishable in the database from one
+   RFLPOS actually sent. */
 function readRow(row, bad) {
   const sku = row && row.sku != null ? String(row.sku).trim() : '';
   if (!sku) { bad.push('row with empty sku'); return null; }
 
-  const qtyLocal = Number(row.qty_local);
+  const rawLocal = Number(row.qty_local);
   const qtyAll   = Number(row.qty_all);
 
-  if (!Number.isFinite(qtyLocal)) { bad.push(`${sku}: qty_local not a number (${row.qty_local})`); return null; }
-  if (qtyLocal < 0)               { bad.push(`${sku}: negative qty_local (${qtyLocal})`); return null; }
-  if (qtyLocal > QTY_CEILING)     { bad.push(`${sku}: qty_local above ceiling (${qtyLocal})`); return null; }
+  if (!Number.isFinite(rawLocal)) { bad.push(`${sku}: qty_local not a number (${row.qty_local})`); return null; }
+  if (rawLocal > QTY_CEILING)     { bad.push(`${sku}: qty_local above ceiling (${rawLocal})`); return null; }
 
-  /* Fractional quantities are real in UltimatePOS (qty_available is decimal)
-     but a cabinet is a whole unit. Floor rather than round, so 0.5 of a
-     cabinet is not advertised as one. */
+  /* NEGATIVE STOCK IS CLAMPED TO ZERO, NOT REJECTED. UltimatePOS goes negative
+     when a sale is keyed against stock that was never received, so a negative
+     figure means oversold — nothing is on the shelf, and 0 is the truthful
+     sellable quantity. The earlier behaviour rejected the row, which left
+     whatever BVO already held standing: a stale positive quantity on a cabinet
+     with none in the building is the one error that can sell air, so 0 is also
+     the safe direction to be wrong in.
+
+     The cost is that a keying error at the POS now zeroes a cabinet instead of
+     being held back for a human, which is why the clamp is reported under its
+     own heading rather than folded into the zero list. GUARD 3 is the backstop:
+     a feed that has gone negative across the brand trips the zero-share ceiling
+     and aborts the whole run.
+
+     Fractional quantities are real here too (qty_available is decimal) but a
+     cabinet is a whole unit. Floor rather than round, so 0.5 of a cabinet is
+     not advertised as one. */
+  const qtyLocal = Math.floor(Math.max(0, rawLocal));
+
+  let adjusted = null;
+  if (rawLocal < 0)                      adjusted = 'negative';
+  else if (!Number.isInteger(rawLocal))  adjusted = 'floored';
+
   return {
     sku,
-    qtyLocal: Math.floor(qtyLocal),
-    qtyAll:   Number.isFinite(qtyAll) ? Math.floor(qtyAll) : null,
+    qtyLocal,
+    /* qty_all only feeds the sellable-vs-all-locations report, but it is
+       clamped the same way so the two figures stay comparable. */
+    qtyAll:   Number.isFinite(qtyAll) ? Math.floor(Math.max(0, qtyAll)) : null,
+    rawLocal,
+    adjusted,
   };
 }
 
@@ -207,7 +236,8 @@ async function run({ dryRun = false } = {}) {
   const summary = {
     feedRows: 0, matched: 0, written: 0,
     notInBvo: [], notInFeed: [], rejected: [], duplicateSku: [],
-    localVsAll: [], zeroed: 0, dryRun,
+    localVsAll: [], zeroed: 0, zeroSkus: [],
+    flooredQty: [], negativeQty: [], dryRun,
   };
   let logId = null;
 
@@ -255,6 +285,18 @@ async function run({ dryRun = false } = {}) {
     const writes = [];
     for (const [sku, r] of bySku) {
       const product = byKey.get(sku);
+
+      /* Report the adjustment BEFORE the no-BVO-product branch. An adjusted row
+         that matches nothing in BVO is still the data oddity worth seeing — SKU
+         100376 arrived at -0.6 and is not one of the 78, and dropping it from
+         the log just because it has no product here would hide the only
+         evidence that the POS side is producing negatives at all. */
+      if (r.adjusted) {
+        const line = `${sku}  (${product ? product.sku : 'no BVO product'})  ` +
+                     `feed ${r.rawLocal} → ${r.qtyLocal}`;
+        (r.adjusted === 'negative' ? summary.negativeQty : summary.flooredQty).push(line);
+      }
+
       if (!product) { summary.notInBvo.push(sku); continue; }
       writes.push({ product, ...r });
       if (r.qtyAll != null && r.qtyAll !== r.qtyLocal) {
@@ -263,8 +305,15 @@ async function run({ dryRun = false } = {}) {
     }
     for (const [key] of byKey) { if (!bySku.has(key)) summary.notInFeed.push(key); }
 
-    summary.matched = writes.length;
-    summary.zeroed  = writes.filter(w => w.qtyLocal === 0).length;
+    summary.matched  = writes.length;
+    /* Named, not just counted. A zero-stock SKU keeps its product page but
+       drops out of the bundle builder (bundleController requires qty > 0), so
+       "9 went to zero" is not actionable without knowing which 9. The BVO sku
+       is carried alongside the key because the key is opaque — 'PR1004' says
+       nothing; 'London-59.5S-DOAK-MB' is a cabinet you can picture. */
+    const zeros      = writes.filter(w => w.qtyLocal === 0);
+    summary.zeroed   = zeros.length;
+    summary.zeroSkus = zeros.map(w => `${w.sku}  (${w.product.sku})`);
 
     /* GUARD 2 — nothing matched, so the key convention has drifted. Writing
        nothing is correct; reporting success is not. */
@@ -318,6 +367,12 @@ function formatSummary(s) {
     arr.slice(0, 40).forEach(x => lines.push(`   ${x}`));
     if (arr.length > 40) lines.push(`   ...and ${arr.length - 40} more`);
   };
+  list('AT ZERO SELLABLE STOCK',    s.zeroSkus);
+  /* Both of these are quantities BVO now holds that RFLPOS never actually sent.
+     Named individually, with the figure the feed displayed, because "3 rows
+     were adjusted" tells nobody which cabinet to go and count. */
+  list('NEGATIVE AT SOURCE, written as 0', s.negativeQty);
+  list('fractional at source, floored',    s.flooredQty);
   list('in RFLPOS, no BVO product', s.notInBvo);
   list('in BVO, absent from feed',  s.notInFeed);
   list('rejected rows',             s.rejected);
