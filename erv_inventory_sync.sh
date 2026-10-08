@@ -169,6 +169,19 @@ set +e
       console.log('[erv] at zero sellable stock (' + s.zeroSkus.length + '):');
       s.zeroSkus.forEach(l => console.log('        ' + l));
     }
+    /* Quantities BVO now holds that RFLPOS never actually sent. This log is
+       the only place anyone reads them, so the wrapper prints them itself —
+       formatSummary() lists them too, but that string goes to the
+       rflpos_sync_log row, not to the cron mail. Keeping the two formatters in
+       step is gated; they diverged once already. */
+    if (s.negativeQty && s.negativeQty.length) {
+      console.log('[erv] NEGATIVE AT SOURCE, written as 0 (' + s.negativeQty.length + '):');
+      s.negativeQty.forEach(l => console.log('        ' + l));
+    }
+    if (s.flooredQty && s.flooredQty.length) {
+      console.log('[erv] fractional at source, floored (' + s.flooredQty.length + '):');
+      s.flooredQty.forEach(l => console.log('        ' + l));
+    }
     if (s.notInBvo.length)     console.log('[erv] in RFLPOS, no BVO product: ' + s.notInBvo.length);
     if (s.notInFeed.length)    console.log('[erv] in BVO, absent from feed:  ' + s.notInFeed.join(', '));
     if (s.rejected.length)     console.error('[erv] rejected rows: ' + s.rejected.join(' | '));

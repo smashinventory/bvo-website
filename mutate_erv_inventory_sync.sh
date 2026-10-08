@@ -166,6 +166,17 @@ mutate "summary stops printing the adjustment lists" "$JOB" \
 mutate "negatives folded into the zero list, losing the figure" "$JOB" \
   "s=s.replace(\"list('NEGATIVE AT SOURCE, written as 0', s.negativeQty);\", '')"
 
+# The 2026-10-08 divergence: the job gained the adjustment lists, the wrapper
+# did not, and the cron log silently stopped reporting them.
+mutate "wrapper stops printing the negative list" "$SH" \
+  "s=s.replace('if (s.negativeQty && s.negativeQty.length) {', 'if (false) {')"
+
+mutate "wrapper stops printing the floored list" "$SH" \
+  "s=s.replace('if (s.flooredQty && s.flooredQty.length) {', 'if (false) {')"
+
+mutate "wrapper stops printing rejected rows" "$SH" \
+  "s=s.replace('if (s.rejected.length)', 'if (false && s.rejected.length)')"
+
 echo
 echo "──── the three guards ────"
 mutate "GUARD 1 removed — empty feed writes" "$JOB" \

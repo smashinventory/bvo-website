@@ -350,6 +350,26 @@ console.log('--- executed: the guards refuse bad feeds ---');
           'jmv_rollup.sh carried an inline password and therefore had two copies differing by one line');
     check(/find_node\(\)/.test(SH),
           'it locates node explicitly — cron has no node on PATH (exit 127)');
+
+    /* THE TWO FORMATTERS MUST AGREE. The wrapper has its own inline summary
+       printer; formatSummary() in the job feeds the rflpos_sync_log row. They
+       diverged on 2026-10-08 — the adjustment lists were added to the job and
+       not to the wrapper, so the cron log, the only place anyone reads them,
+       printed nothing and the clamped row looked like it had simply vanished.
+       Every bucket the job reports must be printed by both. */
+    /* Checked two ways, because merely FINDING the bucket name in the file is
+       not enough: neutering the `if` around a printer leaves the name sitting
+       in dead code and a substring check still passes. So the guarding
+       condition must itself name the bucket, and no branch may be disabled. */
+    for (const bucket of ['zeroSkus', 'negativeQty', 'flooredQty', 'notInBvo',
+                          'notInFeed', 'rejected', 'duplicateSku', 'localVsAll']) {
+      const guarded = new RegExp(
+        'if\\s*\\([^)]*s\\.' + bucket + '[^)]*\\)[\\s\\S]{0,160}console\\.');
+      check(guarded.test(SH),
+            'the cron log prints s.' + bucket + ' — a bucket only the DB row shows is a bucket nobody reads');
+    }
+    check(!/if\s*\(\s*false/.test(SH),
+          'no printer in the wrapper is disabled by a dead condition');
     check(/set \+e/.test(SH) && /EXIT=\$\?/.test(SH),
           'set -e is lifted around the node call so the exit code reaches the log');
     check(/exit\(78\)/.test(SH) && /BVO_SYNC_TOKEN/.test(SH),
