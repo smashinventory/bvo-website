@@ -27,6 +27,9 @@ const { bvoPool }                        = require('../config/database');
 const { resolveBuckets }                 = require('../config/colorFamilies');
 const { loadCdnMap, toBunnyUrl, newStats, logStats, loadDocMap, toBunnyDocUrl }
                                          = require('../utils/cdnUrl');
+/* Was a private function in this file until 2026-10-08. Moved so the ER
+   Vanities inventory sync writes quantity through the same upsert — Rule 8. */
+const { upsertInventory }                = require('../utils/inventory');
 
 // ── BVO Style Map — maps JM raw Theme strings to BVO canonical buckets ─
 // JM stores comma-separated themes in one field (e.g. "Transitional, Traditional").
@@ -561,16 +564,10 @@ async function replaceComponents(conn, sku, components) {
   }
 }
 
-async function upsertInventory(conn, productId, qtyOnHand) {
-  if (qtyOnHand === null) return;
-  await conn.query(`
-    INSERT INTO inventory (product_id, qty_on_hand, last_synced_at)
-    VALUES (?, ?, NOW())
-    ON DUPLICATE KEY UPDATE
-      qty_on_hand    = VALUES(qty_on_hand),
-      last_synced_at = NOW()
-  `, [productId, qtyOnHand]);
-}
+/* upsertInventory() MOVED to src/utils/inventory.js on 2026-10-08, so the ER
+   Vanities inventory sync calls the same function rather than a second copy.
+   Same SQL, same null guard, same argument order. Required at the top of this
+   file, not here — see MED-5 in commit 275453f. */
 
 async function replaceAccessories(conn, sku, accessories) {
   await conn.query('DELETE FROM product_accessories WHERE product_sku = ?', [sku]);

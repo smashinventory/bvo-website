@@ -14,6 +14,12 @@ const DEFAULTS = {
   interval:      'manual',  // 'manual' | 'hourly' | '6h' | 'daily'
   autoApprove:   false,
   allowedBrands: [],        // RFLPOS brand IDs (numbers); empty = sync all brands
+  /* Resolved once from the proxy's brands action by jobs/ervInventorySync.js,
+     which looks up 'Ethan Roth' (RFLPOS's name for ER Vanities) by name so
+     there is no magic number in the job. Declared here so the key is
+     discoverable rather than only appearing in sync_settings.json after the
+     first run. Unused by the parked product sync. */
+  ervBrandIds:   [],
 };
 
 let _cache = null;
