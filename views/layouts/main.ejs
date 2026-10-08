@@ -416,6 +416,14 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   </script>
   <% } %>
 
+  <%# ── GA4 ECOMMERCE EVENTS ────────────────────────────────────────
+      Queued server-side (see src/services/gaEvents.js) and flushed here.
+      Emitted AFTER the gtag/GTM bootstrap above so gtag exists by the time
+      these run, and nonced because CSP3 allows only nonce-bearing inline
+      scripts. Renders nothing at all when the queue is empty. %>
+  <% var _gaQ = (typeof gaFlush === 'function') ? gaFlush() : ''; %>
+  <% if (_gaQ) { %><script nonce="<%= cspNonce %>"><%- _gaQ %></script><% } %>
+
   <!-- Microsoft Clarity -->
   <%/* Session recordings and heatmaps, added 2026-09-30 as a second opinion
        alongside GA4 while the in-house KPI dashboards are built.

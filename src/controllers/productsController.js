@@ -7,6 +7,7 @@ const { bvoPool } = require('../config/database');
 const { FAMILIES } = require('../config/colorFamilies');
 const sd          = require('../utils/structuredData');
 const siteEvents  = require('../services/siteEvents');
+const gaEvents    = require('../services/gaEvents');
 
 /* Four inline `.catch(() => [])` swallows lived in this file — product
    documents, product videos, and both "Complete the Look" mirror queries.
@@ -188,6 +189,9 @@ exports.show = async (req, res, next) => {
       qty:        1,
       value:      product.price,
     });
+    /* The GA4 copy. Queued, not fired here - the layout flushes it during
+       this same render, so it goes out on this page. */
+    gaEvents.viewItem(req, product);
 
     res.render('pages/product', {
       pageTitle:    `${product.meta_title || product.name} | BathroomVanitiesOutlet.com`,

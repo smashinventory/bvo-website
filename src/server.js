@@ -580,6 +580,13 @@ app.use((req, res, next) => {
 
 // ── Template globals ─────────────────────────────────────────────
 app.use((req, res, next) => {
+  /* A FUNCTION, not a value. The layout calls it DURING render, which is
+     what lets one mechanism serve both cases: an event queued by the
+     controller moments before res.render still goes out on that page,
+     and an event queued before a redirect waits in the session and goes
+     out on the page the redirect lands on. Reading the queue eagerly here
+     would miss everything the controller queues after this middleware. */
+  res.locals.gaFlush    = () => require('./services/gaEvents').flush(req);
   res.locals.ga4Id      = process.env.GA4_ID      || '';
   res.locals.gtmId      = process.env.GTM_ID      || '';
   /* Microsoft Clarity — session recordings and heatmaps, added 2026-09-30

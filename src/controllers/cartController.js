@@ -13,6 +13,7 @@ const SampleRedemption = require('../models/SampleRedemption');
    handler has already fetched the authoritative price. Never throws - see
    the header of siteEvents.js. */
 const siteEvents = require('../services/siteEvents');
+const gaEvents   = require('../services/gaEvents');
 
 /* ── Cart helpers ───────────────────────────────────────────────── */
 function getCart(req) {
@@ -260,6 +261,10 @@ exports.add = async (req, res) => {
     qty:        qty,
     value:      pricef * qty,
   });
+  /* GA4's copy. This handler either redirects to /cart or answers JSON, so
+     there is no render to attach a gtag call to - the event waits in the
+     session and goes out on the next page the shopper loads. */
+  gaEvents.addToCart(req, { product_id: product_id, name: name, price: pricef, qty: qty });
 
   req.session.save(err => {
     if (err) console.error('[cart/add] session save error:', err.message);

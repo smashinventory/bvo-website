@@ -1,6 +1,7 @@
 'use strict';
 
 const siteEvents = require('../services/siteEvents');
+const gaEvents   = require('../services/gaEvents');
 
 /* ═══════════════════════════════════════════════════════════════════════
    Checkout Controller — Stripe, embedded Payment Element
@@ -619,6 +620,7 @@ exports.show = async (req, res) => {
     qty:   (req.session.cart && req.session.cart.count) || 0,
     value: (req.session.cart && req.session.cart.subtotal) || 0,
   });
+  gaEvents.fromCart(req, 'begin_checkout', req.session.cart);
 
   res.render('pages/checkout-info', {
     pageTitle: 'Checkout | BathroomVanitiesOutlet.com',
@@ -2200,6 +2202,23 @@ exports.returnFromStripe = async (req, res) => {
     firstName:   (s.customer_details?.name || '').split(' ')[0] || '',
     total:       s.amount_total != null ? s.amount_total / 100 : 0,
   };
+
+  /* GA4 purchase — QUEUED HERE, one line before the basket is wiped, which
+     is the last moment the purchased items still exist in the session. The
+     orders table is the source of truth for revenue; this is GA4's copy,
+     and it is what makes attribution reports able to say which channel
+     produced a sale.
+
+     transaction_id is the order number, so GA4 de-duplicates by itself if
+     the success page is refreshed or re-opened from history.
+
+     value comes from Stripe's amount_total (already divided to dollars in
+     lastOrder above), not from the cart subtotal - that is the figure the
+     card was actually charged, including shipping and tax. */
+  gaEvents.fromCart(req, 'purchase', req.session.cart, {
+    transaction_id: req.session.lastOrder.orderNumber || undefined,
+    value:          req.session.lastOrder.total || 0,
+  });
 
   /* Cleared only once the payment is known good, so an abandoned attempt
      leaves the customer's basket intact. */
