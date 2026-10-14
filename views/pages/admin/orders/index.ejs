@@ -127,6 +127,14 @@
           <td>
             <div style="display:flex;gap:4px">
               <a href="/admin/orders/<%= o.id %>" class="btn btn-outline btn-sm">View</a>
+              <%# Row-level delete. The bulk path still exists for clearing a
+                  batch, but having to open an order and scroll to the bottom to
+                  remove one is the wrong shape for the job this was built for. %>
+              <button type="button" class="btn btn-sm ord-del-one"
+                      data-id="<%= o.id %>" data-number="<%= o.order_number %>"
+                      data-captured="<%= o.payment_captured_at ? '1' : '' %>"
+                      style="background:transparent;color:var(--red,#dc2626);border:1px solid var(--red,#dc2626)"
+                      title="Delete this order">Delete</button>
               <%# Ship button visibility — TWO independent gates, both required.
 
                   1. Order status. in_transit added 2026-08-31: freight already
@@ -198,7 +206,7 @@
   </div>
 </div>
 
-<script>
+<script nonce="<%= cspNonce %>">
 (function () {
   const bar     = document.getElementById('ord-bulk-bar');
   const countEl = document.getElementById('ord-bulk-count');
@@ -282,6 +290,49 @@
       alert('Delete failed: ' + err.message);
       btn.disabled = false; btn.textContent = 'Delete selected';
     }
+  });
+
+  /* Row delete reuses the bulk endpoint with a single id, so there is exactly
+     one server path for deletion and the confirmations stay identical. */
+  document.querySelectorAll('.ord-del-one').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const num = btn.dataset.number, captured = !!btn.dataset.captured;
+      const typed = window.prompt(
+        'Permanently delete ' + num + '?\n\n' +
+        'This removes the order and its line items, events, shipments, returns\n' +
+        'and sample redemptions. It cannot be undone.' +
+        (captured ? '\n\n** THIS ORDER HAS A CAPTURED PAYMENT. **' : '') +
+        '\n\nType the order number to confirm:'
+      );
+      if (typed === null) return;
+      if (typed.trim() !== num) { alert('Not deleted — the order number did not match.'); return; }
+
+      let confirmCaptured = false;
+      if (captured) {
+        confirmCaptured = window.confirm(
+          'Money was captured on this order. Deleting removes your only local\n' +
+          'record of that charge; Stripe keeps its own.\n\nDelete anyway?'
+        );
+        if (!confirmCaptured) return;
+      }
+      btn.disabled = true; btn.textContent = '…';
+      try {
+        const res = await fetch('/admin/orders/bulk-delete', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: [btn.dataset.id], confirm_captured: confirmCaptured })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'Delete failed');
+        if (data.skipped && data.skipped.length) {
+          alert('Not deleted: ' + data.skipped.map(x => x.reason).join(', '));
+          btn.disabled = false; btn.textContent = 'Delete'; return;
+        }
+        window.location.reload();
+      } catch (err) {
+        alert('Delete failed: ' + err.message);
+        btn.disabled = false; btn.textContent = 'Delete';
+      }
+    });
   });
 
   sync();

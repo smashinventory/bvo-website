@@ -66,7 +66,7 @@
   ✓ Template saved
 </div>
 
-<script>
+<script nonce="<%= cspNonce %>">
 const PREVIEW_VARS = <%- JSON.stringify(previewVars) %>;
 
 function substituteVars(str) {

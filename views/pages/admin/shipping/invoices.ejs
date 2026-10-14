@@ -125,7 +125,7 @@ const totals    = locals.totals    || {};
 <div class="adm-empty">No shipments found. <a href="/admin/shipping/create">Create your first shipment →</a></div>
 <% } %>
 
-<script>
+<script nonce="<%= cspNonce %>">
 function filterInv() {
   var q      = document.getElementById('invSearch').value.toLowerCase();
   var type   = document.getElementById('invType').value;

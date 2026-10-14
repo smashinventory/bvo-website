@@ -51,10 +51,10 @@
 </div>
 
 <% if (shipment) { %>
-<script>window._preloaded = <%- JSON.stringify(shipment) %>;</script>
+<script nonce="<%= cspNonce %>">window._preloaded = <%- JSON.stringify(shipment) %>;</script>
 <% } %>
 
-<script>
+<script nonce="<%= cspNonce %>">
 var _result = null;
 
 function doTrack() {

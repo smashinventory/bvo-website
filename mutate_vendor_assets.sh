@@ -8,7 +8,9 @@ GATE=gates/gate_vendor_assets.js
 JMV=views/pages/admin/marketing/jmv-reports.ejs
 PE=views/pages/admin/page-edit.ejs
 CHART=public/js/vendor/chart.umd.4.4.1.js
-FILES=("$JMV" "$PE" "$CHART")
+DETAIL=views/pages/admin/orders/detail.ejs
+OLIST=views/pages/admin/orders/index.ejs
+FILES=("$JMV" "$PE" "$CHART" "$DETAIL" "$OLIST")
 
 TMP=$(mktemp -d)
 for f in "${FILES[@]}"; do cp "$f" "$TMP/$(echo "$f" | tr '/' '_')" || { echo "BACKUP FAILED: $f"; exit 1; }; done
@@ -65,6 +67,16 @@ mutate "nonce dropped from the Chart.js tag" "$JMV" \
   "s=s.replace('<script nonce=\"<%= cspNonce %>\" src=\"/js/vendor/chart.umd.4.4.1.js\">', '<script src=\"/js/vendor/chart.umd.4.4.1.js\">')"
 
 mutate "nonce dropped from the chart init block" "$JMV" \
+  "s=s.replace('<script nonce=\"<%= cspNonce %>\">', '<script>', 1)"
+
+echo
+echo "──── the nonce sweep (2026-10-14) ────"
+# The nine admin screens whose inline JS was dead. Each mutation strips a nonce
+# back off and must be caught.
+mutate "order detail loses its script nonce" "views/pages/admin/orders/detail.ejs" \
+  "s=s.replace('<script nonce=\"<%= cspNonce %>\">', '<script>', 1)"
+
+mutate "orders list loses its script nonce" "views/pages/admin/orders/index.ejs" \
   "s=s.replace('<script nonce=\"<%= cspNonce %>\">', '<script>', 1)"
 
 echo

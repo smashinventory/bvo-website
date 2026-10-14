@@ -70,7 +70,7 @@
   </table>
 </div>
 
-<script>
+<script nonce="<%= cspNonce %>">
 async function approveReturn(id) {
   const notes = prompt('Admin notes (optional):') || '';
   const r = await fetch(`/admin/returns/${id}/approve`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ admin_notes: notes }) });

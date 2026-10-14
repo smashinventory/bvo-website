@@ -127,6 +127,68 @@ for (const rel of CHART_PAGES.concat(['views/pages/admin/page-edit.ejs'])) {
         : '');
 }
 
+/* ── 4b. EVERY view's inline scripts are nonce-bearing ───────────────── */
+/* Confirmed live on 2026-10-14: the response carries
+     script-src 'nonce-...' 'strict-dynamic' 'unsafe-inline' https:
+   as an ENFORCING header (not report-only). Hostinger's CDN used to replace
+   it; it no longer does. Under strict-dynamic the browser ignores both the
+   host allowlist and 'self', so a nonce-less inline block simply never runs -
+   silently, with no console error the owner would go looking for.
+
+   Nine admin screens were in that state: order detail (capture payment, cancel
+   authorization, add note, open return), the orders list, the returns queue,
+   all four shipping screens and both email-template screens. Every button on
+   them was inert.
+
+   EJS TAGS ARE STRIPPED FIRST. The first attempt at this audit counted the
+   word "<script>" written inside <%# comments %> explaining CSP, reported 19
+   affected files, and then "fixed" nine of them by injecting a nonce into
+   prose - which broke the templates. Comments are not markup. */
+{
+  const EJS  = /<%[-=#_]?[\s\S]*?[-_]?%>/g;
+  const DATA = /type\s*=\s*["']application\/(ld\+json|json)["']/;
+  const offenders = [];
+  for (const f of VIEWS) {
+    const raw = fs.readFileSync(f, 'utf8');
+    /* Blank out EJS regions, preserving offsets so nothing shifts. */
+    const flat = raw.replace(EJS, m => ' '.repeat(m.length));
+    for (const m of flat.matchAll(/<script\b[^>]*?>/g)) {
+      const tag = raw.slice(m.index, m.index + m[0].length);
+      if (/\bnonce=/.test(tag) || DATA.test(tag)) continue;
+      offenders.push(path.relative(ROOT, f) + ': ' + tag.slice(0, 60));
+    }
+  }
+  check(offenders.length === 0,
+        'every executable <script> in every view carries a nonce',
+        offenders.length ? offenders.join('\n         ') +
+          "\n         script-src is enforcing with 'strict-dynamic'; these never run"
+        : '');
+}
+
+/* The comment-blindness above is load-bearing, so it is proved on a fixture
+   rather than assumed. The first version of this audit lacked it, reported
+   nineteen affected files instead of nine, and "fixed" the extra ten by
+   injecting a nonce into prose inside <%# %> comments — which broke nine
+   templates outright. A rule that cannot tell markup from documentation is
+   worse than no rule. */
+{
+  const EJS  = /<%[-=#_]?[\s\S]*?[-_]?%>/g;
+  const scan = (src) => {
+    const flat = src.replace(EJS, m => ' '.repeat(m.length));
+    return [...flat.matchAll(/<script\b[^>]*?>/g)]
+      .map(m => src.slice(m.index, m.index + m[0].length))
+      .filter(t => !/\bnonce=/.test(t));
+  };
+  check(scan('<%# the injected <script> needs no nonce %>').length === 0,
+        'a <script> written inside an EJS comment is not counted as markup');
+  check(scan('<% /* <script src="x"> */ %>').length === 0,
+        'nor one inside an EJS code block');
+  check(scan('<script>alert(1)</script>').length === 1,
+        'but a real nonce-less tag IS counted');
+  check(scan('<script nonce="<%= cspNonce %>">ok</script>').length === 0,
+        'and a real nonce-bearing tag is not');
+}
+
 /* ── 5. the remote hosts that REMAIN are deliberate ──────────────────── */
 console.log('--- the remaining remote scripts are services, not assets ---');
 {
