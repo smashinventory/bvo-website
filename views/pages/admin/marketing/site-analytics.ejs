@@ -301,8 +301,16 @@
 </div>
 
 <% if (coverage.total > 0) { %>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script>
+<%# Chart.js is SELF-HOSTED. It was loaded from cdnjs until 2026-10-14,
+    when that URL began returning HTTP 503 and every chart on all five
+    analytics dashboards went blank at once - no code change, no warning,
+    and nothing in the page to say why. A third party being up is not a
+    dependency these reports should carry.
+    The nonce matters too: script-src carries 'strict-dynamic', which makes
+    CSP3 browsers ignore the host allowlist AND 'self', so a nonce-less tag
+    would break the moment the CSP meta tag reaches admin pages. %>
+<script nonce="<%= cspNonce %>" src="/js/vendor/chart.umd.4.4.1.js"></script>
+<script nonce="<%= cspNonce %>">
 (function () {
   var series = <%- JSON.stringify(series) %>;
   var el = document.getElementById('saTrend');
