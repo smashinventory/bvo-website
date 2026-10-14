@@ -147,7 +147,10 @@ mutate "delete routes moved above requireAdmin" "$ROUTES" \
 echo
 echo "──── the UI confirmations ────"
 mutate "bulk delete downgraded to a plain confirm" "$LIST" \
-  "s=s.replace('const typed = window.prompt(', 'const typed = String(chosen.length); window.confirm(')"
+  "s=s.replace('const typed = window.prompt(', \"const typed = 'DELETE'; window.confirm(\")"
+
+mutate "bulk confirmation accepts anything" "$LIST" \
+  "s=s.replace(\"if (typed.trim().toUpperCase() !== 'DELETE') {\", 'if (false) {')"
 
 mutate "single delete stops checking the typed order number" "$DETAIL" \
   "s=s.replace('if (typed.trim() !== orderNumber)', 'if (false)')"

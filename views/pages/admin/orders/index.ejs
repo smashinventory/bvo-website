@@ -241,20 +241,24 @@
     const numbers  = chosen.map(b => b.dataset.number);
     const captured = chosen.filter(b => b.dataset.captured);
 
-    /* Typing the count is deliberate friction. A plain OK/Cancel on an
-       irreversible multi-row delete gets muscle-memoried within a week. */
+    /* Deliberate friction, but it has to be friction people can get PAST.
+       The first version asked for the selection count typed back, with the
+       instruction buried under a twelve-line list of order numbers - the
+       owner's first real use of it failed on exactly that. The word DELETE is
+       the convention for this, it does not change as the selection changes,
+       and it goes on its own line at the end where it is read. */
     const typed = window.prompt(
-      'This permanently deletes ' + chosen.length + ' order(s):\n\n' +
-      numbers.slice(0, 12).join('\n') +
-      (numbers.length > 12 ? '\n…and ' + (numbers.length - 12) + ' more' : '') +
+      'Permanently delete ' + chosen.length + ' order(s)?\n' +
+      numbers.slice(0, 8).join(', ') +
+      (numbers.length > 8 ? ', …and ' + (numbers.length - 8) + ' more' : '') +
       (captured.length
         ? '\n\n** ' + captured.length + ' of these have CAPTURED PAYMENTS. **'
         : '') +
-      '\n\nThis cannot be undone. Type the number ' + chosen.length + ' to confirm:'
+      '\n\nThis cannot be undone.\n\nType  DELETE  to confirm:'
     );
     if (typed === null) return;
-    if (typed.trim() !== String(chosen.length)) {
-      alert('Not deleted — the number did not match.');
+    if (typed.trim().toUpperCase() !== 'DELETE') {
+      alert('Not deleted — type DELETE exactly to confirm.');
       return;
     }
 
@@ -297,15 +301,23 @@
   document.querySelectorAll('.ord-del-one').forEach(btn => {
     btn.addEventListener('click', async () => {
       const num = btn.dataset.number, captured = !!btn.dataset.captured;
+      /* DELETE, not the order number. Hand-typing BVO-2026-09-30-00117 is a
+         disproportionate ask for a button that sits ON that order's row - the
+         row itself is the identification, and the prompt names the order at
+         the top. Asking for the number failed twice in real use, which is the
+         only evidence that matters about a confirmation step. */
       const typed = window.prompt(
         'Permanently delete ' + num + '?\n\n' +
         'This removes the order and its line items, events, shipments, returns\n' +
         'and sample redemptions. It cannot be undone.' +
         (captured ? '\n\n** THIS ORDER HAS A CAPTURED PAYMENT. **' : '') +
-        '\n\nType the order number to confirm:'
+        '\n\nType  DELETE  to confirm:'
       );
       if (typed === null) return;
-      if (typed.trim() !== num) { alert('Not deleted — the order number did not match.'); return; }
+      if (typed.trim().toUpperCase() !== 'DELETE') {
+        alert('Not deleted — type DELETE exactly to confirm.');
+        return;
+      }
 
       let confirmCaptured = false;
       if (captured) {

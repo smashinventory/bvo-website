@@ -206,12 +206,22 @@ console.log('--- executed: deleteOneOrder ---');
     check(/colspan="10"/.test(LIST),
           'the empty-state colspan was bumped to 10 for the new column',
           'left at 9 the "No orders found" cell under-spans and the table breaks');
-    check(/window\.prompt\(/.test(LIST) && /Type the number/.test(LIST),
-          'bulk delete requires TYPING the count, not just an OK',
+    check(/window\.prompt\(/.test(LIST) && /Type {2}DELETE {2}to confirm/.test(LIST),
+          'bulk delete requires typing DELETE, not just an OK',
           'a plain confirm on an irreversible multi-row delete is muscle-memory within a week');
+    check(/toUpperCase\(\) !== 'DELETE'/.test(LIST),
+          'and the check is case-insensitive on the word, not on a changing count',
+          'the count version failed in real use: the instruction sat under a 12-line list');
     check(/function deleteOrder\(/.test(DETAIL), 'the detail page has a delete handler');
-    check(/typed\.trim\(\) !== orderNumber/.test(DETAIL),
-          'single delete requires typing the ORDER NUMBER to confirm');
+    check(/typed\.trim\(\)\.toUpperCase\(\) !== 'DELETE'/.test(DETAIL) ||
+          /typed\.trim\(\) !== orderNumber/.test(DETAIL),
+          'the detail-page delete requires a typed confirmation');
+    /* Both list paths use the same word, so there is one thing to learn and it
+       does not change with the selection. Asking for the order number read as
+       a broken button twice before this changed. */
+    check((LIST.match(/toUpperCase\(\) !== 'DELETE'/g) || []).length === 2,
+          'BOTH list paths (row and bulk) confirm with the word DELETE',
+          'a 20-character order number is not a confirmation, it is a transcription test');
     check(/confirm_captured/.test(DETAIL) && /confirm_captured/.test(LIST),
           'both paths can pass confirm_captured, so the refusal is overridable from the UI');
 
