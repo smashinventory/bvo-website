@@ -883,3 +883,190 @@ exports.reportsView = async (req, res, next) => {
     });
   } catch (err) { next(err); }
 };
+
+/* ═══════════════════════════════════════════════════════════════
+   DELETE — hard, audited, and refuses captured payments
+   ═══════════════════════════════════════════════════════════════
+
+   WHY HARD AND NOT A FLAG. `orders` is read in roughly thirty places across
+   ten files. A deleted_at flag would need filtering in every one, and one
+   missed filter means a deleted order keeps counting toward a revenue KPI —
+   silently, and differently depending on which screen you look at. A DELETE
+   is consistent everywhere the instant it runs.
+
+   WHAT PROTECTS YOU INSTEAD:
+     1. order_deletions keeps a JSON snapshot of the row. Nothing reads it at
+        runtime, so it adds no filter surface, but "what was that order" has
+        an answer afterwards.
+     2. An order with payment_captured_at set is REFUSED unless the caller
+        passes confirm_captured. Money taken is the line where a mis-click
+        stops being recoverable, so it takes a second, deliberate act.
+     3. Everything runs in one transaction. A half-deleted order — row gone,
+        shipment orphaned — is worse than either outcome. */
+
+/* Children of an order, in delete order. Only order_items has ON DELETE
+   CASCADE (fk_item_order); the other four carry a nullable order_id with an
+   index and no constraint, so nothing removes them for us. Left alone they
+   become rows pointing at an id that no longer exists, which is how a
+   shipments screen ends up showing a blank customer forever.
+
+   sample_redemptions is deleted rather than orphaned on purpose: it exists to
+   enforce one free sample per email and address, and a redemption still
+   blocking a customer after its order is gone is a support ticket nobody can
+   explain. */
+const ORDER_CHILD_TABLES = ['order_events', 'shipments', 'returns', 'sample_redemptions'];
+
+async function countOrderChildren(conn, id) {
+  const counts = {};
+  const [[items]] = await conn.query('SELECT COUNT(*) AS n FROM order_items WHERE order_id = ?', [id]);
+  counts.order_items = items.n;
+  for (const t of ORDER_CHILD_TABLES) {
+    try {
+      const [[r]] = await conn.query(`SELECT COUNT(*) AS n FROM \`${t}\` WHERE order_id = ?`, [id]);
+      counts[t] = r.n;
+    } catch (err) {
+      /* A table that does not exist on this environment is not an error —
+         sample_redemptions post-dates some installs. A table that exists but
+         fails for another reason still is. */
+      if (err.code !== 'ER_NO_SUCH_TABLE') throw err;
+      counts[t] = null;
+    }
+  }
+  return counts;
+}
+
+/* Deletes ONE order inside a caller-supplied transaction. Returns a result
+   object rather than throwing on a refusal, because the bulk path needs to
+   skip one order and carry on rather than abort the batch. */
+async function deleteOneOrder(conn, id, { actor, reason, confirmCaptured }) {
+  const [[order]] = await conn.query('SELECT * FROM orders WHERE id = ?', [id]);
+  if (!order) return { id, ok: false, skipped: 'not_found' };
+
+  if (order.payment_captured_at && !confirmCaptured) {
+    return {
+      id, ok: false, skipped: 'payment_captured',
+      orderNumber: order.order_number,
+      capturedAt:  order.payment_captured_at,
+    };
+  }
+
+  const counts = await countOrderChildren(conn, id);
+
+  /* Snapshot BEFORE anything is removed. */
+  await conn.query(
+    `INSERT INTO order_deletions
+       (order_id, order_number, order_total, order_status, payment_captured_at,
+        stripe_payment_intent, order_snapshot, child_counts, deleted_by, deleted_reason)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      order.id,
+      order.order_number,
+      order.total ?? null,
+      order.status ?? null,
+      order.payment_captured_at ?? null,
+      order.stripe_payment_intent_id ?? order.stripe_payment_intent ?? null,
+      JSON.stringify(order),
+      JSON.stringify(counts),
+      actor || 'admin',
+      reason || null,
+    ]
+  );
+
+  for (const t of ORDER_CHILD_TABLES) {
+    if (counts[t] === null) continue;          // table absent here
+    await conn.query(`DELETE FROM \`${t}\` WHERE order_id = ?`, [id]);
+  }
+  /* order_items goes with the parent via fk_item_order ON DELETE CASCADE. */
+  await conn.query('DELETE FROM orders WHERE id = ?', [id]);
+
+  return { id, ok: true, orderNumber: order.order_number, counts };
+}
+
+/* POST /admin/orders/:id/delete */
+exports.deleteOrder = async (req, res) => {
+  const conn = await bvoPool.getConnection();
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id) || id < 1) {
+      return res.status(400).json({ ok: false, error: 'Invalid order id' });
+    }
+
+    await conn.beginTransaction();
+    const r = await deleteOneOrder(conn, id, {
+      actor:           req.session?.adminUser || 'admin',
+      reason:          (req.body && req.body.reason) || null,
+      confirmCaptured: !!(req.body && req.body.confirm_captured),
+    });
+
+    if (!r.ok) {
+      await conn.rollback();
+      if (r.skipped === 'not_found') return res.status(404).json({ ok: false, error: 'Not found' });
+      return res.status(409).json({
+        ok: false,
+        error: `${r.orderNumber} has a captured payment (${r.capturedAt}). ` +
+               'Deleting it loses your only local record of money taken. ' +
+               'Re-send with confirm_captured to proceed.',
+        requiresConfirm: true,
+      });
+    }
+
+    await conn.commit();
+    return res.json({ ok: true, deleted: 1, orderNumber: r.orderNumber, counts: r.counts });
+  } catch (err) {
+    try { await conn.rollback(); } catch (_) {}
+    console.error('[ordersController.deleteOrder]', err);
+    return res.status(500).json({ ok: false, error: 'Server error' });
+  } finally {
+    conn.release();
+  }
+};
+
+/* POST /admin/orders/bulk-delete   body: { ids: [1,2,3], confirm_captured? } */
+exports.bulkDelete = async (req, res) => {
+  const conn = await bvoPool.getConnection();
+  try {
+    const raw = (req.body && req.body.ids) || [];
+    const ids = (Array.isArray(raw) ? raw : [raw])
+      .map(n => parseInt(n, 10))
+      .filter(n => Number.isInteger(n) && n > 0);
+
+    if (!ids.length) return res.status(400).json({ ok: false, error: 'No order ids supplied' });
+
+    /* A cap, because this endpoint takes an arbitrary array and the whole
+       point of it is destruction. Clearing more than 500 at once is a job for
+       the one-off script, where it is visible and reviewed. */
+    if (ids.length > 500) {
+      return res.status(400).json({ ok: false, error: 'Refusing more than 500 at once' });
+    }
+
+    await conn.beginTransaction();
+    const deleted = [], skipped = [];
+    for (const id of ids) {
+      const r = await deleteOneOrder(conn, id, {
+        actor:           req.session?.adminUser || 'admin',
+        reason:          (req.body && req.body.reason) || 'bulk delete',
+        confirmCaptured: !!(req.body && req.body.confirm_captured),
+      });
+      (r.ok ? deleted : skipped).push(r);
+    }
+    await conn.commit();
+
+    return res.json({
+      ok: true,
+      deleted: deleted.length,
+      skipped: skipped.map(s => ({
+        id: s.id, orderNumber: s.orderNumber || null, reason: s.skipped,
+      })),
+    });
+  } catch (err) {
+    try { await conn.rollback(); } catch (_) {}
+    console.error('[ordersController.bulkDelete]', err);
+    return res.status(500).json({ ok: false, error: 'Server error' });
+  } finally {
+    conn.release();
+  }
+};
+
+/* Exported for the gate and for scripts/cleanupTestOrders.js, so the one-off
+   cleanup runs the SAME delete the button runs rather than its own SQL. */
+exports.__deleteInternals = { deleteOneOrder, countOrderChildren, ORDER_CHILD_TABLES };

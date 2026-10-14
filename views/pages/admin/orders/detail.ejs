@@ -1046,6 +1046,33 @@ const disputeOpen = order.dispute_id
   </div>
 </div>
 
+<%# ── Danger zone ────────────────────────────────────────────────────────
+    Last thing on the page, visually separated, and the only destructive
+    control in the order UI. Everything else here changes an order; this
+    ends it. isCaptured is already computed at the top of this template for
+    the payment card, so the warning and the server's refusal agree. %>
+<div style="margin-top:32px;padding:16px;border:1px solid var(--red,#dc2626);
+            border-radius:10px;background:rgba(220,38,38,.04)">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+    <div>
+      <div style="font-weight:700;color:var(--red,#dc2626);margin-bottom:2px">Delete this order</div>
+      <div class="adm-meta" style="max-width:62ch">
+        Removes the order and its line items, events, shipments, returns and sample
+        redemptions. Permanent — a snapshot is written to <code>order_deletions</code>
+        for the audit trail, but the order itself does not come back.
+        <% if (isCaptured) { %>
+          <strong style="color:var(--red,#dc2626)">This order has a captured payment.</strong>
+        <% } %>
+      </div>
+    </div>
+    <button type="button" class="btn btn-sm"
+            style="background:var(--red,#dc2626);color:#fff;border-color:var(--red,#dc2626);white-space:nowrap"
+            onclick="deleteOrder(<%= order.id %>, '<%= order.order_number %>', <%= isCaptured ? 'true' : 'false' %>)">
+      Delete order
+    </button>
+  </div>
+</div>
+
 <script>
 const ORDER_ID = '<%= order.id %>';
 
@@ -1242,6 +1269,45 @@ async function resolveReturn(id) {
   const d = await r.json();
   if (d.ok) { alert('Return resolved. Customer notified.'); location.reload(); }
   else alert('Error: ' + d.error);
+}
+
+/* ── Delete this order ────────────────────────────────────────────────
+   Typing the order number, not an OK/Cancel. The number is on screen, so
+   this costs a few seconds and makes it impossible to delete the wrong
+   order from muscle memory. The server refuses captured payments
+   independently — this prompt is the first gate, not the only one. */
+async function deleteOrder(id, orderNumber, isCaptured) {
+  const typed = window.prompt(
+    'Permanently delete ' + orderNumber + '?\n\n' +
+    'This removes the order, its line items, events, shipments, returns and\n' +
+    'sample redemptions. It cannot be undone.' +
+    (isCaptured ? '\n\n** THIS ORDER HAS A CAPTURED PAYMENT. **' : '') +
+    '\n\nType the order number to confirm:'
+  );
+  if (typed === null) return;
+  if (typed.trim() !== orderNumber) { alert('Not deleted — the order number did not match.'); return; }
+
+  let confirmCaptured = false;
+  if (isCaptured) {
+    confirmCaptured = window.confirm(
+      'Money was captured on this order. Deleting removes your only local\n' +
+      'record of that charge; Stripe keeps its own.\n\nDelete anyway?'
+    );
+    if (!confirmCaptured) return;
+  }
+
+  try {
+    const r = await fetch('/admin/orders/' + id + '/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ confirm_captured: confirmCaptured })
+    });
+    const d = await r.json();
+    if (!d.ok) { alert('Not deleted: ' + d.error); return; }
+    window.location.href = '/admin/orders';
+  } catch (err) {
+    alert('Delete failed: ' + err.message);
+  }
 }
 
 function closeModal(id) { document.getElementById(id).style.display='none'; }

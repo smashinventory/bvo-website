@@ -45,6 +45,13 @@
   <table class="adm-table">
     <thead>
       <tr>
+        <%# Select column for bulk delete. Header checkbox selects only the
+            rows currently rendered — it is NOT "select all orders matching
+            the filter", because a checkbox that silently reaches past what
+            you can see is how you delete page 7 of something. %>
+        <th style="width:28px">
+          <input type="checkbox" id="ord-select-all" title="Select all on this page">
+        </th>
         <th style="width:28px"></th>
         <th>Order</th>
         <th>Customer</th>
@@ -58,10 +65,20 @@
     </thead>
     <tbody>
       <% if (orders.length === 0) { %>
-        <tr><td colspan="9" class="adm-empty" style="border-radius:0">No orders found.</td></tr>
+        <tr><td colspan="10" class="adm-empty" style="border-radius:0">No orders found.</td></tr>
       <% } %>
       <% orders.forEach(o => { %>
-        <tr class="order-row order-row--<%= o.rag %>">
+        <tr class="order-row order-row--<%= o.rag %>" data-order-number="<%= o.order_number %>">
+          <td>
+            <input type="checkbox" class="ord-select" value="<%= o.id %>"
+                   data-number="<%= o.order_number %>"
+                   <%# A captured order can still be ticked, but the confirm
+                       step names it separately — see the bulk handler. If the
+                       list query does not select payment_captured_at this is
+                       simply undefined and the server-side refusal is what
+                       catches it, so the UI degrades quiet rather than loud. %>
+                   data-captured="<%= o.payment_captured_at ? '1' : '' %>">
+          </td>
           <td><span class="rag-dot rag-dot--<%= o.rag %>" title="<%= o.rag === 'red' ? 'Needs attention' : o.rag === 'yellow' ? 'Watch' : 'On track' %>"></span></td>
           <td><a href="/admin/orders/<%= o.id %>" style="font-weight:700;color:var(--color-navy)"><%= o.order_number %></a></td>
           <%# Email verification badge. CONFIRMED is green; UNCONFIRMED is
@@ -162,3 +179,111 @@
 .btn-ship { background:#1a2e4a;color:#fff;border:1px solid #1a2e4a;border-radius:4px;padding:3px 10px;font-size:.78rem;font-weight:600;text-decoration:none;white-space:nowrap }
 .btn-ship:hover { background:#2b4a78;border-color:#2b4a78;color:#fff }
 </style>
+
+<%# ── Bulk delete bar ─────────────────────────────────────────────────────
+    Hidden until something is ticked, so the dashboard does not carry a
+    permanent "delete" affordance for people who came here to read it. %>
+<div id="ord-bulk-bar"
+     style="display:none;position:sticky;bottom:0;z-index:20;margin-top:12px;
+            padding:12px 16px;background:#fff;border:1px solid var(--color-border,#e5e7eb);
+            border-radius:10px;box-shadow:0 -2px 12px rgba(0,0,0,.08);
+            align-items:center;gap:14px;justify-content:space-between">
+  <span><strong id="ord-bulk-count">0</strong> order(s) selected</span>
+  <div style="display:flex;gap:8px;align-items:center">
+    <button type="button" id="ord-bulk-clear" class="btn btn-outline btn-sm">Clear</button>
+    <button type="button" id="ord-bulk-delete" class="btn btn-sm"
+            style="background:var(--red,#dc2626);color:#fff;border-color:var(--red,#dc2626)">
+      Delete selected
+    </button>
+  </div>
+</div>
+
+<script>
+(function () {
+  const bar     = document.getElementById('ord-bulk-bar');
+  const countEl = document.getElementById('ord-bulk-count');
+  const selAll  = document.getElementById('ord-select-all');
+  const boxes   = () => Array.from(document.querySelectorAll('.ord-select'));
+  const picked  = () => boxes().filter(b => b.checked);
+
+  function sync() {
+    const n = picked().length;
+    countEl.textContent = n;
+    bar.style.display = n ? 'flex' : 'none';
+    if (selAll) {
+      selAll.checked = n > 0 && n === boxes().length;
+      selAll.indeterminate = n > 0 && n < boxes().length;
+    }
+  }
+
+  boxes().forEach(b => b.addEventListener('change', sync));
+  if (selAll) selAll.addEventListener('change', () => {
+    boxes().forEach(b => { b.checked = selAll.checked; });
+    sync();
+  });
+  document.getElementById('ord-bulk-clear').addEventListener('click', () => {
+    boxes().forEach(b => { b.checked = false; });
+    sync();
+  });
+
+  document.getElementById('ord-bulk-delete').addEventListener('click', async () => {
+    const chosen = picked();
+    if (!chosen.length) return;
+
+    const numbers  = chosen.map(b => b.dataset.number);
+    const captured = chosen.filter(b => b.dataset.captured);
+
+    /* Typing the count is deliberate friction. A plain OK/Cancel on an
+       irreversible multi-row delete gets muscle-memoried within a week. */
+    const typed = window.prompt(
+      'This permanently deletes ' + chosen.length + ' order(s):\n\n' +
+      numbers.slice(0, 12).join('\n') +
+      (numbers.length > 12 ? '\n…and ' + (numbers.length - 12) + ' more' : '') +
+      (captured.length
+        ? '\n\n** ' + captured.length + ' of these have CAPTURED PAYMENTS. **'
+        : '') +
+      '\n\nThis cannot be undone. Type the number ' + chosen.length + ' to confirm:'
+    );
+    if (typed === null) return;
+    if (typed.trim() !== String(chosen.length)) {
+      alert('Not deleted — the number did not match.');
+      return;
+    }
+
+    let confirmCaptured = false;
+    if (captured.length) {
+      confirmCaptured = window.confirm(
+        captured.length + ' order(s) have money captured against them. Deleting ' +
+        'removes your only local record of that charge; Stripe keeps its own.\n\n' +
+        'OK to delete them anyway, Cancel to skip just those.'
+      );
+    }
+
+    const btn = document.getElementById('ord-bulk-delete');
+    btn.disabled = true; btn.textContent = 'Deleting…';
+    try {
+      const res = await fetch('/admin/orders/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ids: chosen.map(b => b.value),
+          confirm_captured: confirmCaptured,
+        }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'Delete failed');
+
+      if (data.skipped && data.skipped.length) {
+        alert('Deleted ' + data.deleted + '. Skipped ' + data.skipped.length + ':\n' +
+              data.skipped.map(s => (s.orderNumber || s.id) + ' — ' + s.reason).join('\n'));
+      }
+      window.location.reload();
+    } catch (err) {
+      alert('Delete failed: ' + err.message);
+      btn.disabled = false; btn.textContent = 'Delete selected';
+    }
+  });
+
+  sync();
+})();
+</script>

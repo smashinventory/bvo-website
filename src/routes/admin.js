@@ -91,7 +91,12 @@ router.post('/models/:id/image/remove',                        ctrl.modelRemoveI
 router.get ('/orders',                              ordersCtrl.list);
 router.get ('/orders/shipments',                    ordersCtrl.shipmentsView);
 router.get ('/orders/reports',                      ordersCtrl.reportsView);
+/* Bulk delete is declared ABOVE /orders/:id on purpose. Express matches in
+   order, and '/orders/bulk-delete' would otherwise be swallowed by the :id
+   route, which would parseInt('bulk-delete') to NaN and 400. */
+router.post('/orders/bulk-delete',                  ordersCtrl.bulkDelete);
 router.get ('/orders/:id',                          ordersCtrl.detail);
+router.post('/orders/:id/delete',                   ordersCtrl.deleteOrder);
 router.post('/orders/:id/status',                   ordersCtrl.updateStatus);
 router.post('/orders/:id/vendor-order',             ordersCtrl.sendVendorOrder);
 router.post('/orders/:id/vendor-confirm',           ordersCtrl.confirmVendorOrder);
