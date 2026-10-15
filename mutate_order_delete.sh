@@ -20,7 +20,11 @@ LIST=views/pages/admin/orders/index.ejs
 DETAIL=views/pages/admin/orders/detail.ejs
 MIG=migrations/2026-10-12_order_deletions_RUNME.sql
 
-FILES=("$CTRL" "$ROUTES" "$CLEAN" "$LIST" "$DETAIL" "$MIG")
+REASONS=src/config/orderDeleteReasons.js
+# Every file any mutation touches MUST be here. Two mutations below edit the
+# reasons config; it was missing from this list on the first run and the harness
+# left the repo dirty - the restore assertion is the only reason that surfaced.
+FILES=("$CTRL" "$ROUTES" "$CLEAN" "$LIST" "$DETAIL" "$MIG" "$REASONS")
 
 TMP=$(mktemp -d)
 for f in "${FILES[@]}"; do
@@ -146,12 +150,6 @@ mutate "delete routes moved above requireAdmin" "$ROUTES" \
 
 echo
 echo "──── the UI confirmations ────"
-mutate "bulk delete downgraded to a plain confirm" "$LIST" \
-  "s=s.replace('const typed = window.prompt(', \"const typed = 'DELETE'; window.confirm(\")"
-
-mutate "bulk confirmation accepts anything" "$LIST" \
-  "s=s.replace(\"if (typed.trim().toUpperCase() !== 'DELETE') {\", 'if (false) {')"
-
 mutate "single delete stops checking the typed order number" "$DETAIL" \
   "s=s.replace('if (typed.trim() !== orderNumber)', 'if (false)')"
 
@@ -160,6 +158,26 @@ mutate "empty-state colspan left at 9" "$LIST" \
 
 mutate "row checkboxes removed" "$LIST" \
   "s=s.replace('class=\"ord-select\"', 'class=\"ord-select-disabled\"')"
+
+echo
+echo "──── the delete-reason dropdown ────"
+mutate "single handler stops requiring a reason" "$CTRL" \
+  "s=s.replace('    const reason = readDeleteReason(req);\n    if (!reason) {', '    const reason = readDeleteReason(req) || \'none\';\n    if (false) {', 1)"
+
+mutate "bulk handler substitutes a placeholder reason" "$CTRL" \
+  "s=s.replace('        reason,', \"        reason: reason || 'bulk delete',\", 1)"
+
+mutate "an unknown reason code is written through" "$REASONS" \
+  "s=s.replace('  if (!entry) return null;', '  if (!entry) return code;')"
+
+mutate "Other no longer requires a note" "$REASONS" \
+  "s=s.replace(\"{ code: 'other',            label: 'Other (explain below)',       requiresNote: true  },\", \"{ code: 'other',            label: 'Other (explain below)',       requiresNote: false },\")"
+
+mutate "the dropdown is hardcoded instead of rendered from config" "$LIST" \
+  "s=s.replace('<% ORDER_DELETE_REASONS.forEach(function (r) { %>', '<% [].forEach(function (r) { %>')"
+
+mutate "window.prompt creeps back into the list" "$LIST" \
+  "s=s.replace('const note = elNote.value.trim();', 'const note = window.prompt(\'why?\') || \'\';')"
 
 echo
 echo "──── soft-delete creep ────"

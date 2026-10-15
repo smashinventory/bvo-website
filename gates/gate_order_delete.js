@@ -199,31 +199,78 @@ console.log('--- executed: deleteOneOrder ---');
     check(!/DELETE FROM/i.test(CLEAN),
           'and issues no DELETE statement of its own');
 
+    /* ── the delete reason, as a dropdown ───────────────────────────── */
+    const REASONS = require(path.join(ROOT, 'src/config/orderDeleteReasons'));
+
+    check(Array.isArray(REASONS.ORDER_DELETE_REASONS) && REASONS.ORDER_DELETE_REASONS.length >= 4,
+          'there is a shared list of delete reasons');
+    check(REASONS.ORDER_DELETE_REASONS.some(r => r.requiresNote),
+          'at least one reason requires a note — "Other" alone says nothing');
+    check(REASONS.composeDeleteReason('other', '') === null,
+          'Other with no note is rejected');
+    check(REASONS.composeDeleteReason('not_a_real_code', 'a real note') === null,
+          'an unknown reason code is rejected rather than written through',
+          'the audit column is the point; it must not accept arbitrary input');
+    check(typeof REASONS.composeDeleteReason('test_order', '') === 'string',
+          'a plain reason with no note composes fine');
+    check(REASONS.composeDeleteReason('fraud', 'abc') === null,
+          'a note that IS given must still say something');
+
+    /* One list, three consumers. The codebase already carries orderStatuses.js
+       because an inline copy of a list drifted from its source; this follows
+       that precedent rather than repeating the lesson. */
+    check(/require\('\.\.\/config\/orderDeleteReasons'\)/.test(CTRL),
+          'the controller reads the reasons from the shared config');
+    check(/ORDER_DELETE_REASONS\.forEach/.test(LIST),
+          'the dropdown is RENDERED from that config, not hand-typed into the view',
+          'a hardcoded <option> list is how the UI and the validation drift apart');
+    check(/composeDeleteReason\(b\.reason_code, b\.reason_note\)/.test(CTRL_NC),
+          'the server composes the stored reason from code + note');
+    check((CTRL_NC.match(/if \(!reason\) \{/g) || []).length === 2,
+          'BOTH handlers reject a missing or invalid reason before deleting',
+          'a rule enforced only in the UI is a suggestion');
+    check(!/\|\| 'bulk delete'/.test(CTRL_NC),
+          'and no handler substitutes a placeholder reason of its own');
+
     /* ── 4. the UI ───────────────────────────────────────────────────── */
     console.log('--- the admin UI ---');
     check(/id="ord-bulk-delete"/.test(LIST), 'the list has a bulk delete control');
     check(/class="ord-select"/.test(LIST),   'and a per-row checkbox carrying the order id');
+    check(/class="btn btn-sm ord-del-one"/.test(LIST),
+          'and a per-row Delete button',
+          'opening an order and scrolling to the bottom is the wrong shape for this job');
     check(/colspan="10"/.test(LIST),
-          'the empty-state colspan was bumped to 10 for the new column',
-          'left at 9 the "No orders found" cell under-spans and the table breaks');
-    check(/window\.prompt\(/.test(LIST) && /Type {2}DELETE {2}to confirm/.test(LIST),
-          'bulk delete requires typing DELETE, not just an OK',
-          'a plain confirm on an irreversible multi-row delete is muscle-memory within a week');
-    check(/toUpperCase\(\) !== 'DELETE'/.test(LIST),
-          'and the check is case-insensitive on the word, not on a changing count',
-          'the count version failed in real use: the instruction sat under a 12-line list');
-    check(/function deleteOrder\(/.test(DETAIL), 'the detail page has a delete handler');
-    check(/typed\.trim\(\)\.toUpperCase\(\) !== 'DELETE'/.test(DETAIL) ||
-          /typed\.trim\(\) !== orderNumber/.test(DETAIL),
-          'the detail-page delete requires a typed confirmation');
-    /* Both list paths use the same word, so there is one thing to learn and it
-       does not change with the selection. Asking for the order number read as
-       a broken button twice before this changed. */
-    check((LIST.match(/toUpperCase\(\) !== 'DELETE'/g) || []).length === 2,
-          'BOTH list paths (row and bulk) confirm with the word DELETE',
-          'a 20-character order number is not a confirmation, it is a transcription test');
-    check(/confirm_captured/.test(DETAIL) && /confirm_captured/.test(LIST),
-          'both paths can pass confirm_captured, so the refusal is overridable from the UI');
+          'the empty-state colspan was bumped to 10 for the new column');
+
+    /* THE PROMPT CHAIN IS GONE. Three separate confirmations failed in real
+       use: the selection count typed back, a twenty-character order number,
+       and a box that read as free text so a note was typed into it. A prompt
+       is the wrong control for a choice; the dropdown is the fix and the old
+       approach must not creep back. */
+    /* EJS stripped first. The comment above the modal EXPLAINS that it replaced
+       a window.prompt chain, so a raw search finds the explanation and fails on
+       the history rather than the code - the same mistake the nonce audit made,
+       caught here by its own rule. */
+    const LIST_CODE = LIST.replace(/<%[-=#_]?[\s\S]*?[-_]?%>/g, '');
+    check(!/window\.prompt\(/.test(LIST_CODE),
+          'the list uses NO window.prompt — the reason modal replaced that chain',
+          'each prompt variant failed on first contact with a real user');
+    check(/id="ord-del-modal"/.test(LIST) && /id="ord-del-reason"/.test(LIST),
+          'there is a delete modal with a reason select');
+    check(/ord-del-cancel/.test(LIST) && /e\.key === 'Escape'/.test(LIST),
+          'the modal can be dismissed by button and by Escape');
+    check(/requiresNote/.test(LIST) && /MIN_NOTE/.test(LIST),
+          'the modal enforces the note requirement client-side too');
+    check(/reason_code: elSel\.value/.test(LIST) && /reason_note: note/.test(LIST),
+          'and posts the code and note the server expects');
+    /* The DETAIL page keeps a typed order-number confirmation. It is reached by
+       a deliberate navigation and shows the whole order, so the stronger prompt
+       is proportionate there - and unlike the list it is a single known target,
+       not a selection. */
+    check(/function deleteOrder\(/.test(DETAIL), 'the detail page still has its delete handler');
+    check(/typed\.trim\(\) !== orderNumber/.test(DETAIL),
+          'and still requires the order number typed back',
+          'that page has no dropdown; the typed number is its only guard');
 
     /* ── 5. the migration ────────────────────────────────────────────── */
     console.log('--- the audit table ---');

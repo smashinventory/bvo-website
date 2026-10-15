@@ -190,7 +190,7 @@
 
 <%# ── Bulk delete bar ─────────────────────────────────────────────────────
     Hidden until something is ticked, so the dashboard does not carry a
-    permanent "delete" affordance for people who came here to read it. %>
+    permanent destructive affordance for people who came here to read it. %>
 <div id="ord-bulk-bar"
      style="display:none;position:sticky;bottom:0;z-index:20;margin-top:12px;
             padding:12px 16px;background:#fff;border:1px solid var(--color-border,#e5e7eb);
@@ -206,8 +206,66 @@
   </div>
 </div>
 
+<%# ── Delete modal ────────────────────────────────────────────────────────
+    REPLACES a chain of window.prompt() dialogs. Those failed three times in a
+    row in real use: the first asked for the selection count typed back, the
+    second for a twenty-character order number, and the third read as a free
+    text box so a note got typed where a confirmation was expected. The note
+    was the right instinct — a prompt is simply the wrong control for a choice.
+
+    A dropdown fixes all three at once: the reasons are the ones that actually
+    occur, picking one IS the confirmation, and the result is a code that can
+    be grouped later rather than four spellings of "test". %>
+<div id="ord-del-modal" class="modal-overlay" style="display:none">
+  <div class="modal-box" style="max-width:460px">
+    <h3 id="ord-del-title">Delete order</h3>
+
+    <p id="ord-del-what" class="adm-meta" style="margin:0 0 12px"></p>
+
+    <div id="ord-del-captured"
+         style="display:none;margin:0 0 12px;padding:10px 12px;border-radius:8px;
+                background:rgba(220,38,38,.07);border:1px solid var(--red,#dc2626);
+                color:var(--red,#dc2626);font-size:.85rem;font-weight:600"></div>
+
+    <label for="ord-del-reason"
+           style="display:block;font-size:.78rem;font-weight:700;margin:0 0 4px;
+                  text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">
+      Reason
+    </label>
+    <select id="ord-del-reason" class="adm-search-select" style="width:100%">
+      <% ORDER_DELETE_REASONS.forEach(function (r) { %>
+        <option value="<%= r.code %>" data-requires-note="<%= r.requiresNote ? '1' : '' %>"><%= r.label %></option>
+      <% }); %>
+    </select>
+
+    <div id="ord-del-note-wrap" style="margin-top:10px">
+      <label for="ord-del-note"
+             style="display:block;font-size:.78rem;font-weight:700;margin:0 0 4px;
+                    text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">
+        Note <span id="ord-del-note-req" style="color:var(--red,#dc2626);display:none">(required)</span>
+      </label>
+      <textarea id="ord-del-note" rows="2" placeholder="Anything worth knowing later…"
+                style="width:100%;border:1.5px solid var(--border-input,#d0d5dd);border-radius:6px;
+                       padding:.5rem .75rem;font-family:var(--font-sans);font-size:.85rem;resize:vertical;outline:0"></textarea>
+      <div id="ord-del-err" style="display:none;color:var(--red,#dc2626);font-size:.8rem;margin-top:4px"></div>
+    </div>
+
+    <p class="adm-meta" style="margin:12px 0 0;font-size:.8rem">
+      Permanent. A snapshot is written to <code>order_deletions</code> first.
+    </p>
+
+    <div class="modal-actions">
+      <button type="button" id="ord-del-go" class="btn btn-sm"
+              style="background:var(--red,#dc2626);color:#fff;border-color:var(--red,#dc2626)">Delete</button>
+      <button type="button" id="ord-del-cancel" class="btn btn-outline btn-sm">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <script nonce="<%= cspNonce %>">
 (function () {
+  const MIN_NOTE = <%= MIN_DELETE_NOTE %>;
+
   const bar     = document.getElementById('ord-bulk-bar');
   const countEl = document.getElementById('ord-bulk-count');
   const selAll  = document.getElementById('ord-select-all');
@@ -223,128 +281,115 @@
       selAll.indeterminate = n > 0 && n < boxes().length;
     }
   }
-
   boxes().forEach(b => b.addEventListener('change', sync));
   if (selAll) selAll.addEventListener('change', () => {
-    boxes().forEach(b => { b.checked = selAll.checked; });
-    sync();
+    boxes().forEach(b => { b.checked = selAll.checked; }); sync();
   });
   document.getElementById('ord-bulk-clear').addEventListener('click', () => {
-    boxes().forEach(b => { b.checked = false; });
-    sync();
+    boxes().forEach(b => { b.checked = false; }); sync();
   });
 
-  document.getElementById('ord-bulk-delete').addEventListener('click', async () => {
-    const chosen = picked();
-    if (!chosen.length) return;
+  /* ── the modal ──────────────────────────────────────────────────────── */
+  const modal   = document.getElementById('ord-del-modal');
+  const elTitle = document.getElementById('ord-del-title');
+  const elWhat  = document.getElementById('ord-del-what');
+  const elCap   = document.getElementById('ord-del-captured');
+  const elSel   = document.getElementById('ord-del-reason');
+  const elNote  = document.getElementById('ord-del-note');
+  const elReq   = document.getElementById('ord-del-note-req');
+  const elErr   = document.getElementById('ord-del-err');
+  const elGo    = document.getElementById('ord-del-go');
 
-    const numbers  = chosen.map(b => b.dataset.number);
-    const captured = chosen.filter(b => b.dataset.captured);
+  let pending = null;   // { ids:[], label:'', captured:n }
 
-    /* Deliberate friction, but it has to be friction people can get PAST.
-       The first version asked for the selection count typed back, with the
-       instruction buried under a twelve-line list of order numbers - the
-       owner's first real use of it failed on exactly that. The word DELETE is
-       the convention for this, it does not change as the selection changes,
-       and it goes on its own line at the end where it is read. */
-    const typed = window.prompt(
-      'Permanently delete ' + chosen.length + ' order(s)?\n' +
-      numbers.slice(0, 8).join(', ') +
-      (numbers.length > 8 ? ', …and ' + (numbers.length - 8) + ' more' : '') +
-      (captured.length
-        ? '\n\n** ' + captured.length + ' of these have CAPTURED PAYMENTS. **'
-        : '') +
-      '\n\nThis cannot be undone.\n\nType  DELETE  to confirm:'
-    );
-    if (typed === null) return;
-    if (typed.trim().toUpperCase() !== 'DELETE') {
-      alert('Not deleted — type DELETE exactly to confirm.');
-      return;
+  function noteRequired() {
+    const o = elSel.options[elSel.selectedIndex];
+    return !!(o && o.dataset.requiresNote);
+  }
+  function refreshNote() {
+    elReq.style.display = noteRequired() ? '' : 'none';
+    elErr.style.display = 'none';
+  }
+  elSel.addEventListener('change', refreshNote);
+
+  function open(ids, label, captured) {
+    pending = { ids, label, captured };
+    elTitle.textContent = ids.length > 1 ? 'Delete ' + ids.length + ' orders' : 'Delete order';
+    elWhat.textContent  = label;
+    if (captured) {
+      elCap.textContent = captured > 1
+        ? captured + ' of these have captured payments. Stripe keeps its own record; this removes yours.'
+        : 'This order has a captured payment. Stripe keeps its own record; this removes yours.';
+      elCap.style.display = '';
+    } else { elCap.style.display = 'none'; }
+    elSel.selectedIndex = 0; elNote.value = ''; refreshNote();
+    elGo.disabled = false; elGo.textContent = 'Delete';
+    modal.style.display = 'flex';
+    elSel.focus();
+  }
+  function close() { modal.style.display = 'none'; pending = null; }
+  document.getElementById('ord-del-cancel').addEventListener('click', close);
+  modal.addEventListener('click', e => { if (e.target === modal) close(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && modal.style.display !== 'none') close();
+  });
+
+  elGo.addEventListener('click', async () => {
+    if (!pending) return;
+    const note = elNote.value.trim();
+
+    /* Validated here AND on the server. This half is for the person; the
+       server half is because a prompt-enforced rule is only a suggestion. */
+    if (noteRequired() && note.length < MIN_NOTE) {
+      elErr.textContent = 'A note of at least ' + MIN_NOTE + ' characters is required for this reason.';
+      elErr.style.display = ''; elNote.focus(); return;
+    }
+    if (note && note.length < MIN_NOTE) {
+      elErr.textContent = 'Either leave the note empty or write at least ' + MIN_NOTE + ' characters.';
+      elErr.style.display = ''; elNote.focus(); return;
     }
 
-    let confirmCaptured = false;
-    if (captured.length) {
-      confirmCaptured = window.confirm(
-        captured.length + ' order(s) have money captured against them. Deleting ' +
-        'removes your only local record of that charge; Stripe keeps its own.\n\n' +
-        'OK to delete them anyway, Cancel to skip just those.'
-      );
-    }
-
-    const btn = document.getElementById('ord-bulk-delete');
-    btn.disabled = true; btn.textContent = 'Deleting…';
+    elGo.disabled = true; elGo.textContent = 'Deleting…';
     try {
       const res = await fetch('/admin/orders/bulk-delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ids: chosen.map(b => b.value),
-          confirm_captured: confirmCaptured,
+          ids: pending.ids,
+          reason_code: elSel.value,
+          reason_note: note,
+          /* The captured-payment refusal is the server's, not the UI's. The
+             banner above is the warning; THIS is the acknowledgement. */
+          confirm_captured: pending.captured > 0,
         }),
       });
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || 'Delete failed');
-
       if (data.skipped && data.skipped.length) {
         alert('Deleted ' + data.deleted + '. Skipped ' + data.skipped.length + ':\n' +
-              data.skipped.map(s => (s.orderNumber || s.id) + ' — ' + s.reason).join('\n'));
+              data.skipped.map(x => (x.orderNumber || x.id) + ' — ' + x.reason).join('\n'));
       }
       window.location.reload();
     } catch (err) {
-      alert('Delete failed: ' + err.message);
-      btn.disabled = false; btn.textContent = 'Delete selected';
+      elErr.textContent = 'Delete failed: ' + err.message;
+      elErr.style.display = '';
+      elGo.disabled = false; elGo.textContent = 'Delete';
     }
   });
 
-  /* Row delete reuses the bulk endpoint with a single id, so there is exactly
-     one server path for deletion and the confirmations stay identical. */
+  /* row */
   document.querySelectorAll('.ord-del-one').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const num = btn.dataset.number, captured = !!btn.dataset.captured;
-      /* DELETE, not the order number. Hand-typing BVO-2026-09-30-00117 is a
-         disproportionate ask for a button that sits ON that order's row - the
-         row itself is the identification, and the prompt names the order at
-         the top. Asking for the number failed twice in real use, which is the
-         only evidence that matters about a confirmation step. */
-      const typed = window.prompt(
-        'Permanently delete ' + num + '?\n\n' +
-        'This removes the order and its line items, events, shipments, returns\n' +
-        'and sample redemptions. It cannot be undone.' +
-        (captured ? '\n\n** THIS ORDER HAS A CAPTURED PAYMENT. **' : '') +
-        '\n\nType  DELETE  to confirm:'
-      );
-      if (typed === null) return;
-      if (typed.trim().toUpperCase() !== 'DELETE') {
-        alert('Not deleted — type DELETE exactly to confirm.');
-        return;
-      }
+    btn.addEventListener('click', () =>
+      open([btn.dataset.id], btn.dataset.number, btn.dataset.captured ? 1 : 0));
+  });
 
-      let confirmCaptured = false;
-      if (captured) {
-        confirmCaptured = window.confirm(
-          'Money was captured on this order. Deleting removes your only local\n' +
-          'record of that charge; Stripe keeps its own.\n\nDelete anyway?'
-        );
-        if (!confirmCaptured) return;
-      }
-      btn.disabled = true; btn.textContent = '…';
-      try {
-        const res = await fetch('/admin/orders/bulk-delete', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ids: [btn.dataset.id], confirm_captured: confirmCaptured })
-        });
-        const data = await res.json();
-        if (!data.ok) throw new Error(data.error || 'Delete failed');
-        if (data.skipped && data.skipped.length) {
-          alert('Not deleted: ' + data.skipped.map(x => x.reason).join(', '));
-          btn.disabled = false; btn.textContent = 'Delete'; return;
-        }
-        window.location.reload();
-      } catch (err) {
-        alert('Delete failed: ' + err.message);
-        btn.disabled = false; btn.textContent = 'Delete';
-      }
-    });
+  /* bulk */
+  document.getElementById('ord-bulk-delete').addEventListener('click', () => {
+    const chosen = picked();
+    if (!chosen.length) return;
+    const nums = chosen.map(b => b.dataset.number);
+    open(chosen.map(b => b.value),
+         nums.slice(0, 6).join(', ') + (nums.length > 6 ? ', …and ' + (nums.length - 6) + ' more' : ''),
+         chosen.filter(b => b.dataset.captured).length);
   });
 
   sync();

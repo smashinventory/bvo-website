@@ -22,6 +22,9 @@ const { bvoPool }    = require('../config/database');
 const { buildSearch } = require('../utils/searchQuery');
 // Single source of truth for status values and their meanings.
 const { ORDER_STATUSES, VALID_ORDER_STATUSES } = require('../config/orderStatuses');
+// Single source for the delete-reason dropdown, its validation and the gate.
+const { composeDeleteReason, ORDER_DELETE_REASONS, MIN_DELETE_NOTE } =
+  require('../config/orderDeleteReasons');
 const brevo          = require('../services/brevoService');
 const CustomerAddress = require('../models/CustomerAddress');
 const wwex           = require('../services/wwexService');
@@ -212,6 +215,11 @@ exports.list = async (req, res, next) => {
     orders.forEach(o => ragCounts[o.rag]++);
 
     res.render('pages/admin/orders/index', {
+      /* The delete-reason dropdown is rendered from the shared config rather
+         than hand-typed into the template, so the options, the server-side
+         validation and the gate can never disagree. */
+      ORDER_DELETE_REASONS,
+      MIN_DELETE_NOTE,
       ...LAYOUT,
       activePage: 'orders',
       pageTitle:  'Orders',
@@ -982,6 +990,19 @@ async function deleteOneOrder(conn, id, { actor, reason, confirmCaptured }) {
   return { id, ok: true, orderNumber: order.order_number, counts };
 }
 
+/* The deletion reason is REQUIRED, and required HERE as well as in the browser.
+   A rule enforced only in the UI is a suggestion: anything posting straight at
+   the endpoint would otherwise land a placeholder in the audit column, which is
+   that column's whole reason for existing.
+
+   The request carries a CODE from the dropdown plus an optional note; the
+   stored string is composed from the shared config, so an unknown code is
+   rejected rather than written through. */
+function readDeleteReason(req) {
+  const b = req.body || {};
+  return composeDeleteReason(b.reason_code, b.reason_note);
+}
+
 /* POST /admin/orders/:id/delete */
 exports.deleteOrder = async (req, res) => {
   const conn = await bvoPool.getConnection();
@@ -991,10 +1012,16 @@ exports.deleteOrder = async (req, res) => {
       return res.status(400).json({ ok: false, error: 'Invalid order id' });
     }
 
+    const reason = readDeleteReason(req);
+    if (!reason) {
+      return res.status(400).json({ ok: false,
+        error: 'Pick a deletion reason. "Other" needs a note of at least 5 characters.' });
+    }
+
     await conn.beginTransaction();
     const r = await deleteOneOrder(conn, id, {
       actor:           req.session?.adminUser || 'admin',
-      reason:          (req.body && req.body.reason) || null,
+      reason,
       confirmCaptured: !!(req.body && req.body.confirm_captured),
     });
 
@@ -1039,12 +1066,18 @@ exports.bulkDelete = async (req, res) => {
       return res.status(400).json({ ok: false, error: 'Refusing more than 500 at once' });
     }
 
+    const reason = readDeleteReason(req);
+    if (!reason) {
+      return res.status(400).json({ ok: false,
+        error: 'Pick a deletion reason. "Other" needs a note of at least 5 characters.' });
+    }
+
     await conn.beginTransaction();
     const deleted = [], skipped = [];
     for (const id of ids) {
       const r = await deleteOneOrder(conn, id, {
         actor:           req.session?.adminUser || 'admin',
-        reason:          (req.body && req.body.reason) || 'bulk delete',
+        reason,
         confirmCaptured: !!(req.body && req.body.confirm_captured),
       });
       (r.ok ? deleted : skipped).push(r);
