@@ -25,7 +25,6 @@
  * an acceptable loss, a 500 on "Add to cart" is not.
  */
 
-const crypto      = require('crypto');
 const { bvoPool } = require('../config/database');
 
 let _ready = false;
@@ -55,113 +54,28 @@ async function ensureTable() {
          a NULL would silently fall out of "WHERE is_bot = 0". */
       is_bot       TINYINT(1)   NOT NULL DEFAULT 0,
       is_test      TINYINT(1)   NOT NULL DEFAULT 0,
-      /* Did this request carry OUR session cookie back to us?
-         session_id comes from req.sessionID, and express-session mints a
-         fresh one for any client that does not return the cookie. A crawler
-         therefore produces one brand-new "session" PER REQUEST, which is how
-         15,463 sessions appeared against GA4's 389. This column is the
-         evidence that the client keeps state, which no cookieless crawler
-         can fake by spoofing a user-agent. */
-      stateful     TINYINT(1)   NOT NULL DEFAULT 0,
       KEY idx_event_time (event_name, occurred_at),
       KEY idx_time       (occurred_at),
       KEY idx_session    (session_id),
       KEY idx_product    (product_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
-  /* Existing installs already have the table, so CREATE TABLE IF NOT EXISTS
-     is a no-op there and the new column would never appear. Added separately,
-     tolerating the duplicate-column error the second time around. */
-  try {
-    await bvoPool.query('ALTER TABLE site_events ADD COLUMN stateful TINYINT(1) NOT NULL DEFAULT 0');
-  } catch (e) {
-    if (e && e.code !== 'ER_DUP_FIELDNAME') throw e;
-  }
   _ready = true;
 }
 
 /* Deliberately coarse. The job is to keep obvious crawlers out of the
    funnel, not to win an arms race - and anything this misses is visible
    as a session with views and no other events. */
-const BOT_RE = /bot|crawl|spider|slurp|bingpreview|headless|puppeteer|playwright|lighthouse|pingdom|uptime|curl|wget|python-requests|axios|monitor|scrapy|httpclient|java\/|go-http|okhttp|screaming frog|semrush|ahrefs|mj12|dotbot|petal|bytespider|gptbot|claudebot|ccbot|perplexity/i;
-
-/* HEADER HEURISTICS, because the user-agent is the one thing a crawler can
-   trivially lie about. The 2026-10-01 flood arrived with a real Chrome UA and
-   sailed through the regex above.
-
-   A browser that renders a page for a person always negotiates content: it
-   states what languages it reads and what encodings it accepts. Automated
-   clients routinely omit both because nothing is going to read the result.
-   Neither header alone is conclusive, so both must be missing. */
-function headersLookAutomated(req) {
-  const h = (req && req.headers) || {};
-  return !h['accept-language'] && !h['accept-encoding'];
-}
+const BOT_RE = /bot|crawl|spider|slurp|bingpreview|headless|puppeteer|playwright|lighthouse|pingdom|uptime|curl|wget|python-requests|axios|monitor/i;
 
 function looksLikeBot(req) {
-  const ua = String((req.headers && req.headers['user-agent']) || '');
+  const ua = String(req.headers['user-agent'] || '');
   if (!ua) return true;               // no UA at all is never a real browser
-  if (BOT_RE.test(ua)) return true;
-  return headersLookAutomated(req);
-}
-
-/* True when the client sent our session cookie back, proving it keeps state
-   across requests. express-session sets isNew on the request that mints the
-   id; every later request from the same browser clears it.
-
-   A real visitor's FIRST event is therefore not stateful, and a one-page
-   bounce never becomes stateful. The dashboard counts a session as human if
-   ANY of its events were stateful, so a genuine two-page visit counts in
-   full - the cost is confined to true single-page bounces, which were never
-   going to be purchase intent anyway. A crawler, having no cookie jar, can
-   never satisfy this at all. */
-function isStateful(req) {
-  const sess = req && req.session;
-  if (!sess) return false;
-  return sess.isNew === false;
+  return BOT_RE.test(ua);
 }
 
 /* Money arrives as a float from the DB. Round once, here, so every caller
    cannot each pick a different rounding. */
-/* ── THE SESSION-INFLATION FIX ───────────────────────────────────────────
-   req.sessionID is only meaningful for a client that returns our cookie.
-   For one that does not, express-session mints a fresh id on EVERY request,
-   so a crawler making 15,000 requests wrote 15,000 distinct "sessions" — and
-   that, not a mislabelled column, is why the tile read 15,463 against GA4's
-   389 for the same week.
-
-   So: stateful clients keep their real session id; everyone else gets a
-   synthetic id derived from who they appear to be, which collapses one
-   cookieless client's whole crawl into ONE session.
-
-   The day is in the key so the bucket rolls over nightly rather than
-   accumulating forever, which mirrors how GA4 ends sessions.
-
-   COST, stated plainly: a real visitor's first request is not yet stateful,
-   so it lands in the synthetic bucket and their later requests land in the
-   cookie bucket — one person can count as two sessions. That overcounts by
-   at most 2x in the worst case; the bug it replaces overcounted by 40x. It
-   also means two visitors behind one office NAT with the same browser share
-   a synthetic bucket for their first request each.
-
-   The IP is hashed and never stored. */
-function syntheticSessionId(req) {
-  const h  = (req && req.headers) || {};
-  const ip = (h['cf-connecting-ip'] || h['x-real-ip'] ||
-              String(h['x-forwarded-for'] || '').split(',')[0] ||
-              (req && req.ip) || '').trim();
-  const day = new Date().toISOString().slice(0, 10);
-  const hash = crypto.createHash('sha256')
-    .update(ip + '|' + (h['user-agent'] || '') + '|' + (h['accept-language'] || '') + '|' + day)
-    .digest('hex').slice(0, 24);
-  return 'anon-' + hash;
-}
-
-function sessionKey(req) {
-  if (isStateful(req)) return clip(req && req.sessionID, 128);
-  return syntheticSessionId(req);
-}
-
 function toCents(v) {
   const n = Number(v);
   if (!isFinite(n) || n <= 0) return 0;
@@ -190,11 +104,11 @@ async function record(req, name, f) {
     await bvoPool.query(
       `INSERT INTO site_events
          (event_name, session_id, customer_id, product_id, qty, value_cents,
-          path, referrer, is_bot, is_test, stateful)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+          path, referrer, is_bot, is_test)
+       VALUES (?,?,?,?,?,?,?,?,?,?)`,
       [
         String(name).slice(0, 40),
-        sessionKey(req),
+        clip(req && req.sessionID, 128),
         /* customerId, camelCase. The session key is spelled that way in all
            34 places that read it; customer_id is the COLUMN name, and I had
            written the column name here. It would have logged NULL for every
@@ -212,7 +126,6 @@ async function record(req, name, f) {
            customer, and is resolved by the dashboard query joining
            customers, not guessed here. Left 0: an unknown is not a test. */
         0,
-        isStateful(req) ? 1 : 0,
       ]
     );
   } catch (err) {
@@ -222,15 +135,4 @@ async function record(req, name, f) {
   }
 }
 
-module.exports = {
-  record, ensureTable, looksLikeBot, toCents,
-
-  /* Exposed for gate_session_identity.js, which has to EXECUTE these rather
-     than grep for them. The session-inflation bug was invisible to every
-     text-level check: the code read correctly and produced a number, the
-     number was simply 40x too large. Only running the functions against a
-     fixture catches that, and only a gate that can run them can catch it
-     again. Named with the __ prefix that ordersController's __deleteInternals
-     already established, to mark it as a test seam and not an API. */
-  __sessionInternals: { sessionKey, syntheticSessionId, isStateful, looksLikeBot, headersLookAutomated },
-};
+module.exports = { record, ensureTable, looksLikeBot, toCents };
