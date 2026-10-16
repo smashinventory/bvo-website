@@ -13,6 +13,65 @@ if (!process.env.ADMIN_USER || !process.env.ADMIN_PW_B64) {
   console.warn('[WARN] ADMIN_USER or ADMIN_PW_B64 not set — admin login will be disabled. Set both in Hostinger hPanel env vars.');
 }
 
+/* ── PROCESS-LEVEL SAFETY NET ─────────────────────────────────────
+ * Registered before anything else is required, so it is already in place
+ * while the modules below load.
+ *
+ * WHAT THIS IS FOR, written down because the absence of it cost an hour of
+ * downtime on 2026-10-15. A single promise rejection anywhere in the app -
+ * one query called with the wrong arguments, on one route - terminated the
+ * entire server. LiteSpeed restarted it, the next request killed it again,
+ * and that repeated roughly once a second for an hour. Storefront, checkout
+ * and admin all went with it.
+ *
+ * The restart was never the problem. The app restarted perfectly, about
+ * 3,600 times. It died again immediately each time, because nothing caught
+ * the rejection. This is the net, not a restart mechanism.
+ *
+ * Node has terminated the process on unhandled rejections BY DEFAULT since
+ * v15 (the server runs 18). That default suits a script; it is wrong for a
+ * web server, where one bad request should degrade that request and nothing
+ * else.
+ *
+ * THE TWO CASES ARE DELIBERATELY TREATED DIFFERENTLY, which is the
+ * conventional split and worth not "simplifying" later:
+ *
+ *   unhandledRejection - LOG, DO NOT EXIT. A rejected promise is almost
+ *     always one failed async operation: a query, a fetch, a file read. The
+ *     rest of the process is fine. Killing the server over it is a far
+ *     worse outcome than the failed request.
+ *
+ *   uncaughtException - LOG, THEN EXIT. A genuine uncaught throw escaped
+ *     every try/catch and the stack unwound through unknown code; state may
+ *     be inconsistent. Swallowing these and carrying on is the documented
+ *     anti-pattern - you get a process that is alive but quietly wrong.
+ *     Exiting lets the process manager start a clean one, which is the one
+ *     place a restart IS the right answer.
+ *
+ * Logged with a stable [FATAL]/[UNHANDLED] prefix so these are greppable in
+ * the hPanel runtime log rather than lost among startup chatter. */
+process.on('unhandledRejection', (reason) => {
+  const err = reason instanceof Error ? reason : new Error(String(reason));
+  console.error('[UNHANDLED] promise rejection — request failed, server staying up');
+  console.error('[UNHANDLED] ' + err.message);
+  /* err.sql is attached by the wrapper in config/database.js when the
+     rejection came from a query. It is the single most useful line here:
+     without it this log says a query failed but not which one. */
+  if (err.sql)  console.error('[UNHANDLED] sql: ' + String(err.sql).replace(/\s+/g, ' ').slice(0, 500));
+  if (err.code) console.error('[UNHANDLED] code: ' + err.code);
+  console.error(err.stack);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] uncaught exception — exiting for a clean restart');
+  console.error('[FATAL] ' + (err && err.message));
+  if (err && err.sql) console.error('[FATAL] sql: ' + String(err.sql).replace(/\s+/g, ' ').slice(0, 500));
+  console.error(err && err.stack);
+  /* Give the lines above a tick to flush to the log before the process
+     goes. Without this the most important output is the part that is lost. */
+  setTimeout(() => process.exit(1), 100).unref();
+});
+
 const express        = require('express');
 const expressLayouts = require('express-ejs-layouts');
 const session        = require('express-session');
