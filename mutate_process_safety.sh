@@ -109,17 +109,71 @@ s = s.replace("setTimeout(() => process.exit(1), 100).unref();", "process.exit(1
 '
 
 echo
+echo "──── the 2026-10-16 correction: DB errors must not exit ────"
+# THE regression. "Be consistent with the other branch" / "simplify the
+# handler" both land here, and both restore the crash loop.
+mutate "the DB carve-out is removed — every uncaught error exits again" "$SRV" '
+s = s.replace("    return;                               // <- the whole point. No exit.", "    process.exit(1);")
+'
+
+mutate "isDatabaseError always returns false" "$SRV" '
+s = s.replace("  if (isDatabaseError(err)) {", "  if (false) {")
+'
+
+# The opposite over-correction: never exiting for anything leaves a process
+# that is alive but potentially unsound.
+mutate "isDatabaseError always returns true (never exits for anything)" "$DB" '
+s = s.replace("function isDatabaseError(err) {\n  if (!err) return false;", "function isDatabaseError(err) {\n  return true;\n  if (!err) return false;")
+'
+
+# The production error has no code and no sqlState - the stack test is the
+# ONLY thing that identifies it.
+mutate "the driver-stack test is dropped from isDatabaseError" "$DB" '
+# chr(39)/chr(92) rather than typed quotes and backslashes: this needle is
+# a regex literal full of both, and escaping it through bash single-quotes
+# broke the whole script on the first attempt.
+q = chr(39); b = chr(92)
+old = "  return /node_modules[" + b + "/" + b + b + "](mysql2|named-placeholders)[" + b + "/" + b + b + "]/.test(String(err.stack || " + q + q + "));"
+assert old in s, "needle drifted"
+s = s.replace(old, "  return false;")
+'
+
+echo
+echo "──── the recent-query ring ────"
+mutate "queries are no longer recorded" "$DB" '
+s = s.replace("    noteQuery(sql, label);\n", "")
+'
+
+mutate "the FATAL path stops printing the ring" "$SRV" '
+q = chr(39)
+s = s.replace("  _printRecentQueries(" + q + "[FATAL]" + q + ");" + chr(10), "")
+'
+
+mutate "the UNHANDLED-DB path stops printing the ring" "$SRV" '
+q = chr(39)
+s = s.replace("    _printRecentQueries(" + q + "[UNHANDLED-DB]" + q + ");" + chr(10), "")
+'
+
+echo
 echo "──── the query wrapper ────"
 mutate "the wrapper is defined but never applied" "$DB" '
 s = s.replace("attachSql(bvoPool, \x27bvo\x27);", "// attachSql(bvoPool, \x27bvo\x27);")
 '
 
-mutate "the wrapper stops attaching err.sql" "$DB" '
-s = s.replace("err.sql  = typeof sql === \x27string\x27 ? sql : (sql && sql.sql) || String(sql);", "")
+
+mutate "tagError stops attaching err.sql" "$DB" '
+s = s.replace("err.sql = sqlText(sql);", "")
 '
 
-mutate "the wrapper throws a NEW error, losing the code/stack" "$DB" '
-s = s.replace("        throw err;\n      });", "        throw new Error(err.message);\n      });", 1)
+mutate "only the ASYNC path tags — a sync throw goes unnamed" "$DB" '
+# The named-placeholders failure can take the synchronous path. Tagging only
+# the promise rejection is exactly the gap that left [FATAL] with no sql line.
+s = s.replace("      throw tagError(err, sql, label);", "      throw err;", 1)
+'
+
+mutate "pooled connections are no longer wrapped" "$DB" '
+q = chr(39)
+s = s.replace("wrapQuery(conn, " + q + "bvo:conn" + q + "); conn.__sqlWrapped = true;", "")
 '
 
 echo

@@ -227,7 +227,25 @@ const JM_COST_FACTOR = 0.324;
    genuinely-changed rows instead of the whole catalogue. Nothing calls it with
    a window today, so this changes no current behaviour. */
 async function upsertProduct(conn, data) {
-  await conn.query(`
+  /* namedPlaceholders IS REQUESTED HERE, PER QUERY — not on the pool.
+   *
+   * This is the only query in the application that uses :name placeholders,
+   * and the reason is the 44 columns below: positional marks would have to
+   * be counted by hand and kept in order across the INSERT list, the VALUES
+   * list and the params array, and getting one wrong silently writes the
+   * wrong value into the wrong column.
+   *
+   * It used to be enabled pool-wide (commit 2208815). That made EVERY query
+   * in the app pass through named-placeholders, which does not understand
+   * SQL comments — one question mark inside a block comment took the site
+   * down twice on 2026-10-16. The capability is unchanged; only its scope.
+   *
+   * DO NOT remove this option without also removing the :name placeholders
+   * below. Without it mysql2 refuses the object outright with "Bind
+   * parameters must be array if namedPlaceholders parameter is not enabled"
+   * and the nightly JM feed import stops. gate_named_placeholders ties the
+   * two together so they cannot drift. */
+  await conn.query({ namedPlaceholders: true, sql: `
     INSERT INTO products (
       sku, slug, vendor_sku, name, brand, price, compare_price, cost,
       long_desc, product_type, component_role, vendor_group_id,
@@ -298,7 +316,7 @@ async function upsertProduct(conn, data) {
       custom_label_2          = COALESCE(custom_label_2, VALUES(custom_label_2)),
       custom_label_3          = COALESCE(custom_label_3, VALUES(custom_label_3)),
       custom_label_4          = COALESCE(custom_label_4, VALUES(custom_label_4))
-  `, data);
+  ` }, data);
   const [[row]] = await conn.query('SELECT id FROM products WHERE sku = ?', [data.sku]);
   return row ? row.id : null;
 }

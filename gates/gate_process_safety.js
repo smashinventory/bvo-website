@@ -78,9 +78,15 @@ console.log('--- behaviour, by running the real handler block ---');
    `const express =` and the child dies on a syntax error instead of on the
    thing under test. Which is what the first run of this gate did. */
 const iExpressDecl = SRV.indexOf('const express', iReject);
+const iHelper      = SRV.indexOf('function _printRecentQueries');
 const block = (() => {
   if (iReject < 0 || iExpressDecl < 0) return '';
-  return SRV.slice(iReject, iExpressDecl);
+  const from = iHelper > -1 && iHelper < iReject ? iHelper : iReject;
+  /* The block requires ./config/database (for isDatabaseError and the
+     recent-query ring). Repoint it at the real file, since the extracted
+     copy lives in /tmp. */
+  return SRV.slice(from, iExpressDecl)
+            .split('./config/database').join(path.join(ROOT, 'src/config/database'));
 })();
 check(block.length > 0, 'the handler block can be extracted from server.js',
       'the behavioural checks below are worthless without it');
@@ -92,8 +98,15 @@ fs.writeFileSync(TMP, block);
    execFileSync returns only stdout on success. The first run of this gate
    reported "not logged" for output that was there all along, on stderr. */
 function run(script) {
+  /* The handler block now requires config/database, which refuses to load
+     without a password - correct for the app, a nuisance here. A placeholder
+     is enough: no connection is ever made. Without this the children die on
+     the guard and every behavioural check reports a false failure, which is
+     exactly what the first run of these checks did. */
   const r = spawnSync(process.execPath, ['-e', script],
-                      { encoding: 'utf8', timeout: 10000 });
+                      { encoding: 'utf8', timeout: 10000,
+                        env: Object.assign({}, process.env,
+                             { DB_PASS: process.env.DB_PASS || 'gate-placeholder' }) });
   return { out: (r.stdout || '') + (r.stderr || ''),
            code: r.status == null ? -1 : r.status };
 }
@@ -140,7 +153,6 @@ function run(script) {
         'a bare process.exit(1) drops the [FATAL] lines on a loaded server');
 }
 
-try { fs.unlinkSync(TMP); } catch (_) {}
 
 /* ── 3. the handlers must not be neutered in source ──────────────
    Belt and braces alongside the executed checks: these name the specific
@@ -163,21 +175,38 @@ console.log('--- query errors carry their SQL ---');
 check(/err\.sql\s*=/.test(DB),
       'database.js attaches err.sql to failing queries');
 {
-  /* Scoped to the wrapper body: `throw err;` appears twice, so a mutation
-     replacing ONE of them with `throw new Error(...)` left the whole-file
-     check green. Assert the absence of construction instead. */
-  const i = DB.indexOf('function attachSql');
-  const j = DB.indexOf('attachSql(bvoPool', i);
-  const W = i > -1 && j > i ? DB.slice(i, j) : '';
-  check(W.length > 0, 'the wrapper body can be isolated');
-  check(/catch\s*\(err\)/.test(W),
-        'the wrapper catches query errors');
+  /* ONE tagger, ONE wrapper — deliberately deduplicated. The first version
+     copy-pasted the tagging logic into pool.query and connection.query, and
+     the harness immediately showed why that is wrong: deleting one copy left
+     the gate green while half the query paths went untagged. */
+  const ti = DB.indexOf('function tagError');
+  const tj = DB.indexOf('function wrapQuery', ti);
+  const T  = ti > -1 && tj > ti ? DB.slice(ti, tj) : '';
+  check(T.length > 0, 'tagError can be isolated');
+  check(/err\.sql\s*=\s*sqlText\(sql\)/.test(T),
+        'tagError attaches err.sql');
+  check(/err\.pool\s*=\s*label/.test(T),
+        'tagError records WHICH pool or connection issued it');
+
+  const wi = DB.indexOf('function wrapQuery');
+  const wj = DB.indexOf('function attachSql', wi);
+  const W  = wi > -1 && wj > wi ? DB.slice(wi, wj) : '';
+  check(W.length > 0, 'wrapQuery can be isolated');
   check(!/throw new /.test(W),
         'the wrapper rethrows the SAME error object, never a new one',
         'constructing a new Error discards err.code, err.errno and the original stack');
-  check((W.match(/throw err;/g) || []).length >= 2,
-        'both the async and synchronous paths rethrow',
+  check((W.match(/tagError\(err, sql, label\)/g) || []).length >= 2,
+        'BOTH the async and synchronous paths tag the error',
         'mysql2 can throw before it returns a promise - that is the case this exists for');
+  check(/noteQuery\(sql, label\)/.test(W),
+        'wrapQuery records the statement before issuing it');
+
+  /* The importer uses getConnection().query(), which bypasses pool.query
+     entirely. That gap meant the ring could not see a single JM import
+     query. */
+  check(/wrapQuery\(conn, 'bvo:conn'\)/.test(DB),
+        'pooled CONNECTIONS are wrapped too, not just the pool',
+        'the JM importer uses conn.query via getConnection - it would be invisible');
 }
 /* Must be a LIVE call, not a commented one. An indexOf for the identifier
    passes happily on "// attachSql(bvoPool...)", which is a silent no-op -
@@ -206,6 +235,75 @@ check(/^\s*attachSql\(bvoPool/m.test(DB),
         'the wrapper pattern attaches SQL on the async rejection path',
         r.out.slice(-200));
 }
+
+/* ── 5. the 2026-10-16 correction ────────────────────────────────
+   The first version of this handler exited on EVERY uncaught exception,
+   which turned one bad query into a crash loop in production. These checks
+   exist so that behaviour cannot come back by "simplification". */
+console.log('--- a database error does not take the server down ---');
+{
+  const r = run(`
+    require(${JSON.stringify(TMP)});
+    const err = new Error('Named query contains placeholders, but parameters object is undefined');
+    err.stack = [
+      'Error: Named query contains placeholders, but parameters object is undefined',
+      '    at toArrayParams (/app/node_modules/named-placeholders/index.js:91:13)',
+      '    at /app/node_modules/mysql2/lib/base/pool.js:67:11',
+    ].join('\\n');
+    setTimeout(() => { throw err; }, 10);
+    setTimeout(() => { console.log('ALIVE'); process.exit(0); }, 300);
+  `);
+  check(/ALIVE/.test(r.out) && r.code === 0,
+        'the EXACT production error (bare Error, no code, driver-only stack) does NOT exit',
+        'this is the regression that caused the 2026-10-16 crash loop. exit=' + r.code);
+  check(/\[UNHANDLED-DB\]/.test(r.out),
+        'it is logged under [UNHANDLED-DB], distinct from [FATAL]');
+}
+{
+  const r = run(`
+    require(${JSON.stringify(TMP)});
+    setTimeout(() => { throw new Error('genuinely unknown'); }, 10);
+    setTimeout(() => { console.log('WRONGLY-ALIVE'); }, 300);
+  `);
+  check(r.code !== 0 && !/WRONGLY-ALIVE/.test(r.out),
+        'a NON-database throw still exits',
+        'the DB carve-out must not become "never exit for anything"');
+  check(/\[FATAL\]/.test(r.out), 'and is still logged as [FATAL]');
+}
+
+console.log('--- the recent-query ring names the statement ---');
+check(/recentQueries/.test(DB), 'database.js keeps a recent-query ring');
+{
+  /* Scoped to the CALL SITES. Both identifiers stay in the file as function
+     definitions even when every call is deleted, so a whole-file grep passes
+     on a ring that records nothing and handlers that print nothing. The
+     mutation harness proved exactly that. */
+  const hi = SRV.indexOf("process.on('unhandledRejection'");
+  const hj = SRV.indexOf('const express', hi);
+  const H  = hi > -1 && hj > hi ? SRV.slice(hi, hj) : '';
+  ['[UNHANDLED]', '[UNHANDLED-DB]', '[FATAL]'].forEach(tag =>
+    check(H.indexOf("_printRecentQueries('" + tag + "')") > -1,
+          'the ' + tag + ' path prints the recent-query ring',
+          'a count check passed here while one path had been stripped'));
+}
+check(!/recentQueries\.push\([^)]*values/.test(DB) && !/q\.values/.test(SRV),
+      'parameter VALUES are never recorded or printed',
+      'params are customer data - emails, addresses, order contents');
+{
+  const r = run(`
+    require(${JSON.stringify(TMP)});
+    const db = require(${JSON.stringify(path.join(ROOT, 'src/config/database'))});
+    const err = new Error('x'); err.sqlState = '42000';
+    setTimeout(() => { throw err; }, 10);
+    setTimeout(() => { console.log('ALIVE'); process.exit(0); }, 300);
+  `);
+  check(/ALIVE/.test(r.out),
+        'an error carrying sqlState is also treated as a database error');
+}
+
+/* Cleanup last: an earlier unlink left the section-5 checks with no
+   file to require, and every one of them reported a false failure. */
+try { fs.unlinkSync(TMP); } catch (_) {}
 
 console.log('\n' + (fails
   ? 'gate_process_safety: FAILED ' + fails + ' of ' + checks

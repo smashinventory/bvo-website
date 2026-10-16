@@ -59,13 +59,64 @@ process.on('unhandledRejection', (reason) => {
      without it this log says a query failed but not which one. */
   if (err.sql)  console.error('[UNHANDLED] sql: ' + String(err.sql).replace(/\s+/g, ' ').slice(0, 500));
   if (err.code) console.error('[UNHANDLED] code: ' + err.code);
+  _printRecentQueries('[UNHANDLED]');
   console.error(err.stack);
 });
 
+/* Printed by both handlers. The error that caused the 2026-10-16 outage
+   carries no SQL of its own (it is thrown inside mysql2's getConnection
+   callback, after pool.query has returned), so the only way to name the
+   statement is to show what was issued immediately before. SQL text only —
+   never the parameter values, which are customer data. */
+function _printRecentQueries(tag) {
+  try {
+    const recent = require('./config/database').recentQueries();
+    if (!recent.length) return;
+    console.error(tag + ' last ' + recent.length + ' queries, newest last:');
+    recent.forEach((q, i) => console.error(
+      tag + '   ' + (i + 1) + '. [' + q.pool + '] ' + q.sql));
+  } catch (_) { /* never let diagnostics break the handler */ }
+}
+
+/* UNCAUGHT EXCEPTIONS — AND THE CORRECTION MADE ON 2026-10-16.
+ *
+ * The first version of this handler exited on every uncaught exception,
+ * on the textbook reasoning that process state may be unsound afterwards.
+ * That rule is right in general and was WRONG here, and the site proved it:
+ * the named-placeholders error arrives as an uncaughtException (thrown in a
+ * driver callback, never entering a promise chain), so the handler dutifully
+ * logged it and exited — once per request — reproducing the exact crash loop
+ * the net was built to prevent. It logged beautifully and the site still
+ * went down.
+ *
+ * So the two cases are separated by WHERE the throw came from:
+ *
+ *   A database error — one the driver raised about one statement — leaves
+ *   the rest of the process perfectly healthy. There is nothing to restart.
+ *   Log it, keep serving. The one request that triggered it hangs and times
+ *   out, which is a far better outcome than every other request failing too.
+ *
+ *   Anything else is a genuine unknown: the stack unwound through code we
+ *   cannot reason about. Exit and let the process manager start clean.
+ *
+ * isDatabaseError lives in config/database.js and is deliberately narrow —
+ * see the reasoning there. A false negative merely exits as before. */
+const { isDatabaseError } = require('./config/database');
+
 process.on('uncaughtException', (err) => {
+  if (isDatabaseError(err)) {
+    console.error('[UNHANDLED-DB] uncaught database error — request failed, server staying up');
+    console.error('[UNHANDLED-DB] ' + (err && err.message));
+    if (err && err.code) console.error('[UNHANDLED-DB] code: ' + err.code);
+    if (err && err.sql)  console.error('[UNHANDLED-DB] sql: ' + String(err.sql).replace(/\s+/g, ' ').slice(0, 500));
+    _printRecentQueries('[UNHANDLED-DB]');
+    console.error(err && err.stack);
+    return;                               // <- the whole point. No exit.
+  }
   console.error('[FATAL] uncaught exception — exiting for a clean restart');
   console.error('[FATAL] ' + (err && err.message));
   if (err && err.sql) console.error('[FATAL] sql: ' + String(err.sql).replace(/\s+/g, ' ').slice(0, 500));
+  _printRecentQueries('[FATAL]');
   console.error(err && err.stack);
   /* Give the lines above a tick to flush to the log before the process
      goes. Without this the most important output is the part that is lost. */
