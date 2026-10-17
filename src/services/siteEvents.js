@@ -25,6 +25,7 @@
  * an acceptable loss, a 500 on "Add to cart" is not.
  */
 
+const crypto      = require('crypto');
 const { bvoPool } = require('../config/database');
 
 let _ready = false;
@@ -66,16 +67,91 @@ async function ensureTable() {
 /* Deliberately coarse. The job is to keep obvious crawlers out of the
    funnel, not to win an arms race - and anything this misses is visible
    as a session with views and no other events. */
-const BOT_RE = /bot|crawl|spider|slurp|bingpreview|headless|puppeteer|playwright|lighthouse|pingdom|uptime|curl|wget|python-requests|axios|monitor/i;
+const BOT_RE = /bot|crawl|spider|slurp|bingpreview|headless|puppeteer|playwright|lighthouse|pingdom|uptime|curl|wget|python-requests|axios|monitor|scrapy|httpclient|java\/|go-http|okhttp|screaming frog|semrush|ahrefs|mj12|dotbot|petal|bytespider|gptbot|claudebot|ccbot|perplexity/i;
+
+/* HEADER HEURISTICS, because the user-agent is the one thing a crawler can
+   trivially lie about. The flood of 2026-10-01 arrived with a genuine Chrome
+   user-agent and sailed straight through the regex above.
+
+   A browser rendering a page for a person always negotiates content: it says
+   what languages it reads and what encodings it accepts. Automated clients
+   routinely omit both, because nothing is going to read the result.
+
+   BOTH must be missing. Plenty of real clients omit one, and a false positive
+   here deletes real traffic, which is worse than the overcount being fixed. */
+function headersLookAutomated(req) {
+  const h = (req && req.headers) || {};
+  return !h['accept-language'] && !h['accept-encoding'];
+}
 
 function looksLikeBot(req) {
-  const ua = String(req.headers['user-agent'] || '');
+  const ua = String((req.headers && req.headers['user-agent']) || '');
   if (!ua) return true;               // no UA at all is never a real browser
-  return BOT_RE.test(ua);
+  if (BOT_RE.test(ua)) return true;
+  return headersLookAutomated(req);
+}
+
+/* Did this client send our session cookie back, proving it keeps state across
+   requests. express-session sets isNew on the request that mints the id; every
+   later request from the same browser clears it.
+
+   NOTE the deliberate lack of a question mark on the line above. That is not a
+   typo. See the comment on sessionKey below. */
+function isStateful(req) {
+  const sess = req && req.session;
+  if (!sess) return false;
+  return sess.isNew === false;
 }
 
 /* Money arrives as a float from the DB. Round once, here, so every caller
    cannot each pick a different rounding. */
+/* ── THE SESSION-INFLATION FIX ───────────────────────────────────────────
+   req.sessionID is only meaningful for a client that returns our cookie. For
+   one that does not, express-session mints a fresh id on EVERY request, so a
+   crawler making 15,000 requests wrote 15,000 distinct "sessions". That, not
+   a mislabelled column, is why the tile read 15,463 against GA4's 389 for the
+   same week.
+
+   So: stateful clients keep their real session id; everyone else gets a
+   synthetic id derived from who they appear to be, collapsing one cookieless
+   client's entire crawl into ONE session. The calendar day is part of the key
+   so the bucket rolls over nightly rather than accumulating forever.
+
+   COST, stated rather than discovered later: a real visitor's FIRST request
+   has not returned the cookie yet, so it lands in the synthetic bucket while
+   their later requests land in the cookie bucket. One person can count as two
+   sessions. Worst case 2x, against the 40x it replaces. Two people behind one
+   office NAT on the same browser also share a synthetic bucket for their
+   first request each.
+
+   The IP is hashed and never stored.
+
+   A NOTE ON PUNCTUATION, which sounds absurd and cost two outages. The first
+   version of this fix carried a question mark in a comment inside the CREATE
+   TABLE below. mysql2 had namedPlaceholders enabled pool-wide, and the
+   named-placeholders library does not understand SQL comments: it read that
+   mark as a positional parameter on a statement with no parameters and threw
+   inside the driver, killing the process on every boot. The flag is now
+   scoped to the JM importer so this can no longer happen, and gate_named_
+   placeholders enforces it. The comments in this file still avoid the
+   character, as a second line of defence. */
+function syntheticSessionId(req) {
+  const h  = (req && req.headers) || {};
+  const ip = (h['cf-connecting-ip'] || h['x-real-ip'] ||
+              String(h['x-forwarded-for'] || '').split(',')[0] ||
+              (req && req.ip) || '').trim();
+  const day = new Date().toISOString().slice(0, 10);
+  const hash = crypto.createHash('sha256')
+    .update(ip + '|' + (h['user-agent'] || '') + '|' + (h['accept-language'] || '') + '|' + day)
+    .digest('hex').slice(0, 24);
+  return 'anon-' + hash;
+}
+
+function sessionKey(req) {
+  if (isStateful(req)) return clip(req && req.sessionID, 128);
+  return syntheticSessionId(req);
+}
+
 function toCents(v) {
   const n = Number(v);
   if (!isFinite(n) || n <= 0) return 0;
@@ -108,7 +184,7 @@ async function record(req, name, f) {
        VALUES (?,?,?,?,?,?,?,?,?,?)`,
       [
         String(name).slice(0, 40),
-        clip(req && req.sessionID, 128),
+        sessionKey(req),
         /* customerId, camelCase. The session key is spelled that way in all
            34 places that read it; customer_id is the COLUMN name, and I had
            written the column name here. It would have logged NULL for every
@@ -135,4 +211,14 @@ async function record(req, name, f) {
   }
 }
 
-module.exports = { record, ensureTable, looksLikeBot, toCents };
+module.exports = {
+  record, ensureTable, looksLikeBot, toCents,
+
+  /* Exposed for gate_session_identity.js, which has to EXECUTE these rather
+     than grep for them. The inflation bug was invisible to every text-level
+     check: the code read correctly and produced a number, the number was
+     simply 40x too large. Only running the functions against a fixture
+     catches that. Named with the __ prefix that ordersController's
+     __deleteInternals established, to mark it as a test seam and not an API. */
+  __sessionInternals: { sessionKey, syntheticSessionId, isStateful, looksLikeBot, headersLookAutomated },
+};
