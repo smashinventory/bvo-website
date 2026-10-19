@@ -760,6 +760,95 @@ const disputeOpen = order.dispute_id
         <% } %>
       </div>
 
+      <%# ── RECEIPT ────────────────────────────────────────────────────
+          "My receipt never arrived" is one of the most common support
+          requests on the sister sites, and it is almost always a typo the
+          buyer made in their own address at checkout. Until 2026-10-19
+          there was no way to resend one at all.
+
+          TWO BUTTONS, because they are two different decisions:
+
+            Resend          — same address, send it again. Harmless.
+            Correct & resend — the address on file is WRONG. This rewrites
+                               the order AND the customer record, and may
+                               have to merge two customers to do it. Not
+                               something to stumble into, so it is behind
+                               its own panel with the collision check in
+                               front of it.
+
+          Any admin, logged, no limit — the owner's explicit call. Every
+          press lands in customer_messages whether it worked or not. %>
+      <h4 style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 6px">Receipt</h4>
+
+      <%# Four, not two: a correction can succeed while its resend fails,
+          and those two facts need saying separately — "address fixed, mail
+          did not go" is the state an operator must not mistake for done. %>
+      <% if (rrOk)  { %><p class="rr-flash rr-flash--ok"><%= rrOk %></p><% } %>
+      <% if (rrErr) { %><p class="rr-flash rr-flash--err"><%= rrErr %></p><% } %>
+      <% if (ceOk)  { %><p class="rr-flash rr-flash--ok"><%= ceOk %></p><% } %>
+      <% if (ceErr) { %><p class="rr-flash rr-flash--err"><%= ceErr %></p><% } %>
+
+      <% if (!(order.guest_email || order.customer_email)) { %>
+      <p class="admin-card-hint">No email address on this order — nothing to send to. Use <strong>Correct email</strong> to add one.</p>
+      <% } %>
+
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <%# ⚠️ data-act AND data-confirm GO ON THE <form>, NOT THE BUTTON.
+            A submit event's target is the form, so the dispatcher's
+            e.target.closest('[data-act]') walks UP from the form and would
+            never find an attribute sitting on the button inside it — the
+            confirm would simply never appear and the POST would go
+            unguarded. Same shape as the nine delete guards converted in
+            39e55b8. %>
+        <form method="POST" action="/admin/orders/<%= order.id %>/resend-receipt"
+              style="margin:0" data-act="noop" data-on="submit"
+              data-confirm="Resend the order confirmation to <%= order.guest_email || order.customer_email || '(no address)' %>?">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button class="btn btn-outline btn-sm" type="submit"
+                  <%= (order.guest_email || order.customer_email) ? '' : 'disabled' %>>
+            Resend receipt
+          </button>
+        </form>
+        <button class="btn btn-outline btn-sm" type="button" data-act="ceOpen">Correct email</button>
+      </div>
+
+      <%# The correction form. The collision check fires on blur, BEFORE
+          anything is submitted, so the operator learns that the address
+          belongs to another customer while they can still change their
+          mind — not from an error after pressing Save. %>
+      <form class="ce-form" id="ce-form" method="POST"
+            action="/admin/orders/<%= order.id %>/correct-email"
+            data-act="noop" data-on="submit"
+            data-confirm="Change the email on this order AND on the customer record?">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+        <label class="ce-label" for="ce-email">Correct email address</label>
+        <input class="ce-input" type="email" id="ce-email" name="to_email"
+               value="<%= order.guest_email || order.customer_email || '' %>"
+               data-act="ceCheck" data-on="change">
+        <p class="admin-card-hint" style="margin:4px 0 0">
+          Updates this order <strong>and</strong> the customer record — always
+          both. Fixing only one leaves the next receipt going to the typo.
+        </p>
+
+        <div class="ce-warn" id="ce-warn"></div>
+
+        <label class="ce-check" id="ce-merge-wrap">
+          <input type="checkbox" name="confirm" value="1" id="ce-merge">
+          <span>Merge these customers (required when the corrected address already belongs to another record)</span>
+        </label>
+
+        <label class="ce-check">
+          <input type="checkbox" name="resend" value="1" checked>
+          <span>Resend the receipt to the corrected address</span>
+        </label>
+
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <button class="btn btn-primary btn-sm" type="submit">Save &amp; resend</button>
+          <button class="btn btn-outline btn-sm" type="button" data-act="ceClose">Cancel</button>
+        </div>
+      </form>
+
       <% if (order.ship_address1 || order.ship_city) { %>
       <h4 style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 6px">Shipping Address</h4>
       <p style="margin:0;font-size:13px;line-height:1.6">
@@ -1343,6 +1432,47 @@ Object.assign(window.BVO_ACTIONS, {
   submitOpenReturn:   ()         => submitOpenReturn(),
   closeModal:         (el, a1)   => closeModal(String(a1)),
   deleteOrder:        (el, a1, a2, a3) => deleteOrder(a1, String(a2), a3),
+
+  /* ── email correction, added 2026-10-19 ─────────────────────────── */
+  ceOpen:  () => {
+    document.getElementById('ce-form').classList.add('is-open');
+    document.getElementById('ce-email').focus();
+  },
+  ceClose: () => document.getElementById('ce-form').classList.remove('is-open'),
+
+  /* Checks the typed address against customers BEFORE anything is
+     submitted. customers.email is UNIQUE, so the corrected address may
+     already belong to someone — and finding that out from an error after
+     pressing Save is how an operator ends up guessing. Fires on change
+     (blur), not input: one request per address, not one per keystroke. */
+  ceCheck: (el) => {
+    const warn  = document.getElementById('ce-warn');
+    const wrap  = document.getElementById('ce-merge-wrap');
+    const email = (el.value || '').trim();
+    warn.classList.remove('is-open');
+    wrap.classList.remove('is-open');
+    document.getElementById('ce-merge').checked = false;
+    if (!email || email === '<%= order.guest_email || '' %>') return;
+
+    fetch(`/admin/marketing/customers/<%= order.customer_id || 0 %>/merge-preview?email=` +
+          encodeURIComponent(email),
+          { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(r => r.json())
+      .then(d => {
+        if (!d || !d.ok || !d.collision) return;
+        const i = d.impact || {};
+        warn.textContent =
+          `${email} already belongs to customer #${d.other.id}` +
+          (d.other.first_name ? ` (${d.other.first_name} ${d.other.last_name || ''})`.trimEnd() : '') +
+          `. Saving will MERGE the two: ${i.orders} order(s), ${i.addresses} address(es) ` +
+          `and ${i.messages} message(s) move onto #${d.other.id}, and this ` +
+          `customer record is deleted. Tick the box below to allow it.`;
+        warn.classList.add('is-open');
+        wrap.classList.add('is-open');
+      })
+      .catch(() => { /* The server re-checks and refuses, so a failed
+                        pre-check costs a clearer message, not safety. */ });
+  },
 });
 
 /* Status dropdown tooltip — was an inline onchange= on the <select>. */

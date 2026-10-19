@@ -341,6 +341,22 @@ exports.detail = async (req, res, next) => {
          plainly; an unset key renders the panel's fallback instead of an
          iframe pointing at `key=undefined`. */
       mapsKey:    process.env.GOOGLE_MAPS_API_KEY || '',
+
+      /* ── outreach flash messages (2026-10-19) ───────────────────────
+         Set by customerOutreachController on redirect: rr_* from Resend
+         receipt, ce_* from Correct email. Read off the query string
+         rather than a session flash because there is no flash mechanism
+         in this app and adding one for two banners would be new
+         infrastructure nobody else uses.
+
+         Defaulted to '' so the template can test them plainly, and
+         ESCAPED at render (<%= %>, never <%- %>) — the strings carry
+         Brevo's own error text and an email address the operator typed,
+         and the second of those is attacker-controllable in principle. */
+      rrOk:  req.query.rr_ok  || '',
+      rrErr: req.query.rr_err || '',
+      ceOk:  req.query.ce_ok  || '',
+      ceErr: req.query.ce_err || '',
     });
   } catch (err) { next(err); }
 };

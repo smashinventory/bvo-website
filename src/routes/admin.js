@@ -13,6 +13,7 @@ const emailTplCtrl  = require('../controllers/emailTemplatesController');
 const jmvCtrl       = require('../controllers/jmvReportsController');
 const custCtrl      = require('../controllers/customerAnalyticsController');
 const siteCtrl = require('../controllers/siteAnalyticsController');
+const outreachCtrl  = require('../controllers/customerOutreachController');
 const shippingCtrl  = require('../controllers/shippingController');
 const { requireAdmin } = require('../middleware/adminAuth');
 
@@ -108,6 +109,12 @@ router.post('/orders/:id/capture',                  ordersCtrl.capturePayment);
 // Release a hold on an order rejected during validation. NOT a refund —
 // before capture there is no charge to refund. See the controller.
 router.post('/orders/:id/cancel-authorization',     ordersCtrl.cancelAuthorization);
+/* Resend the confirmation, and fix a mistyped address. Any admin, logged,
+   no limit — the owner's call: the real risk in this business is a buyer
+   who never got their receipt, not an operator sending one twice. Both are
+   recorded in customer_messages either way. */
+router.post('/orders/:id/resend-receipt',           outreachCtrl.resendReceipt);
+router.post('/orders/:id/correct-email',            outreachCtrl.correctEmail);
 router.post('/orders/:orderId/returns',             returnsCtrl.openReturn);
 
 /* ── Returns ─────────────────────────────────────────────────── */
@@ -163,6 +170,22 @@ router.get ('/marketing/customers',          custCtrl.dashboard);
 router.get ('/marketing/site',               siteCtrl.dashboard);
 router.get ('/marketing/customers/:id',      custCtrl.detail);
 router.post('/marketing/customers/:id/test', custCtrl.toggleTest);
+
+/* ── Customer outreach ──────────────────────────────────────────
+   Contact Customer, resend receipt, correct a mistyped address.
+
+   ⚠️ ORDER MATTERS. '/marketing/outreach/template' is registered BEFORE
+   '/marketing/customers/:id' would ever see it — different prefix, so no
+   conflict today, but the literal path is kept out of the ':id' family
+   deliberately so a future wildcard cannot swallow it. The same mistake
+   was avoided explicitly in the shipping block below.
+
+   Every POST here is covered by the global CSRF middleware in server.js
+   (line 793), which rejects any non-GET without the session token. There
+   is nothing per-route to add, and nothing per-route to forget. */
+router.get ('/marketing/outreach/template',          outreachCtrl.loadTemplate);
+router.get ('/marketing/customers/:id/merge-preview', outreachCtrl.mergePreview);
+router.post('/marketing/customers/:id/message',      outreachCtrl.sendMessage);
 
 /* ── Shipping (WWEX SpeedShip) ────────────────────────────────── */
 router.get ('/shipping',                  shippingCtrl.index);

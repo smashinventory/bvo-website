@@ -28,6 +28,7 @@
 
 const { bvoPool }  = require('../config/database');
 const SIGNUP_SRC   = require('../config/signupSources');
+const brevo        = require('../services/brevoService');   // listTemplates, for the outreach panel
 
 /* The ONLY permitted references to these tables in analytics. Written as
    fragments rather than repeated by hand so a new report cannot quietly
@@ -309,12 +310,50 @@ exports.detail = async (req, res) => {
     const [bundles] = await bvoPool.query(
       'SELECT * FROM saved_bundles WHERE customer_id = ? ORDER BY created_at DESC', [id]);
 
+    /* ── the outreach panel's data ─────────────────────────────────────
+       Templates for the Template Response dropdown, and everything ever
+       sent to this person.
+
+       ⚠️ BOTH WRAPPED. customer_messages is created by the 2026-10-19
+       migration, and the admin must keep working on a server where that
+       has not been run yet — an unrun migration should degrade the panel,
+       not 500 the whole customer record. email_templates is read through
+       its own try for the same reason.
+
+       This is the pattern adminController._ensureModelGroupsTable uses,
+       minus the self-heal: a CREATE TABLE issued from a page render is how
+       a schema ends up differing between environments. */
+    let templates = [];
+    try { templates = await brevo.listTemplates(); }
+    catch (e) { console.error('[customerAnalytics.detail] templates:', e && e.message); }
+
+    let messages = [], messagesTableMissing = false;
+    try {
+      const [m] = await bvoPool.query(
+        `SELECT id, order_id, to_email, kind, template_key, subject,
+                sent_ok, error, actor, created_at
+           FROM customer_messages
+          WHERE customer_id = ?
+          ORDER BY created_at DESC
+          LIMIT 50`, [id]);
+      messages = m;
+    } catch (e) {
+      messagesTableMissing = e && e.code === 'ER_NO_SUCH_TABLE';
+      if (!messagesTableMissing)
+        console.error('[customerAnalytics.detail] messages:', e && e.message);
+    }
+
     return res.render('pages/admin/marketing/customer-detail', {
       pageTitle: `${customer.email} | BVO Admin`,
       layout: 'layouts/admin',
       customer,
       sourceLabel: SIGNUP_SRC.label(customer.signup_source),
       orders, addresses, favorites: favs, bundles,
+      templates, messages, messagesTableMissing,
+      /* Set by the outreach handlers on redirect. Strings, never HTML:
+         the view escapes them. */
+      msgOk:  req.query.msg_ok  || '',
+      msgErr: req.query.msg_err || '',
       spent: orders.filter(o => String(o.is_test) !== '1')
                    .reduce((a, o) => a + num(o.total), 0),
     });

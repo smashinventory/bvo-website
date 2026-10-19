@@ -222,6 +222,53 @@ markup, and markup assembled inside `<script>` — and also asserts the CSP has
 not been relaxed. `mutate_no_inline_handlers.sh` proves it can fail, including
 both blind spots its own first draft had.
 
+**⚠️ Corollary (added 2026-10-19): `data-act` for a SUBMIT goes on the
+`<form>`, never on the submit button.** A submit event's target is the *form*,
+so the dispatcher's `e.target.closest('[data-act]')` walks **up** from the form
+and never sees an attribute sitting on a button inside it. The confirm dialog
+silently never appears and the POST goes through unguarded — a dead guard,
+which is worse than a dead button, because it looks like it works.
+`gate_customer_outreach.js` asserts no `data-on="submit"` sits on a `<button>`.
+
+---
+
+### Rule 16 — A Send Is Not A Success Until You Read The Result
+
+Added 2026-10-19, while building customer outreach.
+
+**The rule.** `brevoService.sendTemplate`, `sendRaw` and `sendWithAttachments`
+**do not throw**. By deliberate contract (`brevoService.js:272` — *"Nothing in
+this function may throw"*, because checkout calls it after the card is
+authorised) each one **resolves** with one of:
+
+| result | meaning |
+|---|---|
+| `{ ok: true, messageId }` | sent |
+| `{ ok: false, error }` | Brevo or the network refused it |
+| `{ skipped: true }` | no `BREVO_API_KEY`, or the template row is missing or `is_active = 0` |
+
+So `await`-ing a send and reaching the next line **proves nothing**. The result
+object has to be read. An early draft of `orderEmails.resend()` returned
+`{ ok: true }` unconditionally — reporting a confident success to the operator
+on exactly the failures they were standing at the screen to diagnose.
+
+**And the blocklist is a fourth outcome.** Brevo keeps a blocklist; a hard
+bounce or a spam complaint puts an address on it, and every later send to that
+address is **dropped silently while the API still returns 201**. Any
+operator-facing send must call `brevo.isBlocked(addr)` first and report a
+refusal, or it will tell someone their customer was emailed when they were not.
+`isBlocked` fails open by contract, so an outage degrades to "send anyway".
+
+**Enforcement.** `gates/gate_customer_outreach.js` stubs `brevoService` in the
+require cache and exercises all four outcomes. `mutate_customer_outreach.sh`
+proves each check can fail.
+
+**Related: every operator-initiated send is logged to `customer_messages`,
+failures included.** A log of successes only hides the rows worth reading, and
+the next operator re-sends into the same blocklist. The gate checks the log is
+*reachable*, not merely present — counting `logMessage` calls was its own first
+blind spot, and an `if (false)` in front of one slipped straight past it.
+
 ---
 
 ### Rule 14 — Gates Cannot Validate SQL

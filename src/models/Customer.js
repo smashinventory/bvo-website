@@ -130,6 +130,52 @@ const Customer = {
     return r.affectedRows > 0;
   },
 
+  /**
+   * Write a phone number ONLY where we do not already have one.
+   *
+   * THE GAP THIS CLOSES. saveInfo has copied the buyer's name to their
+   * customer record since 2026-10-01 (setNameIfMissing, right above) but
+   * never their phone, because no setter existed. The result: customer 11's
+   * admin detail page read "no phone number" while the order beside it held
+   * the validated +1XXXXXXXXXX he had typed in himself. The number was
+   * never missing — it was just never copied across.
+   *
+   * Guard in the WHERE clause, not an if() above it, for the same reason
+   * setNameIfMissing does it that way: one statement cannot race a second
+   * tab, and a stale form cannot post a blank over a number captured five
+   * minutes earlier at checkout.
+   *
+   * ⚠️ NO EXTENSION. customers has one `phone` column, VARCHAR(30), and no
+   * extension column. orders.ship_phone_ext stays on the order, where it
+   * belongs: an extension describes how to reach someone about ONE
+   * delivery. Concatenating "x204" in here would corrupt the only value
+   * that has to stay dialable and E.164-shaped if SMS is ever switched on,
+   * and it would silently overflow 30 characters for a long number.
+   *
+   * Expects E.164 — checkoutController has already run toE164() and
+   * refused anything that is not /^\+1\d{10}$/, so no reformatting is done
+   * here. Anything else is stored as given rather than mangled: a wrong
+   * number you can see beats a cleaned one you cannot trace.
+   */
+  async setPhoneIfMissing(customerId, phone) {
+    const id = parseInt(customerId, 10);
+    if (!Number.isInteger(id) || id < 1) return false;
+    const p = String(phone || '').trim();
+    if (!p) return false;
+    /* Longer than the column: refuse rather than let MySQL truncate a
+       number into something that looks valid and dials nowhere. */
+    if (p.length > 30) return false;
+
+    const [r] = await bvoPool.query(
+      `UPDATE customers
+          SET phone = ?
+        WHERE id = ?
+          AND (phone IS NULL OR phone = '')`,
+      [p, id]
+    );
+    return r.affectedRows > 0;
+  },
+
   async updateLastLogin(id) {
     try {
       await bvoPool.query('UPDATE customers SET last_login_at = NOW() WHERE id = ?', [id]);

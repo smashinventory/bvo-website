@@ -59,6 +59,7 @@ const crypto      = require('crypto');
 const { bvoPool } = require('../config/database');
 const stripe      = require('../services/stripeService');
 const brevo       = require('../services/brevoService');
+const orderEmails = require('../services/orderEmails');
 const geocode     = require('../services/geocodeService');
 /* Pure function, own module — see src/utils/addressProvenance.js for why
    the delivery address's origin is decided here and not sent by the page. */
@@ -810,6 +811,23 @@ exports.saveInfo = async (req, res) => {
     }
   }
   req.session.orderCustomerId = orderCustomerId;
+
+  /* ⚠️ OUTSIDE the if(!orderCustomerId) block above, deliberately.
+     The name copy sits inside it because it is wired to the customer
+     RESOLVE. The phone must not be: a signed-in buyer skips that whole
+     branch, and a signed-in buyer with no phone on file is the same gap —
+     the number is on the order and nowhere else.
+
+     Added 2026-10-19. Until then nothing copied the phone at all, so
+     customer 11's detail page read "no phone number" while his order held
+     the validated +1 number he had typed in himself. setPhoneIfMissing, so
+     a delivery number given for a jobsite cannot overwrite the account
+     holder's own. Fire-and-forget, like the name copy: a phone number is
+     worth having, never worth failing a sale. */
+  if (orderCustomerId && phone) {
+    Customer.setPhoneIfMissing(orderCustomerId, phone)
+      .catch(e => console.error('[checkout.saveInfo] phone copy failed:', e && e.message));
+  }
 
   if (orderCustomerId) {
     try {
@@ -2165,62 +2183,21 @@ async function handleSessionCompleted(sessionStub) {
  * Deliberately NOT awaited by the caller. The authorisation already
  * exists; a mail failure must not look to anyone like an order failure.
  */
+/* ⚠️ THE BODY MOVED to src/services/orderEmails.js on 2026-10-19.
+   Verbatim — gate_customer_outreach.js asserts the HTML this produces is
+   byte-identical to what the old body produced, the same way
+   cartPricing.js and inventory.js were proven no-ops when they moved.
+
+   It moved because it was unreachable. A private function in a 2,300-line
+   controller, called from one webhook, with no way for an operator to
+   re-send a receipt to a customer who mistyped their own address — the
+   single most common support request on the sister sites.
+
+   This wrapper stays so the call site above keeps reading the way it did,
+   and so the fire-and-forget contract documented here is stated where the
+   checkout path can see it. Do not make it awaited: see the note above. */
 function sendConfirmation(order, items, confirmToken) {
-  const esc = s => String(s == null ? '' : s)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-
-  const money = n => `$${Number(n || 0).toLocaleString('en-US',
-    { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-  const rows = items.map(it => `<tr>
-      <td style="padding:8px 0;border-bottom:1px solid #e5e0d8">${esc(it.name)}${it.qty > 1 ? ` &times;${it.qty}` : ''}</td>
-      <td style="padding:8px 0;border-bottom:1px solid #e5e0d8;text-align:right;white-space:nowrap">${money(it.line_total)}</td>
-    </tr>`).join('');
-
-  /* ── THE CONFIRM-YOUR-EMAIL BLOCK ────────────────────────────────
-     Built here as WHOLE HTML, not as a bare URL, so that a missing
-     token produces an empty string and the email renders clean rather
-     than showing a button that goes nowhere.
-
-     SITE_URL, not a request host: this runs from the Stripe webhook,
-     where there is no buyer request to read a host from.
-
-     The wording sells the BENEFIT — tracking and delivery updates —
-     because that is what confirming actually buys the buyer. It must
-     not read as a demand or imply the order is incomplete: the card is
-     already authorised and the order already exists. Anything that
-     makes a paid buyer think something is wrong costs a support call.
-
-     The link is a GET to a page with a button, never a one-click
-     confirm. Mail scanners follow links — Gmail's "Loaded by proxy"
-     shows against our own messages in Brevo's log — and a scanner that
-     auto-confirmed would destroy the only signal this flag carries. */
-  const base = (require('../utils/siteUrl').base())
-    .replace(/\/+$/, '');
-  const confirmHtml = confirmToken
-    ? `<div style="border:1px solid #e5e0d8;border-radius:8px;padding:18px 20px;margin:0 0 24px;background:#faf8f5">
-  <p style="margin:0 0 12px;font-size:15px"><strong>Want delivery updates and tracking?</strong><br>
-  Confirm this is your email and we will keep you posted the whole way.</p>
-  <p style="margin:0 0 10px">
-    <a href="${base}/orders/confirm?t=${encodeURIComponent(confirmToken)}"
-       style="display:inline-block;background:#182840;color:#ffffff;text-decoration:none;padding:11px 22px;border-radius:6px;font-weight:700;font-size:14px">Confirm my email</a>
-  </p>
-  <p style="margin:0;font-size:12px;color:#7a7264">Optional &mdash; your order is already placed either way. This link works for ${emailVerify.TOKEN_TTL_DAYS} days.</p>
-</div>`
-    : '';
-
-  brevo.sendTemplate('order_confirmed', order.guest_email, {
-    confirm_button_html: confirmHtml,
-    customer_first_name: order.ship_first_name || 'there',
-    order_number:        order.order_number,
-    order_date:          new Date().toLocaleDateString('en-US',
-                           { year: 'numeric', month: 'long', day: 'numeric' }),
-    order_items_html:    `<table style="width:100%;border-collapse:collapse">${rows}</table>`,
-    order_total:         money(order.total),
-  }, `${order.ship_first_name || ''} ${order.ship_last_name || ''}`.trim())
-    .catch(err => console.error('[checkout] confirmation email failed for',
-                                order.order_number, '—', err?.message || err));
+  orderEmails.send(order, items, confirmToken);
 }
 
 /* ── GET /checkout/return ───────────────────────────────────────── */

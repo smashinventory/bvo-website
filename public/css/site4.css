@@ -302,3 +302,33 @@
 .email-vflag{display:inline-block;margin-left:.4rem;padding:1px 7px;border-radius:10px;font-size:.66rem;font-weight:700;letter-spacing:.03em;white-space:nowrap;vertical-align:middle}
 .email-vflag--yes{background:#e8f2e8;color:#2f6b34;border:1px solid #cfe0cf}
 .email-vflag--no{background:#f1efec;color:#6b6257;border:1px solid #e0dbd3}
+
+/* ─────────────────────────────────────────────────────────────────────
+   RECEIPT RESEND + EMAIL CORRECTION — admin order detail
+   Added 2026-10-19. Lives here rather than in a <style> block on
+   detail.ejs because that file has none: all admin styling is in this
+   file. ⚠️ Bump ?v= in views/layouts/admin.ejs when editing this file —
+   the Hostinger CDN caches it, and a style nobody can see looks exactly
+   like a feature that was never shipped.
+───────────────────────────────────────────────────────────────────────── */
+.rr-flash{border-radius:6px;padding:8px 10px;margin:0 0 8px;font-size:12.5px;line-height:1.5}
+.rr-flash--ok{background:#e9f5ec;border:1px solid #bfe0c8;color:#1f5b32}
+.rr-flash--err{background:#fbeaea;border:1px solid #e6c2c2;color:#8a3a3a}
+
+/* Hidden until the operator asks for it. Correcting an address can merge
+   two customer records, so it is not something to reveal by default. */
+.ce-form{display:none;margin-top:10px;padding:10px;border:1px solid var(--border-input,#d0d5dd);border-radius:6px;background:#fafafa}
+.ce-form.is-open{display:block}
+.ce-label{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:4px}
+.ce-input{width:100%;box-sizing:border-box;font-family:var(--font-sans);font-size:13px;padding:7px 9px;border:1.5px solid var(--border-input,#d0d5dd);border-radius:6px;outline:0}
+.ce-input:focus{border-color:var(--color-amber,#b8860b)}
+.ce-check{display:flex;gap:7px;align-items:flex-start;margin-top:8px;font-size:12.5px;line-height:1.45}
+.ce-check input{margin-top:2px;flex-shrink:0}
+
+/* The collision warning, and the merge consent that only appears with it.
+   Both hidden by default: a merge checkbox standing permanently on screen
+   invites someone to tick it when there is nothing to merge. */
+.ce-warn{display:none;background:#fff8e6;border:1px solid #e8d9a8;color:#6b5a24;border-radius:6px;padding:8px 10px;margin-top:8px;font-size:12.5px;line-height:1.5}
+.ce-warn.is-open{display:block}
+#ce-merge-wrap{display:none}
+#ce-merge-wrap.is-open{display:flex}
