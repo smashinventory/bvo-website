@@ -154,7 +154,7 @@ function filterUrl(overrides) {
           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
         <div class="adm-fg-body">
-          <select name="category_id" onchange="this.form.submit()" class="adm-fg-select">
+          <select name="category_id" data-act="submitForm" data-on="change" class="adm-fg-select">
             <option value="">All categories</option>
             <% (categories||[]).forEach(function(c) { %>
             <option value="<%= c.id %>" <%= filters.category_id == c.id ? 'selected' : '' %>><%= c.name %></option>
@@ -172,14 +172,14 @@ function filterUrl(overrides) {
         </button>
         <div class="adm-fg-body<%= (filters.brands&&filters.brands.length) ? '' : ' is-collapsed' %>">
           <% if (allBrands.length > 8) { %>
-          <input type="text" class="adm-fg-search" placeholder="Search brands…" oninput="filterOpts(this)">
+          <input type="text" class="adm-fg-search" placeholder="Search brands…" data-act="filterOpts" data-on="input">
           <% } %>
           <div class="adm-fg-opts">
             <% allBrands.forEach(function(b) { %>
             <label class="adm-fg-opt">
               <input type="checkbox" name="brand" value="<%= b %>"
                 <%= (filters.brands&&filters.brands.includes(b)) ? 'checked' : '' %>
-                onchange="this.form.submit()"> <%= b %>
+                data-act="submitForm" data-on="change"> <%= b %>
             </label>
             <% }); %>
           </div>
@@ -199,7 +199,7 @@ function filterUrl(overrides) {
                      || (o[0]!=='' && String(filters.is_active)===o[0]);
           %>
           <label class="adm-fg-opt">
-            <input type="radio" name="is_active" value="<%= o[0] %>" <%= isChk?'checked':'' %> onchange="this.form.submit()">
+            <input type="radio" name="is_active" value="<%= o[0] %>" <%= isChk?'checked':'' %> data-act="submitForm" data-on="change">
             <%= o[1] %>
           </label>
           <% }); %>
@@ -213,7 +213,7 @@ function filterUrl(overrides) {
           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
         <div class="adm-fg-body<%= filters.status ? '' : ' is-collapsed' %>">
-          <select name="status" onchange="this.form.submit()" class="adm-fg-select">
+          <select name="status" data-act="submitForm" data-on="change" class="adm-fg-select">
             <option value="">All statuses</option>
             <% [['active','Active'],['coming_soon','Coming Soon'],['special_order','Special Order'],['discontinued','Discontinued']].forEach(function(o) { %>
             <option value="<%= o[0] %>" <%= filters.status===o[0]?'selected':'' %>><%= o[1] %></option>
@@ -229,7 +229,7 @@ function filterUrl(overrides) {
           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
         <div class="adm-fg-body<%= filters.source_flag ? '' : ' is-collapsed' %>">
-          <select name="source_flag" onchange="this.form.submit()" class="adm-fg-select">
+          <select name="source_flag" data-act="submitForm" data-on="change" class="adm-fg-select">
             <option value="">All sources</option>
             <option value="manual"  <%= filters.source_flag==='manual'  ?'selected':'' %>>Manual</option>
             <option value="rflpos"  <%= filters.source_flag==='rflpos'  ?'selected':'' %>>RFLPOS Sync</option>
@@ -263,7 +263,7 @@ function filterUrl(overrides) {
         <div class="adm-fg-body">
           <label class="adm-fg-opt">
             <input type="checkbox" name="in_stock" value="1"
-              <%= filters.in_stock ? 'checked' : '' %> onchange="this.form.submit()">
+              <%= filters.in_stock ? 'checked' : '' %> data-act="submitForm" data-on="change">
             In stock only
           </label>
         </div>
@@ -281,7 +281,7 @@ function filterUrl(overrides) {
         <%= total %> product<%= total !== 1 ? 's' : '' %>
         <% if (hasFilters) { %><span style="color:#999;font-weight:400"> — filtered</span><% } %>
       </span>
-      <select class="adm-sort-select" onchange="applySort(this.value)">
+      <select class="adm-sort-select" data-act="applySort" data-on="change">
         <%# Best match only appears while a query exists — with no query every
             row scores 0 and the ordering would be arbitrary. %>
         <% (filters.q ? [['relevance','Best match']] : []).concat(
@@ -296,12 +296,12 @@ function filterUrl(overrides) {
     <!-- Bulk action bar (JS shows when items checked) -->
     <div class="adm-bulk-bar" id="bulkBar">
       <span class="adm-bulk-count" id="bulkCount">0 selected</span>
-      <button type="button" class="btn btn-sm btn-primary" onclick="bulkEditSelected()">✏ Edit Selected</button>
-      <button type="button" class="btn btn-sm btn-outline" onclick="bulkSubmit('export')">⬇ Export Selected</button>
-      <button type="button" class="btn btn-sm btn-outline" onclick="bulkSubmit('activate')">Activate</button>
-      <button type="button" class="btn btn-sm btn-outline" onclick="bulkSubmit('deactivate')">Deactivate</button>
-      <button type="button" class="btn btn-sm adm-bulk-del" onclick="bulkSubmit('delete')">Delete</button>
-      <button type="button" class="btn btn-sm btn-outline" onclick="clearSel()" style="margin-left:auto">✕ Deselect</button>
+      <button type="button" class="btn btn-sm btn-primary" data-act="bulkEdit">✏ Edit Selected</button>
+      <button type="button" class="btn btn-sm btn-outline" data-act="bulkSubmit" data-a1="export">⬇ Export Selected</button>
+      <button type="button" class="btn btn-sm btn-outline" data-act="bulkSubmit" data-a1="activate">Activate</button>
+      <button type="button" class="btn btn-sm btn-outline" data-act="bulkSubmit" data-a1="deactivate">Deactivate</button>
+      <button type="button" class="btn btn-sm adm-bulk-del" data-act="bulkSubmit" data-a1="delete">Delete</button>
+      <button type="button" class="btn btn-sm btn-outline" data-act="clearSel" style="margin-left:auto">✕ Deselect</button>
     </div>
 
     <!-- Hidden form for bulk submission -->
@@ -383,7 +383,7 @@ function filterUrl(overrides) {
               <a href="/admin/products/<%= p.id %>/edit" class="adm-action-link">Edit</a>
               <a href="/products/<%= p.slug %>" target="_blank" class="adm-action-link" title="View in store">↗</a>
               <form action="/admin/products/<%= p.id %>/delete" method="POST" style="display:inline"
-                onsubmit="return confirm('Delete «<%= p.name.replace(/'/g,'\\\'') %>»?')">
+                data-act="noop" data-on="submit" data-confirm="Delete «<%= p.name %>»?">
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 <button type="submit" class="adm-action-link adm-action-link--danger">Del</button>
               </form>
@@ -589,6 +589,14 @@ function filterUrl(overrides) {
   wireImport('csvImportBtn', 'csvImportFile', 'csvImportForm', 'BVO CSV',
     'BVO', '#7A7264', 'Updating products from enrichment CSV');
 })();
+
+Object.assign(window.BVO_ACTIONS, {
+  filterOpts: (el)     => filterOpts(el),
+  applySort:  (el)     => applySort(el.value),
+  bulkEdit:   ()       => bulkEditSelected(),
+  bulkSubmit: (el, a1) => bulkSubmit(String(a1)),
+  clearSel:   ()       => clearSel(),
+});
 </script>
 
 <style>

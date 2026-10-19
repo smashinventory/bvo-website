@@ -73,7 +73,7 @@ const formAction = isNew ? '/admin/categories' : `/admin/categories/${cat.id}`;
           <input type="url" id="ceImgUrl" name="image_url" class="ce-input ce-input--url"
                  value="<%= cat.image_url || '' %>"
                  placeholder="https://example.com/image.jpg"
-                 oninput="previewCatImg(this.value)">
+                 data-act="previewCatImg" data-on="input">
         </div>
 
         <p class="ce-img-hint">PNG, JPG, WebP. Recommended: 800×600 px or wider.</p>
@@ -169,7 +169,7 @@ const formAction = isNew ? '/admin/categories' : `/admin/categories/${cat.id}`;
           </label>
           <input type="text" id="catMetaTitle" name="meta_title" class="ce-input"
                  value="<%= cat.meta_title || '' %>" placeholder="Auto-filled from category name"
-                 maxlength="160" oninput="updateMetaCount(this,'metaTitleCount')">
+                 maxlength="160" data-act="metaCount" data-on="input" data-a1="metaTitleCount">
           <div class="ce-meta-row">
             <p class="ce-field-hint">Appears in browser tab and search results.</p>
             <span class="ce-char-count" id="metaTitleCount"><%= (cat.meta_title || '').length %>/160</span>
@@ -183,7 +183,7 @@ const formAction = isNew ? '/admin/categories' : `/admin/categories/${cat.id}`;
           </label>
           <textarea id="catMetaDesc" name="meta_desc" class="ce-textarea" rows="3"
                     placeholder="Auto-filled from category description" maxlength="320"
-                    oninput="updateMetaCount(this,'metaDescCount')"><%= cat.meta_desc || '' %></textarea>
+                    data-act="metaCount" data-on="input" data-a1="metaDescCount"><%= cat.meta_desc || '' %></textarea>
           <div class="ce-meta-row">
             <p class="ce-field-hint">Recommended: 120–160 characters.</p>
             <span class="ce-char-count" id="metaDescCount"><%= (cat.meta_desc || '').length %>/320</span>
@@ -215,7 +215,7 @@ const formAction = isNew ? '/admin/categories' : `/admin/categories/${cat.id}`;
           <p class="ce-danger-hint">This action cannot be undone. Products will not be deleted but will lose their category assignment.</p>
         </div>
         <form method="POST" action="/admin/categories/<%= cat.id %>/delete"
-              onsubmit="return confirm('Delete «<%= cat.name %>»? This cannot be undone.')">
+              data-act="noop" data-on="submit" data-confirm="Delete «<%= cat.name %>»? This cannot be undone.">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <button type="submit" class="adm-btn adm-btn--danger">Delete</button>
         </form>
@@ -457,4 +457,10 @@ function updateMetaCount(el, countId) {
     urlPath:     '<% if (!isNew && cat.slug) { %>/collections/<%= cat.slug %><% } else { %>/collections/...<% } %>',
   });
 })();
+
+/* Delegated action registry — views/partials/admin/action-dispatch.ejs. */
+Object.assign(window.BVO_ACTIONS, {
+  previewCatImg: (el)     => previewCatImg(el.value),
+  metaCount:     (el, a1) => updateMetaCount(el, String(a1)),
+});
 </script>

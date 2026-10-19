@@ -199,7 +199,7 @@
                      points here; a deleted row makes a historic
                      shipment's origin a dangling id. */%>
                 <form method="POST" action="/admin/shipping/pickup-addresses/<%= a.id %>/deactivate"
-                      style="display:inline" onsubmit="return confirm('Deactivate <%= a.nickname %>? It will disappear from the dropdown. Past shipments keep their record.')">
+                      style="display:inline" data-act="noop" data-on="submit" data-confirm="Deactivate <%= a.nickname %>? It will disappear from the dropdown. Past shipments keep their record.">
                   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                   <button type="submit" class="adm-btn adm-btn--sm">Deactivate</button>
                 </form>

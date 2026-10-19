@@ -55,7 +55,7 @@ const _comboBySinks      = JSON.parse(comboBySinks      || '[]');
 
   <form method="GET" action="/admin/marketing/jmv" style="display:flex;gap:8px;align-items:center;margin-left:auto">
     <label class="adm-label" style="margin:0">Window</label>
-    <select name="days" class="adm-search-select" onchange="this.form.submit()">
+    <select name="days" class="adm-search-select" data-act="submitForm" data-on="change">
       <option value="7"   <%= days===7   ? 'selected':'' %>>Last 7 days</option>
       <option value="14"  <%= days===14  ? 'selected':'' %>>Last 14 days</option>
       <option value="30"  <%= days===30  ? 'selected':'' %>>Last 30 days</option>

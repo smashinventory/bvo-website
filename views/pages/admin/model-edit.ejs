@@ -202,7 +202,7 @@ const prefillKey   = prefillModel ? (prefillModel + '||' + prefillBrand) : '';
           <textarea id="meDesc" name="description" class="me-textarea"
                     rows="3" maxlength="300"
                     placeholder="Timeless elegance with modern storage — available in 6 finishes."
-                    oninput="meCharCount(this,'meDescCount',300)"><%= mg.description || '' %></textarea>
+                    data-act="meCharCount" data-on="input" data-a1="meDescCount" data-a2="300"><%= mg.description || '' %></textarea>
           <div class="me-char-count" id="meDescCount"><%= (mg.description||'').length %>/300</div>
         </div>
 
@@ -230,7 +230,7 @@ const prefillKey   = prefillModel ? (prefillModel + '||' + prefillBrand) : '';
           <input type="text" id="meMetaTitle" name="meta_title" class="me-input"
                  value="<%= mg.meta_title || '' %>" maxlength="70"
                  placeholder="Auto-filled from model name"
-                 oninput="meCharCount(this,'meMetaTitleCount',70)">
+                 data-act="meCharCount" data-on="input" data-a1="meMetaTitleCount" data-a2="70">
           <div class="me-char-count" id="meMetaTitleCount"><%= (mg.meta_title||'').length %>/70</div>
         </div>
 
@@ -243,7 +243,7 @@ const prefillKey   = prefillModel ? (prefillModel + '||' + prefillBrand) : '';
           <textarea id="meMetaDesc" name="meta_description" class="me-textarea"
                     rows="3" maxlength="200"
                     placeholder="Auto-filled from description"
-                    oninput="meCharCount(this,'meMetaDescCount',160)"><%= mg.meta_description || '' %></textarea>
+                    data-act="meCharCount" data-on="input" data-a1="meMetaDescCount" data-a2="160"><%= mg.meta_description || '' %></textarea>
           <div class="me-char-count" id="meMetaDescCount"><%= (mg.meta_description||'').length %>/160</div>
         </div>
 
@@ -323,7 +323,7 @@ const prefillKey   = prefillModel ? (prefillModel + '||' + prefillBrand) : '';
           <input type="url" id="meCustomImageUrl" name="custom_image" class="me-input"
                  value="<%= mg.custom_image || '' %>"
                  placeholder="https://…"
-                 oninput="mePreviewImg(this.value)">
+                 data-act="mePreviewImg" data-on="input">
         </div>
 
         <% } else { %>
@@ -349,7 +349,7 @@ const prefillKey   = prefillModel ? (prefillModel + '||' + prefillBrand) : '';
         <p class="me-hint">Removes this management record. The model line will revert to auto-ranking on the homepage.</p>
         <div class="me-delete-zone">
           <form method="POST" action="/admin/models/<%= mg.id %>/delete"
-                onsubmit="return confirm('Remove management record for \'<%= mg.model_name %>\'?\n\nThis model will revert to automatic ranking.')">
+                data-act="noop" data-on="submit" data-confirm="Remove management record for <%= mg.model_name %>? This model will revert to automatic ranking.">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
             <button type="submit" class="adm-btn adm-btn--danger" style="width:100%">Remove Model Group</button>
           </form>
@@ -541,4 +541,9 @@ const prefillKey   = prefillModel ? (prefillModel + '||' + prefillBrand) : '';
 <% } %>
 
 })();
+
+Object.assign(window.BVO_ACTIONS, {
+  meCharCount:  (el, a1, a2) => meCharCount(el, String(a1), a2),
+  mePreviewImg: (el)         => mePreviewImg(el.value),
+});
 </script>

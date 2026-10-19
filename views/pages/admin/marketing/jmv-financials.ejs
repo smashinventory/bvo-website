@@ -28,10 +28,10 @@ function fmtDollar(n) {
   <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
     <!-- Period quick-select -->
     <div class="jmvf-period-btns">
-      <button class="jmvf-period-btn" onclick="setPeriod('mtd')">MTD</button>
-      <button class="jmvf-period-btn" onclick="setPeriod('7d')">7 days</button>
-      <button class="jmvf-period-btn" onclick="setPeriod('30d')">30 days</button>
-      <button class="jmvf-period-btn" onclick="setPeriod('90d')">90 days</button>
+      <button class="jmvf-period-btn" data-act="setPeriod" data-a1="mtd">MTD</button>
+      <button class="jmvf-period-btn" data-act="setPeriod" data-a1="7d">7 days</button>
+      <button class="jmvf-period-btn" data-act="setPeriod" data-a1="30d">30 days</button>
+      <button class="jmvf-period-btn" data-act="setPeriod" data-a1="90d">90 days</button>
     </div>
     <!-- Custom date range -->
     <form method="GET" action="/admin/marketing/jmv/financials"
@@ -46,7 +46,7 @@ function fmtDollar(n) {
     <form method="GET" action="/admin/marketing/jmv/financials">
       <input type="hidden" name="from"  value="<%= fromDate %>">
       <input type="hidden" name="to"    value="<%= toDate %>">
-      <select name="scope" class="adm-search-select" onchange="this.form.submit()">
+      <select name="scope" class="adm-search-select" data-act="submitForm" data-on="change">
         <option value="all"  <%= scope==='all'  ? 'selected':'' %>>All types</option>
         <option value="sync" <%= scope==='sync' ? 'selected':'' %>>Vanities &amp; Tops</option>
       </select>
@@ -641,6 +641,10 @@ function setPeriod(period) {
   }
   window.location.href = '/admin/marketing/jmv/financials?from=' + fromStr + '&to=' + toStr + '&scope=<%= scope %>';
 }
+
+Object.assign(window.BVO_ACTIONS, {
+  setPeriod: (el, a1) => setPeriod(String(a1)),
+});
 </script>
 
 <style>

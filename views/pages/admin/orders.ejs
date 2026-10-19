@@ -46,7 +46,7 @@
         <td>
           <form action="/admin/orders/<%= o.id %>/status" method="POST" class="adm-inline-form">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-            <select name="status" class="adm-status-select" onchange="this.form.submit()">
+            <select name="status" class="adm-status-select" data-act="submitForm" data-on="change">
               <% statuses.forEach(s => { %>
               <option value="<%= s %>" <%= o.status === s ? 'selected' : '' %>><%= s %></option>
               <% }) %>

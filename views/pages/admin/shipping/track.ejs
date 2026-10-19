@@ -20,7 +20,7 @@
     <div class="adm-field" style="flex:1">
       <label>BOL or PRO Number</label>
       <input id="trackInput" type="text" class="adm-input" placeholder="e.g. BOL-123456789"
-             value="<%= query || '' %>" onkeydown="if(event.key==='Enter')doTrack()">
+             value="<%= query || '' %>" data-act="track" data-on="keydown" data-key="Enter">
     </div>
     <div class="adm-field">
       <label>Number Type</label>
@@ -29,7 +29,7 @@
         <option value="PRO" <%= (trackType||'')==='PRO'?'selected':'' %>>PRO</option>
       </select>
     </div>
-    <button class="btn btn-primary" onclick="doTrack()" id="trackBtn">Track</button>
+    <button class="btn btn-primary" data-act="track" id="trackBtn">Track</button>
   </div>
 </div>
 
@@ -148,6 +148,12 @@ function kv(label, val) {
 window.addEventListener('DOMContentLoaded', function() { doTrack(); });
 <% } %>
 if (typeof _preloaded !== 'undefined') renderResult(_preloaded);
+
+/* Delegated action registry — see views/partials/admin/action-dispatch.ejs.
+   These were inline onclick=/onkeydown= attributes, which the CSP refuses. */
+Object.assign(window.BVO_ACTIONS, {
+  track: () => doTrack(),
+});
 </script>
 
 <style>

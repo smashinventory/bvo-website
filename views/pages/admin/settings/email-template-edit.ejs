@@ -28,7 +28,7 @@
     <div class="admin-card" style="margin-top:16px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <h3 class="admin-card-title" style="margin:0">Preview</h3>
-        <button class="btn btn-outline btn-sm" onclick="refreshPreview()">Refresh Preview</button>
+        <button class="btn btn-outline btn-sm" data-act="refreshPreview">Refresh Preview</button>
       </div>
       <div class="tpl-preview-subject">
         <strong>Subject:</strong> <span id="previewSubject"><%= preview.subject %></span>
@@ -44,7 +44,7 @@
       <p style="font-size:12px;color:var(--text-muted);margin:0 0 12px">Click any variable to copy it.</p>
       <ul class="var-list">
         <% Object.entries(previewVars).forEach(([key, val]) => { %>
-          <li class="var-item" onclick="copyVar('{{<%= key %>')">
+          <li class="var-item" data-act="copyVar" data-a1="{{<%= key %>">
             <code class="var-code">{{<%= key %>}}</code>
             <span class="var-example"><%= val %></span>
           </li>
@@ -117,4 +117,9 @@ function copyVar(text) {
     setTimeout(() => document.querySelectorAll('.var-item.copied').forEach(el => el.classList.remove('copied')), 1200);
   });
 }
+
+Object.assign(window.BVO_ACTIONS, {
+  refreshPreview: ()       => refreshPreview(),
+  copyVar:        (el, a1) => copyVar(String(a1)),
+});
 </script>

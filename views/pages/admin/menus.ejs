@@ -67,7 +67,7 @@
     <div class="mn-sidebar-title">Menus</div>
     <% menus.forEach(function(m) { %>
     <button class="mn-menu-btn <%= m.handle === activeHandle ? 'active' : '' %>"
-            onclick="window.location='/admin/menus?menu=<%= m.handle %>'">
+            data-act="go" data-a1="/admin/menus?menu=<%= m.handle %>">
       <%= m.name %>
       <span style="color:#bbb;font-size:.75rem;margin-left:.25rem">(<%= m.items.length %>)</span>
     </button>
@@ -104,7 +104,7 @@
                     data-hl="<%= item.is_highlight ? '1' : '0' %>"
                     data-mega="<%= item.is_mega ? '1' : '0' %>">Edit</button>
             <form method="POST" action="/admin/menus/<%= activeMenu.handle %>/items/<%= item.id %>/delete"
-                  onsubmit="return confirm('Remove this menu item?')">
+                  data-act="noop" data-on="submit" data-confirm="Remove this menu item?">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <button type="submit" class="adm-btn adm-btn--sm adm-btn--danger">✕</button>
             </form>
@@ -178,7 +178,7 @@
       </label>
       <% } %>
       <div class="mn-modal-btns">
-        <button type="button" class="adm-btn" onclick="closeModal()">Cancel</button>
+        <button type="button" class="adm-btn" data-act="closeModal">Cancel</button>
         <button type="submit" class="adm-btn adm-btn--primary">Save Changes</button>
       </div>
     </form>
@@ -256,4 +256,8 @@
     }).catch(function() { console.error('Reorder save failed'); });
   }
 })();
+
+Object.assign(window.BVO_ACTIONS, {
+  closeModal: () => closeModal(),
+});
 </script>

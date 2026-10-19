@@ -1,0 +1,178 @@
+<%# ── ADMIN ACTION DISPATCH ──────────────────────────────────────────────
+    Included ONCE by views/layouts/admin.ejs, on the same reasoning as the
+    hotlink warning above it: every admin page shares this layout, so a new
+    page picks the mechanism up with no extra wiring, and there is one copy
+    to correct rather than twenty-four.
+
+    ⚠️ WHY THIS EXISTS AT ALL. src/server.js sets
+
+        scriptSrcAttr: ["'none'"]          (added 2026-09-21, bad36bf)
+
+    which makes the browser REFUSE inline event-handler attributes —
+    onclick=, onchange=, oninput=, onsubmit=, onkeydown=. A nonce does not
+    rescue them: nonces and hashes apply to <script> BLOCKS, never to
+    handler attributes. The browser logs the refusal to the console and the
+    control simply does nothing.
+
+    109 handlers across 24 admin views were dead this way for a month,
+    including selectRate() in the shipping wizard — which meant no freight
+    could be booked at all — and Release Hold on an order carrying a live
+    card authorization. The failure is silent, so none of it was noticed.
+
+    gate_no_inline_handlers.js keeps them from coming back.
+
+    ── HOW TO USE ────────────────────────────────────────────────────────
+
+      <button data-act="save">Save</button>
+      <select data-act="setInsure" data-on="change">
+      <div    data-act="closePanel" data-backdrop="1">   <- only the backdrop
+      <input  data-act="filter" data-on="input">
+      <form   data-act="noop" data-on="submit" data-confirm="Delete this?">
+      <input  data-act="search" data-on="keydown" data-key="Enter">
+
+    and in the page's own nonce'd script:
+
+      Object.assign(window.BVO_ACTIONS, {
+        save:      ()   => doSave(),
+        setInsure: (el) => toggleInsureVal(el.value),
+        closePanel:()   => closePanel(),
+      });
+
+    Handlers are called as fn(el, a1, a2, a3, event).
+
+    Registration order does not matter — the registry is read at event time,
+    not at bind time — so a page script that loads after this one is fine.
+
+    ⚠️ DELEGATION IS THE POINT, not just a style preference. The listener is
+    bound to document, so it fires for elements that DO NOT EXIST YET. The
+    shipping wizard builds its handling-unit rows, commodity rows and rate
+    buttons with innerHTML at runtime; per-element addEventListener would
+    need re-binding after every rebuild and would silently miss any path
+    that forgot. This needs none.
+
+    ⚠️ NEVER "FIX" A DEAD CONTROL BY ADDING 'unsafe-inline' TO scriptSrcAttr.
+    That reopens exactly what bad36bf closed. Give it a data-act. %>
+<script nonce="<%= cspNonce %>">
+(function () {
+  'use strict';
+
+  /* Populated by each page's own script via Object.assign. Read at event
+     time, so load order is irrelevant. */
+  window.BVO_ACTIONS = window.BVO_ACTIONS || {};
+
+  /* Built in, because "confirm, then let the browser do what it was going
+     to do" needs no page-specific code. Replaces
+     onsubmit="return confirm(...)" on plain POST forms: the guard above
+     has already cancelled the event if the operator declined, so reaching
+     here means yes and there is nothing left to do. */
+  window.BVO_ACTIONS.noop = function () {};
+
+  /* Built in, because onchange="this.form.submit()" appears on nine filter
+     and sort controls across the admin and none of them want page-specific
+     code. Walks to the owning form: el.form covers inputs and selects,
+     closest('form') covers anything else. */
+  window.BVO_ACTIONS.submitForm = function (el, a1) {
+    /* data-a1 names a form by id when the control is not inside the form
+       it submits — orders/index.ejs did exactly that. */
+    var f = a1 ? document.getElementById(String(a1))
+               : (el.form || el.closest('form'));
+    if (f) f.submit();
+  };
+
+  /* Built in, for onclick="window.location='…'" — a button behaving as a
+     link. Kept as a button rather than rewritten to an anchor so the
+     conversion stays a like-for-like swap with no styling consequences. */
+  window.BVO_ACTIONS.go = function (el, a1) {
+    if (a1) window.location = String(a1);
+  };
+
+  /* Built in, for onerror="this.style.display='none'" on an <img> whose
+     src 404s. Hides the broken-image icon. */
+  window.BVO_ACTIONS.hideOnError = function (el) {
+    el.style.display = 'none';
+  };
+
+  /* Built in, for a button that shows/hides a panel and retitles itself.
+     data-a1 = the panel's id, data-a2/a3 = the collapsed/expanded labels. */
+  window.BVO_ACTIONS.togglePanel = function (el, a1, a2, a3) {
+    var panel = document.getElementById(String(a1));
+    if (!panel) return;
+    var showing = panel.style.display !== 'none';
+    panel.style.display = showing ? 'none' : 'block';
+    if (a2 && a3) el.textContent = showing ? String(a2) : String(a3);
+  };
+
+  /* dataset values are ALWAYS strings. The inline handlers these replace
+     passed real numbers and booleans — showStep(1), voidShipment(12, true) —
+     so the types have to be restored or a handler branching on === 1 or on
+     a boolean silently takes the wrong path.
+
+     '' stays '' rather than becoming 0: Number('') is 0, which would turn an
+     absent argument into a valid-looking id. Identifiers that are not clean
+     numbers (order_number, a rate id like 'STD-ABF') stay strings. */
+  function coerce(v) {
+    if (v === undefined) return undefined;
+    if (v === 'true')    return true;
+    if (v === 'false')   return false;
+    if (v === 'null')    return null;
+    if (v !== '' && !isNaN(v)) return Number(v);
+    return v;
+  }
+
+  function run(e, type) {
+    var el = e.target.closest('[data-act]');
+    if (!el) return;
+    if ((el.dataset.on || 'click') !== type) return;
+
+    /* Backdrop guard. Replaces onclick="if(event.target===this)close()" —
+       the overlay closes when the backdrop itself is clicked, but not when
+       a click inside the dialog bubbles up to it. */
+    if (el.dataset.backdrop && e.target !== el) return;
+
+    /* Key guard, for keydown handlers that only act on one key. */
+    if (el.dataset.key && e.key !== el.dataset.key) return;
+
+    /* Replaces onsubmit="return confirm(...)". Declining must stop the
+       submit, so this preventDefaults rather than returning false. */
+    if (el.dataset.confirm && !window.confirm(el.dataset.confirm)) {
+      e.preventDefault();
+      return;
+    }
+
+    var fn = window.BVO_ACTIONS[el.dataset.act];
+    if (typeof fn !== 'function') {
+      /* Loud on purpose. A missing registration is the same silent-dead
+         control this whole mechanism exists to abolish. */
+      console.error('[admin] no handler registered for data-act="' +
+                    el.dataset.act + '" (' + type + ')');
+      return;
+    }
+
+    /* ⚠️ EXPLICIT, NOT AUTOMATIC. An earlier draft preventDefaulted every
+       submit, which would have swallowed the POST on a confirm-and-submit
+       form: the operator clicks OK and nothing happens — the same silent
+       dead control this file exists to abolish, reintroduced by the fix.
+
+       The default action is the browser's unless a control opts out with
+       data-prevent, and a handler that decides mid-flight can call
+       e.preventDefault() itself — it receives the event as its last
+       argument. */
+    if (el.dataset.prevent !== undefined) e.preventDefault();
+
+    fn(el, coerce(el.dataset.a1), coerce(el.dataset.a2), coerce(el.dataset.a3), e);
+  }
+
+  /* One listener per event type. These all bubble, so document sees them
+     wherever they originate, including inside markup injected later. */
+  ['click', 'change', 'input', 'submit', 'keydown'].forEach(function (t) {
+    document.addEventListener(t, function (e) { run(e, t); });
+  });
+
+  /* ⚠️ 'error' DOES NOT BUBBLE, so it needs the CAPTURE phase — the third
+     argument. A broken <img> fires error at the image and it never travels
+     up to document, so the bubbling registration above would never see it
+     and onerror="this.style.display='none'" would stay broken after being
+     converted. Capture runs document → target, so it does. */
+  document.addEventListener('error', function (e) { run(e, 'error'); }, true);
+})();
+</script>

@@ -6,7 +6,7 @@
     <input type="text" name="search" value="<%= search %>" placeholder="Search order #, customer, email…" class="adm-search-input">
     <%# Status definitions come from src/config/orderStatuses.js so the filter,
         the badges and the detail-page dropdown can never drift apart. %>
-    <select name="status" class="adm-search-select" onchange="document.getElementById('orderSearchForm').submit()">
+    <select name="status" class="adm-search-select" data-act="submitForm" data-on="change" data-a1="orderSearchForm">
       <option value="">All Statuses</option>
       <% ORDER_STATUSES.forEach(s => { %>
         <option value="<%= s.value %>" title="<%= s.tip %>" <%= status === s.value ? 'selected' : '' %>><%= s.label %></option>

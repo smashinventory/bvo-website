@@ -39,13 +39,13 @@ const totals    = locals.totals    || {};
 <!-- ══ Filters ═══════════════════════════════════════════════════════ -->
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
   <input type="text" id="invSearch" placeholder="Search BOL, carrier, customer…"
-         class="adm-search-input" style="width:240px" oninput="filterInv()">
-  <select id="invType" class="adm-search-select" onchange="filterInv()">
+         class="adm-search-input" style="width:240px" data-act="filterInv" data-on="input">
+  <select id="invType" class="adm-search-select" data-act="filterInv" data-on="change">
     <option value="">All Types</option>
     <option value="LTL">LTL</option>
     <option value="SMALLPACK">Small Package</option>
   </select>
-  <select id="invPeriod" class="adm-search-select" onchange="filterInv()">
+  <select id="invPeriod" class="adm-search-select" data-act="filterInv" data-on="change">
     <option value="">All Time</option>
     <option value="30">Last 30 days</option>
     <option value="60">Last 60 days</option>
@@ -147,6 +147,11 @@ function filterInv() {
   document.getElementById('invCount').textContent = count + ' shipment(s)';
   document.getElementById('invTotal').textContent = '$' + total.toLocaleString('en-US',{minimumFractionDigits:2});
 }
+
+/* Delegated action registry — see views/partials/admin/action-dispatch.ejs. */
+Object.assign(window.BVO_ACTIONS, {
+  filterInv: () => filterInv(),
+});
 </script>
 
 <style>

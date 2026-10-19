@@ -184,6 +184,46 @@ Both label + chip rows use a flex row with the label on the left (`min-width: 5r
 
 ---
 
+### Rule 15 — No Inline Event Handlers, Anywhere
+
+Added 2026-10-19, after 109 dead controls were found across 24 admin views.
+
+**The rule.** No `.ejs` file may contain an inline event-handler attribute —
+`onclick=`, `onchange=`, `oninput=`, `onsubmit=`, `onkeydown=`, `onerror=` or
+any other `on*=`. Not in template markup, and not inside a JavaScript string
+that builds markup. Use `data-act` and the delegated dispatcher at
+`views/partials/admin/action-dispatch.ejs`.
+
+**Why.** `src/server.js` sets `scriptSrcAttr: ["'none'"]`, added 2026-09-21 in
+`bad36bf`. The browser **refuses** inline handler attributes outright.
+
+⚠️ **A nonce does not rescue them.** Nonces and hashes apply to `<script>`
+blocks, never to handler attributes — the browser says so in the console
+message. A page can carry a correct nonce and still have every button dead.
+
+**Why it went unnoticed for a month.** The failure is silent. No dialog, no
+network request, no error in the UI — the browser logs the refusal to the
+console and the control does nothing. `bad36bf` converted the storefront PDP
+(see the note at `views/pages/product.ejs`) but not the admin, and wrote the
+constraint down nowhere, so every session since kept adding handlers that
+could never fire.
+
+**What it cost.** Release Hold on orders carrying live card authorizations.
+`selectRate()` in the shipping wizard — built by `innerHTML`, so a markup-only
+search reported the file clean — which meant **no freight could be booked at
+all**. Nine `onsubmit="return confirm()"` delete guards. Nine filter and sort
+controls. The whole handling-unit builder.
+
+**⚠️ NEVER fix a dead control by adding `'unsafe-inline'` to `scriptSrcAttr`.**
+That reopens exactly what `bad36bf` closed. Give it a `data-act`.
+
+**Enforcement.** `gates/gate_no_inline_handlers.js` scans two zones — template
+markup, and markup assembled inside `<script>` — and also asserts the CSP has
+not been relaxed. `mutate_no_inline_handlers.sh` proves it can fail, including
+both blind spots its own first draft had.
+
+---
+
 ### Rule 14 — Gates Cannot Validate SQL
 
 Added 2026-09-16, after the colour-family work took the storefront down.

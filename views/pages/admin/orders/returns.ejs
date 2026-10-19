@@ -3,7 +3,7 @@
   <span class="adm-toolbar-title">Returns Queue</span>
 
   <form method="GET" action="/admin/returns" class="adm-search-form" style="margin-left:auto">
-    <select name="status" class="adm-search-select" onchange="this.form.submit()">
+    <select name="status" class="adm-search-select" data-act="submitForm" data-on="change">
       <option value="">All Statuses</option>
       <% ['requested','approved','in_transit','received','inspected','resolved','denied'].forEach(s => { %>
         <option value="<%= s %>" <%= status === s ? 'selected' : '' %>><%= s.charAt(0).toUpperCase() + s.slice(1) %></option>
@@ -54,12 +54,12 @@
           <td>
             <div style="display:flex;gap:4px">
               <% if (r.status === 'requested') { %>
-                <button class="btn btn-sage btn-sm" onclick="approveReturn(<%= r.id %>)">Approve</button>
-                <button class="btn btn-outline btn-sm" style="color:#c53030;border-color:#c53030" onclick="denyReturn(<%= r.id %>)">Deny</button>
+                <button class="btn btn-sage btn-sm" data-act="approveReturn" data-a1="<%= r.id %>">Approve</button>
+                <button class="btn btn-outline btn-sm" style="color:#c53030;border-color:#c53030" data-act="denyReturn" data-a1="<%= r.id %>">Deny</button>
               <% } else if (r.status === 'approved' || r.status === 'in_transit') { %>
-                <button class="btn btn-primary btn-sm" onclick="receiveReturn(<%= r.id %>)">Received</button>
+                <button class="btn btn-primary btn-sm" data-act="receiveReturn" data-a1="<%= r.id %>">Received</button>
               <% } else if (r.status === 'received' || r.status === 'inspected') { %>
-                <button class="btn btn-primary btn-sm" onclick="resolveReturn(<%= r.id %>)">Resolve</button>
+                <button class="btn btn-primary btn-sm" data-act="resolveReturn" data-a1="<%= r.id %>">Resolve</button>
               <% } %>
               <a href="/admin/orders/<%= r.order_id %>" class="btn btn-outline btn-sm">Order</a>
             </div>
@@ -98,4 +98,11 @@ async function resolveReturn(id) {
   const d = await r.json();
   if (d.ok) { alert('Resolved. Customer notified.'); location.reload(); } else alert('Error: ' + d.error);
 }
+
+Object.assign(window.BVO_ACTIONS, {
+  approveReturn: (el, a1) => approveReturn(a1),
+  denyReturn:    (el, a1) => denyReturn(a1),
+  receiveReturn: (el, a1) => receiveReturn(a1),
+  resolveReturn: (el, a1) => resolveReturn(a1),
+});
 </script>

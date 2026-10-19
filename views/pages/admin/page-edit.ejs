@@ -199,7 +199,7 @@
         <div class="pe-card" style="background:#fff8f8;border-color:#f5c6c6">
           <h2 style="color:#b71c1c">Danger Zone</h2>
           <form method="POST" action="/admin/pages/<%= _p.id %>/delete"
-                onsubmit="return confirm('Delete this page? This cannot be undone.')">
+                data-act="noop" data-on="submit" data-confirm="Delete this page? This cannot be undone.">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
             <button type="submit" class="adm-btn adm-btn--danger" style="width:100%;justify-content:center">
               Delete Page

@@ -677,12 +677,7 @@
 
           <button type="button" id="img-add-more-btn" class="btn btn-outline"
             style="margin-top:4px;margin-bottom:12px;font-size:0.85rem"
-            onclick="(function(btn){
-              var extra = document.getElementById('img-extra-fields');
-              var showing = extra.style.display !== 'none';
-              extra.style.display = showing ? 'none' : 'block';
-              btn.textContent = showing ? '+ Add More Images' : '− Show Fewer';
-            })(this)">+ Add More Images</button>
+            data-act="togglePanel" data-a1="img-extra-fields" data-a2="+ Add More Images" data-a3="− Show Fewer">+ Add More Images</button>
 
           <% if (isNew) { %>
           <p class="adm-form-hint">Save the product first, then upload images below.</p>
@@ -704,10 +699,10 @@
               <div class="adm-img-actions">
                 <% if (!img.is_primary) { %>
                 <button type="button" class="adm-img-btn" title="Set as primary"
-                  onclick="imgSetPrimary(<%= img.id %>)">★</button>
+                  data-act="imgSetPrimary" data-a1="<%= img.id %>">★</button>
                 <% } %>
                 <button type="button" class="adm-img-btn adm-img-btn--del" title="Delete"
-                  onclick="imgDelete(<%= img.id %>)">✕</button>
+                  data-act="imgDelete" data-a1="<%= img.id %>">✕</button>
               </div>
             </div>
             <% }) %>
@@ -718,7 +713,7 @@
           <% if (_imgs.length > 1) { %>
           <button type="button" class="btn btn-outline" id="imgSaveOrderBtn"
             style="width:100%;margin-bottom:10px;display:none"
-            onclick="imgSaveOrder()">Save Image Order</button>
+            data-act="imgSaveOrder">Save Image Order</button>
           <% } %>
 
           <%/* Upload drop zone — uses fetch(), NOT a nested form */%>
@@ -732,7 +727,7 @@
             <input type="file" name="image_file" id="imgFileInput" accept="image/*" style="display:none">
           </div>
           <button type="button" class="btn btn-sage" style="width:100%;margin-top:8px"
-            id="imgUploadBtn" disabled onclick="imgUpload()">Upload Image</button>
+            id="imgUploadBtn" disabled data-act="imgUpload">Upload Image</button>
           <div id="imgUploadStatus" style="font-size:.8rem;margin-top:6px;display:none"></div>
 
           <% } %>
@@ -919,7 +914,7 @@
   <% if (!isNew && product) { %>
   <div class="adm-form-actions" style="margin-top:0;border-top:none;padding-top:0">
     <form method="POST" action="/admin/products/<%= product.id %>/delete" style="margin-left:auto"
-      onsubmit="return confirm('Permanently delete this product?')">
+      data-act="noop" data-on="submit" data-confirm="Permanently delete this product?">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <button type="submit" class="btn" style="color:#c00;border-color:#c00">Delete Product</button>
     </form>
@@ -1302,6 +1297,13 @@ function imgSaveOrder() {
     setTimeout(function() { toast.remove(); }, 400);
   }, 4000);
 })();
+
+Object.assign(window.BVO_ACTIONS, {
+  imgSetPrimary: (el, a1) => imgSetPrimary(a1),
+  imgDelete:     (el, a1) => imgDelete(a1),
+  imgSaveOrder:  ()       => imgSaveOrder(),
+  imgUpload:     ()       => imgUpload(),
+});
 </script>
 
 <style>

@@ -184,7 +184,7 @@ const meta = orderMeta           || null;
                  locationType and liftgate follow - setting `checked` here
                  does NOT raise a change event. */%>
             <input type="checkbox" id="dest_residential" <%= pre.residential ? 'checked' : '' %>
-                   onchange="onResidentialChange(this.checked)"> Residential address
+                   data-act="residential" data-on="change"> Residential address
           </label>
           <small style="color:#718096;font-size:.75rem">Auto-sets Residential + Liftgate Delivery</small>
 
@@ -215,7 +215,7 @@ const meta = orderMeta           || null;
     <div class="admin-card ship-full-col">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
         <h3 class="admin-card-title" style="margin:0">Handling Units &amp; Commodities</h3>
-        <button class="btn btn-sm btn-outline" onclick="addHandlingUnit()">+ Add Handling Unit</button>
+        <button class="btn btn-sm btn-outline" data-act="addHU">+ Add Handling Unit</button>
       </div>
       <div id="huList"></div>
     </div>
@@ -230,7 +230,7 @@ const meta = orderMeta           || null;
         <div class="ship-acc-section">
           <div class="ship-acc-label">Insurance</div>
           <label class="ship-check"><input type="radio" name="ltl_insure" value="no" checked> No — accept carrier limited liability</label>
-          <label class="ship-check" style="margin-top:4px"><input type="radio" name="ltl_insure" value="yes" onchange="toggleInsureVal(this.value)"> Yes — insure my shipment</label>
+          <label class="ship-check" style="margin-top:4px"><input type="radio" name="ltl_insure" value="yes" data-act="insureVal" data-on="change"> Yes — insure my shipment</label>
           <div id="ltl_insure_val" style="display:none;margin-top:6px">
             <div class="adm-field"><label>Declared Value ($)</label><input id="acc_declaredValue" type="number" class="adm-input" min="0" placeholder="0.00"></div>
           </div>
@@ -242,8 +242,8 @@ const meta = orderMeta           || null;
             but no amount was ever asked for, and nothing was transmitted. %>
         <div class="ship-acc-section">
           <div class="ship-acc-label">Handling Charge</div>
-          <label class="ship-check"><input type="radio" name="ltl_handling" value="no" checked onchange="toggleHandlingVal(this.value)"> No, thanks</label>
-          <label class="ship-check" style="margin-top:4px"><input type="radio" name="ltl_handling" value="yes" onchange="toggleHandlingVal(this.value)"> Yes, add a handling charge</label>
+          <label class="ship-check"><input type="radio" name="ltl_handling" value="no" checked data-act="handlingVal" data-on="change"> No, thanks</label>
+          <label class="ship-check" style="margin-top:4px"><input type="radio" name="ltl_handling" value="yes" data-act="handlingVal" data-on="change"> Yes, add a handling charge</label>
           <div id="ltl_handling_val" style="display:none;margin-top:6px">
             <div class="adm-form-grid">
               <div class="adm-field"><label>Amount</label><input id="acc_handlingChargeValue" type="number" class="adm-input" min="0" step="0.01" placeholder="0.00"></div>
@@ -337,7 +337,7 @@ const meta = orderMeta           || null;
         <div class="ship-acc-section">
           <div class="ship-acc-label">Insure Shipment</div>
           <label class="ship-check"><input type="radio" name="sp_insure" value="no" checked> No — accept carrier limited liability</label>
-          <label class="ship-check" style="margin-top:4px"><input type="radio" name="sp_insure" value="yes" onchange="toggleSpInsureVal(this.value)"> Yes, insure my shipment</label>
+          <label class="ship-check" style="margin-top:4px"><input type="radio" name="sp_insure" value="yes" data-act="spInsureVal" data-on="change"> Yes, insure my shipment</label>
           <div id="sp_insure_val" style="display:none;margin-top:6px">
             <div class="adm-field"><label>Declared Value ($)</label><input id="sp_declaredValue" type="number" class="adm-input" min="0" placeholder="0.00"></div>
           </div>
@@ -394,7 +394,7 @@ const meta = orderMeta           || null;
   </div><!-- /ship-panel-grid -->
 
   <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
-    <button class="btn btn-primary" onclick="goToRates()">Get Rates →</button>
+    <button class="btn btn-primary" data-act="goToRates">Get Rates →</button>
   </div>
 </div><!-- /step1 -->
 
@@ -403,7 +403,7 @@ const meta = orderMeta           || null;
   <div class="admin-card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
       <h3 class="admin-card-title" style="margin:0">Available Rates</h3>
-      <button class="btn btn-sm btn-outline" onclick="showStep(1)">← Edit Details</button>
+      <button class="btn btn-sm btn-outline" data-act="showStep" data-a1="1">← Edit Details</button>
     </div>
 
     <div id="rateLoading" style="text-align:center;padding:32px;color:#718096">
@@ -426,7 +426,7 @@ const meta = orderMeta           || null;
     <div class="adm-form-grid">
       <div class="adm-field">
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-          <input type="checkbox" id="schedulePickup" onchange="togglePickup(this.checked)"> Schedule a UPS pickup
+          <input type="checkbox" id="schedulePickup" data-act="pickup" data-on="change"> Schedule a UPS pickup
         </label>
         <small style="color:#718096">Uncheck if dropping off at a UPS store or on daily route.</small>
       </div>
@@ -441,8 +441,8 @@ const meta = orderMeta           || null;
   </div>
 
   <div style="display:flex;justify-content:space-between;margin-top:16px;gap:8px">
-    <button class="btn btn-outline" onclick="showStep(2)">← Back to Rates</button>
-    <button class="btn btn-primary" id="bookBtn" onclick="openNotifyPanel()">Confirm &amp; Book Shipment</button>
+    <button class="btn btn-outline" data-act="showStep" data-a1="2">← Back to Rates</button>
+    <button class="btn btn-primary" id="bookBtn" data-act="openNotify">Confirm &amp; Book Shipment</button>
   </div>
 </div>
 
@@ -467,16 +467,16 @@ const meta = orderMeta           || null;
      is no endpoint to attach them to an already-booked shipment.
 ══════════════════════════════════════════════════════════════════ -->
 <div id="notifyModal" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.45);align-items:center;justify-content:center"
-     onclick="if(event.target===this)closeNotifyPanel()">
+     data-act="closeNotify" data-backdrop="1">
   <div style="background:#fff;border-radius:10px;width:min(520px,95vw);max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">
     <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between">
       <strong style="font-size:1rem">Additional Services</strong>
-      <button onclick="closeNotifyPanel()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#718096;line-height:1">×</button>
+      <button data-act="closeNotify" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#718096;line-height:1">×</button>
     </div>
     <div id="notifyBody" style="padding:18px 20px;overflow-y:auto;flex:1"></div>
     <div style="padding:12px 20px;border-top:1px solid #e2e8f0;display:flex;gap:8px;justify-content:flex-end">
-      <button class="btn btn-outline" onclick="closeNotifyPanel()">Cancel</button>
-      <button class="btn btn-primary" id="notifyBookBtn" onclick="bookShipment()">Book Shipment</button>
+      <button class="btn btn-outline" data-act="closeNotify">Cancel</button>
+      <button class="btn btn-primary" id="notifyBookBtn" data-act="book">Book Shipment</button>
     </div>
   </div>
 </div>
@@ -486,10 +486,10 @@ const meta = orderMeta           || null;
   <div style="background:#fff;border-radius:10px;width:min(680px,95vw);max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">
     <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between">
       <strong style="font-size:1rem">My Commodities</strong>
-      <button onclick="closeCommodityPicker()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#718096;line-height:1">×</button>
+      <button data-act="closeCommPicker" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#718096;line-height:1">×</button>
     </div>
     <div style="padding:12px 20px;border-bottom:1px solid #e2e8f0">
-      <input id="commoditySearch" type="text" class="adm-input" placeholder="Search by name or NMFC…" oninput="filterCommodities()" style="width:100%;box-sizing:border-box">
+      <input id="commoditySearch" type="text" class="adm-input" placeholder="Search by name or NMFC…" data-act="filterComm" data-on="input" style="width:100%;box-sizing:border-box">
     </div>
     <div style="overflow-y:auto;flex:1">
       <table style="width:100%;border-collapse:collapse;font-size:.88rem">
@@ -625,13 +625,13 @@ function addHandlingUnit(d) {
   var html = '<div class="ship-hu-row" id="hu-' + n + '">'
     + '<div class="ship-hu-header">'
     +   '<span class="ship-hu-label">' + label + '</span>'
-    +   '<button class="ship-item-remove" onclick="removeHU(' + n + ')" title="Remove">✕</button>'
+    +   '<button class="ship-item-remove" data-act="removeHU" data-a1="' + n + '" title="Remove">✕</button>'
     + '</div>'
     + '<div class="ship-hu-dims">'
-    +   '<div class="adm-field"><label>Type</label><select class="adm-input hu-type" onchange="togglePalletSize(this)">' + huTypeOpts + '</select></div>'
+    +   '<div class="adm-field"><label>Type</label><select class="adm-input hu-type" data-act="palletToggle" data-on="change">' + huTypeOpts + '</select></div>'
     +   '<div class="adm-field"><label>Count</label><input type="number" class="adm-input hu-count" min="1" value="' + (d.count || 1) + '"></div>'
     +   '<div class="adm-field"><label>Stackable</label><select class="adm-input hu-stackable"><option value="N"' + (!d.stackable ? ' selected' : '') + '>No</option><option value="Y"' + (d.stackable ? ' selected' : '') + '>Yes</option></select></div>'
-    +   '<div class="adm-field hu-pallet-wrap" style="' + (d.huType === 'PLT' ? '' : 'display:none') + '"><label>Pallet Size</label><select class="adm-input hu-pallet-size" onchange="applyPalletSize(this)"><option value="">— pick a size —</option><option value="48x40">48 × 40</option><option value="24x24">24 × 24</option><option value="24x40">24 × 40</option><option value="36x36">36 × 36</option><option value="42x42">42 × 42</option><option value="48x42">48 × 42</option><option value="48x48">48 × 48</option><option value="58x41">58 × 41</option><option value="72x48">72 × 48</option><option value="96x48">96 × 48</option><option value="other">Other</option></select></div>'
+    +   '<div class="adm-field hu-pallet-wrap" style="' + (d.huType === 'PLT' ? '' : 'display:none') + '"><label>Pallet Size</label><select class="adm-input hu-pallet-size" data-act="palletSize" data-on="change"><option value="">— pick a size —</option><option value="48x40">48 × 40</option><option value="24x24">24 × 24</option><option value="24x40">24 × 40</option><option value="36x36">36 × 36</option><option value="42x42">42 × 42</option><option value="48x42">48 × 42</option><option value="48x48">48 × 48</option><option value="58x41">58 × 41</option><option value="72x48">72 × 48</option><option value="96x48">96 × 48</option><option value="other">Other</option></select></div>'
   +   '<div class="adm-field"><label>Length (in)</label><input type="number" class="adm-input hu-length" min="1" value="' + (d.length || '') + '" placeholder="in"></div>'
     +   '<div class="adm-field"><label>Width (in)</label><input type="number" class="adm-input hu-width" min="1" value="' + (d.width || '') + '" placeholder="in"></div>'
     +   '<div class="adm-field"><label>Height (in)</label><input type="number" class="adm-input hu-height" min="1" value="' + (d.height || '') + '" placeholder="in"></div>'
@@ -663,7 +663,7 @@ function buildCommodityHTML(huN, commN, c) {
     +   '<label>Commodity <span class="req-star">*</span></label>'
     +   '<div style="display:flex;gap:4px">'
     +   '<input type="text" class="adm-input comm-desc" placeholder="e.g. Top, Sink or Bathroom Vanity" value="' + (c.description || '') + '" style="flex:1">'
-    +   '<button type="button" onclick="openCommodityPicker(' + huN + ',' + commN + ')" class="comm-search-btn" title="Browse saved commodities">&#128269;</button>'
+    +   '<button type="button" data-act="openCommPicker" data-a1="' + huN + '" data-a2="' + commN + '" class="comm-search-btn" title="Browse saved commodities">&#128269;</button>'
     +   '</div>'
     + '</div>'
     + '<div class="adm-field"><label>NMFC Code</label><input type="text" class="adm-input comm-nmfc" placeholder="e.g. 159530-2" value="' + (c.nmfcCode || '') + '"></div>'
@@ -1159,7 +1159,7 @@ function renderRates(rates, isStub) {
     html += '<div class="ship-rate-col-std">';
     if (g.std) {
       var sp = Number((_rateMap[g.std].totalCharge)||0).toLocaleString('en-US',{minimumFractionDigits:2});
-      html += '<button class="ship-rate-btn" id="' + g.std + '" onclick="selectRate(\'' + g.std + '\')">'
+      html += '<button class="ship-rate-btn" id="' + g.std + '" data-act="selectRate" data-a1="' + g.std + '">'
         + '$' + sp + '</button>';
     } else {
       html += '<span class="ship-rate-na">—</span>';
@@ -1170,7 +1170,7 @@ function renderRates(rates, isStub) {
     html += '<div class="ship-rate-col-gtd">';
     if (g.gtd) {
       var gp = Number((_rateMap[g.gtd].totalCharge)||0).toLocaleString('en-US',{minimumFractionDigits:2});
-      html += '<button class="ship-rate-btn ship-rate-btn--gtd" id="' + g.gtd + '" onclick="selectRate(\'' + g.gtd + '\')">'
+      html += '<button class="ship-rate-btn ship-rate-btn--gtd" id="' + g.gtd + '" data-act="selectRate" data-a1="' + g.gtd + '">'
         + '$' + gp + '</button>';
     } else {
       html += '<span class="ship-rate-na ship-rate-na--gtd">Not available</span>';
@@ -1606,7 +1606,7 @@ function renderCommodityList(q) {
     return !s || p.name.toLowerCase().indexOf(s) !== -1 || p.nmfc.indexOf(s) !== -1 || p.cls.indexOf(s) !== -1;
   });
   var html = _filteredPresets.map(function(p, i) {
-    return '<tr class="comm-row" onclick="applyCommodity(' + i + ')">'
+    return '<tr class="comm-row" data-act="applyCommodity" data-a1="' + i + '">'
       + '<td class="comm-td">' + p.name + '</td>'
       + '<td class="comm-td comm-td--num">' + p.cls + '</td>'
       + '<td class="comm-td comm-td--num">' + p.nmfc + '</td>'
@@ -1636,6 +1636,46 @@ function applyCommodity(i) {
   closeCommodityPicker();
 }
 
+
+/* ── DELEGATED ACTION REGISTRY ──────────────────────────────────────────
+   See views/partials/admin/action-dispatch.ejs for why inline handlers
+   cannot be used here at all.
+
+   Every control on this wizard was an inline attribute and therefore dead
+   since 2026-09-21, INCLUDING selectRate on both rate buttons — which is
+   the step that advances the booking. No freight could be booked.
+
+   The seven built by innerHTML (handling-unit rows, commodity rows, rate
+   buttons) are why this is delegated rather than per-element: the listener
+   lives on document and fires for nodes created after it was bound, so
+   rebuilding a row needs no re-binding.
+
+   ⚠️ EACH WRAPPER PASSES EXACTLY WHAT THE INLINE VERSION PASSED, no more.
+   addHandlingUnit(d) takes an optional data object to prefill from; calling
+   it with the clicked element would be read as that object and seed the new
+   row with garbage. togglePalletSize/applyPalletSize DO want the element.
+   The difference is per-function, so it is spelled out per line. */
+Object.assign(window.BVO_ACTIONS, {
+  showStep:       (el, a1) => showStep(a1),
+  addHU:          ()       => addHandlingUnit(),
+  removeHU:       (el, a1) => removeHU(a1),
+  residential:    (el)     => onResidentialChange(el.checked),
+  pickup:         (el)     => togglePickup(el.checked),
+  insureVal:      (el)     => toggleInsureVal(el.value),
+  handlingVal:    (el)     => toggleHandlingVal(el.value),
+  spInsureVal:    (el)     => toggleSpInsureVal(el.value),
+  palletToggle:   (el)     => togglePalletSize(el),
+  palletSize:     (el)     => applyPalletSize(el),
+  goToRates:      ()       => goToRates(),
+  selectRate:     (el, a1) => selectRate(String(a1)),
+  openNotify:     ()       => openNotifyPanel(),
+  closeNotify:    ()       => closeNotifyPanel(),
+  book:           ()       => bookShipment(),
+  openCommPicker: (el, a1, a2) => openCommodityPicker(a1, a2),
+  closeCommPicker:()       => closeCommodityPicker(),
+  filterComm:     ()       => filterCommodities(),
+  applyCommodity: (el, a1) => applyCommodity(a1),
+});
 </script>
 
 <style>

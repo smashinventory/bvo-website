@@ -30,24 +30,24 @@ function statusLabel(s) {
             title="Check carrier status for all active shipments and report what would change — writes nothing">↻ Check Status (dry)</button>
     <button class="btn btn-sm btn-outline" id="pollRunBtn"
             title="Check carrier status and apply updates to shipments and orders">↻ Sync Status</button>
-    <button class="btn btn-sm btn-primary" onclick="openOrderPicker()">+ New Shipment</button>
+    <button class="btn btn-sm btn-primary" data-act="openOrderPicker">+ New Shipment</button>
   </div>
 </div>
 
 <!-- ══ Order Picker Modal ════════════════════════════════════════════ -->
-<div id="orderPickerModal" class="adm-modal-overlay" style="display:none" onclick="if(event.target===this)closeOrderPicker()">
+<div id="orderPickerModal" class="adm-modal-overlay" style="display:none" data-act="closeOrderPicker" data-backdrop="1">
   <div class="adm-modal" style="max-width:600px;width:90vw">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
       <h3 style="margin:0">Link to an Order</h3>
-      <button onclick="closeOrderPicker()" style="background:none;border:none;cursor:pointer;font-size:1.2rem;color:#718096">✕</button>
+      <button data-act="closeOrderPicker" style="background:none;border:none;cursor:pointer;font-size:1.2rem;color:#718096">✕</button>
     </div>
     <p style="margin:0 0 12px;color:#4a5568;font-size:.875rem">Pick an open order to pre-fill recipient info, or proceed without one.</p>
 
     <input type="text" id="orderPickerSearch" placeholder="Search order #, customer…"
-           class="adm-search-input" style="width:100%;margin-bottom:12px" oninput="filterOrders()">
+           class="adm-search-input" style="width:100%;margin-bottom:12px" data-act="filterOrders" data-on="input">
 
     <!-- None option -->
-    <div class="op-row op-row--none" onclick="goShip(null)" style="border:1px dashed #cbd5e0;border-radius:6px;padding:10px 14px;cursor:pointer;margin-bottom:8px;color:#4a5568;font-size:.875rem">
+    <div class="op-row op-row--none" data-act="goShip" data-a1="null" style="border:1px dashed #cbd5e0;border-radius:6px;padding:10px 14px;cursor:pointer;margin-bottom:8px;color:#4a5568;font-size:.875rem">
       <strong>No order</strong> — create a standalone shipment
     </div>
 
@@ -65,15 +65,15 @@ function statusLabel(s) {
 <!-- ══ Filters ══════════════════════════════════════════════════════ -->
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
   <input type="text" id="shipSearch" placeholder="Search BOL, PRO, customer…"
-         class="adm-search-input" style="width:260px" oninput="filterTable()">
-  <select id="shipStatus" class="adm-search-select" onchange="filterTable()">
+         class="adm-search-input" style="width:260px" data-act="filterTable" data-on="input">
+  <select id="shipStatus" class="adm-search-select" data-act="filterTable" data-on="change">
     <option value="">All Statuses</option>
     <option value="booked">Booked</option>
     <option value="in_transit">In Transit</option>
     <option value="delivered">Delivered</option>
     <option value="voided">Voided</option>
   </select>
-  <select id="shipType" class="adm-search-select" onchange="filterTable()">
+  <select id="shipType" class="adm-search-select" data-act="filterTable" data-on="change">
     <option value="">All Types</option>
     <option value="LTL">LTL</option>
     <option value="SMALLPACK">Small Package</option>
@@ -139,7 +139,7 @@ function statusLabel(s) {
             <%= statusLabel(s.status) %>
           </span>
           <div style="margin-top:4px">
-            <button class="btn-track-refresh" onclick="refreshTracking('<%= s.bol_number || s.pro_number %>','<%= s.id %>')" title="Refresh status" style="background:none;border:none;cursor:pointer;font-size:.75rem;color:#4a5568">↻ Refresh</button>
+            <button class="btn-track-refresh" data-act="refreshTracking" data-a1="<%= s.bol_number || s.pro_number %>" data-a2="<%= s.id %>" title="Refresh status" style="background:none;border:none;cursor:pointer;font-size:.75rem;color:#4a5568">↻ Refresh</button>
           </div>
         </td>
         <td>
@@ -162,10 +162,10 @@ function statusLabel(s) {
                 sent by BVO via Brevo. WWEX has no API to email a BOL. %>
             <% if (s.product_transaction_id && !s.product_transaction_id.startsWith('STUB')) { %>
             <button class="btn btn-xs btn-outline"
-                    onclick="openEmailDocs(<%= s.id %>, '<%= (s.bol_number || s.id).toString().replace(/'/g, "\\'") %>')">Email</button>
+                    data-act="openEmailDocs" data-a1="<%= s.id %>" data-a2="<%= s.bol_number || s.id %>">Email</button>
             <% } %>
             <% if (s.status === 'booked') { %>
-            <button class="btn btn-xs btn-danger" onclick="voidShipment(<%= s.id %>, '<%= s.product_type %>')">Void</button>
+            <button class="btn btn-xs btn-danger" data-act="voidShipment" data-a1="<%= s.id %>" data-a2="<%= s.product_type %>">Void</button>
             <% } %>
           </div>
         </td>
@@ -186,7 +186,7 @@ function statusLabel(s) {
      Internal only — goes to our own stores through Brevo. WWEX has no
      API to email a BOL, and this is deliberately NOT customer-facing.
 ═════════════════════════════════════════════════════════════════════ -->
-<div id="emailDocsModal" class="adm-modal-overlay" style="display:none" onclick="if(event.target===this)closeEmailDocs()">
+<div id="emailDocsModal" class="adm-modal-overlay" style="display:none" data-act="closeEmailDocs" data-backdrop="1">
   <div class="adm-modal" style="max-width:460px">
     <h3 style="margin:0 0 4px">Email Shipping Documents</h3>
     <p style="margin:0 0 14px;color:#718096;font-size:.85rem">
@@ -206,18 +206,18 @@ function statusLabel(s) {
     <div id="emailDocsMsg" style="margin-top:10px;font-size:.82rem"></div>
 
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
-      <button class="btn btn-outline" onclick="closeEmailDocs()">Cancel</button>
+      <button class="btn btn-outline" data-act="closeEmailDocs">Cancel</button>
       <button class="btn btn-primary" id="emailDocsBtn">Send</button>
     </div>
   </div>
 </div>
 
-<div id="voidModal" class="adm-modal-overlay" style="display:none" onclick="if(event.target===this)closeVoid()">
+<div id="voidModal" class="adm-modal-overlay" style="display:none" data-act="closeVoid" data-backdrop="1">
   <div class="adm-modal" style="max-width:400px">
     <h3 style="margin:0 0 12px">Void Shipment</h3>
     <p style="margin:0 0 16px;color:#4a5568">This will cancel the shipment with the carrier. This action cannot be undone once the carrier processes it.</p>
     <div style="display:flex;gap:8px;justify-content:flex-end">
-      <button class="btn btn-outline" onclick="closeVoid()">Cancel</button>
+      <button class="btn btn-outline" data-act="closeVoid">Cancel</button>
       <button class="btn btn-danger" id="voidConfirmBtn">Void Shipment</button>
     </div>
   </div>
@@ -487,6 +487,22 @@ function filterOrders() {
   if (!_opOrders) return;
   renderOrders(_opOrders, document.getElementById('orderPickerSearch').value);
 }
+
+/* Delegated action registry — see views/partials/admin/action-dispatch.ejs.
+   Every one of these was an inline handler and therefore dead: the void,
+   the email-documents dialog and the tracking refresh included. */
+Object.assign(window.BVO_ACTIONS, {
+  openOrderPicker:  ()        => openOrderPicker(),
+  closeOrderPicker: ()        => closeOrderPicker(),
+  filterOrders:     ()        => filterOrders(),
+  filterTable:      ()        => filterTable(),
+  goShip:           (el, a1)  => goShip(a1),
+  refreshTracking:  (el, a1, a2) => refreshTracking(a1, a2),
+  openEmailDocs:    (el, a1, a2) => openEmailDocs(a1, String(a2)),
+  voidShipment:     (el, a1, a2) => voidShipment(a1, a2),
+  closeEmailDocs:   ()        => closeEmailDocs(),
+  closeVoid:        ()        => closeVoid(),
+});
 </script>
 
 <style>

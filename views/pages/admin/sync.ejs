@@ -105,7 +105,7 @@
         Pulls products &amp; stock from RFLPOS (read-only). New items need approval before going live.
       </div>
     </div>
-    <button class="btn-sync" id="syncNowBtn" onclick="runSync()">
+    <button class="btn-sync" id="syncNowBtn" data-act="runSync">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
       <span class="btn-sync-text">Sync Now</span>
       <span class="btn-sync-loading">Syncing…</span>
@@ -145,7 +145,7 @@
     <div class="sync-section-head">
       <span class="sync-section-title">⏳ Pending Approval (<%= pending.length %>)</span>
       <% if (pending.length > 0) { %>
-        <button class="btn-approve" onclick="approveAll()">Approve All</button>
+        <button class="btn-approve" data-act="approveAll">Approve All</button>
       <% } %>
     </div>
     <div class="sync-section-body">
@@ -169,7 +169,7 @@
             <tr id="row-<%= p.id %>">
               <td>
                 <% if (p.primary_image_url) { %>
-                  <img src="<%= p.primary_image_url %>" alt="" class="product-img" onerror="this.style.display='none'">
+                  <img src="<%= p.primary_image_url %>" alt="" class="product-img" data-act="hideOnError" data-on="error">
                 <% } else { %>
                   <div class="product-img-placeholder">no img</div>
                 <% } %>
@@ -180,9 +180,9 @@
               <td><%= p.stock_qty !== null ? p.stock_qty : '—' %></td>
               <td><%= p.category_name || '<span style="color:#9ca3af">Uncategorised</span>' %></td>
               <td style="white-space:nowrap">
-                <button class="btn-approve" onclick="approveProduct(<%= p.id %>)">Approve</button>
+                <button class="btn-approve" data-act="approveProduct" data-a1="<%= p.id %>">Approve</button>
                 &nbsp;
-                <button class="btn-hide" onclick="hideProduct(<%= p.id %>)">Skip</button>
+                <button class="btn-hide" data-act="hideProduct" data-a1="<%= p.id %>">Skip</button>
               </td>
             </tr>
             <% }) %>
@@ -243,7 +243,7 @@
     <div class="sync-config">
       <div class="config-row">
         <label>Auto-sync Interval</label>
-        <select id="syncInterval" onchange="saveSyncSettings()">
+        <select id="syncInterval" data-act="saveSyncSettings" data-on="change">
           <option value="manual"   <%= syncSettings.interval === 'manual'   ? 'selected' : '' %>>Manual only</option>
           <option value="hourly"   <%= syncSettings.interval === 'hourly'   ? 'selected' : '' %>>Every hour</option>
           <option value="6h"       <%= syncSettings.interval === '6h'       ? 'selected' : '' %>>Every 6 hours</option>
@@ -253,7 +253,7 @@
       </div>
       <div class="config-row">
         <label>
-          <input type="checkbox" id="autoApprove" onchange="saveSyncSettings()"
+          <input type="checkbox" id="autoApprove" data-act="saveSyncSettings" data-on="change"
             <%= syncSettings.autoApprove ? 'checked' : '' %>>
           &nbsp;Auto-approve new products
         </label>
@@ -276,7 +276,7 @@
               <label class="brand-check">
                 <input type="checkbox" class="brand-cb"
                   value="<%= brand.id %>"
-                  onchange="saveSyncSettings()"
+                  data-act="saveSyncSettings" data-on="change"
                   <%= savedBrands.includes(Number(brand.id)) ? 'checked' : '' %>>
                 <%= brand.name %>
               </label>
@@ -353,4 +353,12 @@ async function saveSyncSettings() {
     body: JSON.stringify({ interval, autoApprove, allowedBrands }),
   });
 }
+
+Object.assign(window.BVO_ACTIONS, {
+  runSync:          ()       => runSync(),
+  approveAll:       ()       => approveAll(),
+  approveProduct:   (el, a1) => approveProduct(a1),
+  hideProduct:      (el, a1) => hideProduct(a1),
+  saveSyncSettings: ()       => saveSyncSettings(),
+});
 </script>

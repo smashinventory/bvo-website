@@ -435,6 +435,14 @@
       the five views would have rebuilt the same gap. %>
   <%- include('../partials/admin/hotlink-warn') %>
 
+  <%# Delegated event dispatch for every admin control. Included here for
+      the same reason as the hotlink warning above: one copy, and any new
+      page gets it without wiring. It sits above the page-script slot for
+      readability only — the registry is read at event time, not at bind
+      time, so a page that registers its handlers later still works. See
+      the partial's header for why inline onclick= cannot be used at all. %>
+  <%- include('../partials/admin/action-dispatch') %>
+
   <%- script %>
 
 </body>

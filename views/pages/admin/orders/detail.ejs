@@ -495,9 +495,12 @@ const disputeOpen = order.dispute_id
         Definitions: src/config/orderStatuses.js %>
     <span class="order-status order-status--<%= order.status %>" style="font-size:14px;cursor:help"
           title="<%= (ORDER_STATUSES.find(s => s.value === order.status) || {}).tip || '' %>"><%= order.status %></span>
+    <%# The onchange that kept this tooltip in step was an inline handler and
+        therefore dead under script-src-attr 'none'. Wired in the script
+        block instead - see the ACTION DISPATCH note at the foot of this
+        file. %>
     <select id="statusSelect" class="adm-search-select"
-            title="<%= (ORDER_STATUSES.find(s => s.value === order.status) || {}).tip || '' %>"
-            onchange="this.title = (this.options[this.selectedIndex] || {}).title || ''">
+            title="<%= (ORDER_STATUSES.find(s => s.value === order.status) || {}).tip || '' %>">
       <% ORDER_STATUSES.forEach(s => { %>
         <option value="<%= s.value %>" title="<%= s.tip %>" <%= order.status === s.value ? 'selected' : '' %>><%= s.label %></option>
       <% }) %>
@@ -1313,59 +1316,37 @@ async function deleteOrder(id, orderNumber, isCaptured) {
 function closeModal(id) { document.getElementById(id).style.display='none'; }
 document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click', e => { if(e.target===m) m.style.display='none'; }));
 
-/* ── ACTION DISPATCH ─────────────────────────────────────────────────────
- * Every button on this page used to carry onclick="fn()". All seventeen of
- * them were DEAD, silently, since 2026-09-21 (bad36bf).
+/* ── ACTION REGISTRY ────────────────────────────────────────────────────
+ * The dispatcher itself now lives in views/partials/admin/action-dispatch.ejs,
+ * included once by the admin layout. This file previously carried its own
+ * copy; two listeners on document meant every click ran twice and the one
+ * that did not recognise the action logged an error beside the one that
+ * worked. One dispatcher, many registries.
  *
- * The CSP sets script-src-attr 'none' (server.js:666), which blocks inline
- * event-handler ATTRIBUTES. The nonce on this <script> does not rescue them:
- * nonces and hashes apply to script blocks, never to onclick=. The browser
- * refuses the handler and reports it to the console, so the button simply
- * does nothing — no error dialog, no network request, no clue.
+ * All seventeen controls here were inline onclick= and therefore DEAD from
+ * 2026-09-21 (bad36bf) until 2026-10-19 — Release Hold among them, on
+ * orders holding live card authorizations. See the partial for why.
  *
- * It cost a live debugging session on Release Hold, where the symptom was
- * indistinguishable from a broken API call.
- *
- * ⚠️ DO NOT "FIX" A DEAD BUTTON BY ADDING 'unsafe-inline' TO scriptSrcAttr.
- * That reopens exactly what bad36bf closed. Add a data-act instead.
- *
- * The storefront PDP was converted to delegated handlers in the same scope
- * (see the note at views/pages/product.ejs:1081); the admin was missed.
- *
- * TO ADD A BUTTON: give it data-act="name" and register name in ACTIONS.
- * Arguments ride on data-a1/a2/a3 and are coerced below, so the booleans
- * and numeric ids the old inline calls passed keep their types - dataset
- * values are ALWAYS strings, and deleteOrder's third argument is a real
- * boolean that would otherwise arrive as the truthy string "false". */
-const ACTIONS = {
-  capture: doCapture, releaseAuth: doReleaseAuth,
-  showConfirmPoModal: showConfirmPoModal, saveVendorConfirm: saveVendorConfirm,
-  addNote: addNote, dvShow: dvShow,
-  approveReturn: approveReturn, denyReturn: denyReturn,
-  receiveReturn: receiveReturn, resolveReturn: resolveReturn,
-  openReturnModal: openReturnModal, submitOpenReturn: submitOpenReturn,
-  closeModal: closeModal, deleteOrder: deleteOrder,
-};
+ * Handlers are called fn(el, a1, a2, a3, event). */
+Object.assign(window.BVO_ACTIONS, {
+  capture:            ()         => doCapture(),
+  releaseAuth:        ()         => doReleaseAuth(),
+  showConfirmPoModal: ()         => showConfirmPoModal(),
+  saveVendorConfirm:  ()         => saveVendorConfirm(),
+  addNote:            ()         => addNote(),
+  dvShow:             (el, a1)   => dvShow(String(a1)),
+  approveReturn:      (el, a1)   => approveReturn(a1),
+  denyReturn:         (el, a1)   => denyReturn(a1),
+  receiveReturn:      (el, a1)   => receiveReturn(a1),
+  resolveReturn:      (el, a1)   => resolveReturn(a1),
+  openReturnModal:    ()         => openReturnModal(),
+  submitOpenReturn:   ()         => submitOpenReturn(),
+  closeModal:         (el, a1)   => closeModal(String(a1)),
+  deleteOrder:        (el, a1, a2, a3) => deleteOrder(a1, String(a2), a3),
+});
 
-function _coerce(v) {
-  if (v === undefined) return undefined;
-  if (v === 'true')  return true;
-  if (v === 'false') return false;
-  /* Only a clean, non-empty number. Order numbers like BVO-2026-10-19-00123
-     must stay strings, and Number('') is 0, which would be a silent id. */
-  if (v !== '' && !isNaN(v)) return Number(v);
-  return v;
-}
-
-document.addEventListener('click', function (e) {
-  const el = e.target.closest('[data-act]');
-  if (!el) return;
-  const fn = ACTIONS[el.dataset.act];
-  if (typeof fn !== 'function') {
-    console.error('[admin] no handler registered for data-act="' + el.dataset.act + '"');
-    return;
-  }
-  e.preventDefault();
-  fn(_coerce(el.dataset.a1), _coerce(el.dataset.a2), _coerce(el.dataset.a3));
+/* Status dropdown tooltip — was an inline onchange= on the <select>. */
+document.getElementById('statusSelect')?.addEventListener('change', function () {
+  this.title = (this.options[this.selectedIndex] || {}).title || '';
 });
 </script>

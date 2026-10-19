@@ -37,7 +37,7 @@
           <td class="adm-meta" style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><%= t.subject %></td>
           <td>
             <button class="toggle-btn <%= t.is_active ? 'toggle-btn--on' : 'toggle-btn--off' %>"
-                    onclick="toggleTemplate(<%= t.id %>, this)">
+                    data-act="toggleTemplate" data-a1="<%= t.id %>">
               <%= t.is_active ? 'Active' : 'Off' %>
             </button>
           </td>
@@ -58,4 +58,9 @@ async function toggleTemplate(id, btn) {
     btn.className = d.is_active ? 'toggle-btn toggle-btn--on' : 'toggle-btn toggle-btn--off';
   }
 }
+
+Object.assign(window.BVO_ACTIONS, {
+  /* toggleTemplate's 2nd arg is the button itself, for its label. */
+  toggleTemplate: (el, a1) => toggleTemplate(a1, el),
+});
 </script>
