@@ -19,6 +19,105 @@
 
 ---
 
+## Admin order deletion — shipped 10-14, three defects found 10-19
+**Date:** 2026-10-14 (feature), 2026-10-19 (repairs)
+**Commits:** `d6122ba` (the feature), and the order-delete repair that follows
+**Migrations:** `2026-10-12_order_deletions_RUNME.sql`,
+`2026-10-19_order_delete_auth_release_RUNME.sql`
+
+### What shipped on 10-14
+
+A hard delete for admin orders, with `order_deletions` as a flight recorder
+(full row as JSON), mandatory reason codes from `orderDeleteReasons.js`, a
+refusal on captured payments, explicit removal of the four child tables that
+do not cascade, and `scripts/cleanupTestOrders.js` calling the same
+`deleteOneOrder()` the button calls. Gate: 46 checks, 23 mutations.
+
+**It was never written down here.** This entry exists because the feature was
+reviewed on 2026-10-19 and the change log had no record of it at all — the
+exact gap this file was reinstated to close.
+
+### The three defects, and how they were found
+
+The review started from a question the owner asked after being told the delete
+path was broken: *"How was I able to delete the test transactions?"* That
+question was right and the claim was wrong. Working through it turned up three
+real faults and corrected one false one.
+
+**1. The snapshot recorded a column that does not exist.** The INSERT read
+`order.stripe_payment_intent_id ?? order.stripe_payment_intent`. `orders` has
+neither — it is `payment_transaction_id`. Every one of the eleven deletions on
+2026-10-14 wrote `NULL` for the payment intent. Ten of those eleven were
+`payment_status = 'auth_only'`.
+
+Nothing was lost: the JSON snapshot held every real `pi_…` id, which is
+precisely why `d6122ba` stores the whole row rather than chosen columns. The
+denormalised column failed and the blob caught it.
+
+**2. The detail-page Delete button had never worked.** It posted
+`confirm_captured` and nothing else, so `composeDeleteReason()` returned null
+and the server answered 400 *"Pick a deletion reason"* on every attempt.
+`orderDeleteReasons.js` names its three consumers — the list page, the
+controller, the gate — and the detail page is not among them. All eleven
+recorded deletions came through the **bulk** endpoint, which does send a
+reason. That is the answer to the owner's question.
+
+**3. No guard on an uncaptured authorization.** Deleting an `auth_only` order
+left the hold live on the customer's card with the only local record of it
+gone. It cost nothing on 10-14: those were sandbox transactions, and Stripe
+auto-cancels an uncaptured PaymentIntent 7 days after creation, which had
+already happened around 10-05. The code cannot tell test from live.
+
+**And one claim that was wrong.** The review first reported that both delete
+paths were missing CSRF tokens. They are not: `views/layouts/admin.ejs:352`
+patches `window.fetch` to add `X-CSRF-Token` to every non-GET from the meta tag
+at line 29. Grepping the two view files and not the layout produced a confident,
+wrong diagnosis. ⚠️ **Before concluding a client-side mechanism is absent,
+check the layout** — admin pages inherit fetch patching, nonces and the action
+dispatcher from there.
+
+### A fourth, found while fixing the others
+
+The orders list query selected an explicit column list containing neither
+`payment_captured_at` nor `payment_status`, so `index.ejs` rendered
+`data-captured=""` on every row and the red captured-payment banner **never
+fired**. It failed closed — the flag was always false and the server refused
+captured deletions anyway — which is why nobody noticed. The template comment
+beside it even allowed for the possibility and nobody checked which it was.
+
+### Why these keep happening
+
+All four are one shape: **an unselected or misspelled column is `undefined` in
+mysql2, never an error.** The same shape produced the checkout 409 (`cbafe9f`)
+that killed every order for fourteen days. `gate_order_delete` had 61 passing
+checks over defect 1 because it validated the audit table's *schema* and the
+delete's *semantics* and never the *mapping* between the source row and the
+destination columns.
+
+The gate now reads every `order.<x>` inside `deleteOneOrder` and asserts each
+is a real column in the schema dump. That check is the generalisable form, and
+the mutation harness proves it catches a one-character typo, not just the two
+historical names.
+
+### Also repaired
+
+* `deleteOneOrder` releases the hold before deleting and **refuses to delete if
+  Stripe declines** — delete-then-release is unrecoverable.
+* `payment_status`, `auth_released` and `auth_release_note` added to
+  `order_deletions`; the eleven existing rows deliberately **not** backfilled
+  (test data, and their snapshots were never wrong).
+* The detail page sends `reason_code`, rendered from the shared config.
+* `mutate_order_delete.sh` gained an INT/TERM trap. Without it a timeout killed
+  the harness mid-run and left `UPDATE orders SET deleted_at = NOW()` in the
+  working tree — twice. The gate caught it both times.
+* The gate stops reading the 80 MB dump in full; it streams and stops at the
+  `orders` block. 2s → 0.9s per run, which is what kept the harness inside its
+  timeout.
+
+**Gate: 78 checks. Mutations: 39/39 caught.**
+
+---
+
 ## Google Merchant Center feed — and the duplicate map it shipped with
 **Date:** 2026-09-30
 **Commits:** `4f03b4a` (the feed), and the consolidation that followed

@@ -1168,6 +1168,18 @@ const disputeOpen = order.dispute_id
 <script nonce="<%= cspNonce %>">
 const ORDER_ID = '<%= order.id %>';
 
+/* ── delete-dialog inputs, from the SHARED config ──────────────────────
+   orderDeleteReasons.js is the one source; serialising it here rather
+   than retyping the codes means this page cannot drift from the server's
+   validation the way it drifted into sending no reason at all. */
+const DELETE_REASONS  = <%- JSON.stringify(ORDER_DELETE_REASONS) %>;
+const MIN_DELETE_NOTE = <%= MIN_DELETE_NOTE %>;
+
+/* An uncaptured hold is live money on the customer's card. Both values
+   come off the order row, so the dialog can name the amount. */
+const HOLDS_AUTH  = <%= order.payment_status === 'auth_only' && order.payment_transaction_id ? 'true' : 'false' %>;
+const ORDER_TOTAL = <%= Number(order.total || 0) %>;
+
 /* ── Delivery view tabs ──────────────────────────────────────────
    Street View's iframe carries its URL in data-src, not src, and is
    promoted on first click. An iframe with a src loads even while
@@ -1374,10 +1386,40 @@ async function deleteOrder(id, orderNumber, isCaptured) {
     'This removes the order, its line items, events, shipments, returns and\n' +
     'sample redemptions. It cannot be undone.' +
     (isCaptured ? '\n\n** THIS ORDER HAS A CAPTURED PAYMENT. **' : '') +
+    (HOLDS_AUTH ? '\n\n** THIS ORDER IS HOLDING AN UNCAPTURED AUTHORIZATION OF $' +
+       Number(ORDER_TOTAL).toFixed(2) + '. **\nThe hold will be released before the record is removed.' : '') +
     '\n\nType the order number to confirm:'
   );
   if (typed === null) return;
   if (typed.trim() !== orderNumber) { alert('Not deleted — the order number did not match.'); return; }
+
+  /* ⚠️ A REASON IS MANDATORY — and this page never sent one.
+     composeDeleteReason() returns null for an unknown code, so the server
+     answered 400 "Pick a deletion reason" on every attempt from here since
+     d6122ba (2026-10-14). The feature shipped with the reason dropdown on
+     the LIST page only; orderDeleteReasons.js even names its three
+     consumers and this file is not among them. Every one of the eleven
+     deletions on record came through the bulk endpoint.
+
+     A prompt rather than the list page's modal: this page has no modal
+     infrastructure and the typed order number above is already its
+     confirmation step. The codes are rendered from the shared config, so
+     they cannot drift from the server's. */
+  const codes = DELETE_REASONS.map((r, i) => '  ' + (i + 1) + '. ' + r.label).join('\n');
+  const pick  = window.prompt('Why is it being deleted?\n\n' + codes + '\n\nEnter a number:');
+  if (pick === null) return;
+  const chosen = DELETE_REASONS[parseInt(pick, 10) - 1];
+  if (!chosen) { alert('Not deleted — that was not one of the options.'); return; }
+
+  let note = '';
+  if (chosen.requiresNote) {
+    note = (window.prompt('"' + chosen.label + '" needs a note of at least ' +
+                          MIN_DELETE_NOTE + ' characters:') || '').trim();
+    if (note.length < MIN_DELETE_NOTE) {
+      alert('Not deleted — a note of at least ' + MIN_DELETE_NOTE + ' characters is required.');
+      return;
+    }
+  }
 
   let confirmCaptured = false;
   if (isCaptured) {
@@ -1392,7 +1434,18 @@ async function deleteOrder(id, orderNumber, isCaptured) {
     const r = await fetch('/admin/orders/' + id + '/delete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ confirm_captured: confirmCaptured })
+      /* The CSRF token is added by the fetch patch in layouts/admin.ejs —
+         every non-GET gets X-CSRF-Token from the meta tag. Nothing to do
+         per-call, and nothing to forget. */
+      body: JSON.stringify({
+        confirm_captured: confirmCaptured,
+        reason_code: chosen.code,
+        reason_note: note,
+        /* Releasing the hold is not offered as a choice: the prompt above
+           said it would happen, and leaving money on a card while deleting
+           the record of it is not an outcome worth supporting. */
+        release_auth: HOLDS_AUTH,
+      })
     });
     const d = await r.json();
     if (!d.ok) { alert('Not deleted: ' + d.error); return; }

@@ -73,11 +73,23 @@
             <input type="checkbox" class="ord-select" value="<%= o.id %>"
                    data-number="<%= o.order_number %>"
                    <%# A captured order can still be ticked, but the confirm
-                       step names it separately — see the bulk handler. If the
-                       list query does not select payment_captured_at this is
-                       simply undefined and the server-side refusal is what
-                       catches it, so the UI degrades quiet rather than loud. %>
-                   data-captured="<%= o.payment_captured_at ? '1' : '' %>">
+                       step names it separately — see the bulk handler.
+
+                       ⚠️ BOTH COLUMNS ARE NOW EXPLICITLY SELECTED by the list
+                       query. They were not until 2026-10-19, so this rendered
+                       data-captured="" on every row and the red banner never
+                       fired. The server-side refusal caught it regardless —
+                       the UI degraded quiet, exactly as the old note here
+                       speculated it might. Quiet is not the same as correct,
+                       and "simply undefined" is how three separate bugs on
+                       this project stayed invisible. If you add a warning
+                       that reads a column, add the column to the SELECT. %>
+                   data-captured="<%= o.payment_captured_at ? '1' : '' %>"
+                   <%# An uncaptured hold. Deleting without releasing it
+                       leaves money on the customer's card with no local
+                       record — see deleteOneOrder. %>
+                   data-auth="<%= o.payment_status === 'auth_only' ? '1' : '' %>"
+                   data-total="<%= o.total || 0 %>">
           </td>
           <td><span class="rag-dot rag-dot--<%= o.rag %>" title="<%= o.rag === 'red' ? 'Needs attention' : o.rag === 'yellow' ? 'Watch' : 'On track' %>"></span></td>
           <td><a href="/admin/orders/<%= o.id %>" style="font-weight:700;color:var(--color-navy)"><%= o.order_number %></a></td>
@@ -227,6 +239,20 @@
                 background:rgba(220,38,38,.07);border:1px solid var(--red,#dc2626);
                 color:var(--red,#dc2626);font-size:.85rem;font-weight:600"></div>
 
+    <%# ── UNCAPTURED HOLDS ───────────────────────────────────────────────
+        Amber, not red: this is money that WILL be released on the way out,
+        not money already taken. Red is reserved for the captured case
+        directly above, which is genuinely irreversible from here.
+
+        There is no opt-out. Leaving a hold on a customer's card while
+        deleting the only record of it is never a thing to offer as a
+        choice — the ticket exists to make the operator aware, not to let
+        them decline. %>
+    <div id="ord-del-auth"
+         style="display:none;margin:0 0 12px;padding:10px 12px;border-radius:8px;
+                background:#FFF8E6;border:1px solid #E8D9A8;
+                color:#6B5A24;font-size:.85rem;line-height:1.5"></div>
+
     <label for="ord-del-reason"
            style="display:block;font-size:.78rem;font-weight:700;margin:0 0 4px;
                   text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">
@@ -294,13 +320,14 @@
   const elTitle = document.getElementById('ord-del-title');
   const elWhat  = document.getElementById('ord-del-what');
   const elCap   = document.getElementById('ord-del-captured');
+  const elAuth  = document.getElementById('ord-del-auth');
   const elSel   = document.getElementById('ord-del-reason');
   const elNote  = document.getElementById('ord-del-note');
   const elReq   = document.getElementById('ord-del-note-req');
   const elErr   = document.getElementById('ord-del-err');
   const elGo    = document.getElementById('ord-del-go');
 
-  let pending = null;   // { ids:[], label:'', captured:n }
+  let pending = null;   // { ids:[], label:'', captured:n, auth:n, authTotal:n }
 
   function noteRequired() {
     const o = elSel.options[elSel.selectedIndex];
@@ -312,8 +339,8 @@
   }
   elSel.addEventListener('change', refreshNote);
 
-  function open(ids, label, captured) {
-    pending = { ids, label, captured };
+  function open(ids, label, captured, auth, authTotal) {
+    pending = { ids, label, captured, auth, authTotal };
     elTitle.textContent = ids.length > 1 ? 'Delete ' + ids.length + ' orders' : 'Delete order';
     elWhat.textContent  = label;
     if (captured) {
@@ -322,6 +349,22 @@
         : 'This order has a captured payment. Stripe keeps its own record; this removes yours.';
       elCap.style.display = '';
     } else { elCap.style.display = 'none'; }
+
+    /* The hold warning. Stated as what WILL happen, not as a question —
+       the release is not optional, because leaving a hold on a card while
+       deleting the record of it is not a defensible outcome. The amount is
+       named so the operator is reading a number, not a category. */
+    if (auth) {
+      const money = authTotal
+        ? ' totalling $' + authTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : '';
+      elAuth.textContent = (auth > 1
+        ? auth + ' of these are holding uncaptured authorizations' + money
+        : 'This order is holding an uncaptured authorization' + money) +
+        ' on the customer\'s card. The hold will be RELEASED before the ' +
+        'record is removed. If Stripe refuses, that order is left alone.';
+      elAuth.style.display = '';
+    } else { elAuth.style.display = 'none'; }
     elSel.selectedIndex = 0; elNote.value = ''; refreshNote();
     elGo.disabled = false; elGo.textContent = 'Delete';
     modal.style.display = 'flex';
@@ -360,13 +403,28 @@
           /* The captured-payment refusal is the server's, not the UI's. The
              banner above is the warning; THIS is the acknowledgement. */
           confirm_captured: pending.captured > 0,
+          /* Same model for uncaptured holds: the server refuses to delete
+             one without this flag, and releases the hold before the row
+             when it is set. Sent only when the modal actually warned about
+             holds, so a stale page cannot authorise a release it never
+             showed the operator. */
+          release_auth: pending.auth > 0,
         }),
       });
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || 'Delete failed');
+      /* x.detail is a sentence; x.reason is the machine code behind it.
+         The sentence is what gets shown — 'authorization_pending' told an
+         operator nothing about why their order survived the delete. */
       if (data.skipped && data.skipped.length) {
-        alert('Deleted ' + data.deleted + '. Skipped ' + data.skipped.length + ':\n' +
-              data.skipped.map(x => (x.orderNumber || x.id) + ' — ' + x.reason).join('\n'));
+        alert('Deleted ' + data.deleted +
+              (data.authReleased ? ' (' + data.authReleased + ' authorization(s) released)' : '') +
+              '. Skipped ' + data.skipped.length + ':\n\n' +
+              data.skipped.map(x =>
+                '• ' + (x.orderNumber || x.id) + ' — ' + (x.detail || x.reason)).join('\n'));
+      } else if (data.authReleased) {
+        alert('Deleted ' + data.deleted + '. ' + data.authReleased +
+              ' uncaptured authorization(s) were released first.');
       }
       window.location.reload();
     } catch (err) {
@@ -376,10 +434,20 @@
     }
   });
 
-  /* row */
+  /* row
+
+     ⚠️ The per-row delete button carries data-captured but NOT data-auth or
+     data-total — those live on the row CHECKBOX, which is a different
+     element. Rather than duplicate the attributes onto a second element and
+     create two places to forget, the checkbox for this id is looked up. */
   document.querySelectorAll('.ord-del-one').forEach(btn => {
-    btn.addEventListener('click', () =>
-      open([btn.dataset.id], btn.dataset.number, btn.dataset.captured ? 1 : 0));
+    btn.addEventListener('click', () => {
+      const cb = document.querySelector('.ord-select[value="' + btn.dataset.id + '"]');
+      open([btn.dataset.id], btn.dataset.number,
+           btn.dataset.captured ? 1 : 0,
+           (cb && cb.dataset.auth) ? 1 : 0,
+           (cb && cb.dataset.auth) ? Number(cb.dataset.total || 0) : 0);
+    });
   });
 
   /* bulk */
@@ -387,9 +455,12 @@
     const chosen = picked();
     if (!chosen.length) return;
     const nums = chosen.map(b => b.dataset.number);
+    const held = chosen.filter(b => b.dataset.auth);
     open(chosen.map(b => b.value),
          nums.slice(0, 6).join(', ') + (nums.length > 6 ? ', …and ' + (nums.length - 6) + ' more' : ''),
-         chosen.filter(b => b.dataset.captured).length);
+         chosen.filter(b => b.dataset.captured).length,
+         held.length,
+         held.reduce((a, b) => a + Number(b.dataset.total || 0), 0));
   });
 
   sync();

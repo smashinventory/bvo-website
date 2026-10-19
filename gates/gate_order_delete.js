@@ -24,6 +24,25 @@
  *
  *   5. ROUTE ORDER. '/orders/bulk-delete' declared after '/orders/:id' is
  *      swallowed by the :id route — a silent 400 on every bulk delete.
+ *
+ *   6. EVERY COLUMN READ OFF THE ORDER ROW MUST EXIST. Added 2026-10-19,
+ *      after this gate passed 61 checks over a snapshot line that read
+ *      `order.stripe_payment_intent_id ?? order.stripe_payment_intent` —
+ *      two column names the orders table has never had. Every one of the
+ *      eleven real deletions recorded NULL for the payment intent.
+ *
+ *      The gate validated the audit table's SCHEMA and the delete's
+ *      SEMANTICS, and never checked the MAPPING between the source row and
+ *      the destination columns. That gap is this project's recurring bug
+ *      shape — an unselected or misspelled column is `undefined` in mysql2,
+ *      never an error — and it has now produced the checkout 409 (cbafe9f),
+ *      the NULL payment intent, and the dead captured-payment banner on the
+ *      orders list. This check is the generalisable form of all three.
+ *
+ *   7. AN UNCAPTURED AUTHORIZATION IS RELEASED BEFORE THE ROW IS REMOVED,
+ *      and the delete is REFUSED if Stripe declines. Deleting first and
+ *      releasing after is unrecoverable: the hold is live and the record
+ *      that named it is gone.
  * ───────────────────────────────────────────────────────────────────────── */
 
 const path = require('path');
@@ -294,6 +313,172 @@ console.log('--- executed: deleteOneOrder ---');
           'a flag would need filtering in ~30 read sites; one miss corrupts a revenue KPI silently');
     check(!/UPDATE orders SET[^;]*deleted/i.test(CTRL_CODE),
           'and no UPDATE pretends to delete by setting a flag');
+
+    /* ── 7. THE COLUMN MAPPING ───────────────────────────────────────────
+       Every `order.<something>` inside deleteOneOrder is read off a row
+       produced by `SELECT * FROM orders`. If the name is not a column, it
+       is undefined — silently, with no error — and whatever it was meant
+       to record is NULL forever.
+
+       Checked against the newest schema dump, because that is the only
+       artefact that says what the table actually has. The migrations
+       directory describes intent, not state (BVO_AUDIT_BRIEF.md:338). */
+    console.log('');
+    console.log('--- every column read off the order row exists ---');
+
+    /* ⚠️ SCOPED TO deleteOneOrder, and section 8 below uses the SAME slice.
+       ordersController is 1,200 lines and contains a STANDALONE
+       exports.cancelAuthorization handler that legitimately mentions
+       'cancelAuthorization' and 'auth_only'. Scanning the whole file for
+       either makes the release checks pass on text from a different
+       function — which is exactly what happened: two mutations that broke
+       the delete path were missed because the unrelated handler satisfied
+       the grep. Compute the body once, here, and use it everywhere. */
+    const fnStart0 = CTRL_CODE.indexOf('async function deleteOneOrder');
+    const fnEnd0   = CTRL_CODE.indexOf('\n}', CTRL_CODE.indexOf('DELETE FROM orders WHERE id = ?', fnStart0));
+    const FN_BODY  = CTRL_CODE.slice(fnStart0, fnEnd0 > fnStart0 ? fnEnd0 : undefined);
+
+    const dumps = fs.readdirSync(path.join(ROOT, '..'))
+      .filter(f => /^u\d+_BVO_website.*\.sql$/.test(f)).sort().reverse();
+
+    if (!dumps.length) {
+      check(false, 'a BVO schema dump is available to check column names against',
+            'No u*_BVO_website*.sql beside the project. Without it this check ' +
+            'cannot run, and a misspelled column goes back to being invisible.');
+    } else {
+      /* ⚠️ READ IN CHUNKS AND STOP AT THE BLOCK WE NEED.
+         These dumps are ~80 MB. readFileSync'ing the whole thing costs ~2s,
+         which is nothing for one gate run and 80 seconds across the 39 runs
+         the mutation harness makes — enough to push the harness past the
+         tool timeout, which in turn kills it mid-mutation and leaves a
+         deliberately-broken file in the working tree. That happened twice
+         on 2026-10-19 before this was fixed.
+
+         The CREATE TABLE block is a few hundred bytes somewhere in those
+         80 MB, so the scan stops the moment it has it. A sliding overlap
+         keeps the marker from being split across a chunk boundary. */
+      const cols = new Set();
+      {
+        const fd  = fs.openSync(path.join(ROOT, '..', dumps[0]), 'r');
+        const BUF = Buffer.alloc(1 << 20);          // 1 MB
+        let carry = '', pos = 0, block = null;
+        try {
+          for (;;) {
+            const n = fs.readSync(fd, BUF, 0, BUF.length, pos);
+            if (n <= 0) break;
+            pos += n;
+            const text = carry + BUF.toString('utf8', 0, n);
+            const m = text.match(/CREATE TABLE `orders` \(([\s\S]*?)\n\) ENGINE/);
+            if (m) { block = m[1]; break; }
+            /* Keep the tail in case the block straddles the boundary. A
+               CREATE TABLE for a 96-column table is well under 64 KB. */
+            carry = text.slice(-65536);
+          }
+        } finally { fs.closeSync(fd); }
+        if (block) [...block.matchAll(/^\s+`(\w+)`\s+\w/gm)].forEach(x => cols.add(x[1]));
+      }
+
+      check(cols.size > 30,
+            `the orders table parsed from ${dumps[0]} (${cols.size} columns)`,
+            'Too few columns — the CREATE TABLE regex stopped matching and the ' +
+            'check below would pass vacuously.');
+
+      /* Scope to deleteOneOrder: `order` elsewhere in this 1,200-line file
+         may be a different shape entirely. */
+      const BODY = FN_BODY;
+
+      check(fnStart0 !== -1 && BODY.length > 200,
+            'deleteOneOrder was located for scanning');
+
+      /* Properties that are NOT columns and must not be flagged. Each one
+         is a deliberate exception, not a convenience. */
+      const NOT_COLUMNS = new Set([
+        'order_number',   // is a column; listed for clarity, harmless either way
+      ]);
+
+      const read = [...new Set([...BODY.matchAll(/\border\.(\w+)/g)].map(x => x[1]))];
+      const ghosts = read.filter(c => !cols.has(c) && !NOT_COLUMNS.has(c));
+
+      check(read.length >= 5,
+            `deleteOneOrder reads ${read.length} properties off the order row`,
+            'Suspiciously few — the scan regex may have stopped matching.');
+
+      check(ghosts.length === 0,
+            'every one of them is a real column on `orders`',
+            ghosts.length
+              ? 'NOT COLUMNS: ' + ghosts.map(g => 'order.' + g).join(', ') +
+                '\n         These are undefined at runtime and write NULL. This is ' +
+                'exactly how order_deletions.stripe_payment_intent was NULL on all ' +
+                'eleven rows while the JSON snapshot held the real ids.'
+              : '');
+
+      /* And the specific one that was wrong, named, so a future refactor
+         that reintroduces the old name fails loudly rather than quietly. */
+      check(/order\.payment_transaction_id/.test(BODY),
+            'the payment intent is read from payment_transaction_id',
+            'That is the column that exists. stripe_payment_intent_id and ' +
+            'stripe_payment_intent do not and never did.');
+      check(!/order\.stripe_payment_intent/.test(BODY),
+            'and neither ghost column name has come back');
+    }
+
+    /* ── 8. the authorization release ────────────────────────────────── */
+    console.log('');
+    console.log('--- an uncaptured hold is released, not stranded ---');
+
+    /* ⚠️ INDEXES INTO THE FUNCTION BODY, not the file. Measured against the
+       whole file, relIdx found exports.cancelAuthorization — a different,
+       legitimate handler several hundred lines earlier — so the ordering
+       assertion below was comparing positions in unrelated code and passed
+       no matter what the delete path did. Two mutations slipped through on
+       exactly that before this was scoped. */
+    const relIdx = FN_BODY.indexOf('cancelAuthorization');
+    const insIdx = FN_BODY.indexOf('INSERT INTO order_deletions');
+    const delIdx = FN_BODY.indexOf('DELETE FROM orders WHERE id = ?');
+
+    check(relIdx !== -1, 'deleteOneOrder can release an authorization');
+    check(/auth_only/.test(FN_BODY),
+          'it tests payment_status for auth_only',
+          'Any other test would release holds that do not exist or miss ones that do. ' +
+          'Checked inside deleteOneOrder — exports.cancelAuthorization also mentions ' +
+          "'auth_only' and would satisfy a file-wide search on its own.");
+    check(relIdx !== -1 && delIdx !== -1 && relIdx < delIdx,
+          'the release happens BEFORE the row is deleted',
+          'Delete-then-release is unrecoverable on failure: the hold is live and ' +
+          'the record naming it is gone.');
+    check(relIdx !== -1 && insIdx !== -1 && relIdx < insIdx,
+          'and before the snapshot, so a failed release writes no audit row at all');
+    check(/skipped: 'release_failed'/.test(FN_BODY),
+          'a failed release refuses the delete',
+          'Proceeding past a failed release is the exact outcome the guard exists ' +
+          'to prevent.');
+    check(/skipped: 'authorization_pending'/.test(FN_BODY),
+          'and a hold without the release flag is refused, not silently stranded');
+
+    /* The flag must come from the REQUEST, like confirm_captured. Hardcoded
+       true would turn the acknowledgement into decoration. */
+    const relFlags = [...CTRL_CODE.matchAll(/releaseAuth:\s*([^,\n]+)/g)].map(x => x[1].trim());
+    check(relFlags.length >= 2,
+          `both HTTP handlers pass releaseAuth (${relFlags.length} call sites)`);
+    check(relFlags.every(f => /req\.body/.test(f)),
+          'and both derive it from the request body, never a literal',
+          'found: ' + relFlags.join(' | '));
+
+    /* ── 9. the detail page sends a reason ───────────────────────────── */
+    console.log('');
+    console.log('--- the detail page delete actually works ---');
+    check(/reason_code:/.test(DETAIL),
+          'the detail page sends reason_code',
+          'It did not from 2026-10-14 to 2026-10-19: composeDeleteReason() returns ' +
+          'null for an unknown code, so every delete from that page 400\'d with ' +
+          '"Pick a deletion reason". All eleven recorded deletions came through ' +
+          'the bulk endpoint instead.');
+    check(/DELETE_REASONS\s*=\s*<%-/.test(DETAIL),
+          'and renders the reasons from the shared config, not a retyped list',
+          'orderDeleteReasons.js is the one source; a hardcoded copy here is how ' +
+          'the two drift.');
+    check(/ORDER_DELETE_REASONS,/.test(CTRL) && /MIN_DELETE_NOTE,/.test(CTRL),
+          'the detail render passes the config through');
 
     console.log('');
     console.log(fail === 0

@@ -179,6 +179,22 @@ exports.list = async (req, res, next) => {
 
     const orders = await safeQuery(
       `SELECT o.id, o.order_number, o.status, o.total, o.created_at, o.shipped_at, o.delivered_at,
+              /* ⚠️ PAYMENT STATE, for the bulk-delete warnings.
+                 Neither of these was selected before 2026-10-19, so
+                 index.ejs rendered data-captured="" on EVERY row and the red
+                 "this has a captured payment" banner never once appeared.
+                 The template comment beside it even allowed for the
+                 possibility — "if the list query does not select
+                 payment_captured_at this is simply undefined" — and nobody
+                 checked which it was.
+
+                 It failed CLOSED, which is why it went unnoticed: with the
+                 flag always false the server refused captured deletions
+                 anyway. Fail-closed is why this was a UX bug and not a
+                 money bug. An unselected column is undefined, never an
+                 error — the same shape as the checkout 409 (cbafe9f) and
+                 the NULL payment intent in order_deletions. */
+              o.payment_captured_at, o.payment_status,
               COALESCE(
                 NULLIF(TRIM(CONCAT(COALESCE(c.first_name,''),' ',COALESCE(c.last_name,''))),''),
                 NULLIF(TRIM(CONCAT(COALESCE(o.ship_first_name,''),' ',COALESCE(o.ship_last_name,''))),''),
@@ -319,6 +335,16 @@ exports.detail = async (req, res, next) => {
       activePage: 'orders',
       pageTitle:  `Order ${order.order_number}`,
       ORDER_STATUSES,      // labels + hover definitions
+      /* ⚠️ The delete dialog on this page needs these and never had them.
+         orderDeleteReasons.js documents three consumers — the list page,
+         this controller's validation, and the gate — and the DETAIL page
+         was never one. That is why its delete button posted no reason_code
+         and 400'd on every attempt from 2026-10-14 to 2026-10-19, while
+         all eleven recorded deletions came through the bulk endpoint.
+         Passing the config rather than hardcoding codes in the template
+         keeps the one-source rule intact. */
+      ORDER_DELETE_REASONS,
+      MIN_DELETE_NOTE,
       order,
       items,
       vendorPo:   vendorPo || null,
@@ -962,7 +988,7 @@ async function countOrderChildren(conn, id) {
 /* Deletes ONE order inside a caller-supplied transaction. Returns a result
    object rather than throwing on a refusal, because the bulk path needs to
    skip one order and carry on rather than abort the batch. */
-async function deleteOneOrder(conn, id, { actor, reason, confirmCaptured }) {
+async function deleteOneOrder(conn, id, { actor, reason, confirmCaptured, releaseAuth }) {
   const [[order]] = await conn.query('SELECT * FROM orders WHERE id = ?', [id]);
   if (!order) return { id, ok: false, skipped: 'not_found' };
 
@@ -974,21 +1000,100 @@ async function deleteOneOrder(conn, id, { actor, reason, confirmCaptured }) {
     };
   }
 
+  /* ═══════════════════════════════════════════════════════════════════
+     AN UNCAPTURED AUTHORIZATION MUST BE RELEASED BEFORE THE ROW GOES
+     ═══════════════════════════════════════════════════════════════════
+     Until 2026-10-19 this case had no guard at all. Deleting an auth_only
+     order left the hold sitting on the customer's card and removed the
+     only local record pointing at it — the money is real, the explanation
+     is gone, and nobody finds out until the customer calls.
+
+     On 2026-10-14 exactly that happened to ten orders. It cost nothing:
+     they were sandbox transactions, and Stripe auto-cancels an uncaptured
+     PaymentIntent 7 days after creation, which had already passed. The
+     code cannot tell test from live, so that was luck, not safety.
+
+     NOT THE SAME AS CAPTURED. Before capture there is no charge: cancelling
+     the PaymentIntent releases the hold, costs no fee, and the customer is
+     never out of pocket. After capture, money has moved and only a refund
+     reverses it — a different decision, a different screen, and deliberately
+     NOT something a delete dialog performs. That case keeps its existing
+     confirm-and-warn behaviour above.
+
+     ⚠️ ORDER OF OPERATIONS IS THE WHOLE POINT. Release FIRST, and refuse
+     to delete if the release fails. The reverse — delete, then try to
+     release — is unrecoverable: on failure the hold is live and the row
+     that named it is gone.
+
+     ⚠️ A STRIPE CALL INSIDE A DB TRANSACTION, knowingly. It holds a row
+     lock across a network round trip, which is not free. The alternative
+     is worse: if the transaction later rolls back, a release that already
+     happened leaves an order marked auth_only whose hold is actually gone
+     — visible, reversible, and fixable from the Stripe dashboard. The
+     opposite mistake is not fixable, because the order id is gone. */
+  const authPi     = order.payment_transaction_id || null;
+  const holdsAuth  = order.payment_status === 'auth_only' && !!authPi;
+  let   authReleased  = null;
+  let   authReleaseNote = null;
+
+  if (holdsAuth && !releaseAuth) {
+    /* Refuse and SAY WHAT IS AT STAKE. The bulk path turns this into a
+       skip line rather than aborting the batch. */
+    return {
+      id, ok: false, skipped: 'authorization_pending',
+      orderNumber: order.order_number,
+      amount:      order.total ?? null,
+      paymentIntent: authPi,
+    };
+  }
+
+  if (holdsAuth && releaseAuth) {
+    const rel = await stripePay.cancelAuthorization(authPi);
+    if (!rel.ok) {
+      /* DO NOT DELETE. A failed release with the row removed is the exact
+         outcome this guard exists to prevent. */
+      return {
+        id, ok: false, skipped: 'release_failed',
+        orderNumber: order.order_number,
+        paymentIntent: authPi,
+        error: rel.error,
+      };
+    }
+    authReleased    = 1;
+    authReleaseNote = `Released ${authPi} before deletion`;
+  }
+
   const counts = await countOrderChildren(conn, id);
 
   /* Snapshot BEFORE anything is removed. */
   await conn.query(
     `INSERT INTO order_deletions
        (order_id, order_number, order_total, order_status, payment_captured_at,
+        payment_status, auth_released, auth_release_note,
         stripe_payment_intent, order_snapshot, child_counts, deleted_by, deleted_reason)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       order.id,
       order.order_number,
       order.total ?? null,
       order.status ?? null,
       order.payment_captured_at ?? null,
-      order.stripe_payment_intent_id ?? order.stripe_payment_intent ?? null,
+      order.payment_status ?? null,
+      authReleased,
+      authReleaseNote,
+      /* ⚠️ payment_transaction_id — THE COLUMN THAT ACTUALLY EXISTS.
+         This line read `order.stripe_payment_intent_id ?? order.stripe_payment_intent`
+         from 2026-10-14 until 2026-10-19. The orders table has neither, so
+         it evaluated to undefined → NULL on every row, silently: an
+         unselected or misspelled column is undefined in mysql2, never an
+         error. All eleven deletions recorded NULL here while their JSON
+         snapshots held the real pi_… ids all along.
+
+         Same shape as the checkout 409 (cbafe9f): new code reading a name
+         the schema never had. gate_order_delete now checks every column
+         read off the order row against the schema dump, which is the only
+         version of this check that generalises. */
+      order.payment_transaction_id ?? null,
       JSON.stringify(order),
       JSON.stringify(counts),
       actor || 'admin',
@@ -1003,7 +1108,8 @@ async function deleteOneOrder(conn, id, { actor, reason, confirmCaptured }) {
   /* order_items goes with the parent via fk_item_order ON DELETE CASCADE. */
   await conn.query('DELETE FROM orders WHERE id = ?', [id]);
 
-  return { id, ok: true, orderNumber: order.order_number, counts };
+  return { id, ok: true, orderNumber: order.order_number, counts,
+           authReleased: authReleased === 1 };
 }
 
 /* The deletion reason is REQUIRED, and required HERE as well as in the browser.
@@ -1039,11 +1145,38 @@ exports.deleteOrder = async (req, res) => {
       actor:           req.session?.adminUser || 'admin',
       reason,
       confirmCaptured: !!(req.body && req.body.confirm_captured),
+      releaseAuth:     !!(req.body && req.body.release_auth),
     });
 
     if (!r.ok) {
       await conn.rollback();
       if (r.skipped === 'not_found') return res.status(404).json({ ok: false, error: 'Not found' });
+
+      /* An uncaptured hold. The browser asks once and re-sends with
+         release_auth; the amount is quoted so the operator is confirming a
+         number, not a word. */
+      if (r.skipped === 'authorization_pending') {
+        return res.status(409).json({
+          ok: false,
+          requiresRelease: true,
+          amount: r.amount,
+          error: `${r.orderNumber} is holding an uncaptured authorization` +
+                 (r.amount ? ` of $${Number(r.amount).toFixed(2)}` : '') +
+                 ' on the customer\'s card. Deleting without releasing it leaves ' +
+                 'the hold in place with no local record of it.',
+        });
+      }
+
+      /* Stripe refused the release. Nothing was deleted, deliberately. */
+      if (r.skipped === 'release_failed') {
+        return res.status(502).json({
+          ok: false,
+          error: `Could not release the authorization on ${r.orderNumber} ` +
+                 `(${r.paymentIntent}): ${r.error}. NOTHING WAS DELETED — ` +
+                 'release it in Stripe, then delete.',
+        });
+      }
+
       return res.status(409).json({
         ok: false,
         error: `${r.orderNumber} has a captured payment (${r.capturedAt}). ` +
@@ -1054,7 +1187,8 @@ exports.deleteOrder = async (req, res) => {
     }
 
     await conn.commit();
-    return res.json({ ok: true, deleted: 1, orderNumber: r.orderNumber, counts: r.counts });
+    return res.json({ ok: true, deleted: 1, orderNumber: r.orderNumber,
+                      counts: r.counts, authReleased: r.authReleased });
   } catch (err) {
     try { await conn.rollback(); } catch (_) {}
     console.error('[ordersController.deleteOrder]', err);
@@ -1095,6 +1229,11 @@ exports.bulkDelete = async (req, res) => {
         actor:           req.session?.adminUser || 'admin',
         reason,
         confirmCaptured: !!(req.body && req.body.confirm_captured),
+        /* Same acknowledgement model as confirm_captured: the UI shows how
+           many of the selected orders hold a live authorization, and THIS
+           flag is the operator saying release them. Absent, each one is
+           skipped with its reason rather than silently stranded. */
+        releaseAuth:     !!(req.body && req.body.release_auth),
       });
       (r.ok ? deleted : skipped).push(r);
     }
@@ -1103,9 +1242,32 @@ exports.bulkDelete = async (req, res) => {
     return res.json({
       ok: true,
       deleted: deleted.length,
+      /* ⚠️ s.skipped is a CODE. It is surfaced to the operator in an alert,
+         so it gets a sentence as well — 'authorization_pending' tells
+         someone clearing test data nothing about why their order survived.
+         The code stays in `reason` because the UI and the gate both key
+         off it; the prose is additive. */
       skipped: skipped.map(s => ({
-        id: s.id, orderNumber: s.orderNumber || null, reason: s.skipped,
+        id: s.id,
+        orderNumber: s.orderNumber || null,
+        reason: s.skipped,
+        detail:
+          s.skipped === 'authorization_pending'
+            ? 'holds an uncaptured authorization' +
+              (s.amount ? ` of $${Number(s.amount).toFixed(2)}` : '') +
+              ' — re-run with "release the holds" ticked'
+          : s.skipped === 'release_failed'
+            ? `Stripe refused to release ${s.paymentIntent}: ${s.error}` +
+              ' — nothing was deleted for this one'
+          : s.skipped === 'payment_captured'
+            ? `payment was captured ${s.capturedAt}`
+          : s.skipped === 'not_found'
+            ? 'no longer exists'
+          : s.skipped,
       })),
+      /* So the operator can see the holds actually went, not just that the
+         rows did. */
+      authReleased: deleted.filter(d => d.authReleased).length,
     });
   } catch (err) {
     try { await conn.rollback(); } catch (_) {}

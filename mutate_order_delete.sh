@@ -36,6 +36,23 @@ restore() {
   done
 }
 
+# ⚠️ RESTORE ON INTERRUPTION, NOT ONLY ON THE HAPPY PATH.
+#
+# This harness deliberately breaks real source files one at a time. Without a
+# trap, anything that kills it mid-run — Ctrl-C, a timeout, a crash — leaves
+# the LAST MUTATION APPLIED in the working tree, looking exactly like code
+# somebody wrote on purpose.
+#
+# That is not hypothetical: on 2026-10-19 a 120s timeout killed this script
+# during the soft-delete mutation and left
+#   UPDATE orders SET deleted_at = NOW()
+# sitting in ordersController, where it would have been committed. The gate
+# caught it — four checks went red — which is the only reason it was noticed.
+#
+# The trap re-runs restore() and says so loudly, so a half-finished run can
+# never be mistaken for a clean tree.
+trap 'echo; echo "  !! INTERRUPTED — restoring all ${#FILES[@]} files from backup"; restore; rm -rf "$TMP"; exit 130' INT TERM
+
 if ! node "$GATE" >/dev/null 2>&1; then
   echo "BASELINE IS RED — the gate fails on unmodified code. Fix that first."
   node "$GATE" | tail -20
@@ -183,6 +200,50 @@ echo
 echo "──── soft-delete creep ────"
 mutate "delete quietly becomes a deleted_at flag" "$CTRL" \
   "s=s.replace(\"  await conn.query('DELETE FROM orders WHERE id = ?', [id]);\", \"  await conn.query('UPDATE orders SET deleted_at = NOW() WHERE id = ?', [id]);\")"
+
+echo
+echo "──── the column mapping (added 2026-10-19) ────"
+# THE ONE THAT SHIPPED. This exact text sat in the snapshot from 2026-10-14
+# to 2026-10-19 and the gate passed 61 checks over it. Both names are
+# undefined at runtime, so every deletion wrote NULL for the payment intent.
+mutate "the original ghost column names come back" "$CTRL" \
+  "s=s.replace('order.payment_transaction_id ?? null,', 'order.stripe_payment_intent_id ?? order.stripe_payment_intent ?? null,')"
+
+# A single plausible typo. The check has to catch a misspelling, not only
+# the two historical names — otherwise it is a blocklist, not a rule.
+mutate "a one-character typo in a column name" "$CTRL" \
+  "s=s.replace('order.payment_captured_at ?? null,', 'order.payment_capture_at ?? null,')"
+
+mutate "payment_status read from a name that does not exist" "$CTRL" \
+  "s=s.replace('order.payment_status ?? null,', 'order.payment_state ?? null,')"
+
+echo
+echo "──── the authorization release ────"
+mutate "the hold is released AFTER the row is deleted" "$CTRL" \
+  "s=s.replace('const rel = await stripePay.cancelAuthorization(authPi);', 'const rel = { ok: true }; /* moved below the delete */')"
+
+mutate "a failed release no longer blocks the delete" "$CTRL" \
+  "s=s.replace(\"skipped: 'release_failed',\", \"skipped: 'release_ignored',\")"
+
+mutate "an uncaptured hold is deleted without any guard" "$CTRL" \
+  "s=s.replace(\"skipped: 'authorization_pending',\", \"skipped: 'whatever',\")"
+
+mutate "releaseAuth hardcoded true in the single handler" "$CTRL" \
+  "s=s.replace('releaseAuth:     !!(req.body && req.body.release_auth),', 'releaseAuth:     true,', 1)"
+
+mutate "the auth test matches the wrong payment_status" "$CTRL" \
+  "s=s.replace(\"order.payment_status === 'auth_only'\", \"order.payment_status === 'authorised'\")"
+
+echo
+echo "──── the detail page reason (the bug that made it 400) ────"
+mutate "the detail page stops sending reason_code" "$DETAIL" \
+  "s=s.replace('reason_code: chosen.code,', '/* reason_code removed */')"
+
+mutate "the detail page retypes the reason list instead of using the config" "$DETAIL" \
+  "s=s.replace('const DELETE_REASONS  = <%- JSON.stringify(ORDER_DELETE_REASONS) %>;', 'const DELETE_REASONS  = [{code:\'test_order\',label:\'Test\'}];')"
+
+mutate "the controller stops passing the reason config to the detail view" "$CTRL" \
+  "s=s.replace('      ORDER_DELETE_REASONS,\n      MIN_DELETE_NOTE,', '')"
 
 echo
 echo "──── restore verification ────"
