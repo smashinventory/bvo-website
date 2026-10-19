@@ -504,7 +504,7 @@ const disputeOpen = order.dispute_id
     </select>
     <button id="saveStatusBtn" class="btn btn-primary btn-sm">Save Status</button>
     <% if (isAuthOnly) { %>
-    <button class="btn btn-sage btn-sm" onclick="doCapture()">
+    <button class="btn btn-sage btn-sm" data-act="capture">
       💳 Capture $<%= parseFloat(order.total).toFixed(2) %>
     </button>
     <% } %>
@@ -555,14 +555,14 @@ const disputeOpen = order.dispute_id
         <h3 class="admin-card-title" style="margin:0">Payment</h3>
         <% if (isAuthOnly) { %>
         <div style="display:flex;gap:8px">
-          <button class="btn btn-sage btn-sm" onclick="doCapture()">
+          <button class="btn btn-sage btn-sm" data-act="capture">
             Capture $<%= parseFloat(order.total).toFixed(2) %>
           </button>
           <%/* Release, not refund. Before capture there is no charge to
                refund — cancelling the PaymentIntent gives the money back
                without one ever leaving the customer's account. */%>
           <button class="btn btn-outline btn-sm" style="color:#c53030;border-color:#c53030"
-                  onclick="doReleaseAuth()">Release Hold</button>
+                  data-act="releaseAuth">Release Hold</button>
         </div>
         <% } else if (isCaptured) { %>
         <span class="rag-pill rag-pill--green">Captured</span>
@@ -643,7 +643,7 @@ const disputeOpen = order.dispute_id
         <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
           <button class="btn btn-outline btn-sm" id="sendPoBtn">Resend PO</button>
           <% if (vendorPo.status !== 'confirmed') { %>
-          <button class="btn btn-sage btn-sm" onclick="showConfirmPoModal()">Log Confirmation</button>
+          <button class="btn btn-sage btn-sm" data-act="showConfirmPoModal">Log Confirmation</button>
           <% } %>
         </div>
       <% } %>
@@ -736,7 +736,7 @@ const disputeOpen = order.dispute_id
       <p class="admin-card-hint">No notes yet.</p>
       <% } %>
       <textarea id="noteText" rows="3" placeholder="Internal note (visible to admin only)…" style="width:100%;border:1.5px solid var(--border-input,#d0d5dd);border-radius:6px;padding:.5rem .75rem;font-family:var(--font-sans);font-size:.85rem;resize:vertical;outline:0"></textarea>
-      <button class="btn btn-outline btn-sm" style="margin-top:8px" onclick="addNote()">Save Note</button>
+      <button class="btn btn-outline btn-sm" style="margin-top:8px" data-act="addNote">Save Note</button>
     </div>
 
     <!-- Customer -->
@@ -819,9 +819,9 @@ const disputeOpen = order.dispute_id
       <div style="border:1px solid var(--border);border-radius:6px;overflow:hidden">
         <div style="display:flex;border-bottom:1px solid var(--border)">
           <button type="button" id="dv-tab-aerial" class="dv-tab dv-tab--on"
-                  onclick="dvShow('aerial')">Aerial</button>
+                  data-act="dvShow" data-a1="aerial">Aerial</button>
           <button type="button" id="dv-tab-street" class="dv-tab"
-                  onclick="dvShow('street')">Street view</button>
+                  data-act="dvShow" data-a1="street">Street view</button>
         </div>
 
         <%/* loading="lazy" so the iframe is not fetched until the panel is
@@ -924,14 +924,14 @@ const disputeOpen = order.dispute_id
         <% if (openReturn.customer_notes) { %><p style="margin:4px 0 0;color:var(--text-muted)"><%= openReturn.customer_notes %></p><% } %>
         <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
           <% if (openReturn.status === 'requested') { %>
-          <button class="btn btn-sage btn-sm" onclick="approveReturn(<%= openReturn.id %>)">Approve + RA</button>
-          <button class="btn btn-outline btn-sm" style="color:#c53030;border-color:#c53030" onclick="denyReturn(<%= openReturn.id %>)">Deny</button>
+          <button class="btn btn-sage btn-sm" data-act="approveReturn" data-a1="<%= openReturn.id %>">Approve + RA</button>
+          <button class="btn btn-outline btn-sm" style="color:#c53030;border-color:#c53030" data-act="denyReturn" data-a1="<%= openReturn.id %>">Deny</button>
           <% } %>
           <% if (['approved','in_transit'].includes(openReturn.status)) { %>
-          <button class="btn btn-primary btn-sm" onclick="receiveReturn(<%= openReturn.id %>)">Mark Received</button>
+          <button class="btn btn-primary btn-sm" data-act="receiveReturn" data-a1="<%= openReturn.id %>">Mark Received</button>
           <% } %>
           <% if (['received','inspected'].includes(openReturn.status)) { %>
-          <button class="btn btn-primary btn-sm" onclick="resolveReturn(<%= openReturn.id %>)">Resolve</button>
+          <button class="btn btn-primary btn-sm" data-act="resolveReturn" data-a1="<%= openReturn.id %>">Resolve</button>
           <% } %>
         </div>
       </div>
@@ -948,7 +948,7 @@ const disputeOpen = order.dispute_id
         <% }) %>
       </ul>
       <% } %>
-      <button class="btn btn-outline btn-sm" onclick="openReturnModal()">+ Open Return</button>
+      <button class="btn btn-outline btn-sm" data-act="openReturnModal">+ Open Return</button>
     </div>
 
     <!-- Conversion Summary -->
@@ -1019,8 +1019,8 @@ const disputeOpen = order.dispute_id
     <label style="display:block;font-size:.78rem;font-weight:700;margin:10px 0 4px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Expected Ship Date</label>
     <input type="date" id="confirmPoDate" style="width:100%;border:1.5px solid var(--border-input,#d0d5dd);border-radius:6px;padding:.5rem .75rem;font-size:.9rem;outline:0;margin-bottom:8px">
     <div class="modal-actions">
-      <button class="btn btn-primary" onclick="saveVendorConfirm()">Save</button>
-      <button class="btn btn-outline" onclick="closeModal('confirmPoModal')">Cancel</button>
+      <button class="btn btn-primary" data-act="saveVendorConfirm">Save</button>
+      <button class="btn btn-outline" data-act="closeModal" data-a1="confirmPoModal">Cancel</button>
     </div>
   </div>
 </div>
@@ -1040,8 +1040,8 @@ const disputeOpen = order.dispute_id
     <label style="display:block;font-size:.78rem;font-weight:700;margin:10px 0 4px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">Customer Notes</label>
     <textarea id="returnNotes" rows="3" placeholder="Describe the issue…" style="width:100%;border:1.5px solid var(--border-input,#d0d5dd);border-radius:6px;padding:.5rem .75rem;font-family:var(--font-sans);font-size:.85rem;resize:vertical;outline:0;margin-bottom:8px"></textarea>
     <div class="modal-actions">
-      <button class="btn btn-primary" onclick="submitOpenReturn()">Open Return</button>
-      <button class="btn btn-outline" onclick="closeModal('returnModal')">Cancel</button>
+      <button class="btn btn-primary" data-act="submitOpenReturn">Open Return</button>
+      <button class="btn btn-outline" data-act="closeModal" data-a1="returnModal">Cancel</button>
     </div>
   </div>
 </div>
@@ -1067,7 +1067,7 @@ const disputeOpen = order.dispute_id
     </div>
     <button type="button" class="btn btn-sm"
             style="background:var(--red,#dc2626);color:#fff;border-color:var(--red,#dc2626);white-space:nowrap"
-            onclick="deleteOrder(<%= order.id %>, '<%= order.order_number %>', <%= isCaptured ? 'true' : 'false' %>)">
+            data-act="deleteOrder" data-a1="<%= order.id %>" data-a2="<%= order.order_number %>" data-a3="<%= isCaptured ? 'true' : 'false' %>">
       Delete order
     </button>
   </div>
@@ -1312,4 +1312,60 @@ async function deleteOrder(id, orderNumber, isCaptured) {
 
 function closeModal(id) { document.getElementById(id).style.display='none'; }
 document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click', e => { if(e.target===m) m.style.display='none'; }));
+
+/* ── ACTION DISPATCH ─────────────────────────────────────────────────────
+ * Every button on this page used to carry onclick="fn()". All seventeen of
+ * them were DEAD, silently, since 2026-09-21 (bad36bf).
+ *
+ * The CSP sets script-src-attr 'none' (server.js:666), which blocks inline
+ * event-handler ATTRIBUTES. The nonce on this <script> does not rescue them:
+ * nonces and hashes apply to script blocks, never to onclick=. The browser
+ * refuses the handler and reports it to the console, so the button simply
+ * does nothing — no error dialog, no network request, no clue.
+ *
+ * It cost a live debugging session on Release Hold, where the symptom was
+ * indistinguishable from a broken API call.
+ *
+ * ⚠️ DO NOT "FIX" A DEAD BUTTON BY ADDING 'unsafe-inline' TO scriptSrcAttr.
+ * That reopens exactly what bad36bf closed. Add a data-act instead.
+ *
+ * The storefront PDP was converted to delegated handlers in the same scope
+ * (see the note at views/pages/product.ejs:1081); the admin was missed.
+ *
+ * TO ADD A BUTTON: give it data-act="name" and register name in ACTIONS.
+ * Arguments ride on data-a1/a2/a3 and are coerced below, so the booleans
+ * and numeric ids the old inline calls passed keep their types - dataset
+ * values are ALWAYS strings, and deleteOrder's third argument is a real
+ * boolean that would otherwise arrive as the truthy string "false". */
+const ACTIONS = {
+  capture: doCapture, releaseAuth: doReleaseAuth,
+  showConfirmPoModal: showConfirmPoModal, saveVendorConfirm: saveVendorConfirm,
+  addNote: addNote, dvShow: dvShow,
+  approveReturn: approveReturn, denyReturn: denyReturn,
+  receiveReturn: receiveReturn, resolveReturn: resolveReturn,
+  openReturnModal: openReturnModal, submitOpenReturn: submitOpenReturn,
+  closeModal: closeModal, deleteOrder: deleteOrder,
+};
+
+function _coerce(v) {
+  if (v === undefined) return undefined;
+  if (v === 'true')  return true;
+  if (v === 'false') return false;
+  /* Only a clean, non-empty number. Order numbers like BVO-2026-10-19-00123
+     must stay strings, and Number('') is 0, which would be a silent id. */
+  if (v !== '' && !isNaN(v)) return Number(v);
+  return v;
+}
+
+document.addEventListener('click', function (e) {
+  const el = e.target.closest('[data-act]');
+  if (!el) return;
+  const fn = ACTIONS[el.dataset.act];
+  if (typeof fn !== 'function') {
+    console.error('[admin] no handler registered for data-act="' + el.dataset.act + '"');
+    return;
+  }
+  e.preventDefault();
+  fn(_coerce(el.dataset.a1), _coerce(el.dataset.a2), _coerce(el.dataset.a3));
+});
 </script>
