@@ -961,16 +961,42 @@ exports.saveInfo = async (req, res) => {
     }
 
     const cols = Object.keys(fields);
+
+    /* PRICE_OPTS, not a bare call: orders.subtotal must reflect the
+       free samples or the stored order disagrees with the charge.
+     *
+     * ⚠️ HOISTED OUT OF THE INSERT BRANCH, 2026-10-19. It used to be
+     * computed only when inserting, so the UPDATE branch below refreshed
+     * the address fields and re-wrote order_items while leaving
+     * orders.subtotal frozen at whatever the FIRST pass stored.
+     *
+     * That is every repeat trip through page 1: editing an address,
+     * pressing Back, or retrying after any validation error. The cart
+     * moved, the line items moved, the order's money columns did not.
+     *
+     * createSession then compared the live cart against that stale figure
+     * and returned 409 "Your order total changed" on every attempt, with
+     * both Stripe iframes left empty. Order 17 was stored at 0.00 against
+     * a 9.99 cart; orders 14-16 the same against 657.
+     *
+     * The guard was right and must stay. Keeping this value truthful is
+     * what makes it pass. If a money column is ever added to the INSERT,
+     * add it to the UPDATE in the same commit - the two branches write
+     * the same row and must agree. */
+    const subtotal = calcTotal(cart.items, PRICE_OPTS);
+
     if (orderId) {
       await conn.query(
-        `UPDATE orders SET ${cols.map(c => `${c} = ?`).join(', ')} WHERE id = ?`,
-        [...cols.map(c => fields[c]), orderId]
+        `UPDATE orders
+            SET ${cols.map(c => `${c} = ?`).join(', ')},
+                subtotal = ?, tax = ?, total = ?
+          WHERE id = ?`,
+        [...cols.map(c => fields[c]),
+         subtotal.toFixed(2), 0, subtotal.toFixed(2),
+         orderId]
       );
       await conn.query('DELETE FROM order_items WHERE order_id = ?', [orderId]);
     } else {
-      /* PRICE_OPTS, not a bare call: orders.subtotal must reflect the
-         free samples or the stored order disagrees with the charge. */
-      const subtotal = calcTotal(cart.items, PRICE_OPTS);
       const [result] = await conn.query(
         `INSERT INTO orders
            (order_number, customer_id, status, payment_status,
@@ -1419,8 +1445,39 @@ exports.createSession = async (req, res) => {
      that skips straight here - stale tab, hand-rolled POST - must not
      produce a payable order that never saw the curbside terms. */
   const [[order]] = await bvoPool.query(
+    /* ⚠️ EVERY COLUMN THIS FUNCTION READS MUST BE LISTED HERE.
+     *
+     * 2026-10-19: it wasn't, and it broke checkout outright for every
+     * order — vanities and samples alike. The list was id, order_number,
+     * delivery_terms_ack_at, guest_email, ship_phone. Missing were
+     * `subtotal` and the five ship_* columns.
+     *
+     * A column that is not SELECTed is not null on the row object, it is
+     * UNDEFINED, and nothing here throws on undefined:
+     *
+     *   toCents(undefined) -> Number(undefined) = NaN -> !isFinite -> 0
+     *
+     * So the drift guard below compared the real cart total against 0,
+     * never matched, and returned 409 on every attempt. The buyer saw
+     * both Stripe iframes stay empty under "Your order total changed",
+     * and because each reload recomputed the same two numbers it could
+     * never clear. Observed live on orders 14-17.
+     *
+     * The ship_* columns fed shipAddrFromOrder() for the free-sample
+     * eligibility check, which was therefore keying on an empty address
+     * and always answering "eligible" (sampleReason: null in the log).
+     * That masked the real fault and sent the first diagnosis chasing the
+     * sample offer, which was never involved.
+     *
+     * The log line that found it prints `stored: order.subtotal`. The key
+     * was ABSENT from the output, not null — JSON.stringify drops
+     * undefined. A NULL column would have printed "stored":null. That
+     * difference is the whole diagnosis; keep the field in the log. */
     `SELECT id, order_number, delivery_terms_ack_at,
-            guest_email, ship_phone
+            guest_email, ship_phone,
+            subtotal,
+            ship_place_id, ship_address1, ship_address2,
+            ship_city, ship_state, ship_zip
        FROM orders WHERE id = ? AND ${EDITABLE}`, [orderId]);
 
   if (!order) {
