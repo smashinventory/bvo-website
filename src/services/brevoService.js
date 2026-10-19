@@ -435,3 +435,68 @@ exports.previewTemplate = (tpl, vars = {}) => ({
   subject:  substituteVars(tpl.subject,  vars),
   body_html: substituteVars(tpl.body_html, vars),
 });
+
+/* ─────────────────────────────────────────────────────────────────
+   ADD A CONTACT TO A MARKETING LIST
+   ─────────────────────────────────────────────────────────────────
+   Added 2026-10-19. Everything above this line SENDS mail; nothing in
+   this service had ever put a contact INTO Brevo. Newsletter signups
+   were written (or in practice, not written — see the newsletter_signups
+   migration) to our own table and never reached the platform we actually
+   send from. A subscriber list that never leaves the database is a list
+   nobody is subscribed to.
+
+   POST /v3/contacts with updateEnabled, which makes a repeat signup an
+   update rather than a duplicate-contact error. Brevo returns 204 for an
+   update and 201 with an id for a create; both are success.
+
+   ⚠️ NEVER THROWS, like everything else here. A signup is captured in our
+   own table FIRST and pushed second — see accountController.newsletter.
+   A Brevo outage costs the sync, never the address.
+
+   ⚠️ THE LIST ID IS NOT GUESSED. Without BREVO_NEWSLETTER_LIST_ID the
+   contact is created with no list, which in Brevo means it exists but
+   receives no campaign — silently. So an unset id is reported as a
+   refusal, not a success, and the row stays unsynced for a later run.
+──────────────────────────────────────────────────────────────────── */
+exports.upsertContact = async (email, attributes = {}) => {
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) return { ok: false, skipped: true, error: 'BREVO_API_KEY not set' };
+
+  const addr = String(email || '').trim().toLowerCase();
+  if (!addr) return { ok: false, error: 'No email supplied' };
+
+  const rawList = process.env.BREVO_NEWSLETTER_LIST_ID;
+  const listId  = parseInt(rawList, 10);
+  if (!Number.isInteger(listId) || listId < 1) {
+    return { ok: false, skipped: true,
+             error: 'BREVO_NEWSLETTER_LIST_ID is not set — the contact would ' +
+                    'be created in no list and receive nothing. Set it to the ' +
+                    'numeric id of the newsletter list in Brevo → Contacts → Lists.' };
+  }
+
+  try {
+    const r = await axios.post(
+      'https://api.brevo.com/v3/contacts',
+      {
+        email: addr,
+        attributes,
+        listIds: [listId],
+        /* Without this a known address returns 400 duplicate_parameter and
+           a returning subscriber looks like a failure. */
+        updateEnabled: true,
+      },
+      {
+        headers: { 'api-key': apiKey, 'Content-Type': 'application/json',
+                   Accept: 'application/json' },
+        timeout: 8000,
+      }
+    );
+    return { ok: true, id: r.data && r.data.id, status: r.status };
+  } catch (err) {
+    const d = err.response?.data;
+    return { ok: false,
+             status: err.response?.status || null,
+             error: (d && (d.message || d.code)) || err.message };
+  }
+};

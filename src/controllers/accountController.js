@@ -304,8 +304,20 @@ exports.sendCode = async (req, res) => {
     return res.status(502).json({ ok: false, error: CODE_ERRORS.send_failed });
   }
 
-  /* Opportunistic housekeeping - no cron to configure and forget. */
-  authCode.purgeExpired().catch(() => {});
+  /* Opportunistic housekeeping - no cron to configure and forget.
+     Failure is harmless to THIS request, which is why it is not awaited and
+     does not block the response.
+
+     ⚠️ LOGGED, NOT SWALLOWED. It was `.catch(() => {})` until 2026-10-19.
+     b4076ef swept this pattern out of the codebase on 2026-09-02 and missed
+     this line. Harmless-per-request is not the same as harmless: if the
+     purge starts failing every call, expired auth codes accumulate forever
+     and absolutely nothing says so. That is the identical shape as the
+     newsletter table — three months of discarded signups behind a catch
+     nobody could hear. One line of noise beats a silence you cannot
+     measure. */
+  authCode.purgeExpired().catch(e =>
+    console.error('[account] auth-code purge failed:', e && (e.code || e.message)));
 
   return res.json({ ok: true, resendAfter: authCode._limits.RESEND_COOLDOWN_SEC });
 };
@@ -692,18 +704,65 @@ exports.newsletter = async (req, res) => {
                     email, err.code, err.sqlMessage || err.message);
     });
 
-    // newsletter_signups may not exist yet — INSERT IGNORE plus a logged catch.
+    /* ⚠️ THE ROW FIRST, BREVO SECOND, AND IN THAT ORDER.
+       Our own table is the durable record; Brevo is a copy of it. Pushing
+       first and writing second would mean a DB hiccup loses an address that
+       the platform already has, with no local trace of who it was.
+
+       INSERT IGNORE because `email` is UNIQUE: a repeat signup is a no-op,
+       not an error. The index is what makes that true — see the migration.
+
+       From 2026-07-23 to 2026-10-19 this INSERT failed ER_NO_SUCH_TABLE on
+       every call, because the table was never created. Three months of
+       homepage signups were discarded while the form showed its success
+       message. The table now exists (2026-10-19_newsletter_signups_RUNME.sql)
+       and the catch below is a safety net, no longer the normal path. */
+    let stored = false;
     await bvoPool.query(
       `INSERT IGNORE INTO newsletter_signups (email, source, created_at)
        VALUES (?, 'homepage', NOW())`, [email]
-    ).catch(err => {
+    ).then(() => { stored = true; })
+     .catch(err => {
       console.error('[account] newsletter: signup insert failed for',
                     email, err.code, err.sqlMessage || err.message);
       if (err.code === 'ER_NO_SUCH_TABLE') {
         console.error('[account]   newsletter_signups table does not exist — ' +
-                      'every signup is being discarded.');
+                      'every signup is being discarded. Run ' +
+                      'migrations/2026-10-19_newsletter_signups_RUNME.sql');
       }
     });
+
+    /* ── and only now, Brevo ──────────────────────────────────────────
+       Awaited rather than fire-and-forget: the outcome is recorded on the
+       row, and a floating promise would race the response. It is a single
+       8s-timeout call on a form submission that already shows its success
+       state client-side before the fetch resolves, so the visitor waits for
+       nothing.
+
+       Skipped entirely if the row did not store — without a row there is
+       nothing to mark synced, and pushing anyway would put an address in
+       Brevo that exists nowhere locally. */
+    if (stored) {
+      const r = await brevo.upsertContact(email, { SIGNUP_SOURCE: 'homepage' });
+      await bvoPool.query(
+        `UPDATE newsletter_signups
+            SET brevo_synced_at = ?, brevo_error = ?
+          WHERE email = ?`,
+        [r.ok ? new Date() : null,
+         r.ok ? null : String(r.error || 'unknown').slice(0, 255),
+         email]
+      ).catch(e => console.error('[account] newsletter: sync-state update failed for',
+                                 email, e.code, e.sqlMessage || e.message));
+
+      if (!r.ok) {
+        /* Loud, and specific about which of the two configuration gaps it
+           is, because "newsletter not syncing" is otherwise a week of
+           guessing. The address is safe in our table either way — a later
+           run can pick up everything WHERE brevo_synced_at IS NULL. */
+        console.error('[account] newsletter: Brevo sync failed for', email,
+                      '—', r.error);
+      }
+    }
 
     res.json({ ok: true });
   } catch {

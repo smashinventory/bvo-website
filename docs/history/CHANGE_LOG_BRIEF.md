@@ -19,6 +19,90 @@
 
 ---
 
+## newsletter_signups — three months of signups discarded
+**Date:** 2026-10-19
+**Migration:** `2026-10-19_newsletter_signups_RUNME.sql`
+**Recovery:** `scripts/recoverNewsletterSignups.js`
+**Env var required:** `BREVO_NEWSLETTER_LIST_ID` (Hostinger → Environment variables)
+
+### What happened
+
+`newsletter_signups` **never existed.** Not dropped — never created. It is
+absent from the 2026-09-29 schema dump and there was no migration for it
+anywhere in the repo.
+
+`accountController.newsletter` has run
+`INSERT IGNORE INTO newsletter_signups …` since `7bf20e2` (2026-07-23).
+Every call failed `ER_NO_SUCH_TABLE`. The handler catches it, and the
+homepage form hides its input and shows the success message regardless — so
+for three months the form looked like it worked, every single time.
+
+The handler's other write, `UPDATE customers SET accepts_marketing = 1`,
+only matches an **existing** customer. So a signup from a past buyer was
+partly captured; a signup from a new visitor was lost completely. The second
+case is the entire point of the form.
+
+Confirmed lost: `h.melotto@melottogroup.com`, 2026-10-19 18:47:37 — restored
+by the migration.
+
+### How it surfaced, and why that took seven weeks
+
+`b4076ef` (2026-09-02, *"remove the silent-failure pattern site-wide"*)
+replaced the `.catch(() => {})` with a logged catch and left a comment
+reading *"newsletter_signups may not exist yet"*. That was correct about the
+symptom and stopped short of the cure. The log line it added then sat in
+production until the owner happened to read the runtime log on 2026-10-19.
+
+Two lessons, both now enforced by `gate_newsletter_signups`:
+
+* A catch that logs is better than one that swallows, **and neither is a
+  table**. If code writes to something that might not exist, the migration is
+  the fix; the log is the smoke alarm.
+* An error that only appears in a log nobody reads is one step from silent.
+
+### What shipped
+
+* The table, with `email` **UNIQUE** — load-bearing, because the handler's
+  `INSERT IGNORE` has nothing to collide with otherwise and a twice-
+  subscriber would be stored twice, mailed twice, and unsubscribe.
+* **`brevoService.upsertContact()`** — the first function in that service
+  that puts a contact *into* Brevo. Everything before it only sent mail, so
+  even a working table would have produced a subscriber list that never
+  reached the platform BVO sends from.
+* Signup order: **row first, Brevo second.** Our table is the durable record,
+  Brevo is the copy. Reversed, a DB failure loses an address the platform
+  already holds and we cannot say whose it was. `brevo_synced_at` /
+  `brevo_error` record the outcome so a later run can find stragglers with
+  `WHERE brevo_synced_at IS NULL`.
+* **The list id is never guessed.** A Brevo contact created with no list
+  exists and receives nothing, silently — so an unset
+  `BREVO_NEWSLETTER_LIST_ID` is reported as a refusal and the row stays
+  unsynced, rather than looking like success.
+* `scripts/recoverNewsletterSignups.js` — parses the discarded addresses back
+  out of the server log. Dry run by default, `source='recovered'`, original
+  timestamps preserved, and **deliberately not synced to Brevo**: some of
+  these subscribed three months ago and mailing them in one burst is how a
+  sending domain gets a reputation problem.
+
+⚠️ **Signups between 2026-07-23 and 2026-09-02 are unrecoverable.** During
+that window the catch was empty — no line, no row, no trace. Nothing can get
+them back, and the recovery script says so rather than implying completeness.
+
+### One more found on the way
+
+`authCode.purgeExpired().catch(() => {})` in the same controller — missed by
+`b4076ef`'s sweep. Harmless per request, which is why it survived; but if the
+purge ever starts failing, expired auth codes accumulate forever and nothing
+says so. Same shape, smaller stakes. It logs now.
+
+**Gate: 32 checks. Mutations: 20/20 caught** — and the harness earned it: the
+first run missed **four**, all because the gate was grepping raw source that
+included its own comments. Deleting the `brevo_synced_at` column still left
+the name in an index; hardcoding the list id still left the env var name in
+an error message. Every source is comment-stripped now.
+
+---
+
 ## Admin order deletion — shipped 10-14, three defects found 10-19
 **Date:** 2026-10-14 (feature), 2026-10-19 (repairs)
 **Commits:** `d6122ba` (the feature), and the order-delete repair that follows
