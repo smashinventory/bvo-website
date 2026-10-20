@@ -19,6 +19,140 @@
 
 ---
 
+## 🔴 The free-sample checkout was unfinishable — Place Order did nothing
+**Date:** 2026-10-20
+**Changed:** `views/pages/checkout-payment.ejs`
+**New:** `gates/gate_free_order_checkout.js` (15 checks)
+**Severity:** total blocker on the free-sample funnel, live since the offer shipped.
+
+Found by the owner trying to order two samples. **Two separate defects on one
+page**, and the second hid the first.
+
+### 1. The button was disabled forever
+
+The markup ships it dead on purpose:
+
+```ejs
+<button type="button" id="payBtn" ... disabled>
+```
+
+because on the **Stripe** path it must stay dead until the card and billing
+details are complete — cleared by `payBtn.disabled = !session.canConfirm;`
+inside the Stripe change handler.
+
+The free branch loads **no Stripe at all** (deliberately — a $0.00 total
+cannot create a Stripe session), so that line never ran and nothing else
+cleared the attribute. A disabled button emits no click events, so the
+handler never fired. The branch's own `fail()` helper does contain
+`payBtn.disabled = false`, but it cannot run until a click that could never
+happen.
+
+**Nobody has ever been able to complete a $0.00 order.**
+
+### 2. The summary showed the pre-freebie total
+
+`paymentPage` passes two different numbers and the template used the wrong
+one for both rows:
+
+| variable | what it is |
+|---|---|
+| `cart.subtotal` | the raw session cart (`getCart`, line 96) — knows nothing about sample eligibility |
+| `subtotal` | `buyerTotal()` — prices the free samples |
+
+So the page read **"Total $19.98"** directly beneath a panel reading *"Your
+order comes to $0.00, so there is nothing to pay and no card required"* — the
+two halves of the page contradicting each other at the exact moment the buyer
+decides whether to commit. Fixed scoped to the free case only: the Stripe path
+rewrites both figures from Stripe's own session totals, and whether **those**
+are already net of a freebie is a separate open question (see below).
+
+### ⚠️ The gate's first version certified the bug
+
+`gate_free_order_checkout` originally asserted
+`/payBtn\.disabled = false;/.test(html)` — which **passes on the broken code**,
+because `fail()` contains that exact string. The mutation harness removed the
+real fix and the gate stayed green. Rewritten as a *positional* assertion: the
+enable must appear before `function fail(` is even defined. All four mutations
+are now caught. Rules 17 and 17a.
+
+### Still open, deliberately not assumed fixed
+
+A **mixed cart** — a vanity plus two free samples — may show the same class of
+defect on the paid path, because `#sum-subtotal` / `#sum-total` are rewritten
+from Stripe's session totals and it is not yet established whether those are
+net of the freebie. Asserted as *unchanged* in the gate so the question stays
+visible rather than being silently assumed away.
+
+---
+
+## Two red gates cleared: gate_sample_offer, and the redundant customers.idx_email
+**Date:** 2026-10-20
+**Changed:** `gates/gate_sample_offer.js`, `database/migrations/001_initial_schema.sql`, `docs/00-start/BVO_AUDIT_BRIEF.md` (Rules 22, 23)
+**New:** `mutate_sample_offer_gate.sh` (5/5), `migrations/2026-10-20_drop_redundant_idx_email_RUNME.sql`
+**No application code was touched.** One gate, one schema comment, one migration to run by hand.
+
+### 1. `gate_sample_offer` — the gate was wrong, not the product
+
+It asserted `.section-sub carries NO inline style`. Wave 2 (#335) added the
+title/body size and colour controls, which emit
+`style="<%- _textStyle(...) %>"` on `.section-title` and `.section-sub`, and the
+gate went red — on markup that **cannot have the defect it describes**. In Auto
+(the default, and every live section today) `_textStyle` returns `''`, so the
+attribute renders `style=""`, which overrides nothing. Even when non-empty it
+emits `font-size` and `color`, neither of which touches the flex or text axis
+and so neither of which can stop the banner centring on mobile.
+
+Rewritten to assert no inline **alignment** declaration — `text-align`,
+`align-items`, `justify-content`, `margin-left/right/margin` — which is what the
+gate's own rationale is about. This is also **stricter**: the old pattern ended
+`[^"]*" style=`, requiring `style` to be the very next attribute after `class`,
+so `class="section-sub" id="x" style="text-align:left"` was invisible to it.
+
+`_textStyle`'s own contract is deliberately **not** restated here — it is owned
+by `gate_section_text.js` (checks at 102–124). Two copies of one rule is the
+drift this project keeps paying for.
+
+⚠️ **Two harness anchors had to be fixed, and both failures looked like gate
+holes.** `<div class="iwt-text-col">` appears twice in `index.ejs` (2149 in
+image_with_text, 2570 in the banner), and the `.section-sub` line appears twice
+too (2573/2587 — the banner's two render paths, differing only in indentation).
+A `replace(a,b,1)` took the wrong one and reported MISSED against a gate that
+was working. The harness now **refuses a non-unique anchor** (ANCHOR-AMBIGUOUS)
+rather than guessing. See Rule 17a.
+
+**Recorded, not fixed:** `site-bundle.css` has exactly one responsive type rule,
+`@media (max-width:480px){.section-title{font-size:clamp(1.45rem,5.5vw,2rem)}}`.
+`.section-sub` has none, so an inline `body_size` defeats nothing; `.section-title`
+does, so a manual `heading_size` keeps its desktop size at ≤480px across all six
+Wave 2 sections. That is manual mode doing what it means, and it is latent while
+`text_manual` defaults to Auto. Rule 22.
+
+### 2. `customers.idx_email` — redundant since day one
+
+`001_initial_schema.sql` declared `email VARCHAR(255) NOT NULL UNIQUE` **and**
+`KEY idx_email (email)`. UNIQUE creates an index, so the table has carried two
+indexes on the same single column from the beginning, both maintained on every
+write, the second able to serve no lookup the first could not.
+
+⚠️ **The name is not unique in the database.** `customer_merges.idx_email` exists
+too, on `merged_email`, from the 2026-10-19 outreach migration — and it is *not*
+redundant. The drop is table-qualified and the verification proves that one
+survived.
+
+The migration **proves its own premise at run time**: it reads
+`information_schema` for a UNIQUE index leading on `customers.email` and aborts
+without changing anything if it is absent (a DB restored from an older dump
+might not have it, in which case `idx_email` is the only index on the column and
+dropping it would cost a table scan). Expected verdict: `0 | 1 | 1`.
+
+`001` was edited too — there is **no migration runner** on this project, so a
+cleanup that only touches the live DB comes back on the next fresh install.
+
+**Honest benefit:** `customers` cardinality is 11. This is hygiene, not
+performance. Nothing gets faster. Rule 23.
+
+---
+
 ## Orders dashboard: stock watch
 **Date:** 2026-10-20
 **New:** `src/config/inventoryRisk.js`, `gates/gate_inventory_risk.js` (44 checks), `mutate_inventory_risk.sh` (20/20)

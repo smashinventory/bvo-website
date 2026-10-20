@@ -144,9 +144,34 @@
           <span>Sales Tax</span>
           <span id="sum-tax">—</span>
         </div>
+        <%# ⚠️ THE SUMMARY WAS SHOWING THE PRE-FREEBIE FIGURE. paymentPage
+            passes TWO numbers and they are not the same:
+
+              cart.subtotal  the raw session cart (getCart, line 96) —
+                             knows nothing about sample eligibility
+              subtotal       buyerTotal(), which prices the free samples
+
+            Both rows below used cart.subtotal, so a buyer ordering two
+            free samples read "Total $19.98" directly underneath a panel
+            saying "Your order comes to $0.00, no card required" — the two
+            halves of the same page disagreeing at the exact moment the
+            buyer decides whether to commit. Found 2026-10-20.
+
+            Scoped to the free case ON PURPOSE. On the Stripe path the JS
+            below rewrites #sum-subtotal and #sum-total from Stripe's own
+            session totals once an address exists, and whether those are
+            already net of the freebie is a separate question I have not
+            answered. A free order loads no Stripe, so nothing overwrites
+            these and the paid path is left byte-identical. %>
+        <% if (locals.isFreeOrder) { %>
+        <div class="co-sum-row">
+          <span>Free samples</span>
+          <span class="free-label">&minus;$<%= (parseFloat(cart.subtotal)||0).toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
+        </div>
+        <% } %>
         <div class="co-sum-row co-sum-total">
           <span>Total</span>
-          <span id="sum-total">$<%= (parseFloat(cart.subtotal)||0).toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
+          <span id="sum-total">$<%= (parseFloat(locals.isFreeOrder ? subtotal : cart.subtotal)||0).toLocaleString('en-US',{minimumFractionDigits:2}) %></span>
         </div>
 
         <p class="co-sum-note" id="tax-note">Tax is calculated once you enter your billing address.</p>
@@ -185,7 +210,27 @@
           </svg>
           <span id="payBtnText">Place Order</span>
         </button>
+        <%# ⚠️ THE REASSURANCE MUST MATCH WHAT IS ACTUALLY HAPPENING.
+            This line read, on every order including $0.00 ones:
+
+              "Payment is encrypted and processed securely by Stripe. Your
+               card is authorized now and charged only once we confirm
+               availability."
+
+            On a free order that is not merely redundant, it is FALSE — no
+            card was collected, Stripe is not even loaded on this branch,
+            and nothing is authorized. Owner, 2026-10-20: it "is just
+            confusing to someone who is being told that the samples are
+            free and that there are no strings attached."
+
+            The offer's whole promise is no-strings. Card language at the
+            last click is exactly where a reader starts looking for the
+            catch, so the free branch says plainly that there is none. %>
+        <% if (locals.isFreeOrder) { %>
+        <p class="co-sum-redirect-note">No card needed and nothing to pay &mdash; not now, not later. We&rsquo;ll email you as soon as your samples ship.</p>
+        <% } else { %>
         <p class="co-sum-redirect-note">Payment is encrypted and processed securely by Stripe. Your card is authorized now and charged only once we confirm availability.</p>
+        <% } %>
 
         <!-- Trust row -->
         <div class="cart-trust-row" style="margin-top:1rem">
@@ -210,6 +255,12 @@
           </div>
         </div>
 
+        <%# Card brands are a list of WAYS TO PAY. On a $0.00 order there is
+            nothing to pay, so they raise the same "where is the catch"
+            question as the Stripe line above. Hidden on the free branch for
+            the same reason, 2026-10-20. The trust row above (SSL, returns,
+            free shipping) stays: none of it implies a charge. %>
+        <% if (!locals.isFreeOrder) { %>
         <!-- Payment logos -->
         <div class="cart-payment-logos" style="margin-top:1rem">
           <svg class="pay-logo" viewBox="0 0 60 38" role="img" aria-label="Visa">
@@ -232,6 +283,7 @@
             <text x="30" y="24" text-anchor="middle" fill="#F76F20" font-size="11" font-weight="700" font-family="Arial,sans-serif">DISCOVER</text>
           </svg>
         </div>
+        <% } %>
 
       </div>
     </aside>
@@ -256,6 +308,26 @@
   var payBtn = document.getElementById('payBtn');
   var errEl  = document.getElementById('payment-error');
   if (!payBtn) return;
+
+  /* ⚠️⚠️ THE BUTTON SHIPS DISABLED AND THIS BRANCH MUST ENABLE IT.
+     The markup renders <button id="payBtn" ... disabled> because on the
+     STRIPE path the button must stay dead until Stripe says the card and
+     billing details are complete — that is done by
+         payBtn.disabled = !session.canConfirm;
+     in the change handler of the else-branch below.
+
+     This branch loads no Stripe at all, so that line never runs and
+     nothing else ever cleared the attribute. The button was therefore
+     disabled forever on every $0.00 order: a disabled button does not
+     emit click events, so the handler below never fired and Place Order
+     did nothing at all. Every free-sample checkout was unfinishable —
+     found 2026-10-20 by the owner trying to order two samples.
+
+     There is nothing to wait for here: no card, no billing element, no
+     address needed to compute tax on a zero total. The server is still
+     the control — /checkout/free-order recomputes the total and refuses
+     anything non-zero — so enabling this is presentation, not trust. */
+  payBtn.disabled = false;
 
   function fail(msg) {
     if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
