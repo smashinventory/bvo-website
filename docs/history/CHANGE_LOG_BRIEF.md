@@ -19,6 +19,92 @@
 
 ---
 
+## Revenue: nothing counts until the authorization is captured
+**Date:** 2026-10-19
+**New module:** `src/config/revenue.js` — the single definition
+**Gate:** `gate_revenue_definition` (46 checks, 16/16 mutations)
+
+### The rule
+
+The owner's words: *"both the units and the revenue do not count until the
+authorization is captured."*
+
+ONE test, not two. A unit sold and a dollar earned become real at the same
+moment, and no screen may disagree about when that is.
+
+### What it replaced
+
+Every dashboard carried its own WHERE clause and they did not agree. The
+shared one in `customerAnalyticsController` read:
+
+```sql
+o.is_test = 0 AND o.status <> 'cancelled'
+```
+
+— test rows and cancellations excluded, and **nothing else**. An abandoned
+checkout leaves `status='pending'`, `payment_status='pending'`
+(`checkoutController:1522`), so every abandoned attempt counted as an order
+*and* as a sale.
+
+**Customer 11 read "3 orders, $1,971" having paid nothing.** Three attempts
+at one $657 purchase on 2026-10-05, all failing because checkout itself was
+broken (`cbafe9f`). The customer dashboard, LTV bands, cohort tables, the KPI
+report, the revenue-by-day chart and the admin home tile all inherited it.
+
+Two of the eight sites were worse than the shared one:
+
+* The **KPI report** had *no filter at all* — not even `is_test`.
+* The **admin home tile** filtered on `status NOT IN ('draft','pending')`,
+  which reads the ORDER status, not the PAYMENT status. Abandoned checkouts
+  were excluded by luck; authorized-uncaptured orders counted as money.
+
+### What it means day to day
+
+An order that is confirmed and awaiting freight appears **nowhere** in
+analytics until it is captured. That is intended — an authorization is a
+promise, not a sale, and a reversed one would otherwise have to be unwound
+from figures already reported.
+
+`IS_AUTHORIZED` reports that money separately: *"+$X awaiting capture"* under
+the revenue KPI, and an "In flight" row on the customer record. **It is never
+added to revenue.**
+
+### Why a module and not eight edits
+
+Eight call sites across five controllers is exactly how definitions drift
+apart — this bug is the proof. `revenue.js` follows `orderDeleteReasons.js`
+and `deliveryLocation.js`: one source, and a gate that fails if a controller
+hand-rolls it again.
+
+⚠️ **There are two implementations of the rule** — a SQL fragment and a JS
+function (`customerAnalyticsController.detail` sums in JavaScript). The gate
+runs **both over the same eight fixture rows**, including `is_test` as the
+string `'1'`, captured-then-cancelled, and captured-then-refunded. Two
+implementations of one rule is how drift starts; this is the only thing
+stopping it.
+
+### The gate had three holes, and the harness found all three
+
+Each would have let a real regression through:
+
+* The "no controller re-declares the old filter" check used a negative
+  lookahead over a whitespace-collapsed file — so the whole file became one
+  line and `.*payment_captured_at` always matched further down, cancelling
+  every hit. Restoring the exact old predicate was **missed**.
+* The "every sum is gated" check accepted a `CASE WHEN ${COUNTED}` anywhere
+  within 200 characters — so an ungated `SUM(total)` passed because a
+  *sibling column* in the same SELECT was gated. Reverting the KPI strip was
+  **missed**.
+* The detail-page check tested for `isCounted` **or** `isAuthorized` anywhere
+  in the file, so reverting `spent` to the old filter still passed, because
+  the in-flight line below still used `isAuthorized`.
+
+All three were loose greps that matched something adjacent rather than the
+thing being asserted — the same shape as the four found in
+`gate_newsletter_signups` the same evening.
+
+---
+
 ## newsletter_signups — three months of signups discarded
 **Date:** 2026-10-19
 **Migration:** `2026-10-19_newsletter_signups_RUNME.sql`

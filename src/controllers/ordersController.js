@@ -29,6 +29,13 @@ const brevo          = require('../services/brevoService');
 const CustomerAddress = require('../models/CustomerAddress');
 const wwex           = require('../services/wwexService');
 const stripePay      = require('../services/stripeService');
+
+/* ⚠️ ONE DEFINITION OF A SALE, shared with every other dashboard.
+   See src/config/revenue.js. Unaliased ('') because the KPI queries below
+   select straight FROM orders with no table alias. */
+const _rev       = require('../config/revenue').predicates('');
+const COUNTED    = _rev.IS_COUNTED;
+const AUTHORIZED = _rev.IS_AUTHORIZED;
 const path        = require('path');
 const fs          = require('fs');
 const multer      = require('multer');
@@ -870,18 +877,40 @@ exports.reportsView = async (req, res, next) => {
     const period = req.query.period || '30';
     const days   = parseInt(period) || 30;
 
+    /* ⚠️ THIS QUERY HAD NO FILTER AT ALL — not even is_test. Every
+       abandoned checkout (status='pending', payment_status='pending') was
+       counted as an order and summed into revenue, alongside test rows.
+
+       Two groups of numbers live here and they do NOT share a population:
+
+         MONEY AND UNITS — total_orders, total_revenue, avg_order_value.
+         Capture-gated per the owner's rule: nothing counts until the
+         authorization is captured.
+
+         OPERATIONAL COUNTS — cancelled, delivered, refunded, time-to-ship.
+         These describe what happened to orders, and a cancelled order is
+         BY DEFINITION never captured. Gating them the same way would make
+         every one of them zero, which is why they are counted over the
+         non-test set instead of over IS_COUNTED.
+
+       Both are computed in one pass so they cannot be read from different
+       snapshots of the table. */
     const kpis = await safeQueryOne(
       `SELECT
-         COUNT(*)                                                    AS total_orders,
-         COALESCE(SUM(total),0)                                      AS total_revenue,
-         COALESCE(AVG(total),0)                                      AS avg_order_value,
+         COUNT(CASE WHEN ${COUNTED} THEN 1 END)                      AS total_orders,
+         COALESCE(SUM(CASE WHEN ${COUNTED} THEN total END),0)        AS total_revenue,
+         COALESCE(AVG(CASE WHEN ${COUNTED} THEN total END),0)        AS avg_order_value,
+         /* Money authorized and not yet captured. Reported beside revenue,
+            never inside it. */
+         COALESCE(SUM(CASE WHEN ${AUTHORIZED} THEN total END),0)     AS awaiting_capture,
          COUNT(CASE WHEN status='cancelled' THEN 1 END)              AS cancelled_orders,
          COUNT(CASE WHEN status='delivered' THEN 1 END)              AS delivered_orders,
          COUNT(CASE WHEN status='refunded'  THEN 1 END)              AS refunded_orders,
          AVG(CASE WHEN shipped_at IS NOT NULL
              THEN TIMESTAMPDIFF(HOUR, created_at, shipped_at) END)  AS avg_hours_to_ship
        FROM orders
-       WHERE created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`, [days]
+       WHERE is_test = 0
+         AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`, [days]
     ) || {};
 
     const returnStats = await safeQueryOne(
@@ -897,10 +926,15 @@ exports.reportsView = async (req, res, next) => {
        WHERE requested_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`, [days]
     ) || {};
 
+    /* Capture-gated like the KPI strip above, so the chart and the
+       headline numbers cannot tell different stories. A day on which three
+       checkouts were attempted and none captured now reads as zero, which
+       is what happened. */
     const revenueByDay = await safeQuery(
       `SELECT DATE(created_at) AS day, COUNT(*) AS orders, COALESCE(SUM(total),0) AS revenue
        FROM orders
-       WHERE created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+       WHERE ${COUNTED}
+         AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
        GROUP BY DATE(created_at) ORDER BY day ASC`, [days]
     );
 

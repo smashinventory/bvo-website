@@ -3,6 +3,7 @@
  * Admin — one customer.
  *
  * Locals: customer, sourceLabel, orders, addresses, favorites, bundles, spent,
+ *         inFlight,
  *         templates, messages, messagesTableMissing, msgOk, msgErr
  *
  * This screen is deliberately NOT filtered by is_test. The list is analytics;
@@ -225,7 +226,18 @@
       <dt>Last sign-in</dt>
       <dd><%= customer.last_login_at ? new Date(customer.last_login_at).toLocaleString('en-US') : 'Never' %></dd>
       <dt>Phone</dt><dd><%= customer.phone || '—' %></dd>
+      <%# ⚠️ CAPTURED ONLY. This read $1,971 for a customer who had paid
+          nothing — three failed checkout attempts at $657 counted as spend,
+          because the filter was is_test alone. It is revenue.isCounted()
+          now, the same rule the SQL uses. %>
       <dt>Total spent</dt><dd>$<%= Math.round(spent).toLocaleString('en-US') %></dd>
+      <% if (inFlight > 0) { %>
+      <%# Money authorized and not yet captured. Shown separately so an
+          order in progress is visible rather than simply absent. %>
+      <dt>In flight</dt>
+      <dd style="color:#6B5A24">$<%= Math.round(inFlight).toLocaleString('en-US') %>
+        <span style="font-size:.72rem;color:var(--text-muted)">authorized, not captured</span></dd>
+      <% } %>
     </dl>
   </div>
 

@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto         = require('crypto');
+const REV_COUNTED = require('../config/revenue').predicates('').IS_COUNTED;
 const bcrypt         = require('bcryptjs');
 const { bvoPool }   = require('../config/database');
 const Product        = require('../models/Product');
@@ -263,7 +264,17 @@ exports.dashboard = async (req, res, next) => {
          the ENUM ever gains the member. */
       safeQueryOne("SELECT COUNT(*) AS n FROM orders WHERE status NOT IN ('draft','pending')"),
       safeQueryOne("SELECT COUNT(*) AS n FROM orders WHERE DATE(created_at) = CURDATE() AND status NOT IN ('draft','pending')"),
-      safeQueryOne("SELECT COALESCE(SUM(total),0) AS rev FROM orders WHERE MONTH(created_at)=MONTH(CURDATE()) AND YEAR(created_at)=YEAR(CURDATE()) AND status NOT IN ('draft','pending')"),
+      /* ⚠️ MONTH REVENUE ON THE ADMIN HOME TILE.
+         The old filter was status NOT IN ('draft','pending') — which reads
+         the ORDER status, not the PAYMENT status. An abandoned checkout
+         can sit at status='pending' and was excluded by luck rather than
+         by rule, while an authorized-but-uncaptured order counted as money
+         in the bank. Capture-gated now, shared with every other dashboard.
+         See src/config/revenue.js. */
+      safeQueryOne(`SELECT COALESCE(SUM(total),0) AS rev FROM orders
+                     WHERE ${REV_COUNTED}
+                       AND MONTH(created_at)=MONTH(CURDATE())
+                       AND YEAR(created_at)=YEAR(CURDATE())`),
       safeQueryOne('SELECT COUNT(*) AS n FROM customers'),
       /* Name priority: registered customer, then the name captured on the
          order itself, then the email. Guest checkouts have no customers row,

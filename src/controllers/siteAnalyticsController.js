@@ -28,7 +28,11 @@ const ga4         = require('../services/ga4');
 /* Orders are authoritative, and the same two conditions the customer
    analytics page uses. Kept identical on purpose: two pages reporting
    "orders" by different rules is how a number becomes untrustworthy. */
-const O_OK = "o.is_test = 0 AND o.status <> 'cancelled'";
+/* ⚠️ WAS "o.is_test = 0 AND o.status <> 'cancelled'" — which let every
+   abandoned checkout (status='pending', payment_status='pending') count as
+   an order and a sale. The definition is shared now; see
+   src/config/revenue.js. Units and dollars both wait for capture. */
+const O_OK = require('../config/revenue').O.IS_COUNTED;
 
 function windowDays(raw) {
   const n = parseInt(raw, 10);

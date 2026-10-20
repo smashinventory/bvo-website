@@ -37,7 +37,33 @@ const brevo        = require('../services/brevoService');   // listTemplates, fo
 const REAL_CUSTOMER = 'customers c';
 const REAL_ORDER    = 'orders o';
 const C_OK          = 'c.is_test = 0';
-const O_OK          = "o.is_test = 0 AND o.status <> 'cancelled'";
+
+/* ⚠️ O_OK USED TO BE THE WHOLE STORY, AND IT WAS WRONG.
+   It read:
+
+       o.is_test = 0 AND o.status <> 'cancelled'
+
+   — which excludes test rows and cancellations and nothing else. A checkout
+   that is started and abandoned leaves status='pending',
+   payment_status='pending' (checkoutController:1522), so every abandoned
+   attempt counted as an order AND as revenue.
+
+   Customer 11 read "3 orders, $1,971" having paid nothing: three attempts
+   at the same $657 purchase on 2026-10-05, all of which failed because
+   checkout itself was broken. Every figure on this page inherited it.
+
+   The definition now lives in src/config/revenue.js, because it was
+   duplicated across eight queries in five controllers and they did not
+   agree.
+
+   ⚠️ ONE RULE, NOT TWO. The owner's instruction, 2026-10-19: "both the
+   units and the revenue do not count until the authorization is captured."
+   So O_OK is capture-gated and every figure on this page — counts and
+   dollars alike — moves together. An order awaiting capture appears
+   nowhere, by design; IS_AUTHORIZED reports that separately. */
+const revenue    = require('../config/revenue');
+const REV        = revenue.O;
+const O_OK = REV.IS_COUNTED;
 
 /* Minimums before a panel is allowed to draw. See rule 2. */
 const NEED = {
@@ -63,10 +89,20 @@ async function kpis() {
            SUM(c.accepts_marketing = 1)                  AS opted_in
       FROM ${REAL_CUSTOMER} WHERE ${C_OK}`);
 
+  /* Counts and revenue share one WHERE, so they cannot disagree about
+     which orders are real. awaiting_capture is measured SEPARATELY, over
+     the orders this predicate excludes — it is money held, not earned, and
+     is never added to revenue. */
   const [[o]] = await bvoPool.query(`
-    SELECT COUNT(*) AS orders, COALESCE(SUM(o.total),0) AS revenue,
-           SUM(o.customer_id IS NULL) AS guest_orders
+    SELECT COUNT(*)                        AS orders,
+           COALESCE(SUM(o.total), 0)       AS revenue,
+           SUM(o.customer_id IS NULL)      AS guest_orders
       FROM ${REAL_ORDER} WHERE ${O_OK}`);
+
+  const [[auth]] = await bvoPool.query(`
+    SELECT COUNT(*)                  AS orders,
+           COALESCE(SUM(o.total), 0) AS value
+      FROM ${REAL_ORDER} WHERE ${REV.IS_AUTHORIZED}`);
 
   /* Engagement. Right now both are zero, and that is the single most
      useful fact on the page: it says whether the save mechanisms are being
@@ -85,6 +121,16 @@ async function kpis() {
     orders,
     revenue:    num(o.revenue),
     guestOrders: num(o.guest_orders),
+    /* ⚠️ REPORTED, NEVER ADDED IN. Money authorized and not yet captured.
+       It is shown under the revenue figure so an order in progress is
+       visible rather than simply missing — but it is not revenue and the
+       two must never be summed. */
+    awaitingCapture: num(auth.value),
+    awaitingOrders:  num(auth.orders),
+    /* AOV over the SAME population as revenue: both capture-gated, so the
+       divisor and the dividend always describe the same orders. Dividing
+       captured revenue by a count that included authorizations would
+       understate it. */
     aov:        orders ? num(o.revenue) / orders : null,
     favorites:  num(e.favorites),
     bundles:    num(e.saved_bundles),
@@ -228,6 +274,10 @@ async function list({ q = '', page = 1, perPage = 50, sort = 'recent' } = {}) {
     SELECT c.id, c.email, c.first_name, c.last_name, c.created_at,
            c.signup_source, c.accepts_marketing,
            c.email_verified_at IS NOT NULL AS verified,
+           /* The JOIN itself is capture-gated, so order_count, total_spent
+              and last_order_at all describe the same set of orders. A
+              customer whose only order is awaiting capture reads as zero
+              orders and $0 — which is the rule, applied consistently. */
            COUNT(o.id)                AS order_count,
            COALESCE(SUM(o.total), 0)  AS total_spent,
            MAX(o.created_at)          AS last_order_at
@@ -296,7 +346,18 @@ exports.detail = async (req, res) => {
     if (!customer) return res.redirect('/admin/marketing/customers');
 
     const [orders] = await bvoPool.query(`
-      SELECT o.id, o.order_number, o.status, o.total, o.created_at, o.is_test
+      /* ⚠️ payment_status AND payment_captured_at ARE REQUIRED HERE.
+         The spent total below is computed in JavaScript with
+         revenue.isCounted(), which reads both. Omit them and every row has
+         payment_captured_at === undefined, isCounted() returns false for
+         everything, and the page shows $0 for a customer who has paid —
+         silently, with no error.
+
+         That is the same undefined-column trap that produced the checkout
+         409 and the NULL payment intent in order_deletions. If you add a
+         column to the predicate, add it to this SELECT. */
+      SELECT o.id, o.order_number, o.status, o.total, o.created_at, o.is_test,
+             o.payment_status, o.payment_captured_at
         FROM orders o WHERE o.customer_id = ? ORDER BY o.created_at DESC`, [id]);
 
     const [addresses] = await bvoPool.query(
@@ -354,8 +415,16 @@ exports.detail = async (req, res) => {
          the view escapes them. */
       msgOk:  req.query.msg_ok  || '',
       msgErr: req.query.msg_err || '',
-      spent: orders.filter(o => String(o.is_test) !== '1')
-                   .reduce((a, o) => a + num(o.total), 0),
+      /* ⚠️ THE SHARED PREDICATE, not a hand-written filter. This line read
+         `orders.filter(o => String(o.is_test) !== '1')` — test rows only —
+         which is why customer 11 showed $1,971 from three failed checkout
+         attempts. revenue.isCounted() is the same rule the SQL uses, and
+         gate_revenue_definition runs both over identical fixtures so they
+         cannot drift. */
+      spent:  orders.filter(revenue.isCounted).reduce((a, o) => a + num(o.total), 0),
+      /* Shown separately so an order awaiting capture is visible as money
+         in flight rather than simply missing. */
+      inFlight: orders.filter(revenue.isAuthorized).reduce((a, o) => a + num(o.total), 0),
     });
   } catch (err) {
     console.error('[customerAnalytics.detail]', err);

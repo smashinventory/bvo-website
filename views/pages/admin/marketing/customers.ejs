@@ -95,6 +95,13 @@
   <div class="ca-kpi">
     <span class="ca-kpi-label">Revenue</span>
     <span class="ca-kpi-val">$<%= Math.round(kpis.revenue).toLocaleString('en-US') %></span>
+    <%# Captured only — see src/config/revenue.js. Anything authorized and
+        awaiting capture is reported beneath, never added in. %>
+    <% if (kpis.awaitingCapture > 0) { %>
+    <span style="display:block;font-size:.7rem;color:#6B5A24;margin-top:2px">
+      +$<%= Math.round(kpis.awaitingCapture).toLocaleString('en-US') %> awaiting capture
+    </span>
+    <% } %>
     <span class="ca-kpi-sub">&nbsp;</span>
   </div>
   <div class="ca-kpi">
