@@ -93,17 +93,42 @@ s = s.replace("  if (isStateful(req)) return clip(req && req.sessionID, 128);\n 
               "  return clip(req && req.sessionID, 128);")
 '
 
-# isStateful always true routes everyone down the raw-id path.
+# ⚠️ ANCHOR REPOINTED 2026-10-20. These two targeted "  return sess.isNew
+# === false;" - the old, broken body. Two things went wrong at once when
+# isStateful was rewritten:
+#   1. the line no longer exists in the code, and
+#   2. the new comment block QUOTES IT VERBATIM to explain the bug, so the
+#      anchor still matched - inside a comment. The file changed, the code
+#      did not, the gate passed, and the run reported MISSED: a gate hole
+#      that was really a mutation editing prose.
+# Lesson: quoting old code in a comment makes it a mutation target. Anchor
+# on something only the live code can contain.
 mutate "isStateful always true — every client keeps its minted id" "$SVC" '
-s = s.replace("  return sess.isNew === false;", "  return true;")
+s = s.replace("  return fromCookie === String(sid);", "  return true;")
 '
 
 # An undefined isNew treated as stateful. This is the one that would really
 # happen: express-session changes shape, isNew goes missing, and a truthiness
 # test quietly readmits every cookieless client.
-mutate "isStateful uses !isNew, so a missing isNew counts as stateful" "$SVC" '
-s = s.replace("  return sess.isNew === false;", "  return !sess.isNew;")
+# THE RE-INFLATION DIRECTION, restated for the cookie implementation: a
+# presence-only test. A crawler replaying one junk cookie passes it on every
+# request while express-session mints a fresh id each time - one row per
+# request, the original 15,000-per-day bug.
+mutate "isStateful tests only that a cookie is PRESENT, not that it matches" "$SVC" '
+s = s.replace("  return fromCookie === String(sid);", "  return fromCookie.length > 0;")
 '
+
+# The cookie name drifting out of step with server.js. Silent: every client
+# becomes cookieless, the funnel reads zero, nothing throws.
+mutate "the cookie name drifts away from the one server.js sets" "$SVC" "
+s = s.replace(\"const SESSION_COOKIE = 'connect.sid';\", \"const SESSION_COOKIE = 'bvo.sid';\")
+"
+
+# Dropping the signed-cookie guard lets an unsigned, attacker-set cookie
+# count as ours.
+mutate "the s: signed-cookie prefix check is dropped" "$SVC" "
+s = s.replace(\"  if (raw.slice(0, 2) !== 's:') return false;\", '')
+"
 
 echo
 echo "──── 2. the discrimination: collapsing too much ────"
@@ -222,8 +247,16 @@ s = s.replace("COUNT(DISTINCT CASE WHEN event_name = \"add_to_cart\"    THEN ses
               "COUNT(CASE WHEN event_name = \"add_to_cart\" THEN 1 END)".replace(chr(34), chr(39)))
 '
 
+# ⚠️ ANCHOR REPOINTED 2026-10-20. This read
+#     "     WHERE is_bot = 0\n       AND occurred_at"
+# which targeted funnel(). Commit 1cadd58 inserted "AND ${STATEFUL}" between
+# those two lines, so the anchor stopped matching funnel and instead matched
+# cookielessShare() further down - a function this gate asserts nothing
+# about, so the run reported MISSED. Identical displacement to the one found
+# in mutate_site_analytics_gate.sh the same day. Pinned by including the
+# intervening line.
 mutate "the funnel stops excluding bots" "$CTRL" '
-s = s.replace("     WHERE is_bot = 0\n       AND occurred_at", "     WHERE 1 = 1\n       AND occurred_at")
+s = s.replace("     WHERE is_bot = 0\n       AND ${STATEFUL}", "     WHERE 1 = 1\n       AND ${STATEFUL}", 1)
 '
 
 # daily() feeds the chart under the tile. Breaking only daily() left the first
@@ -234,9 +267,10 @@ s = s.replace("COUNT(DISTINCT CASE WHEN event_name = " + q + "view_item" + q + "
               "COUNT(CASE WHEN event_name = " + q + "view_item" + q + " THEN 1 END)")
 '
 
+# ⚠️ ANCHOR REPOINTED 2026-10-20, same cause as the one above.
 mutate "daily() stops excluding bots" "$CTRL" '
-s = s.replace("      WHERE is_bot = 0\n        AND occurred_at >= DATE_SUB(CURDATE()",
-              "      WHERE 1 = 1\n        AND occurred_at >= DATE_SUB(CURDATE()")
+s = s.replace("      WHERE is_bot = 0\n        AND ${STATEFUL}",
+              "      WHERE 1 = 1\n        AND ${STATEFUL}", 1)
 '
 
 echo

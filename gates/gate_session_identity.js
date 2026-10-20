@@ -90,15 +90,26 @@ if (!INT || !INT.sessionKey) {
 
 const { sessionKey, looksLikeBot, isStateful } = INT;
 
-/* A request fixture. `session.isNew === false` is how express-session says
-   "this client sent the cookie back"; it is true only on the request that
-   minted the id. */
-function req({ sid = 'sid-abc', isNew = false, ua = 'Mozilla/5.0 (Macintosh) Chrome/131',
-               lang = 'en-US,en;q=0.9', enc = 'gzip, deflate, br', ip = '203.0.113.7' } = {}) {
+/* A request fixture.
+   ⚠️ REWRITTEN 2026-10-20. This used to fabricate `session: { isNew }` and
+   the gate asserted isStateful() read it. express-session HAS NO isNew
+   PROPERTY - the fixture invented the very thing the code under test was
+   wrongly relying on, so the gate agreed with the bug for four days and
+   certified a function that returned false for every request on the site.
+
+   A fixture may only contain things a real request actually carries. So
+   `stateful: true` now attaches a genuine signed-cookie header whose
+   embedded id matches sessionID, which is what express-session leaves on a
+   request that returned our cookie (index.js:228). */
+function req({ sid = 'sid-abc', stateful = true, ua = 'Mozilla/5.0 (Macintosh) Chrome/131',
+               lang = 'en-US,en;q=0.9', enc = 'gzip, deflate, br', ip = '203.0.113.7',
+               cookie = undefined } = {}) {
   const headers = { 'user-agent': ua, 'x-forwarded-for': ip };
   if (lang) headers['accept-language'] = lang;
   if (enc)  headers['accept-encoding'] = enc;
-  return { headers, ip, sessionID: sid, session: { isNew } };
+  if (cookie !== undefined)  headers.cookie = cookie;
+  else if (stateful)         headers.cookie = 'connect.sid=s%3A' + encodeURIComponent(sid) + '.SiGnAtUrE';
+  return { headers, ip, sessionID: sid };
 }
 
 /* ── 2. THE CORE PROPERTY: one cookieless client is one session ───────
@@ -109,7 +120,7 @@ console.log('--- one cookieless client is one session ---');
 {
   const keys = new Set();
   for (let i = 0; i < 15; i++) {
-    keys.add(sessionKey(req({ sid: 'minted-' + i, isNew: true })));
+    keys.add(sessionKey(req({ sid: 'minted-' + i, stateful: false })));
   }
   check(keys.size === 1,
         '15 cookieless requests with 15 different sessionIDs collapse to 1 session key',
@@ -123,11 +134,11 @@ console.log('--- one cookieless client is one session ---');
    must keep its own id, or two unrelated visitors behind one NAT would be
    merged and the funnel would understate instead. */
 console.log('--- a stateful client keeps its own identity ---');
-check(sessionKey(req({ sid: 'real-session-1', isNew: false })) === 'real-session-1',
+check(sessionKey(req({ sid: 'real-session-1', stateful: true })) === 'real-session-1',
       'a client that returned the cookie keeps its express-session id');
 {
-  const a = sessionKey(req({ sid: 'visitor-a', isNew: false, ip: '198.51.100.1' }));
-  const b = sessionKey(req({ sid: 'visitor-b', isNew: false, ip: '198.51.100.1' }));
+  const a = sessionKey(req({ sid: 'visitor-a', stateful: true, ip: '198.51.100.1' }));
+  const b = sessionKey(req({ sid: 'visitor-b', stateful: true, ip: '198.51.100.1' }));
   check(a !== b,
         'two stateful visitors behind one IP stay two sessions',
         'collapsing these would understate traffic, which is the opposite error');
@@ -138,12 +149,12 @@ check(sessionKey(req({ sid: 'real-session-1', isNew: false })) === 'real-session
    the metric, so prove it separates genuinely different clients. */
 console.log('--- the synthetic key discriminates ---');
 {
-  const k1 = sessionKey(req({ isNew: true, ip: '192.0.2.1' }));
-  const k2 = sessionKey(req({ isNew: true, ip: '192.0.2.2' }));
+  const k1 = sessionKey(req({ stateful: false, ip: '192.0.2.1' }));
+  const k2 = sessionKey(req({ stateful: false, ip: '192.0.2.2' }));
   check(k1 !== k2, 'two cookieless clients on different IPs are two sessions',
         'a constant key would hide all traffic behind one row');
 
-  const k3 = sessionKey(req({ isNew: true, ip: '192.0.2.1', ua: 'Mozilla/5.0 Firefox/130' }));
+  const k3 = sessionKey(req({ stateful: false, ip: '192.0.2.1', ua: 'Mozilla/5.0 Firefox/130' }));
   check(k1 !== k3, 'cookieless clients differing only by user-agent are two sessions');
 
   check(/^anon-/.test(k1),
@@ -159,7 +170,7 @@ console.log('--- the synthetic key discriminates ---');
 console.log('--- the IP is hashed, not stored ---');
 {
   const ip = '198.51.100.42';
-  const k  = sessionKey(req({ isNew: true, ip }));
+  const k  = sessionKey(req({ stateful: false, ip }));
   check(!k.includes(ip), 'the client IP does not appear in the session key', k);
   check(!k.includes('198.51'), 'no octet of the client IP appears in the session key', k);
 }
@@ -178,7 +189,7 @@ check(/toISOString\(\)\.slice\(0, 10\)/.test(SVC),
   const at = iso => class extends RealDate {
     constructor(...a) { return a.length ? new RealDate(...a) : new RealDate(iso); }
   };
-  const fixture = { isNew: true, ip: '203.0.113.99' };
+  const fixture = { stateful: false, ip: '203.0.113.99' };
   global.Date = at('2026-10-15T12:00:00Z'); const day1 = sessionKey(req(fixture));
   global.Date = at('2026-10-16T12:00:00Z'); const day2 = sessionKey(req(fixture));
   global.Date = at('2026-10-15T23:30:00Z'); const day1b = sessionKey(req(fixture));
@@ -233,20 +244,96 @@ console.log('--- the named-crawler list covers the clients that need naming ---'
 });
 
 /* ── 6. isStateful must mean what the name says ───────────────────────
-   If this returned true unconditionally the whole fix would be a no-op and
-   check 2 would fail — but it could also be made to return false
-   unconditionally, which silently routes every visitor into the synthetic
-   bucket and quietly merges real people. Both directions are asserted. */
-console.log('--- isStateful reads the cookie, not the request ---');
-check(isStateful({ session: { isNew: false } }) === true,
-      'a returned cookie is stateful');
-check(isStateful({ session: { isNew: true } }) === false,
-      'a freshly minted session is not yet stateful');
-check(isStateful({}) === false,
-      'no session object at all is not stateful');
-check(isStateful({ session: {} }) === false,
-      'an undefined isNew is not treated as stateful',
-      'defaulting to true here would restore the bug for every cookieless client');
+   ⚠️ THIS SECTION CERTIFIED A BROKEN FUNCTION FOR FOUR DAYS. It asserted
+   isStateful({ session: { isNew: false } }) === true, under this very
+   heading, while the implementation read `sess.isNew === false`. Neither
+   the fixture nor the code was grounded in express-session, which sets no
+   isNew at all - so `undefined === false` was FALSE on every request and
+   every client on the site, real people included, was recorded cookieless.
+
+   The last check in the old version is the lesson: it asserted that an
+   UNDEFINED isNew must not count as stateful, reasoning that defaulting
+   true would restore the bug. That was correct, and undefined turned out
+   to be the only case that ever occurred in production.
+
+   Every fixture below now carries a real Cookie header. */
+console.log('--- isStateful reads the cookie, not an invented property ---');
+
+const SIG = '.SiGnAtUrE';
+const ck  = v => ({ headers: { cookie: v }, sessionID: 'abc123' });
+
+check(isStateful(ck('connect.sid=s%3Aabc123' + SIG)) === true,
+      'a returned cookie whose id matches sessionID is stateful');
+check(isStateful(ck('other=1; connect.sid=s%3Aabc123' + SIG + '; x=2')) === true,
+      'and is still found alongside other cookies');
+check(isStateful({ headers: {}, sessionID: 'abc123' }) === false,
+      'a first visit, carrying no cookie at all, is not stateful');
+
+/* ⚠️ THE RE-INFLATION CASE, and the reason this is an equality test rather
+   than a presence test. A crawler replaying one junk cookie value passes
+   "does the request carry connect.sid" on every request, while
+   express-session discards the bad signature and mints a FRESH id each
+   time (index.js:228) - one row per request, which is exactly the
+   15,000-per-day bug this feature exists to kill. */
+check(isStateful(ck('connect.sid=s%3AstaleOrForged' + SIG)) === false,
+      'a cookie whose id does NOT match sessionID is not stateful',
+      'a presence-only test here would re-create the per-request inflation');
+
+check(isStateful({ headers: { cookie: 'connect.sid=abc123' }, sessionID: 'abc123' }) === false,
+      'an unsigned cookie is not one of ours');
+
+/* ⚠️ THIS FIXTURE IS SHAPED SO THE s: GUARD IS LOAD-BEARING, and the
+   harness is why it exists. The check above passes even with the guard
+   deleted - 'abc123'.slice(2) is 'c123', which fails the equality test for
+   an unrelated reason, so removing the guard was MISSED.
+
+   Here the two leading characters are padding: strip the guard and
+   slice(2) yields exactly the sid, so a cookie ANY VISITOR CAN SET
+   THEMSELVES would be accepted as proof they returned ours. Only the
+   signed-prefix check stands between that and a forged stateful session. */
+check(isStateful({ headers: { cookie: 'connect.sid=__abc123' }, sessionID: 'abc123' }) === false,
+      'an unsigned cookie crafted to survive the slice is still refused',
+      'without the s: guard this forged value would read as stateful');
+check(isStateful({ headers: { cookie: 'connect.sid=' }, sessionID: 'abc123' }) === false,
+      'an empty cookie value is not stateful');
+check(isStateful({ headers: { cookie: 'xconnect.sid=s%3Aabc123' + SIG }, sessionID: 'abc123' }) === false,
+      'a cookie whose name merely ENDS WITH ours does not match');
+check(isStateful(ck('connect.sid=s%3Aabc123' + SIG), undefined) === true &&
+      isStateful({ headers: { cookie: 'connect.sid=s%3Aabc123' + SIG } }) === false,
+      'no sessionID means not stateful, however good the cookie looks');
+check(isStateful({}) === false, 'an empty request object is not stateful');
+
+/* ⚠️ NO isNew ANYWHERE. If this string comes back into the file, the old
+   assumption has come back with it. */
+/* ⚠️ COMMENT-STRIPPED, because the comment block above isStateful explains
+   the isNew bug at length and names it a dozen times. Grepping raw source
+   here matches the explanation of the rule instead of the rule - the same
+   mistake found four times in gate_newsletter_signups and twice more since.
+   Caught by this very check failing on its own rationale. */
+const SVC_CODE = SVC.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/.*$/gm, ' ');
+check(!/\bisNew\b/.test(SVC_CODE),
+      'siteEvents.js never consults an isNew property',
+      'express-session does not define one; relying on it returns false always');
+
+/* ── 6b. THE COOKIE NAME IS A CROSS-FILE COUPLING ─────────────────────
+   isStateful looks for a cookie by name. server.js calls session({...})
+   and, today, passes no `name` option, so express-session uses its default
+   'connect.sid'. Set a custom name in server.js without changing
+   siteEvents and every client silently becomes cookieless, the funnel
+   reads zero, and nothing throws. Same failure shape as the bug above:
+   plausible number, no error. */
+console.log('--- the session cookie name agrees across files ---');
+{
+  const SRV = read('src/server.js');
+  const sessBlock = (SRV.match(/app\.use\(session\(\{[\s\S]*?\}\)\);/) || [''])[0];
+  const named = /\bname\s*:\s*['"`]([^'"`]+)['"`]/.exec(sessBlock);
+  const expected = named ? named[1] : 'connect.sid';
+  check(SVC.includes("const SESSION_COOKIE = '" + expected + "'"),
+        'siteEvents looks for the cookie server.js actually sets (' + expected + ')',
+        named ? 'server.js sets name: ' + expected
+              : 'server.js sets no name, so express-session default connect.sid applies');
+}
+
 
 /* ── 7. nothing may write req.sessionID straight into the column ──────
    The regression this gate exists to prevent, stated literally. */

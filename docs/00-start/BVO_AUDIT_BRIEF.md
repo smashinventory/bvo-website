@@ -337,6 +337,71 @@ agree about one string and no text check can see them disagree.
 
 ---
 
+### Rule 18 — A Fixture May Only Contain What A Real Request Actually Carries
+
+Added 2026-10-20, after a gate certified a function that returned `false` on
+every request on the site for four days.
+
+`isStateful()` read:
+
+```js
+return sess.isNew === false;
+```
+
+**express-session has no `isNew` property.** Not in 1.19.0, not in any version —
+grep the package, there are zero occurrences. So this compared
+`undefined === false` and was false for every client, real humans included.
+From the moment the synthetic id shipped on 10-16, nothing could ever be
+stateful.
+
+**Why nothing caught it.** `gate_session_identity` built its fixtures as
+`{ session: { isNew: false } }` and asserted `isStateful` returned `true` — under
+a heading reading *"isStateful reads the cookie, not the request"*. The fixture
+invented the very property the implementation wrongly depended on, so the test
+and the bug agreed with each other. A fixture that fabricates a field the
+library never sets cannot fail.
+
+The old section even contained this check:
+
+> `'an undefined isNew is not treated as stateful'` —
+> *"defaulting to true here would restore the bug for every cookieless client"*
+
+The `undefined` case was considered, and the safe default chosen. It turned out
+to be the **only** case that ever occurred in production.
+
+**The rule.** A fixture may only contain things a real request actually carries.
+When a check depends on a library setting a property, that dependency is
+verified against the library — not assumed from its documentation, and never
+from a comment. Where a property cannot be verified, derive the answer from
+something observable: here, the Cookie header and `req.sessionID`, which
+express-session demonstrably sets at index.js:228.
+
+**Why the number looked plausible.** The 7-day window still reached back over
+10-16, whose rows carried real cookie-backed ids from the *original*
+per-request bug. The tile showed ~5,000 "stateful" sessions that were pure
+residue, due to age out to zero. The tell was already on the page — cart adds
+fell 5 → 1 and checkouts 4 → 0 the moment the predicate shipped, because those
+were real people being excluded.
+
+**Corollary, learned the same hour: quoting old code in a comment makes it a
+mutation target.** The rewritten `isStateful` comment quotes
+`return sess.isNew === false;` verbatim to explain the bug. Two harness
+mutations anchored on that exact string, matched *inside the comment*, changed
+the file, left the code intact, and were reported as `MISSED` — a gate hole
+that was really a mutation editing prose. Anchor on something only live code
+can contain.
+
+**Enforcement.** `gate_session_identity` (60 checks) builds every fixture from a
+real `Cookie` header, asserts `siteEvents.js` never consults `isNew` in
+comment-stripped source, and checks the cookie name agrees with what
+`server.js` actually sets. `mutate_session_identity.sh` — 31 mutations, 0
+missed. **The harness found a real hole on its first run:** deleting the signed-
+cookie `s:` guard was missed, because the unsigned-cookie fixture happened to
+fail the equality test for an unrelated reason. A fixture shaped so the guard
+is load-bearing now covers it.
+
+---
+
 ### Rule 17a — A Mutation Whose Anchor Has Drifted Indicts The Gate For A Fault In The Test
 
 Added 2026-10-19, learned the hard way during the change above.

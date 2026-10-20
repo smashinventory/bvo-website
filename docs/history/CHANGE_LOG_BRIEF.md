@@ -19,6 +19,68 @@
 
 ---
 
+## isStateful was false for every request — express-session has no isNew
+**Date:** 2026-10-20
+**Files:** `src/services/siteEvents.js`, `gates/gate_session_identity.js`, `mutate_session_identity.sh`
+**Gate:** `gate_session_identity` (60 checks, up from 52) · **Harness:** 31 mutations, 0 missed
+**No migration.** Changes what is WRITTEN to `site_events.session_id` from now on.
+
+### The bug
+
+```js
+return sess.isNew === false;   // undefined === false  →  always false
+```
+
+**express-session defines no `isNew`.** So from 10-16, when the synthetic id
+shipped, every client on the site was recorded cookieless — real people
+included. See **Rule 18** in `BVO_AUDIT_BRIEF.md` for the full account and why
+the gate agreed with it.
+
+### How it surfaced
+
+Deploying `1cadd58` dropped "Viewed a product" 22,016 → 5,182. I predicted ~99%
+and single digits. The 5,182 was not residual crawler inflation — it is almost
+entirely **10-16's rows**, from the original per-request bug, inside the 7-day
+window. It ages out by 10-23 and the funnel would have gone to zero.
+
+Cart adds 5 → 1 and checkouts 4 → 0 on the same deploy were the real tell.
+
+### The fix
+
+express-session index.js:228 is `req.sessionID = getcookie(req, name, secrets)` —
+a valid signed cookie *becomes* `req.sessionID`; an invalid one is discarded and
+a fresh id generated. So the test is whether the id embedded in the raw cookie
+equals `req.sessionID`. No dependency on `cookie-parser` (absent) or
+`cookie-signature` (transitive only), and no secret handling.
+
+**Equality, not presence** — deliberately. A crawler replaying one junk cookie
+passes a presence test on every request while express-session mints it a fresh
+id each time: one row per request, the original 15,000-per-day bug.
+
+### Three corrections to the 1cadd58 entry
+
+1. **"viewedNotCarted was poisoned by crawler views" — WRONG.** The live page
+   reads "Not enough views yet". The crawler spreads too thin for any product to
+   reach 20 sessions; that table was never affected.
+2. **"The zero real sessions on 10-18/19/20 are not a second bug" — WRONG.** It
+   was exactly this bug. The data said so and I explained it away.
+3. **Volume has tripled** since the diagnosis: 7,951 → 22,016 unflagged. The
+   figures in that entry are of their date, not current.
+
+⚠️ The `1cadd58` **commit message** also carries corrections 1 and 2 and the
+"diagnostic said 10-15" error, uncorrected — it is pushed and not amendable.
+This file is the record; the message is not.
+
+### Collateral this change exposed
+
+`mutate_session_identity.sh` was never run for `1cadd58`. It had **two anchors
+displaced by that commit** — including the `funnel()` bot mutation landing on
+`cookielessShare()`, the identical displacement found in
+`mutate_site_analytics_gate.sh`. Both repaired. **Lesson: run every harness that
+touches a changed file, not just the one named after the feature.**
+
+---
+
 ## Site Analytics: a cookieless client is not a session
 **Date:** 2026-10-19
 **Files:** `src/services/siteEvents.js` (owns the rule), `src/controllers/siteAnalyticsController.js`, `views/pages/admin/marketing/site-analytics.ejs`

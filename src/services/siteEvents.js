@@ -92,15 +92,86 @@ function looksLikeBot(req) {
 }
 
 /* Did this client send our session cookie back, proving it keeps state across
-   requests. express-session sets isNew on the request that mints the id; every
-   later request from the same browser clears it.
+   requests.
 
    NOTE the deliberate lack of a question mark on the line above. That is not a
    typo. See the comment on sessionKey below. */
+/* ⚠️ THE COOKIE NAME, AND A COUPLING THAT MUST BE GATED. server.js calls
+   session({...}) WITHOUT a `name` option, so express-session uses its
+   default. If anyone ever sets a custom name there and not here, every
+   client silently becomes cookieless, the funnel reads zero, and nothing
+   errors. gate_session_identity asserts the two agree. */
+const SESSION_COOKIE = 'connect.sid';
+
+/* ── WHAT "STATEFUL" ACTUALLY MEANS ──────────────────────────────────────
+   2026-10-20. The previous version of this function read:
+
+       return sess.isNew === false;
+
+   ⚠️ express-session HAS NO isNew PROPERTY. Not in 1.19.0, not in any
+   version - grep the package, there are zero occurrences. So this compared
+   `undefined === false` and returned FALSE FOR EVERY REQUEST. From the
+   moment the synthetic id shipped on 10-16, every client on the site was
+   recorded as cookieless, real humans included, and nothing could ever be
+   stateful again.
+
+   It was invisible because the number it produced looked plausible: the
+   7-day window still reached back over 10-16, whose rows carried real
+   cookie-backed ids from the ORIGINAL per-request bug, so the tile showed
+   ~5,000 "stateful" sessions that were pure residue. Those age out and the
+   funnel goes to zero. The tell was already on the page - cart adds fell
+   from 5 to 1 and checkouts from 4 to 0 the moment the predicate shipped,
+   because those were real people being excluded.
+
+   ⚠️ AND THE GATE CERTIFIED IT. gate_session_identity fabricated requests
+   as { session: { isNew: false } } and asserted isStateful returned true -
+   under a heading reading "isStateful reads the cookie, not the request".
+   It tested the implementation's assumption rather than the library's
+   behaviour, so it agreed with the bug. Fixtures now carry a real Cookie
+   header instead of a property that does not exist.
+
+   ── HOW THIS ONE IS CORRECT ─────────────────────────────────────────────
+   express-session index.js:228 reads
+
+       var cookieId = req.sessionID = getcookie(req, name, secrets);
+
+   so when the client returns a cookie WE signed, req.sessionID IS the id
+   carried in that cookie. When the signature does not verify, getcookie
+   returns undefined and a fresh random id is generated instead.
+
+   Comparing the id embedded in the raw cookie against req.sessionID
+   therefore answers exactly the right question, with no dependency on
+   cookie-parser (absent) or cookie-signature (present only as a transitive
+   dependency of express-session, which is not ours to rely on) and without
+   handling the secret.
+
+   ⚠️ WHY NOT JUST "DOES THE REQUEST CARRY A connect.sid COOKIE". Because a
+   crawler replaying one junk cookie value would pass that test on every
+   request while express-session minted it a NEW id each time - one row per
+   request, which is precisely the 15,000-per-day bug this whole feature
+   exists to kill. The equality check is what makes a forged or stale
+   cookie fall through to the synthetic bucket where it belongs. */
 function isStateful(req) {
-  const sess = req && req.session;
-  if (!sess) return false;
-  return sess.isNew === false;
+  const sid = req && req.sessionID;
+  if (!sid) return false;
+
+  const header = (req.headers && req.headers.cookie) || '';
+  if (!header) return false;
+
+  const m = new RegExp('(?:^|;\\s*)' + SESSION_COOKIE.replace('.', '\\.') +
+                       '=([^;]*)').exec(header);
+  if (!m || !m[1]) return false;
+
+  let raw = m[1];
+  try { raw = decodeURIComponent(raw); } catch (e) { /* keep it raw */ }
+
+  /* Signed cookies are "s:<id>.<signature>". An unsigned one is not ours. */
+  if (raw.slice(0, 2) !== 's:') return false;
+
+  const dot = raw.lastIndexOf('.');
+  const fromCookie = dot > 2 ? raw.slice(2, dot) : raw.slice(2);
+
+  return fromCookie === String(sid);
 }
 
 /* Money arrives as a float from the DB. Round once, here, so every caller
