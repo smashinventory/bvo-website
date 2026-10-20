@@ -34,6 +34,18 @@ const ga4         = require('../services/ga4');
    src/config/revenue.js. Units and dollars both wait for capture. */
 const O_OK = require('../config/revenue').O.IS_COUNTED;
 
+/* ⚠️ WHAT MAY BE CALLED A SESSION. is_bot = 0 is NOT sufficient on its own,
+   and believing it was is why this tile read 7,951 against GA4's 322. A
+   distributed crawler on rotating IPs carries a browser user-agent and real
+   content-negotiation headers, so it passes both bot tests, and the
+   synthetic session id cannot collapse it because the IP is part of the hash
+   key. The rule is that a client which never returns our cookie is not a
+   session; it is owned by siteEvents.js, which also mints the ids, so the
+   prefix is declared exactly once. The full reasoning and the cost are in
+   the comment block above statefulPredicate there. */
+const STATEFUL    = siteEvents.statefulPredicate('session_id');
+const STATEFUL_E  = siteEvents.statefulPredicate('e.session_id');
+
 function windowDays(raw) {
   const n = parseInt(raw, 10);
   return [7, 30, 90, 365].includes(n) ? n : 30;
@@ -55,6 +67,7 @@ async function funnel(days) {
        COUNT(*)                                                                    AS raw_events
      FROM site_events
      WHERE is_bot = 0
+       AND ${STATEFUL}
        AND occurred_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`,
     [days]
   );
@@ -98,6 +111,7 @@ async function daily(days) {
             COUNT(DISTINCT CASE WHEN event_name = 'add_to_cart' THEN session_id END) AS carted
        FROM site_events
       WHERE is_bot = 0
+        AND ${STATEFUL}
         AND occurred_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
       GROUP BY DATE(occurred_at)
       ORDER BY day`,
@@ -140,6 +154,7 @@ async function topAdded(days, limit = 15) {
        FROM site_events e
        LEFT JOIN products p ON p.id = e.product_id
       WHERE e.is_bot = 0
+        AND ${STATEFUL_E}
         AND e.event_name = 'add_to_cart'
         AND e.occurred_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
       GROUP BY e.product_id, p.name, p.slug
@@ -153,7 +168,14 @@ async function topAdded(days, limit = 15) {
 /* Viewed a lot, carted rarely. The most actionable table on the page:
    these are the products where the listing is doing its job and something
    after it is not - price, photography, stock message. Floored at 20 views
-   so a product seen twice and carted never cannot top the list. */
+   so a product seen twice and carted never cannot top the list.
+
+   ⚠️ THE FLOOR WAS BEING CLEARED BY CRAWLERS. Before the stateful predicate
+   below, a product only had to accumulate 20 cookieless hits across the
+   window to enter this table at a 0% cart rate - which, on a catalogue being
+   walked flat by a distributed crawler, every product eventually did. The
+   most actionable table on the page was therefore ranking crawler traffic.
+   The floor is unchanged; what it counts is not. */
 async function viewedNotCarted(days, limit = 15) {
   const [rows] = await bvoPool.query(
     `SELECT v.product_id,
@@ -164,13 +186,13 @@ async function viewedNotCarted(days, limit = 15) {
             ROUND(COALESCE(c.adds, 0) / v.views * 100, 1) AS rate
        FROM (SELECT product_id, COUNT(DISTINCT session_id) AS views
                FROM site_events
-              WHERE is_bot = 0 AND event_name = 'view_item'
+              WHERE is_bot = 0 AND ${STATEFUL} AND event_name = 'view_item'
                 AND occurred_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
                 AND product_id IS NOT NULL
               GROUP BY product_id) v
        LEFT JOIN (SELECT product_id, COUNT(DISTINCT session_id) AS adds
                     FROM site_events
-                   WHERE is_bot = 0 AND event_name = 'add_to_cart'
+                   WHERE is_bot = 0 AND ${STATEFUL} AND event_name = 'add_to_cart'
                      AND occurred_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
                    GROUP BY product_id) c ON c.product_id = v.product_id
        LEFT JOIN products p ON p.id = v.product_id
@@ -196,6 +218,31 @@ async function botShare(days) {
            pct: total > 0 ? Math.round((Number(r.bot) / total) * 1000) / 10 : null };
 }
 
+/* The volume the stateful predicate drops, reported for the same reason
+   botShare is: it is the larger number by far, and a page that silently
+   discarded 99% of its rows would be lying by omission. This is also the
+   early-warning signal - if cookieless volume climbs while stateful volume
+   holds, a new crawler has arrived and nothing else on the page will say so.
+
+   ⚠️ COUNTS EVENTS, NOT SESSIONS, deliberately. The whole point is that a
+   rotating-IP crawler's "session" count is meaningless; events are the only
+   honest unit for traffic we cannot identify. */
+async function cookielessShare(days) {
+  const [[r]] = await bvoPool.query(
+    `SELECT
+       SUM(${siteEvents.cookielessPredicate('session_id')}) AS cookieless,
+       COUNT(*)                                             AS total
+     FROM site_events
+     WHERE is_bot = 0
+       AND occurred_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`,
+    [days]
+  );
+  const total = Number(r.total) || 0;
+  const n     = Number(r.cookieless) || 0;
+  return { cookieless: n, total,
+           pct: total > 0 ? Math.round((n / total) * 1000) / 10 : null };
+}
+
 /* How much history exists. Without this the page cannot distinguish "no
    one added to cart" from "we started recording an hour ago", and the
    first thing anyone does with a new dashboard is misread exactly that. */
@@ -219,16 +266,16 @@ exports.dashboard = async (req, res, next) => {
        waiting on it. ga4.traffic() resolves to {ok:false} instead of
        rejecting, so a dead or unconfigured GA cannot take the page down -
        the first-party funnel is ours and must render regardless. */
-    const [f, series, added, leaking, bots, cov, traffic] = await Promise.all([
+    const [f, series, added, leaking, bots, anon, cov, traffic] = await Promise.all([
       funnel(days), daily(days), topAdded(days), viewedNotCarted(days),
-      botShare(days), coverage(), ga4.traffic(days),
+      botShare(days), cookielessShare(days), coverage(), ga4.traffic(days),
     ]);
 
     res.render('pages/admin/marketing/site-analytics', {
       pageTitle: 'Site Analytics',
       path:      req.originalUrl,
       days, funnel: f, series, topAdded: added,
-      viewedNotCarted: leaking, bots, coverage: cov,
+      viewedNotCarted: leaking, bots, cookieless: anon, coverage: cov,
       traffic,
       gaConfigured: ga4.config().ready,
     });

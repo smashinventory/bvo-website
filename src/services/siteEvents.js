@@ -135,6 +135,8 @@ function isStateful(req) {
    scoped to the JM importer so this can no longer happen, and gate_named_
    placeholders enforces it. The comments in this file still avoid the
    character, as a second line of defence. */
+const SYNTHETIC_PREFIX = 'anon-';
+
 function syntheticSessionId(req) {
   const h  = (req && req.headers) || {};
   const ip = (h['cf-connecting-ip'] || h['x-real-ip'] ||
@@ -144,7 +146,56 @@ function syntheticSessionId(req) {
   const hash = crypto.createHash('sha256')
     .update(ip + '|' + (h['user-agent'] || '') + '|' + (h['accept-language'] || '') + '|' + day)
     .digest('hex').slice(0, 24);
-  return 'anon-' + hash;
+  return SYNTHETIC_PREFIX + hash;
+}
+
+/* ── WHAT THE DASHBOARD MAY CALL A SESSION ───────────────────────────────
+   2026-10-19. The synthetic id above collapses ONE cookieless client into
+   one session per day. It is powerless against the inverse, which is what
+   actually arrived: 8,471 distinct synthetic ids over two days carrying
+   8,487 events between them - 1.002 each - with no referrer on 99.8% of
+   them and the busiest single path in the window reaching 13 hits. That is
+   thousands of distinct IP and user-agent pairs taking one page each,
+   spread flat across the catalogue. The IP is part of the hash key, so
+   rotating it defeats the collapsing by construction, and the clients send
+   a browser user-agent with real content-negotiation headers, so neither
+   BOT_RE nor headersLookAutomated sees them either.
+
+   Chasing that with better user-agent matching is an arms race run blind:
+   this table stores no user-agent and no IP, deliberately. So the rule is
+   definitional instead, and it is the one honest line available.
+
+     A CLIENT THAT NEVER RETURNS OUR SESSION COOKIE IS NOT A SESSION.
+
+   WHAT IT COSTS, stated rather than discovered later. A real visitor who
+   lands straight on a product page has not returned the cookie yet, so
+   their first event is synthetic. If they do ANYTHING else they become
+   stateful and are counted. So the only person dropped is the direct-
+   landing single-page bouncer - someone who never carts and never orders,
+   and who therefore only ever widened the TOP of the funnel and made every
+   rate below it look worse than it was. Two days of data put that group at
+   19 sessions carrying a google.com referrer, against 8,471 crawler hits.
+
+   The rows are KEPT and the volume is REPORTED on the page, same as the
+   bot share. A crawl is evidence, and a funnel that silently dropped it
+   would read as a quiet week.
+
+   ⚠️ THE PREFIX IS DECLARED ONCE, ABOVE. The controller used to be the
+   second place that knew the string, which is how revenue.js and
+   deliveryLocation.js were both born. Read it from here. */
+function statefulPredicate(col = 'session_id') {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?$/.test(String(col))) {
+    throw new Error(`siteEvents: refusing a non-identifier column: ${col}`);
+  }
+  return `${col} NOT LIKE '${SYNTHETIC_PREFIX}%'`;
+}
+
+/* The complement, for the one place that REPORTS the dropped volume. */
+function cookielessPredicate(col = 'session_id') {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?$/.test(String(col))) {
+    throw new Error(`siteEvents: refusing a non-identifier column: ${col}`);
+  }
+  return `${col} LIKE '${SYNTHETIC_PREFIX}%'`;
 }
 
 function sessionKey(req) {
@@ -213,6 +264,10 @@ async function record(req, name, f) {
 
 module.exports = {
   record, ensureTable, looksLikeBot, toCents,
+
+  /* ⚠️ THE ONLY PREDICATE A DASHBOARD MAY USE TO COUNT SESSIONS. See the
+     comment block above statefulPredicate for why, and for what it costs. */
+  statefulPredicate, cookielessPredicate, SYNTHETIC_PREFIX,
 
   /* Exposed for gate_session_identity.js, which has to EXECUTE these rather
      than grep for them. The inflation bug was invisible to every text-level

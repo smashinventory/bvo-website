@@ -2,8 +2,8 @@
 /**
  * Admin — Site Analytics (storefront funnel)
  *
- * Locals: days, funnel, series, topAdded, viewedNotCarted, bots, coverage,
- *         gaConfigured
+ * Locals: days, funnel, series, topAdded, viewedNotCarted, bots, cookieless,
+ *         coverage, gaConfigured
  *
  * SAME DISCIPLINE AS THE CUSTOMERS PAGE: a panel that does not have enough
  * data says so instead of drawing a chart. A funnel over eleven sessions is
@@ -174,7 +174,29 @@
     <div class="sa-kpi-val"><%= bots.pct === null ? '—' : bots.pct + '%' %></div>
     <span class="sa-kpi-sub"><%= Number(bots.bot).toLocaleString() %> of <%= Number(bots.total).toLocaleString() %> events, excluded above</span>
   </div>
+  <%# ── Reported, not hidden. This is the LARGER exclusion by far, and a page
+       that dropped 99% of its rows in silence would be lying by omission.
+       It is also the early-warning signal: if this climbs while the funnel
+       holds flat, a new crawler has arrived and nothing else here says so. %>
+  <div class="sa-kpi">
+    <span class="sa-kpi-label">Cookieless</span>
+    <div class="sa-kpi-val"><%= cookieless.pct === null ? '—' : cookieless.pct + '%' %></div>
+    <span class="sa-kpi-sub"><%= Number(cookieless.cookieless).toLocaleString() %> of <%= Number(cookieless.total).toLocaleString() %> unflagged events, excluded above</span>
+  </div>
 </div>
+
+<%# ── WHY THE FUNNEL DOES NOT MATCH RAW TRAFFIC ───────────────────────── %>
+<% if (cookieless.pct !== null && cookieless.pct >= 50) { %>
+  <div class="sa-note sa-note--warn">
+    <strong>Most traffic is not identifiable right now.</strong>
+    <%= cookieless.pct %>% of unflagged events come from clients that never
+    return a session cookie — one page each, no referrer, spread flat across
+    the catalogue. That is a crawler on rotating addresses, and it carries a
+    browser user-agent, so the bot filter cannot see it. The funnel above
+    counts only clients that kept a session, which is why it reads far lower
+    than total event volume. The excluded rows are kept, not deleted.
+  </div>
+<% } %>
 
 <%# ── trend ──────────────────────────────────────────────────────────── %>
 <div class="sa-panel" style="margin-bottom:1.5rem">

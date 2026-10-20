@@ -74,9 +74,41 @@ check(/const REAL_CUSTOMER\s*=/.test(ctrl) && /const REAL_ORDER\s*=/.test(ctrl),
    was counting test records and the suite said fine. Caught by mutation
    test, which is the only reason this line reads the way it does. */
 const cOk = (ctrl.match(/const C_OK\s*=\s*(['"`])(.*?)\1/) || [])[2] || '';
-const oOk = (ctrl.match(/const O_OK\s*=\s*(['"`])(.*?)\1/) || [])[2] || '';
 check(/\bis_test = 0\b/.test(cOk), `C_OK itself excludes test customers (is: ${cOk || 'missing'})`);
-check(/\bis_test = 0\b/.test(oOk), `O_OK itself excludes test orders (is: ${oOk || 'missing'})`);
+
+/* ⚠️ O_OK IS NO LONGER A STRING LITERAL, and this check went red the moment
+   that changed (686d22a, 2026-10-19). It now reads:
+
+       const O_OK = require('../config/revenue').O.IS_COUNTED;
+
+   so the old `match(/const O_OK\s*=\s*(['"`])(.*?)\1/)` extracted an EMPTY
+   STRING and the check failed against its own regex rather than against the
+   code. A gate going red because the code improved is a gate asserting the
+   wrong thing: the requirement was never "O_OK is a literal containing
+   is_test = 0", it was "no customer metric can see a test order".
+
+   So it is EXECUTED instead. This is strictly stronger than the string match
+   it replaces - it survives any refactor that keeps the meaning, and it still
+   catches O_OK being neutered to '1=1', which is what the original comment
+   above was defending against. */
+const oOkExpr = (ctrl.match(/const O_OK\s*=\s*(.+?);/) || [])[1] || '';
+/* Traced through the intermediate, because the controller spells it in two
+   steps: `const revenue = require('../config/revenue')`, `const REV =
+   revenue.O`, `const O_OK = REV.IS_COUNTED`. Asserting the require sits on
+   the O_OK line itself would be asserting a formatting choice. */
+const revAlias = (ctrl.match(/const\s+(\w+)\s*=\s*require\(['"]\.\.\/config\/revenue['"]\)/) || [])[1];
+const revO     = revAlias && (ctrl.match(new RegExp('const\\s+(\\w+)\\s*=\\s*' + revAlias + '\\.O\\b')) || [])[1];
+check(!!revAlias && (new RegExp('^(' + revAlias + '|' + (revO || '\\0') + ')\\.')).test(oOkExpr.trim()),
+  `O_OK traces to the shared revenue definition, not a hand-rolled clause (is: ${oOkExpr || 'missing'})`);
+let oOkResolved = '';
+try {
+  process.env.DB_PASS = process.env.DB_PASS || 'gate-placeholder';
+  oOkResolved = require('../src/config/revenue').O.IS_COUNTED;
+} catch (e) { oOkResolved = 'THREW: ' + e.message; }
+check(/\bis_test = 0\b/.test(oOkResolved),
+  `and what it resolves to excludes test orders (is: ${oOkResolved || 'missing'})`);
+check(/payment_captured_at IS NOT NULL/.test(oOkResolved),
+  'and waits for capture, so an abandoned checkout is not a customer order');
 
 /* Known, deliberate exceptions, each justified in the controller:
      - detail()     reads one customer unfiltered, so a test account can be
@@ -95,8 +127,14 @@ for (const fn of ['kpis', 'trend', 'sources', 'repeatRate', 'ltv', 'cohorts', 'l
   check(/REAL_CUSTOMER|REAL_ORDER/.test(m[0]) && /C_OK|O_OK/.test(m[0]),
     `${fn}() filters through the shared fragments`);
 }
-check(/O_OK\s*=\s*['"`][^'"`]*is_test = 0[^'"`]*status <> 'cancelled'/.test(ctrl),
+/* ⚠️ ALSO STALE SINCE 686d22a, same cause: this matched the old string
+   literal. Asserted against the RESOLVED predicate instead, where it is a
+   stronger claim - the literal check could only ever see the text, and the
+   text was about to stop existing. */
+check(/status <> 'cancelled'/.test(oOkResolved),
   'order metrics also exclude cancelled orders');
+check(/payment_status NOT IN \('draft', 'pending'\)/.test(oOkResolved),
+  "and the two placeholder payment states checkout sets on its way through");
 
 /* ── 2. Insufficient data degrades honestly ─────────────────────────────── */
 console.log('\n2. A report without the data says so, and draws nothing');

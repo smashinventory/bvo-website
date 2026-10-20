@@ -40,6 +40,7 @@ const CTRL = read('src/controllers/siteAnalyticsController.js');
 const CART = read('src/controllers/cartController.js');
 const PROD = read('src/controllers/productsController.js');
 const CHK  = read('src/controllers/checkoutController.js');
+const VIEW = read('views/pages/admin/marketing/site-analytics.ejs');
 
 console.log('\ngate_site_analytics — the funnel measures what it claims to\n');
 
@@ -160,6 +161,15 @@ function finish(se) {
          template reads must be present in the fixture - including the ones
          added later. Leaving `traffic` out is how this gate first failed. */
       traffic: { ok: false, configured: false, reason: 'not configured' },
+      /* 2026-10-19: the stateful-session fix added this one. */
+      cookieless: { cookieless: 0, total: 0, pct: null },
+      /* ⚠️ res.locals.cspNonce is set for EVERY template by global
+         middleware (server.js:176), so it is a real local this fixture
+         simply never supplied. The empty-state fixture passed without it
+         only because the empty state returns before the chart <script>
+         tags that read it - which is why exactly one of the two render
+         checks was red and the page itself was fine. */
+      cspNonce: 'gate-nonce',
     };
     try {
       const html = fn(empty);
@@ -188,6 +198,8 @@ function finish(se) {
         topAdded: [{ product_id: 12, name: 'Bristol 60', slug: 'bristol-60', adds: 31, sessions: 24, units: 33, value: 19999 }],
         viewedNotCarted: [{ product_id: 9, name: 'Chatham 48', slug: 'chatham-48', views: 140, adds: 3, rate: 2.1 }],
         bots: { bot: 900, total: 6300, pct: 14.3 },
+        cookieless: { cookieless: 540, total: 5400, pct: 10 },
+        cspNonce: 'gate-nonce',
         coverage: { firstEvent: new Date(Date.now() - 86400e3 * 45), total: 5400 },
         gaConfigured: true,
         traffic: { ok: true, configured: true, users: 4210, newUsers: 3380,
@@ -200,6 +212,161 @@ function finish(se) {
       check(/<canvas/.test(html2),   'and draws the chart once there is something to plot');
     } catch (e) { bad('renders with data', e.message); }
   }
+
+  /* ── 7b. A CLIENT THAT NEVER RETURNS OUR COOKIE IS NOT A SESSION ─────
+     2026-10-19. The tile read 7,951 against GA4's 322. The 10-16 synthetic
+     session id was the right fix for one crawler on one IP making 15,000
+     requests; what actually arrived was the inverse - 8,471 distinct
+     synthetic ids over two days carrying 8,487 events between them, 1.002
+     each, no referrer on 99.8%, spread flat across the catalogue so the
+     busiest single path reached 13 hits. Rotating the IP defeats the
+     collapsing by construction, because the IP is part of the hash key.
+
+     ⚠️ EVERY CHECK BELOW GREPS COMMENT-STRIPPED SOURCE. The rationale
+     comments in both files contain the exact phrases being asserted -
+     "statefulPredicate", "anon-", "NOT LIKE" - so a grep over raw source
+     would match the explanation of the rule rather than the rule, and pass
+     on a file where the code had been reverted. That mistake has now been
+     made four times on this project. */
+  console.log('--- stateful sessions only ---');
+
+  /* Comments out, string literals left alone. Deliberately crude: it only
+     has to be good enough that a check cannot match its own rationale. */
+  const strip = src => src
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/^\s*\/\/.*$/gm, ' ')
+    .replace(/<%#[\s\S]*?%>/g, ' ');
+
+  const SVC_C  = strip(SVC);
+  const CTRL_C = strip(CTRL);
+  const VIEW_C = strip(VIEW);
+
+  /* The prefix is ONE string in ONE file. The controller knowing it too is
+     how revenue.js and deliveryLocation.js were both born. */
+  check(/const\s+SYNTHETIC_PREFIX\s*=\s*'anon-'/.test(SVC_C),
+        'the synthetic prefix is declared as a named constant in siteEvents');
+  check((SVC_C.match(/'anon-'/g) || []).length === 1,
+        'and the literal appears exactly once in the service',
+        'found ' + (SVC_C.match(/'anon-'/g) || []).length);
+  check(!/anon-/.test(CTRL_C),
+        'the controller never hard-codes the prefix, it asks the service',
+        'the controller must not be the second place that knows the string');
+
+  const synFn = (SVC_C.match(/function syntheticSessionId[\s\S]*?\n}/) || [''])[0];
+  check(/return\s+SYNTHETIC_PREFIX\s*\+/.test(synFn),
+        'syntheticSessionId builds its id from that constant');
+
+  check(/statefulPredicate/.test(SVC_C) && /cookielessPredicate/.test(SVC_C),
+        'both predicates exist in the service');
+  check(/statefulPredicate,\s*cookielessPredicate|statefulPredicate, cookielessPredicate/.test(SVC_C.replace(/\s+/g, ' ')),
+        'and both are exported');
+
+  /* ── THE DRIFT CHECK, AND THE REASON THIS SECTION IS EXECUTABLE ───────
+     Two functions must agree about one string: the one that MINTS ids and
+     the one that FILTERS them. A text check cannot see a disagreement -
+     both files would read fine and the tile would silently count crawlers
+     again. So mint a real id and assert the real predicate excludes it. */
+  process.env.DB_PASS = process.env.DB_PASS || 'gate-placeholder';
+  /* ⚠️ NOT the `se` from the fail-soft section above - that one was loaded
+     against a deliberately broken pool stub. The functions tested here are
+     pure, so it would have worked, which is exactly why it would have been
+     the wrong thing to lean on. Fresh module, real shape. */
+  delete require.cache[require.resolve(path.join(ROOT, 'src/services/siteEvents.js'))];
+  const sev = require(path.join(ROOT, 'src/services/siteEvents.js'));
+  const fakeReq = {
+    headers: { 'user-agent': 'Mozilla/5.0', 'accept-language': 'en-US',
+               'accept-encoding': 'gzip', 'x-forwarded-for': '203.0.113.7' },
+    ip: '203.0.113.7',
+  };
+  const mintedId = sev.__sessionInternals.syntheticSessionId(fakeReq);
+  const pred     = sev.statefulPredicate('session_id');
+  const litMatch = (pred.match(/'([^']*)%'/) || [])[1];
+  check(litMatch !== undefined && mintedId.startsWith(litMatch),
+        'the predicate excludes exactly the ids syntheticSessionId mints',
+        'minted ' + mintedId.slice(0, 12) + '..., predicate excludes ' + litMatch);
+  check(/NOT LIKE/.test(pred) && /LIKE/.test(sev.cookielessPredicate('session_id')) &&
+        !/NOT LIKE/.test(sev.cookielessPredicate('session_id')),
+        'and the two predicates are genuine complements');
+
+  /* A caller-supplied column goes into SQL unparameterised, same exposure
+     revenue.js's alias argument has. */
+  let refused = 0;
+  for (const evil of ["x; DROP TABLE orders", "session_id' OR '1'='1", 'a b', '']) {
+    try { sev.statefulPredicate(evil); } catch (e) { refused++; }
+  }
+  check(refused === 4, 'a non-identifier column is refused rather than interpolated',
+        'refused ' + refused + ' of 4');
+
+  /* ── EVERY QUERY THAT COUNTS SESSIONS, scoped to its own function ─────
+     Not a file-level grep. A file-level one passes while a single query
+     has been reverted, because a sibling query still carries the string -
+     the exact hole gate_revenue_definition's harness found twice today. */
+  const fnBody = name => {
+    const m = CTRL_C.match(new RegExp('async function ' + name + '\\([\\s\\S]*?\\n}'));
+    return m ? m[0] : '';
+  };
+  for (const name of ['funnel', 'daily', 'topAdded']) {
+    const body = fnBody(name);
+    check(body.length > 0 && /\$\{STATEFUL(_E)?\}/.test(body),
+          name + '() counts only clients that returned a cookie');
+    /* ⚠️ PRE-EXISTING BLIND SPOT, closed here because this change put a
+       SECOND filter next to the first. mutate_site_analytics_gate.sh has
+       been reporting "bots are no longer filtered out of the funnel —
+       MISSED" since 2026-10-07: gate_site_analytics asserted is_bot = 0
+       nowhere, and gate_session_identity's version of the check is in a
+       different gate, so this harness could not see it.
+
+       The two tests are NOT interchangeable and must both survive. is_bot
+       catches a self-identifying crawler; the stateful predicate catches
+       one that lies. Dropping either silently re-inflates the tile, which
+       is the whole history of this feature. */
+    check(body.length > 0 && /is_bot = 0/.test(body),
+          name + '() still excludes flagged bots too');
+  }
+  const vnc = fnBody('viewedNotCarted');
+  check((vnc.match(/\$\{STATEFUL\}/g) || []).length === 2,
+        'viewedNotCarted() carries it in BOTH subqueries, views and adds',
+        'found ' + (vnc.match(/\$\{STATEFUL\}/g) || []).length + ', expected 2');
+  check(/is_bot = 0/.test(vnc),
+        'and still excludes flagged bots as well - the two tests are not interchangeable');
+
+  /* REPORTED, NOT HIDDEN. This is the larger exclusion by far. */
+  check(/async function cookielessShare/.test(CTRL_C),
+        'the dropped volume is measured');
+  /* ⚠️ THE DENOMINATOR. cookielessShare reports a PERCENTAGE, and the page
+     labels it "of N unflagged events". Drop is_bot = 0 here and flagged
+     crawler rows join the denominator, so the figure silently understates
+     the share and the >=50% banner stops firing when it is most needed.
+     Found because the existing harness's bot mutation, whose anchor this
+     change displaced, landed on this function instead of funnel() and was
+     not caught. */
+  check(/is_bot = 0/.test(fnBody('cookielessShare')),
+        'and against unflagged events only, matching the label on the page');
+  /* ⚠️ SCOPED TO THE Promise.all, NOT THE FILE. The first version of this
+     check tested /cookielessShare\(days\)/ against the whole controller and
+     matched the FUNCTION DECLARATION - `async function cookielessShare(days)`
+     - so deleting the call site passed. The harness caught it. Same shape as
+     the three holes gate_revenue_definition's harness found earlier today:
+     a grep matching something adjacent to the thing being asserted. */
+  const pall = (CTRL_C.match(/await Promise\.all\(\[[\s\S]*?\]\)/) || [''])[0];
+  check(/cookielessShare\(days\)/.test(pall),
+        'and runs in the same Promise.all as the rest',
+        'the call site must be inside the Promise.all, not merely declared');
+  /* The destructuring list and the Promise.all array are positional. Drop
+     one and every local after it silently shifts onto the wrong value - no
+     error, just a page rendering someone else's numbers. */
+  const dstr = (CTRL_C.match(/const \[([^\]]*)\]\s*=\s*await Promise\.all/) || ['', ''])[1];
+  const names = dstr.split(',').map(x => x.trim()).filter(Boolean);
+  /* Counted INSIDE the brackets only. Counting over `pall` whole also
+     matched the `all(` of Promise.all itself and read 9 for 8. */
+  const inner = pall.slice(pall.indexOf('[') + 1, pall.lastIndexOf(']'));
+  const calls = (inner.match(/\b[A-Za-z_$][\w$.]*\s*\(/g) || []).length;
+  check(names.includes('anon') && names.length === calls,
+        'and the destructuring list is the same length as the call array',
+        names.length + ' names for ' + calls + ' calls: ' + names.join(','));
+  check(/cookieless:\s*anon/.test(CTRL_C), 'and is passed to the view');
+  check(/cookieless\.pct/.test(VIEW_C) && /cookieless\.cookieless/.test(VIEW_C),
+        'and the page actually shows it');
 
   /* ── 8. wiring ────────────────────────────────────────────────────── */
   console.log('--- wiring ---');

@@ -19,6 +19,137 @@
 
 ---
 
+## Site Analytics: a cookieless client is not a session
+**Date:** 2026-10-19
+**Files:** `src/services/siteEvents.js` (owns the rule), `src/controllers/siteAnalyticsController.js`, `views/pages/admin/marketing/site-analytics.ejs`
+**Gate:** `gate_site_analytics` (71 checks, up from 47 — and **green for the first time**)
+**Harness:** `mutate_site_analytics_gate.sh` (41 mutations, up from 25; 0 missed, 0 stale)
+**No migration.** This changes how existing rows are read, not how they are stored.
+
+### Third attempt at the same tile
+
+| Reading | Date | What was done |
+|---|---|---|
+| 16,383 vs GA4's 389 | pre 10-15 | — |
+| 683 | 10-15 | backfill flagged singleton sessions as bots |
+| 7,951 | 10-17 am | — |
+| 5,853 | 10-17 | the synthetic session id, finally landed 10-16 20:20 |
+
+**⚠️ CORRECTION TO AN EARLIER DRAFT OF THIS ENTRY.** I first wrote that the
+diagnostic file's `2026-10-15` comment was simply wrong. It was not. The
+synthetic session id shipped and was reverted **three times**:
+
+| Commit | When | What |
+|---|---|---|
+| `ce5088c` | 10-15 15:41 | "a session must mean a visitor, not a request" |
+| `ae1d811` | 10-15 18:44 | reverted |
+| `23320f1` | 10-16 12:11 | re-applied |
+| `f7fb011` | 10-16 12:21 | reverted again — ten minutes later |
+| `9390364` | 10-16 20:20 | **"no schema change this time"** — the one that stuck |
+
+So the diagnostic's comment referred to `ce5088c`, which really did deploy on
+10-15. The data flipping at 10-16 is explained by the two reverts, not by a
+wrong comment. The commit titled "no schema change this time" and
+`rollback_session_fix.sh` together say why it took three attempts: the earlier
+versions carried a schema change and a comment containing a question mark,
+which `namedPlaceholders` read as a positional parameter and which killed the
+process on boot.
+
+That history is the strongest argument for the executable drift check added
+here. Three attempts, and the tile was still wrong on the fourth morning.
+
+### What query 1 and query 3 actually settled
+
+- 8,471 synthetic sessions / 8,487 events over two days = **1.002 events each**.
+  The synthetic id is collapsing nothing.
+- **99.8% carry no referrer** (8,471 of 8,487).
+- **Nothing is concentrated.** Busiest path in the window: `/checkout`, 13
+  events. Every product path 3–12. Flat across the whole catalogue.
+
+→ thousands of distinct `(IP, user-agent, accept-language)` tuples, one page
+each. A distributed crawler on rotating addresses. `is_bot = 0` throughout,
+because it sends a browser UA *and* real content-negotiation headers.
+
+**The 10-16 fix was correct for its target and structurally powerless here.**
+The IP is part of the hash key, so rotating it defeats the collapsing by
+construction. Not a regression — the inverse threat.
+
+### The fix
+
+No better bot detection: `site_events` stores no UA and no IP (the IP is hashed
+and discarded, by design), so there is nothing to fingerprint with. The rule is
+definitional instead — see **Rule 17** in `BVO_AUDIT_BRIEF.md` for the full
+argument and the stated cost.
+
+Applied to all four session-counting queries: `funnel`, `daily`, `topAdded`, and
+**both** subqueries of `viewedNotCarted`.
+
+### Two things found on the way
+
+- **`viewedNotCarted` was poisoned.** Its 20-view floor was being cleared by
+  crawler views, so the page's most actionable table — "viewed a lot, carted
+  never" — was ranking crawler traffic at 0% cart rates.
+- **The three days of zero real sessions are not a second bug.** The cart-touch
+  middleware at `server.js:765` sends the cookie on the first page render, so a
+  visitor who views two products *is* counted. At ~45 sessions/day site-wide,
+  0–5 stateful product-viewers a day is consistent; 10-17's five real sessions
+  are the human signal.
+
+### gate_site_analytics was red before this, for an unrelated reason
+
+Its data fixture omitted `cspNonce`, a local set for **every** template by
+`server.js:176`. The empty-state fixture passed without it only because the
+empty state returns before the chart `<script>` tags that read it — which is why
+exactly one of the two render checks was failing and the page itself was fine.
+A mutation now proves that fixture repair is load-bearing.
+
+### Three holes found by harnesses, two of them caused by this change
+
+**1. A gate over-match.** The Promise.all check grepped the whole controller for
+`cookielessShare(days)` and matched the **function declaration**, so deleting
+the call site passed. Same shape as the three in `gate_revenue_definition` and
+the four in `gate_newsletter_signups` the same evening: a grep matching
+something *adjacent* to the thing asserted. Now scoped to the `Promise.all`
+block, plus a check that the destructuring list and the call array are the same
+length — `Promise.all` is positional, and dropping one name silently shifts
+every local after it onto the wrong value.
+
+**2. ⚠️ THIS CHANGE SILENTLY BROKE TWO EXISTING MUTATIONS.**
+`mutate_site_analytics_gate.sh` already existed (2026-10-07, 25 mutations) and
+had **no anchor-not-found detection** — a mutation whose anchor had drifted was
+a silent no-op, so the gate ran against *unmodified* source, passed, and the
+harness reported `MISSED`, indicting the gate for a fault in the test.
+
+- `traffic is awaited separately` — its anchor named the destructuring list,
+  which gained `anon`.
+- `bots are no longer filtered out of the funnel` — its anchor was
+  `'WHERE is_bot = 0\n       AND occurred_at'`, targeting `funnel()`. Inserting
+  `AND ${STATEFUL}` between those two lines displaced it onto
+  `cookielessShare()` further down — **a function this change had just added,
+  with no `is_bot` assertion on it.** So it reported MISSED for a third reason
+  again: right mutation, wrong target.
+
+Anchor detection is now in the harness (`ANCHOR-STALE`, distinct from `MISSED`,
+non-zero exit), both anchors are repaired and pinned, and **a real gate gap that
+second one exposed is closed**: `cookielessShare` must filter `is_bot = 0`,
+because the page labels its figure "of N unflagged events" and a corrupted
+denominator understates the share and stops the ≥50% banner firing.
+
+**3. A duplicate harness.** The 17 new mutations were briefly written as a
+separate `mutate_site_analytics.sh` before the existing file was noticed. Two
+harnesses for one gate is how a gate ends up with a green run and a red run at
+the same time. Merged into the one file — the pattern
+`gate_order_delete` / `mutate_order_delete` already established — and the
+duplicate deleted. **41 mutations, 0 missed, 0 stale.**
+
+### What to expect after deploy
+
+The tile will fall by roughly 99%, from thousands to single or double digits.
+**That is the fix working.** The new *Cookieless* KPI shows what was excluded,
+with a banner explaining it above 50%. The rows are kept, not deleted.
+
+---
+
 ## Revenue: nothing counts until the authorization is captured
 **Date:** 2026-10-19
 **New module:** `src/config/revenue.js` — the single definition

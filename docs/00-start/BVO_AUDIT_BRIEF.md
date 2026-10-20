@@ -271,6 +271,104 @@ blind spot, and an `if (false)` in front of one slipped straight past it.
 
 ---
 
+### Rule 17 — A Client That Never Returns A Cookie Is Not A Session
+
+Added 2026-10-19, after the Site Analytics "Viewed a product" tile survived two
+fixes and was still wrong.
+
+**The history matters, because it is the argument.** The tile read 16,383
+against GA4's 389. A backfill flagged singleton sessions and took it to 683. It
+came back as 7,951. On 10-16 a synthetic session id shipped — `sha256(ip |
+user-agent | accept-language | day)`, prefixed `anon-` — which collapses one
+cookieless client's whole crawl into one session per day. The next morning the
+tile read 5,853.
+
+**Why the second fix could not work.** It was built for one crawler on one IP
+making 15,000 requests. What arrived was the inverse: 8,471 distinct synthetic
+ids over two days carrying 8,487 events between them — **1.002 events per
+session** — no referrer on 99.8% of them, and spread so flat across the
+catalogue that the busiest single path in the window reached 13 hits. The IP is
+part of the hash key, so rotating it defeats the collapsing *by construction*.
+And the clients send a real browser user-agent with real content-negotiation
+headers, so `BOT_RE` and `headersLookAutomated` are both blind to them.
+
+**Why not better bot detection.** `site_events` stores no user-agent and no IP —
+the IP is hashed and discarded, deliberately. So there is nothing to fingerprint
+with, and the one remedy that does not depend on winning an arms race is
+definitional:
+
+> Counting sessions means counting clients we can identify across requests.
+> A cookieless one-hit client is a request, not a session.
+
+**What it costs, and why the cost is the right side of the trade.** A real
+visitor landing straight on a product page has not returned the cookie yet, so
+their first event is synthetic. Do anything else — a second page, a cart add —
+and they are stateful and counted. So the only person dropped is the
+direct-landing single-page bouncer: someone who never carts and never orders,
+and who therefore only ever widened the *top* of the funnel and made every rate
+below it read worse than it was. Two days of data put that group at 19 sessions
+carrying a `google.com` referrer, against 8,471 crawler hits.
+
+**The second-order damage nobody had noticed.** `viewedNotCarted` floors at 20
+views to keep noise out. On a catalogue being walked flat, every product
+eventually clears 20 crawler views at a 0% cart rate — so the page's most
+actionable table was ranking crawler traffic. The floor is unchanged; what it
+counts is not.
+
+**Ownership.** The prefix is declared once, in `siteEvents.js`, which also mints
+the ids, and exported as `statefulPredicate()` / `cookielessPredicate()`. The
+controller asking for it rather than knowing it is the same discipline as
+`revenue.js` and `deliveryLocation.js` — both of which exist because two files
+knew one rule.
+
+**Reported, not hidden.** The excluded rows are kept and the volume is shown on
+the page beside the bot share, with a banner above 50%. It is the larger
+exclusion by far, and it is the early-warning signal: cookieless volume climbing
+while stateful volume holds flat means a new crawler, and nothing else on the
+page would say so.
+
+**Enforcement.** `gates/gate_site_analytics.js` (71 checks, up from 47) — the
+`stateful sessions only` section greps **comment-stripped** source throughout,
+because both files carry rationale comments containing the asserted phrases
+verbatim. The load-bearing check *executes* both functions: it mints a real id
+and asserts the real predicate excludes it, because minting and filtering must
+agree about one string and no text check can see them disagree.
+`mutate_site_analytics_gate.sh` — **41 mutations, 0 missed, 0 stale.**
+
+---
+
+### Rule 17a — A Mutation Whose Anchor Has Drifted Indicts The Gate For A Fault In The Test
+
+Added 2026-10-19, learned the hard way during the change above.
+
+`mutate_site_analytics_gate.sh` applied its mutations with `str.replace()` and
+checked only whether Python *threw*. A replace whose anchor no longer matches
+does not throw — it returns the string unchanged. So the gate was run against
+**unmodified source**, passed, and the harness printed `MISSED`.
+
+That reads as "the gate has a blind spot." It actually means "this test no
+longer tests anything." The two are opposite problems with opposite remedies,
+and the harness could not tell them apart. Two anchors had rotted this way, one
+of them displaced onto a *different function* by a single inserted line, where
+it silently exercised something nobody had written a check for.
+
+**Every harness must distinguish the two.** Snapshot the sources, run the
+mutation, and if nothing changed exit with a distinct code — reported as
+`ANCHOR-STALE`, counted separately, and non-zero overall. The newer harnesses
+(`mutate_revenue_definition.sh` onward) already do this as `ANCHOR NOT FOUND`;
+the older ones do not, and the older ones are where the rot accumulates.
+
+**Corollary: inserting a line into a query can move an anchor onto a different
+query.** After adding a condition to any gated SQL block, re-run that feature's
+harness and read the labels, not just the totals. `caught 22, missed 2` looked
+like a pre-existing condition and was in fact two tests this change had broken.
+
+**One harness per gate.** Two files mutating one gate is how a gate ends up with
+a green run and a red run simultaneously. Extend the existing harness; the
+`gate_order_delete` / `mutate_order_delete` pair is the pattern.
+
+---
+
 ### Rule 14 — Gates Cannot Validate SQL
 
 Added 2026-09-16, after the colour-family work took the storefront down.
