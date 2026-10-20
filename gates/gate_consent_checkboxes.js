@@ -37,6 +37,13 @@ const base = {
      null, which let a real bug through: {} is truthy, so `if (old)` took
      the was-submitted branch on every first render. Fixtures must mirror
      what the controller actually passes. */
+  /* ⚠️ THE FLASH LOCALS, with the values a CLEAN GET actually produces.
+     takeCheckoutFlash() (checkoutController.js:519) returns {} / {} / null
+     / null when the session carries no flash, and the render passes them
+     through as errors / old / checkoutError / addrWarning.
+     EMPTY OBJECTS, NOT undefined: the template reads errors.email and
+     old.email, and `old` is the validation-bounce store this gate's
+     hardest case depends on. */
   draft: null, errors: {}, old: {}, checkoutError: null,
   mapsKey: '', addrWarning: null,
   /* A BRAND-NEW customer, as created seconds earlier at
@@ -52,6 +59,21 @@ const base = {
      none, which is this fixture's case. */
   savedAddress: null,
   csrfToken: 'tok', cspNonce: 'nonce123',
+
+  /* ⚠️ THE REAL MODULE, NOT A STUB, and that is the point (Rule 18).
+     checkout-info.ejs:436 does `locals.deliveryLocation` then calls
+     .normalise() and .all() on it. checkoutController.js:669 passes the
+     module itself, so this fixture passes the module itself. Omitting it
+     is what made this gate red: DL was undefined and .normalise() threw,
+     killing the render before a single consent assertion ran.
+
+     A hand-written { normalise, all } stub would have made the gate green
+     while testing a shape the controller never supplies - the exact
+     failure that let gate_session_identity certify a broken isStateful
+     for four days. If deliveryLocation gains a third option, this gate
+     renders it because it is reading the real source. */
+  deliveryLocation: require(path.join(ROOT, 'src/utils/deliveryLocation')),
+
 };
 
 function render(over) {
@@ -161,15 +183,50 @@ console.log('--- NEVER ASKED vs ASKED-AND-DECLINED ---');
      'stored value overrode what they just did');
 }
 
+/* ── the email field ─────────────────────────────────────────────────
+   ⚠️ THESE THREE WERE INVERTED ON 2026-10-20, because they asserted a
+   design that was deliberately reversed and that the code now says must
+   not return.
+
+   Under e613af5 the identity gate proved the address at
+   /checkout/identify before checkout could start, so page 1 showed it
+   read-only and an editable field would have handed that proof back.
+   This gate asserted exactly that.
+
+   requireIdentity was then REMOVED (routes/checkout.js:27-41, 2026-09-28).
+   The reason is on the record and is not a preference: Brevo's event log
+   showed a sign-in code accepted at 11:59 and delivered at 12:10 - eleven
+   minutes against a code that expired at ten. Gmail defers mail from
+   senders it does not recognise, so the delay lands hardest on addresses
+   never mailed before: FIRST-TIME BUYERS. "A checkout that cannot start
+   until a third-party mail hop completes is a checkout hostage to Gmail."
+
+   So email is an ordinary field on page 1 now, and identity is a
+   CONSEQUENCE of ordering rather than a precondition. checkout-info.ejs
+   even records it at line 203: "It was read-only for one day."
+
+   A gate left asserting the old design does not protect anything - it
+   reports the current, correct, deliberate behaviour as a defect. What
+   still deserves asserting is the half that survived the reversal: there
+   must be exactly ONE email input, it must be the visible one the buyer
+   types into, and there must be no second forgeable copy. */
 console.log('--- the email field ---');
-ok('email is NOT an editable input',
-   inputTag(html, 'email') === null,
-   'identity was proven at /checkout/identify; an editable field hands that back');
-ok('no hidden email field either',
-   !/<input[^>]*name="email"/.test(html),
-   'a forgeable copy of a fact the server already holds');
-ok('the proven address is displayed', /sam@example\.com/.test(html), 'not shown');
-ok('there is a way to change it', /checkout\/identify/.test(html), 'no escape hatch');
+const emailTag = inputTag(html, 'email');
+ok('email IS an editable input on page 1',
+   emailTag !== null,
+   'the identity gate was removed; page 1 is where the address is captured');
+ok('and it is required',
+   emailTag !== null && /\brequired\b/.test(emailTag),
+   'it is now the only place the address is collected, so it cannot be optional');
+ok('it is a real visible field, not a hidden one',
+   emailTag !== null && !/type="hidden"/.test(emailTag),
+   'a hidden field would be a forgeable copy rather than something typed');
+ok('exactly ONE email input exists',
+   (html.match(/<input[^>]*name="email"/g) || []).length === 1,
+   'a second copy is the forgery risk the old read-only design was guarding');
+ok('a known address is prefilled into it',
+   /sam@example\.com/.test(html),
+   'a returning buyer should not retype what the server already holds');
 
 console.log('--- owner-approved copy, verbatim (spec 9.2) ---');
 const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');

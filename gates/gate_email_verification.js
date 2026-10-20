@@ -264,14 +264,32 @@ ok('page 1 does NOT look up whether the address exists',
 
 /* ═══ 9. THE EMAIL TEMPLATE CAN RENDER THE BUTTON ══════════════════ */
 console.log('\n--- confirmation email ---');
+
+/* ⚠️ REPOINTED 2026-10-20. These four read checkoutController.js, where the
+   confirmation email was built until 1091b22 extracted it to
+   src/services/orderEmails.js so the admin "resend receipt" action could
+   reuse it. The extraction was clean - all four assertions hold verbatim in
+   the new file and none in the old one - but the gate kept reading the old
+   address and went red for four days against code that was correct.
+
+   A gate that goes red because the code was refactored is asserting WHERE
+   something lives, not WHAT it does. So the location is now asserted once,
+   deliberately and separately, and the behaviour is asserted against
+   whatever that location holds. */
+const orderEmails = executable(read('src/services/orderEmails.js'));
+
+ok('the confirmation email is built in orderEmails.js, not the controller',
+   /confirm_button_html/.test(orderEmails) && !/confirm_button_html/.test(checkoutCtl),
+   'if it moved again, repoint the four checks below - do not duplicate it (Rule 10)');
+
 ok('the controller supplies whole HTML, not a bare URL',
-   /confirm_button_html:\s*confirmHtml/.test(checkoutCtl), 'template would show a raw link');
+   /confirm_button_html:\s*confirmHtml/.test(orderEmails), 'template would show a raw link');
 ok('a missing token renders NOTHING',
-   /confirmToken\s*\?[\s\S]{0,1400}:\s*''/.test(checkoutCtl), 'dead button when the token fails');
+   /confirmToken\s*\?[\s\S]{0,1400}:\s*''/.test(orderEmails), 'dead button when the token fails');
 ok('the link is a GET to /orders/confirm',
-   /\/orders\/confirm\?t=/.test(checkoutCtl), 'wrong URL');
+   /\/orders\/confirm\?t=/.test(orderEmails), 'wrong URL');
 ok('the token is URL-encoded',
-   /encodeURIComponent\(confirmToken\)/.test(checkoutCtl), 'unencoded token');
+   /encodeURIComponent\(confirmToken\)/.test(orderEmails), 'unencoded token');
 
 const migration = read('migrations/2026-09-28_order_email_verification_RUNME.sql');
 ok('the migration inserts the placeholder into the template',

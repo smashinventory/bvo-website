@@ -222,7 +222,15 @@ const money = n => '$' + Number(n || 0).toLocaleString('en-US',
           <input type="email" id="email" name="email" required
                  autocomplete="email" placeholder="you@example.com"
                  class="<%= errors.email ? 'is-error' : '' %>"
-                 value="<%= old.email || (draft && draft.guest_email) || (customer && customer.email) || '' %>">
+                 <%# ⚠️ `old &&` ADDED 2026-10-20. The other two sources on this
+                     line were already guarded; `old` was the odd one out, and an
+                     undefined `old` threw here and killed the whole render -
+                     taking checkout page 1 with it. takeCheckoutFlash()
+                     (checkoutController.js:519) always returns {} so this is not
+                     reachable from the live path today, but the guard costs
+                     nothing and the inconsistency on one line was the defect.
+                     {} and undefined both fall through to draft, as before. %>
+                 value="<%= (old && old.email) || (draft && draft.guest_email) || (customer && customer.email) || '' %>">
           <% if (errors.email) { %>
             <span class="checkout-field-error"><%= errors.email %></span>
           <% } else { %>
