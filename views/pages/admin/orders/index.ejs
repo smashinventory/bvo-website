@@ -40,6 +40,65 @@
   </div>
 </div>
 
+<%#  ── INVENTORY RISK ─────────────────────────────────────────────────
+     Which SKUs on open orders need the vendor call from SOP §2, worst
+     first. Severity, labels and the threshold all come from
+     config/inventoryRisk.js — nothing here decides what counts as a risk,
+     so the page cannot disagree with the rule or invent a fourth state.
+
+     ⚠️ SCOPE IS EVERY OPEN ORDER, NOT THIS PAGE OF THE LIST. The strip
+     answers "what do I work first", which is a question about the whole
+     queue; page 3 must not report a different picture from page 1.
+
+     ⚠️ THE AS-OF TIME IS NOT DECORATION. Every number here is a nightly
+     snapshot of stock held at the VENDOR, allocated first-come-first-
+     served across resellers we cannot see. It was stale when it was
+     written. Showing the age is what keeps this an aid to the call rather
+     than a substitute for it.  %>
+<% if (typeof inventoryRisk !== 'undefined' && (inventoryRisk.skus.length || inventoryRisk.stale)) { %>
+  <div class="inv-risk">
+    <div class="inv-risk-head">
+      <strong>Stock watch</strong>
+      <span class="inv-risk-asof">
+        <% if (inventoryRisk.stale) { %>
+          <%# A feed that has not run is louder than any single SKU: every
+              figure below is yesterday's or older, and nothing else on
+              this page would say so. %>
+          <span class="inv-risk-stale">⚠ stock data is stale<%
+            %><% if (inventoryRisk.lastSyncedAt) { %> — last sync <%= new Date(inventoryRisk.lastSyncedAt).toLocaleString() %><% } else { %> — never synced<% } %></span>
+        <% } else { %>
+          stock as of <%= new Date(inventoryRisk.lastSyncedAt).toLocaleString() %>
+        <% } %>
+      </span>
+    </div>
+
+    <% if (!inventoryRisk.skus.length) { %>
+      <p class="inv-risk-none">No SKUs below the threshold on open orders.</p>
+    <% } else { %>
+      <table class="inv-risk-table">
+        <thead>
+          <tr><th>SKU</th><th>Product</th><th>On hand</th><th>Ordered</th><th>Orders</th><th></th></tr>
+        </thead>
+        <tbody>
+        <% inventoryRisk.skus.forEach(function (r) { var L = INV.LABELS[r.severity]; %>
+          <tr class="inv-risk-row inv-risk-row--<%= L.tone %>">
+            <td class="inv-risk-sku"><%= r.sku %></td>
+            <td><%= r.name || '—' %></td>
+            <%# ⚠️ 'unknown' PRINTS A DASH, NEVER 0. There is no inventory
+                row for this SKU; absence of data is not evidence of stock,
+                and a 0 here would read as a fact we do not have. %>
+            <td><%= r.severity === 'unknown' ? '—' : r.qty_on_hand %></td>
+            <td><%= r.demand %></td>
+            <td><%= r.order_count %></td>
+            <td><span class="inv-pill inv-pill--<%= L.tone %>" title="<%= L.hint %>"><%= L.text %></span></td>
+          </tr>
+        <% }); %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+<% } %>
+
 <!-- Orders Table -->
 <div class="adm-table-wrap">
   <table class="adm-table">
@@ -91,7 +150,17 @@
                    data-auth="<%= o.payment_status === 'auth_only' ? '1' : '' %>"
                    data-total="<%= o.total || 0 %>">
           </td>
-          <td><span class="rag-dot rag-dot--<%= o.rag %>" title="<%= o.rag === 'red' ? 'Needs attention' : o.rag === 'yellow' ? 'Watch' : 'On track' %>"></span></td>
+          <td>
+            <span class="rag-dot rag-dot--<%= o.rag %>" title="<%= o.rag === 'red' ? 'Needs attention' : o.rag === 'yellow' ? 'Watch' : 'On track' %>"></span>
+            <%# ⚠️ A SEPARATE SIGNAL FROM RAG, deliberately not folded into it.
+                RAG is about the order's own progress — paid, sent, shipped.
+                This is about whether the GOODS will be there, which is a fact
+                about a SKU shared across other orders and other resellers. An
+                order can be perfectly green on process and still be the one
+                whose vanity is about to be sold out from under it. Merging
+                them would lose exactly that. %>
+            <% if (o.inventoryRisk) { %><span class="inv-flag" title="A SKU on this order is low or oversold — see Stock watch above">▲</span><% } %>
+          </td>
           <td><a href="/admin/orders/<%= o.id %>" style="font-weight:700;color:var(--color-navy)"><%= o.order_number %></a></td>
           <%# Email verification badge. CONFIRMED is green; UNCONFIRMED is
               NEUTRAL GREY, never red — every brand-new order is

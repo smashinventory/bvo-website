@@ -105,6 +105,21 @@ function predicates(a = 'o') {
                `AND ${p}payment_status NOT IN ${PLACEHOLDER_PAYMENT}`;
 
   return {
+    /* ⚠️ NOT FOR ANALYTICS. A real order, captured or not — the BASE above
+       with no capture test at all.
+
+       Added 2026-10-20 for the inventory-risk strip, which asks a question
+       neither of the other two answers: "what is actually committed to a
+       customer right now." An order authorised and awaiting the vendor call
+       is not revenue (it fails IS_COUNTED, correctly) but it absolutely
+       competes for vendor stock. IS_AUTHORIZED is the wrong side of the
+       same coin — it would drop orders already captured and not yet shipped.
+
+       It is exported so that consumer does not hand-roll a fourth variant
+       of "not a test, not cancelled, not an abandoned checkout". Any figure
+       involving MONEY must still use IS_COUNTED. */
+    IS_REAL: BASE,
+
     /* ⚠️ THE ONLY PREDICATE ANALYTICS SHOULD USE. Units and dollars both
        wait for capture — one rule, so a count and a sum can never disagree
        about which orders are real. */

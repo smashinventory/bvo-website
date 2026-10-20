@@ -19,6 +19,104 @@
 
 ---
 
+## Orders dashboard: stock watch
+**Date:** 2026-10-20
+**New:** `src/config/inventoryRisk.js`, `gates/gate_inventory_risk.js` (44 checks), `mutate_inventory_risk.sh` (20/20)
+**Changed:** `src/config/revenue.js` (+`IS_REAL`), `ordersController.list`, `views/pages/admin/orders/index.ejs`, `site4.css`
+**No migration. No schema change. Read-only.**
+
+### What it does
+
+Finds the SKUs on open orders that need the vendor call from SOP §2 — *"if
+vendor stock is 2 or below, call the vendor for verbal confirmation"* — so the
+call staff already make on every order is aimed rather than uniform.
+
+A **Stock watch** strip above the orders table, worst first, and a small `▲`
+beside the RAG dot on affected rows. Severity ladder:
+
+| | Condition | Why it matters |
+|---|---|---|
+| **Oversold** | demand > stock, not backorderable | Two customers, one unit. Already a problem, and invisible before this. |
+| **Low stock** | stock ≤ 2 | The SOP §2 threshold |
+| **Backorder** | ≤ 2 but vendor supplies | Informational — not an emergency |
+| **No data** | no inventory row | Not the same as zero |
+
+See **Rule 20** in `BVO_AUDIT_BRIEF.md` for the snapshot/NULL/`qty_reserved`
+reasoning, which is the substance of this change.
+
+### It does not block
+
+Consistent with where #8 landed: SOP §2 makes the staff call the control, and
+`qty_on_hand` is a nightly vendor snapshot allocated first-come-first-served
+across resellers we cannot see. The gate asserts the cart never consults stock.
+
+### `revenue.js` gained `IS_REAL`
+
+Demand is "committed to a customer right now" — which neither existing
+predicate answers. `IS_COUNTED` drops authorised-not-yet-captured orders
+(correctly, they are not revenue); `IS_AUTHORIZED` drops captured-not-yet-
+shipped ones. `IS_REAL` is the shared base, exported so this consumer does not
+hand-roll a fourth variant of "not a test, not cancelled, not an abandoned
+checkout". Verified to be the exact prefix of both; money still uses
+`IS_COUNTED`.
+
+### Verified against live data
+
+One open order, SKU `050-bs60-tjr`, 42 on hand against demand of 3 → `ok`, and
+the strip correctly renders nothing. Name resolved through the join,
+`order_ids` clean, sync 11h old so not stale. The threshold branch was then
+proven on that same real row by swapping 2→100 in a read-only copy, which
+returned `CRITICAL`. Oversold/unknown/backorder remain covered by unit and
+render tests only — there is no live data in those states yet.
+
+**0 orphaned order lines** today, so the `COALESCE(product_id, sku)` join is
+belt-and-braces rather than load-bearing.
+
+### Three bugs found while building it, all by running things
+
+1. **`Number(null)` is `0`** — a NULL stock classified as **oversold** instead
+   of unknown, in the function whose own comment warns about exactly that.
+2. **Backticks inside a SQL comment** (`` `NULL <= 2` ``) terminated the
+   template literal. Same shape as the question mark that killed the boot.
+3. **Two over-broad gate checks** — one counted `FROM order_items` file-wide (4
+   matches, not 1), one windowed 1500 characters past the risk block into an
+   unrelated `res.status(404)`.
+
+And one mutation was **removed as behaviourally inert**: moving the null guard
+below `Number()` still returns `unknown`, so the gate was right not to fail.
+Leaving it would have been a permanent false accusation against a sound check.
+
+### MariaDB
+
+A diagnostic query failed live with `#1247 — Reference 'severity' not supported
+(reference to group function)`. The shipping query is unaffected (no `ORDER BY`,
+no `HAVING` on an alias — filtering and sorting are both in JS), but it is now
+**Rule 21**.
+
+---
+
+## Two red gates cleared, and they were red for different reasons
+**Date:** 2026-10-20
+**Changed:** `gates/gate_email_verification.js`, `gates/gate_consent_checkboxes.js`, `views/pages/checkout-info.ejs`
+
+**`gate_email_verification`** — stale address. The confirmation email moved to
+`orderEmails.js` in `1091b22`; all four assertions hold there verbatim and none
+in `checkoutController`. Repointed, plus a new check pinning the location so a
+future move fails loudly.
+
+**`gate_consent_checkboxes`** — three separate problems:
+
+1. Fixture omitted `deliveryLocation`, so `DL.normalise()` threw and killed the
+   render before a single consent assertion ran. Now passes the **real module**,
+   which is what `checkoutController:669` passes (Rule 18).
+2. `checkout-info.ejs:225` read `old.email` unguarded while guarding `draft` and
+   `customer` on the same line. One-line fix; not reachable today because
+   `takeCheckoutFlash` always returns `{}`, but the inconsistency was the defect.
+3. Three assertions encoded the **reversed** identity-gate design — see
+   **Rule 19**. Inverted to the current contract.
+
+---
+
 ## isStateful was false for every request — express-session has no isNew
 **Date:** 2026-10-20
 **Files:** `src/services/siteEvents.js`, `gates/gate_session_identity.js`, `mutate_session_identity.sh`

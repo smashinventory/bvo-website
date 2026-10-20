@@ -402,6 +402,103 @@ is load-bearing now covers it.
 
 ---
 
+### Rule 19 — A Gate That Encodes A Reversed Decision Is Not Stale, It Is Wrong
+
+Added 2026-10-20.
+
+Two red gates were cleared the same hour and they failed for different reasons,
+which is the whole point:
+
+- **`gate_email_verification`** pointed at `checkoutController.js` for the
+  confirmation email, which `1091b22` moved to `orderEmails.js`. All four
+  assertions held verbatim in the new file. **Stale address, correct belief.**
+  Repoint it.
+- **`gate_consent_checkboxes`** asserted checkout page 1 must have no editable
+  email field — true under the `e613af5` identity gate, which was then
+  **deliberately removed**. `routes/checkout.js:27-41` records why: a sign-in
+  code accepted at 11:59 and delivered at 12:10, Gmail deferring mail to
+  first-time buyers, *"a checkout that cannot start until a third-party mail
+  hop completes is a checkout hostage to Gmail."* **Correct address, obsolete
+  belief.** The gate was reporting deliberate behaviour as a defect — and worse,
+  would have blocked anyone restoring the field.
+
+**When a decision is reversed, the gates that encoded it are part of the
+reversal.** Leaving them red is not a backlog item; it is a trap that argues
+for the old design every time someone runs the suite. Invert the assertion to
+the new contract, keep whatever survived the reversal (here: exactly one email
+input, visible, required, no forgeable second copy), and say in the comment
+which decision changed and where it is recorded.
+
+**Diagnosis first.** "Gate is red" is not a diagnosis. Find out whether the
+code moved, the belief changed, or the code broke — the three have different
+remedies, and only the third is a bug.
+
+---
+
+### Rule 20 — Vendor Stock Is A Snapshot, And The Page Must Say So
+
+Added 2026-10-20 with the orders-dashboard stock watch.
+
+`inventory.qty_on_hand` is a **nightly snapshot of stock held at the vendor**,
+allocated first-come-first-served across resellers whose orders we cannot see.
+It was stale when it was written. Three consequences, all load-bearing:
+
+**1. It must never block.** SOP §2 makes the staff availability call the
+control. Refusing a sale on a stale number turns away orders the vendor could
+have filled. Anything reading this figure warns, prioritises or flags — it does
+not refuse. `gate_inventory_risk` asserts the cart never consults stock.
+
+**2. NULL is a third state and must never render as zero.** Samples and parts
+have no inventory row, so a LEFT JOIN yields NULL — and `NULL <= 2` is NOT TRUE
+in SQL, so those SKUs fall *out* of a threshold test rather than into it. The
+page would then assert "nothing wrong" about a SKU it knows nothing about.
+⚠️ This was wrong in the first version of `classify()`: `Number(null)` is `0`,
+a perfectly finite number, so a missing row arrived as "zero stock" and
+classified as **oversold**. Nothing about the code read as wrong. The unit test
+caught it in seconds. Carry `stock_unknown` explicitly; print an em dash.
+
+**3. The age goes on the face of it.** A figure with no timestamp invites
+confidence a nightly snapshot cannot support. If the newest `last_synced_at` is
+older than the nightly cycle, the feed itself is the finding — louder than any
+single SKU, and nothing else on the page would say so.
+
+**`inventory.qty_reserved` is a trap.** It exists, is commented *"held in open
+orders"*, and is read by `adminController:532` — and **nothing has ever written
+it.** It is always 0. It is exactly the column a reader reaches for, and using
+it makes every figure zero while looking entirely reasonable. Demand is computed
+from `order_items` at read time. Making it real means decrementing on order,
+releasing on cancel, reconciling against the feed and handling the race — a
+genuine reservation system, which a read-only warning does not need.
+
+**Orphaned order lines.** `order_items.product_id` is `ON DELETE SET NULL`, so a
+deleted product leaves lines with a SKU and no `product_id` — and those orders
+still need fulfilling. `products.sku` is UNIQUE, so join through
+`COALESCE(oi.product_id, p.id)`. Measured 0 such lines on 2026-10-20, so this is
+belt-and-braces today rather than load-bearing — but products do get deleted.
+
+---
+
+### Rule 21 — It Is MariaDB, Not MySQL
+
+Added 2026-10-20, stated by the owner after a query failed live that was fine
+locally.
+
+Hostinger runs **MariaDB**. Most things are identical; the differences bite in
+exactly the places analytics queries live.
+
+Known so far:
+
+- **`ORDER BY` cannot reference a SELECT alias whose expression contains a group
+  function.** `#1247 - Reference 'severity' not supported (reference to group
+  function)`. Wrap the aggregate in a derived table and order outside it, or
+  repeat the expression.
+
+Gates cannot catch this — Rule 14 already says a gate cannot validate SQL, and
+nothing local runs MariaDB. The protection is to run any new aggregate against
+the live database once, read-only, before shipping it.
+
+---
+
 ### Rule 17a — A Mutation Whose Anchor Has Drifted Indicts The Gate For A Fault In The Test
 
 Added 2026-10-19, learned the hard way during the change above.

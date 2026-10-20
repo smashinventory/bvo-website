@@ -36,6 +36,14 @@ const stripePay      = require('../services/stripeService');
 const _rev       = require('../config/revenue').predicates('');
 const COUNTED    = _rev.IS_COUNTED;
 const AUTHORIZED = _rev.IS_AUTHORIZED;
+
+/* ⚠️ ALIASED TO `o`, SEPARATELY FROM THE THREE ABOVE. Those are built with
+   predicates('') for queries that say `FROM orders` bare; the inventory-risk
+   query joins order_items and must alias. Same module, same rule, correct
+   prefix — rather than string-patching an unaliased predicate, which is how
+   a WHERE clause silently starts referring to the wrong table. */
+const REV_BASE   = require('../config/revenue').predicates('o').IS_REAL;
+const INV        = require('../config/inventoryRisk');
 const path        = require('path');
 const fs          = require('fs');
 const multer      = require('multer');
@@ -237,6 +245,88 @@ exports.list = async (req, res, next) => {
     const ragCounts = { red: 0, yellow: 0, green: 0 };
     orders.forEach(o => ragCounts[o.rag]++);
 
+    /* ── INVENTORY RISK ───────────────────────────────────────────────
+       Which SKUs on open orders need the vendor call from SOP §2, and
+       which orders they land on. The rule lives in config/inventoryRisk.js;
+       this only fetches what the rule needs.
+
+       ⚠️ ONE AGGREGATE, NOT PER ROW. The list is paginated and a per-order
+       lookup would be N+1 against order_items on every page view.
+
+       ⚠️ SCOPE IS ALL OPEN ORDERS, NOT THIS PAGE. The strip exists to say
+       "these are the SKUs to work first", which is a question about the
+       whole queue. Page 3 of the list must not report a different risk
+       picture from page 1. Row badges are then matched by order id. */
+    let inventoryRisk = { skus: [], orderIds: new Set(), counts: {}, lastSyncedAt: null, stale: true };
+    try {
+      const [riskRows] = await bvoPool.query(
+        `SELECT
+           oi.sku,
+           MIN(COALESCE(p.name, oi.name))                AS name,
+           SUM(oi.qty)                                   AS demand,
+           COUNT(DISTINCT oi.order_id)                   AS order_count,
+           GROUP_CONCAT(DISTINCT oi.order_id)            AS order_ids,
+           /* One SKU is one product, so these are constant per group.
+              MIN() satisfies ONLY_FULL_GROUP_BY without changing meaning. */
+           MIN(inv.qty_on_hand)                          AS qty_on_hand,
+           MIN(inv.allow_backorder)                      AS allow_backorder,
+           MAX(inv.last_synced_at)                       AS last_synced_at,
+           /* ⚠️ THE THIRD STATE, carried explicitly rather than inferred
+              from a NULL qty downstream. NULL <= 2 is NOT TRUE in SQL,
+              (and note: no backticks in this comment - it lives inside a
+              template literal, and a backtick here ENDS THE STRING. Same
+              shape as the question mark that killed the boot in
+              siteEvents.js, caught here by node --check instead.)
+              so a SKU with no inventory row would fall OUT of a threshold
+              test rather than into it - the page would say nothing is
+              wrong about a SKU it knows nothing about. */
+           MAX(CASE WHEN inv.product_id IS NULL THEN 1 ELSE 0 END) AS stock_unknown
+         FROM order_items oi
+         JOIN orders o ON o.id = oi.order_id
+         /* ⚠️ RECOVERS ORPHANED LINES. order_items.product_id is
+            ON DELETE SET NULL, so deleting a product leaves its order
+            lines with a sku and no product_id. Those orders still have to
+            be fulfilled. products.sku is UNIQUE, so this is a safe
+            second route to the same row - joining on product_id alone
+            would silently drop exactly the orders nobody is tracking. */
+         LEFT JOIN products  p   ON p.sku = oi.sku
+         LEFT JOIN inventory inv ON inv.product_id = COALESCE(oi.product_id, p.id)
+         WHERE ${REV_BASE}
+           AND o.status IN (${INV.OPEN_DEMAND_STATUSES.map(() => '?').join(',')})
+         GROUP BY oi.sku`,
+        INV.OPEN_DEMAND_STATUSES
+      );
+
+      const skus = riskRows
+        .map(r => ({ ...r, severity: INV.classify(r) }))
+        .filter(r => INV.isActionable(r.severity))
+        .sort((a, b) => INV.ACTIONABLE.indexOf(a.severity) - INV.ACTIONABLE.indexOf(b.severity)
+                     || Number(b.demand) - Number(a.demand));
+
+      const orderIds = new Set();
+      skus.forEach(r => String(r.order_ids || '').split(',')
+        .forEach(id => { if (id) orderIds.add(Number(id)); }));
+
+      const counts = {};
+      skus.forEach(r => { counts[r.severity] = (counts[r.severity] || 0) + 1; });
+
+      /* Newest sync across every row, including the healthy ones - the
+         question "is the feed running" is not about the at-risk subset. */
+      const newest = riskRows.reduce((acc, r) =>
+        (r.last_synced_at && (!acc || new Date(r.last_synced_at) > new Date(acc))) ? r.last_synced_at : acc, null);
+
+      inventoryRisk = { skus, orderIds, counts, lastSyncedAt: newest, stale: INV.isStale(newest) };
+    } catch (err) {
+      /* ⚠️ FAILS SOFT, like siteEvents. This is a prioritisation aid bolted
+         onto the page staff use to work orders. A bad join here must not
+         take the orders list down with it; the absence of the strip is a
+         far smaller harm than an unusable dashboard. Logged so it is not
+         silent. */
+      console.error('[orders/list] inventory risk query failed (ignored):', err && err.message);
+    }
+
+    orders.forEach(o => { o.inventoryRisk = inventoryRisk.orderIds.has(Number(o.id)); });
+
     res.render('pages/admin/orders/index', {
       /* The delete-reason dropdown is rendered from the shared config rather
          than hand-typed into the template, so the options, the server-side
@@ -256,6 +346,11 @@ exports.list = async (req, res, next) => {
       status,
       search,
       ragCounts,
+      /* The at-risk SKUs, the order ids they touch, and how old the
+         snapshot is. INV goes with it so the view renders labels from the
+         rule rather than hard-coding a fourth severity. */
+      inventoryRisk,
+      INV,
     });
   } catch (err) { next(err); }
 };

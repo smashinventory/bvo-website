@@ -332,3 +332,29 @@
 .ce-warn.is-open{display:block}
 #ce-merge-wrap{display:none}
 #ce-merge-wrap.is-open{display:flex}
+
+/* ── Inventory risk (orders dashboard) ─────────────────────────────────
+   Stock watch strip + per-row flag. Tones mirror the severities declared
+   in src/config/inventoryRisk.js — red/amber/blue/grey — so a new severity
+   there needs a tone here and nowhere else. */
+.inv-risk            { border:1px solid var(--line,#E6E1D8); border-radius:8px; padding:.75rem .9rem; margin:0 0 1.25rem; background:#FCFBF9; }
+.inv-risk-head       { display:flex; align-items:baseline; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin-bottom:.5rem; }
+.inv-risk-head strong{ font-size:.9rem; color:var(--navy,#1a2744); }
+.inv-risk-asof       { font-size:.75rem; color:var(--text-muted,#6b7280); }
+.inv-risk-stale      { color:#8a6d1f; font-weight:600; }
+.inv-risk-none       { margin:0; font-size:.8rem; color:var(--text-muted,#6b7280); }
+
+.inv-risk-table      { width:100%; border-collapse:collapse; font-size:.8rem; }
+.inv-risk-table th   { text-align:left; font-weight:600; color:var(--text-muted,#6b7280); padding:.3rem .5rem; border-bottom:1px solid var(--line,#E6E1D8); }
+.inv-risk-table td   { padding:.35rem .5rem; border-bottom:1px solid #F1EEE8; }
+.inv-risk-sku        { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.75rem; }
+
+.inv-pill            { display:inline-block; padding:.1rem .45rem; border-radius:999px; font-size:.7rem; font-weight:600; white-space:nowrap; }
+.inv-pill--red       { background:#fff5f5; border:1px solid #fed7d7; color:#742a2a; }
+.inv-pill--amber     { background:#fffaf0; border:1px solid #feebc8; color:#7b341e; }
+.inv-pill--blue      { background:#ebf8ff; border:1px solid #bee3f8; color:#2a4365; }
+.inv-pill--grey      { background:#f7f7f6; border:1px solid #e3e0da; color:#5a5a5a; }
+
+/* The row flag. Deliberately small and unmissable rather than large and
+   ignorable — it sits beside the RAG dot and answers a different question. */
+.inv-flag            { margin-left:.3rem; color:#b7791f; font-size:.75rem; cursor:help; }
