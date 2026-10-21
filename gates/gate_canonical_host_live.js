@@ -61,6 +61,44 @@ const die = (msg) => {
 };
 const hostOf = (u) => { try { return new URL(u).host.toLowerCase(); } catch { return null; } };
 
+/* ── WHICH JSON-LD PROPERTIES ARE ALLOWED TO BE FOREIGN ──────────────────
+   ⚠️ `sameAs` IS EXTERNAL BY DESIGN AND MUST NEVER BE HOST-CHECKED. It is
+   the schema.org property for "this entity's identity on other platforms"
+   — our Facebook, X, Pinterest, Yelp and LinkedIn profiles
+   (structuredData.js:102, read from theme settings). A sameAs that named
+   www.bathroomvanitiesoutlet.com would be meaningless; the property exists
+   precisely to point somewhere else.
+
+   This gate failed all three page types on exactly those three URLs. It did
+   not catch a regression: it went red because the owner FILLED IN the social
+   URLs in the Theme Editor, i.e. because the markup became more correct.
+   Same shape as Wave 2 breaking gate_sample_offer — see Rule 22. The rule
+   this check means to enforce is "every URL that refers to OUR OWN content
+   names the canonical host", and sameAs refers to someone else's by
+   definition.
+
+   Deliberately NOT exempted: url, @id, item, logo, image, contentUrl,
+   thumbnailUrl, mainEntityOfPage, target. Those all denote our resources
+   and a foreign host in any of them is the real defect this guards. */
+const EXTERNAL_BY_DESIGN = new Set(['sameAs']);
+
+/* Walk the parsed graph and collect only URLs that should be ours.
+   Parsing beats regexing the raw text: a regex cannot tell which PROPERTY a
+   URL sits under, which is the whole distinction that matters here. The
+   trade-off is that a bare URL inside a free-text description is no longer
+   collected — correct, since a link in prose is not a canonical-host claim. */
+function ownUrls(node, key, out) {
+  if (node == null) return;
+  if (typeof node === 'string') {
+    if (!EXTERNAL_BY_DESIGN.has(key) && /^https?:\/\//i.test(node)) out.push(node);
+    return;
+  }
+  if (Array.isArray(node)) { for (const v of node) ownUrls(v, key, out); return; }
+  if (typeof node === 'object') {
+    for (const [k, v] of Object.entries(node)) ownUrls(v, k, out);
+  }
+}
+
 async function get(url, opts = {}) {
   try { return await fetch(url, { redirect: 'manual', ...opts }); }
   catch (e) { die(`site unreachable (${e.message}) — ${url}`); }
@@ -68,6 +106,12 @@ async function get(url, opts = {}) {
 const body = async (r) => { try { return await r.text(); } catch { return ''; } };
 
 (async () => {
+  /* Required as a module by the offline self-test — export the logic, run
+     nothing. Without this, require() would start the live fetches and then
+     process.exit out of the test harness. `node gates/...` is unaffected:
+     there, require.main IS this module. */
+  if (require.main !== module) return;
+
   console.log(`canonical host expected everywhere: ${CANONICAL}`);
   console.log(`requests sent to:                   ${BASE}\n`);
 
@@ -91,15 +135,34 @@ const body = async (r) => { try { return await r.text(); } catch { return ''; } 
        hosts (the first version of this check) was both untestable and blind
        to a URL on a third host entirely — the fixture self-test caught it. */
     const bad = [];
+    const unparsable = [];
+    let blocks = 0;
     for (const m of html.matchAll(/<script[^>]+application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi)) {
-      for (const u of (m[1].match(/https?:\/\/[^"'\s\\]+/g) || [])) {
+      blocks++;
+      let graph;
+      try {
+        graph = JSON.parse(m[1]);
+      } catch (e) {
+        /* ⚠️ A BLOCK THAT WILL NOT PARSE IS NOT A PASS. Google treats
+           malformed JSON-LD as an error on the entity, so falling back to a
+           regex here would report "clean" on markup no crawler can read.
+           It is asserted separately below instead. */
+        unparsable.push(e.message);
+        continue;
+      }
+      const urls = [];
+      ownUrls(graph, null, urls);
+      for (const u of urls) {
         const h = hostOf(u);
         if (!h || h === CANONICAL) continue;
         if (/(^|\.)(schema\.org|bunny\.net|b-cdn\.net|cloudinary\.com)$/.test(h)) continue;
         bad.push(u);
       }
     }
-    ok(`${p.name}: JSON-LD uses only ${CANONICAL}`,
+    ok(`${p.name}: every JSON-LD block parses`,
+       unparsable.length === 0,
+       `${unparsable.length}/${blocks} unparsable: ${unparsable.slice(0, 2).join('; ')}`);
+    ok(`${p.name}: JSON-LD self-references use only ${CANONICAL}`,
        bad.length === 0, [...new Set(bad)].slice(0, 3).join(', '));
   }
 
@@ -156,3 +219,13 @@ function done() {
   console.log(fail ? `\n*** ${fail} GATE(S) FAILED ***` : '\nall live canonical-host gates pass');
   process.exit(fail ? 1 : 0);
 }
+
+/* ── EXPORTED FOR THE OFFLINE SELF-TEST ──────────────────────────────────
+   This gate needs the network, so its JSON-LD classification logic cannot
+   be negative-tested by the normal mutation route — there is nothing to
+   mutate locally that would change a live page. Exporting the two pieces
+   that make the sameAs decision lets mutate_canonical_jsonld.js prove,
+   offline, that a foreign `url`/`@id`/`logo` is still CAUGHT and a foreign
+   `sameAs` is ALLOWED. The IIFE above still runs on `node gates/...`
+   exactly as before; this only adds a handle for the test. */
+module.exports = { ownUrls, EXTERNAL_BY_DESIGN, hostOf };

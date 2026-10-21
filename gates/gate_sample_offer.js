@@ -545,16 +545,70 @@ function checkWiring() {
   ok('an invalid alignment falls back to center',
      varsOf('../../etc').indexOf('--sb-items:center;') > -1, varsOf('../../etc'));
 
-  /* If any of these grows an inline style again, mobile silently stops
-     centring - and nothing else would catch it. */
+  /* If any of these grows an inline ALIGNMENT again, mobile silently stops
+     centring - and nothing else would catch it.
+
+     ⚠️⚠️ THE TEST IS FOR AN ALIGNMENT DECLARATION, NOT FOR style= AT ALL,
+     and it used to be the latter. It read
+
+         class="[^"]*section-sub[^"]*" style=
+
+     and went red the moment Wave 2 (#335) added the title/body size and
+     colour controls, which emit style="<%- _textStyle(...) %>" on
+     .section-title and .section-sub. In Auto - the default, and every
+     live section today - _textStyle returns '' and the attribute renders
+     EMPTY: style="". An empty attribute overrides nothing at all, so the
+     gate was failing on markup that cannot have the defect it describes.
+     A gate that cries wolf about its own product's intended markup gets
+     switched off, which is worse than not having it.
+
+     What actually defeats the centring is a DECLARATION of text-align,
+     align-items, justify-content or a left/right margin. font-size and
+     colour touch neither the flex axis nor the text axis and cannot stop
+     anything centring.
+
+     Writing it against those properties also closes a hole the presence
+     test had, unrelated to Wave 2. The old pattern ended `[^"]*" style=`
+     - it required style to be the VERY NEXT attribute after class. An
+     element written `class="section-sub" id="x" style="text-align:left"`
+     was invisible to it, and that is the real defect, silently passing.
+     The extractor below walks the whole tag instead. */
+  const ALIGN_PROP = /(?:^|;)\s*(?:text-align|align-items|justify-content|margin-left|margin-right|margin)\s*:/;
+  const stylesOf = (html, cls) => {
+    const re = new RegExp('class="[^"]*' + cls + '[^"]*"[^>]*?style="([^"]*)"', 'g');
+    const out = []; let m;
+    while ((m = re.exec(html))) out.push(m[1]);
+    return out;
+  };
   ['iwt-text-col', 'section-sub', 'section-header'].forEach(c => {
     const withImgAligned = renderBanner(Object.assign({}, SB_FIXTURE,
       { text_align: 'left', image: 'https://images.bathroomvanitiesoutlet.com/x.webp' }));
-    const both = full + withImgAligned;
-    ok(`.${c} carries NO inline style`,
-       !new RegExp('class="[^"]*' + c + '[^"]*" style=').test(both),
-       'an inline style here cannot be overridden by the mobile media query');
+    const styles = stylesOf(full + withImgAligned, c);
+    ok(`.${c} carries NO inline alignment`,
+       !styles.some(s => ALIGN_PROP.test(s)),
+       'an inline alignment here cannot be overridden by the mobile media ' +
+       'query; found ' + JSON.stringify(styles));
   });
+
+  /* ⚠️ WHAT MAKES THE RELAXATION ABOVE SAFE IS TESTED ELSEWHERE, ON PURPOSE.
+     _textStyle's contract - Auto returns '', only text_manual === true
+     emits, 0 is the no-override sentinel, and both values are sanitised -
+     is asserted by gate_section_text.js (checks at lines 102-124), which
+     owns that function for all six Wave 2 sections. Restating it here
+     would be a second copy of one rule, which is the drift this project
+     keeps paying for. This gate owns the BANNER's alignment contract and
+     stops at font-size.
+
+     The one fact worth recording where a reader of this gate will see it:
+     site-bundle.css contains exactly ONE responsive type rule,
+
+         @media (max-width:480px){.section-title{font-size:clamp(1.45rem, 5.5vw, 2rem)}}
+
+     and .section-sub has NO responsive rule at all. So an inline body_size
+     defeats nothing, while a manual heading_size does win over that clamp
+     at 480px and below. That is a consequence of manual mode rather than a
+     defect in it - see BVO_AUDIT_BRIEF Rule 22 - and it is latent while
+     text_manual defaults to Auto. */
 
   /* The rendered markup is only half the contract - the stylesheet is the
      other half, and the bundle is what browsers actually load. */

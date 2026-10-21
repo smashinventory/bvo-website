@@ -53,7 +53,9 @@ line — add one to the top of that file, under its H1, then reindex.
 | `docs/briefs/BVO_BRAND_ONBOARDING_PLAYBOOK.md` | Step-by-step playbook for adding a new brand to the catalogue. |
 | `docs/briefs/BVO_CHECKOUT_SPEC.md` | ⚠ NO DESCRIPTION — titled "BVO Checkout — Multi-Page Specification" |
 | `docs/briefs/BVO_COMMERCE_STACK_BRIEF.md` | The canonical record of how BVO takes money, what happens to an order between |
+| `docs/briefs/BVO_GMC_ADS_STRATEGY.md` | Merchant Center feed requirements and a Google Ads plan for a national launch. Research and proposal only — nothing here is implemented or approved. |
 | `docs/briefs/BVO_ISSUE1_BRIEF.md` | Rollout log for colorFamilies.js — the colour family buckets and normalisation. |
+| `docs/briefs/BVO_MOBILE_PERFORMANCE.md` | ⚠ NO DESCRIPTION — titled "Mobile homepage performance — what was actually done" |
 | `docs/briefs/BVO_PAYMENT_RISK_AND_CHECKOUT_SCOPE.md` | ⚠ NO DESCRIPTION — titled "BVO — Payment Risk & Checkout Scope" |
 | `docs/briefs/BVO_RFLPOS_SYNC_BRIEF.md` | Design brief for the BVO to RFLpos inventory sync. |
 | `docs/briefs/BVO_TYPOGRAPHY_DECISION.md` | ⚠ NO DESCRIPTION — titled "BVO Typography — the decision, and why it keeps coming undone" |

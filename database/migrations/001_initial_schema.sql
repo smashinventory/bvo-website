@@ -128,8 +128,16 @@ CREATE TABLE IF NOT EXISTS customers (
   created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   last_login_at   DATETIME               DEFAULT NULL,
-  PRIMARY KEY (id),
-  KEY idx_email (email)
+  PRIMARY KEY (id)
+  -- ⚠️ `KEY idx_email (email)` WAS HERE AND WAS REMOVED 2026-10-20 (#8b).
+  --    The `email` column above is declared UNIQUE, and UNIQUE creates an
+  --    index. So this table carried TWO indexes on the same single column
+  --    from day one, both maintained on every write, with the second able
+  --    to serve no lookup the first could not.
+  --    Live DBs are cleaned by migrations/2026-10-20_drop_redundant_idx_email_RUNME.sql;
+  --    this line is gone so a FRESH install does not recreate it.
+  --    Do NOT re-add it. If an email index is ever genuinely needed beyond
+  --    the unique one, it would have to differ in column order or prefix.
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Customer addresses ───────────────────────────────────────────

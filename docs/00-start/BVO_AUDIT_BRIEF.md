@@ -499,6 +499,92 @@ the live database once, read-only, before shipping it.
 
 ---
 
+### Rule 22 — An Inline Style Is Only A Bug Where A Media Query Wants The Same Property
+
+Added 2026-10-20, from `gate_sample_offer` (#7-3).
+
+The sample-banner alignment is carried as `--sb-*` custom properties rather than
+inline declarations, for a good reason: **inline beats every stylesheet rule
+regardless of specificity**, so an inline `text-align` cannot be overridden by
+the mobile media query, and the banner has to centre below 769px. The gate that
+protects this asserted `.section-sub carries NO inline style`.
+
+Wave 2 (#335) then added the per-section title/body size and colour controls,
+which emit `style="<%- _textStyle(...) %>"` on `.section-title` and
+`.section-sub`. The gate went red — on markup that **cannot have the defect it
+describes**, twice over:
+
+1. In Auto (the default, and every live section today) `_textStyle` returns
+   `''`, so the attribute renders as `style=""`. An empty attribute overrides
+   nothing.
+2. Even when non-empty it emits `font-size` and `color`, which touch neither
+   the flex axis nor the text axis and cannot stop anything centring.
+
+**The rule.** Assert against the **properties** a media query actually wants,
+not against the presence of a `style=` attribute. The question is never "is
+there an inline style" but "does an inline declaration exist for a property the
+stylesheet needs to change at another width". A presence test over-fires on
+legitimate markup, and a gate that cries wolf about its own product gets
+switched off — which costs more than the gate was ever worth.
+
+The rewrite is also stricter, which is the test of a good relaxation: the old
+pattern ended `[^"]*" style=`, requiring `style` to be the *very next* attribute
+after `class`. `class="section-sub" id="x" style="text-align:left"` was invisible
+to it. `mutate_sample_offer_gate.sh` M4 is that case.
+
+**The one real consequence, recorded because it is latent rather than fixed.**
+`site-bundle.css` contains exactly ONE responsive type rule:
+
+```css
+@media (max-width:480px){.section-title{font-size:clamp(1.45rem, 5.5vw, 2rem)}}
+```
+
+`.section-sub` has no responsive rule at all, so an inline `body_size` defeats
+nothing. `.section-title` does — so when `text_manual` is on, a hand-set
+`heading_size` wins over that clamp and the heading keeps its full desktop size
+at 480px and below, across all six Wave 2 sections. That is manual mode doing
+what manual mode means, not a defect, and it is latent while `text_manual`
+defaults to Auto (asserted by `gate_section_text`). If it ever needs fixing, the
+fix is the same shape as the alignment one: emit the size as a custom property
+and let the stylesheet decide where it is consumed.
+
+---
+
+### Rule 23 — Never Drop An Index On The Word Of A Comment, And Always Name The Table
+
+Added 2026-10-20, from the `customers.idx_email` removal (#8b).
+
+`001_initial_schema.sql` declared `email VARCHAR(255) NOT NULL UNIQUE` **and**
+`KEY idx_email (email)` — two indexes on the same single column since day one,
+both maintained on every write, the second able to serve no lookup the first
+could not. Worth cleaning; worth being careful about.
+
+Two things made it riskier than it looks:
+
+- **The index name is not unique in the database.** `customer_merges` has its
+  own `idx_email`, on `merged_email`, created by the 2026-10-19 outreach
+  migration. That one is *not* redundant. A drop that reached the wrong table
+  would remove a working index with no error and no obvious symptom. **Every
+  `DROP INDEX` must name its table, and the verification must prove the
+  same-named index on the other table survived.**
+- **Redundancy is a claim about the live schema, not about the schema file.** A
+  DB restored from an older dump, or drifted by a hand-edit, might not have the
+  UNIQUE index — in which case `idx_email` is the *only* index on the column and
+  dropping it turns every email lookup into a table scan. So the migration
+  **proves the premise at run time** against `information_schema` and aborts
+  without changing anything if the UNIQUE index is not there.
+
+Also: this project has **no migration runner** and no applied-migrations table.
+`001_initial_schema.sql` is a hand-applied reference schema, so a cleanup that
+only touches the live DB **comes back on the next fresh install**. Fix both —
+the migration for live, the schema file for new environments — and have each
+point at the other.
+
+And state the benefit honestly. `customers` has a cardinality of 11. This is
+schema hygiene, not performance; nobody should expect a page to get faster.
+
+---
+
 ### Rule 17a — A Mutation Whose Anchor Has Drifted Indicts The Gate For A Fault In The Test
 
 Added 2026-10-19, learned the hard way during the change above.
