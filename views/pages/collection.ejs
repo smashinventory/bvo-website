@@ -168,7 +168,7 @@
         — the offer silently vanishes. So the configured cta_url is split:
         the path becomes the action, and every existing param is re-emitted
         as a hidden input so it survives the submit. */
-     const _ctaRaw   = _dbm.cta_url || '/account/register?offer=platinum';
+     const _ctaRaw   = _dbm.cta_url || '/account/login?offer=platinum';
      const _ctaSplit = String(_ctaRaw).split('?');
      const _ctaPath  = _ctaSplit[0];
      const _ctaParams = (_ctaSplit[1] || '').split('&').filter(Boolean)
@@ -338,7 +338,7 @@
       <p class="deals-offer-head"><%= _dbt.heading || 'Free freight on every order. Plus 15% off.' %></p>
       <% if (_dbt.subtitle) { %><p class="deals-offer-sub"><%= _dbt.subtitle %></p><% } %>
       <div class="deals-trade-actions">
-        <a class="btn btn-amber deals-offer-cta" href="<%= _dbt.cta_url || '/account/register?offer=trade' %>"><%= _dbt.cta_text || 'Apply for trade' %></a>
+        <a class="btn btn-amber deals-offer-cta" href="<%= _dbt.cta_url || '/trade/apply' %>"><%= _dbt.cta_text || 'Apply for trade' %></a>
         <% if (_dbt.signin_text) { %>
         <a class="deals-trade-signin" href="<%= _dbt.signin_url || '/account/login' %>"><%= _dbt.signin_text %></a>
         <% } %>

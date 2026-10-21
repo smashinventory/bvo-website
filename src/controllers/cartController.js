@@ -6,6 +6,7 @@ const { bvoPool } = require('../config/database');
    stripeService.buildLineItems — three copies, and the Stripe one is
    what charges the card. See the header of cartPricing.js. */
 const pricing = require('../utils/cartPricing');
+const tierService = require('../services/tierService');
 const SAMPLE  = require('../config/sampleOffer');
 const SampleRedemption = require('../models/SampleRedemption');
 /* First-party behaviour events. Recorded here rather than from the browser
@@ -99,10 +100,22 @@ exports.index = async (req, res, next) => {
       sampleState = 'none';
     }
 
-    const priced = pricing.priceCart(cart.items, { sampleEligible });
+    /* ⚠️ priceOptsFor, NOT a bare { sampleEligible }. It resolves the
+       customer's tier and returns the SAME opts object the checkout and
+       the Stripe line items use. Building opts by hand here is how the
+       cart page and the charge drift apart. */
+    const priceOpts = await tierService.priceOptsFor(req, sampleEligible);
+    const priced = pricing.priceCart(cart.items, priceOpts);
     /* Rendered figures come from the SAME call that priced the cart, not
        from cart.subtotal, which was computed without eligibility. */
     res.render('pages/cart', {
+      /* Named, not anonymous: "Platinum Trade - 15%" beats an unexplained
+         deduction, which generates a support email instead of a sale. */
+      tier: priceOpts._tier,
+      /* The absolute saving, summed from per-line cents by priceCart.
+         Passed separately so the view never recomputes it from a
+         percentage and lands a cent away from the charge. */
+      tierDiscount: priced.tierDiscount,
       pageTitle: `Cart (${cart.count}) | BathroomVanitiesOutlet.com`,
       metaDesc:  '',
       cart,

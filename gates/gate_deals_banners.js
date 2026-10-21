@@ -515,7 +515,7 @@ ok('/account is mounted', mounts.includes('/account'));
 const settingsCode = settingsSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 const urlsFromSettings = [...settingsCode.matchAll(/(?:cta_url|signin_url):\s*'([^']*)'/g)]
   .map(m => m[1])
-  .filter(u => u && u.startsWith('/account'));
+  .filter(u => u && (u.startsWith('/account') || u.startsWith('/trade')));
 /* Rendered WITH a consent label, because that is what ships: the default
    in themeSettings carries one, and with an empty fixture the checkbox
    assertions below would pass vacuously on markup that never rendered. */
@@ -528,16 +528,33 @@ const urlsFromPage = [
   ...[...rendered.matchAll(/<form[^>]+action="(\/[^"]*)"/g)].map(m => m[1]),
 ].filter(u => u.startsWith('/account') || u.startsWith('/trade'));
 
+/* ⚠️ /trade/* IS A REAL ROUTE NOW, AND THIS GATE USED TO SAY IT COULD NOT BE.
+   When the banners shipped, the trade application did not exist and the
+   CTA pointed at a dead /trade/apply — so this section asserted that no
+   /trade/* URL survived. Phase 2 built the form. Leaving that assertion
+   would be Rule 19: "a gate that encodes a REVERSED decision is not
+   stale, it is wrong." It is now resolved against the real router the
+   same way account URLs are. */
+const tradeRoutes = (() => {
+  const f = path.join(ROOT, 'src/routes/trade.js');
+  if (!fs.existsSync(f)) return [];
+  return [...fs.readFileSync(f, 'utf8').matchAll(/router\.(?:get|post)\s*\(\s*'([^']+)'/g)]
+    .map(m => '/trade' + m[1]);
+})();
+
 const resolves = u => {
   const p0 = u.split('?')[0].replace(/\/$/, '') || '/';
-  return accountRoutes.includes(p0);
+  return accountRoutes.includes(p0) || tradeRoutes.includes(p0);
 };
 for (const u of [...new Set([...urlsFromSettings, ...urlsFromPage])]) {
   ok('resolves to a real route: ' + u, resolves(u),
      'NO ROUTE — this 404s. Real account pages: ' + accountRoutes.join(' '));
 }
-ok('no /trade/* URL survives (the trade form is Phase 2, it has no route)',
-   ![...urlsFromSettings, ...urlsFromPage].some(u => u.startsWith('/trade')));
+ok('the trade router is mounted and /trade/apply exists',
+   tradeRoutes.includes('/trade/apply'),
+   'the trade CTA points here — if the router goes, it 404s again');
+ok('/trade is mounted in server.js',
+   /app\.use\('\/trade',\s*require\('\.\/routes\/trade'\)\)/.test(serverSrc));
 ok('the dead /account/join is gone everywhere',
    !settingsCode.includes('/account/join') && !rendered.includes('/account/join'));
 ok('the dead /account/signin is gone everywhere',

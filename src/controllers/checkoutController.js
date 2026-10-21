@@ -90,6 +90,7 @@ const deliveryLocation = require('../utils/deliveryLocation');
 /* The ONE pricing module. calcTotal below used to hold its own copy of
    the formula; see the comment there for why that was dangerous. */
 const pricing = require('../utils/cartPricing');
+const tierService = require('../services/tierService');
 
 /* ── Helpers ────────────────────────────────────────────────────── */
 
@@ -181,7 +182,16 @@ async function buyerTotal(cartItems, order) {
   const elig  = (SAMPLE_OFFER.ENABLED && email)
     ? await SampleRedemption.isEligible(email, addr)
     : { eligible: false };
-  const opts = { sampleEligible: elig.eligible };
+  /* ⚠️ THE FROZEN RATE OFF THE ORDER, not a live resolve. buyerTotal's
+     three callers are the delivery page, the pay page and the Stripe line
+     items — all AFTER the order exists. They must reproduce the figure the
+     order was written with, or the delivery page shows one number and the
+     charge is another. tier_pct comes back from MariaDB as a string, and
+     cartPricing refuses strings, hence Number(). */
+  const opts = {
+    sampleEligible: elig.eligible,
+    tierPct: Number(order && order.tier_pct) || 0,
+  };
   return { subtotal: calcTotal(cartItems, opts), opts };
 }
 
@@ -649,7 +659,12 @@ exports.show = async (req, res) => {
       const el = (SAMPLE_OFFER.ENABLED && em)
         ? await SampleRedemption.isEligible(em, null)
         : { eligible: false };
-      return calcTotal(cart.items, { sampleEligible: el.eligible });
+      /* The LIVE tier here, deliberately: no order exists yet, so there
+         is no frozen rate to read. Page 1 showing retail and page 2
+         showing the discount is the same inconsistency the sample-offer
+         comment above warns about. */
+      const po = await tierService.priceOptsFor(req, el.eligible);
+      return calcTotal(cart.items, po);
     })()),
     draft,
     errors:    flash.errors,
@@ -778,7 +793,13 @@ exports.saveInfo = async (req, res) => {
   const sampleElig = SAMPLE_OFFER.ENABLED
     ? await SampleRedemption.isEligible(buyerEmail, shipAddr)
     : { eligible: false, reason: 'offer_disabled' };
-  const PRICE_OPTS = { sampleEligible: sampleElig.eligible };
+  /* ⚠️ THE TIER JOINS THE SAME OPTS OBJECT, NOT A SECOND PATH.
+     PRICE_OPTS feeds orders.subtotal, the order_items rows AND the Stripe
+     line items. Resolving the tier anywhere else would let the stored
+     total and the charge disagree — the exact failure cartPricing's
+     header exists to prevent. */
+  const PRICE_OPTS = await tierService.priceOptsFor(req, sampleElig.eligible);
+  const ORDER_TIER = PRICE_OPTS._tier || tierService.RETAIL;
 
   let orderCustomerId = req.session.customerId || null;
   if (!orderCustomerId) {
@@ -1019,10 +1040,11 @@ exports.saveInfo = async (req, res) => {
         `INSERT INTO orders
            (order_number, customer_id, status, payment_status,
             subtotal, tax, total, customer_ip,
+            tier_pct, tier_at_order,
             order_source, order_referrer,
             order_utm_campaign, order_utm_medium, order_utm_source,
             ${cols.join(', ')})
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,${cols.map(() => '?').join(',')})`,
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,${cols.map(() => '?').join(',')})`,
         [
           /* A throwaway placeholder, NOT a real order number. order_number
              is NOT NULL UNIQUE, so it cannot be left empty - and the real
@@ -1045,6 +1067,13 @@ exports.saveInfo = async (req, res) => {
           'draft',
           subtotal.toFixed(2), 0, subtotal.toFixed(2),
           customerIp,
+          /* ⚠️ FROZEN HERE, READ BACK AT PAYMENT. The tier is a live
+             calculation — a second order capturing, or a trade account
+             crossing $20,000 mid-session, changes it between placing and
+             paying. Re-resolving at payment would make expected !=
+             order.subtotal and REFUSE a legitimate charge. */
+          Number(ORDER_TIER.pct) || 0,
+          ORDER_TIER.tier || null,
           req.body.order_source   || null,
           req.body.order_referrer || null,
           req.body.utm_campaign   || null,
@@ -1515,6 +1544,14 @@ exports.createSession = async (req, res) => {
     `SELECT id, order_number, delivery_terms_ack_at,
             guest_email, ship_phone,
             subtotal,
+            /* ⚠️ tier_pct MUST BE SELECTED, and the comment above this
+               query is the reason. An unselected column is UNDEFINED on
+               the row object, not null — so Number(order.tier_pct) || 0
+               would silently be 0, the re-check would price at full rate,
+               expected would not match the discounted subtotal, and EVERY
+               discounted order would be refused at payment. The exact
+               failure shape that cost orders 14-17. */
+            tier_pct,
             ship_place_id, ship_address1, ship_address2,
             ship_city, ship_state, ship_zip
        FROM orders WHERE id = ? AND ${EDITABLE}`, [orderId]);
@@ -1567,7 +1604,23 @@ exports.createSession = async (req, res) => {
   const payElig = SAMPLE_OFFER.ENABLED
     ? await SampleRedemption.isEligible(order.guest_email, shipAddrFromOrder(order))
     : { eligible: false, reason: 'offer_disabled' };
-  const PAY_OPTS = { sampleEligible: payElig.eligible };
+  /* ⚠️ THE FROZEN RATE FROM THE ORDER ROW — NEVER A FRESH RESOLVE.
+     This is the re-check that refuses to charge a figure the buyer has
+     not seen, so it must reconstruct the price EXACTLY as it was when the
+     order was written. Calling tierService here instead would re-run a
+     live calculation:
+       · a second order captures in between -> Platinum Member drops to
+         retail -> expected != subtotal -> the charge is REFUSED
+       · a trade account crosses $20,000 mid-session -> 15% becomes 20%
+         -> same refusal
+     Both are legitimate orders. orders.tier_pct is what priced them. */
+  const PAY_OPTS = {
+    sampleEligible: payElig.eligible,
+    /* Number(), because the column comes back as a string from MariaDB and
+       cartPricing REFUSES strings by design. A DECIMAL read as '15.00'
+       would silently price at full rate without this. */
+    tierPct: Number(order.tier_pct) || 0,
+  };
 
   const expected = pricing.priceCart(cart.items, PAY_OPTS).subtotal;
   if (pricing.toCents(expected) !== pricing.toCents(order.subtotal)) {

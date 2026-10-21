@@ -243,14 +243,20 @@ echo "── the three defects that actually shipped (4984ce4) ─────�
 # Every one of these was live. 108 gate checks were green over all three,
 # because every check asserted what the markup SAYS and none followed a link,
 # clicked a control, or looked at a width.
+# Re-anchored: Phase 2 moved the member CTA to /account/login, which is
+# what records the pending claim — /account/register is a bare redirect
+# and the query string dies there.
 mutate 'M37 CTA back to the dead /account/join' "$SETTINGS" \
-  "cta_url:       '/account/register\?offer=platinum'," \
+  "cta_url:       '/account/login\?offer=platinum'," \
   "cta_url:       '/account/join?offer=platinum'," catch
 mutate 'M38 trade sign-in back to the dead /account/signin' "$SETTINGS" \
   "signin_url:  '/account/login'," "signin_url:  '/account/signin'," catch
-mutate 'M39 template fallback back to the dead /trade/apply' "$COLLECTION" \
-  "<%= _dbt\.cta_url \|\| '/account/register\?offer=trade' %>" \
-  "<%= _dbt.cta_url || '/trade/apply' %>" catch
+# /trade/apply is a REAL route now, so the dead-URL mutation has to use a
+# URL that is still dead. Rule 19: the old assertion encoded a decision
+# that Phase 2 reversed.
+mutate 'M39 trade fallback pointed at a route that does not exist' "$COLLECTION" \
+  "<%= _dbt\.cta_url \|\| '/trade/apply' %>" \
+  "<%= _dbt.cta_url || '/trade/signup' %>" catch
 mutate 'M40 checkbox back to a decorative span' "$COLLECTION" \
   '<input type="checkbox" name="optin" value="1" checked\n                 class="deals-consent-box">' \
   '<span class="deals-consent-box" aria-hidden="true"></span>' catch

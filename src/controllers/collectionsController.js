@@ -31,6 +31,7 @@ const Customer                                          = require('../models/Cus
 const { FAMILIES, normalize, getFamily, CABINET_KEYS, METAL_KEYS } = require('../config/colorFamilies');
 const { SIZE_BUCKETS }                                  = require('../config/sizeBuckets');
 const { buildSaleView }                                 = require('../utils/saleFacets');
+const tierService                                       = require('../services/tierService');
 /* Which product a model card leads with — shared with homeController so
    the carousel and this page cannot pick different heroes. */
 const { fetchModelHeroes, heroFields }                  = require('../utils/modelHero');
@@ -297,6 +298,13 @@ exports.show = async (req, res, next) => {
          it rather than re-implement it. See that file's header for why the
          Product model cannot serve this page (category.id is null here)
          and for the Rule 10 rule each facet obeys. */
+      /* The Elite Trade meter. Supplied ONLY for an approved trade
+         account — collection.ejs guards on `typeof tradeMeter`, so retail
+         visitors render nothing and the markup stays dormant exactly as
+         it has since the banners shipped. */
+      const _saleTier = await tierService.forRequest(req).catch(() => null);
+      const tradeMeter = (_saleTier && _saleTier.meter) ? _saleTier.meter : undefined;
+
       const saleView = buildSaleView(pool, req.query);
       const products = saleView.products;
 
@@ -323,6 +331,7 @@ exports.show = async (req, res, next) => {
         sdCtx: sdCollectionCtx(res, { slug: 'sale', name: 'Sale' }, '/collections/sale', null),
         pageTitle:    'Sale | BathroomVanitiesOutlet.com',
         metaDesc:     'Shop discounted bathroom vanities, mirrors, faucets and accessories.',
+        tradeMeter,
         canonicalUrl: saleCanonical,
         noindex:      saleNoindex,
         category:     { id: null, slug: 'sale', name: 'Sale', description: 'Discounted products — limited time offers', meta_title: 'Sale', meta_desc: '' },

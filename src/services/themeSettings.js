@@ -220,7 +220,12 @@ const DEFAULTS = {
          router.get('/register') in src/routes/account.js, mounted at
          /account by server.js:867. Any URL put here must be checked
          against a real route — gate_deals_banners now does that. */
-      cta_url:       '/account/register?offer=platinum',
+      /* ⚠️ /account/login, NOT /account/register. Registration is folded
+         into passwordless sign-in (spec 7.2) — register is a bare
+         redirect. loginPage is what records the pending claim in the
+         session, and the session is the only thing that survives the
+         emailed-code round trip. */
+      cta_url:       '/account/login?offer=platinum',
       footnote:      'Free shipping, every order · 30-day returns',
       /* Owner-chosen 2026-10-21. A styled ROOM, not a product cut-out —
          the member banner sells the finished bathroom, and a cabinet on
@@ -243,7 +248,7 @@ const DEFAULTS = {
       /* /trade/apply does not exist either — the trade application form is
          Phase 2 (task #364). Pointed at the same register page until it
          does, so the button works rather than 404ing. */
-      cta_url:     '/account/register?offer=trade',
+      cta_url:     '/trade/apply',
       signin_text: 'Already approved? Sign in',
       /* /account/signin had no route. It is /account/login. */
       signin_url:  '/account/login',

@@ -1,0 +1,209 @@
+<%# Trade application. TRADE_PROGRAM_SPEC.md §3/§4 is the artifact of record.
+
+    THE SEQUENCE IS FIXED, owner 2026-10-21:
+      business card upload -> scroll the terms -> acknowledge -> submit
+
+    ⚠️ The scroll gate below is a COURTESY, not the enforcement. It is
+    client-side and anyone with devtools can clear the disabled attribute
+    in seconds. tradeController.submit re-checks terms_ack server-side and
+    that check is the one that counts. %>
+
+<style nonce="<%= cspNonce %>">
+.trade-wrap{max-width:720px;margin:0 auto;padding:32px 24px 64px}
+.trade-head{margin:0 0 6px;font-family:var(--font-serif,Georgia,serif);font-size:2rem;color:var(--color-navy,#182840)}
+.trade-sub{color:#5E584E;margin:0 0 28px;line-height:1.6}
+.trade-card{background:#fff;border:1px solid #E8E4DC;border-radius:10px;padding:24px;margin:0 0 18px}
+.trade-card h2{font-size:1rem;letter-spacing:.04em;text-transform:uppercase;color:#8A8478;margin:0 0 16px;font-weight:600}
+.trade-field{margin:0 0 16px}
+.trade-field label{display:block;font-size:.84rem;font-weight:600;color:var(--color-navy,#182840);margin:0 0 5px}
+.trade-field input[type=text],.trade-field input[type=email],.trade-field input[type=tel],
+.trade-field select,.trade-field textarea{
+  width:100%;padding:10px 12px;border:1px solid #D8D2C8;border-radius:6px;font:inherit;background:#fff}
+.trade-field textarea{min-height:88px;resize:vertical}
+.trade-req{color:#C4885A}
+.trade-hint{font-size:.76rem;color:#8A8478;margin:4px 0 0;line-height:1.5}
+.trade-check{display:flex;gap:9px;align-items:flex-start;font-size:.85rem;line-height:1.55;color:#5E584E;cursor:pointer;margin:0 0 12px}
+.trade-check input{margin-top:3px;flex:0 0 auto;accent-color:var(--color-amber,#C4885A);cursor:pointer}
+.trade-terms{height:240px;overflow-y:auto;border:1px solid #D8D2C8;border-radius:6px;padding:16px;background:#FAF7F2;font-size:.84rem;line-height:1.65;color:#4A453C}
+.trade-terms h3{font-size:.88rem;margin:16px 0 6px;color:var(--color-navy,#182840)}
+.trade-terms h3:first-child{margin-top:0}
+.trade-scrollnote{font-size:.78rem;color:#8A8478;margin:8px 0 14px}
+.trade-scrollnote.is-done{color:#4A7C59}
+.trade-submit{width:100%;padding:.95rem;font-size:1rem}
+.trade-submit[disabled]{opacity:.45;cursor:not-allowed}
+.trade-flash{padding:13px 16px;border-radius:8px;margin:0 0 20px;font-size:.88rem;line-height:1.55}
+.trade-flash--error{background:#FDF0EC;border:1px solid #E8BCAC;color:#8A3E1E}
+.trade-flash--success{background:#EDF5EF;border:1px solid #A8CBB2;color:#2E5E3E}
+.trade-status{background:#101828;color:#fff;border-radius:10px;padding:20px 24px;margin:0 0 20px}
+.trade-status p{margin:6px 0 0;color:#AEB5C0;font-size:.86rem}
+</style>
+
+<div class="trade-wrap">
+  <h1 class="trade-head">Trade account</h1>
+  <p class="trade-sub">
+    Free freight on every order, plus 15% off. No minimums, no fee to join.
+    Spend $20,000 in a rolling 12 months and your rate moves to 20%.
+  </p>
+
+  <% if (typeof flash !== 'undefined' && flash && flash.msg) { %>
+  <div class="trade-flash trade-flash--<%= flash.type === 'success' ? 'success' : 'error' %>"><%= flash.msg %></div>
+  <% } %>
+
+  <%# An application already on file. Showing status beats letting them
+      submit a second one and wonder which is being looked at. %>
+  <% if (typeof existing !== 'undefined' && existing) { %>
+  <div class="trade-status">
+    <strong>Your application is <%= existing.status %>.</strong>
+    <% if (existing.status === 'pending') { %>
+    <p>We review these by hand, usually within one business day. Nothing more is needed from you.</p>
+    <% } else if (existing.status === 'approved') { %>
+    <p>Trade pricing is active on your account. It shows in your cart when you are signed in.</p>
+    <% } else { %>
+    <p>If you think this was a mistake, reply to the email we sent and we will take another look.</p>
+    <% } %>
+  </div>
+  <% } %>
+
+  <% var _o = (typeof old !== 'undefined' && old) ? old : {}; %>
+
+  <form method="post" action="/trade/apply" enctype="multipart/form-data" id="tradeForm">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+    <div class="trade-card">
+      <h2>Your business</h2>
+
+      <div class="trade-field">
+        <label for="t_email">Email <span class="trade-req">*</span></label>
+        <input type="email" id="t_email" name="email" required value="<%= _o.email || '' %>">
+      </div>
+      <div class="trade-field">
+        <label for="t_bn">Business name <span class="trade-req">*</span></label>
+        <input type="text" id="t_bn" name="business_name" required value="<%= _o.business_name || '' %>">
+      </div>
+      <div class="trade-field">
+        <label for="t_bt">Business type</label>
+        <select id="t_bt" name="business_type">
+          <option value="">Select…</option>
+          <% ['Contractor','Interior designer','Builder','Property manager','Plumber','Remodeler','Other'].forEach(function(t){ %>
+          <option value="<%= t %>" <%= _o.business_type === t ? 'selected' : '' %>><%= t %></option>
+          <% }); %>
+        </select>
+      </div>
+      <div class="trade-field">
+        <label for="t_ph">Phone</label>
+        <input type="tel" id="t_ph" name="phone" value="<%= _o.phone || '' %>">
+      </div>
+      <div class="trade-field">
+        <label for="t_use">How will you use the account?</label>
+        <textarea id="t_use" name="intended_use"><%= _o.intended_use || '' %></textarea>
+      </div>
+    </div>
+
+    <div class="trade-card">
+      <h2>Verification</h2>
+      <div class="trade-field">
+        <label for="t_card">Business card <span class="trade-req">*</span></label>
+        <input type="file" id="t_card" name="card_doc" accept=".jpg,.jpeg,.png,.webp,.heic,.pdf" required>
+        <%# Owner, 2026-10-21: "Biz card to qualify — sales tax id if they
+            want sales tax exemption." The two are DECOUPLED, which keeps
+            the privacy exposure as small as it can be: most applicants
+            upload a card and nothing else. %>
+        <p class="trade-hint">
+          A photo is fine. This is all that is needed to qualify.
+          JPG, PNG, WEBP, HEIC or PDF, up to 10MB.
+        </p>
+      </div>
+
+      <label class="trade-check">
+        <input type="checkbox" name="wants_tax_exempt" value="1" id="t_tax"
+               <%= _o.wants_tax_exempt ? 'checked' : '' %>>
+        <span>I need sales-tax exemption (I am buying for resale)</span>
+      </label>
+
+      <%# Shown only when the box is ticked — asking every applicant for a
+          tax ID collects personal data from people who do not need to give
+          it. Sole proprietors often use their SSN here. %>
+      <div id="taxBlock" hidden>
+        <div class="trade-field">
+          <label for="t_taxid">Tax ID / resale number</label>
+          <input type="text" id="t_taxid" name="tax_id" value="<%= _o.tax_id || '' %>">
+        </div>
+        <div class="trade-field">
+          <label for="t_resale">Resale certificate</label>
+          <input type="file" id="t_resale" name="resale_doc" accept=".jpg,.jpeg,.png,.webp,.heic,.pdf">
+          <p class="trade-hint">Only needed if you are claiming exemption. Without one we charge sales tax normally.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="trade-card">
+      <h2>Trade terms</h2>
+      <div class="trade-terms" id="termsBox" tabindex="0" aria-label="Trade terms, scroll to read">
+        <h3>1. Approval</h3>
+        <p>Trade accounts are approved at BVO's sole discretion and may be revoked. Until approved, your account is charged retail pricing.</p>
+        <h3>2. Trade pricing is confidential</h3>
+        <p>Trade pricing must not be republished, advertised, or shared outside your business. Posting it publicly is a breach of these terms and of our agreements with our manufacturers.</p>
+        <h3>3. Your rate can move in both directions</h3>
+        <p>Elite Trade (20%) is based on $20,000 of captured spend in a <strong>rolling</strong> 12-month window. The window moves, so spend ages out — if your 12-month total falls below $20,000 your rate returns to 15%. We will not notify you before this happens; your current figure is always shown on your account.</p>
+        <h3>4. Commercial installations are not covered by warranty</h3>
+        <p>Manufacturer warranties on these products are residential only. Product installed in a commercial setting — apartment buildings, hotels, offices — carries no manufacturer warranty. If you are buying for a commercial project, you are buying without warranty cover.</p>
+        <h3>5. Resale certificate</h3>
+        <p>If you buy for resale, a valid resale certificate must be on file or we are required to charge sales tax.</p>
+        <h3>6. Returns and restocking</h3>
+        <p>Manufacturer restocking fees of up to 25% apply to trade orders exactly as they do to retail orders. Freight on returned goods is yours.</p>
+        <h3>7. Your documents</h3>
+        <p>Documents you upload are stored securely, are not publicly accessible, and are used only to verify your business.</p>
+      </div>
+      <p class="trade-scrollnote" id="scrollNote">Scroll to the end of the terms to continue.</p>
+
+      <label class="trade-check">
+        <input type="checkbox" name="terms_ack" value="1" id="t_ack" disabled>
+        <span>I have read and accept the trade terms, including that my rate can fall back to 15% and that commercial installations are not covered by warranty.</span>
+      </label>
+
+      <%# OPTIONAL on this path, and that is deliberate — spec §4:
+          "Approval must never depend on it." For Platinum Member the tick
+          IS the claim; for trade the consideration is a legitimate
+          business, not an email permission. %>
+      <label class="trade-check">
+        <input type="checkbox" name="accepts_marketing" value="1" <%= _o.accepts_marketing ? 'checked' : '' %>>
+        <span>Email me trade deals and new arrivals. Optional — it makes no difference to whether you are approved.</span>
+      </label>
+
+      <button type="submit" class="btn btn-amber trade-submit" id="tradeSubmit" disabled>
+        Submit application
+      </button>
+    </div>
+  </form>
+</div>
+
+<script nonce="<%= cspNonce %>">
+(function () {
+  var box    = document.getElementById('termsBox');
+  var ack    = document.getElementById('t_ack');
+  var btn    = document.getElementById('tradeSubmit');
+  var note   = document.getElementById('scrollNote');
+  var taxCb  = document.getElementById('t_tax');
+  var taxBlk = document.getElementById('taxBlock');
+  if (!box || !ack || !btn) return;
+
+  function reveal() {
+    ack.disabled = false;
+    note.textContent = 'Thanks — you can accept below.';
+    note.className = 'trade-scrollnote is-done';
+  }
+  /* A terms box shorter than its own container never scrolls, so the gate
+     would never open and the form could not be submitted at all. Open it
+     immediately in that case rather than trapping the applicant. */
+  function atEnd() { return box.scrollTop + box.clientHeight >= box.scrollHeight - 4; }
+  if (box.scrollHeight <= box.clientHeight + 4) reveal();
+  box.addEventListener('scroll', function () { if (atEnd()) reveal(); });
+
+  ack.addEventListener('change', function () { btn.disabled = !ack.checked; });
+
+  if (taxCb && taxBlk) {
+    var sync = function () { taxBlk.hidden = !taxCb.checked; };
+    taxCb.addEventListener('change', sync); sync();
+  }
+})();
+</script>

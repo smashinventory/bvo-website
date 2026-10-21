@@ -129,6 +129,35 @@
       </div>
       <% } %>
 
+      <%# ── TIER SAVING ────────────────────────────────────────────────
+          Platinum Member / Platinum Trade / Elite Trade.
+
+          ⚠️ THE DOLLAR FIGURE IS THE NUMBER, THE PERCENTAGE IS THE
+          LABEL, and that order is deliberate. Rule of 100: below $100 a
+          percentage reads larger, above it the absolute figure does.
+          These carts are $900-$2,000+, so "−$300.00" lands harder than
+          "15% off" for identical money. The tier name and percentage sit
+          beside it because a bare deduction reads as unexplained and
+          generates a support email instead of a sale.
+
+          ⚠️ tierDiscount IS SUMMED FROM THE PER-LINE CENT FIGURES, not
+          computed as a percentage of a rounded subtotal. Those two
+          methods disagree by a cent on carts like $1,999.99, and a
+          customer who checks the arithmetic will find it.
+
+          ⚠️ EVERY LOCAL IS typeof-GUARDED. This view is reached from
+          handlers that do not supply `tier` — a bare reference throws
+          ReferenceError in EJS before && can short-circuit, which would
+          500 the cart page for everyone. %>
+      <% var _tier = (typeof tier !== 'undefined' && tier) ? tier : null; %>
+      <% var _tierSave = parseFloat(locals.tierDiscount) || 0; %>
+      <% if (_tier && _tier.pct > 0 && _tierSave > 0.01) { %>
+      <div class="summary-savings summary-savings--tier">
+        <span class="savings-label"><%= _tier.label %> &middot; <%= _tier.pct %>%</span>
+        <strong>−$<%= _tierSave.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}) %></strong>
+      </div>
+      <% } %>
+
       <%# FREE SAMPLES. Three states, set by cartController.index.
           'applied' is the only one that changes the total, because it is
           the only one where we know who they are and have checked. The

@@ -34,6 +34,15 @@ router.post('/logout', ctrl.logout);
 /* ── Apply requireAdmin to everything below ─────────────────── */
 router.use(requireAdmin);
 
+/* ── Trade applications ───────────────────────────────────────
+   Below requireAdmin, which is what makes the document route safe: the
+   uploaded files live outside public/ and are readable ONLY by streaming
+   them through adminDoc. See tradeController for why. */
+const tradeCtrl = require('../controllers/tradeController');
+router.get ('/trade',                  tradeCtrl.adminQueue);
+router.get ('/trade/:id/doc/:which',   tradeCtrl.adminDoc);
+router.post('/trade/:id/decide',       tradeCtrl.adminDecide);
+
 /* ── Dashboard ──────────────────────────────────────────────── */
 router.get('/', ctrl.dashboard);
 

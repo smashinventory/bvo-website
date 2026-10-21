@@ -82,11 +82,49 @@ function bundleDiscountPct(item) {
 }
 
 /**
- * What one unit of this line costs after the bundle discount, BEFORE any
- * promotion. This is the function that used to be copied three times.
+ * The percentage actually applied to a line.
+ *
+ * ⚠️ REPLACE, NEVER STACK — owner 2026-10-20, TRADE_PROGRAM_SPEC §5:
+ * "best one wins across bundle discount, first-order offer and trade."
+ * So this is MAX, not a sum and not a compound. A bundled item at 15%
+ * bought by an Elite Trade account at 20% gets 20% — once. Stacking them
+ * would be 32% off a James Martin SKU that already sits at MAP, which
+ * comes straight off the bone.
+ *
+ * @param {object} item
+ * @param {number} tierPct  0 unless the CALLER resolved a tier. Never
+ *                          inferred here: this module is pure and the tier
+ *                          is a database question.
  */
-function unitPrice(item) {
-  return num(item && item.price) * (1 - bundleDiscountPct(item) / 100);
+function effectiveDiscountPct(item, tierPct) {
+  const bundle = bundleDiscountPct(item);
+  /* ⚠️ typeof === 'number', NOT Number(tierPct), AND THAT IS A SECURITY
+     DECISION RATHER THAN A STYLE ONE.
+     Coercing would accept the STRING '20' — and strings are what arrive
+     from req.query, req.body and a session cookie. The day anyone wires
+     this to a request, `?tierPct=20` becomes a 20% discount for anybody
+     who types it. Requiring a real number means a query string cannot
+     become a price change no matter how carelessly it is plumbed; the
+     caller has to have resolved a tier deliberately.
+
+     Number('') === 0 and Number(null) === 0 would also both be "right"
+     here by accident. Refusing them outright is the same failure-closed
+     stance the sample promotion takes two functions down. */
+  const t = (typeof tierPct === 'number' && Number.isFinite(tierPct)
+             && tierPct > 0 && tierPct <= 100) ? tierPct : 0;
+  return Math.max(bundle, t);
+}
+
+/**
+ * What one unit of this line costs after the best applicable discount,
+ * BEFORE the sample promotion. This is the function that used to be copied
+ * three times.
+ *
+ * The second argument is OPTIONAL and defaults to no tier, so every
+ * existing caller keeps its exact previous behaviour.
+ */
+function unitPrice(item, tierPct) {
+  return num(item && item.price) * (1 - effectiveDiscountPct(item, tierPct) / 100);
 }
 
 /**
@@ -168,7 +206,13 @@ function sampleFreebie(items, eligible) {
  * line items — but they must all come from this one computation.
  *
  * @param {Array} items
- * @param {{sampleEligible?: boolean}} [opts]
+ * @param {{sampleEligible?: boolean, tierPct?: number}} [opts]
+ *        tierPct defaults to 0. Like sampleEligible it is opt-in per
+ *        request, because the tier is a database question (what is stored,
+ *        what is their rolling spend, have they ordered before) that this
+ *        pure module must not answer for itself. Defaulting to 0 means a
+ *        caller that forgets to ask charges full price rather than
+ *        discounting every cart on the site.
  *        sampleEligible defaults to FALSE. The promotion is opt-in per
  *        request because eligibility is a database question (has this
  *        email or address already redeemed) that this pure module must
@@ -181,20 +225,28 @@ function sampleFreebie(items, eligible) {
 function priceCart(items, opts) {
   const list = Array.isArray(items) ? items : [];
   const eligible = !!(opts && opts.sampleEligible);
+  const tPct = (opts && opts.tierPct) || 0;
   const { freeByIndex, freeUnits, discount } = sampleFreebie(list, eligible);
+
+  /* What full price would have been, so the saving can be SHOWN. A
+     discount the customer cannot see is a discount that generates a
+     support email rather than a conversion. */
+  let listCents = 0;
 
   let subCents = 0;
   let sampleUnits = 0;
 
   const lines = list.map((it, idx) => {
     const qty  = qtyOf(it);
-    const unit = unitPrice(it);
+    const unit = unitPrice(it, tPct);
+    const listUnit = unitPrice(it, 0);
     const freeQty = Math.min(qty, freeByIndex.get(idx) || 0);
     const paidQty = qty - freeQty;
     const lineCents = toCents(unit) * paidQty;
 
     if (isSample(it)) sampleUnits += qty;
-    subCents += lineCents;
+    subCents  += lineCents;
+    listCents += toCents(listUnit) * paidQty;
 
     return {
       item: it,
@@ -202,6 +254,9 @@ function priceCart(items, opts) {
       freeQty,
       paidQty,
       unitPrice: parseFloat(unit.toFixed(2)),
+      /* The pre-tier unit, for the struck-through price on the line. */
+      listUnitPrice: parseFloat(listUnit.toFixed(2)),
+      discountPct: effectiveDiscountPct(it, tPct),
       /* What this line actually adds to the bill, free units removed. */
       lineTotal: parseFloat((lineCents / 100).toFixed(2)),
       isSample: isSample(it),
@@ -217,6 +272,11 @@ function priceCart(items, opts) {
     discount,
     freeUnits,
     sampleUnits,
+    /* The tier's contribution, separated so the cart can show it as its
+       own line rather than silently folding it into the subtotal. */
+    tierPct: tPct,
+    tierDiscount: parseFloat(((listCents - subCents) / 100).toFixed(2)),
+    listSubtotal: parseFloat((listCents / 100).toFixed(2)),
   };
 }
 
@@ -230,5 +290,6 @@ module.exports = {
   priceCart, unitPrice, isSample, itemCount, toCents,
   /* Exported for the gate, which proves the extraction is a no-op by
      running the old formula against the new one. Not for callers. */
+  effectiveDiscountPct,
   _internals: { num, qtyOf, bundleDiscountPct, sampleFreebie },
 };

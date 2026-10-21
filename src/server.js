@@ -851,6 +851,7 @@ app.use('/products',    require('./routes/products'));
 app.use('/collections', require('./routes/collections'));
 app.use('/cart',        require('./routes/cart'));
 app.use('/checkout',    require('./routes/checkout'));
+app.use('/trade',       require('./routes/trade'));
 /* Confirm-your-email from the order confirmation mail. Public and
    identity-free: the token is the proof, and whoever clicks it has by
    definition not signed in. Mounted separately from /checkout because it

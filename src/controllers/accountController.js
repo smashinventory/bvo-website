@@ -1,6 +1,7 @@
 'use strict';
 
 const Customer         = require('../models/Customer');
+const offerClaim = require('../services/offerClaim');
 /* Read-only here. The account page LISTS addresses; the only writer is
    checkout, via CustomerAddress.record. */
 const CustomerAddress  = require('../models/CustomerAddress');
@@ -102,6 +103,13 @@ async function establishSession(req, customer, email) {
     cart:          req.session.cart,
     checkoutDraft: req.session.checkoutDraft,
     checkoutOld:   req.session.checkoutOld,
+    /* ⚠️ WITHOUT THIS LINE EVERY OFFER CLAIM IS SILENTLY LOST.
+       regenerate() wipes the session to prevent fixation, and it runs
+       BETWEEN the visitor ticking the consent box on the deals page and
+       the code sign-in that would grant the tier. Anything not named here
+       does not survive. The failure is invisible: the account is created,
+       no discount is granted, and nothing errors. */
+    [offerClaim.PENDING_KEY]: req.session[offerClaim.PENDING_KEY],
   };
 
   await new Promise((resolve, reject) =>
@@ -371,6 +379,12 @@ exports.verifyCode = async (req, res, next) => {
        why regenerate() cannot simply be called inline. */
     await establishSession(req, customer, email);
 
+    /* ⚠️ AFTER establishSession, not before. The grant writes to the
+       customer row and clears the session flag — doing it first would
+       have the flag wiped by regenerate() and the grant attributed to a
+       session that no longer exists. */
+    await offerClaim.settle(req, customer.id, clientIp(req));
+
     /* ── REMEMBER THIS DEVICE (item 26) ────────────────────────────
        Opt-in, unchecked by default. This grants 90 days of signing in
        with no code, so it is a real decision and must not be made for
@@ -564,7 +578,22 @@ exports.secureAccount = async (req, res, next) => {
 
 /* ── GET /account/login ─────────────────────────────────────────── */
 exports.loginPage = (req, res) => {
-  if (req.session.customerId) return res.redirect('/account');
+  /* The deals banner submits ?offer=platinum&optin=1. Recorded in the
+     SESSION here, because the code round-trip loses query parameters.
+     optin is the claim — see offerClaim.markPending. */
+  if (String(req.query.offer || '') === 'platinum') {
+    offerClaim.markPending(req, String(req.query.optin || '') === '1');
+  }
+  if (req.session.customerId) {
+    /* Already signed in and they just claimed: grant it now rather than
+       sending them to a dashboard that says nothing happened. */
+    if (offerClaim.hasPending(req)) {
+      return offerClaim.settle(req, req.session.customerId, clientIp(req))
+        .then(() => res.redirect('/account?claimed=1'))
+        .catch(() => res.redirect('/account'));
+    }
+    return res.redirect('/account');
+  }
   res.render('pages/account/login', {
     pageTitle: 'Sign In | BathroomVanitiesOutlet.com',
     metaDesc:  '',
@@ -593,8 +622,25 @@ exports.login = (req, res) => {
    one action, spec 7.2. Both routes stay so old links and bookmarks land
    somewhere sensible instead of 404ing. */
 exports.registerPage = (req, res) => {
-  if (req.session.customerId) return res.redirect('/account');
-  res.redirect('/account/login');
+  /* ⚠️ THE QUERY STRING IS FORWARDED, and that is the whole point.
+     The deals banner posts to /account/register?offer=platinum&optin=1.
+     This route is a redirect (registration folded into passwordless
+     sign-in, spec 7.2) — and a bare redirect DROPS the query, which
+     silently discards every claim. Reported live: the trade button
+     "took me right to my customer dashboard". */
+  const qs = req._parsedUrl && req._parsedUrl.search ? req._parsedUrl.search : '';
+  if (req.session.customerId) {
+    if (String(req.query.offer || '') === 'platinum') {
+      offerClaim.markPending(req, String(req.query.optin || '') === '1');
+      if (offerClaim.hasPending(req)) {
+        return offerClaim.settle(req, req.session.customerId, clientIp(req))
+          .then(() => res.redirect('/account?claimed=1'))
+          .catch(() => res.redirect('/account'));
+      }
+    }
+    return res.redirect('/account');
+  }
+  res.redirect('/account/login' + qs);
 };
 
 exports.register = (req, res) => {

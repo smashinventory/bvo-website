@@ -19,6 +19,110 @@
 
 ---
 
+## Phase 2 — Platinum Member, Platinum Trade, Elite Trade
+**Date:** 2026-10-21
+**Scope:** SCOPE_45 item 40, Phase 2. `TRADE_PROGRAM_SPEC.md` is the artifact of record.
+**New:** `src/utils/tiers.js`, `src/services/tierService.js`, `src/services/offerClaim.js`,
+`src/controllers/tradeController.js`, `src/routes/trade.js`,
+`views/pages/trade-apply.ejs`, `views/pages/admin/trade-applications.ejs`,
+`gates/gate_tiers_and_trade.js` (70 checks), `mutate_tiers_gate.sh` (31 mutations),
+`migrations/2026-10-21_tiers_and_trade_RUNME.sql`, `storage/.gitignore`
+**Changed:** `cartPricing.js`, `cartController.js`, `checkoutController.js`,
+`accountController.js`, `collectionsController.js`, `themeSettings.js`,
+`views/pages/cart.ejs`, `routes/admin.js`, `server.js`, `gate_deals_banners.js`
+**Status at time of writing:** ⚠️ **NOT PUSHED. The migration has not run.**
+
+The ladder: **Platinum Member** 10% first order · **Platinum Trade** 15% ·
+**Elite Trade** 20% at $20,000 rolling 12-month captured spend.
+
+### Four invariants, and why each is structural rather than a guard
+
+**1. MAP — trade pricing never renders logged out.** `resolveTier`'s FIRST
+test is `if (!facts.isLoggedIn) return RESOLVED.NONE`, before the stored
+tier is even read. A 15% discount on a public page is advertising below
+James Martin's MAP; behind a login it is not advertised at all. The login
+gate is the compliance mechanism, not a perk. Enforcement is a written
+warning, 24 hours, and JM may withhold shipment of new orders.
+
+**2. Elite Trade is computed, never stored.** `STORED` has three states and
+`elite_trade` is not one of them — it exists only in `RESOLVED`. Writing it
+would freeze a customer at 20% after their spend aged out, and the rolling
+window exists precisely so it can. A customer **can** fall back to 15%; the
+trade terms say so in clause 3, because the first person who drops a tier
+without warning will reasonably feel cheated.
+
+**3. The 10% is an explicit grant.** Checkout requires an account (item 22,
+"NO GUEST"), so every first-time buyer creates one. A rule of "has an
+account and has not ordered" would have discounted **100% of new
+customers, silently** — on JM products already at MAP, straight off the
+bone. Eligibility needs `offer_enrolled_at` (set only by the deals-page
+claim), marketing consent, and no prior captured order. Not
+`signup_source`: that is attribution metadata, and a money grant inferred
+from a descriptive label changes the day someone re-labels a path.
+
+**4. Documents never reach `public/`.** Business licences carry personal
+data and sole proprietors use an SSN as the tax ID. Uploads go to
+`storage/trade-docs`, outside any `express.static` mount, readable only by
+streaming through an admin route behind `requireAdmin`. The **fallback**
+path is private too — one missing env var must not publish them.
+
+### Three defects caught before they shipped
+
+**A string could have become a discount.** `tierPct` requires
+`typeof === 'number'`. Coercion would accept `'20'` — and strings are what
+arrive from `req.query`. The day anyone wires this to a request carelessly,
+`?tierPct=20` would be a discount anybody could type.
+
+**Re-resolving the tier at payment refuses legitimate charges.** The
+payment handler re-prices and compares to `orders.subtotal`. The tier is a
+live calculation: a second order capturing, or a trade account crossing
+$20,000 mid-session, changes it between placing and paying — `expected !==
+subtotal`, charge refused. The rate is now frozen in `orders.tier_pct` and
+the re-check reads it.
+
+**And `tier_pct` was missing from the payment `SELECT`.** An unselected
+column is `undefined`, not null, so `Number(undefined) || 0` would have
+priced at full rate and refused **every** discounted order. The comment
+above that query documents the identical failure costing orders 14-17.
+MariaDB also returns `DECIMAL` as a string, which the pure module refuses
+by design — hence `Number(order.tier_pct)`.
+
+### The session-regenerate trap
+
+`establishSession` regenerates the session on sign-in to prevent fixation,
+and that runs *between* the visitor ticking the consent box and the code
+sign-in that would grant the tier. Anything not named in its carry list is
+wiped. Without `[offerClaim.PENDING_KEY]` on that list every claim is lost
+at the moment of grant — account created, no discount, nothing logged.
+`gate_tiers_and_trade` asserts that line exists; `mutate_tiers_gate` M9
+deletes it and the gate goes red.
+
+### Applying is not approval
+
+Submitting writes `trade_applied_at` only. Approval is manual and is the
+sole path that sets `platinum_trade`. The admin **cannot** grant Elite —
+there is no code path, and M28 proves it. The terms acknowledgement is
+scroll-gated in the browser and re-checked server-side, because devtools
+defeats the client gate in seconds. Marketing consent on the trade path is
+optional and approval never depends on it: for Platinum Member the tick IS
+the claim, for trade the consideration is a legitimate business.
+
+### Verification
+
+70 gate checks, 31 mutations with 0 missed, 76 non-live gates green, every
+template compiling. `gate_deals_banners` went red when `/trade/apply`
+became real — it asserted no `/trade/*` URL could survive, which Phase 2
+reversed. Updated rather than suppressed, per **Rule 19**: a gate encoding
+a reversed decision is not stale, it is wrong.
+
+### Not in this change
+
+Projects, the quote builder, reorder/saved specs and multi-user accounts
+(spec dashboard items 2-6). Brevo segmentation on tier. Retention policy
+for uploaded documents, which the spec calls for and nothing yet enforces.
+
+---
+
 ## Deals page — the two offer banners, a discount threshold, and `is_deal`
 **Date:** 2026-10-21
 **Scope:** SCOPE_45 item 40 (Rewards / trade programme), Phase 1.

@@ -1,0 +1,12 @@
+# ⚠️ UPLOADED TRADE DOCUMENTS LIVE HERE AND MUST NEVER BE COMMITTED.
+# Business cards and resale certificates carry personal data; sole
+# proprietors often use an SSN as their tax ID. TRADE_PROGRAM_SPEC:
+# "Do NOT store them in a publicly reachable uploads directory."
+#
+# This directory is also deliberately OUTSIDE public/, so express.static
+# does not serve it. The only read path is the authenticated admin route
+# tradeController.adminDoc, which streams the file from disk.
+#
+# Ignore everything, keep the directory itself.
+*
+!.gitignore
