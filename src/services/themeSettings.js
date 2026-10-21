@@ -214,7 +214,13 @@ const DEFAULTS = {
       consent_label: 'Yes — email me deals and promotions.',
       consent_note:  'Required to claim your 10%.',
       cta_text:      'Claim my 10%',
-      cta_url:       '/account/join?offer=platinum',
+      /* ⚠️ /account/register, NOT /account/join. The first version shipped
+         /account/join, which has NO ROUTE and 404'd straight off the live
+         banner. The real pages are router.get('/login') and
+         router.get('/register') in src/routes/account.js, mounted at
+         /account by server.js:867. Any URL put here must be checked
+         against a real route — gate_deals_banners now does that. */
+      cta_url:       '/account/register?offer=platinum',
       footnote:      'Free shipping, every order · 30-day returns',
       /* Owner-chosen 2026-10-21. A styled ROOM, not a product cut-out —
          the member banner sells the finished bathroom, and a cabinet on
@@ -234,9 +240,13 @@ const DEFAULTS = {
       heading:     'Free freight on every order. Plus 15% off.',
       subtitle:    'No minimums. Approved in one business day.',
       cta_text:    'Apply for trade',
-      cta_url:     '/trade/apply',
+      /* /trade/apply does not exist either — the trade application form is
+         Phase 2 (task #364). Pointed at the same register page until it
+         does, so the button works rather than 404ing. */
+      cta_url:     '/account/register?offer=trade',
       signin_text: 'Already approved? Sign in',
-      signin_url:  '/account/signin',
+      /* /account/signin had no route. It is /account/login. */
+      signin_url:  '/account/login',
       meter_label: 'Elite Trade · 20%',
     },
   },

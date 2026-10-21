@@ -196,6 +196,59 @@ pull the catalogue into memory.
 Verified: 108 gate checks green, 39 mutations with 0 missed, all four render
 paths rendering, and the vanity filter order byte-identical on both paths.
 
+### 🔴 FOLLOW-UP, SAME DAY — four defects shipped in `4984ce4`
+
+Reported from the live page within minutes of deploy: *"This layout is so
+off. Also, the click mark is not working and the button takes you to a 404
+screen."*
+
+1. **Three dead CTA links.** `/account/join`, `/trade/apply` and
+   `/account/signin` have no routes. The real pages are `/account/login` and
+   `/account/register` — `src/routes/account.js`, mounted at `/account` by
+   `server.js:867`. Both the `themeSettings` defaults **and** the template
+   fallbacks carried dead URLs, and the fallback is what renders on a fresh
+   install, so fixing only the defaults would have left it broken.
+2. **The consent checkbox was a `<span>`.** `class="deals-consent-box"
+   aria-hidden="true"` — a bordered 15px square that looked exactly like a
+   checkbox and could not be ticked.
+3. **The block was full-bleed.** `.deals-offers` sits between `.breadcrumb`
+   and `.listing-layout` as a bare top-level div; this template has no
+   container. Both neighbours carry `64px` horizontal padding, the block
+   carried none.
+4. **The image set the banner height.** The master is 3500×3500 and the
+   media column had no cap.
+
+**Why 108 green checks did not notice — this is the part worth keeping.**
+Every assertion tested what the markup *says*. Not one followed a link to
+see whether it resolved, ticked a control to see whether it was a control,
+or measured a width. The gate verified the `href` attribute was present and
+non-empty; it never asked whether the URL existed. CLAUDE.md already says
+it: *"render the page and LOOK at it, the way Sam would… a bare 'verified'
+that means 'I believe it works' is worth less than nothing, because it
+stops him looking."*
+
+**The standing fix** is gate sections 13–15. Section 13 parses
+`src/routes/account.js` for the real route table and resolves every URL the
+banners can emit — defaults and rendered output — against it. Section 14
+requires the consent control to be a real named `input` inside a `label`,
+and the CTA to submit that form rather than bypass it. Section 15 asserts
+the block's padding matches `.listing-layout` at both breakpoints.
+`mutate_deals_gate.sh` M37–M44 re-break each defect; all eight caught.
+
+**Two assertion bugs of my own, found on the first run of the new sections,
+both the same shape:** one scanned `themeSettings` source for the dead URLs
+and found them *in the comments explaining their removal*; the other sliced
+the rendered page on the bare class name `deals-offer--member`, which
+matches inside the inline `<style>` block before the markup, so it was
+asserting over a few lines of CSS. Comments stripped, slices anchored on
+`<section` tags.
+
+**One design change worth noting.** The CTA is now a GET form rather than a
+link, so the opt-in tick actually travels with the click as `?optin=1`. The
+configured `cta_url` is split into the form action plus hidden inputs,
+because a GET form **discards the query string in its action** — leaving
+`?offer=platinum` on the action would have dropped it silently on submit.
+
 ### Not in this change
 
 The trade spend meter renders only when a controller supplies `tradeMeter`,

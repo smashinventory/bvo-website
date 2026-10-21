@@ -161,7 +161,18 @@
         shipped has no `enabled` key at all, and that must mean ON — the
         same convention every other section in this codebase uses. */
      const _showM = _dbm.enabled !== false;
-     const _showT = _dbt.enabled !== false; %>
+     const _showT = _dbt.enabled !== false;
+
+     /* ⚠️ A GET FORM DISCARDS THE QUERY STRING IN ITS ACTION. Submitting
+        <form method="get" action="/x?offer=platinum"> navigates to /x?optin=1
+        — the offer silently vanishes. So the configured cta_url is split:
+        the path becomes the action, and every existing param is re-emitted
+        as a hidden input so it survives the submit. */
+     const _ctaRaw   = _dbm.cta_url || '/account/register?offer=platinum';
+     const _ctaSplit = String(_ctaRaw).split('?');
+     const _ctaPath  = _ctaSplit[0];
+     const _ctaParams = (_ctaSplit[1] || '').split('&').filter(Boolean)
+       .map(function (kv) { const i = kv.indexOf('='); return i < 0 ? [kv, ''] : [kv.slice(0, i), kv.slice(i + 1)]; }); %>
 <% if (_showM || _showT) { %>
 <%# ⚠️ INLINE, AND NOT IN site2.css / site-bundle.css. THE BUNDLE CANNOT BE
     SAFELY REBUILT. Measured 2026-10-21: the documented rebuild
@@ -183,7 +194,19 @@
     breakpoints.bundleTeaserCss at main.ejs:297, injected exactly this way.
     The nonce is required — CSP blocks unsigned style elements. %>
 <style nonce="<%= cspNonce %>">
-.deals-offers{display:grid;gap:14px;margin:0 0 28px}
+/* ⚠️ THE PADDING IS THE FIX FOR THE FULL-BLEED LAYOUT, AND IT WAS MISSING.
+   This block sits between .breadcrumb and .listing-layout as a BARE
+   top-level div — there is no page container on this template. Both of
+   its neighbours carry their own horizontal padding (.breadcrumb is
+   12px 64px, .listing-layout is 40px 64px), so with none of its own the
+   banner ran edge-to-edge while every other element on the page stopped
+   64px short. Reported from the live page as "this layout is so off".
+   The 24px mobile value matches .listing-layout's own mobile override. */
+.deals-offers{display:grid;gap:14px;margin:0 0 28px;padding:28px 64px 0}
+/* The master image is 3500x3500. Unconstrained, the flex row let it set
+   the banner height and it filled the viewport. Cap it. */
+.deals-offer--member{align-items:stretch}
+.deals-offer-media{max-height:320px}
 .deals-offer{border-radius:12px;overflow:hidden}
 .deals-offer--member{background:#FAF7F2;border:1px solid #E8E4DC;display:flex;flex-wrap:wrap}
 .deals-offer--member .deals-offer-body{flex:1 1 58%;min-width:280px;padding:28px 26px}
@@ -197,8 +220,11 @@
 .deals-offer--trade .deals-offer-head{color:#fff}
 .deals-offer-sub{font-size:.9rem;line-height:1.6;color:#5E584E;margin:0 0 16px;max-width:38ch}
 .deals-offer--trade .deals-offer-sub{color:#AEB5C0}
-.deals-consent{display:flex;gap:9px;align-items:flex-start;margin:0 0 16px;max-width:42ch;font-size:.79rem;line-height:1.5;color:#5E584E}
-.deals-consent-box{width:15px;height:15px;border:1.5px solid var(--color-amber,#C4885A);border-radius:3px;flex:0 0 auto;margin-top:2px}
+.deals-consent-form{margin:0}
+/* cursor:pointer on the LABEL, because the whole line is now a real click
+   target for the checkbox inside it. */
+.deals-consent{display:flex;gap:9px;align-items:flex-start;margin:0 0 16px;max-width:42ch;font-size:.79rem;line-height:1.5;color:#5E584E;cursor:pointer}
+.deals-consent-box{width:15px;height:15px;flex:0 0 auto;margin:2px 0 0;accent-color:var(--color-amber,#C4885A);cursor:pointer}
 .deals-consent-note{color:#8A8478}
 .deals-offer-cta{display:inline-block}
 .deals-offer-foot{font-size:.72rem;color:#8A8478;margin:13px 0 0}
@@ -212,6 +238,7 @@
 .deals-meter-figure{font-size:.82rem;color:#fff;margin:0 0 3px}
 .deals-meter-note{font-size:.72rem;color:#9AA3B0;line-height:1.5;margin:0}
 @media (max-width:860px){
+  .deals-offers{padding:20px 24px 0}
   .deals-offer--member{flex-direction:column-reverse}
   .deals-offer--member .deals-offer-body{padding:22px 20px}
   /* The master is square and composed vertically — mirror above vanity,
@@ -247,15 +274,35 @@
           does not grant anything. The claim is recorded server-side on the
           signup endpoint, which is also where the evidence row is written.
           Showing it now sets the expectation before the click. %>
-      <% if (_dbm.consent_label) { %>
-      <p class="deals-consent">
-        <span class="deals-consent-box" aria-hidden="true"></span>
-        <span><%= _dbm.consent_label %><% if (_dbm.consent_note) { %>
-          <span class="deals-consent-note"><%= _dbm.consent_note %></span><% } %></span>
-      </p>
-      <% } %>
+      <%# ⚠️ A REAL <input type="checkbox">, AND THE FIRST VERSION WAS NOT.
+          It shipped as <span class="deals-consent-box" aria-hidden="true">
+          — a 15px bordered square that looked exactly like a checkbox and
+          could not be ticked, because it was a decorative div. Reported
+          from the live page as "the click mark is not working".
 
-      <a class="btn btn-amber deals-offer-cta" href="<%= _dbm.cta_url || '/account/join?offer=platinum' %>"><%= _dbm.cta_text || 'Claim my 10%' %></a>
+          It is wrapped in a GET form so the tick means something: it
+          carries ?optin=1 to the signup page rather than being a control
+          that silently does nothing. The form is GET, so it only builds a
+          URL — no POST, no CSRF token needed, no state changed here.
+
+          SAFE TO NEST: this block sits OUTSIDE #filter-form (asserted by
+          the gate), so this is not a form inside a form, which browsers
+          silently drop. %>
+      <form class="deals-consent-form" method="get" action="<%= _ctaPath %>">
+        <% _ctaParams.forEach(function(p){ %>
+        <input type="hidden" name="<%= p[0] %>" value="<%= p[1] %>">
+        <% }); %>
+        <% if (_dbm.consent_label) { %>
+        <label class="deals-consent">
+          <input type="checkbox" name="optin" value="1" checked
+                 class="deals-consent-box">
+          <span><%= _dbm.consent_label %><% if (_dbm.consent_note) { %>
+            <span class="deals-consent-note"><%= _dbm.consent_note %></span><% } %></span>
+        </label>
+        <% } %>
+        <button type="submit" class="btn btn-amber deals-offer-cta"><%= _dbm.cta_text || 'Claim my 10%' %></button>
+      </form>
+
       <% if (_dbm.footnote) { %><p class="deals-offer-foot"><%= _dbm.footnote %></p><% } %>
     </div>
     <% if (_dbm.image) { %>
@@ -291,9 +338,9 @@
       <p class="deals-offer-head"><%= _dbt.heading || 'Free freight on every order. Plus 15% off.' %></p>
       <% if (_dbt.subtitle) { %><p class="deals-offer-sub"><%= _dbt.subtitle %></p><% } %>
       <div class="deals-trade-actions">
-        <a class="btn btn-amber deals-offer-cta" href="<%= _dbt.cta_url || '/trade/apply' %>"><%= _dbt.cta_text || 'Apply for trade' %></a>
+        <a class="btn btn-amber deals-offer-cta" href="<%= _dbt.cta_url || '/account/register?offer=trade' %>"><%= _dbt.cta_text || 'Apply for trade' %></a>
         <% if (_dbt.signin_text) { %>
-        <a class="deals-trade-signin" href="<%= _dbt.signin_url || '/account/signin' %>"><%= _dbt.signin_text %></a>
+        <a class="deals-trade-signin" href="<%= _dbt.signin_url || '/account/login' %>"><%= _dbt.signin_text %></a>
         <% } %>
       </div>
     </div>

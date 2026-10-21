@@ -485,5 +485,128 @@ ok('the controller no longer hardcodes page/pages to 1',
    !/page: 1, pages: 1, perPage: 48/.test(ctrlSrc),
    'paging must come from the matched count');
 
+/* ═══ 13. EVERY LINK RESOLVES TO A REAL ROUTE ═══════════════════════════
+   ⚠️ THIS SECTION EXISTS BECAUSE 108 CHECKS SHIPPED THREE DEAD URLS.
+   The banners went live with /account/join, /trade/apply and
+   /account/signin as their CTA targets. None of the three has a route.
+   Every gate was green because every gate asserted what the markup SAYS,
+   and not one followed a link. CLAUDE.md: "render the page and LOOK at
+   it… a bare 'verified' that means 'I believe it works' is worth less
+   than nothing, because it stops him looking."                          */
+section('13. Links resolve to real routes');
+
+/* The real route table, read from the router rather than assumed. */
+const accountRoutes = (() => {
+  const src2 = fs.readFileSync(path.join(ROOT, 'src/routes/account.js'), 'utf8');
+  return [...src2.matchAll(/router\.get\s*\(\s*'([^']+)'/g)].map(m => '/account' + m[1]);
+})();
+const serverSrc = fs.readFileSync(path.join(ROOT, 'src/server.js'), 'utf8');
+const mounts = [...serverSrc.matchAll(/app\.use\(\s*'([^']+)'\s*,\s*require/g)].map(m => m[1]);
+
+ok('the account router was readable', accountRoutes.length > 0);
+ok('/account is mounted', mounts.includes('/account'));
+
+/* Collect every URL the banners can emit — defaults AND whatever the
+   rendered page actually contains. */
+/* ⚠️ COMMENTS STRIPPED FIRST. The first run flagged /account/join and
+   /account/signin as still present — they were, in the comments that
+   explain why they were removed. The gate was reading its own
+   documentation as the defect. Rule 18's corollary, on the gate side. */
+const settingsCode = settingsSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+const urlsFromSettings = [...settingsCode.matchAll(/(?:cta_url|signin_url):\s*'([^']*)'/g)]
+  .map(m => m[1])
+  .filter(u => u && u.startsWith('/account'));
+/* Rendered WITH a consent label, because that is what ships: the default
+   in themeSettings carries one, and with an empty fixture the checkbox
+   assertions below would pass vacuously on markup that never rendered. */
+const rendered = render(Object.assign({}, SALE, { settings: { deals_banners: {
+  member: { consent_label: 'Yes, send me deals', cta_url: '/account/register?offer=platinum' },
+  trade:  { signin_text: 'Already have an account?' },
+} } }));
+const urlsFromPage = [
+  ...[...rendered.matchAll(/<a[^>]+href="(\/[^"]*)"/g)].map(m => m[1]),
+  ...[...rendered.matchAll(/<form[^>]+action="(\/[^"]*)"/g)].map(m => m[1]),
+].filter(u => u.startsWith('/account') || u.startsWith('/trade'));
+
+const resolves = u => {
+  const p0 = u.split('?')[0].replace(/\/$/, '') || '/';
+  return accountRoutes.includes(p0);
+};
+for (const u of [...new Set([...urlsFromSettings, ...urlsFromPage])]) {
+  ok('resolves to a real route: ' + u, resolves(u),
+     'NO ROUTE — this 404s. Real account pages: ' + accountRoutes.join(' '));
+}
+ok('no /trade/* URL survives (the trade form is Phase 2, it has no route)',
+   ![...urlsFromSettings, ...urlsFromPage].some(u => u.startsWith('/trade')));
+ok('the dead /account/join is gone everywhere',
+   !settingsCode.includes('/account/join') && !rendered.includes('/account/join'));
+ok('the dead /account/signin is gone everywhere',
+   !settingsCode.includes('/account/signin') && !rendered.includes('/account/signin'));
+
+/* ═══ 14. THE CONSENT CONTROL IS REAL ═══════════════════════════════════
+   It shipped as <span class="deals-consent-box" aria-hidden="true"> — a
+   bordered 15px square that looked exactly like a checkbox and could not
+   be ticked. "the click mark is not working."                           */
+section('14. The consent checkbox is a real input');
+
+ok('it is an <input type="checkbox">, not a styled span',
+   /<input[^>]+type="checkbox"[^>]*class="deals-consent-box"/.test(rendered) ||
+   /<input[^>]+class="deals-consent-box"[^>]*type="checkbox"/.test(rendered),
+   'a div that looks like a checkbox cannot be ticked');
+ok('it carries a name, so the tick reaches the server',
+   /<input[^>]+name="optin"/.test(rendered),
+   'an unnamed input submits nothing — the tick would be decorative');
+ok('it is NOT aria-hidden', !/deals-consent-box[^>]*aria-hidden/.test(rendered));
+ok('it sits inside a <label>, so the text is a click target too',
+   /<label class="deals-consent">[\s\S]{0,200}?<input/.test(rendered));
+ok('the CTA submits that form rather than bypassing it',
+   /<form class="deals-consent-form"[\s\S]*?<button type="submit"[^>]*deals-offer-cta/.test(rendered),
+   'a separate <a> alongside the form would skip the opt-in entirely');
+{ /* Scoped to the MEMBER banner: the trade CTA shares the class, so a
+     global count is 2 on correct markup. */
+  /* ⚠️ ANCHOR ON THE <section> TAGS, NOT THE CLASS NAME. The bare class
+     string matches inside the inline <style> block first, so slicing on it
+     returns a few lines of CSS and every assertion over that slice is
+     vacuous. Third time this exact confusion has bitten in this scope. */
+  const memberHtml = rendered.slice(
+    rendered.indexOf('<section class="deals-offer deals-offer--member"'),
+    rendered.indexOf('<section class="deals-offer deals-offer--trade"'));
+  ok('the member slice is markup, not stylesheet', memberHtml.includes('deals-offer-body'));
+  ok('exactly ONE member CTA renders, not two',
+     (memberHtml.match(/deals-offer-cta/g) || []).length === 1,
+     'the old anchor and the new submit button both rendered');
+}
+
+/* A GET form drops the query string in its action — the offer param has to
+   survive as hidden inputs or the signup page never learns which offer. */
+ok('the form action carries no query string',
+   !/<form class="deals-consent-form"[^>]+action="[^"]*\?/.test(rendered),
+   'a GET form discards it; the param must be a hidden input');
+ok('the offer param survives as a hidden input',
+   /<input type="hidden" name="offer" value="platinum">/.test(rendered),
+   'the signup page cannot tell which offer was claimed');
+
+/* ═══ 15. THE BLOCK IS NOT FULL-BLEED ═══════════════════════════════════
+   It sits between .breadcrumb and .listing-layout as a bare top-level div.
+   Neither its neighbours nor any container give it horizontal padding, so
+   without its own it ran edge-to-edge: "this layout is so off."          */
+section('15. Horizontal alignment with the rest of the page');
+
+const styleBlock = (rendered.match(/<style nonce="[^"]*">([\s\S]*?)<\/style>/) || [])[1] || '';
+ok('the style block was extractable', styleBlock.length > 0);
+ok('.deals-offers sets its own horizontal padding',
+   /\.deals-offers\{[^}]*padding:[^}]*\}/.test(styleBlock),
+   'with no container on this template, no padding means full-bleed');
+
+const pad = (styleBlock.match(/\.deals-offers\{[^}]*padding:\s*([^;}]+)/) || [])[1] || '';
+ok('that padding is 64px horizontally, matching .listing-layout',
+   /64px/.test(pad), 'got: ' + pad);
+ok('there is a mobile override, matching .listing-layout\'s 24px',
+   /\.deals-offers\{padding:[^}]*24px/.test(styleBlock.replace(/\s+/g, '')),
+   '64px of padding on a phone leaves almost no room for the banner');
+ok('the media column height is capped',
+   /\.deals-offer-media\{[^}]*max-height/.test(styleBlock),
+   'the master image is 3500x3500 and will set the banner height otherwise');
+
 console.log('\n' + (fail ? 'RED  ' : 'GREEN') + '  ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

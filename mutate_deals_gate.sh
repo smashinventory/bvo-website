@@ -239,6 +239,32 @@ mutate 'M36 facet columns dropped from the SELECT' "$CONTROLLER" \
   '               p\.product_type, p\.width_in,\n' '' catch
 
 echo
+echo "── the three defects that actually shipped (4984ce4) ────────────────────"
+# Every one of these was live. 108 gate checks were green over all three,
+# because every check asserted what the markup SAYS and none followed a link,
+# clicked a control, or looked at a width.
+mutate 'M37 CTA back to the dead /account/join' "$SETTINGS" \
+  "cta_url:       '/account/register\?offer=platinum'," \
+  "cta_url:       '/account/join?offer=platinum'," catch
+mutate 'M38 trade sign-in back to the dead /account/signin' "$SETTINGS" \
+  "signin_url:  '/account/login'," "signin_url:  '/account/signin'," catch
+mutate 'M39 template fallback back to the dead /trade/apply' "$COLLECTION" \
+  "<%= _dbt\.cta_url \|\| '/account/register\?offer=trade' %>" \
+  "<%= _dbt.cta_url || '/trade/apply' %>" catch
+mutate 'M40 checkbox back to a decorative span' "$COLLECTION" \
+  '<input type="checkbox" name="optin" value="1" checked\n                 class="deals-consent-box">' \
+  '<span class="deals-consent-box" aria-hidden="true"></span>' catch
+mutate 'M41 optin loses its name (tick submits nothing)' "$COLLECTION" \
+  '<input type="checkbox" name="optin" value="1" checked' \
+  '<input type="checkbox" value="1" checked' catch
+mutate 'M42 offer param moved onto the GET action (silently dropped)' "$COLLECTION" \
+  'action="<%= _ctaPath %>"' 'action="<%= _ctaRaw %>"' catch
+mutate 'M43 horizontal padding removed (full-bleed layout)' "$COLLECTION" \
+  ';padding:28px 64px 0\}' '}' catch
+mutate 'M44 media height cap removed (3500px image sets the height)' "$COLLECTION" \
+  '\n\.deals-offer-media\{max-height:320px\}' '' catch
+
+echo
 echo "── control: a legitimate edit must NOT go red ───────────────────────────"
 mutate 'C1  banner copy reworded' "$SETTINGS" \
   "heading:       'Your first order, 10% off\.'" "heading:       'Save 10% on your first order.'" allow
