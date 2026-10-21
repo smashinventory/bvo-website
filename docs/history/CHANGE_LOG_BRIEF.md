@@ -19,6 +19,192 @@
 
 ---
 
+## Deals page — the two offer banners, a discount threshold, and `is_deal`
+**Date:** 2026-10-21
+**Scope:** SCOPE_45 item 40 (Rewards / trade programme), Phase 1.
+**Changed:** `src/controllers/collectionsController.js`, `src/services/themeSettings.js`,
+`views/pages/collection.ejs`, `views/pages/admin/theme.ejs`,
+`views/pages/admin/product-edit.ejs`, `src/controllers/adminController.js`,
+`tests/fixtures/collectionLocals.js`
+**New:** `gates/gate_deals_banners.js` (77 checks), `mutate_deals_gate.sh` (26 mutations),
+`migrations/2026-10-21_products_is_deal_RUNME.sql`,
+`migrations/2026-10-21_deals_threshold_READONLY.sql`
+**Status at time of writing:** ⚠️ **NOT PUSHED. NOT LIVE.** The `ALTER` has not been run.
+
+Two banners on `/collections/sale` — a 10%-off-first-order offer carrying the
+marketing-consent checkbox, and a trade-account offer leading on free freight —
+plus the mechanism that decides which products appear below them.
+
+### The threshold, and why it admits nothing by default
+
+The page used to admit the entire catalogue. Its WHERE clause was
+`p.compare_price > p.price` — any discount at all — which measured live on
+2026-10-21 is **5,222 of 5,297** active products.
+
+The reason is that the discount is not BVO's. `importJamesMartinFeed.js:1063`
+sets `price` to James Martin's MAP and `compare_price` to their MSRP, with
+MAP = MSRP × 0.66, so **every JM product is 34% off by construction.** The
+measured ceiling across the whole catalogue is 34.6%; nothing reaches 35%.
+
+So the threshold is set deliberately **above** ordinary pricing — default
+37.5%, editable in the Theme Editor. Nothing qualifies automatically. **An
+empty Deals section is the correct resting state, not a fault.**
+
+The owner's operating model, recorded so this is not mistaken for a bug later:
+ER Vanities and Huntington Brass are not on a nightly feed, so their markdowns
+persist and form the backbone of the section. James Martin markdowns are
+deliberately temporary — `jmsync.sh` runs 04:30 and 16:30, so a hand-set JM
+price reverts within ~12 hours, and the owner uses that as the expiry
+mechanism.
+
+### `products.is_deal` — the hand-pick
+
+With the threshold above the catalogue ceiling, the flag is **the only way to
+seed the section at all**; it is not a convenience. Ticked on the product edit
+page, it admits a product at any discount, including none. No importer,
+`REPLACE INTO` or `ON DUPLICATE` writes the column, so a hand-pick survives
+both nightly syncs — verified by grep across `src/`.
+
+This also satisfies a precondition recorded in `views/partials/footer.ejs:166`.
+The footer's Sale link was removed and `/collections/sale` deliberately
+orphaned, because *"the page is a rule, not a curated list … It needs
+admin-controlled sale flags before it is worth linking."* That is now true.
+**Whether to re-link it, and where the header's "Sale" should point, is still
+the owner's call** — the header reportedly goes to `?on_sale=1` (24 products,
+vanities only), a different list, and live nav items live in the DB where the
+repo cannot see them.
+
+### Four defects found while building this, three of them live-breaking
+
+1. **`Number('')` is `0`.** The threshold guard read `Number(raw)` and a
+   comment claimed a cleared Theme Editor box arrives as `NaN`. It does not —
+   `Number('')` is `0`, which is finite, in range, and therefore **accepted as
+   a threshold of zero**, dumping all 5,222 discounted products onto the page.
+   The exact failure the threshold exists to prevent, triggered by the most
+   ordinary admin action there is. Emptiness is now tested *before* `Number()`.
+   A deliberate, typed `0` is still honoured. Same family as the
+   `Number(null) === 0` defect in `src/config/inventoryRisk.js`.
+
+2. **The INSERT was one `?` short.** Adding `is_deal` to `productCreate`'s
+   column list without a matching placeholder shifts **every** bind by one,
+   writing values into the wrong columns on every manually created product.
+   Found by counting columns against placeholders programmatically; it is not
+   visible to the eye in a 60-column statement. `gate_deals_banners` now
+   counts both and asserts they agree.
+
+3. **`category && category.slug` throws in EJS.** A bare undefined local throws
+   on *evaluation* — `&&` never gets to short-circuit — so this would have
+   500'd any render path that does not pass `category`. Now
+   `typeof category !== 'undefined'`.
+
+4. **`loading="lazy"` on the likely LCP element.** The banner sits directly
+   under the H1, inside the initial viewport on most desktop widths, and is the
+   largest thing on screen. Written lazy on the assumption it sits below the
+   fold — true of a banner on a long grid, false here where the banner *is* the
+   top of the page. Now `eager` + `fetchpriority="high"`, with `width`/`height`
+   retained to stop the grid below shifting.
+
+### The CSS is inline, and that is a deviation from Rule 6
+
+Rule 6 says new public CSS goes in `site2.css` and the bundle is rebuilt with
+`cat brand.css site.css site2.css`. **That rebuild no longer reproduces the
+live file.** Measured 2026-10-21: the `cat` produces 133,420 bytes, live
+`site-bundle.css` is 139,694, and they differ *inside*, not merely at the end.
+The surplus is `.hero--split` rules with `!important` — and it is also not "the
+first 8,039 bytes of `site4.css`" that `main.ejs` claims. Running either
+documented rebuild would silently delete live hero CSS.
+
+This is the contradiction `CLAUDE.md:79-83` already names as unresolved and
+explicitly the owner's to settle. So the ~2KB of banner CSS is injected as an
+inline `<style nonce>` on the one page that needs it — precedent
+`main.ejs:297` — and the bundle is left untouched. `site3.css` was the other
+candidate and is worse: `main.ejs:299-301` keeps it off collections on purpose
+to save 37KB of blocking CSS. **Logged as its own item; not fixed here.**
+
+### Testing
+
+`gate_deals_banners.js` renders the page rather than reading the source, per
+`VANITY_SIDEBAR_FILTERS.md` §6. A SALE fixture was added to the shared
+`collectionLocals.js` — it was the fourth render path and no gate covered it,
+the same hole that once let Brand vanish from the live vanity grid with every
+gate green. Per **Rule 18** the fixture carries only what the controller
+actually passes, and deliberately omits `displayMode` and `tradeMeter`.
+
+Two of the gate's first assertions were wrong and the harness found both: one
+tested the whole page against an absent `category`, which failed on
+pre-existing code at line 43 that every real request satisfies; the other
+tested the banner image on a fixture that supplied no image, so it passed
+vacuously. **And two harness anchors matched inside comments** — the block
+documents its own past bugs by name, so `category.slug === 'sale'` appears
+three times, twice in prose. Rule 18's corollary, encountered live.
+
+### The Sale sidebar — Brand, Type, Size, Price
+
+Added on the owner's instruction the same day. The page had carried **Price
+Range alone** since the project began: `HEAD` passed `availableBrands: []`,
+`availableProductTypes: []`, `attributeDefs: []` and `colorFamiliesConfig: []`
+on this branch, with a comment reading *"sale page has no Type facet"*. The
+owner's correction is recorded verbatim because it changes how that state
+should be read: *"That is because it was just a placeholder that we have not
+touched since the beginning of the project. Not that that is how I want it."*
+
+Defensible while the page was a rule returning 48 near-identical James Martin
+vanities. Not defensible once it is a curated mix of ER Vanities, Huntington
+Brass and occasional JM, where a shopper has no way to narrow by brand.
+
+**The logic is in `src/utils/saleFacets.js`, not inline.** Same extraction
+pattern as `cartPricing.js`, `inventory.js` and `orderEmails.js`, and for the
+reason Rule 18 gives: gates here execute pure functions, so logic inside a
+controller that opens a DB connection can only be tested by re-implementing
+it inside the gate — and a test that re-implements its subject agrees with the
+bug. `gate_deals_banners.js` runs the real `buildSaleView`.
+
+`Product.findByCategory` and `getAvailableWidths` could not be reused: both
+are keyed on `category.id`, and this collection is virtual with `id: null`.
+Passing null would have matched nothing, silently.
+
+**Rule 10 — each facet is computed without its own filter.** Brand options
+come from the pool filtered by Type+Size+Price but *not* Brand. A facet built
+from the already-filtered rows collapses to the single value just picked, so
+the shopper cannot widen or change their mind without hitting Clear all. This
+is what `getAvailableWidths` already does on the grid path.
+
+**`Number(null)` is `0` — fourth sighting of this family, and this one was
+live in my own new code.** The `20-` size bucket is `{min:0,max:22}`, and
+`Number(null)` is 0, which is finite and inside that band. So every row with
+no `width_in` — every faucet, every accessory, the whole non-vanity half of
+the page — matched a 20-inch size filter and appeared in that bucket's facet
+list. Caught by the executed test, not by reading the code. Guarded now, and
+`mutate_deals_gate.sh` M25 re-breaks it.
+
+**Canonical and `noindex` were added WITH the facets, and had to be.** This
+branch previously passed neither, which was survivable with one URL and
+nothing to duplicate. Every filter combination is now a distinct crawlable
+URL, so without a canonical they would each be independently indexable thin
+pages — the duplication §11 and task #304 exist to prevent, on a domain
+ranking top-5. Both rules are copied from the grid path: canonical is the
+clean `/collections/sale`, and `noindex` trips at two or more active filter
+groups.
+
+**The pool cap moved 48 → 300.** `footer.ejs` already recorded the 48-row cap
+as a defect — *"the 49th discounted product is unreachable"* — and a filter
+over a truncated set turns a missing product into a wrong answer: the Brand
+list would omit brands that genuinely qualify. The pool is faceted and
+filtered, then paged at 48. 300 is a ceiling so one runaway markdown cannot
+pull the catalogue into memory.
+
+Verified: 108 gate checks green, 39 mutations with 0 missed, all four render
+paths rendering, and the vanity filter order byte-identical on both paths.
+
+### Not in this change
+
+The trade spend meter renders only when a controller supplies `tradeMeter`,
+which nothing does yet — it is guarded with `typeof` and dormant by design.
+The discount engine in `cartPricing.js`, the trade application form, document
+upload to a non-public path and the admin review queue are all Phase 2.
+
+---
+
 ## 🔴 The free-sample checkout was unfinishable — Place Order did nothing
 **Date:** 2026-10-20
 **Changed:** `views/pages/checkout-payment.ejs`, `views/pages/checkout-success.ejs`, `src/controllers/checkoutController.js`

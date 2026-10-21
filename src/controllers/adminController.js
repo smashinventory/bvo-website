@@ -563,7 +563,7 @@ exports.productCreate = async (req, res, next) => {
           width_in, depth_in, height_in, weight_lbs,
           total_ship_weight_lbs, ships_ltl, freight_class, harmonized_code, lead_time_days,
           country_origin, prop65, release_date, status,
-          is_active, is_featured, is_new,
+          is_active, is_featured, is_new, is_deal,
           sort_order, primary_image_url,
           ${IMG_URL_COLS.join(', ')},
           meta_title, meta_desc,
@@ -573,7 +573,7 @@ exports.productCreate = async (req, res, next) => {
           excluded_destinations, ads_redirect, identifier_exists,
           model, color_family,
           source_flag)
-       VALUES (?,?,?,?,?, ?,?,?,?,?,?, ?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?, ${IMG_URL_COLS.map(() => '?').join(', ')}, ?,?, ?,?,?,?,?, ?,?,?, ?,?,?,?,?, ?,?,?,?,?,'manual')`,
+       VALUES (?,?,?,?,?, ?,?,?,?,?,?, ?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?, ${IMG_URL_COLS.map(() => '?').join(', ')}, ?,?, ?,?,?,?,?, ?,?,?, ?,?,?,?,?, ?,?,?,?,?,'manual')`,
       [sku, d.slug, d.name, d.brand, d.category_id,
        d.product_type, d.vendor_sku, d.upc, d.mpn, d.component_role, d.vendor_group_id,
        d.short_desc, d.long_desc, d.warranty,
@@ -581,7 +581,7 @@ exports.productCreate = async (req, res, next) => {
        d.width_in, d.depth_in, d.height_in, d.weight_lbs,
        d.total_ship_weight_lbs, d.ships_ltl, d.freight_class, d.harmonized_code, d.lead_time_days,
        d.country_origin, d.prop65, d.release_date, d.status,
-       d.is_active, d.is_featured, d.is_new,
+       d.is_active, d.is_featured, d.is_new, d.is_deal,
        d.sort_order, d.primary_image_url,
        ...IMG_URL_COLS.map(c => d[c]),
        d.meta_title, d.meta_desc,
@@ -612,7 +612,7 @@ exports.productUpdate = async (req, res, next) => {
          width_in=?, depth_in=?, height_in=?, weight_lbs=?,
          total_ship_weight_lbs=?, ships_ltl=?, freight_class=?, harmonized_code=?, lead_time_days=?,
          country_origin=?, prop65=?, release_date=?, status=?,
-         is_active=?, is_featured=?, is_new=?,
+         is_active=?, is_featured=?, is_new=?, is_deal=?,
          sort_order=?, primary_image_url=?, video_url=?,
          ${IMG_URL_COLS.map(c => `${c}=?`).join(', ')},
          meta_title=?, meta_desc=?,
@@ -630,7 +630,7 @@ exports.productUpdate = async (req, res, next) => {
        d.width_in, d.depth_in, d.height_in, d.weight_lbs,
        d.total_ship_weight_lbs, d.ships_ltl, d.freight_class, d.harmonized_code, d.lead_time_days,
        d.country_origin, d.prop65, d.release_date, d.status,
-       d.is_active, d.is_featured, d.is_new,
+       d.is_active, d.is_featured, d.is_new, d.is_deal,
        d.sort_order, d.primary_image_url, d.video_url,
        ...IMG_URL_COLS.map(c => d[c]),
        d.meta_title, d.meta_desc,
@@ -1463,6 +1463,11 @@ function _extractProductFields(body) {
     is_active:         body.is_active === '1' ? 1 : 0,
     is_featured:       body.is_featured  ? 1 : 0,
     is_new:            body.is_new       ? 1 : 0,
+    /* is_deal — hand-pick for /collections/sale. Deliberately `? 1 : 0`
+       like is_featured/is_new, NOT `=== '1'` like is_active: an unchecked
+       checkbox sends no key at all, so a missing key must mean 0 and a
+       present one must mean 1 whatever the value string is. */
+    is_deal:           body.is_deal      ? 1 : 0,
     sort_order:        int(body.sort_order) ?? 0,
     // ── Video
     video_url:         (body.video_url         || '').trim() || null,

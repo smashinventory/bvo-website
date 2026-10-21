@@ -45,6 +45,17 @@ const FOOTER_SECS = [
    should be its own piece of work, not a side effect of adding a text box. */
 const CONTENT_SECS = [
   { key:'inspiration', label:'Style Guides',    hasEnabled:false },
+  /* Deals page banners — the two offers above the grid on
+     /collections/sale. A FIXED row for the same reason Style Guides is
+     one: these are not homepage sections, they belong to one specific
+     page, and putting them in the draggable Template list would imply
+     they can be reordered onto the homepage, which they cannot.
+
+     hasEnabled:false because each banner carries its OWN enabled toggle
+     inside the panel — there are two of them and they are switched
+     independently. A single row-level toggle would be ambiguous about
+     which one it killed. */
+  { key:'deals',       label:'Deals Page',      hasEnabled:false },
 ];
 const THEME_SECS = [
   { key:'design',  label:'Typography & Colors' },
@@ -149,6 +160,7 @@ function secIcon(key) {
     testimonials_2:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><text x="9" y="14" font-size="6" fill="currentColor" stroke="none">2</text></svg>',
     footer:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="3" y1="21" x2="21" y2="21"/><polyline points="9 3 3 9 3 21"/><polyline points="15 3 21 9 21 21"/><line x1="3" y1="9" x2="21" y2="9"/></svg>',
     cart_drawer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>',
+    deals: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>',
     design:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
     seo:         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
     global:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
@@ -2500,6 +2512,67 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
             <p style="font-size:.72rem;color:var(--te4-muted,#888);margin:.75rem 0 0;line-height:1.5">
               This text also appears on the guide page itself. Keeping it short
               leaves the guide as the page Google ranks for these phrases.
+            </p>
+          </div>
+
+          <!-- ── DEALS PAGE BANNERS ─────────────────────────── -->
+          <div class="te4-panel" id="panel-deals">
+            <% const dbm = ((t.deals_banners||{}).member)||{};
+               const dbt = ((t.deals_banners||{}).trade )||{}; %>
+            <p style="font-size:.74rem;color:var(--te4-muted,#888);margin:0 0 .75rem;line-height:1.5">
+              The two offer banners above the grid on
+              <a href="/collections/sale" target="_blank" rel="noopener">/collections/sale</a>.
+              Swap the image and copy here as inventory changes — no deploy needed.
+            </p>
+
+            <div class="te4-section-label">Platinum Member — 10% off first order</div>
+            <%- teToggle('deals_banners.member.enabled','Show this banner', dbm.enabled !== false) %>
+            <%- teField('text','deals_banners.member.eyebrow','Eyebrow', dbm.eyebrow) %>
+            <%- teField('text','deals_banners.member.heading','Heading', dbm.heading) %>
+            <%- teField('textarea','deals_banners.member.subtitle','Subtitle', dbm.subtitle) %>
+            <%- teImage('deals_banners.member.image','deals_banners.member.image_alt',
+                  dbm.image, dbm.image_alt, 'Banner image') %>
+            <p style="font-size:.72rem;color:var(--te4-muted,#888);margin:-.4rem 0 .7rem;line-height:1.5">
+              Use a styled <strong>room</strong>, not a product on white — this banner
+              sells the finished bathroom. Add <code>?width=900</code> to the end of a
+              CDN URL so a 3500px master is not served to a banner.
+            </p>
+            <%- teField('text','deals_banners.member.consent_label','Consent checkbox label', dbm.consent_label) %>
+            <%- teField('text','deals_banners.member.consent_note','Consent note (muted, after the label)', dbm.consent_note) %>
+            <p style="font-size:.72rem;color:var(--te4-muted,#888);margin:-.4rem 0 .7rem;line-height:1.5">
+              ⚠️ Ticking this box <strong>is</strong> the claim — it records marketing
+              consent and grants the offer in one action. Say it is required, and never
+              pre-tick it: a pre-ticked box is weak evidence of consent and would hand
+              the discount to people who agreed to nothing.
+            </p>
+            <%- teField('text','deals_banners.member.cta_text','Button text', dbm.cta_text) %>
+            <%- teField('text','deals_banners.member.cta_url','Button link', dbm.cta_url) %>
+            <%- teField('text','deals_banners.member.footnote','Footnote under the button', dbm.footnote) %>
+
+            <div class="te4-section-label">Platinum Trade — 15%, rising to 20%</div>
+            <%- teToggle('deals_banners.trade.enabled','Show this banner', dbt.enabled !== false) %>
+            <%- teField('text','deals_banners.trade.eyebrow','Eyebrow', dbt.eyebrow) %>
+            <%- teField('text','deals_banners.trade.heading','Heading', dbt.heading) %>
+            <p style="font-size:.72rem;color:var(--te4-muted,#888);margin:-.4rem 0 .7rem;line-height:1.5">
+              Leads with freight rather than the percentage on purpose. CB2 gives
+              designers 20% on day one, so 15% loses that comparison — but free freight
+              on a $3,000 vanity is worth more than the missing 5%, and competitors
+              cannot match it. Flip the order here if you want to test the alternative.
+            </p>
+            <%- teField('textarea','deals_banners.trade.subtitle','Subtitle', dbt.subtitle) %>
+            <p style="font-size:.72rem;color:var(--te4-muted,#888);margin:-.4rem 0 .7rem;line-height:1.5">
+              ⚠️ Only promise an approval time you will actually keep. A missed promise
+              on a trade buyer's first interaction costs more than not making one.
+            </p>
+            <%- teField('text','deals_banners.trade.cta_text','Button text', dbt.cta_text) %>
+            <%- teField('text','deals_banners.trade.cta_url','Button link', dbt.cta_url) %>
+            <%- teField('text','deals_banners.trade.signin_text','Returning-pro link text', dbt.signin_text) %>
+            <%- teField('text','deals_banners.trade.signin_url','Returning-pro link URL', dbt.signin_url) %>
+            <%- teField('text','deals_banners.trade.meter_label','Spend meter heading', dbt.meter_label) %>
+            <p style="font-size:.72rem;color:var(--te4-muted,#888);margin:-.4rem 0 .7rem;line-height:1.5">
+              Only the heading is editable. The figures in the meter are calculated from
+              captured orders at render time — a hand-typed balance would sit on the page
+              claiming to be a customer's real spend.
             </p>
           </div>
 

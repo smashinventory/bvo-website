@@ -613,6 +613,40 @@ correct the recipe or replace it with a real build script. Whoever last
 built the bundle knows what went in after the `site4.css` slice; the file
 history may not.
 
+#### Re-measured 2026-10-21 — the tail is identified, and it is NOT site4.css
+
+Measured again while deciding where the Deals banner CSS should live:
+
+| | 2026-09-23 | 2026-10-21 |
+|---|---|---|
+| `cat brand.css site.css site2.css` | — | 133,420 bytes |
+| `site-bundle.css` on disk | 127,404 | **139,694** |
+| unexplained surplus | 4,917 | **6,274** |
+
+Two things are now established that were open above:
+
+1. **The `cat` output is not even a PREFIX of the live bundle.** The two
+   differ *inside*, not merely at the end, so the surplus is not a tail that
+   got appended — the bundle has been hand-edited in place.
+2. **The surplus is `.hero--split` rules carrying `!important`.** It is
+   therefore *not* "the first ~8,039 bytes of `site4.css`" that `main.ejs`
+   claims. **Both** CLAUDE.md Rule 6 and the `main.ejs` comment describe a
+   rebuild that no longer reproduces the file, and running either would
+   silently delete live hero CSS from every public page.
+
+**Consequence for the Deals work:** the banner CSS was injected as an inline
+`<style nonce>` on `/collections/sale` rather than added to `site2.css`,
+specifically to avoid touching this. That is a deliberate deviation from
+Rule 6, recorded in `CHANGE_LOG_BRIEF.md` under the 2026-10-21 Deals entry
+and in a comment at the injection site. `site3.css` was considered and
+rejected: `main.ejs:299-301` keeps it off collections on purpose to save
+37KB of blocking CSS.
+
+**Still the owner's decision, per CLAUDE.md:79-83**, which already names this
+contradiction as unresolved: *"Both are in writing. The answer is Sam's, not
+mine."* The options are to correct the recipe to reflect what is actually in
+the file, or to write a real build script and regenerate it once.
+
 ---
 
 ### 11a. The `collections` table is write-only — DO NOT DROP IT
@@ -2346,3 +2380,82 @@ why it was left out of the 2026-10-02 commits rather than bundled in.
 Also noted: Facebook is the only social link rendering. If Instagram or
 Pinterest URLs are set in settings and not appearing, that is separate and
 unverified.
+
+---
+
+# LOW PRIORITY — captured 2026-10-20 from the runtime logs
+
+Raised because the owner spotted "errors" in the Hostinger runtime log after
+the free-order deploys. **There were no errors.** Every line was a successful
+startup step. These two are the only things worth doing, neither is urgent,
+and nothing is broken today.
+
+## A. The in-process bundle-cron fires an unpredictable number of times
+
+`src/server.js:960` schedules the nightly catalogue build with `node-cron`
+inside the app process:
+
+```js
+cron.schedule('30 6 * * *', () => { ... }, { timezone: 'UTC' });
+console.log('[bundle-cron] scheduled 06:30 UTC daily');
+```
+
+That line runs in **every Passenger worker**. The log of 2026-10-20 22:07
+shows it five times in four minutes, once per worker boot.
+
+⚠️ **The first reading of this was "five concurrent builds", and that is
+probably wrong in the more interesting direction.** Passenger's default idle
+timeout is 300s, and workers are recycled when traffic stops. 06:30 UTC is
+02:30 EDT — the quietest hour. So at the moment the timer should fire there
+may be **no worker alive at all**. The honest description is that the
+in-process timer runs 0, 1, or N times depending on who happens to be awake.
+
+It is not redundancy. It is a coin toss that reads like redundancy, and the
+comment above it calls the pairing with system cron "deliberate".
+
+**What actually runs the build reliably** is the hPanel entry
+`30 6 * * * /bin/bash $BASE/bundle_catalogue.sh` (confirmed in the cron list,
+2026-10-20).
+
+**The fix:** gate the in-process scheduler behind an env flag (default off)
+and let system cron own the schedule. Small, low risk.
+
+**Why it is not urgent:** `buildBundleCatalogue.js:31` — *"Re-running is
+harmless: the writer upserts a single row."* So duplicate runs waste work;
+they do not corrupt anything. The real cost is the false confidence.
+
+⚠️ Before touching this, re-read `SERVER_CRON_TOPOLOGY.md` §"The repo copies
+are NOT operational": cron invokes `$BASE/<script>.sh`, one level ABOVE the
+deployed tree, so **editing `bundle_catalogue.sh` in this repo changes
+nothing that executes.**
+
+## B. #357 "redirect map reloads every ~5 minutes" — probable cause found
+
+Not confirmed, but it fits every observation: **Passenger's default idle
+timeout is 300 seconds.** An idle worker is retired, the next request spawns
+a fresh one, and that new process boots the app — reloading the redirect map,
+re-scheduling the cron and re-syncing the theme each time.
+
+Evidence: the 22:07 log shows repeated full boots, with
+`[redirects] 502 legacy URLs loaded` on only SOME of them, at roughly the
+cadence #357 describes.
+
+**Ruled out:** `jm_feed_guard.sh`, despite also running every 5 minutes. It
+restarts nothing — per `SERVER_CRON_TOPOLOGY.md:115-119` it only recreates
+`$FEED/archive` after a deploy wipe and copies settled feed files, and it
+"logs ONLY when it acts". That was the first hypothesis and it was wrong.
+
+**To confirm:** check the Passenger pool idle setting, or correlate boots
+against gaps in traffic. If this is it, #357 is expected behaviour and can be
+closed rather than fixed.
+
+## Not new, but re-surfaced and larger than either of the above
+
+`SERVER_CRON_TOPOLOGY.md:99-103` — **nine scripts exist only on the server and
+are in no version control anywhere**: all six `gvssync_*`, plus `gvssync.sh`,
+`jmsync.sh` and `jm_feed_guard.sh`, as well as the whole `jmv_sync/` PHP
+layer. The only known copy is a backup dump. Confirmed again on 2026-10-20 —
+`jm_feed_guard.sh` could not be reviewed because there is no local copy.
+
+This is a bigger standing risk than anything in this section and is already
+documented; repeated here only so it is not lost among the low-priority items.

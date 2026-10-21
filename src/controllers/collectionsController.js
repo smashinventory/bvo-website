@@ -30,6 +30,7 @@ const Product                                           = require('../models/Pro
 const Customer                                          = require('../models/Customer');
 const { FAMILIES, normalize, getFamily, CABINET_KEYS, METAL_KEYS } = require('../config/colorFamilies');
 const { SIZE_BUCKETS }                                  = require('../config/sizeBuckets');
+const { buildSaleView }                                 = require('../utils/saleFacets');
 /* Which product a model card leads with — shared with homeController so
    the carousel and this page cannot pick different heroes. */
 const { fetchModelHeroes, heroFields }                  = require('../utils/modelHero');
@@ -175,9 +176,63 @@ exports.show = async (req, res, next) => {
 
     // ── Virtual "sale" collection ──────────────────────────────────
     if (slug === 'sale') {
+      /* ⚠️ THIS USED TO ADMIT THE ENTIRE CATALOGUE. The WHERE clause was
+         `p.compare_price > p.price` — any discount at all — and measured
+         live on 2026-10-21 that is 5,222 of 5,297 active products. A Sale
+         page listing almost everything is not a sale page.
+
+         The reason is that the discount is not BVO's. importJamesMartin-
+         Feed.js:1063: `price` is James Martin's MAP, `compare_price` is
+         their MSRP, and MAP = MSRP x 0.66 — so every JM product is 34% off
+         by construction. The measured ceiling across the whole catalogue
+         is 34.6%; nothing reaches 35%.
+
+         So the threshold is set ABOVE ordinary pricing (default 37.5%).
+         Nothing qualifies automatically, and the section fills only when
+         something is genuinely marked down. An EMPTY deals section is the
+         correct resting state, not a fault.
+
+         Two ways in, deliberately:
+           is_deal = 1   the owner ticked the box. Ignores the threshold.
+           discount >= threshold   a real markdown, admitted automatically.
+
+         The flag is not a nicety: with the threshold above the catalogue
+         ceiling it is the only way to seed the section at all. */
+      const _dealsRaw = ((res.locals.settings || {}).seo || {}).deals_min_discount_pct;
+
+      /* ⚠️ EMPTY MUST BE TESTED BEFORE Number(), AND THIS LINE WAS WRONG
+         FIRST TIME. An earlier version read `Number(raw)` and relied on a
+         comment claiming a cleared Theme Editor box arrives as '' → NaN.
+         It does not: `Number('')` is 0 — finite, in range, and therefore
+         ACCEPTED as a threshold of zero. A cleared box would have dumped
+         all 5,222 discounted products onto the Deals page, which is the
+         exact failure this threshold exists to prevent, triggered by the
+         most ordinary admin action there is.
+
+         Same family as the Number(null) === 0 defect in
+         src/config/inventoryRisk.js. Empty is NOT zero. A deliberate 0 is
+         still honoured below — "show everything" is a legitimate thing to
+         ask for — but it has to be TYPED, not left blank. */
+      const dealsPct = (_dealsRaw === '' || _dealsRaw === null || _dealsRaw === undefined)
+        ? NaN
+        : Number(_dealsRaw);
+
+      /* Guarded rather than trusted: out of range, non-numeric or unset all
+         fall back to the shipped default rather than silently changing what
+         the page shows. */
+      const dealsFrac = (Number.isFinite(dealsPct) && dealsPct >= 0 && dealsPct <= 100)
+        ? dealsPct / 100
+        : 0.375;
+
       const [saleRows] = await bvoPool.query(`
         SELECT p.id, p.slug, p.name, p.brand, p.price, p.compare_price,
                p.is_new, p.is_featured,
+               /* product_type and width_in feed the sidebar facets. They are
+                  selected, not separately queried: the qualifying set is
+                  small and capped, so faceting it in JS costs one query
+                  instead of four and avoids the cross-table text
+                  comparisons Rule 14 warns about. */
+               p.product_type, p.width_in,
                COALESCE(p.primary_image_url, pi.url) AS primary_image,
                (SELECT pi2.url FROM product_images pi2
                 WHERE pi2.product_id = p.id
@@ -186,38 +241,125 @@ exports.show = async (req, res, next) => {
                'sale' AS badge
         FROM products p
         LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
-        WHERE p.is_active = 1 AND p.compare_price IS NOT NULL AND p.compare_price > p.price
-        ORDER BY p.is_featured DESC, p.created_at DESC
-        LIMIT 48
-      `).catch(err => {
+        WHERE p.is_active = 1
+          AND (
+            /* Hand-picked. Ignores the threshold entirely — the owner
+               decides, and a flagged product stays put even after a
+               temporary James Martin markdown reverts on the next feed
+               run. It still shows its normal MSRP→MAP discount, which is
+               a real discount; the shopper cannot see the threshold, so
+               there is nothing contradictory on the page. */
+            p.is_deal = 1
+            OR (
+              /* Or a genuine markdown, admitted automatically.
+                 compare_price > 0 is required, not merely NOT NULL: a
+                 zero MSRP divides by zero, and MariaDB returns NULL
+                 rather than erroring — the row would vanish from the
+                 page with nothing to show why. */
+              p.compare_price IS NOT NULL
+              AND p.compare_price > 0
+              AND (p.compare_price - p.price) / p.compare_price >= ?
+            )
+          )
+        /* Hand-picked first: they are deliberate choices, so they lead.
+           Then the existing order, unchanged. */
+        ORDER BY p.is_deal DESC, p.is_featured DESC, p.created_at DESC
+        /* ⚠️ 300, NOT 48, AND THE DIFFERENCE MATTERS NOW THAT FILTERS EXIST.
+           This is the QUALIFYING POOL, not the page. It is faceted and
+           filtered below, then paged at 48.
+
+           At LIMIT 48 the facets would describe a truncated set: flag 60
+           products and the Brand list would omit brands that genuinely
+           qualify, and filtering would search 48 of 60. footer.ejs already
+           recorded the 48-cap as a defect — "the 49th discounted product is
+           unreachable" — and a filter over a truncated set turns that from
+           a missing product into a wrong answer.
+
+           300 is a ceiling, not a target: the page is hand-curated plus
+           genuine markdowns, so the real figure is tens. It exists so one
+           runaway markdown cannot pull the whole catalogue into memory. */
+        LIMIT 300
+      `, [dealsFrac]).catch(err => {
         /* Was `.catch(() => [[]])` — silent. The Sale page would render
            completely empty and look like a legitimately empty promotion
            rather than a broken query. */
         console.error('[collections] sale query FAILED:', err.code, err.sqlMessage || err.message);
         return [[]];
       });
-      const products = Array.isArray(saleRows[0]) ? saleRows[0] : saleRows;
+      const pool = Array.isArray(saleRows[0]) ? saleRows[0] : saleRows;
+
+      /* ── SIDEBAR FACETS ──────────────────────────────────────────────
+         Brand, Type, Size and Price, on the owner's instruction
+         (2026-10-21). The page carried Price Range alone before — not a
+         decision, a placeholder untouched since the project began.
+
+         The logic lives in src/utils/saleFacets.js so a gate can EXECUTE
+         it rather than re-implement it. See that file's header for why the
+         Product model cannot serve this page (category.id is null here)
+         and for the Rule 10 rule each facet obeys. */
+      const saleView = buildSaleView(pool, req.query);
+      const products = saleView.products;
+
+      /* ── CANONICAL AND noindex — ADDED WITH THE FACETS, NOT BEFORE ─────
+         This branch previously passed NEITHER, which was survivable while
+         the page had no filters: one URL, nothing to duplicate. The moment
+         Brand/Type/Size exist, every combination is a distinct crawlable
+         URL — ?brand=X, ?brand=X&size_in=30, and so on — and with no
+         canonical they would all be independently indexable thin pages.
+         That is the duplication §11 of VANITY_SIDEBAR_FILTERS.md and task
+         #304 were written to prevent, and adding facets without this would
+         have re-created it on a domain that ranks top-5.
+
+         Both rules are COPIED from the grid path, not invented here:
+         canonical is the clean collection URL, so filtered variants
+         consolidate onto it, and noindex trips at two or more active
+         filter groups exactly as line ~1255 does. */
+      const _saleSiteUrl = require('../utils/siteUrl').base();
+      const saleCanonical = `${_saleSiteUrl}/collections/sale`;
+      const saleNoindex = saleView.activeGroups >= 2;
+
       return res.render('pages/collection', {
         sd,
         sdCtx: sdCollectionCtx(res, { slug: 'sale', name: 'Sale' }, '/collections/sale', null),
         pageTitle:    'Sale | BathroomVanitiesOutlet.com',
         metaDesc:     'Shop discounted bathroom vanities, mirrors, faucets and accessories.',
+        canonicalUrl: saleCanonical,
+        noindex:      saleNoindex,
         category:     { id: null, slug: 'sale', name: 'Sale', description: 'Discounted products — limited time offers', meta_title: 'Sale', meta_desc: '' },
         isVanityCategory: false,
         products,
-        total: products.length, page: 1, pages: 1, perPage: 48,
-        pageWindow: buildPageWindow(1, 1),
+        /* `total` is the MATCHED count, not the page's length. The pager and
+           the "N products" line both read it, so products.length would have
+           read "48 products" on every full page regardless of the real
+           total. */
+        total: saleView.total,
+        page: saleView.page, pages: saleView.pages, perPage: saleView.perPage,
+        pageWindow: buildPageWindow(saleView.page, saleView.pages),
         sort: 'featured',
-        brands: [], productTypes: [],
+        /* Selected values. Brand renders FIRST here because
+           isVanityCategory is false — VANITY_SIDEBAR_FILTERS.md §2: Brand
+           is fifth on vanities and first everywhere else, and this page
+           goes through the non-vanity call site at the top of
+           collection.ejs. No fourth call site was added. */
+        brands: saleView.brands,
+        /* §11 trap 1: `productTypes` reads req.query.type, and the legacy
+           Type group is what renders when a collection has no
+           product_type attribute_definitions row. This one has none, so
+           the legacy group is the right one — keying off anything else
+           would promote nothing, silently. */
+        productTypes: saleView.productTypes,
+        activeSizes: saleView.activeSizes,
         attrFilters: {}, activeAttrFilters: {},
         rangeFilters: {},
-        minPrice: undefined, maxPrice: undefined,
-        priceRange: { min: 0, max: 9999 },
-        availableBrands: [],
-        availableProductTypes: [],   // sale page has no Type facet
+        minPrice: saleView.minPrice,
+        maxPrice: saleView.maxPrice,
+        priceRange: saleView.priceRange,
+        availableSizes: saleView.availableSizes,
+        availableBrands: saleView.availableBrands,
+        availableProductTypes: saleView.availableProductTypes,
         attributeDefs: [],
         availableAttrValues: {},
-        hasActiveFilters: false,
+        hasActiveFilters: saleView.hasActiveFilters,
         // Primary color filter — not applicable on sale page
         colorFamiliesConfig: [],
         colorFamilyActive: [],

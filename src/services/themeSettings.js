@@ -148,6 +148,97 @@ const DEFAULTS = {
        defensible rather than arbitrary. Raise it to be more conservative;
        set it to 0 to promote every value that has content written. */
     filter_landing_min_products: 10,
+
+  /* ── DEALS ──────────────────────────────────────────────────────────
+       deals_min_discount_pct — the MSRP→price discount a product must
+       reach to appear in the Deals section (/collections/sale) on its own.
+
+       ⚠️ 37.5 IS ABOVE EVERY PRODUCT IN THE CATALOGUE, AND THAT IS THE
+       POINT. Measured live 2026-10-21: 5,222 active products carry a
+       discount; the deepest is 34.6%; nothing reaches 35%. James Martin
+       pricing is formulaic — importJamesMartinFeed.js:1063, `price` is
+       JM's MAP and `compare_price` their MSRP, MAP = MSRP x 0.66 — so
+       ordinary pricing is 34% off by construction.
+
+       A threshold BELOW that ceiling admits the entire catalogue and the
+       section means nothing, which is exactly what /collections/sale does
+       today: its WHERE clause is `compare_price > price`, so 5,222
+       products qualify. Setting the bar above normal pricing inverts that
+       — nothing qualifies until something is genuinely marked down.
+
+       So an EMPTY Deals section is the correct resting state, not a
+       fault. It fills when the owner discounts something, and empties
+       again when a James Martin price reverts on the next feed run
+       (jmsync.sh, 04:30 and 16:30).
+
+       Products can also be admitted by hand with products.is_deal, which
+       ignores this number entirely. With the threshold above the ceiling
+       that flag is the only way to seed the section, so the two are a
+       pair — see the 2026-10-21 is_deal migration.
+
+       Stored as a PERCENT (37.5), not a fraction (0.375): it is typed by
+       a human into a Theme Editor field, and 0.375 invites someone to
+       enter 37.5 and silently filter at 3750%. The consumer divides. */
+    deals_min_discount_pct: 37.5,
+  },
+
+  /* ── DEALS PAGE BANNERS ───────────────────────────────────────────────
+     The two offer banners above the grid on /collections/sale.
+
+     ⚠️ TWO FIXED GROUPS, NOT A REPEATER, AND THAT IS DELIBERATE.
+     adminController.themeSave passes the whole posted body to
+     themeSettings.save(), which setDotPath()s every dotted key — so a
+     SCALAR field needs only two layers: the template reads it and the
+     Theme Editor posts it. The third layer in CLAUDE.md Rule 5
+     (_extractIndexedArray + ARRAY_PREFIXES) exists for REPEATER ARRAYS
+     only; ARRAY_PREFIXES is a list of `foo[` prefixes that get pulled
+     OUT of the flat body and reassigned wholesale.
+
+     A repeater here would therefore have needed all three layers and a
+     gate, to buy a flexibility nobody asked for: there are exactly two
+     offers, Platinum Member and Platinum Trade, and they are structurally
+     different — one has a consent checkbox, the other a spend meter. Two
+     named groups say that; an array of "banners" would not.
+
+     ⚠️ THE METER IS NOT IN HERE. meter_label is the heading above it, but
+     the FIGURES are computed from captured revenue at render time
+     (TRADE_PROGRAM_SPEC §2). Putting "$11,600 of $20,000" in editable
+     settings would let a stale number sit on the page claiming to be a
+     customer's balance. */
+  deals_banners: {
+    member: {
+      enabled:       true,
+      eyebrow:       'Platinum Member',
+      heading:       'Your first order, 10% off.',
+      subtitle:      "Join free. We'll send you deals worth having — and nothing else.",
+      consent_label: 'Yes — email me deals and promotions.',
+      consent_note:  'Required to claim your 10%.',
+      cta_text:      'Claim my 10%',
+      cta_url:       '/account/join?offer=platinum',
+      footnote:      'Free shipping, every order · 30-day returns',
+      /* Owner-chosen 2026-10-21. A styled ROOM, not a product cut-out —
+         the member banner sells the finished bathroom, and a cabinet on
+         white kills it. ?width= is the CDN transform already used by the
+         category cards; the master is 3500x3500 and must never be served
+         raw to a banner. */
+      image:         'https://images.bathroomvanitiesoutlet.com/D680-V36-WTO-3ENC/bathroom-vanities-kinnsden-36-weathered-oak-d680-v36-wto-3enc-3.webp?width=900',
+      image_alt:     'Kinnsden 36-inch weathered oak vanity in a styled bathroom',
+    },
+    trade: {
+      enabled:     true,
+      eyebrow:     'Platinum Trade',
+      /* Leads with freight, not the percentage. CB2 gives designers 20%
+         on day one; BVO's 15% loses that comparison outright. Free
+         freight on a $3,000 vanity is worth more than the missing 5%,
+         and it is the thing competitors cannot match. */
+      heading:     'Free freight on every order. Plus 15% off.',
+      subtitle:    'No minimums. Approved in one business day.',
+      cta_text:    'Apply for trade',
+      cta_url:     '/trade/apply',
+      signin_text: 'Already approved? Sign in',
+      signin_url:  '/account/signin',
+      meter_label: 'Elite Trade · 20%',
+    },
   },
   global: {
     site_name:              'BathroomVanitiesOutlet.com',

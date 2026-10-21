@@ -128,6 +128,206 @@
   <% } %>
 </div>
 
+<%# ── DEALS PAGE OFFER BANNERS ────────────────────────────────────────
+    45-point scope item 40. Two offers above the grid on the Deals page.
+
+    ⚠️⚠️ SCOPED TO ONE SLUG, AND THE GUARD IS THE WHOLE POINT. This
+    template renders EVERY collection page on the site — vanities, tops,
+    mirrors, faucets, every filter landing page and every model page. The
+    `category.slug === 'sale'` test is what keeps this block off all of
+    them. Widening it, or moving this markup above the test, puts a
+    marketing banner on all 64 collections at once.
+
+    `category` is set on every render path here (the virtual sale branch
+    builds one explicitly), but it is still read defensively: a collection
+    page is a critical path and an offer banner is not worth a 500.
+
+    Nothing below reads product or pricing data. These are two static
+    panels driven by theme settings, so the grid underneath is unaffected
+    whether they render or not. %>
+<%# ⚠️ `typeof category !== 'undefined'` FIRST, and it is not belt-and-braces.
+    An earlier version read `category && category.slug === 'sale'`. In EJS a
+    bare undefined local throws ReferenceError on EVALUATION — the `&&` never
+    gets the chance to short-circuit — so on any render path that does not
+    pass `category` this block would 500 the whole collection page rather
+    than quietly skipping. Caught by the render test, not by reading it.
+    Matches the `typeof modelSeo !== 'undefined'` guard used at the top of
+    this file for the same reason. %>
+<% if (typeof category !== 'undefined' && category && category.slug === 'sale') {
+     const _db  = (typeof settings !== 'undefined' && settings && settings.deals_banners) || {};
+     const _dbm = _db.member || {};
+     const _dbt = _db.trade  || {};
+     /* enabled !== false, not === true: a settings file saved before this
+        shipped has no `enabled` key at all, and that must mean ON — the
+        same convention every other section in this codebase uses. */
+     const _showM = _dbm.enabled !== false;
+     const _showT = _dbt.enabled !== false; %>
+<% if (_showM || _showT) { %>
+<%# ⚠️ INLINE, AND NOT IN site2.css / site-bundle.css. THE BUNDLE CANNOT BE
+    SAFELY REBUILT. Measured 2026-10-21: the documented rebuild
+    (`cat brand.css site.css site2.css`) produces 133,420 bytes, the live
+    site-bundle.css is 139,694, and the two differ INSIDE — not merely at
+    the end. The surplus is .hero--split rules with !important, which is
+    also NOT "the first 8,039 bytes of site4.css" that main.ejs claims. So
+    both CLAUDE.md and main.ejs describe a rebuild that no longer
+    reproduces the live file, and running either would silently delete
+    live hero CSS. Logged separately; not this task's problem to fix.
+
+    site3.css was the other candidate and is worse: main.ejs:299-301 keeps
+    it OFF collections deliberately, to save 37KB of blocking CSS. Pulling
+    it in for two banners would undo that on the one page we most want
+    fast.
+
+    So: inline, on one page, ~2KB, no extra request, nothing added to any
+    other page, and the bundle is left untouched. Precedent is
+    breakpoints.bundleTeaserCss at main.ejs:297, injected exactly this way.
+    The nonce is required — CSP blocks unsigned style elements. %>
+<style nonce="<%= cspNonce %>">
+.deals-offers{display:grid;gap:14px;margin:0 0 28px}
+.deals-offer{border-radius:12px;overflow:hidden}
+.deals-offer--member{background:#FAF7F2;border:1px solid #E8E4DC;display:flex;flex-wrap:wrap}
+.deals-offer--member .deals-offer-body{flex:1 1 58%;min-width:280px;padding:28px 26px}
+.deals-offer-media{flex:1 1 38%;min-width:240px;background:#E8E4DC}
+.deals-offer-media img{display:block;width:100%;height:100%;min-height:230px;object-fit:cover;object-position:center}
+.deals-offer--trade{background:#101828;color:#fff;padding:26px;display:flex;flex-wrap:wrap;gap:26px;align-items:flex-start}
+.deals-offer--trade .deals-offer-body{flex:1 1 320px}
+.deals-eyebrow{font-size:.69rem;letter-spacing:.14em;text-transform:uppercase;color:#8A8478;font-weight:600;margin:0 0 9px}
+.deals-eyebrow--light{color:#B9BFC9}
+.deals-offer-head{font-family:var(--font-serif,Georgia,serif);font-size:1.75rem;line-height:1.18;color:var(--color-navy,#182840);margin:0 0 8px;font-weight:700}
+.deals-offer--trade .deals-offer-head{color:#fff}
+.deals-offer-sub{font-size:.9rem;line-height:1.6;color:#5E584E;margin:0 0 16px;max-width:38ch}
+.deals-offer--trade .deals-offer-sub{color:#AEB5C0}
+.deals-consent{display:flex;gap:9px;align-items:flex-start;margin:0 0 16px;max-width:42ch;font-size:.79rem;line-height:1.5;color:#5E584E}
+.deals-consent-box{width:15px;height:15px;border:1.5px solid var(--color-amber,#C4885A);border-radius:3px;flex:0 0 auto;margin-top:2px}
+.deals-consent-note{color:#8A8478}
+.deals-offer-cta{display:inline-block}
+.deals-offer-foot{font-size:.72rem;color:#8A8478;margin:13px 0 0}
+.deals-trade-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.deals-trade-signin{font-size:.79rem;color:#D4B870;border-bottom:1px solid #876E2B;text-decoration:none}
+.deals-trade-signin:hover{color:#E8C4A0}
+.deals-meter{flex:0 1 240px;background:var(--color-navy,#182840);border-radius:8px;padding:17px}
+.deals-meter-label{font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:#D4B870;font-weight:600;margin:0 0 11px}
+.deals-meter-track{height:7px;background:#0B1422;border-radius:4px;overflow:hidden;margin:0 0 9px}
+.deals-meter-fill{display:block;height:100%;background:#D4B870}
+.deals-meter-figure{font-size:.82rem;color:#fff;margin:0 0 3px}
+.deals-meter-note{font-size:.72rem;color:#9AA3B0;line-height:1.5;margin:0}
+@media (max-width:860px){
+  .deals-offer--member{flex-direction:column-reverse}
+  .deals-offer--member .deals-offer-body{padding:22px 20px}
+  /* The master is square and composed vertically — mirror above vanity,
+     sconces either side. A letterbox crop on mobile decapitates it, so the
+     panel keeps real height instead. */
+  .deals-offer-media img{min-height:260px;max-height:300px}
+  .deals-offer-head{font-size:1.45rem}
+  .deals-meter{flex:1 1 100%}
+}
+</style>
+<div class="deals-offers">
+
+  <%# ⚠️ THE OFFER HEADLINES ARE PARAGRAPHS, NOT HEADINGS, ON PURPOSE.
+      They were level-2 headings with aria-labelledby, textbook markup in
+      isolation and wrong here. This page's H1 is "Sale", and the first two
+      subheadings a crawler meets would have been "Your first order, 10%
+      off" and "Free freight on every order" — promotional copy, pushing the
+      page's apparent subject away from discounted vanities, which is the
+      thing it needs to rank for. SEO is a stated top priority and the
+      domain already ranks top-5 on these terms, so the heading outline is
+      reserved for content.
+
+      Accessibility is unchanged: each section carries aria-label, which
+      names it in the landmark list exactly as a heading would. %>
+  <% if (_showM) { %>
+  <section class="deals-offer deals-offer--member" aria-label="New customer offer">
+    <div class="deals-offer-body">
+      <% if (_dbm.eyebrow) { %><p class="deals-eyebrow"><%= _dbm.eyebrow %></p><% } %>
+      <p class="deals-offer-head"><%= _dbm.heading || 'Your first order, 10% off.' %></p>
+      <% if (_dbm.subtitle) { %><p class="deals-offer-sub"><%= _dbm.subtitle %></p><% } %>
+
+      <%# The consent line is presentational HERE — ticking it on this page
+          does not grant anything. The claim is recorded server-side on the
+          signup endpoint, which is also where the evidence row is written.
+          Showing it now sets the expectation before the click. %>
+      <% if (_dbm.consent_label) { %>
+      <p class="deals-consent">
+        <span class="deals-consent-box" aria-hidden="true"></span>
+        <span><%= _dbm.consent_label %><% if (_dbm.consent_note) { %>
+          <span class="deals-consent-note"><%= _dbm.consent_note %></span><% } %></span>
+      </p>
+      <% } %>
+
+      <a class="btn btn-amber deals-offer-cta" href="<%= _dbm.cta_url || '/account/join?offer=platinum' %>"><%= _dbm.cta_text || 'Claim my 10%' %></a>
+      <% if (_dbm.footnote) { %><p class="deals-offer-foot"><%= _dbm.footnote %></p><% } %>
+    </div>
+    <% if (_dbm.image) { %>
+    <%# ⚠️ EAGER AND HIGH PRIORITY — NOT LAZY, AND THE FIRST VERSION HAD
+        THIS WRONG. This banner sits immediately under the H1 and
+        breadcrumb, so on most desktop viewports it is INSIDE the initial
+        viewport and is comfortably the largest element on screen. That
+        makes it the likely LCP element for the whole page, and
+        loading="lazy" on an LCP image is one of the most reliable ways to
+        damage LCP — the browser defers the very thing the metric measures.
+
+        It was written lazy on the assumption that it sits below the fold.
+        That assumption is true for the banner on a long collection grid
+        and false here, where the banner IS the top of the page.
+
+        width/height stay: they reserve the space and stop the product grid
+        below shifting while the image arrives (CLS). The ?width= transform
+        in the settings value does the real weight saving — the master is
+        3500x3500. %>
+    <div class="deals-offer-media">
+      <img src="<%= _dbm.image %>" alt="<%= _dbm.image_alt || '' %>"
+           loading="eager" fetchpriority="high" decoding="async"
+           width="900" height="900">
+    </div>
+    <% } %>
+  </section>
+  <% } %>
+
+  <% if (_showT) { %>
+  <section class="deals-offer deals-offer--trade" aria-label="Trade account offer">
+    <div class="deals-offer-body">
+      <% if (_dbt.eyebrow) { %><p class="deals-eyebrow deals-eyebrow--light"><%= _dbt.eyebrow %></p><% } %>
+      <p class="deals-offer-head"><%= _dbt.heading || 'Free freight on every order. Plus 15% off.' %></p>
+      <% if (_dbt.subtitle) { %><p class="deals-offer-sub"><%= _dbt.subtitle %></p><% } %>
+      <div class="deals-trade-actions">
+        <a class="btn btn-amber deals-offer-cta" href="<%= _dbt.cta_url || '/trade/apply' %>"><%= _dbt.cta_text || 'Apply for trade' %></a>
+        <% if (_dbt.signin_text) { %>
+        <a class="deals-trade-signin" href="<%= _dbt.signin_url || '/account/signin' %>"><%= _dbt.signin_text %></a>
+        <% } %>
+      </div>
+    </div>
+
+    <%# ── THE SPEND METER ───────────────────────────────────────────
+        Shown ONLY to a signed-in approved trade account, because it
+        reports that customer's own captured spend. To everyone else it
+        is a promise of what the tier ladder looks like, with no figures.
+
+        ⚠️ tradeMeter is NOT yet supplied by the controller — that is
+        Stage 2, with the discount engine. Until then this renders the
+        ladder teaser, which is correct and complete on its own. The
+        guard is written now so the meter drops in without re-opening
+        this markup. %>
+    <div class="deals-meter">
+      <p class="deals-meter-label"><%= _dbt.meter_label || 'Elite Trade · 20%' %></p>
+      <% if (typeof tradeMeter !== 'undefined' && tradeMeter && tradeMeter.target > 0) { %>
+      <div class="deals-meter-track" role="img"
+           aria-label="<%= tradeMeter.spentLabel %> of <%= tradeMeter.targetLabel %> toward Elite Trade">
+        <span class="deals-meter-fill" style="width:<%= Math.max(0, Math.min(100, tradeMeter.pct)) %>%"></span>
+      </div>
+      <p class="deals-meter-figure"><%= tradeMeter.spentLabel %> of <%= tradeMeter.targetLabel %></p>
+      <p class="deals-meter-note"><%= tradeMeter.remainingLabel %> more in the next 12 months unlocks 20%.</p>
+      <% } else { %>
+      <p class="deals-meter-note">Spend $20,000 in a rolling 12 months and your rate moves to 20%.</p>
+      <% } %>
+    </div>
+  </section>
+  <% } %>
+
+</div>
+<% } %>
+<% } %>
+
 <!-- Mobile filter drawer overlay -->
 <div class="filter-overlay" id="filterOverlay" aria-hidden="true"></div>
 

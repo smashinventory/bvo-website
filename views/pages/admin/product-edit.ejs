@@ -585,6 +585,20 @@
               <input type="checkbox" name="is_new" value="1"
                 <%= product?.is_new ? 'checked' : '' %>> New Arrival
             </label>
+            <%# is_deal — hand-picks this product onto /collections/sale.
+                Independent of the discount threshold: a product with
+                is_deal=1 shows there at ANY discount (including none), and
+                a product below the threshold with is_deal=0 does not. That
+                is the point — it is how an ER Vanities or Huntington Brass
+                item, or a 24-hour James Martin promo, gets onto the page
+                without touching the nightly importer. `product?.` matches
+                every other toggle here: this same template renders the
+                create form, where `product` is undefined. %>
+            <label class="adm-toggle-label">
+              <input type="checkbox" name="is_deal" value="1"
+                <%= product?.is_deal ? 'checked' : '' %>>
+              Show on Deals page (/collections/sale)
+            </label>
             <label class="adm-toggle-label">
               <input type="checkbox" name="prop65" value="1"
                 <%= product?.prop65 ? 'checked' : '' %>>
