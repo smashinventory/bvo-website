@@ -197,5 +197,53 @@ ok('billing and payment elements still render',
 ok('paid Total still renders from cart.subtotal (unchanged, see note)',
    /id="sum-total">\$19\.98</.test(paid), '');
 
+/* ═══ THE SUCCESS PAGE ══════════════════════════════════════════════════
+   The owner saw this live on the first free order that ever completed: the
+   confirmation promised a card hold, "your vanity" and a curbside delivery
+   appointment — for two wood swatches, with no card collected. */
+console.log('\n--- the confirmation page must describe what happened ---');
+
+const STPL = path.join(ROOT, 'views/pages/checkout-success.ejs');
+const ssrc = fs.readFileSync(STPL, 'utf8');
+const SBASE = {
+  pageTitle: '', metaDesc: '', noindex: true, cspNonce: 'n', csrfToken: 't',
+  email: 'a@b.c', firstName: 'Sam', orderNumber: 'BVO-1001',
+  emailVerified: true, settings: { global: { contact_email: 'info@x.com' } },
+};
+const srender = (o) => ejs.render(ssrc, Object.assign({}, SBASE, o), { filename: STPL });
+
+const sfree = srender({ subtotal: 0, isFreeOrder: true });
+ok('no card-hold promise on a free order',
+   !/card is authorised/i.test(sfree),
+   'no card was collected — this sentence is untrue, not merely redundant');
+ok('does not call the samples a vanity',
+   !/your\s+vanity/i.test(sfree), 'they ordered swatches');
+ok('does not promise a curbside delivery appointment',
+   !/curbside/i.test(sfree), 'samples go by post; nobody will call');
+ok('says plainly that nothing was charged',
+   /Nothing to pay/i.test(sfree) && /No card\s+was charged/i.test(sfree), '');
+
+const spaid = srender({ subtotal: 2794, isFreeOrder: false });
+ok('the paid confirmation is unchanged',
+   /card is authorised, not yet charged/i.test(spaid)
+   && /your\s+vanity is confirmed/i.test(spaid)
+   && /curbside delivery appointment/i.test(spaid),
+   'the paid path still needs to explain the hold');
+ok('the free copy does not leak onto a paid order',
+   !/Nothing to pay/i.test(spaid), 'a paying buyer must not be told nothing is owed');
+
+/* ⚠️ completeFreeOrder did not set req.session.lastOrder at all — the paid
+   path writes it from the Stripe session, this one only redirected. So
+   success() read `{}` and rendered with no order number and total 0, or
+   worse inherited the STALE values of a previous paid order. The flag is
+   carried explicitly because an empty lastOrder also yields total 0. */
+const ctrl = fs.readFileSync(path.join(ROOT, 'src/controllers/checkoutController.js'), 'utf8');
+ok('completeFreeOrder populates req.session.lastOrder',
+   /req\.session\.lastOrder = \{[\s\S]{0,400}free:\s*true/.test(ctrl),
+   'the success page would read {} or a previous order’s details');
+ok('success() derives the flag from that, not from a zero total',
+   /isFreeOrder: !!order\.free/.test(ctrl),
+   'total === 0 also means "we lost the order details" — the two must not be confused');
+
 console.log(fail ? `\n*** ${fail} GATE(S) FAILED ***` : '\nall free-order checkout gates pass');
 process.exit(fail ? 1 : 0);

@@ -1420,6 +1420,27 @@ exports.completeFreeOrder = async (req, res) => {
     const confirmToken = await emailVerify.issueOrderToken(orderId);
     sendConfirmation(row, items, confirmToken);
 
+    /* ⚠️ THE FREE PATH NEVER SET lastOrder, AND THE SUCCESS PAGE READS IT.
+       The paid path writes req.session.lastOrder (line ~2229) from the
+       Stripe session; this one only redirected. So success() fell back to
+       `{}` and rendered with no order number, no name and total 0 — or,
+       worse, with the STALE values from a previous paid order still in the
+       session, which is how a sample order could show someone else's
+       figures back to them.
+
+       `free: true` is carried explicitly rather than inferred from
+       total === 0, because an empty lastOrder ALSO gives 0 and the two
+       must not be confused: one means "nothing to pay", the other means
+       "we lost the order details". The success page shows materially
+       different copy for each. */
+    req.session.lastOrder = {
+      orderNumber,
+      email:     row ? row.guest_email : (order.guest_email || ''),
+      firstName: row ? (row.ship_first_name || '') : '',
+      total:     0,
+      free:      true,
+    };
+
     req.session.cart = { items: [], count: 0, subtotal: 0 };
     delete req.session.checkoutDraft;
     return res.json({ ok: true, redirect: '/checkout/success?order=' + encodeURIComponent(orderNumber) });
@@ -2298,6 +2319,12 @@ exports.success = async (req, res) => {
     subtotal:    order.total       || 0,
     orderNumber: order.orderNumber || '',
     emailVerified,
+    /* Set only by completeFreeOrder. The success panel promises a card
+       hold, "your vanity" and a curbside delivery appointment — none of
+       which happen for two wood swatches, and the card sentence is simply
+       untrue when no card was collected. Owner saw this live 2026-10-20
+       after the first free order ever to complete. */
+    isFreeOrder: !!order.free,
   });
 };
 

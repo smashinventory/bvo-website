@@ -21,8 +21,8 @@
 
 ## 🔴 The free-sample checkout was unfinishable — Place Order did nothing
 **Date:** 2026-10-20
-**Changed:** `views/pages/checkout-payment.ejs`
-**New:** `gates/gate_free_order_checkout.js` (15 checks)
+**Changed:** `views/pages/checkout-payment.ejs`, `views/pages/checkout-success.ejs`, `src/controllers/checkoutController.js`
+**New:** `gates/gate_free_order_checkout.js` (31 checks)
 **Severity:** total blocker on the free-sample funnel, live since the offer shipped.
 
 Found by the owner trying to order two samples. **Two separate defects on one
@@ -74,6 +74,29 @@ because `fail()` contains that exact string. The mutation harness removed the
 real fix and the gate stayed green. Rewritten as a *positional* assertion: the
 enable must appear before `function fail(` is even defined. All four mutations
 are now caught. Rules 17 and 17a.
+
+### Round 2 — the confirmation page, found on the first free order that completed
+
+With the button fixed the order went through, and the success page then showed
+the same class of fault:
+
+> **Your card is authorised, not yet charged.** We place a hold while we confirm
+> availability, and only take payment once **your vanity** is confirmed and ready
+> to ship... we'll call to arrange your **curbside delivery appointment**.
+
+Three promises, none of which apply to two wood swatches: no card was collected
+(this branch never touches Stripe), they did not order a vanity, and samples go
+by post. Now conditional.
+
+**And a second, quieter bug underneath it.** `completeFreeOrder` **never set
+`req.session.lastOrder`** — the paid path writes it from the Stripe session,
+this one only redirected. So `success()` read `{}` and rendered with no order
+number and total 0 — or, worse, inherited the **stale values of a previous paid
+order**, which is how a sample order could have shown someone else's figures
+back to them. Now populated, carrying `free: true` **explicitly** rather than
+inferring from `total === 0`, because an empty `lastOrder` also yields 0 and the
+two mean completely different things ("nothing to pay" vs "we lost the order
+details").
 
 ### Still open, deliberately not assumed fixed
 
