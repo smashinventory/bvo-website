@@ -83,6 +83,40 @@ check(blocking([]) === null && blocking(null) === null && blocking(undefined) ==
   'no previous application does not block',
   'The query uses .catch(() => [[]]), so an empty result must mean "go ahead" and never "silently refuse every applicant".');
 
+console.log('\n1b. Fraud keeps evidence; a closure request purges');
+
+/* ⚠️ THE TWO ACTIONS ARE EASY TO GET BACKWARDS AND EXPENSIVE BOTH WAYS.
+   Purging a fraudulent applicant's documents destroys the only evidence
+   we hold if they dispute a charge or return under another name. Keeping
+   a closure-requesting customer's ID documents means still holding the
+   thing they asked us to stop holding. Owner's decision, 2026-10-22.
+   Hardcoded, not read from the config under test — Rule 18. */
+const RA = trade._REVOKE_ACTIONS;
+check(RA && RA.fraud && RA.fraud.purge === false,
+  'FRAUD does NOT purge the documents',
+  'They are the evidence. Destroying them on our own say-so leaves nothing to show when it matters.');
+check(RA && RA.closed && RA.closed.purge === true,
+  'CLOSED DOES purge the documents',
+  "The customer asked us to close the account; continuing to hold their business card and resale certificate is the thing they asked us to stop.");
+check(RA.fraud.status === 'fraud' && RA.closed.status === 'closed',
+  'each action records its own status, so the two are distinguishable later');
+
+check(trade._BLOCKING_STATUSES.includes('fraud'),
+  "a FRAUD-flagged applicant cannot simply reapply",
+  'Letting a flagged account resubmit the same day and land back in the queue looking new makes the review pointless.');
+check(!trade._BLOCKING_STATUSES.includes('closed'),
+  'a CLOSED account MAY apply again',
+  'They asked to leave. They are allowed to change their mind.');
+
+/* Every status the model can produce must be viewable in the queue, or
+   those rows are invisible — the controller falls back to 'pending' for
+   anything it does not recognise. */
+const QS = trade._QUEUE_STATUSES;
+for (const s of ['pending', 'approved', 'declined', 'fraud', 'closed']) {
+  check(QS.includes(s), `the queue can filter to '${s}'`,
+    `Rows with status '${s}' cannot be viewed at all — the filter silently falls back to 'pending'.`);
+}
+
 console.log('\n2. The guard runs server-side, before the INSERT');
 
 /* ⚠️ KNOWN LIMIT OF THIS SECTION — READ BEFORE TRUSTING IT.

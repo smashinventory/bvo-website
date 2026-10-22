@@ -43,6 +43,12 @@ const tradeCtrl = require('../controllers/tradeController');
 router.get ('/trade',                  tradeCtrl.adminQueue);
 router.get ('/trade/:id/doc/:which',   tradeCtrl.adminDoc);
 router.post('/trade/:id/decide',       tradeCtrl.adminDecide);
+/* ⚠️ requireCsrf AFTER the multer middleware — the token is in a multipart
+   body and is unreadable before it is parsed. See src/utils/csrfToken.js;
+   this is the same defect that 403'd /trade/apply for months. */
+router.post('/trade/:id/doc/:which/replace',
+  tradeCtrl.replaceDocMiddleware, requireCsrf, tradeCtrl.adminReplaceDoc);
+router.post('/trade/:id/revoke',       tradeCtrl.adminRevoke);
 
 /* ── Dashboard ──────────────────────────────────────────────── */
 router.get('/', ctrl.dashboard);

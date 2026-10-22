@@ -130,6 +130,20 @@ const _upload = multer({
   },
 });
 
+/* Every status the admin queue can show. Exported so the view renders the
+   tabs from one list and a gate can check the controller agrees with it. */
+const QUEUE_STATUSES = ['pending', 'approved', 'declined', 'fraud', 'closed'];
+exports._QUEUE_STATUSES = QUEUE_STATUSES;
+
+/* Single-file upload for replacing a document on an existing application.
+   Same storage, limits and filter as the public form — one definition of
+   what an acceptable document is, so the admin path cannot accept
+   something the applicant path would have rejected. */
+exports.replaceDocMiddleware = _upload.fields([
+  { name: 'card',   maxCount: 1 },
+  { name: 'resale', maxCount: 1 },
+]);
+
 exports.uploadMiddleware = _upload.fields([
   { name: 'card_doc',   maxCount: 1 },
   { name: 'resale_doc', maxCount: 1 },
@@ -180,7 +194,18 @@ function discard(files) {
 /* States that mean "there is already an application in play". A DECLINED
    application is deliberately absent — a business that fixes whatever got
    it declined must be able to apply again. */
-const BLOCKING_STATUSES = ['pending', 'approved'];
+/* ⚠️ 'fraud' BLOCKS, 'closed' AND 'declined' DO NOT, AND THE DIFFERENCE IS
+   THE WHOLE POINT OF HAVING FOUR WORDS INSTEAD OF TWO.
+
+     declined — we said no on the evidence. Fix it and apply again.
+     closed   — THEY asked us to stop. They may change their mind.
+     fraud    — we believe this was an attempt to deceive us. Letting that
+                account simply reapply would make the whole review
+                pointless, so it stays blocked.
+
+   Leaving 'fraud' out of this list would mean a flagged applicant could
+   resubmit the same day and land back in the queue looking new. */
+const BLOCKING_STATUSES = ['pending', 'approved', 'fraud'];
 
 /**
  * Is there already a live application for this person?
@@ -411,7 +436,13 @@ const LAYOUT = { layout: 'layouts/admin' };
 
 exports.adminQueue = async (req, res, next) => {
   try {
-    const status = ['pending', 'approved', 'declined'].includes(req.query.status)
+    /* ⚠️ 'fraud' AND 'closed' MUST BE HERE OR THEY BECOME INVISIBLE.
+       The filter falls back to 'pending' for anything unrecognised, so a
+       status the queue does not list is a status whose rows cannot be
+       viewed at all — the same way the whole queue was unreachable until
+       it got a nav link. Adding a status to the model means adding it
+       here, and gate_trade_application checks that the two agree. */
+    const status = QUEUE_STATUSES.includes(req.query.status)
       ? req.query.status : 'pending';
     const [rows] = await pool().query(
       `SELECT ta.*, c.email AS customer_email
@@ -430,6 +461,8 @@ exports.adminQueue = async (req, res, next) => {
       activePage: 'trade',
       applications: rows || [],
       status,
+      /* One list, rendered as the tabs AND used as the filter whitelist. */
+      queueStatuses: QUEUE_STATUSES,
       /* ⚠️ A STANDING WARNING, NOT A ONE-OFF. While TRADE_DOCS_PATH is
          unset, every document uploaded is written inside the Hostinger
          deploy folder and is orphaned by the next push. That is invisible
@@ -495,6 +528,151 @@ exports.adminDoc = async (req, res, next) => {
     res.setHeader('Content-Disposition', 'attachment; filename="' + path.basename(resolved) + '"');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.sendFile(resolved);
+  } catch (err) { next(err); }
+};
+
+/* ── ADMIN: REPLACE A DOCUMENT ON AN EXISTING APPLICATION ───────────
+   An applicant sends a clearer photo, or a resale certificate expires and
+   they send the new one. Before this, the only route was asking them to
+   submit a whole new application — which the duplicate guard now (rightly)
+   refuses. */
+const DOC_FIELDS = Object.freeze({
+  card:   { col: 'card_doc_path', nameCol: 'card_doc_name',   label: 'Business card' },
+  resale: { col: 'resale_doc_path', nameCol: 'resale_doc_name', label: 'Resale certificate' },
+});
+
+/** Unlink a stored document and return whether a file was actually removed. */
+function unlinkDoc(stored) {
+  const p = resolveDoc(stored);
+  if (!p) return false;
+  try {
+    if (fs.existsSync(p)) { fs.unlinkSync(p); return true; }
+  } catch (err) {
+    /* ⚠️ A FAILED UNLINK MUST NOT ABORT THE ACTION. The DB column is about
+       to be cleared either way; if the file lingers, the row no longer
+       points at it and the log says so. Throwing here would leave the row
+       and the disk disagreeing, which is worse than an orphan we know
+       about. */
+    console.error('[trade] unlink failed for', p, '-', err && err.message);
+  }
+  return false;
+}
+
+exports.adminReplaceDoc = async (req, res, next) => {
+  const files = req.files || {};
+  try {
+    const id    = req.params.id;
+    const which = DOC_FIELDS[req.params.which] ? req.params.which : null;
+    if (!which) { discard(files); return res.status(400).send('Unknown document type'); }
+    const f = DOC_FIELDS[which];
+
+    const incoming = (files[which] || [])[0] || null;
+    if (!incoming) {
+      req.session.flash = { type: 'error', msg: 'No file was selected.' };
+      return res.redirect('/admin/trade?status=' + (req.body.back_status || 'pending'));
+    }
+
+    const [rows] = await pool().query(
+      `SELECT ${f.col} AS old FROM trade_applications WHERE id = ? LIMIT 1`, [id]);
+    if (!rows || !rows[0]) {
+      discard(files);
+      req.session.flash = { type: 'error', msg: 'Application not found.' };
+      return res.redirect('/admin/trade');
+    }
+
+    /* ⚠️ WRITE THE ROW FIRST, THEN DELETE THE OLD FILE. The reverse order
+       means a crash between the two leaves the row pointing at a file that
+       is already gone. This way the worst case is one orphaned file, which
+       is recoverable; a row pointing at nothing is not. */
+    await pool().query(
+      `UPDATE trade_applications SET ${f.col} = ?, ${f.nameCol} = ? WHERE id = ?`,
+      [path.basename(incoming.path), incoming.originalname || null, id]);
+
+    const old = rows[0].old;
+    if (old && path.basename(String(old)) !== path.basename(incoming.path)) unlinkDoc(old);
+
+    req.session.flash = { type: 'success', msg: `${f.label} replaced.` };
+    res.redirect('/admin/trade?status=' + (req.body.back_status || 'pending'));
+  } catch (err) { discard(files); next(err); }
+};
+
+/* ── ADMIN: FRAUD / CLOSE ───────────────────────────────────────────
+   ⚠️ TWO ACTIONS, NOT ONE DELETE BUTTON, AND THE DIFFERENCE IS THE POINT.
+
+     fraud  — we believe this was an attempt to deceive us. Trade pricing
+              is revoked and the account is blocked from reapplying, but
+              THE DOCUMENTS ARE KEPT. They are the evidence. Destroying
+              them on our own say-so removes the only proof we had if the
+              applicant disputes a charge or returns under another name.
+
+     closed — THE CUSTOMER asked us to stop. The documents are PURGED,
+              because continuing to hold someone's business card and
+              resale certificate after they asked you to close the account
+              is the thing they were asking you to stop doing. The
+              application row and their order history remain: tax and
+              transaction records are not ours to delete on request.
+
+   Getting these backwards is expensive in both directions — no evidence
+   when you need it, or personal documents retained against an explicit
+   request. Hence separate verbs with separate buttons. */
+const REVOKE_ACTIONS = Object.freeze({
+  fraud:  { status: 'fraud',  purge: false, msg: 'Flagged as fraudulent. Trade pricing revoked; documents kept as evidence.' },
+  closed: { status: 'closed', purge: true,  msg: 'Account closed at the customer\'s request. Documents deleted; order history kept.' },
+});
+exports._REVOKE_ACTIONS = REVOKE_ACTIONS;
+
+exports.adminRevoke = async (req, res, next) => {
+  try {
+    const id  = req.params.id;
+    const act = REVOKE_ACTIONS[req.body.action];
+    if (!act) { return res.status(400).send('Unknown action'); }
+
+    const who  = (req.session.adminUser && req.session.adminUser.email) || 'admin';
+    const note = String(req.body.review_note || '').trim();
+
+    const [rows] = await pool().query(
+      `SELECT customer_id, card_doc_path, resale_doc_path
+         FROM trade_applications WHERE id = ? LIMIT 1`, [id]);
+    const app = rows && rows[0];
+    if (!app) {
+      req.session.flash = { type: 'error', msg: 'Application not found.' };
+      return res.redirect('/admin/trade');
+    }
+
+    if (act.purge) {
+      unlinkDoc(app.card_doc_path);
+      unlinkDoc(app.resale_doc_path);
+      /* NULLing the columns IS the record that the documents are gone.
+         reviewed_at below timestamps when, and review_note says why. */
+      await pool().query(
+        `UPDATE trade_applications
+            SET card_doc_path = NULL, card_doc_name = NULL,
+                resale_doc_path = NULL, resale_doc_name = NULL
+          WHERE id = ?`, [id]);
+    }
+
+    const stamped = `[${act.status} by ${who} ${new Date().toISOString().slice(0, 16).replace('T', ' ')}]`
+      + (act.purge ? ' documents purged.' : ' documents retained as evidence.')
+      + (note ? ' ' + note : '');
+
+    await pool().query(
+      `UPDATE trade_applications
+          SET status = ?, review_note = CONCAT(COALESCE(CONCAT(review_note, '\n'), ''), ?),
+              reviewed_by = ?, reviewed_at = NOW()
+        WHERE id = ?`,
+      [act.status, stamped, who, id]);
+
+    /* ⚠️ ONLY DEMOTE A TRADE TIER. A Platinum MEMBER enrolment is a
+       separate retail grant and is not ours to remove here — same rule
+       adminDecide follows when declining. */
+    if (app.customer_id) {
+      await pool().query(
+        `UPDATE customers SET tier = CASE WHEN tier = ? THEN ? ELSE tier END WHERE id = ?`,
+        [tiers.STORED.PLATINUM_TRADE, tiers.STORED.NONE, app.customer_id]);
+    }
+
+    req.session.flash = { type: 'success', msg: act.msg };
+    res.redirect('/admin/trade?status=' + act.status);
   } catch (err) { next(err); }
 };
 

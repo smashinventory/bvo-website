@@ -5,7 +5,14 @@
 <div class="adm-toolbar">
   <span class="adm-toolbar-title">Trade Applications</span>
   <div style="display:flex;gap:8px;flex-shrink:0">
-    <% ['pending','approved','declined'].forEach(function(s){ %>
+    <%# ⚠️ FROM THE CONTROLLER'S LIST, NOT A LITERAL. Hardcoding three
+        statuses here while the model has five makes 'fraud' and 'closed'
+        rows unviewable — the controller falls back to 'pending' for any
+        status it does not recognise, so a missing tab is a missing filter
+        is a missing row. Exactly how the whole queue stayed invisible
+        until it got a nav link. %>
+    <% (typeof queueStatuses !== 'undefined' ? queueStatuses
+         : ['pending','approved','declined']).forEach(function(s){ %>
     <a href="/admin/trade?status=<%= s %>"
        class="btn <%= status === s ? 'btn-primary' : 'btn-outline' %> btn-sm"><%= s %></a>
     <% }); %>
@@ -79,6 +86,32 @@
           <% if (a.resale_doc_path) { %>
           <br><a href="/admin/trade/<%= a.id %>/doc/resale" style="color:var(--color-amber)">Resale cert</a>
           <% } %>
+
+          <%# ⚠️ REPLACE, NOT ADD. One current card and one current
+              certificate — adminReplaceDoc deletes the file it supersedes,
+              so copies of personal documents do not accumulate.
+
+              Hidden on a closed account: those documents were purged at
+              the customer's request, and re-uploading them would quietly
+              undo the thing they asked for. %>
+          <% if (a.status !== 'closed') { %>
+          <details style="margin-top:8px">
+            <summary class="adm-meta" style="cursor:pointer">Replace a document</summary>
+            <% ['card','resale'].forEach(function(w){ %>
+            <form method="post" enctype="multipart/form-data"
+                  action="/admin/trade/<%= a.id %>/doc/<%= w %>/replace"
+                  style="margin-top:6px;display:flex;gap:4px;align-items:center;flex-wrap:wrap">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input type="hidden" name="back_status" value="<%= status %>">
+              <input type="file" name="<%= w %>" required
+                     accept=".jpg,.jpeg,.png,.webp,.heic,.pdf"
+                     style="font-size:.75rem;max-width:140px">
+              <button type="submit" class="btn btn-outline btn-sm"
+                      style="font-size:.72rem"><%= w === 'card' ? 'Card' : 'Cert' %></button>
+            </form>
+            <% }); %>
+          </details>
+          <% } %>
         </td>
         <td>
           <% if (a.wants_tax_exempt) { %>
@@ -95,7 +128,46 @@
             <button type="submit" name="decision" value="decline" class="btn btn-outline btn-sm"
                     style="color:#c53030;border-color:#c53030">Decline</button>
           </form>
-          <% } else { %>
+          <% } %>
+
+          <%# ⚠️ FRAUD AND CLOSE ARE SEPARATE VERBS, DELIBERATELY.
+              Fraud KEEPS the documents — they are the evidence, and
+              destroying them on our own say-so leaves nothing to show if
+              the applicant disputes a charge or reappears under another
+              name. Close PURGES them, because a customer asking to close
+              their account is asking us to stop holding their business
+              card and resale certificate.
+
+              One "Delete" button would have to pick one of those
+              behaviours and be wrong half the time, in whichever
+              direction hurts more that day.
+
+              Already-closed rows get neither: the documents are gone and
+              the account is revoked, so there is nothing left to do. %>
+          <% if (a.status !== 'closed' && a.status !== 'fraud') { %>
+          <details style="margin-top:8px">
+            <summary class="adm-meta" style="cursor:pointer;color:#c53030">Fraud / close account</summary>
+            <form method="post" action="/admin/trade/<%= a.id %>/revoke" style="margin-top:6px">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input type="text" name="review_note" class="adm-input"
+                     placeholder="Reason (recorded)" style="width:100%;margin-bottom:6px">
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <button type="submit" name="action" value="fraud" class="btn btn-outline btn-sm"
+                        style="color:#9A3412;border-color:#9A3412;font-size:.72rem"
+                        onclick="return confirm('Flag as fraudulent?\n\nTrade pricing is revoked and they cannot reapply.\nDocuments are KEPT as evidence.')">
+                  Fraudulent
+                </button>
+                <button type="submit" name="action" value="closed" class="btn btn-outline btn-sm"
+                        style="color:#c53030;border-color:#c53030;font-size:.72rem"
+                        onclick="return confirm('Close at the customer\'s request?\n\nUploaded documents are PERMANENTLY DELETED.\nThe application record and order history are kept.\nThis cannot be undone.')">
+                  Customer closed
+                </button>
+              </div>
+            </form>
+          </details>
+          <% } %>
+
+          <% if (a.status !== 'pending') { %>
           <span class="adm-meta">
             <%= a.status %><% if (a.reviewed_by) { %> &middot; <%= a.reviewed_by %><% } %>
             <% if (a.review_note) { %><br><em><%= a.review_note %></em><% } %>
