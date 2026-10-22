@@ -305,7 +305,7 @@ order 00122 stranded at 14:55 — **three hours later**.
 
 ---
 
-## 9. Cron wrapper note — and a thing to check on two OTHER jobs
+## 9. Cron wrapper note — RESOLVED, do not chase this
 
 `reconcile_stripe.sh` resolves its own location:
 
@@ -313,31 +313,36 @@ order 00122 stranded at 14:55 — **three hours later**.
 BASE="$(cd "$(dirname "$0")" && pwd)"
 ```
 
-It does **not** hardcode a domain directory, because the first version did
-and it was wrong. `shipment_status_poll.sh` and `jmv_rollup.sh` both carry:
+It does not hardcode a domain directory. That is still the right form — the
+repo copy and the server copy stay byte identical and a file drop needs no
+follow-up edit — but the reason it was written that way was partly wrong.
 
-```bash
-BASE=/home/u222311468/domains/slategrey-falcon-350174.hostingersite.com
+**The concern, and why it was unfounded.** `shipment_status_poll.sh` and
+`jmv_rollup.sh` both hardcode
+`BASE=/home/u222311468/domains/slategrey-falcon-350174.hostingersite.com`
+while the live cron entries invoke them from
+`/home/u222311468/domains/bathroomvanitiesoutlet.com/`. On 2026-10-21 this
+file said those two jobs might have been silently dead for weeks.
+
+**They are not.** Checked 2026-10-22:
+
+```sql
+SELECT MAX(snapshot_date), COUNT(DISTINCT snapshot_date) FROM jmv_snapshots;
+-- 2026-10-22, 59 days
 ```
 
-while the live cron entries (hPanel → Cron Jobs, read 2026-10-21) invoke
-them from:
+`jmv_rollup.sh` ran that morning. The two domain directories resolve to the
+same place on this account, so the hardcoded path is a cosmetic
+inconsistency, not a fault. Leave both scripts alone.
 
-```
-/home/u222311468/domains/bathroomvanitiesoutlet.com/
-```
+`MAX(shipments.last_tracking_scan)` is NULL, which is uninformative rather
+than alarming: no freight has been booked live yet, so the poller has
+nothing to scan.
 
-Two different directory names for the same account. **Whether those two
-jobs are actually running has not been verified.** If `$APP` does not
-exist, `shipment_status_poll.sh` logs "app directory not found" and exits 1
-— a line in a log nobody reads, which is this project's signature failure
-mode. `jm_feed_guard.sh` appears in cron and is not in the repo at all.
-
-**TO CHECK:** hPanel → Cron Jobs → "View Output" on
-`shipment_status_poll.sh` and `jmv_rollup.sh`. If either shows "app
-directory not found", convert its `BASE=` to the self-locating form above.
-Do not assume they work because they have been scheduled for weeks.
-
-The reconciler's wrapper also logs to `$BASE/jmv_sync/logs/` when that
-directory exists and `$BASE/storage/logs/` otherwise, so it writes
-somewhere sensible in either layout.
+> **The method is worth keeping even though the answer was "no problem".**
+> hPanel's "View Output" was blank for both jobs, and blank is NOT evidence
+> of health — both scripts redirect all output to their own log files, so
+> that dialog looks identical whether a job is working or failing on line
+> 40. The decisive check was the DATA the job is supposed to produce. When
+> asking "is this scheduled thing actually running", always ask what it
+> should have written, never what the scheduler says.

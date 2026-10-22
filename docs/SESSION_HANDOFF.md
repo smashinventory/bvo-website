@@ -106,16 +106,19 @@ and the list hides `draft`/`pending` deliberately (abandoned checkouts).
    00122. **If it offers to settle 00122, stop and escalate.**
 4. Cron: `*/15 * * * * /bin/bash …/reconcile_stripe.sh`
 
-### 4c. Two OTHER cron jobs may have been dead for weeks
+### 4c. ~~Two OTHER cron jobs may be dead~~ — CHECKED, THEY ARE FINE
 
-`shipment_status_poll.sh` and `jmv_rollup.sh` hardcode
-`BASE=…/slategrey-falcon-350174.hostingersite.com` while cron invokes them
-from `…/bathroomvanitiesoutlet.com/`. If `$APP` does not exist they log
-"app directory not found" and exit 1 — invisibly. **Not verified either
-way.** hPanel → Cron Jobs → View Output on both. Also `jm_feed_guard.sh` is
-in cron and is not in this repo at all.
+`shipment_status_poll.sh` and `jmv_rollup.sh` hardcode a different domain
+directory than cron invokes them from. Flagged as a possible silent failure
+on 2026-10-21; **disproved on 2026-10-22** — `jmv_snapshots` has 59 days
+with the newest being that same morning, so the rollup is running and the
+two directories resolve to the same place. Do not chase this. Do not
+"fix" those scripts.
 
----
+Method worth keeping: hPanel's "View Output" was BLANK for both, and blank
+is not evidence of health — both redirect their output to their own log
+files, so the dialog looks the same whether the job works or dies on line
+40. The decisive test was querying the data the job is supposed to produce.
 
 ## 5. How this owner works — read this before replying to him
 
