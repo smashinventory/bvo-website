@@ -23,8 +23,9 @@ cd "$(dirname "$0")" || exit 1
 GATE="gates/gate_stripe_reconcile.js"
 JOB="src/jobs/reconcileStripeOrders.js"
 CHECKOUT="src/controllers/checkoutController.js"
+WRAP="reconcile_stripe.sh"
 
-ALL=("$JOB" "$CHECKOUT")
+ALL=("$JOB" "$CHECKOUT" "$WRAP")
 
 BACKUP=$(mktemp -d) || exit 1
 for f in "${ALL[@]}"; do
@@ -116,6 +117,20 @@ mutate 'R12 checkoutController stops exporting the handler' "$CHECKOUT" \
 mutate "R13 the handler it drives stops accepting 'failed'" "$CHECKOUT" \
   "payment_authorized_at = NOW\(\)\n        WHERE id = \? AND payment_status IN \('pending', 'failed'\)" \
   "payment_authorized_at = NOW()\n        WHERE id = ? AND payment_status IN ('pending')"
+
+echo
+echo "── the cron wrapper must be able to START node ──────────────────────────"
+mutate 'R17 wrapper reverts to a bare `node` call' "$WRAP" \
+  'OUT=\$\("\$NODE" src/jobs/reconcileStripeOrders\.js \$ARGS 2>&1\)' \
+  'OUT=$(node src/jobs/reconcileStripeOrders.js $ARGS 2>&1)'
+# Removing ONE alt-nodejs line is not a defect — 20 and 18 still resolve. The
+# real failure is losing the Hostinger search altogether, which is what sends
+# a cron run back to a bare PATH lookup and exit 127.
+mutate 'R18 the Hostinger alt-nodejs search is removed entirely' "$WRAP" \
+  '      /opt/alt/alt-nodejs22/root/bin/node \\\n      /opt/alt/alt-nodejs20/root/bin/node \\\n      /opt/alt/alt-nodejs18/root/bin/node \\\n      /opt/alt/alt-nodejs22/root/usr/bin/node \\\n      /opt/alt/alt-nodejs20/root/usr/bin/node \\\n      /opt/alt/alt-nodejs18/root/usr/bin/node \\\n' ''
+mutate 'R19 the wrapper stops shouting on a settlement' "$WRAP" \
+  'if echo "\$OUT" \| grep -q "SETTLED"; then' \
+  'if false; then'
 
 echo
 echo "── legitimate edits that must NOT trip the gate ─────────────────────────"

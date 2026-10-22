@@ -261,3 +261,42 @@ order 00122 stranded at 14:55 — **three hours later**.
    verbatim; if it ever stops turning the gate red, the gate is worthless.
 5. The source of truth for whether an order exists is the `orders` table.
    Not Stripe, not the success page, not the webhook log.
+
+---
+
+## 9. Cron wrapper note — and a thing to check on two OTHER jobs
+
+`reconcile_stripe.sh` resolves its own location:
+
+```bash
+BASE="$(cd "$(dirname "$0")" && pwd)"
+```
+
+It does **not** hardcode a domain directory, because the first version did
+and it was wrong. `shipment_status_poll.sh` and `jmv_rollup.sh` both carry:
+
+```bash
+BASE=/home/u222311468/domains/slategrey-falcon-350174.hostingersite.com
+```
+
+while the live cron entries (hPanel → Cron Jobs, read 2026-10-21) invoke
+them from:
+
+```
+/home/u222311468/domains/bathroomvanitiesoutlet.com/
+```
+
+Two different directory names for the same account. **Whether those two
+jobs are actually running has not been verified.** If `$APP` does not
+exist, `shipment_status_poll.sh` logs "app directory not found" and exits 1
+— a line in a log nobody reads, which is this project's signature failure
+mode. `jm_feed_guard.sh` appears in cron and is not in the repo at all.
+
+**TO CHECK:** hPanel → Cron Jobs → "View Output" on
+`shipment_status_poll.sh` and `jmv_rollup.sh`. If either shows "app
+directory not found", convert its `BASE=` to the self-locating form above.
+Do not assume they work because they have been scheduled for weeks.
+
+The reconciler's wrapper also logs to `$BASE/jmv_sync/logs/` when that
+directory exists and `$BASE/storage/logs/` otherwise, so it writes
+somewhere sensible in either layout.

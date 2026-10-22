@@ -164,7 +164,40 @@ check(authStates.includes('failed'),
 check(authStates.includes('pending'),
   "the handler it calls still accepts 'pending'");
 
-console.log('\n5. Stated defaults match the documentation');
+console.log('\n5. The cron wrapper can actually start node');
+
+/* ⚠️ THE GATE SAID NOTHING ABOUT THE WRAPPER, WHICH IS HOW THE BUG GOT IN.
+   The first version of reconcile_stripe.sh ran a bare `node src/jobs/...`
+   after `cd "$(dirname "$0")"`. Cron's PATH does not include node on
+   Hostinger, so it would have exited 127 on EVERY run — writing one line to
+   a log nobody reads while the owner believed the backstop was running.
+   A backstop that silently never runs is worse than no backstop, because it
+   is trusted. shipment_status_poll.sh had already solved and documented
+   this; the wrapper now matches it, and this section keeps it that way. */
+const WRAP_PATH = path.join(ROOT, 'reconcile_stripe.sh');
+check(fs.existsSync(WRAP_PATH), 'the cron wrapper exists');
+
+const WRAP = fs.existsSync(WRAP_PATH) ? fs.readFileSync(WRAP_PATH, 'utf8') : '';
+const WRAP_CODE = WRAP.replace(/^\s*#.*$/gm, '');   // strip comments: they discuss `node`
+
+check(/find_node\s*\(\)/.test(WRAP_CODE),
+  'it resolves node explicitly rather than trusting PATH',
+  "Cron's PATH has no node. A bare call exits 127 and the job never runs.");
+check(/alt-nodejs\d+\/root\/bin\/node/.test(WRAP_CODE),
+  'it searches the Hostinger alt-nodejs path',
+  'root/bin/node, NOT root/usr/bin/node — getting that wrong is why an earlier job failed.');
+check(!/^\s*node\s+src\/jobs/m.test(WRAP_CODE),
+  'it does NOT invoke a bare `node`',
+  'This exact line is what would have made the backstop a no-op on every cron run.');
+check(/"\$NODE"\s+src\/jobs\/reconcileStripeOrders\.js/.test(WRAP_CODE),
+  'it runs the reconciler through the resolved interpreter');
+check(/exit 127/.test(WRAP_CODE),
+  'it fails loudly and distinctly when node cannot be found');
+check(/SETTLED/.test(WRAP_CODE),
+  'the wrapper shouts when an order is settled',
+  'A settlement means the WEBHOOK failed. Silence there is how this whole class of bug stayed invisible.');
+
+console.log('\n6. Stated defaults match the documentation');
 
 check(fs.existsSync(path.join(ROOT, 'docs/CHECKOUT_PAYMENT_LIFECYCLE.md')),
   'the lifecycle document exists',
