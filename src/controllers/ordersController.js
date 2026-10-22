@@ -21,7 +21,8 @@ const { bvoPool }    = require('../config/database');
 /* Shared search-box behaviour — see src/utils/searchQuery.js */
 const { buildSearch } = require('../utils/searchQuery');
 // Single source of truth for status values and their meanings.
-const { ORDER_STATUSES, VALID_ORDER_STATUSES } = require('../config/orderStatuses');
+const { ORDER_STATUSES, VALID_ORDER_STATUSES,
+        ABANDONED_STATUSES, isAbandonedStatus, ACTIVE_ONLY } = require('../config/orderStatuses');
 // Single source for the delete-reason dropdown, its validation and the gate.
 const { composeDeleteReason, ORDER_DELETE_REASONS, MIN_DELETE_NOTE } =
   require('../config/orderDeleteReasons');
@@ -153,15 +154,32 @@ exports.list = async (req, res, next) => {
        for anyone deliberately looking. */
     let where = 'WHERE 1=1';
     const params = [];
-    if (status) {
+    /* ⚠️ "All Statuses" NOW MEANS ALL STATUSES. It did not until 2026-10-22.
+       The empty-status default carried
+           AND o.status NOT IN ('draft','pending')
+       on the reasoning that a draft is a half-typed checkout and a pending
+       row is an open Stripe session, so neither is work for staff.
+
+       Sound reasoning, and it hid two PAID orders for days. BVO-2026-10-19-00122
+       and BVO-2026-10-21-00125 both held live Stripe authorisations while
+       stuck at 'pending' — indistinguishable, on this screen, from an
+       abandoned cart. The one view that would have revealed the problem was
+       the one view that excluded it, under a label that said "All".
+
+       Worse: 'draft' is not in ORDER_STATUSES, so a draft row could not be
+       reached by ANY dropdown selection. It was unreachable through the UI
+       entirely.
+
+       The rows are now returned and marked instead. 'Active orders' is an
+       explicit choice in the dropdown for when volume makes that useful —
+       at six orders it is not, and solving for a scale this site has not
+       reached is what cost the week. See docs/CHECKOUT_PAYMENT_LIFECYCLE.md. */
+    if (status === ACTIVE_ONLY) {
+      where += ` AND o.status NOT IN (${ABANDONED_STATUSES.map(() => '?').join(',')})`;
+      params.push(...ABANDONED_STATUSES);
+    } else if (status) {
       where += ' AND o.status = ?';
       params.push(status);
-    } else {
-      /* Neither drafts nor pending rows are orders yet. A draft is a
-         checkout in progress - real contact details, no payment attempted.
-         A pending row has a Stripe session open. Both would read to staff
-         as work to do, and both would be counted as revenue. */
-      where += " AND o.status NOT IN ('draft','pending')";
     }
 
     /* Word-by-word matching — see src/utils/searchQuery.js.
@@ -210,6 +228,15 @@ exports.list = async (req, res, next) => {
                  error — the same shape as the checkout 409 (cbafe9f) and
                  the NULL payment intent in order_deletions. */
               o.payment_captured_at, o.payment_status,
+              /* ⚠️ READ BY THE TEMPLATE. index.ejs marks an abandoned row
+                 that REACHED STRIPE differently from one that never did —
+                 a session id is the difference between "cart abandoned" and
+                 "they may have paid, go and look". An unselected column is
+                 undefined, not null, so the badge would silently never
+                 appear. That is the defect in docs §10, and adding this
+                 column in the same edit as the template is the whole
+                 lesson. */
+              o.stripe_session_id,
               COALESCE(
                 NULLIF(TRIM(CONCAT(COALESCE(c.first_name,''),' ',COALESCE(c.last_name,''))),''),
                 NULLIF(TRIM(CONCAT(COALESCE(o.ship_first_name,''),' ',COALESCE(o.ship_last_name,''))),''),
@@ -242,8 +269,22 @@ exports.list = async (req, res, next) => {
       o.rag = computeRag(o, vpo, shipment, openRet);
     });
 
+    /* ⚠️ ABANDONED CHECKOUTS ARE LISTED BUT NOT COUNTED, AND BOTH HALVES
+       ARE DELIBERATE.
+
+       Since 2026-10-22 the default list shows draft and pending rows rather
+       than hiding them — see the filter above for why. But an abandoned
+       cart has no vendor PO and no shipment, so computeRag scores it RED,
+       and a strip reading "Need Attention: 9" when eight of them are carts
+       nobody filled in is a strip people stop reading.
+
+       The RAG bar answers "what is my work queue", which an abandoned
+       checkout is not. The row is still visible, still badged, and still
+       carries its own dot — so a paid order wrongly sitting at 'pending'
+       is impossible to miss while genuine abandons stay out of the count.
+       Listing without counting is what lets both be true at once. */
     const ragCounts = { red: 0, yellow: 0, green: 0 };
-    orders.forEach(o => ragCounts[o.rag]++);
+    orders.forEach(o => { if (!isAbandonedStatus(o.status)) ragCounts[o.rag]++; });
 
     /* ── INVENTORY RISK ───────────────────────────────────────────────
        Which SKUs on open orders need the vendor call from SOP §2, and
@@ -338,6 +379,8 @@ exports.list = async (req, res, next) => {
       pageTitle:  'Orders',
       flash:      null,
       ORDER_STATUSES,      // labels + hover definitions
+      isAbandonedStatus,   // marks draft/pending rows in the list
+      ACTIVE_ONLY,         // the 'hide abandoned' dropdown value
       orders,
       total,
       page,
@@ -437,6 +480,8 @@ exports.detail = async (req, res, next) => {
       activePage: 'orders',
       pageTitle:  `Order ${order.order_number}`,
       ORDER_STATUSES,      // labels + hover definitions
+      isAbandonedStatus,   // marks draft/pending rows in the list
+      ACTIVE_ONLY,         // the 'hide abandoned' dropdown value
       /* ⚠️ The delete dialog on this page needs these and never had them.
          orderDeleteReasons.js documents three consumers — the list page,
          this controller's validation, and the gate — and the DETAIL page

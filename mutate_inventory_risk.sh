@@ -103,8 +103,17 @@ s = s.replace('const LOW_STOCK_AT = 2;', 'const LOW_STOCK_AT = 5;')
 "
 
 # ── DEMAND MUST BE REAL ORDERS ─────────────────────────────────────────
+# ⚠️ ANCHOR WENT STALE 2026-10-22 AND THE HARNESS SAID SO.
+# PLACEHOLDER_PAYMENT gained 'failed' that day (a declined card is not money
+# in flight — see docs/CHECKOUT_PAYMENT_LIFECYCLE.md). This mutation still
+# named the two-state version, matched nothing, and reported ANCHOR-STALE.
+# That is the harness working: a mutation that edits nothing is a test that
+# proves nothing, and silently passing would have been the real failure.
+# Re-anchored on the LIST CONTENTS rather than the whole literal, so adding
+# a fourth placeholder state later does not break it again.
 mutate "abandoned checkouts count as demand (IS_REAL loses the payment filter)" "$REV" "
-s = s.replace('const PLACEHOLDER_PAYMENT = \"(\'draft\', \'pending\')\";', 'const PLACEHOLDER_PAYMENT = \"(\'draft\')\";')
+import re
+s = re.sub(r'const PLACEHOLDER_PAYMENT = \"\([^)]*\)\";', 'const PLACEHOLDER_PAYMENT = \"(\'draft\')\";', s, count=1)
 "
 
 mutate "shipped orders are counted as open demand" "$MOD" "

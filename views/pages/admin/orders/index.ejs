@@ -7,7 +7,16 @@
     <%# Status definitions come from src/config/orderStatuses.js so the filter,
         the badges and the detail-page dropdown can never drift apart. %>
     <select name="status" class="adm-search-select" data-act="submitForm" data-on="change" data-a1="orderSearchForm">
+      <%# ⚠️ "All Statuses" MEANS ALL STATUSES. Until 2026-10-22 this option
+          sent an empty status and the controller silently excluded draft and
+          pending — so two PAID orders holding live Stripe authorisations were
+          absent from the only screen that would have shown them, under a
+          label reading "All". The rows are marked now, not hidden.
+          'Active orders' is the explicit way to hide them. %>
       <option value="">All Statuses</option>
+      <option value="<%= ACTIVE_ONLY %>"
+              title="Hide checkouts that were started and never completed (draft and pending)."
+              <%= status === ACTIVE_ONLY ? 'selected' : '' %>>Active orders (hide abandoned)</option>
       <% ORDER_STATUSES.forEach(s => { %>
         <option value="<%= s.value %>" title="<%= s.tip %>" <%= status === s.value ? 'selected' : '' %>><%= s.label %></option>
       <% }) %>
@@ -181,7 +190,26 @@
               src/config/orderStatuses.js %>
           <td><span class="order-status order-status--<%= o.status %>"
                     title="<%= (ORDER_STATUSES.find(s => s.value === o.status) || {}).tip || '' %>"
-                    style="cursor:help"><%= o.status %></span></td>
+                    style="cursor:help"><%= o.status %></span>
+            <%# ⚠️ MARKED, NOT HIDDEN. These rows used to be excluded from the
+                default list entirely, which is how two PAID orders stayed
+                invisible for days while Stripe held live authorisations. An
+                abandoned checkout is noise; a paid order stuck looking like
+                one is a disaster. The badge keeps the first out of the way
+                without concealing the second.
+
+                A session id means the buyer reached Stripe — that is the
+                shape to be suspicious of, so it gets its own wording. %>
+            <% if (isAbandonedStatus(o.status)) { %>
+              <% if (o.stripe_session_id) { %>
+                <span class="rag-pill rag-pill--yellow"
+                      title="This checkout reached Stripe but never became an order. If the customer believes they paid, check Stripe for a live authorisation before assuming it was abandoned.">⚠ reached payment</span>
+              <% } else { %>
+                <span class="rag-pill" style="opacity:.6"
+                      title="A checkout that was started and never completed. No payment was attempted.">abandoned</span>
+              <% } %>
+            <% } %>
+          </td>
           <td>
             <% if (!o.vpo_status) { %>
               <span class="rag-pill rag-pill--red">Not Sent</span>

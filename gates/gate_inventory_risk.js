@@ -223,6 +223,18 @@ try {
   const locals = {
     ...require(path.join(ROOT, 'src/config/orderDeleteReasons')),
     ORDER_STATUSES: require(path.join(ROOT, 'src/config/orderStatuses')).ORDER_STATUSES,
+    /* ⚠️ ADDED 2026-10-22 WITH THE ABANDONED-ROW BADGE, AND THIS GATE IS
+       WHY IT WAS CAUGHT. The orders list now marks draft/pending rows
+       instead of hiding them, which needs two new locals. A missing EJS
+       local is a ReferenceError that 500s the whole page — and the
+       source-matching gate written alongside the feature could not see it,
+       because it checked that the CONTROLLER passes them, not that the
+       TEMPLATE can render without them.
+
+       Rule 18: these come from the real module, not typed out, so the
+       fixture cannot drift from what a real request carries. */
+    isAbandonedStatus: require(path.join(ROOT, 'src/config/orderStatuses')).isAbandonedStatus,
+    ACTIVE_ONLY:       require(path.join(ROOT, 'src/config/orderStatuses')).ACTIVE_ONLY,
     activePage: 'orders', pageTitle: 'Orders', flash: null,
     orders: [
       { id: 11, order_number: 'A1', rag: 'green', status: 'confirmed', inventoryRisk: true,  total: 1, created_at: new Date(), customer_name: 'x', guest_email: 'x@y.z' },

@@ -26,7 +26,12 @@ const ORDER_STATUSES = [
     value: 'pending',
     label: 'Pending',
     tip:   'Awaiting payment. The order exists but funds have not been accepted yet.',
-    autoSet: false,   // nothing sets this today — checkout goes straight to Confirmed
+    /* ⚠️ THIS COMMENT USED TO READ "nothing sets this today — checkout goes
+       straight to Confirmed". That was WRONG and had been since the
+       three-page checkout landed: checkoutController.createSession writes
+       status='pending' the moment a Stripe session is created. Corrected
+       2026-10-22. Do not trust autoSet without grepping. */
+    autoSet: true,    // checkoutController.createSession
   },
   {
     value: 'confirmed',
@@ -85,9 +90,38 @@ function orderStatusTip(value) {
   return orderStatus(value)?.tip || '';
 }
 
+/* ── ABANDONED CHECKOUTS ────────────────────────────────────────────────
+   A 'draft' is a checkout in progress: real contact details, no payment
+   attempted. A 'pending' row has a Stripe session open. Neither is an order
+   yet, and in ordinary operation neither is work for anyone.
+
+   ⚠️ THEY ARE NOT HIDDEN FROM THE DEFAULT ORDER LIST, AND THAT IS THE POINT.
+   Until 2026-10-22 the list's empty-status default silently excluded both.
+   BVO-2026-10-19-00122 and BVO-2026-10-21-00125 then sat at 'pending' while
+   Stripe held live authorisations for $657 and $2,694.60 — invisible on the
+   one screen that would have shown the problem, under a dropdown labelled
+   "All Statuses".
+
+   This list exists so the rows can be MARKED rather than removed, and so
+   the 'Active orders' filter below has one definition instead of a literal
+   repeated in a WHERE clause and a template. */
+const ABANDONED_STATUSES = ['draft', 'pending'];
+
+/** True when a row is a checkout that never became an order. */
+function isAbandonedStatus(value) {
+  return ABANDONED_STATUSES.includes(value);
+}
+
+/* The dropdown value meaning "hide abandoned checkouts". Deliberately not
+   '' — empty means ALL, and conflating the two is the bug above. */
+const ACTIVE_ONLY = 'active';
+
 module.exports = {
   ORDER_STATUSES,
   VALID_ORDER_STATUSES,
+  ABANDONED_STATUSES,
+  isAbandonedStatus,
+  ACTIVE_ONLY,
   orderStatus,
   orderStatusTip,
 };
