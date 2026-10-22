@@ -3785,3 +3785,59 @@ Two things it records that are NOT fixed, deliberately:
 Also noted: `src/config/orderStatuses.js` claims `pending` is never set by
 code. It is — `checkoutController` sets it at session creation. The comment
 has been stale since the three-page checkout landed.
+
+### The actual fix — three triggers, not one plus a cron
+
+The owner's verdict on the reconciler-only version was "this seems like a
+half ass fix", and he was right. A cron sweeping up after a single point of
+failure leaves the single point of failure in place. It is a compensating
+control, not a repair.
+
+`GET /checkout/return` now settles the order itself.
+
+It was read-only on this comment, present since the Stripe rewrite:
+
+> "Read-only. This handler must not write the order — the webhook owns
+> that, and racing it here would double-send the confirmation email."
+
+**That reasoning was obsolete and nobody re-checked it.**
+`handleSessionCompleted` is idempotent by construction: its UPDATE is
+guarded on the open payment states, and `if (upd.affectedRows === 0) return;`
+is the FIRST statement after it — 130 lines before `sendConfirmation`. The
+UPDATE is atomic and InnoDB row-locks it, so of two concurrent callers
+exactly one matches a row and the other returns before the email. The
+double-send the comment warns about cannot happen, and could not have
+happened at any point since the guard was written.
+
+The cost of believing it was that the webhook became the ONLY path from
+"Stripe is holding the money" to "an order exists" — no second trigger, on
+the money path, with the handler acknowledging Stripe before doing its work
+so that any exception was permanent.
+
+Three independent triggers into one idempotent handler:
+
+1. the buyer's own return — the normal path, fires in the same second as
+   the payment, needs no Stripe webhook infrastructure at all
+2. the webhook — covers a buyer who closes the tab before returning
+3. reconcileStripeOrders — covers both failing
+
+Settlement at the return is AWAITED, so the admin list is correct before the
+buyer's success page paints, and WRAPPED, so a failure there never costs a
+buyer who has already paid their confirmation screen. Reaching that catch is
+logged loudly, because it means two of three triggers are now resting on the
+third.
+
+gate_stripe_reconcile section 6 asserts all three exist, and asserts the
+replay guard still precedes the confirmation email — the single line that
+makes three triggers safe. mutate_reconcile_gate R20-R22 re-break each:
+reverting to webhook-only, dropping the await, and moving the email above
+the guard. 23 mutations, 0 missed.
+
+### docs/SESSION_HANDOFF.md
+
+Written at the owner's request, because context keeps being rebuilt badly
+between sessions and he has lost days to it. Carries the live commit state,
+the outstanding manual actions (the two stranded orders are NOT
+self-healing), the deploy steps not yet confirmed, how this owner works,
+the deferred items with their reasoning, and the verification state. It is
+meant to be read completely by a new session before it says anything.

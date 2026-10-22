@@ -197,7 +197,52 @@ check(/SETTLED/.test(WRAP_CODE),
   'the wrapper shouts when an order is settled',
   'A settlement means the WEBHOOK failed. Silence there is how this whole class of bug stayed invisible.');
 
-console.log('\n6. Stated defaults match the documentation');
+console.log('\n6. THREE independent triggers into ONE idempotent handler');
+
+/* ⚠️ THE RECONCILER IS THE THIRD TRIGGER, NOT THE SECOND.
+   Until 2026-10-21 there was exactly ONE: the webhook. /checkout/return was
+   deliberately read-only on the reasoning that writing there "would
+   double-send the confirmation email" — reasoning that had been obsolete for
+   as long as handleSessionCompleted had been idempotent, and that nobody
+   re-checked. A cron sweeping up after a single point of failure is a
+   compensating control; a second live trigger is a fix. These assert that
+   all three exist, because losing the first one quietly puts the system
+   back to where it was this week. */
+const checkoutCode = checkoutSrc
+  .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+const returnFn = (checkoutCode.match(
+  /exports\.returnFromStripe[\s\S]*?\n\};/) || [''])[0];
+
+check(returnFn.length > 0, 'returnFromStripe was located');
+check(/await\s+handleSessionCompleted\s*\(/.test(returnFn),
+  'TRIGGER 1 — the buyer\'s own return settles the order',
+  'This is the normal path and it needs no Stripe webhook infrastructure at all. Without it a single missed delivery means a paid order nobody can see for up to 15 minutes — or forever, if the reconciler is not scheduled.');
+check(/catch/.test(returnFn),
+  'and a settlement failure never costs the buyer their confirmation page',
+  'They have already paid. The webhook and the reconciler are still behind it.');
+check(/metadata\?\.order_id|metadata\.order_id/.test(returnFn),
+  'it settles the order named in the session metadata');
+
+check(/case 'checkout\.session\.completed':/.test(checkoutCode),
+  'TRIGGER 2 — the webhook still settles the order',
+  'Covers a buyer who closes the tab before Stripe returns them.');
+
+check(/_handleSessionCompleted/.test(SRC.replace(/\/\*[\s\S]*?\*\//g, '')),
+  'TRIGGER 3 — the reconciler settles what the other two missed');
+
+/* The whole design rests on one handler being safe to call repeatedly from
+   three places. If the early return ever moves below the email, every
+   settled order sends a second confirmation. */
+const handlerFn = (checkoutCode.match(
+  /async function handleSessionCompleted[\s\S]*?\n\}/) || [''])[0];
+const idxGuard = handlerFn.indexOf('affectedRows === 0');
+const idxEmail = handlerFn.indexOf('sendConfirmation');
+check(idxGuard > -1 && idxEmail > -1 && idxGuard < idxEmail,
+  'the replay guard still precedes the confirmation email',
+  'THIS IS WHAT MAKES THREE TRIGGERS SAFE. If the email ever moves above the affectedRows check, every order settled twice emails the customer twice.');
+
+console.log('\n7. Stated defaults match the documentation');
 
 check(fs.existsSync(path.join(ROOT, 'docs/CHECKOUT_PAYMENT_LIFECYCLE.md')),
   'the lifecycle document exists',

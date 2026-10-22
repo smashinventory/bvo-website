@@ -2369,9 +2369,34 @@ function sendConfirmation(order, items, confirmToken) {
 /**
  * Where Stripe sends the buyer back.
  *
- * Read-only. This handler must not write the order — the webhook owns
- * that, and racing it here would double-send the confirmation email. All
- * this does is decide which page the customer sees.
+ * ⚠️ THIS HANDLER SETTLES THE ORDER. It used to be deliberately read-only,
+ * on the reasoning — written in this comment until 2026-10-21 — that "the
+ * webhook owns that, and racing it here would double-send the confirmation
+ * email."
+ *
+ * THAT REASONING WAS OBSOLETE AND NOBODY RE-CHECKED IT. handleSessionCompleted
+ * is idempotent by construction: its UPDATE is guarded on the open payment
+ * states, and `if (upd.affectedRows === 0) return;` is the FIRST thing after
+ * it — 130 lines before sendConfirmation. The UPDATE is atomic and InnoDB
+ * row-locks it, so of two concurrent callers exactly one matches a row and
+ * the other returns before the email. The double-send it warns about cannot
+ * happen.
+ *
+ * The cost of believing it was severe. It made the webhook the ONLY path
+ * from "Stripe is holding the money" to "an order exists", with no second
+ * trigger — so a single missed delivery meant a paid order that no screen on
+ * this site knew about. Orders 00122 and 00125 were found by the owner
+ * counting rows in the admin list.
+ *
+ * There are now THREE independent triggers into ONE idempotent handler:
+ *   1. HERE — the buyer's own browser, in the same second as the payment.
+ *      This is the normal path and needs no Stripe infrastructure at all.
+ *   2. The webhook — covers a buyer who closes the tab before returning.
+ *   3. reconcileStripeOrders — covers both failing.
+ *
+ * Settlement is awaited so the order is real before the success page renders,
+ * and wrapped so that a failure here NEVER costs the buyer their confirmation
+ * screen. They have paid; the webhook and the reconciler are still behind it.
  */
 exports.returnFromStripe = async (req, res) => {
   const sessionId = req.query.session_id;
@@ -2389,6 +2414,35 @@ exports.returnFromStripe = async (req, res) => {
     req.session.checkoutError =
       'Your payment was not completed. Nothing has been charged.';
     return res.redirect('/checkout');
+  }
+
+  /* ── SETTLE THE ORDER, HERE, NOW ──────────────────────────────────
+     The buyer is standing in front of us and Stripe has just told us the
+     money is committed. Waiting for a webhook to tell us the same thing is
+     how a paid order becomes invisible.
+
+     AWAITED, so /checkout/success renders against an order that exists and
+     the admin list is correct before the buyer's page has even painted.
+
+     WRAPPED, because the buyer has already paid: if this throws, they must
+     still see their confirmation. The webhook and reconcileStripeOrders are
+     both still behind it, and the error is logged loudly because reaching
+     this catch means two of the three triggers are now resting on the
+     third. */
+  const settleId = s.metadata?.order_id;
+  if (settleId) {
+    try {
+      await handleSessionCompleted({ id: s.id, metadata: { order_id: settleId } });
+    } catch (err) {
+      console.error('[checkout.return] SETTLEMENT FAILED for order',
+        settleId, '—', err && err.message,
+        '— falling back to the webhook and the reconciler');
+    }
+  } else {
+    /* Cannot happen through createCheckoutSession, which always sets it.
+       Logged rather than ignored: if it ever does, the webhook cannot
+       settle this order either, because it reads the same field. */
+    console.error('[checkout.return] session', s.id, 'carries no order_id metadata');
   }
 
   req.session.lastOrder = {

@@ -137,20 +137,61 @@ Do it as its own change, with its own gate.
   [human] admin books freight       status='shipped'
 ```
 
-### The three things that path hides
+### THE SETTLEMENT ARCHITECTURE — three triggers, one handler
 
-1. **`/checkout/return` is read-only on purpose** — so it cannot race the
-   webhook and double-send the confirmation email. The consequence is that
-   the webhook was, until 2026-10-21, the *only* thing that could create an
-   order from a payment.
+**This is the single most important thing on this page.**
 
-2. **The webhook ACKs before it works.** `exports.webhook` calls
+`handleSessionCompleted` is the only code that turns an authorisation into
+an order. It is called from **three independent places**:
+
+| # | Trigger | Covers |
+|---|---|---|
+| 1 | `GET /checkout/return` — the buyer's own browser | the normal case. Fires in the same second as the payment, needs no Stripe webhook infrastructure at all |
+| 2 | the `checkout.session.completed` webhook | a buyer who closes the tab before Stripe returns them |
+| 3 | `jobs/reconcileStripeOrders` every 15 min | both of the above failing |
+
+**What makes three triggers safe is one line.** The handler's UPDATE is
+guarded on the open payment states, and
+
+```js
+if (upd.affectedRows === 0) return;   // replay — already handled
+```
+
+is the FIRST statement after it — 130 lines before `sendConfirmation`. The
+UPDATE is atomic and InnoDB row-locks it, so of two concurrent callers
+exactly one matches a row and the other returns before the email.
+
+> ⚠️ **If that early return is ever moved below the email, every order
+> settled twice emails the customer twice.** `gate_stripe_reconcile` asserts
+> the ordering and `mutate_reconcile_gate` R22 re-breaks it.
+
+### What this replaced, and why it is worth knowing
+
+Until 2026-10-21 trigger 1 did not exist. `/checkout/return` was
+deliberately read-only, on a comment reading *"the webhook owns that, and
+racing it here would double-send the confirmation email."*
+
+**That reasoning was obsolete and nobody re-checked it.** The handler had
+been idempotent for as long as the guard had existed; the double-send it
+warned about could not happen. But the comment was believed, so the webhook
+was the *only* path from "Stripe is holding the money" to "an order exists" —
+a single point of failure, with no second trigger, on the money path.
+
+The first attempt at fixing this scope added only the reconciler. That was a
+compensating control, not a fix: a cron sweeping up after a single point of
+failure still leaves the single point of failure. The owner called it a half
+fix and was right. Trigger 1 is the actual repair; the reconciler is now
+genuine belt-and-braces rather than the primary safety net.
+
+### The two things that path still hides
+
+1. **The webhook ACKs before it works.** `exports.webhook` calls
    `res.json({received:true})` and *then* runs the handler, so a slow Brevo
    call cannot cause a Stripe timeout and a duplicate delivery. The price
    is that **any exception after that line is permanent** — Stripe has been
    told "handled" and will never retry. The `catch` logs and swallows.
 
-3. **The success page lies convincingly.** It reads the PaymentIntent from
+2. **The success page lies convincingly.** It reads the PaymentIntent from
    Stripe directly, so it says "authorised" and shows the right total even
    when no order was written. During the 00125 incident every visible
    signal was green: Stripe showed the hold, the success page said

@@ -133,6 +133,22 @@ mutate 'R19 the wrapper stops shouting on a settlement' "$WRAP" \
   'if false; then'
 
 echo
+echo "── three live triggers, not one plus a cron ─────────────────────────────"
+# The whole point of the return-path settlement. R20 restores the pre-fix
+# architecture: webhook-only, with the reconciler as the sole safety net.
+mutate 'R20 the return path stops settling (back to webhook-only)' "$CHECKOUT" \
+  '      await handleSessionCompleted\(\{ id: s\.id, metadata: \{ order_id: settleId \} \}\);' \
+  '      /* no longer settles here */'
+mutate 'R21 settlement is not awaited (success page races the write)' "$CHECKOUT" \
+  'await handleSessionCompleted\(\{ id: s\.id, metadata: \{ order_id: settleId \} \}\);' \
+  'handleSessionCompleted({ id: s.id, metadata: { order_id: settleId } });'
+# THE ONE THAT MAKES THREE TRIGGERS SAFE. If the email ever moves above the
+# replay guard, every order settled twice emails the customer twice.
+mutate 'R22 the confirmation email moves ABOVE the replay guard' "$CHECKOUT" \
+  '    if \(upd\.affectedRows === 0\) return;   // replay — already handled' \
+  '    sendConfirmation(null, null, null);\n    if (upd.affectedRows === 0) return;   // replay'
+
+echo
 echo "── legitimate edits that must NOT trip the gate ─────────────────────────"
 mutate 'R14 a comment is reworded' "$JOB" \
   "the backstop for a webhook that never arrived" \
