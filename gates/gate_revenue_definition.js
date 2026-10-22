@@ -85,9 +85,21 @@ check(/is_test = 0/.test(P.IS_COUNTED),
       'IS_COUNTED excludes test rows');
 check(/status <> 'cancelled'/.test(P.IS_COUNTED),
       'IS_COUNTED excludes cancelled orders');
-check(/payment_status NOT IN \('draft', 'pending'\)/.test(P.IS_COUNTED),
-      'IS_COUNTED excludes the two placeholder payment states',
-      "'pending' is what an abandoned checkout leaves behind — the original bug.");
+/* ⚠️ ASSERTED STATE BY STATE, NOT AS A LITERAL LIST.
+   This read `NOT IN ('draft', 'pending')` as one fixed string, so adding a
+   third state to the rule turned the gate red even though the rule had
+   become MORE correct — a gate that fails on a right answer teaches people
+   to edit the gate, which is how a gate stops meaning anything. Each state
+   is now its own assertion with its own reason, so the gate says which
+   protection is missing rather than that a string changed shape. */
+for (const [st, why] of [
+  ['draft',   'a cart being filled in has no payment at all.'],
+  ['pending', "what an abandoned checkout leaves behind — the original bug."],
+  ['failed',  'a DECLINED card. Counting it as in-flight money claims a hold that does not exist, and counting it as a real order commits stock to a sale that never happened. Added 2026-10-21 with the webhook guard that shares its root cause.'],
+]) {
+  check(new RegExp(`payment_status NOT IN \\([^)]*'${st}'`).test(P.IS_COUNTED),
+        `IS_COUNTED excludes the '${st}' placeholder state`, why);
+}
 check(/payment_captured_at IS NULL/.test(P.IS_AUTHORIZED),
       'IS_AUTHORIZED is the uncaptured side');
 

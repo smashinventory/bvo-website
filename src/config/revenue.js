@@ -77,7 +77,21 @@ const NOT_TEST = 'is_test = 0';
    silently vanishing from every count until someone notices. The failure
    mode of a whitelist here is invisible under-reporting, which is the
    failure we are already fixing. */
-const PLACEHOLDER_PAYMENT = "('draft', 'pending')";
+/* ⚠️ 'failed' JOINED THIS LIST ON 2026-10-21, AND ITS ABSENCE WAS NOT
+   HARMLESS. A declined card writes payment_status='failed'. With only
+   'draft' and 'pending' excluded, such a row passed BASE — so IS_REAL
+   counted it as stock committed to a customer, and IS_AUTHORIZED counted
+   it as money held in flight. A decline is the opposite of money held.
+
+   This is the same defect as the webhook guard fixed the same day: both
+   treated 'failed' as a state outside the checkout rather than a stop
+   along it. Orders 00122 and 00125 were being counted by both predicates
+   while no money existed and no order was visible to staff.
+
+   IS_COUNTED was never wrong, because it also demands payment_captured_at
+   — which is exactly why this went unseen: every DOLLAR figure was right
+   and only the unit and in-flight figures lied. */
+const PLACEHOLDER_PAYMENT = "('draft', 'pending', 'failed')";
 
 /* ── MONEY ───────────────────────────────────────────────────────────────
    Captured. One condition, no alias, no interpretation. */
@@ -143,17 +157,30 @@ const O = predicates('o');
  * because two implementations of one rule is exactly how a definition
  * starts drifting, and this module exists to stop that.
  */
+/* ⚠️ DERIVED FROM PLACEHOLDER_PAYMENT, NOT RETYPED FROM IT.
+   The JS twin used to carry its own literal ['draft','pending']. When
+   'failed' was added to the SQL list on 2026-10-21 the JS kept the old
+   two, and the two implementations disagreed instantly — caught by
+   gate_revenue_definition, which is the only reason it was a five-minute
+   fix rather than another silent divergence. Parsing the one constant
+   means there is nothing left to forget to update. */
+const PLACEHOLDER_LIST = PLACEHOLDER_PAYMENT
+  .replace(/[()']/g, '')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+
 function isCounted(row) {
   return String(row.is_test) !== '1'
       && row.status !== 'cancelled'
-      && !['draft', 'pending'].includes(row.payment_status)
+      && !PLACEHOLDER_LIST.includes(row.payment_status)
       && !!row.payment_captured_at;
 }
 
 function isAuthorized(row) {
   return String(row.is_test) !== '1'
       && row.status !== 'cancelled'
-      && !['draft', 'pending'].includes(row.payment_status)
+      && !PLACEHOLDER_LIST.includes(row.payment_status)
       && !row.payment_captured_at;
 }
 

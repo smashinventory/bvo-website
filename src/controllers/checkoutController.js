@@ -1186,8 +1186,16 @@ exports.saveInfo = async (req, res) => {
    Both states, not just 'draft': createSession flips draft -> pending, so
    a guard that demands 'draft' disqualifies the payment page the instant
    it creates its own Stripe session. Every reload, back-navigation and
-   retry then threw the buyer back to step 1 with their details gone. */
-const EDITABLE = "payment_status IN ('draft','pending')";
+   retry then threw the buyer back to step 1 with their details gone.
+
+   ⚠️ AND 'failed', for exactly the same reason one step later. A declined
+   card writes payment_status='failed', and the buyer is still standing on
+   the payment page about to try another card — which is the single most
+   common thing to happen after a decline. Without 'failed' here that
+   buyer is bounced to step 1 with their details gone, at the precise
+   moment they were most likely to abandon. A decline is not the end of a
+   checkout; it is the middle of one. */
+const EDITABLE = "payment_status IN ('draft','pending','failed')";
 
 /** Loads the in-progress order or sends the buyer back to step 1.
  *  Every page after the first depends on this. */
@@ -1653,7 +1661,7 @@ exports.createSession = async (req, res) => {
        the payment page and can retry without retyping anything. */
     await bvoPool.query(
       `UPDATE orders SET payment_status = 'draft'
-        WHERE id = ? AND payment_status = 'pending'`, [orderId]
+        WHERE id = ? AND payment_status IN ('pending', 'failed')`, [orderId]
     ).catch(e => console.error('[checkout] could not revert to draft:', e.message));
 
     return res.status(502).json({
@@ -1717,12 +1725,14 @@ exports.setOrderDetails = async (req, res) => {
   if (!orderId) return res.status(409).json({ ok: false });
 
   try {
-    /* Guarded on pending: once the webhook has authorised the order these
-       must not move, or a buyer could change the delivery class of an
-       order already booked with the carrier. */
+    /* Guarded on the OPEN states: once the webhook has authorised the
+       order these must not move, or a buyer could change the delivery
+       class of an order already booked with the carrier. 'failed' is open
+       — a declined buyer changing their delivery choice before retrying is
+       editing a checkout in progress, not an authorised order. */
     await bvoPool.query(
       `UPDATE orders SET ${sets.join(', ')}
-        WHERE id = ? AND payment_status = 'pending'`,
+        WHERE id = ? AND payment_status IN ('pending', 'failed')`,
       [...args, orderId]
     );
     return res.json({ ok: true });
@@ -1768,14 +1778,20 @@ exports.webhook = async (req, res) => {
         await handleSessionCompleted(event.data.object);
         break;
 
+      /* The PI id is passed so a terminal event for a SUPERSEDED attempt
+         cannot move an order that a later attempt already authorised.
+         See markPaymentStatus. */
       case 'payment_intent.canceled':
         await markPaymentStatus(event.data.object.metadata?.order_id,
-          'canceled', ['auth_only', 'pending']);
+          'canceled', CANCELABLE_FROM, event.data.object.id);
         break;
 
+      /* 'failed' is allowed to arrive from 'failed': a buyer who is
+         declined twice produces two of these, and the second must not be
+         discarded as an out-of-order write. */
       case 'payment_intent.payment_failed':
         await markPaymentStatus(event.data.object.metadata?.order_id,
-          'failed', ['pending']);
+          'failed', OPEN_PAYMENT_STATES, event.data.object.id);
         break;
 
       /* The issuer says the card was used fraudulently — BEFORE any
@@ -1942,16 +1958,71 @@ async function handleDispute(dispute, eventType) {
     dueBy ? `— evidence due ${dueBy.toISOString().slice(0, 10)}` : '');
 }
 
-/** Narrow status write, guarded on the states it is allowed to move from. */
-async function markPaymentStatus(orderId, next, allowedFrom) {
-  if (!orderId) return;
+/**
+ * Narrow status write, guarded on the states it is allowed to move from.
+ *
+ * ⚠️ `piId` IS NOT OPTIONAL DECORATION — WITHOUT IT A SUPERSEDED ATTEMPT
+ * CAN KILL A LIVE ORDER.
+ *
+ * One order can own several PaymentIntents: a buyer whose card is declined
+ * retries, and each attempt is a new PI carrying the SAME order_id in its
+ * metadata. Stripe then sends terminal events for the ABANDONED attempts,
+ * and nothing orders them against the successful one. Order 00125 took
+ * three payment_failed events on 2026-10-21 before the attempt that
+ * worked; any of those PIs can still emit a terminal event afterwards,
+ * and an unused PaymentIntent is cancelled by Stripe automatically.
+ *
+ * Matched on order_id alone, such a trailing event moves the order it
+ * names regardless of which attempt it describes — so a cancel belonging
+ * to a dead attempt would mark an order holding a live authorisation
+ * 'canceled', with the money still held at Stripe and nothing on the site
+ * saying so.
+ *
+ * NOT YET OBSERVED, and the distinction matters: the payment_intent.canceled
+ * logged at 19:09 that day was raised by hand from the Stripe Dashboard
+ * against a DIFFERENT order's PI, at that customer's request. It is
+ * recorded here only so nobody later reads this guard as a fix for that
+ * event and removes it. The hazard is structural, not historical.
+ *
+ * So a terminal event may only move the order when it concerns the PI the
+ * order is actually on. payment_transaction_id is NULL until the
+ * authorisation is recorded, which is why NULL still matches: before
+ * authorisation every attempt is the current one, and a decline must
+ * still register.
+ */
+/* ⚠️ THE STATEMENT IS BUILT BY A PURE FUNCTION SO A GATE CAN EXECUTE IT.
+   Rule 14: no gate opens a database connection, so a guard that exists
+   only as a template literal inside an async DB call can be tested only by
+   grepping the source for the string — and a test that greps for a string
+   agrees with whatever the string says, including when it is wrong. That
+   is how the 'pending'-only guard survived. Returning {sql, params} lets
+   gate_payment_retry CALL this and assert on the real output. */
+function buildPaymentStatusUpdate(orderId, next, allowedFrom, piId) {
   const ph = allowedFrom.map(() => '?').join(',');
-  await bvoPool.query(
-    `UPDATE orders SET payment_status = ?
-      WHERE id = ? AND payment_status IN (${ph})`,
-    [next, orderId, ...allowedFrom]
-  );
+  const params = [next, orderId, ...allowedFrom];
+  let piClause = '';
+  if (piId) {
+    piClause = ' AND (payment_transaction_id IS NULL OR payment_transaction_id = ?)';
+    params.push(piId);
+  }
+  return {
+    sql: `UPDATE orders SET payment_status = ?
+      WHERE id = ? AND payment_status IN (${ph})${piClause}`,
+    params,
+  };
 }
+
+async function markPaymentStatus(orderId, next, allowedFrom, piId) {
+  if (!orderId) return;
+  const { sql, params } = buildPaymentStatusUpdate(orderId, next, allowedFrom, piId);
+  await bvoPool.query(sql, params);
+}
+
+/* The allowed-from sets, named once. A terminal event may only move an
+   order that is still open; 'auth_only', 'captured', 'refunded' and
+   'canceled' are decided and must never be re-opened by a late event. */
+const OPEN_PAYMENT_STATES = ['pending', 'failed'];
+const CANCELABLE_FROM     = ['auth_only', 'pending', 'failed'];
 
 /**
  * The hold exists. Move the order to auth_only and record the payment.
@@ -2025,9 +2096,29 @@ async function handleSessionCompleted(sessionStub) {
   }
   const conn = await bvoPool.getConnection();
   try {
-    /* Guarded on payment_status = 'pending', which makes the whole
-       handler idempotent: a redelivery affects 0 rows and returns early
-       before the email. */
+    /* Guarded on the OPEN payment states, which makes the whole handler
+       idempotent: a redelivery finds 'auth_only', affects 0 rows and
+       returns early before the email.
+
+       ⚠️ 'failed' IS IN THAT SET, AND LEAVING IT OUT COST TWO REAL ORDERS.
+       The guard read `payment_status = 'pending'` until 2026-10-21. A
+       buyer whose card is declined and who then retries successfully
+       arrives here on 'failed', not 'pending' — payment_intent.payment_failed
+       moved it. The UPDATE matched nothing, affectedRows was 0, and the
+       handler returned down the replay path: HTTP 200 to Stripe, no order,
+       no confirmation email, and a live authorisation nobody could see.
+
+       It happened to order 00125 ($2,694.60) and to order 00122 ($657, a
+       real customer) before anyone noticed, because every outward sign is
+       correct — Stripe shows the hold, the success page reads the
+       PaymentIntent directly and says "authorised", and the webhook log
+       shows 200 OK. Only the admin list, where the order never appears,
+       disagrees.
+
+       A declined first attempt is ordinary behaviour, not an error state.
+       What must NOT be in this set is 'auth_only', 'captured', 'canceled'
+       or 'refunded': those are decided, and re-opening them is how a
+       refunded order silently becomes live again. */
     const [upd] = await conn.query(
       `UPDATE orders
           SET payment_status        = ?,
@@ -2074,7 +2165,7 @@ async function handleSessionCompleted(sessionStub) {
               tax            = COALESCE(?, tax),
               total                 = COALESCE(?, total),
               payment_authorized_at = NOW()
-        WHERE id = ? AND payment_status = 'pending'`,
+        WHERE id = ? AND payment_status IN ('pending', 'failed')`,
       [
         authorized ? 'auth_only' : 'pending',
         /* 'confirmed' here means "authorised and validated enough to work
@@ -2393,3 +2484,24 @@ exports.cancel = (req, res) => {
 /* Exported for gates. */
 exports._calcTotal       = calcTotal;
 exports._makeOrderNumber = makeOrderNumber;
+
+/* ⚠️ EXPORTED SO gate_payment_retry CAN EXECUTE THE GUARD RATHER THAN
+   READ IT. The 'pending'-only webhook guard that stranded orders 00122 and
+   00125 was plain, correct-looking SQL; no amount of reading it would have
+   revealed the missing state, because the question is not "what does this
+   say" but "which states does it accept". Only calling it answers that. */
+exports._buildPaymentStatusUpdate = buildPaymentStatusUpdate;
+
+/* ⚠️ EXPORTED FOR THE RECONCILER, NOT FOR CONVENIENCE.
+   src/jobs/reconcileStripeOrders.js settles orders whose webhook never
+   arrived. It MUST drive this exact function rather than writing its own
+   UPDATE: two implementations of "turn an authorisation into an order"
+   would drift, and the second one would be the one nobody tests. Rule 18.
+
+   Safe to call repeatedly — the UPDATE is guarded on the open states, so a
+   settled order yields affectedRows 0 and the handler returns before the
+   confirmation email. */
+exports._handleSessionCompleted = handleSessionCompleted;
+exports._OPEN_PAYMENT_STATES      = OPEN_PAYMENT_STATES;
+exports._CANCELABLE_FROM          = CANCELABLE_FROM;
+exports._EDITABLE                 = EDITABLE;

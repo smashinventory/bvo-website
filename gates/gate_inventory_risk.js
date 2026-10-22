@@ -94,9 +94,19 @@ console.log('--- abandoned checkouts are not demand ---');
 const REV = require(path.join(ROOT, 'src/config/revenue')).predicates('o');
 check(typeof REV.IS_REAL === 'string' && REV.IS_REAL.length > 0,
       'revenue.js exposes IS_REAL');
-check(/payment_status NOT IN \('draft', 'pending'\)/.test(REV.IS_REAL),
-      'IS_REAL excludes the two placeholder payment states',
-      "status='pending' alone also matches carts nobody paid for");
+/* ⚠️ PER STATE, NOT AS ONE LITERAL CLAUSE. This matched the whole string
+   `NOT IN ('draft', 'pending')`, so it went red on 2026-10-21 when 'failed'
+   was ADDED — a stricter, more correct rule. A gate that fails on a right
+   answer gets edited away, and then it guards nothing. Each state is its
+   own assertion, which still fails if one is dropped. */
+for (const [st, why] of [
+  ['draft',   "status='pending' alone also matches carts nobody paid for"],
+  ['pending', 'an abandoned checkout is not demand'],
+  ['failed',  'a DECLINED card must not reserve vendor stock — nothing was ever committed to that customer'],
+]) {
+  check(new RegExp(`payment_status NOT IN \\([^)]*'${st}'`).test(REV.IS_REAL),
+        `IS_REAL excludes the '${st}' placeholder state`, why);
+}
 check(/is_test = 0/.test(REV.IS_REAL) && /status <> 'cancelled'/.test(REV.IS_REAL),
       'and excludes test rows and cancellations');
 check(REV.IS_COUNTED.startsWith(REV.IS_REAL) && REV.IS_AUTHORIZED.startsWith(REV.IS_REAL),

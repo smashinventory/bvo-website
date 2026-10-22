@@ -133,8 +133,14 @@ for (const fn of ['kpis', 'trend', 'sources', 'repeatRate', 'ltv', 'cohorts', 'l
    text was about to stop existing. */
 check(/status <> 'cancelled'/.test(oOkResolved),
   'order metrics also exclude cancelled orders');
-check(/payment_status NOT IN \('draft', 'pending'\)/.test(oOkResolved),
-  "and the two placeholder payment states checkout sets on its way through");
+/* ⚠️ PER STATE, NOT AS ONE LITERAL CLAUSE — see the same fix in
+   gate_inventory_risk and gate_revenue_definition. Adding 'failed' to the
+   rule on 2026-10-21 turned all three red for asserting the shape of a
+   string rather than the protection it provides. */
+for (const st of ['draft', 'pending', 'failed']) {
+  check(new RegExp(`payment_status NOT IN \\([^)]*'${st}'`).test(oOkResolved),
+    `and the '${st}' payment state checkout sets on its way through`);
+}
 
 /* ── 2. Insufficient data degrades honestly ─────────────────────────────── */
 console.log('\n2. A report without the data says so, and draws nothing');

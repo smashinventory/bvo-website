@@ -3615,3 +3615,173 @@ Five CSS files are loaded synchronously in `<head>` on every page, blocking rend
 3. No server-side, database, or controller changes are involved — this is purely template changes.
 
 *End of brief*
+
+---
+
+## 2026-10-21 — A declined card stranded two paid orders
+
+### What happened
+
+`handleSessionCompleted`, the webhook handler that turns a Stripe
+authorisation into an order, was guarded on:
+
+```sql
+WHERE id = ? AND payment_status = 'pending'
+```
+
+A buyer whose card is declined and who then retries successfully does not
+arrive on `pending`. `payment_intent.payment_failed` has already moved the
+row to `failed`. The UPDATE matched nothing, `affectedRows` was 0, and the
+handler took its replay path — returning HTTP 200 to Stripe, writing no
+order and sending no confirmation email.
+
+Every outward sign was correct, which is why it ran unnoticed:
+
+- Stripe showed the authorisation, money held, uncaptured
+- the success page said "authorised" — it reads the PaymentIntent from
+  Stripe directly, not the order row
+- the Stripe webhook log showed `200 OK` with `{"received": true}`
+
+Only the admin order list disagreed, by not listing the order.
+
+**Affected:** `BVO-2026-10-19-00122` ($657) and `BVO-2026-10-21-00125`
+($2,694.60). Both had live authorisations invisible to staff.
+
+### Why it only started last week — it was NOT a recent regression
+
+The owner's instinct was that something in the last six days caused this.
+It did, but not by introducing the defect. `git log -S` on the guard:
+
+| When | Commit | What |
+|---|---|---|
+| 2026-09-25 | `ccae591` | Stripe rewrite introduces BOTH the `'pending'`-only guard AND the `payment_failed → 'failed'` transition that contradicts it. Latent: firing needs a decline *and* a successful retry. |
+| 2026-09-26 | `482a465` | Admin order list starts hiding `draft`/`pending`, so a stranded order has nowhere to show. |
+| ~2026-10-05 to 10-19 | — | Checkout returned **409 "Your order total changed" on every attempt**. `1091b229` puts it plainly: *"Checkout had been dead for fourteen days (two bugs, cbafe9f)."* Nobody completed a payment, so nobody reached a successful retry. The defect was unreachable. |
+| 2026-10-19 11:48 | `cbafe9f` | Fixes the 409. Checkout starts working. |
+| 2026-10-19 14:55 | — | Order 00122 strands. **Three hours later.** |
+
+So `cbafe9f` did not break this; it removed what was masking it. Neither
+the guard nor the admin filter has been touched since September.
+
+Worth writing down because the obvious investigation — "what changed in
+the last week" — leads to `cbafe9f`, which is correct code. The lesson is
+that fixing an upstream blocker exposes every latent defect downstream of
+it at once, and that is the moment to re-test the whole path rather than
+only the thing that was fixed.
+
+### The three fixes
+
+1. **`checkoutController.handleSessionCompleted`** — guard widened to
+   `payment_status IN ('pending', 'failed')`. Deliberately NOT widened to
+   `auth_only`, `captured`, `canceled` or `refunded`: those are decided,
+   and re-opening them is how a webhook redelivery sends a second email or
+   a refunded order becomes live again.
+
+2. **Terminal events are scoped to their own PaymentIntent.**
+   `markPaymentStatus` now takes the event's PI id and will not move an
+   order whose `payment_transaction_id` is a different intent. One order
+   owns several PIs once a buyer retries; matched on `order_id` alone, a
+   cancel belonging to a dead attempt would mark an order canceled while
+   Stripe still held the money. Structural hazard, not yet observed.
+
+3. **`revenue.js`** — `'failed'` added to `PLACEHOLDER_PAYMENT`. Without
+   it a declined order passed `IS_REAL` (counted as stock committed to a
+   customer) and `IS_AUTHORIZED` (counted as money in flight). Neither is
+   true of a decline. `IS_COUNTED` was never wrong because it also demands
+   `payment_captured_at` — which is exactly why this went unseen: every
+   dollar figure was right and only the unit and in-flight figures lied.
+
+Also widened for the same reason, so a declined buyer is not thrown back
+to step 1 with their details gone: `EDITABLE`, the `setOrderDetails`
+guard, and the provider-outage revert-to-draft.
+
+### Why the gate is shaped the way it is
+
+`buildPaymentStatusUpdate` was split out as a pure function returning
+`{sql, params}` so `gate_payment_retry` can CALL the guard rather than
+grep for it. Rule 14 says no gate opens a database connection, so a guard
+living only inside an async DB call can be tested only by matching its
+text — and matching text agrees with whatever the text says, including
+when it is wrong. That is precisely how the `'pending'`-only guard
+survived review.
+
+`mutate_payment_gate.sh` M1 restores the original defect verbatim. If that
+mutation ever stops turning the gate red, the gate is worthless.
+
+Three pre-existing gates had to be corrected: they asserted the
+placeholder list as the literal string `NOT IN ('draft', 'pending')`, so
+they went red when the rule became *stricter*. A gate that fails on a
+right answer gets edited away. All three now assert state by state.
+
+### Recovery
+
+See `docs/RECOVER_STRANDED_ORDERS.md`.
+
+### How to reverse
+
+Revert the three source changes; no schema change is involved. Reverting
+re-introduces the defect, so only do it to isolate an unrelated problem,
+and re-apply immediately.
+
+### The second half of the fix — a backstop, not just a guard
+
+Fixing the guard closes one cause. The class stays open: the webhook was
+the ONLY thing that could turn an authorisation into an order, and nothing
+ever checked whether it had run. `/checkout/return` is read-only by design
+(so it cannot race the webhook and double-send the email), and the webhook
+acknowledges Stripe BEFORE it does its work — so any exception after
+`res.json({received:true})` is permanent, because Stripe has been told
+"handled" and will never retry.
+
+That leaves at least five live ways to lose an order with the money held:
+endpoint disabled or re-pointed, signing secret rotated in Stripe but not
+in Hostinger, Node restarting through every Stripe retry, any throw inside
+the handler, and a future edit reintroducing the same shape.
+
+`src/jobs/reconcileStripeOrders.js` closes the class. Every 15 minutes it
+finds orders that reached Stripe but are still in an open payment state,
+asks Stripe what actually happened, and settles only those Stripe says are
+committed — by driving `checkoutController._handleSessionCompleted`, the
+webhook's own handler, never a copy of it.
+
+It cannot capture, cancel or move money. The decision is `shouldSettle()`,
+a pure function, so `gate_stripe_reconcile` executes it over every
+PaymentIntent status Stripe defines rather than the three the author
+thought of. When it settles anything it says so loudly: a reconciler that
+settles an order means the WEBHOOK failed, which is worth investigating,
+not routine.
+
+`mutate_reconcile_gate.sh` — 17 mutations, 0 missed. It found two real
+holes in its own gate: `/_handleSessionCompleted/` matched the file's own
+header comment, so replacing the real call with `Promise.resolve()` left
+the gate green while the backstop did nothing; and
+`payment_status IN ('pending','failed')` also occurs in `setOrderDetails`,
+so narrowing the authorisation guard back to `'pending'` matched elsewhere
+and passed. Both are the Rule 18 corollary again — a string that appears in
+prose, and a string that appears in a different statement.
+
+### `docs/CHECKOUT_PAYMENT_LIFECYCLE.md`
+
+The artifact of record for this whole area, written because every session
+so far has had to rediscover the state machine by reading 2,500 lines of
+controller, and rediscovery is where these mistakes come from. It carries
+both state machines, all eleven writers of those columns with their
+guards, the end-to-end path, the defect history with the shape each one
+shared, and the open items with the reasoning for each deferral.
+
+Two things it records that are NOT fixed, deliberately:
+
+- `ordersController.capturePayment` and `cancelAuthorization` check
+  `payment_status` in JavaScript and then issue an UNGUARDED
+  `UPDATE ... WHERE id = ?`. A webhook landing between the SELECT and the
+  UPDATE would be overwritten. Narrow window, not observed, and left alone
+  on 2026-10-21 to keep that day's blast radius small. It needs its own
+  change and its own gate.
+- `status` and `payment_status` have no enforced correspondence at all. An
+  order can read `shipped` with `payment_status='pending'`, or `cancelled`
+  while Stripe still holds the money. Accepted rather than fixed:
+  transition rules would break legitimate manual recovery.
+
+Also noted: `src/config/orderStatuses.js` claims `pending` is never set by
+code. It is — `checkoutController` sets it at session creation. The comment
+has been stale since the three-page checkout landed.
