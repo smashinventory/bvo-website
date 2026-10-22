@@ -1196,7 +1196,7 @@ const DEFAULTS = {
     image_position: 'left',
     eyebrow: 'Why Choose Us',
     heading: 'The Bathroom Renovation Experts',
-    body: "We've spent years building direct relationships with the brands homeowners trust most — James Martin, Kohler, Moen, Delta, and more. That means you get authentic, warranty-backed products at prices that don't make sense anywhere else. Free shipping included on every single order.",
+    body: "We've spent years building direct relationships with the brands homeowners trust most — James Martin, Kohler, Moen, Delta, and more. That means you get authentic, warranty-backed products at prices that don't make sense anywhere else. Free shipping included on most orders.",
     cta_text: 'Our Story',
     /* /pages/about is a 404; the page is /pages/about-us. The live site was
        fixed in the Theme Editor on 2026-10-02 and the settings file now wins
@@ -1357,7 +1357,7 @@ const DEFAULTS = {
     text_color: '', // '' = CSS default (navy)
     stat1_value: '', stat1_label: 'Happy customers nationwide', stat1_icon: '🏠',
     stat2_value: '', stat2_label: 'Premium products in stock',  stat2_icon: '⭐',
-    stat3_value: 'Free', stat3_label: 'Shipping on every single order', stat3_icon: '🚚',
+    stat3_value: 'Free', stat3_label: 'Shipping on most orders', stat3_icon: '🚚',
   },
   parallax: {
     /* ── SHARED SECTION CONTROLS (added 2026-10-04) ──────────────────

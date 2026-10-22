@@ -2346,7 +2346,7 @@ _DEFAULT_ORDER.forEach(function(k) {
        These were <h3>, which put "10,000+", "500+" and "Free" into the page
        outline as section headings. A heading announces what the content
        under it is about; "Free" announces nothing, and the actual meaning
-       lives in the <p> beside it ("Shipping on every single order").
+       lives in the <p> beside it ("Shipping on most orders").
 
        Now a <div>. Deliberately NOT a <p>: `.trust-item p` styles the label
        underneath — small, uppercase, 65% opacity — and a <p> here would
@@ -2364,7 +2364,7 @@ _DEFAULT_ORDER.forEach(function(k) {
   </div>
   <div class="trust-item">
     <% if (_d.stat3_icon) { %><span class="trust-item-icon"><%= _d.stat3_icon %></span><% } %>
-    <div class="trust-item-value"><%= _d.stat3_value || (_tbIsBase ? 'Free' : '') %></div><p><%= _d.stat3_label || (_tbIsBase ? 'Shipping on every single order' : '') %></p>
+    <div class="trust-item-value"><%= _d.stat3_value || (_tbIsBase ? 'Free' : '') %></div><p><%= _d.stat3_label || (_tbIsBase ? 'Shipping on most orders' : '') %></p>
   </div>
 </section>
 <% } /* end trust_band */ %>

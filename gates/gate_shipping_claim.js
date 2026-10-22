@@ -61,6 +61,12 @@ const SURFACES = [
   'src/controllers/homeController.js',
   'src/controllers/tradeController.js',
   'views/partials/footer.ejs',            // every page
+  /* ⚠️ ADDED AFTER THE FIRST LIVE CHECK, WHICH THIS GATE PASSED AND THE
+     SITE FAILED. index.ejs carries the trust-bar fallback and was not in
+     the list, so "Shipping on every single order" sat in a template this
+     gate never opened. A surface list is only as good as its coverage,
+     and the only way to find the gap was to read the rendered page. */
+  'views/pages/index.ejs',
   'views/pages/collection.ejs',
   'views/pages/trade-apply.ejs',
   'views/pages/inspiration-guide.ejs',
@@ -71,11 +77,25 @@ const SURFACES = [
    /every order/ matches prose about order processing all over this
    codebase ("every order arrived", "409 on every order"), and a gate that
    fires on those gets deleted within a week. Rule 17a. */
+/* ⚠️ "every SINGLE order" IS WHY THESE ALLOW A WORD BETWEEN.
+   The first version used \b(every|all|any)\s+order — one \s+ — and
+   "Shipping on every single order" slipped straight through it, in two
+   theme defaults and an index.ejs fallback. The gate went green and the
+   live homepage still carried the absolute claim in three places.
+
+   Caught only by fetching the rendered page. A source-matching gate can
+   confirm the patterns it knows about are gone; it cannot tell you which
+   phrasing nobody thought of. Read the real page before believing it. */
 const FORBIDDEN = [
-  { re: /(?:free\s+)?(?:shipping|freight)[^.<\n]{0,40}\b(?:every|all|any)\s+order/i,
-    name: 'shipping … every/all/any order' },
-  { re: /\b(?:every|all|any)\s+order[^.<\n]{0,40}(?:free\s+)?(?:shipping|freight)/i,
-    name: 'every/all/any order … shipping' },
+  { re: /(?:free\s+)?(?:shipping|freight)[^.<\n]{0,40}\b(?:every|all|any)\s+(?:\w+\s+)?order/i,
+    name: 'shipping … every/all/any [single] order' },
+  { re: /\b(?:every|all|any)\s+(?:\w+\s+)?order[^.<\n]{0,40}(?:free\s+)?(?:shipping|freight)/i,
+    name: 'every/all/any [single] order … shipping' },
+  /* The stat-tile phrasing: value "Free", label "Shipping on every single
+     order". The word "free" is in a different element, so neither pattern
+     above can see it — the label alone has to be forbidden. */
+  { re: /Shipping\s+on\s+(?:every|all|any)\s+(?:\w+\s+)?order/i,
+    name: '"Shipping on every/all/any order" (stat tile label)' },
   { re: /every\s+order,\s*every\s+time/i,
     name: '"every order, every time"' },
   { re: /(?:free\s+)?(?:shipping|freight)\s*,\s*every\s+order/i,
@@ -83,6 +103,35 @@ const FORBIDDEN = [
   { re: /always\s+free\s+(?:shipping|freight)|(?:shipping|freight)\s+is\s+always\s+free/i,
     name: '"always free shipping"' },
 ];
+
+/* ⚠️ THE SURFACE LIST GUARDS ITSELF.
+   Mutation M10: delete one entry from SURFACES and the gate goes green
+   while the live page carries the absolute claim. That is not a
+   hypothetical — it is the cheapest possible way to "fix" a failure, and
+   it leaves no trace. The list is data this gate depends on, so the list
+   is itself under test.
+
+   Hardcoded, not derived from SURFACES — deriving it would make the
+   assertion agree with any deletion, which is the Rule 18 failure this
+   project has now hit in four separate gates. */
+console.log('\n0. The surface list has not been quietly shortened');
+
+const REQUIRED_SURFACES = [
+  'src/server.js',
+  'src/services/themeSettings.js',
+  'src/controllers/homeController.js',
+  'views/partials/footer.ejs',
+  'views/pages/index.ejs',
+  'views/pages/trade-apply.ejs',
+];
+for (const req of REQUIRED_SURFACES) {
+  check(SURFACES.includes(req),
+    `${req} is still in the surface list`,
+    'Removing a file from SURFACES un-guards it silently and the gate still reports GREEN. If this file genuinely no longer exists or no longer faces customers, delete it from REQUIRED_SURFACES too — deliberately, in the same commit, where a reviewer sees it.');
+}
+check(SURFACES.length >= 9,
+  `the list still covers at least 9 surfaces (currently ${SURFACES.length})`,
+  'The claim appeared on 13 surfaces across 9 files. A shrinking list means coverage is being traded for a green run.');
 
 console.log('\n1. No customer-facing surface makes an absolute shipping promise');
 
