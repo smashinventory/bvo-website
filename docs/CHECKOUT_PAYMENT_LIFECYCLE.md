@@ -238,6 +238,7 @@ recognised in minutes rather than days.
 | Date | Defect | Shape |
 |---|---|---|
 | 2026-09-25 | `handleSessionCompleted` guarded on `payment_status='pending'` only | guard names a subset of the valid states |
+| 2026-10-04 | **`fd472b6` free samples — THE ORIGIN.** See §10. | a new guard read a column the SELECT never fetched |
 | 2026-10-05→19 | checkout 409'd on every order (stale subtotal + unselected columns) | an unselected column is `undefined`, never an error |
 | 2026-10-14 | `order.stripe_payment_intent_id` — a column that does not exist | same |
 | 2026-10-19 | revenue predicates counted abandoned checkouts as sales | guard names a subset of the states |
@@ -346,3 +347,103 @@ nothing to scan.
 > 40. The decisive check was the DATA the job is supposed to produce. When
 > asking "is this scheduled thing actually running", always ask what it
 > should have written, never what the scheduler says.
+
+
+---
+
+## 10. The free-samples scope — where this all started
+
+Added 2026-10-22, after the owner said "the problems started when we
+started working on the 2 free samples scope." He was right, and the trail
+is worth keeping because the same shape has now bitten five times.
+
+### `fd472b6` (2026-10-04) killed checkout for EVERY customer
+
+Not just sample orders. Vanities too. Two independent defects, either of
+which alone is fatal:
+
+**A — a new guard read a column nobody fetched.** The commit added the
+drift check
+
+```js
+if (pricing.toCents(expected) !== pricing.toCents(order.subtotal)) → 409
+```
+
+and never widened the SELECT that produces `order`. An unselected column
+is `undefined`, so `toCents(undefined)` → `Number(undefined)` = NaN → not
+finite → **0**. Every real cart total was compared against zero, never
+matched, and returned *"Your order total changed"*. Both Stripe iframes
+stayed empty, and because each reload recomputed the same two numbers the
+error could never clear.
+
+**B — the sample-aware subtotal went into only one of two branches.** The
+pre-existing code had `const subtotal = calcTotal(cart.items)` inside the
+`else` (INSERT) branch. `fd472b6` edited that line in place to pass
+`PRICE_OPTS` and never touched the UPDATE branch — which is every repeat
+pass through page 1: editing an address, pressing Back, retrying after a
+validation error. Line items were rewritten; money columns were not.
+
+> ⚠️ **The guard did not merely fail to help. It converted a pre-existing
+> harmless omission into a hard failure on the happy path.** The UPDATE
+> branch had always skipped the money columns; nothing had ever compared
+> against them. Adding the comparison is what made it fatal. A guard that
+> fails closed on correct behaviour is worse than no guard.
+
+**The first casualty, order id 13 / `BVO-2026-10-05-00119`**, 2026-10-05
+00:28 — hours after deploy. One line item, a $1,803 De Soto vanity,
+correctly written to `order_items`; `subtotal` and `total` both `0.00`.
+It still sits at `pending` with a NULL `stripe_session_id`, which is the
+exact signature of dying at the drift guard (the `status='pending'` write
+happens before it; the session id is written after). The admin Order Risk
+panel compounded it — *"Order amount within normal range ($0.00)"*. Every
+downstream consumer inherited the unwritten number.
+
+### `1d0f749` (same day) — the $0.00 button
+
+The free branch loads no Stripe, so the line that clears
+`payBtn.disabled` never ran. The markup ships the button `disabled` and
+the button sits OUTSIDE the `if (!locals.isFreeOrder)` guard, so it
+renders disabled on the free path too. The only `payBtn.disabled = false`
+in that block is inside `function fail(msg)` — unreachable without a
+click, and a disabled button emits no clicks. Free-sample orders were
+impossible from the day the offer shipped until `5fab2dc` on 2026-10-20.
+
+No order-history evidence exists either way for this one, because while
+checkout was dead nobody could reach a genuine free order. It is
+established from the source alone. Do not re-litigate it from the orders
+table — the pre-20th `$0.00` rows are defect B, not failed free samples.
+
+### The chain to the webhook incident
+
+The 409 made the September webhook defect **unreachable** — nobody could
+complete a decline-then-retry because nobody could complete anything.
+`cbafe9f` lifted the 409 on 2026-10-19 at 11:48; order 00122 stranded at
+14:55, three hours later. See §5.
+
+### What the whole trail has in common
+
+Five defects, one shape: **a value that is `undefined`, or never written,
+rather than an error.**
+
+- the drift guard reading an unfetched `subtotal`
+- the UPDATE branch never writing the money columns
+- `tier_pct` missing from the payment SELECT
+- the ghost `order.stripe_payment_intent_id` column
+- `Number(null) === 0` matching the `20-` size bucket
+
+JavaScript and mysql2 will not tell you. Nothing throws. The only defence
+is to execute the path and read the result.
+
+### The process tell
+
+Task **#321 — "Gate, mutation-test and push"** sits directly after the
+five free-samples tasks and was never completed. **That scope shipped
+without its harness.** `gate_sample_offer.js` and
+`mutate_sample_offer_gate.sh` exist today only because they were
+retrofitted by the commits that cleaned up the damage.
+
+Every other scope on this project that shipped with a green gate AND a
+clean mutation harness has held. The two that shipped without one — free
+samples, and the `'pending'`-only webhook guard — are the two that cost
+weeks. That is the entire argument for the harness, stated as evidence
+rather than as principle.

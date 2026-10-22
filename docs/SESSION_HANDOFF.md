@@ -197,6 +197,29 @@ worthless. The push script refuses to proceed without both.
 
 ---
 
+## 8b. WHERE IT ALL STARTED — read §10 of the lifecycle doc
+
+Traced 2026-10-22 at the owner's prompting. `fd472b6` (2026-10-04, free
+samples) killed checkout for EVERY customer for fourteen days, two ways:
+a new drift guard reading a `subtotal` column the SELECT never fetched
+(`undefined` → 0 → 409 on every order), and the sample-aware subtotal
+written in only the INSERT branch, leaving every repeat pass through
+page 1 comparing against a stale figure.
+
+First casualty is order id 13 / `BVO-2026-10-05-00119` — a $1,803 vanity
+with `subtotal` and `total` both `0.00` on the admin screen while
+`order_items` holds the real line. It is still `pending`. That is a real
+lost customer order and a useful specimen; **do not delete it.**
+
+That 409 then HID the September webhook defect until `cbafe9f` lifted it
+on 10-19. Order 00122 stranded three hours later.
+
+**The process tell: task #321 "Gate, mutation-test and push" was never
+completed for that scope.** It shipped without a harness. The only two
+scopes on this project that shipped without one are the two that cost
+weeks. Do not let a scope ship without its mutation harness, whatever the
+pressure.
+
 ## 9. Elsewhere in the project (not this scope)
 
 - `#365` `/collections/sale` is absent from the sitemap — it is a virtual
