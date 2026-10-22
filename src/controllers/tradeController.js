@@ -31,6 +31,11 @@ const multer = require('multer');
 function pool() { return require('../config/database').bvoPool; }
 
 const tiers = require('../utils/tiers');
+/* ⚠️ REQUIRED AT THE TOP, NOT INSIDE THE HANDLER. node --check passes on a
+   missing require — it is a ReferenceError at RUNTIME, and the notify code
+   runs AFTER the application row is committed. The applicant would have
+   seen a 500 on a submission that actually succeeded, and applied again. */
+const brevo = require('../services/brevoService');
 
 /* The version of the terms copy. Stored on every application so an
    acceptance says WHAT was agreed, not merely that something was. Bump it
@@ -127,6 +132,23 @@ function discard(files) {
   }
 }
 
+/* States that mean "there is already an application in play". A DECLINED
+   application is deliberately absent — a business that fixes whatever got
+   it declined must be able to apply again. */
+const BLOCKING_STATUSES = ['pending', 'approved'];
+
+/**
+ * Is there already a live application for this person?
+ * Pure apart from the query it is handed — the caller executes, so a gate
+ * can test the rule without a database. Rule 14.
+ */
+function _blockingApplication(rows) {
+  const row = (rows && rows[0]) || null;
+  return (row && BLOCKING_STATUSES.includes(row.status)) ? row : null;
+}
+exports._blockingApplication = _blockingApplication;
+exports._BLOCKING_STATUSES   = BLOCKING_STATUSES;
+
 /* ── POST /trade/apply ─────────────────────────────────────────── */
 exports.submit = async (req, res, next) => {
   const files = req.files || {};
@@ -171,6 +193,37 @@ exports.submit = async (req, res, next) => {
         phone, intended_use: intendedUse,
         wants_tax_exempt: wantsTaxEx, tax_id: taxId,
         accepts_marketing: acceptsMkt,
+      };
+      return res.redirect('/trade/apply');
+    }
+
+    /* ⚠️ DUPLICATE GUARD — SERVER-SIDE, AFTER VALIDATION, BEFORE THE INSERT.
+       The page hides the form when an application is pending, but the form
+       being hidden is not a guard: a double-click, a back-button resubmit
+       or a direct POST all reach here. Without this, every resubmit writes
+       another row AND stores ANOTHER COPY OF THE DOCUMENTS.
+
+       The duplicate row is a nuisance. The duplicate documents are not —
+       business cards and resale certificates can carry an SSN, which is
+       why they live outside the web root, and holding extra copies works
+       directly against the retention promise in the trade terms. discard()
+       removes the files this attempt uploaded. */
+    const matchedBy = req.session.customerId ? 'customer_id = ?' : 'email = ?';
+    const matchVal  = req.session.customerId || email;
+    const [dupRows] = await pool().query(
+      `SELECT id, status FROM trade_applications
+        WHERE ${matchedBy} ORDER BY id DESC LIMIT 1`,
+      [matchVal]
+    ).catch(() => [[]]);
+
+    const blocking = _blockingApplication(dupRows);
+    if (blocking) {
+      discard(files);
+      req.session.flash = {
+        type: blocking.status === 'approved' ? 'success' : 'info',
+        msg: blocking.status === 'approved'
+          ? 'Your trade account is already approved — no need to apply again.'
+          : 'You already have an application with us and it is still being reviewed. There is nothing more you need to do.',
       };
       return res.redirect('/trade/apply');
     }
@@ -224,9 +277,76 @@ exports.submit = async (req, res, next) => {
       }
     }
 
+    /* ── TELL SOMEBODY ────────────────────────────────────────────────
+       ⚠️ UNTIL 2026-10-22 THIS SENT NOTHING AT ALL. An application landed
+       in trade_applications and that was it — no mail to support@, none to
+       the applicant. The page promised "we usually come back within one
+       business day" while the only way to learn an application existed was
+       to open /admin/trade and look. The owner routes support@ to their
+       phone precisely so nothing is missed, and this route walked straight
+       past it.
+
+       ⚠️ NEITHER SEND MAY BLOCK OR BREAK THE SUBMISSION. The application is
+       already committed. If Brevo is down, the applicant must still get
+       their confirmation page — a 500 here would tell them it failed when
+       it did not, and they would apply again. Hence await + catch on each,
+       and failures are logged loudly rather than thrown. */
+    const adminTo = process.env.TRADE_NOTIFY_EMAIL
+                 || process.env.BREVO_FROM_EMAIL
+                 || 'support@bathroomvanitiesoutlet.com';
+    const esc = s => String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    try {
+      const rows = [
+        ['Business',  businessName],
+        ['Type',      businessType || '—'],
+        ['Email',     email],
+        ['Phone',     phone || '—'],
+        ['Intended use', intendedUse || '—'],
+        ['Tax exemption requested', wantsTaxEx ? `Yes — tax ID ${esc(taxId)}` : 'No'],
+        ['Resale certificate', resaleFile ? 'Attached' : 'Not supplied'],
+        ['Marketing opt-in', acceptsMkt ? 'Yes' : 'No'],
+      ].map(([k, v]) => `<tr><td style="padding:4px 12px 4px 0"><strong>${esc(k)}</strong></td><td>${esc(v)}</td></tr>`).join('');
+
+      /* ⚠️ THE DOCUMENTS ARE NOT ATTACHED, DELIBERATELY. They can contain
+         an SSN. They stay outside the web root and are viewed through the
+         authenticated admin route; emailing them would copy that data into
+         a mailbox with a different retention and access story. */
+      await brevo.sendRaw(adminTo,
+        `New trade application — ${businessName}`,
+        `<p>A trade application has been submitted and is waiting for review.</p>
+         <table style="border-collapse:collapse;font-family:system-ui,sans-serif">${rows}</table>
+         <p style="margin-top:16px"><a href="${(process.env.SITE_URL || 'https://www.bathroomvanitiesoutlet.com')}/admin/trade?status=pending">Review it in the admin</a></p>
+         <p style="color:#6E7682;font-size:13px">Uploaded documents are not attached — open the application in the admin to view them.</p>`);
+    } catch (err) {
+      console.error('[trade] ADMIN NOTIFY FAILED — application', email,
+        'is in the queue but nobody was told:', err && err.message);
+    }
+
+    /* The applicant's own copy. Templated so the wording is editable in the
+       admin, with a raw fallback — sendTemplate returns {skipped} rather
+       than throwing when the template row is missing, and a silent nothing
+       is exactly how this route behaved before today. Same idiom as
+       accountController.sendCode. */
+    try {
+      let sent = await brevo.sendTemplate('trade_application_received', email, {
+        business_name: businessName,
+      }, businessName);
+      if (!sent || sent.skipped) {
+        await brevo.sendRaw(email, 'We have your trade application',
+          `<p>Thanks — we have your application for a BVO trade account${businessName ? ' for ' + esc(businessName) : ''}.</p>
+           <p>We review these by hand, usually within one business day. There is nothing more you need to do; we will email you either way.</p>
+           <p>Questions in the meantime: <a href="mailto:support@bathroomvanitiesoutlet.com">support@bathroomvanitiesoutlet.com</a>.</p>`,
+          businessName);
+      }
+    } catch (err) {
+      console.error('[trade] applicant ack failed for', email, '-', err && err.message);
+    }
+
     req.session.flash = {
       type: 'success',
-      msg: 'Application received. We review these by hand and usually come back within one business day.',
+      msg: 'Application received. We review these by hand and usually come back within one business day. A confirmation is on its way to your email.',
     };
     res.redirect('/trade/apply');
   } catch (err) {

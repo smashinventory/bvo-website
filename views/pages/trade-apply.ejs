@@ -66,6 +66,37 @@
 
   <% var _o = (typeof old !== 'undefined' && old) ? old : {}; %>
 
+  <%# ⚠️ THE FORM IS HIDDEN WHILE AN APPLICATION IS LIVE, AND IT WAS NOT
+      UNTIL 2026-10-22. The status banner above already said "Your
+      application is pending" — and then rendered a complete empty form
+      directly beneath it, which reads as an invitation to fill it in
+      again. The comment above this block has described preventing exactly
+      that since the page was written; the markup never did it.
+
+      A second submission is not just a duplicate row: it stores ANOTHER
+      COPY of the business card and resale certificate, documents that can
+      carry an SSN. tradeController.submit now refuses them server-side
+      too — this hide is the courtesy, that is the guard, and the guard is
+      the one that matters because a double-click never sees this page.
+
+      DECLINED IS DELIBERATELY NOT HERE. A business that fixes whatever got
+      it declined must be able to apply again. %>
+  <% var _live = (typeof existing !== 'undefined' && existing)
+       && (existing.status === 'pending' || existing.status === 'approved'); %>
+
+  <% if (_live) { %>
+  <p class="trade-closed-note">
+    <% if (existing.status === 'approved') { %>
+      Your trade account is active, so there is nothing to apply for.
+      Something changed about your business?
+    <% } else { %>
+      Your application is with us and the form is closed while we review it.
+      Need to correct something you sent?
+    <% } %>
+    Email <a href="mailto:support@bathroomvanitiesoutlet.com">support@bathroomvanitiesoutlet.com</a>.
+  </p>
+  <% } else { %>
+
   <form method="post" action="/trade/apply" enctype="multipart/form-data" id="tradeForm">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
@@ -175,6 +206,7 @@
       </button>
     </div>
   </form>
+  <% } %>
 </div>
 
 <script nonce="<%= cspNonce %>">
