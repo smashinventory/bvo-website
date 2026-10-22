@@ -47,12 +47,57 @@ const TERMS_VERSION = 'trade-terms-2026-10-21';
    default under public/ would mean one missing environment variable
    silently publishes every uploaded document. storage/ is not served by
    any express.static mount. */
+/* ⚠️ THE DEFAULT IS INSIDE THE DEPLOY DIRECTORY, AND THAT DIRECTORY MOVES.
+   Hostinger deploys this app into a UUID-named folder:
+
+     /home/.../bathroomvanitiesoutlet.com/<uuid>/nodejs/storage/trade-docs/
+
+   The UUID changes with the deploy. So anything written here is orphaned
+   by the next push — the files are stranded in an abandoned release folder
+   that nothing points at, and nothing cleans up. For business cards and
+   resale certificates, which can carry an SSN, "scattered copies across
+   old deploy folders" is a retention problem, not just a broken link.
+
+   SET TRADE_DOCS_PATH IN THE HOSTINGER ENV PANEL to a directory OUTSIDE
+   the deploy folder, e.g.
+
+     /home/u222311468/domains/bathroomvanitiesoutlet.com/trade-docs
+
+   It must not sit under public_html — these documents are deliberately not
+   reachable over HTTP; they are served only through the authenticated
+   /admin/trade/:id/doc/:which route.
+
+   Until that variable is set this falls back to the deploy-local path and
+   uploads will not survive a deploy. docsPathWarning() below surfaces that
+   rather than letting it be discovered by a missing document. */
 function docsDir() {
   const dir = process.env.TRADE_DOCS_PATH
     || path.join(__dirname, '../../storage/trade-docs');
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true, mode: 0o750 });
   return dir;
 }
+
+/** True when uploads are going somewhere a deploy will orphan. */
+function docsPathIsEphemeral() {
+  return !process.env.TRADE_DOCS_PATH;
+}
+exports._docsPathIsEphemeral = docsPathIsEphemeral;
+
+/**
+ * Resolve a stored document reference to a path on disk.
+ *
+ * ⚠️ ACCEPTS BOTH SHAPES ON PURPOSE. Rows written before 2026-10-22 hold
+ * an ABSOLUTE path into whichever deploy folder was live at upload time.
+ * Those paths can never resolve again, so taking the basename turns a
+ * misleading "Refused" (which reads like a permissions bug) into an honest
+ * "File missing" — the file genuinely is not there. New rows store the
+ * bare filename and resolve correctly for as long as docsDir() is stable.
+ */
+function resolveDoc(stored) {
+  if (!stored) return null;
+  return path.join(docsDir(), path.basename(String(stored)));
+}
+exports._resolveDoc = resolveDoc;
 
 /* Images and PDFs only. A business card is a photo or a scan; anything
    else is either a mistake or an attempt. */
@@ -245,9 +290,15 @@ exports.submit = async (req, res, next) => {
         phone || null, intendedUse || null,
         /* The PATH is stored, never a URL. There is no URL — the file is
            not reachable over HTTP by design. */
-        cardFile.path, cardFile.originalname || null,
+        /* ⚠️ THE FILENAME, NOT multer's ABSOLUTE PATH. Storing the absolute
+           path bound every row to the deploy folder that happened to be
+           live at upload time; one push later the path pointed at a
+           directory that no longer existed and adminDoc answered
+           "Refused". The filename plus docsDir() at read time is portable
+           across deploys. See resolveDoc(). */
+        path.basename(cardFile.path), cardFile.originalname || null,
         wantsTaxEx, taxId || null,
-        resaleFile ? resaleFile.path : null,
+        resaleFile ? path.basename(resaleFile.path) : null,
         resaleFile ? (resaleFile.originalname || null) : null,
         TERMS_VERSION, ip,
         acceptsMkt,
@@ -379,6 +430,13 @@ exports.adminQueue = async (req, res, next) => {
       activePage: 'trade',
       applications: rows || [],
       status,
+      /* ⚠️ A STANDING WARNING, NOT A ONE-OFF. While TRADE_DOCS_PATH is
+         unset, every document uploaded is written inside the Hostinger
+         deploy folder and is orphaned by the next push. That is invisible
+         until somebody opens an application and finds the card gone —
+         which is exactly how it was found on 2026-10-22. Surfacing it on
+         the queue means it is noticed before an applicant is affected. */
+      docsEphemeral: docsPathIsEphemeral(),
       flash: req.session.flash || null,
     });
     delete req.session.flash;
@@ -398,15 +456,39 @@ exports.adminDoc = async (req, res, next) => {
     const p = rows && rows[0] && rows[0].p;
     if (!p) return res.status(404).send('Not found');
 
-    /* ⚠️ CONFINE TO THE DOCS DIRECTORY. The path comes from our own row,
-       but a resolved-path check costs nothing and means a corrupted or
-       hand-edited row cannot turn this into an arbitrary file reader. */
-    const resolved = path.resolve(p);
+    /* ⚠️ CONFINE TO THE DOCS DIRECTORY. resolveDoc already reduces the
+       stored value to a basename, so traversal is removed before we get
+       here — but the check stays, because the confinement must hold even
+       if resolveDoc is ever changed to pass paths through. Defence that
+       depends on another function staying correct is not defence. */
+    const resolved = path.resolve(resolveDoc(p));
     if (!resolved.startsWith(path.resolve(docsDir()))) {
-      console.error('[trade] adminDoc refused a path outside the docs dir:', resolved);
+      console.error('[trade] adminDoc refused a path outside the docs dir:',
+        resolved, '| docsDir:', docsDir());
       return res.status(403).send('Refused');
     }
-    if (!fs.existsSync(resolved)) return res.status(404).send('File missing');
+
+    if (!fs.existsSync(resolved)) {
+      /* ⚠️ SAY WHICH FAILURE THIS IS. "File missing" on its own sent us
+         hunting a permissions bug when the real cause was that the deploy
+         folder had rotated and taken the file with it. A row written
+         before 2026-10-22 holds an absolute path into a dead release, and
+         the upload is genuinely gone — the applicant has to send it again.
+         An ephemeral docsDir means it will happen to the next one too. */
+      const looksLegacy = String(p).includes('/');
+      console.error('[trade] adminDoc file missing for application', req.params.id,
+        '| stored:', p,
+        '| looked in:', resolved,
+        looksLegacy
+          ? '| LEGACY ABSOLUTE PATH — uploaded into a deploy folder that no longer exists; this document is unrecoverable and must be re-requested.'
+          : '',
+        docsPathIsEphemeral()
+          ? '| TRADE_DOCS_PATH IS NOT SET — uploads are being written inside the deploy folder and will be lost on the next push.'
+          : '');
+      return res.status(404).send(looksLegacy
+        ? 'This document was stored before the upload path was made deploy-safe and is no longer on disk. Ask the applicant to re-send it.'
+        : 'File missing');
+    }
 
     /* Never inline: an HTML or SVG masquerading as an upload would execute
        in the admin's session if the browser rendered it. */

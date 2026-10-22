@@ -16,6 +16,27 @@
 <div class="admin-card" style="margin-bottom:16px"><%= flash.msg %></div>
 <% } %>
 
+<%# ⚠️ UPLOADS ARE NOT SURVIVING DEPLOYS. Shown until TRADE_DOCS_PATH is
+    set. Hostinger deploys into a UUID-named folder and the default docs
+    directory lives inside it, so each push orphans every document
+    uploaded since the last one. Found 2026-10-22 when the first real
+    application's business card returned "Refused" — the row was fine, the
+    file was in a release folder that no longer existed. %>
+<% if (typeof docsEphemeral !== 'undefined' && docsEphemeral) { %>
+<div class="admin-card" style="margin-bottom:16px;border-left:4px solid #C2410C;background:#FFF7ED">
+  <strong style="color:#9A3412">Uploaded documents will be lost on the next deploy.</strong>
+  <p style="margin:6px 0 0;font-size:.9rem;line-height:1.5">
+    <code>TRADE_DOCS_PATH</code> is not set, so business cards and resale
+    certificates are being written inside the deployment folder, which is
+    replaced on every push. Set it in the Hostinger environment panel to a
+    directory outside that folder — for example
+    <code>/home/u222311468/domains/bathroomvanitiesoutlet.com/trade-docs</code>
+    — and restart the app. It must not be under <code>public_html</code>:
+    these documents are deliberately not reachable over the web.
+  </p>
+</div>
+<% } %>
+
 <div class="adm-table-wrap">
   <table class="adm-table">
     <thead>
