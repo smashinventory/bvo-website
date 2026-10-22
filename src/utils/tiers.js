@@ -140,15 +140,35 @@ function tierLabel(tier) {
  */
 function spendMeter(rollingSpend) {
   const spent = Math.max(0, Number(rollingSpend) || 0);
-  const pct = Math.max(0, Math.min(100, (spent / ELITE_THRESHOLD) * 100));
+  const raw = Math.max(0, Math.min(100, (spent / ELITE_THRESHOLD) * 100));
   const remaining = Math.max(0, ELITE_THRESHOLD - spent);
+  const reached = spent >= ELITE_THRESHOLD;
   const money = n => '$' + Math.round(n).toLocaleString('en-US');
+
+  /* ⚠️ A FULL BAR MUST MEAN ELITE, AND ROUNDING BROKE THAT.
+     $19,999 is 99.995%, which Math.round(pct*10)/10 turned into exactly
+     100.0 — a visually FULL bar on an account that is still paying 15%.
+     The customer reads a full bar, concludes they qualified, and finds out
+     at checkout that they did not. That is the same class of harm as the
+     silent demotion clause 4 of the trade terms exists to prevent, and it
+     is worse for being a picture rather than a sentence.
+
+     So the bar is capped below full until `reached` is actually true. The
+     pairing is the invariant: pct === 100 if and only if reached. */
+  let pct = Math.round(raw * 10) / 10;
+  if (!reached && pct >= 100) pct = 99.9;
+
+  /* ⚠️ remainingLabel IS MEANINGLESS ONCE REACHED. At or above the
+     threshold it is "$0", and the banner's sentence became "$0 more in
+     the next 12 months unlocks 20%" — addressed to the customers who
+     already unlocked it. The caller must branch on `reached` rather than
+     print this unconditionally; collection.ejs now does. */
   return {
     spent,
     target: ELITE_THRESHOLD,
     remaining,
-    pct: Math.round(pct * 10) / 10,
-    reached: spent >= ELITE_THRESHOLD,
+    pct,
+    reached,
     spentLabel:     money(spent),
     targetLabel:    money(ELITE_THRESHOLD),
     remainingLabel: money(remaining),

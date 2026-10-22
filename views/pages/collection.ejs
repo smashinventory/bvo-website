@@ -235,8 +235,15 @@
 .deals-meter-label{font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:#D4B870;font-weight:600;margin:0 0 11px}
 .deals-meter-track{height:7px;background:#0B1422;border-radius:4px;overflow:hidden;margin:0 0 9px}
 .deals-meter-fill{display:block;height:100%;background:#D4B870}
+/* Reached reads as a different state, not just a longer bar — at 99.9%
+   vs 100% the widths are a pixel apart and colour is what carries it. */
+.deals-meter-fill.is-reached{background:#7FB069}
 .deals-meter-figure{font-size:.82rem;color:#fff;margin:0 0 3px}
 .deals-meter-note{font-size:.72rem;color:#9AA3B0;line-height:1.5;margin:0}
+/* The capture-timing caveat. Deliberately quieter than .note — it is a
+   clarification, not the message, and it sits under a divider so it reads
+   as a footnote to the figure rather than more of the offer. */
+.deals-meter-fine{font-size:.66rem;color:#6E7682;line-height:1.45;margin:9px 0 0;padding-top:9px;border-top:1px solid #1E2C42}
 @media (max-width:860px){
   .deals-offers{padding:20px 24px 0}
   .deals-offer--member{flex-direction:column-reverse}
@@ -350,20 +357,63 @@
         reports that customer's own captured spend. To everyone else it
         is a promise of what the tier ladder looks like, with no figures.
 
-        ⚠️ tradeMeter is NOT yet supplied by the controller — that is
-        Stage 2, with the discount engine. Until then this renders the
-        ladder teaser, which is correct and complete on its own. The
-        guard is written now so the meter drops in without re-opening
-        this markup. %>
+        ⚠️ THE COMMENT THAT USED TO SIT HERE SAID "tradeMeter is NOT yet
+        supplied by the controller — that is Stage 2". THAT WAS WRONG AND
+        HAD BEEN SINCE 37270a4 (2026-10-21), which wired it in
+        collectionsController ~line 305 and passes it at ~line 334. The
+        comment was written before that commit and never revisited, so a
+        finished feature read as unbuilt.
+
+        This is the second time in one session that a stale comment nearly
+        sent work down the wrong path — the other claimed /checkout/return
+        did not settle orders, and cost a half-finished fix. GREP THE
+        CALLERS. The comment is not evidence. %>
     <div class="deals-meter">
       <p class="deals-meter-label"><%= _dbt.meter_label || 'Elite Trade · 20%' %></p>
       <% if (typeof tradeMeter !== 'undefined' && tradeMeter && tradeMeter.target > 0) { %>
+
+        <%# ⚠️ THE BAR AND THE TIER MUST AGREE. tiers.spendMeter caps pct
+            below 100 until `reached`, so a full bar always means Elite —
+            $19,999 used to round to a visually full bar on an account
+            still paying 15%.
+
+            USE tradeMeter.pct AS GIVEN. Do not re-derive the width here
+            from spent/target: that arithmetic is what produced 100% for
+            $19,999 in the first place, and doing it in the template puts
+            it somewhere no unit test looks.
+
+            (An earlier version of this comment warned against
+            Math.min(100, pct). That was wrong — pct is already ≤ 100, so
+            that clamp is a no-op and harmless. The hazard is
+            RE-CALCULATING, not re-clamping.) %>
       <div class="deals-meter-track" role="img"
-           aria-label="<%= tradeMeter.spentLabel %> of <%= tradeMeter.targetLabel %> toward Elite Trade">
-        <span class="deals-meter-fill" style="width:<%= Math.max(0, Math.min(100, tradeMeter.pct)) %>%"></span>
+           aria-label="<%= tradeMeter.reached
+             ? 'Elite Trade reached — ' + tradeMeter.spentLabel + ' in the last 12 months'
+             : tradeMeter.spentLabel + ' of ' + tradeMeter.targetLabel + ' toward Elite Trade' %>">
+        <span class="deals-meter-fill<%= tradeMeter.reached ? ' is-reached' : '' %>"
+              style="width:<%= tradeMeter.pct %>%"></span>
       </div>
+
+      <% if (tradeMeter.reached) { %>
+        <%# ⚠️ REACHED IS ITS OWN SENTENCE, NOT remainingLabel.
+            remaining is $0 up here, and the old single-branch markup
+            told Elite accounts "$0 more unlocks 20%" — addressed to the
+            people who had already unlocked it. %>
+      <p class="deals-meter-figure"><%= tradeMeter.spentLabel %> in the last 12 months</p>
+      <p class="deals-meter-note">You're on Elite Trade — 20% off. The 12-month window is rolling, so this figure moves as older orders age out.</p>
+      <% } else { %>
       <p class="deals-meter-figure"><%= tradeMeter.spentLabel %> of <%= tradeMeter.targetLabel %></p>
       <p class="deals-meter-note"><%= tradeMeter.remainingLabel %> more in the next 12 months unlocks 20%.</p>
+      <% } %>
+
+      <%# ⚠️ SAY THAT IT COUNTS ON CAPTURE, BECAUSE THE GAP IS REAL AND
+          CAN BE DAYS. Capture is capture_method:'manual' and the only
+          path is an admin pressing the button on the order — so an order
+          placed today may not move this meter until it is fulfilled.
+          Without this line the obvious customer conclusion is that the
+          meter is broken, and the support email is "I just spent $9,000,
+          why hasn't it moved". %>
+      <p class="deals-meter-fine">Counts orders once payment is charged, which happens when we fulfil the order — not when you place it.</p>
       <% } else { %>
       <p class="deals-meter-note">Spend $20,000 in a rolling 12 months and your rate moves to 20%.</p>
       <% } %>
