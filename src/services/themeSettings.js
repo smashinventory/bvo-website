@@ -106,7 +106,12 @@ const DEFAULTS = {
   },
   seo: {
     home_title:          'BathroomVanitiesOutlet.com | Premium Vanities at Outlet Prices',
-    home_description:    'Shop premium bathroom vanities, mirrors, faucets and accessories at outlet prices. Free shipping on every order.',
+    /* ⚠️ "MOST ORDERS", NOT "EVERY ORDER". Changed 2026-10-22 alongside the
+       trade terms, which carve out remote areas, islands and APO/FPO. Nine
+       surfaces said "every order" while the terms promised exclusions —
+       marketing contradicting the contract is the kind of thing a customer
+       quotes back at you. Do not revert this to an absolute claim. */
+    home_description:    'Shop premium bathroom vanities, mirrors, faucets and accessories at outlet prices. Free shipping on most orders.',
     og_image:            '/images/og-default.jpg',
     og_image_alt:        'BathroomVanitiesOutlet.com — Premium Bathroom Vanities at Outlet Prices',
     og_title:            '',
@@ -226,7 +231,7 @@ const DEFAULTS = {
          session, and the session is the only thing that survives the
          emailed-code round trip. */
       cta_url:       '/account/login?offer=platinum',
-      footnote:      'Free shipping, every order · 30-day returns',
+      footnote:      'Free shipping, most orders · 30-day returns',
       /* Owner-chosen 2026-10-21. A styled ROOM, not a product cut-out —
          the member banner sells the finished bathroom, and a cabinet on
          white kills it. ?width= is the CDN transform already used by the
@@ -242,7 +247,7 @@ const DEFAULTS = {
          on day one; BVO's 15% loses that comparison outright. Free
          freight on a $3,000 vanity is worth more than the missing 5%,
          and it is the thing competitors cannot match. */
-      heading:     'Free freight on every order. Plus 15% off.',
+      heading:     'Free freight on most orders. Plus 15% off.',
       subtitle:    'No minimums. Approved in one business day.',
       cta_text:    'Apply for trade',
       /* /trade/apply does not exist either — the trade application form is
@@ -261,7 +266,7 @@ const DEFAULTS = {
     contact_email:          'info@bathroomvanitiesoutlet.com',
     contact_phone:          '',
     free_shipping_threshold: 0,
-    free_shipping_label:    'Free Shipping on Every Order',
+    free_shipping_label:    'Free Shipping on Most Orders',
     // Google Reviews — update these from your Google Business Profile for
     // "Bathroom Vanities Outlet" once you look up the current rating + count.
     // These appear on product pages and the cart page as social proof.
@@ -270,7 +275,7 @@ const DEFAULTS = {
   },
   promo_strip: {
     enabled: true,
-    message: 'Free Shipping on Every Order — No Minimum Required',
+    message: 'Free Shipping on Most Orders — No Minimum Required',
     link_text: 'Shop Now',
     link_url: '/collections/bathroom-vanities',
     bg_color: '#182840',    // navy — high contrast for accessibility
@@ -464,7 +469,7 @@ const DEFAULTS = {
     text_color: '',  // '' = CSS default (white)
     font_size: 0,    // 0 = CSS default (12px)
     items: [
-      '🚚  Free Shipping on Every Order — No Minimum',
+      '🚚  Free Shipping on Most Orders — No Minimum',
       '⭐  Rated 4.9/5 by Our Happy Customers',
       '🔄  30-Day Hassle-Free Returns',
       '🏷️  Top Brands: James Martin · Kohler · Moen · Delta',
@@ -1325,7 +1330,7 @@ const DEFAULTS = {
     text_color: '',
     item1_enabled: true, item1_icon: 'truck',
     item1_title: 'Free Shipping',
-    item1_text:  'On every order, every time — no minimums',
+    item1_text:  'On most orders — no minimums',
     item2_enabled: true, item2_icon: 'shield',
     item2_title: 'Secure Checkout',
     item2_text:  '256-bit SSL encryption on every transaction',
@@ -1887,7 +1892,7 @@ const DEFAULTS = {
     yelp_url:      '',   // e.g. https://www.yelp.com/biz/your-business
   },
   footer: {
-    brand_desc: 'Premium vanities, mirrors, faucets & accessories — at prices that make sense. Free shipping on every order.',
+    brand_desc: 'Premium vanities, mirrors, faucets & accessories — at prices that make sense. Free shipping on most orders.',
     copyright_name: 'BathroomVanitiesOutlet.com',
     /* ── Footer LINKS are not here ────────────────────────────────
        col_shop_links / col_help_links / col_company_links were removed

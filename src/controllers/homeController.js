@@ -777,7 +777,7 @@ exports.index = async (req, res, next) => {
     ]);
 
     const _title = ts.seo?.home_title || 'BathroomVanitiesOutlet.com — Premium Vanities at Outlet Prices';
-    const _desc  = ts.seo?.home_description || 'Shop premium bathroom vanities, mirrors, faucets and accessories. Free shipping on all orders. Outlet prices on top brands.';
+    const _desc  = ts.seo?.home_description || 'Shop premium bathroom vanities, mirrors, faucets and accessories. Free shipping on most orders. Outlet prices on top brands.';
 
     /* ── Structured data ────────────────────────────────────────────
        The homepage had NO JSON-LD at all, which is what an SEO audit

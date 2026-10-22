@@ -101,7 +101,7 @@ exports.applyPage = async (req, res, next) => {
     }
     res.render('pages/trade-apply', {
       pageTitle: 'Trade Account Application | BathroomVanitiesOutlet.com',
-      metaDesc:  'Apply for a BVO trade account: free freight on every order, plus trade pricing.',
+      metaDesc:  'Apply for a BVO trade account: free freight on most orders, plus trade pricing.',
       /* noindex: this is a form behind a decision, not a landing page, and
          an indexed application form attracts bot submissions. */
       noindex:   true,

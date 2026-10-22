@@ -765,7 +765,7 @@ app.use((req, res, next) => {
   if (!req.session.cart) req.session.cart = { items: [], count: 0, subtotal: 0 };
   res.locals.cart       = req.session.cart;
   res.locals.pageTitle  = 'BathroomVanitiesOutlet.com';
-  res.locals.metaDesc   = 'Premium bathroom vanities, mirrors, faucets and accessories at outlet prices. Free shipping on all orders.';
+  res.locals.metaDesc   = 'Premium bathroom vanities, mirrors, faucets and accessories at outlet prices. Free shipping on most orders.';
   // SEO defaults — controllers override these as needed
   const siteUrl = require('./utils/siteUrl').base();
   res.locals.siteUrl      = siteUrl;

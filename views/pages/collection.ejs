@@ -255,7 +255,7 @@
       They were level-2 headings with aria-labelledby, textbook markup in
       isolation and wrong here. This page's H1 is "Sale", and the first two
       subheadings a crawler meets would have been "Your first order, 10%
-      off" and "Free freight on every order" — promotional copy, pushing the
+      off" and "Free freight on most orders" — promotional copy, pushing the
       page's apparent subject away from discounted vanities, which is the
       thing it needs to rank for. SEO is a stated top priority and the
       domain already ranks top-5 on these terms, so the heading outline is
@@ -335,7 +335,7 @@
   <section class="deals-offer deals-offer--trade" aria-label="Trade account offer">
     <div class="deals-offer-body">
       <% if (_dbt.eyebrow) { %><p class="deals-eyebrow deals-eyebrow--light"><%= _dbt.eyebrow %></p><% } %>
-      <p class="deals-offer-head"><%= _dbt.heading || 'Free freight on every order. Plus 15% off.' %></p>
+      <p class="deals-offer-head"><%= _dbt.heading || 'Free freight on most orders. Plus 15% off.' %></p>
       <% if (_dbt.subtitle) { %><p class="deals-offer-sub"><%= _dbt.subtitle %></p><% } %>
       <div class="deals-trade-actions">
         <a class="btn btn-amber deals-offer-cta" href="<%= _dbt.cta_url || '/trade/apply' %>"><%= _dbt.cta_text || 'Apply for trade' %></a>
