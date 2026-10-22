@@ -109,6 +109,28 @@ mutate 'V8  abandoned rows counted as work again' "$CTRL" \
   'orders.forEach(o => ragCounts[o.rag]++);'
 
 echo
+echo "── a decided order is not work ──────────────────────────────────────────"
+# V12 restores the defect the owner found: computeRag ignoring order.status,
+# so a delivered/cancelled order stays red forever.
+mutate 'V12 computeRag stops reading order.status (the 10-22 defect)' "$CTRL" \
+  '  if \(TERMINAL_ORDER_STATUSES\.includes\(order\.status\)\) return .green.;' \
+  '  /* no terminal check */'
+mutate 'V13 shipped is wrongly called terminal (silences a stall)' "$CFG" \
+  "const TERMINAL_ORDER_STATUSES = \['delivered', 'cancelled', 'refunded'\];" \
+  "const TERMINAL_ORDER_STATUSES = ['delivered', 'cancelled', 'refunded', 'shipped'];"
+mutate 'V14 cancelled drops out of terminal' "$CFG" \
+  "const TERMINAL_ORDER_STATUSES = \['delivered', 'cancelled', 'refunded'\];" \
+  "const TERMINAL_ORDER_STATUSES = ['delivered', 'refunded'];"
+# THE ORDERING PROPERTY, tested from the other side. Writing a mutation that
+# MOVES the terminal check above the return check needs quoting that bash
+# single-quotes cannot express. Deleting the return check proves the same
+# assertion — "a return on a DELIVERED order is still red" can only hold if
+# the return rule runs and runs FIRST.
+mutate 'V15 the open-return red rule is removed' "$CTRL" \
+  'if \(openReturn && openReturn\.status === .requested. &&' \
+  'if (false \&\&'
+
+echo
 echo "── legitimate edits that must NOT trip the gate ─────────────────────────"
 mutate 'V9  the abandoned list is reordered' "$CFG" \
   "const ABANDONED_STATUSES = \['draft', 'pending'\];" \

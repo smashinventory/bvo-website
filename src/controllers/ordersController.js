@@ -22,7 +22,8 @@ const { bvoPool }    = require('../config/database');
 const { buildSearch } = require('../utils/searchQuery');
 // Single source of truth for status values and their meanings.
 const { ORDER_STATUSES, VALID_ORDER_STATUSES,
-        ABANDONED_STATUSES, isAbandonedStatus, ACTIVE_ONLY } = require('../config/orderStatuses');
+        ABANDONED_STATUSES, isAbandonedStatus, ACTIVE_ONLY,
+        TERMINAL_ORDER_STATUSES } = require('../config/orderStatuses');
 // Single source for the delete-reason dropdown, its validation and the gate.
 const { composeDeleteReason, ORDER_DELETE_REASONS, MIN_DELETE_NOTE } =
   require('../config/orderDeleteReasons');
@@ -83,9 +84,35 @@ function computeRag(order, vendorPo, shipment, openReturn) {
   const created  = new Date(order.created_at).getTime();
   const hoursOld = (now - created) / 36e5;
 
-  // Red conditions
+  /* ⚠️ RETURNS ARE TESTED BEFORE THE TERMINAL CHECK, AND THE ORDER MATTERS.
+     An open return lands on a DELIVERED order almost by definition — that
+     is when a customer discovers a problem. Putting the terminal check
+     first would make every return invisible the moment it mattered most. */
   if (openReturn && openReturn.status === 'requested' &&
       (now - new Date(openReturn.requested_at).getTime()) > 24 * 36e5) return 'red';
+
+  /* ⚠️ A DECIDED ORDER IS NOT WORK, AND THIS FUNCTION USED TO IGNORE STATUS
+     ENTIRELY.
+
+     computeRag read the vendor PO, the shipment and the return, and never
+     once looked at order.status. The very next rule — no vendor PO after
+     four hours — is unconditional, so a DELIVERED order with no PO stayed
+     red forever, and so did every CANCELLED one. On 2026-10-22 the owner's
+     board read "6 Need Attention" across nine orders, of which two were
+     cancelled and one delivered and paid. Nothing he did to an order could
+     clear it, because nothing he did was an input.
+
+     Compounded by the JM email PO path being retired (task #369): while
+     nothing can create a vendor_purchase_orders row at all, EVERY order
+     goes red four hours after it is placed. The strip was reporting a dead
+     integration, not a workload — and a board that is always red is a
+     board nobody reads, which is how the stranded orders stayed unnoticed.
+
+     'shipped' and 'in_transit' are deliberately NOT here. Those are in
+     flight: the tracking and ETA rules below are exactly the attention
+     they still need. */
+  if (TERMINAL_ORDER_STATUSES.includes(order.status)) return 'green';
+
   if (!vendorPo && hoursOld > 4) return 'red';
   if (vendorPo && vendorPo.status === 'sent' &&
       (now - new Date(vendorPo.sent_at).getTime()) > 5 * 24 * 36e5) return 'red';
@@ -1455,3 +1482,12 @@ exports.bulkDelete = async (req, res) => {
 /* Exported for the gate and for scripts/cleanupTestOrders.js, so the one-off
    cleanup runs the SAME delete the button runs rather than its own SQL. */
 exports.__deleteInternals = { deleteOneOrder, countOrderChildren, ORDER_CHILD_TABLES };
+
+/* ⚠️ EXPORTED SO A GATE CAN EXECUTE THE RAG RULE, NOT READ IT.
+   computeRag is pure — it takes the order, the vendor PO, the shipment and
+   the open return, and returns a colour. Until 2026-10-22 it silently
+   ignored order.status entirely, which no amount of reading the function
+   revealed: the code looked correct and produced a wrong colour. The only
+   way to catch that is to call it with a delivered order and look at what
+   comes back. Same reasoning as buildPaymentStatusUpdate and shouldSettle. */
+exports.__computeRag = computeRag;

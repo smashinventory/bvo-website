@@ -155,6 +155,50 @@ check(/if \(!isAbandonedStatus\(o\.status\)\) ragCounts\[o\.rag\]\+\+/.test(CTRL
   'abandoned rows are listed but excluded from the RAG counts',
   'computeRag scores an abandoned cart RED (no vendor PO, no shipment). Counting them makes "Need Attention" meaningless, people stop reading it, and the blindness returns by another route.');
 
+console.log('\n6. A decided order is not work — the RAG rule reads status');
+
+/* ⚠️ EXECUTED, NOT READ. computeRag ignored order.status completely until
+   2026-10-22 and no amount of reading it showed that: the code was correct
+   -looking and returned a wrong colour. Calling it with a delivered order
+   is the only thing that reveals it. Rule 14 is why it is exported. */
+const { __computeRag: rag } = require(path.join(ROOT, 'src/controllers/ordersController.js'));
+const hoursAgo = h => new Date(Date.now() - h * 36e5).toISOString();
+const ord = (status, h) => ({ status, created_at: hoursAgo(h) });
+
+/* 22 days old with NO vendor PO — the condition that made everything red
+   while the JM email path was dead (task #369). */
+/* ⚠️ HARDCODED, NOT LOOPED OVER cfg.TERMINAL_ORDER_STATUSES.
+   The first version iterated the config list — so deleting 'cancelled'
+   from it simply stopped testing 'cancelled', and the gate stayed green on
+   a real regression. mutate_orders_visibility V14 found it. A test that
+   draws its cases from its own subject agrees with every change to that
+   subject; gate_order_delete hardcodes ORDER_CHILD_TABLES for exactly this
+   reason. Rule 18. */
+for (const st of ['delivered', 'cancelled', 'refunded']) {
+  check(cfg.TERMINAL_ORDER_STATUSES.includes(st),
+    `'${st}' is declared terminal in the config`);
+  check(rag(ord(st, 22 * 24), null, null, null) === 'green',
+    `a '${st}' order with no vendor PO is GREEN`,
+    `Nothing further is owed. Before this, every ${st} order stayed red forever and no action by the owner could clear it, because no action was an input to the rule.`);
+}
+
+check(rag(ord('confirmed', 22 * 24), null, null, null) === 'red',
+  "a 'confirmed' order with no vendor PO is still RED",
+  'This is real work — the vendor still has to be told.');
+
+/* ⚠️ THE ORDERING PROPERTY. A return lands on a delivered order by
+   definition; if the terminal check ran first it would be invisible. */
+check(rag(ord('delivered', 22 * 24), null, null,
+          { status: 'requested', requested_at: hoursAgo(48) }) === 'red',
+  'an open return on a DELIVERED order still flags RED',
+  'Returns are tested BEFORE the terminal check. Reversing that order silences a return at the exact moment it matters.');
+
+for (const st of ['shipped', 'in_transit']) {
+  check(!cfg.TERMINAL_ORDER_STATUSES.includes(st),
+    `'${st}' is NOT treated as terminal`,
+    'Goods are moving. The ETA and tracking-scan rules are the attention those still need; calling them decided would silence a stalled delivery.');
+}
+
 console.log(
   fail === 0
     ? `\nGREEN  ${pass} passed, 0 failed`

@@ -116,12 +116,33 @@ function isAbandonedStatus(value) {
    '' — empty means ALL, and conflating the two is the bug above. */
 const ACTIVE_ONLY = 'active';
 
+/* ── DECIDED ORDERS ─────────────────────────────────────────────────────
+   Nothing further is owed on these. Used by computeRag so the dashboard
+   stops flagging them.
+
+   ⚠️ 'shipped' AND 'in_transit' ARE NOT HERE, DELIBERATELY. Goods are
+   moving and the ETA and tracking-scan rules are exactly the attention
+   those still need. Adding them would silence a late or stalled delivery,
+   which is the one thing the board exists to catch.
+
+   ⚠️ AN OPEN RETURN STILL OUTRANKS THIS. A return arrives on a delivered
+   order by definition, so computeRag tests returns BEFORE consulting this
+   list. Order of operations is the whole safety property. */
+const TERMINAL_ORDER_STATUSES = ['delivered', 'cancelled', 'refunded'];
+
+/** True when an order is decided and needs no further action. */
+function isTerminalStatus(value) {
+  return TERMINAL_ORDER_STATUSES.includes(value);
+}
+
 module.exports = {
   ORDER_STATUSES,
   VALID_ORDER_STATUSES,
   ABANDONED_STATUSES,
   isAbandonedStatus,
   ACTIVE_ONLY,
+  TERMINAL_ORDER_STATUSES,
+  isTerminalStatus,
   orderStatus,
   orderStatusTip,
 };
