@@ -454,11 +454,13 @@ app.use(session({
 // regeneration (login/logout). Works identically across all PM2 workers
 // without any MySQL dependency.
 const crypto = require('crypto');
-function _makeCsrf(sessionId) {
-  return crypto.createHmac('sha256', process.env.SESSION_SECRET)
-    .update(sessionId || 'anonymous')
-    .digest('hex');
-}
+/* ⚠️ THE TOKEN NOW LIVES IN ONE FILE, AND IT HAS TO.
+   Validation moved to src/middleware/csrf.js so multipart requests can be
+   checked AFTER multer parses them (see csrfToken.js for the defect). If
+   generation stayed inlined here, the generator and the validator would be
+   two implementations of one rule — and the next change to the HMAC would
+   break them apart silently, which is the whole reason /trade/apply 403'd. */
+const _makeCsrf = require('./utils/csrfToken').makeToken;
 app.use((req, res, next) => {
   res.locals.csrfToken = _makeCsrf(req.sessionID);
   next();
@@ -789,29 +791,21 @@ app.use(require('./middleware/megaMenuData'));
 // ── CSRF validation ──────────────────────────────────────────────
 // Reject state-changing requests that don't carry the session token.
 // Exempts /api routes (they use their own bearer-token auth).
-const _CSRF_SAFE = new Set(['GET', 'HEAD', 'OPTIONS']);
-app.use((req, res, next) => {
-  if (_CSRF_SAFE.has(req.method)) return next();
-  if (req.path.startsWith('/api/')) return next(); // API uses own auth
-  // req.body._csrf may be an array if a page has nested forms (e.g. a delete form
-  // embedded inside the main edit form). Both values are the same token — take the first.
-  const _rawToken = (req.body && req.body._csrf) || req.headers['x-csrf-token'];
-  const token = Array.isArray(_rawToken) ? _rawToken[0] : _rawToken;
-  const expected = _makeCsrf(req.sessionID);
-  if (!token || token !== expected) {
-    console.warn('[CSRF] token mismatch', req.method, req.path,
-      '| has_token:', !!token, '| has_session_id:', !!req.sessionID);
-    const wantsJson = req.headers.accept?.includes('application/json')
-      || req.headers['x-requested-with'] === 'XMLHttpRequest'
-      || (req.method !== 'GET' && (req.headers['content-type'] || '').includes('multipart'));
-    if (wantsJson) return res.status(403).json({ ok: false, error: 'Invalid CSRF token' });
-    return res.status(403).render('pages/error', {
-      pageTitle: 'Security Error | BathroomVanitiesOutlet.com',
-      message: 'Your session may have expired. Please go back and try again.',
-    });
-  }
-  next();
-});
+/* ⚠️ THIS USED TO READ req.body._csrf INLINE, AND THAT 403'd EVERY PLAIN
+   MULTIPART FORM ON THE SITE — /trade/apply, /admin/products/import and
+   /admin/products/import-jm. For multipart/form-data req.body is EMPTY
+   here: express.urlencoded and express.json do not touch multipart, and
+   multer runs later, inside the route. The token was not wrong, it was
+   unreadable, so no amount of resubmitting could ever succeed.
+
+   It hid for months because b2b9256's fetch() interceptor sends the token
+   as X-CSRF-Token, and a header is readable at this point. Every upload
+   that goes through fetch was fine; only the three hand-written forms
+   broke, and nobody had submitted one until 2026-10-22.
+
+   globalGuard validates anything with a readable token and DEFERS the
+   rest to requireCsrf, mounted after multer on those routes. */
+app.use(require('./middleware/csrf').globalGuard);
 
 // ── Auth-specific rate limiters ──────────────────────────────────
 const authLimiter = rateLimit({

@@ -16,6 +16,7 @@ const siteCtrl = require('../controllers/siteAnalyticsController');
 const outreachCtrl  = require('../controllers/customerOutreachController');
 const shippingCtrl  = require('../controllers/shippingController');
 const { requireAdmin } = require('../middleware/adminAuth');
+const { requireCsrf }  = require('../middleware/csrf');
 
 /* ── Strict rate limit on admin login — 10 attempts / 15 min ── */
 const adminLoginLimiter = rateLimit({
@@ -49,8 +50,14 @@ router.get('/', ctrl.dashboard);
 /* ── Products ───────────────────────────────────────────────── */
 router.get ('/products',                                          ctrl.productList);
 router.get ('/products/export.csv',                               ctrl.productExport);
-router.post('/products/import',    ctrl.productImportMiddleware,    ctrl.productImport);
-router.post('/products/import-jm', ctrl.productImportJMMiddleware,  ctrl.productImportJM);
+/* ⚠️ requireCsrf AFTER the multer middleware, never before. Both of these
+   are plain <form enctype="multipart/form-data"> posts from products.ejs,
+   not fetch() calls, so the token arrives in the BODY — unreadable until
+   multer has parsed it. Before 2026-10-22 the global guard read req.body
+   too early and both imports 403'd on every attempt. See
+   src/utils/csrfToken.js. Swapping the order here restores the bug. */
+router.post('/products/import',    ctrl.productImportMiddleware,   requireCsrf, ctrl.productImport);
+router.post('/products/import-jm', ctrl.productImportJMMiddleware, requireCsrf, ctrl.productImportJM);
 router.post('/products/bulk',                                     ctrl.productBulkAction);
 router.get ('/products/bulk-edit',                                ctrl.productBulkEdit);
 router.post('/products/bulk-edit',                                ctrl.productBulkEditSave);
@@ -69,7 +76,13 @@ router.post('/products/:id/images/reorder',        ctrl.productReorderImages);
 router.post('/products/:id/images/:imgId/delete',  ctrl.productDeleteImage);
 router.post('/products/:id/images/:imgId/primary', ctrl.productSetPrimaryImage);
 /* Document management */
-router.post('/products/:id/docs',   ctrl.productAddDocumentMiddleware, ctrl.productAddDocument);
+/* requireCsrf after the parse — these post via fetch today, so the token
+   arrives as a header and the global guard already cleared them. Mounted
+   anyway: it makes the route correct ON ITS OWN rather than correct only
+   because of how the current caller happens to send the token. Swap that
+   caller to a plain form and, without this line, the request is deferred
+   and never checked at all. */
+router.post('/products/:id/docs',   ctrl.productAddDocumentMiddleware, requireCsrf, ctrl.productAddDocument);
 router.post('/products/:id/docs/:docId/delete',                   ctrl.productDeleteDocument);
 /* Video management */
 router.post('/products/:id/videos',              ctrl.productAddVideo);
@@ -113,7 +126,7 @@ router.post('/orders/:id/vendor-confirm',           ordersCtrl.confirmVendorOrde
 router.post('/orders/:id/shipping/quote',           ordersCtrl.getShippingQuotes);
 router.post('/orders/:id/shipping/book',            ordersCtrl.bookShipment);
 router.post('/orders/:id/notes',                    ordersCtrl.addNote);
-router.post('/orders/:id/documents',  ordersCtrl.documentUploadMiddleware, ordersCtrl.uploadDocument);
+router.post('/orders/:id/documents',  ordersCtrl.documentUploadMiddleware, requireCsrf, ordersCtrl.uploadDocument);
 router.post('/orders/:id/capture',                  ordersCtrl.capturePayment);
 // Release a hold on an order rejected during validation. NOT a refund —
 // before capture there is no charge to refund. See the controller.
@@ -232,7 +245,7 @@ router.post('/theme/reorder',    ctrl.themeSaveOrder);
 router.post('/theme/duplicate',  ctrl.themeDuplicate);
 
 /* ── Image / Video Upload (theme editor) ────────────────────── */
-router.post('/upload',        ctrl.uploadMiddleware,      ctrl.uploadImage);
+router.post('/upload',        ctrl.uploadMiddleware,      requireCsrf, ctrl.uploadImage);
 router.post('/upload/video',  ctrl.uploadVideoMiddleware, ctrl.uploadVideo);
 router.get ('/upload/probe',  ctrl.uploadProbe);  // diagnostic: check upload dir
 

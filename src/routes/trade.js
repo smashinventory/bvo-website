@@ -7,6 +7,7 @@
 const express = require('express');
 const router  = express.Router();
 const trade   = require('../controllers/tradeController');
+const { requireCsrf } = require('../middleware/csrf');
 
 router.get('/apply', trade.applyPage);
 
@@ -25,6 +26,12 @@ router.post('/apply',
     };
     return res.redirect('/trade/apply');
   }),
+  /* ⚠️ AFTER multer, NEVER BEFORE. The global guard cannot read _csrf out
+     of a multipart body — that is the defect that made this route return
+     {"ok":false,"error":"Invalid CSRF token"} to every applicant. multer
+     populates req.body above; requireCsrf can finally see the token here.
+     Moving this line above uploadMiddleware restores the bug exactly. */
+  requireCsrf,
   trade.submit);
 
 module.exports = router;
