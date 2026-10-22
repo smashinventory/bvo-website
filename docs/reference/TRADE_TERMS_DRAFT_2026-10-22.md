@@ -43,6 +43,50 @@ retailers cover. It is not their text.
    the kind of number a lawyer should set deliberately rather than inherit
    from a draft.
 
+## 🔴 Two conflicts with the existing Shipping Policy
+
+Found by reading the live Shipping Policy after drafting these terms. Both
+are substantive, and in both cases the question is which document should
+change — not which one I think is right.
+
+1. **The Shipping Policy reserves the right to cancel orders for
+   "purchases for resale." The Trade Program is explicitly for resale** —
+   clause 7 here is about resale certificates. As written, the shipping
+   policy authorises cancelling the very orders this program exists to
+   take. One of the two has to move. The likely fix is narrowing the
+   shipping-policy wording to unapproved resale, or exempting approved
+   trade accounts by name.
+
+2. **Capture timing — resolved from the code; both documents were
+   wrong.** Every PaymentIntent is created `capture_method: 'manual'`, and
+   the only capture path is an admin pressing the button on the order
+   detail page. Nothing charges automatically — not on confirmation, not
+   on shipment. The Shipping Policy's "charged when your order is
+   confirmed" is simply untrue, and clause 3's original "at or near
+   shipment" implied a trigger that does not exist. Clause 3 now says "when
+   we are ready to fulfil the order," which is what actually happens. The
+   Shipping Policy still needs its correction — drafted in
+   `SHIPPING_POLICY_REVISION_2026-10-22.md`.
+
+## ✅ Corrected after reading the live Shipping Policy
+
+My first draft of clause 5 was wrong in three ways, and the policy was
+right. Recording it so the error is not reintroduced:
+
+- **Liftgate is INCLUDED free.** The draft had it as a chargeable extra.
+- **Alaska and Hawaii are not served at all** — the draft implied they
+  were merely expensive and could be covered by paying a difference.
+- **PO boxes, APO/FPO, freight forwarders and storage facilities** are not
+  served either; the draft did not mention them.
+
+Clause 6 was also weaker than the policy: it said note damage and report
+within 48 hours, where the policy says **refuse an obviously damaged
+shipment** and warns that "subject to inspection" preserves nothing.
+Clause 6 now follows the policy.
+
+The lesson for the next person: the Shipping Policy is the authority on
+shipping. Summarise it; do not re-derive it.
+
 ## Why this is a separate document from the site T&Cs
 
 These bind trade accounts only, and they change when rates and thresholds
@@ -104,9 +148,9 @@ Trade). Accounts reaching **$20,000 of captured spend in a rolling
 
 "Captured" means payment has actually been taken. An order placed and
 authorised but not yet charged does not count toward the threshold until
-we capture it, which normally happens at or near shipment. Cancelled and
-refunded orders do not count, and a refund removes that amount from your
-running total.
+we charge it, which we do when we are ready to fulfil the order. Cancelled
+and refunded orders do not count, and a refund removes that amount from
+your running total.
 
 Trade pricing does not combine with other discounts, coupons or
 promotional offers. Where more than one would apply, the larger single
@@ -123,39 +167,68 @@ figure is shown on your account at all times, and it is your
 responsibility to check it. We are saying this plainly because finding out
 at checkout would be worse.
 
-### 5. Shipping — free on most orders, not all
+### 5. Shipping
 
-Most trade orders ship free to addresses in the contiguous United States.
+*This clause summarises the [Shipping Policy](/pages/shipping-policy),
+which governs in full. Where this summary and that policy differ, the
+Shipping Policy is correct.*
 
-Some destinations cost substantially more to reach. These include remote
-and rural areas, islands, Alaska and Hawaii, military addresses
-(APO/FPO/DPO), and locations where carriers apply surcharges or operate
-limited service. **Free shipping does not apply automatically to these.**
+**Free shipping on most orders, with no minimum**, to addresses in the
+**continental United States**.
 
+**Where we do not ship at all.** Alaska, Hawaii, Puerto Rico, US
+territories and international addresses are not served. Nor are PO boxes,
+military addresses (APO/FPO/DPO), freight forwarders, or storage
+facilities. These are not "costs extra" — we cannot deliver there.
+
+**Where free shipping may not apply.** A small number of serviceable
+destinations cost substantially more to reach — remote and rural areas,
+and locations where carriers apply surcharges or operate limited service.
 Where an order is going to such an address, we will contact you before
 shipping with the additional cost, and you may choose to pay the
 difference or not proceed. **We will not add a shipping charge to your
 order without telling you first.**
 
-Delivery is **curbside** unless otherwise agreed. You are responsible for
-moving goods from the curb, for having someone present to receive and
-inspect the delivery, and for arranging any additional services —
-liftgate, inside delivery, scheduled appointment, storage — which may
-carry a cost.
+**What the delivery includes.** Curbside delivery **with liftgate
+service** at a residential address, at no additional charge. Curbside
+means the carrier brings the shipment to the curb or the end of the
+driveway and lowers it from the truck. **Moving it inside is yours.** A
+vanity can weigh 200–400 lb; plan for help.
+
+White glove delivery into the home is available — call before ordering for
+a quote. It is not a checkout option.
+
+**Appointments.** The carrier contacts you to schedule a window, and
+someone must be present to inspect and sign. Missed deliveries incur
+carrier redelivery fees, and shipments held at a terminal accrue storage
+charges; both are yours. So is a carrier reconsignment fee caused by an
+incorrect or incomplete address.
 
 Freight carriers deliver on their own schedules. Delivery estimates are
 estimates, not commitments, and we are not liable for losses arising from
 late delivery, including labour you have scheduled around it.
 
-### 6. Inspect your delivery
+### 6. Inspect your delivery before you sign
 
-Freight damage must be noted on the carrier's delivery paperwork **at the
-time of delivery** and reported to us within 48 hours, with photographs.
+**This is the clause most likely to cost you money if you ignore it.**
 
-Signing a clean delivery receipt for damaged goods severely limits what
-can be recovered from the carrier and may leave you responsible for the
-loss. Open the carton and inspect before you sign. Shortages and wrong
-items must also be reported within 48 hours.
+- If the packaging is **obviously damaged, refuse the shipment** and
+  contact us the same day. We will arrange a replacement or refund.
+- If you accept it but see any damage, **write the damage on the delivery
+  receipt before signing**, and photograph it.
+- Writing *"subject to inspection"* is **not sufficient** and will not
+  preserve a claim.
+- Note any missing boxes, by count, on the delivery receipt.
+
+**Once a clean delivery receipt is signed, the carrier and the
+manufacturer will deny the claim.** Neither we nor you can recover it
+afterwards.
+
+This applies to whoever signs on your behalf. On a job site, the person
+accepting delivery is doing it as your agent, and their clean signature
+binds you exactly as your own would. Brief them.
+
+Keep all packaging until you are certain you are keeping the item.
 
 ### 7. Sales tax and resale certificates
 
