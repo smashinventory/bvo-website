@@ -28,6 +28,11 @@ const SOURCES = {
   newsletter:     'Newsletter signup',
   favorite:       'Saved an item',
   direct:         'Signed up directly',
+  /* Added 2026-10-23. The trade application creates the account itself —
+     before that it stored customer_id NULL for anyone who applied without
+     signing in first, approval had no customers row to set the tier on,
+     and the applicant was approved on screen but charged full price. */
+  trade_application: 'Applied for a trade account',
 };
 
 const KEYS = Object.keys(SOURCES);

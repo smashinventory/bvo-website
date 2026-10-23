@@ -356,7 +356,19 @@
 
       <div class="admin-content">
         <% if (typeof flash !== 'undefined' && flash) { %>
-        <div class="admin-flash admin-flash-<%= flash.type %>"><%= flash.message %></div>
+        <%# ⚠️ .msg FIRST — .message WAS ALWAYS EMPTY.
+            This read flash.message, and all 69 flash assignments across
+            the controllers set `msg`. So every admin flash has rendered as
+            a coloured bar with NO TEXT. Seventeen pages print the message
+            themselves and looked fine; the other twenty-three showed a
+            blank green or red strip and nothing else — a silent success,
+            or worse, a silent failure.
+
+            Found 2026-10-23 from a screenshot: an empty green bar above
+            the trade queue, with the real message in the page's own card
+            below it. Both forms are accepted so nothing regresses if a
+            controller is ever written the other way. %>
+        <div class="admin-flash admin-flash-<%= flash.type %>"><%= flash.msg || flash.message %></div>
         <% } %>
 
         <%- body %>
