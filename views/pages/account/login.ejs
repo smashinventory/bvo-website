@@ -246,6 +246,23 @@
         btn.disabled = false;
         btn.textContent = btnLabel;
         if (!r.body.ok) { show(errBox, r.body.error || 'Something went wrong.'); return false; }
+
+        /* ⚠️ skipped MEANS "ALREADY SIGNED IN — NO CODE WAS SENT".
+           sendCode recognises a remembered device, establishes the
+           session and returns {ok:true, skipped:true, redirect}. This
+           handler ignored `skipped` and advanced to the code step
+           anyway, so the customer sat waiting for a code that was never
+           sent, on a page that never said they were already in. The
+           server was right; the client dropped the answer on the floor.
+
+           Returning false here is deliberate: it stops the caller
+           advancing to the code step, and the navigation below leaves
+           the page regardless. */
+        if (r.body.skipped) {
+          window.location.href = r.body.redirect || '/account';
+          return false;
+        }
+
         startCooldown(r.body.resendAfter);
         return true;
       })

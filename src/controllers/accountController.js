@@ -724,7 +724,34 @@ exports.toggleFavorite = async (req, res, next) => {
 };
 
 /* ── POST /account/logout ───────────────────────────────────────── */
-exports.logout = (req, res) => {
+/**
+ * ⚠️ DESTROYING THE SESSION IS NOT LOGGING OUT WHEN A DEVICE IS
+ * REMEMBERED, AND THIS HANDLER USED TO DO ONLY THAT.
+ *
+ * "Keep me signed in for 90 days" writes a cookie that recognise() trusts
+ * on the next visit. Clearing the session left that cookie intact, so the
+ * customer typed their address, got no code, and was silently signed back
+ * in — the exact behaviour reported on 2026-10-23. On a shared machine
+ * the next person to type that address was in.
+ *
+ * deviceService.forget() already carried the comment "Pairs with revokeAll
+ * on sign-out". The helper was written for this and never called from
+ * here — the same shape as the trade queue having no nav link.
+ *
+ * ⚠️ REVOKE BEFORE DESTROYING. revokeThis reads the cookie off the
+ * request, not the session, so the order is not strictly required — but
+ * awaiting it first means a DB failure is logged before the redirect,
+ * rather than racing a torn-down response.
+ */
+exports.logout = async (req, res) => {
+  try {
+    await device.revokeThis(req, res);
+  } catch (err) {
+    /* Never block the logout. A customer who clicked it must end up
+       signed out of this session whatever else failed; revokeThis has
+       already cleared the cookie by this point. */
+    console.error('[account.logout] device revoke failed:', err && err.message);
+  }
   req.session.destroy(() => res.redirect('/'));
 };
 

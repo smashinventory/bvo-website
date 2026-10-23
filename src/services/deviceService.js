@@ -186,8 +186,50 @@ function forget(res) {
   res.clearCookie(COOKIE_NAME, { path: '/' });
 }
 
+/**
+ * Revoke the grant held by THIS browser, and clear its cookie.
+ *
+ * ⚠️ THIS IS WHAT "LOG OUT" MEANS, AND IT DID NOT EXIST UNTIL 2026-10-23.
+ * accountController.logout destroyed the session and nothing else, so a
+ * customer who ticked "keep me signed in for 90 days" and then logged out
+ * was NOT logged out: the cookie survived, and typing their address on
+ * the next visit silently re-authenticated them through recognise().
+ *
+ * On a shared or public machine that is the whole point of the button
+ * failing. The next person types the address and is in.
+ *
+ * ⚠️ THIS BROWSER ONLY — revokeAll() is a different promise. Owner's
+ * decision, 2026-10-23: logging out on a laptop must not sign out the
+ * phone. "Secure my account" is where revokeAll belongs, and it already
+ * calls it.
+ *
+ * REVOKED BY TOKEN, NOT BY CUSTOMER. The token IS the credential; holding
+ * it is what we are withdrawing. Binding to a customer id would make this
+ * fail exactly when the session is already broken — which is one of the
+ * times it most needs to work.
+ *
+ * BEST EFFORT, AND THE COOKIE GOES REGARDLESS. If the database is
+ * unreachable we still clear the cookie, so the browser cannot present
+ * the grant again even though the row outlives it.
+ */
+async function revokeThis(req, res) {
+  const token = readCookie(req);
+  if (res) forget(res);
+  if (!token || !/^[0-9a-f]{64}$/.test(token)) return { ok: true, count: 0 };
+  try {
+    const [r] = await db().query(
+      `UPDATE customer_devices SET revoked_at = NOW()
+        WHERE token_hash = ? AND revoked_at IS NULL`, [hashToken(token)]);
+    return { ok: true, count: r.affectedRows || 0 };
+  } catch (err) {
+    console.error('[device] revokeThis failed — cookie cleared but the row survives:',
+      err && err.message);
+    return { ok: false, count: 0 };
+  }
+}
+
 module.exports = {
-  remember, recognise, revokeAll, forget, readCookie,
+  remember, recognise, revokeAll, revokeThis, forget, readCookie,
   COOKIE_NAME, TTL_DAYS,
   _generateToken: generateToken,
   _hashToken: hashToken,
