@@ -181,6 +181,86 @@ const device = require(path.join(ROOT, 'src/services/deviceService'));
   device2.forget(res);
   ok('forget clears the cookie', cookies[0] && cookies[0].cleared === true, 'not cleared');
 
+  /* ⚠️ THIS SECTION TESTED THE HELPERS AND NOT THE CALLER, AND THAT IS
+     EXACTLY THE GAP THAT SHIPPED THE BUG. forget() was proven to clear a
+     cookie; nothing proved logout ever called it. It did not — for the
+     whole life of the remember-me feature, "Log out" destroyed the
+     session and left the 90-day grant live, so typing the address again
+     silently re-authenticated, and on a shared machine the next person
+     to type it was in.
+
+     A helper with no caller is not a feature. Reported by the owner on
+     2026-10-23, fixed in 5644c6a. */
+  console.log('--- log out actually revokes THIS device ---');
+
+  queries.length = 0; cookies.length = 0;
+  const r = await device2.revokeThis({ headers: { cookie: 'bvo_device=' + 'a'.repeat(64) } }, res);
+  ok('revokeThis revokes by token hash',
+    queries[0] && /token_hash = \?/.test(queries[0].sql), 'not revoked by token');
+  ok('it only touches live rows',
+    queries[0] && /revoked_at IS NULL/.test(queries[0].sql), 'rewrites history');
+  ok('it is NOT scoped to a customer id',
+    queries[0] && !/customer_id/.test(queries[0].sql),
+    'binding to the session fails exactly when the session is already broken');
+  ok('it sends the HASH, never the raw token',
+    queries[0] && queries[0].params[0] !== 'a'.repeat(64), 'raw token hit the database');
+  ok('it clears the cookie too', cookies[0] && cookies[0].cleared === true, 'cookie survives');
+
+  /* The cookie MUST go even when the row cannot be updated — otherwise a
+     database blip leaves the browser holding a credential we believe we
+     revoked. */
+  {
+    cookies.length = 0;
+    Module._load = function (request) {
+      if (request.indexOf('config/database') !== -1) {
+        return { bvoPool: { query: async () => { throw new Error('DB down'); } } };
+      }
+      return origLoad.apply(this, arguments);
+    };
+    delete require.cache[require.resolve(path.join(ROOT, 'src/services/deviceService'))];
+    const broken = require(path.join(ROOT, 'src/services/deviceService'));
+    const rf = await broken.revokeThis(
+      { headers: { cookie: 'bvo_device=' + 'b'.repeat(64) } }, res);
+    ok('a DB failure still clears the cookie',
+      cookies[0] && cookies[0].cleared === true, 'browser keeps a live grant');
+    ok('and reports failure rather than claiming success',
+      rf && rf.ok === false, `returned ${JSON.stringify(rf)} - lied about revoking`);
+
+    delete require.cache[require.resolve(path.join(ROOT, 'src/services/deviceService'))];
+    Module._load = origLoad;
+  }
+
+  /* ⚠️ THE CALLER. Source-checked rather than executed because logout
+     needs a session object and a response; the behaviour above is
+     already proven. What this asserts is that the wiring exists at all —
+     the only thing that was missing. */
+  const ACCT = fs.readFileSync(
+    path.join(__dirname, '..', 'src/controllers/accountController.js'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const logoutBody = ACCT.slice(ACCT.indexOf('exports.logout'),
+                                ACCT.indexOf('exports.logout') + 600);
+  ok('logout calls device.revokeThis', /device\.revokeThis\(/.test(logoutBody),
+    'Log out leaves the 90-day grant live. This is the original defect.');
+  /* ⚠️ BOTH indexOf results are checked for -1 first. Without that this
+     reads "-1 < 180", which is true, so the check PASSED on a mutant that
+     deleted the revoke entirely. A check that passes when its subject is
+     absent is the same disease as a helper with no caller. */
+  ok('it does so BEFORE destroying the session',
+    logoutBody.indexOf('revokeThis') !== -1 &&
+    logoutBody.indexOf('session.destroy') !== -1 &&
+    logoutBody.indexOf('revokeThis') < logoutBody.indexOf('session.destroy'),
+    'the session must not be gone before we can read its cookie');
+  ok('logout does NOT revokeAll',
+    !/revokeAll/.test(logoutBody),
+    'Owner decision: logging out on a laptop must not sign out the phone. revokeAll belongs to Secure my account.');
+
+  /* The other half: the login page must honour skipped:true, or the
+     customer waits for a code that was never sent. */
+  const LOGIN = fs.readFileSync(
+    path.join(__dirname, '..', 'views/pages/account/login.ejs'), 'utf8');
+  ok('the login page acts on skipped:true', /body\.skipped/.test(LOGIN),
+    'sendCode says "already signed in, go here" and the page shows a code box anyway');
+
   Module._load = origLoad;
   statics();
 })();
