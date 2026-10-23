@@ -192,13 +192,23 @@
         <span>I have read and accept the trade terms, including that my rate can fall back to 15% and that commercial installations are not covered by warranty.</span>
       </label>
 
-      <%# OPTIONAL on this path, and that is deliberate — spec §4:
-          "Approval must never depend on it." For Platinum Member the tick
-          IS the claim; for trade the consideration is a legitimate
-          business, not an email permission. %>
+      <%# ⚠️ REQUIRED, AND THAT REVERSES SPEC §4. Until 2026-10-23 this was
+          optional, on the reasoning that conditioning a trade account on an
+          email permission would put off the professionals worth having.
+          Owner decision 2026-10-23: a trade account IS the mailing list —
+          tier pricing, stock and promotions reach trade by email or not at
+          all, so an account that refuses mail is an account we cannot
+          serve. Unticked now blocks the submission, server-side too.
+
+          Worth knowing if this is ever revisited: Brevo puts
+          List-Unsubscribe on every message and it cannot be turned off
+          below Enterprise, so a trade customer who unsubscribes from a
+          promotion also stops receiving order confirmations and sign-in
+          codes. Requiring the tick puts more trade accounts in front of
+          that button. %>
       <label class="trade-check">
-        <input type="checkbox" name="accepts_marketing" value="1" <%= _o.accepts_marketing ? 'checked' : '' %>>
-        <span>Email me trade deals and new arrivals. Optional — it makes no difference to whether you are approved.</span>
+        <input type="checkbox" name="accepts_marketing" value="1" id="t_mkt" <%= _o.accepts_marketing ? 'checked' : '' %>>
+        <span><strong>Required.</strong> Email me trade pricing, stock notices and new arrivals. Trade pricing and programme updates are sent by email, so a trade account cannot be opened without this. You can unsubscribe at any time, but trade pricing and stock notices stop with it.</span>
       </label>
 
       <button type="submit" class="btn btn-amber trade-submit" id="tradeSubmit" disabled>
@@ -217,6 +227,7 @@
   var note   = document.getElementById('scrollNote');
   var taxCb  = document.getElementById('t_tax');
   var taxBlk = document.getElementById('taxBlock');
+  var mkt    = document.getElementById('t_mkt');
   if (!box || !ack || !btn) return;
 
   function reveal() {
@@ -231,7 +242,14 @@
   if (box.scrollHeight <= box.clientHeight + 4) reveal();
   box.addEventListener('scroll', function () { if (atEnd()) reveal(); });
 
-  ack.addEventListener('change', function () { btn.disabled = !ack.checked; });
+  /* BOTH ticks now gate the button. The marketing box is absent on no
+     path today, but guard for it anyway rather than making a missing
+     element disable the form permanently — the server check is the one
+     that actually enforces this. */
+  function gate() { btn.disabled = !ack.checked || (mkt ? !mkt.checked : false); }
+  ack.addEventListener('change', gate);
+  if (mkt) mkt.addEventListener('change', gate);
+  gate();
 
   if (taxCb && taxBlk) {
     var sync = function () { taxBlk.hidden = !taxCb.checked; };

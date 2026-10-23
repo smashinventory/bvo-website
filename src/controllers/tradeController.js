@@ -15,11 +15,28 @@
    directory holds both. Anything under public/ is served by express.static
    to anyone who guesses the filename — no auth, no log, no expiry.
 
-   ⚠️ APPROVAL IS MANUAL AND NEVER DEPENDS ON MARKETING CONSENT.
-   Spec §4: for Platinum Member the tick IS the claim; for trade the
-   consideration is a legitimate business, not an email permission.
-   Conditioning a trade account on accepting marketing would put off
-   exactly the professionals worth having.
+   ⚠️ MARKETING CONSENT IS REQUIRED. THIS REVERSES SPEC §4, DELIBERATELY.
+   Spec §4 said "approval must never depend on it" — for Platinum Member
+   the tick IS the claim, and for trade the consideration was meant to be
+   a legitimate business rather than an email permission, on the reasoning
+   that conditioning the account on marketing would put off exactly the
+   professionals worth having.
+
+   Owner reversed that on 2026-10-23: a trade account IS the mailing list.
+   Tier pricing, stock notices and programme changes reach trade by email
+   or not at all, so an account that refuses mail is an account BVO cannot
+   actually serve. Unticked now fails validation in submit().
+
+   Approval itself is still MANUAL — the consent is a precondition of
+   applying, not a substitute for reviewing the business.
+
+   ⚠️ THE SIDE EFFECT TO WATCH, SO IT IS NOT REDISCOVERED THE HARD WAY.
+   Brevo attaches List-Unsubscribe to every message and it cannot be
+   disabled below Enterprise. So a trade customer who unsubscribes from a
+   promotion also stops receiving order confirmations and sign-in codes —
+   the same hazard recorded in deviceService's header. Requiring the tick
+   puts more trade accounts in front of that button. If trade accounts
+   start going dark on transactional mail, this is the first place to look.
    ═══════════════════════════════════════════════════════════════════════════ */
 'use strict';
 
@@ -236,7 +253,8 @@ exports.submit = async (req, res, next) => {
     const intendedUse  = String(b.intended_use || '').trim();
     const wantsTaxEx   = b.wants_tax_exempt ? 1 : 0;
     const taxId        = String(b.tax_id || '').trim();
-    /* Optional on this path, and approval must never depend on it. */
+    /* ⚠️ REQUIRED since 2026-10-23. See the header note — this reverses
+       spec §4, by owner decision. Validated below, not merely recorded. */
     const acceptsMkt   = b.accepts_marketing ? 1 : 0;
 
     const errors = [];
@@ -253,6 +271,16 @@ exports.submit = async (req, res, next) => {
        check that matters, because the browser one can be bypassed with
        devtools in about four seconds. */
     if (!b.terms_ack) errors.push('You must read and accept the trade terms.');
+
+    /* ⚠️ THE BROWSER ALSO GATES THE BUTTON ON THIS, AND THAT IS NOT A GUARD.
+       Same reasoning as terms_ack: the disabled attribute is gone in four
+       seconds with devtools, and a direct POST never sees it at all. If
+       this check is removed the consent becomes advisory — the row still
+       records accepts_marketing = 0 and the applicant is approved anyway,
+       which is exactly the behaviour the owner reversed. */
+    if (!acceptsMkt) {
+      errors.push('Trade pricing and programme updates are sent by email, so you must agree to receive them to open a trade account.');
+    }
 
     if (wantsTaxEx && !taxId) {
       errors.push('A tax ID is required to claim sales-tax exemption. Leave the box unticked if you do not need it.');
