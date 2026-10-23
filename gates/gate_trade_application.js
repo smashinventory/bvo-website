@@ -117,6 +117,49 @@ for (const s of ['pending', 'approved', 'declined', 'fraud', 'closed']) {
     `Rows with status '${s}' cannot be viewed at all — the filter silently falls back to 'pending'.`);
 }
 
+console.log('\n1c. The application creates the account — it never assumes one');
+
+/* ⚠️ THE DEFECT THIS REPLACES. submit() stored
+   `req.session.customerId || null`, so anyone who applied without signing
+   in first produced customer_id NULL. The tier lives on `customers`, so
+   approval wrote to nothing: the admin saw "Approved", the applicant saw
+   retail prices, and neither had any way to connect the two.
+
+   Nothing on the site told a visitor to create an account first, and the
+   form already collects email, business name and phone. Requiring a
+   separate signup was not a rule anyone could have followed. */
+check(/Customer\.findOrCreateByEmail\(/.test(CTRL),
+  'submit() resolves or creates the customer account itself',
+  'Without this, a logged-out applicant lands with customer_id NULL and approval has nowhere to put the tier.');
+check(/^\s*customerId, email, businessName/m.test(CTRL),
+  'the INSERT stores the RESOLVED id, not the session one',
+  'Storing req.session.customerId is the original defect verbatim: NULL for every applicant who was not already signed in.');
+check(!/req\.session\.customerId \|\| null, email, businessName/.test(CTRL),
+  'the old session-or-null expression is gone from the INSERT');
+
+/* applied_at and the marketing-consent record were also gated on the
+   session. A new applicant ticked the opt-in box and nothing recorded it
+   — losing the consent evidence for precisely the people who had just
+   given it. */
+/* ⚠️ ANCHORED TO THE STATEMENT, NOT TO `if (customerId) {`.
+   That looser pattern matched somewhere else in the file, so mutation D3
+   — re-gating these updates on the session — left the gate green. Check
+   the PARAMETER each query is actually given, which is the thing that
+   decides whether a new applicant's record is written. */
+check(/trade_applied_at[\s\S]{0,160}?\[customerId\]/.test(CTRL),
+  'applied_at is recorded against the RESOLVED customer',
+  'Gated on req.session.customerId, a brand-new applicant gets no trade_applied_at at all.');
+check(!/trade_applied_at[\s\S]{0,160}?\[req\.session\.customerId\]/.test(CTRL),
+  'applied_at is NOT gated on the session');
+check(/marketing_consent_ip[\s\S]{0,200}?\[ip, TERMS_VERSION, customerId\]/.test(CTRL),
+  'marketing consent is recorded against the RESOLVED customer',
+  "Gated on the session, an applicant who ticks the opt-in box and has no account yet has their consent silently discarded — losing the evidence for exactly the people who just gave it.");
+
+const SOURCES = require(path.join(ROOT, 'src/config/signupSources.js'));
+check(SOURCES.clean('trade_application') === 'trade_application',
+  "'trade_application' is a registered signup source",
+  'signupSources.clean() nulls anything unrecognised, so an unregistered key means these accounts report as "unknown" in the customer acquisition breakdown.');
+
 console.log('\n2. The guard runs server-side, before the INSERT');
 
 /* ⚠️ KNOWN LIMIT OF THIS SECTION — READ BEFORE TRUSTING IT.
@@ -182,6 +225,37 @@ check((notifyBlock.match(/catch\s*\(/g) || []).length >= 2,
 check(/ADMIN NOTIFY FAILED/.test(CTRL_RAW),
   'a failed admin notify is logged loudly and by name',
   'If Brevo is down the application still saves — but somebody has to be able to find out that nobody was told.');
+
+console.log('\n4b. Documents can be VIEWED, and viewing them is safe');
+
+/* ⚠️ THE ORIGINAL CODE WAS attachment-ONLY FOR A REAL REASON: a file
+   named .png containing HTML would execute in the admin session if the
+   browser rendered it. Inline viewing is only acceptable because three
+   things hold together. Any one of them missing re-opens it. */
+check(/INLINE_TYPES/.test(CTRL) && /path\.extname\(resolved\)/.test(CTRL),
+  'the content-type comes from OUR extension, never the client mimetype',
+  'file.mimetype is client-supplied and forgeable. The extension is what multer validated and what we wrote to disk.');
+/* ⚠️ COUNTED, NOT MERELY PRESENT. `/nosniff/` matched the DOWNLOAD path,
+   so mutation E1 stripped it from the INLINE path — the only one where
+   it matters — and the gate stayed green. The inline response is the one
+   a browser is asked to render; without nosniff that is exactly where an
+   HTML-bearing .png becomes a document. Third time today a loose grep has
+   matched something adjacent to the thing under test. */
+check((CTRL.match(/X-Content-Type-Options['"]?,\s*'nosniff'/g) || []).length >= 2,
+  'nosniff is set on BOTH the inline and download paths',
+  'Present on only one of them is almost certainly the inline path missing it — which is the path that renders, and the whole reason inline viewing is safe.');
+check(/Content-Security-Policy[\s\S]{0,80}?sandbox/.test(CTRL),
+  'the response carries a CSP sandbox',
+  'Belt and braces — an opaque origin with scripts disabled, so even a content-type mistake cannot reach the admin session.');
+check(!/'\.svg'|image\/svg/.test(CTRL),
+  'SVG is never an inline type',
+  'SVG is a script-bearing document. It is not in ALLOWED_EXT either, and it must not creep into the inline map.');
+check(!/'\.heic':/.test(CTRL.slice(CTRL.indexOf('INLINE_TYPES'), CTRL.indexOf('INLINE_TYPES') + 400)),
+  'HEIC falls back to download rather than a blank tab',
+  'No browser renders HEIC. An iPhone photo of a business card is the most likely upload here, so this is not an edge case.');
+check((CTRL.match(/Cache-Control['"]?,\s*'private, no-store'/g) || []).length >= 2,
+  'BOTH the view and download paths set private, no-store',
+  "Express defaults the download path to 'public, max-age=0'. These are business cards and resale certificates — 'public' lets a shared proxy keep a copy. Found by reading the real response headers, not by assuming them.");
 
 console.log('\n5. The documents are NOT emailed');
 

@@ -36,6 +36,11 @@ const tiers = require('../utils/tiers');
    runs AFTER the application row is committed. The applicant would have
    seen a 500 on a submission that actually succeeded, and applied again. */
 const brevo = require('../services/brevoService');
+/* The trade application creates the customer account when there is not
+   one yet — see submit(). Required at the top, not inside the handler: a
+   missing require is a runtime ReferenceError, not a syntax error, and it
+   would fire mid-submission. That exact mistake cost a fix earlier today. */
+const Customer = require('../models/Customer');
 
 /* The version of the terms copy. Stored on every application so an
    acceptance says WHAT was agreed, not merely that something was. Bump it
@@ -278,8 +283,41 @@ exports.submit = async (req, res, next) => {
        why they live outside the web root, and holding extra copies works
        directly against the retention promise in the trade terms. discard()
        removes the files this attempt uploaded. */
-    const matchedBy = req.session.customerId ? 'customer_id = ?' : 'email = ?';
-    const matchVal  = req.session.customerId || email;
+    /* ⚠️ THE APPLICATION CREATES THE ACCOUNT. IT MUST NOT ASSUME ONE.
+       This used to store `req.session.customerId || null`. Anyone who
+       found the trade page and applied — which is everyone, because
+       nothing told them otherwise — produced a row with customer_id NULL.
+       The tier lives on `customers`, so approval had nothing to write to:
+       the admin saw "Approved", the applicant saw retail prices, and
+       neither had any way to connect the two.
+
+       Expecting a visitor to work out that they must create a separate
+       account BEFORE applying, with no prompt anywhere saying so, is not
+       a workflow. The form already collects the email, the business name
+       and the phone — everything an account needs.
+
+       findOrCreateByEmail is the house helper: it returns the existing
+       customer when there is one (keeping their original signup_source,
+       so this does not rewrite acquisition history) and creates the row
+       when there is not. No password — this site signs in by emailed
+       code, so an account with just an address is a complete account. */
+    let customerId = req.session.customerId || null;
+    let accountCreated = false;
+    if (!customerId) {
+      const cust = await Customer.findOrCreateByEmail(email, 'trade_application')
+        .catch(err => {
+          console.error('[trade] findOrCreateByEmail FAILED for', email, '-', err && err.message);
+          return null;
+        });
+      if (cust) { customerId = cust.id; accountCreated = !!cust.created; }
+    }
+
+    /* The duplicate check now always keys on customer_id, because by this
+       point there is always a customer. The email fallback remains for the
+       case where account resolution failed outright — better to refuse a
+       possible duplicate than to lose the guard entirely. */
+    const matchedBy = customerId ? 'customer_id = ?' : 'email = ?';
+    const matchVal  = customerId || email;
     const [dupRows] = await pool().query(
       `SELECT id, status FROM trade_applications
         WHERE ${matchedBy} ORDER BY id DESC LIMIT 1`,
@@ -311,7 +349,9 @@ exports.submit = async (req, res, next) => {
           accepts_marketing, status)
        VALUES (?,?,?,?,?,?, ?,?, ?,?,?,?, ?,NOW(),?, ?, 'pending')`,
       [
-        req.session.customerId || null, email, businessName, businessType || null,
+        /* The RESOLVED id, not the session's. This is the line that used
+           to store NULL for every logged-out applicant. */
+        customerId, email, businessName, businessType || null,
         phone || null, intendedUse || null,
         /* The PATH is stored, never a URL. There is no URL — the file is
            not reachable over HTTP by design. */
@@ -333,10 +373,16 @@ exports.submit = async (req, res, next) => {
     /* ⚠️ applied_at, NOT tier. Applying is not approval — spec: "Pending
        accounts see retail pricing until approved." Writing the tier here
        would hand out 15% on submission to anyone with a photo. */
-    if (req.session.customerId) {
+    /* ⚠️ customerId, NOT req.session.customerId. These two updates were
+       gated on the session, so an applicant who was not signed in got
+       neither trade_applied_at nor their marketing consent recorded —
+       even though they had just ticked the box. The consent record is the
+       evidence that they opted in; losing it for exactly the people who
+       are new to the site is the worst possible subset to lose. */
+    if (customerId) {
       await pool().query(
         'UPDATE customers SET trade_applied_at = COALESCE(trade_applied_at, NOW()) WHERE id = ?',
-        [req.session.customerId]
+        [customerId]
       ).catch(err => console.error('[trade] applied_at FAILED:', err.message));
 
       if (acceptsMkt) {
@@ -348,7 +394,7 @@ exports.submit = async (req, res, next) => {
                   marketing_consent_ip     = COALESCE(marketing_consent_ip, ?),
                   consent_copy_version     = COALESCE(consent_copy_version, ?)
             WHERE id = ?`,
-          [ip, TERMS_VERSION, req.session.customerId]
+          [ip, TERMS_VERSION, customerId]
         ).catch(err => console.error('[trade] marketing consent FAILED:', err.message));
       }
     }
@@ -410,9 +456,17 @@ exports.submit = async (req, res, next) => {
         business_name: businessName,
       }, businessName);
       if (!sent || sent.skipped) {
+        /* ⚠️ TELL THEM THE ACCOUNT EXISTS AND HOW TO REACH IT. Trade
+           pricing only renders to a signed-in customer (MAP). So an
+           approved applicant who never signs in sees retail forever and
+           concludes the program is fake. The account was just created for
+           them; the one thing they need to know is that it is there. */
         await brevo.sendRaw(email, 'We have your trade application',
           `<p>Thanks — we have your application for a BVO trade account${businessName ? ' for ' + esc(businessName) : ''}.</p>
            <p>We review these by hand, usually within one business day. There is nothing more you need to do; we will email you either way.</p>
+           <p><strong>Your account is set up under this email address.</strong> There is no password — sign in at
+           <a href="${esc(process.env.SITE_URL || 'https://www.bathroomvanitiesoutlet.com')}/account">bathroomvanitiesoutlet.com/account</a>
+           and we email you a code. <strong>Trade pricing only shows while you are signed in</strong>, so once you are approved, sign in and the discount appears in your cart automatically.</p>
            <p>Questions in the meantime: <a href="mailto:support@bathroomvanitiesoutlet.com">support@bathroomvanitiesoutlet.com</a>.</p>`,
           businessName);
       }
@@ -523,10 +577,61 @@ exports.adminDoc = async (req, res, next) => {
         : 'File missing');
     }
 
-    /* Never inline: an HTML or SVG masquerading as an upload would execute
-       in the admin's session if the browser rendered it. */
-    res.setHeader('Content-Disposition', 'attachment; filename="' + path.basename(resolved) + '"');
+    /* ── VIEW IN THE BROWSER, SAFELY ──────────────────────────────────
+       This was attachment-only, with good reason: a file NAMED .png that
+       actually contains HTML would execute in the admin's session if the
+       browser rendered it. Downloading every card and opening it locally
+       is not a review workflow though, so the answer is to make inline
+       viewing safe rather than to drop the concern.
+
+       Three things make it safe, and all three are needed:
+
+         1. CONTENT-TYPE FROM THE EXTENSION WE CONTROL. Never from
+            file.mimetype — that is client-supplied and forgeable. The
+            extension is what multer's filter validated and what we wrote.
+
+         2. nosniff. With an explicit image/* type, a file full of HTML
+            cannot be re-interpreted as a document. It simply fails to
+            render as an image. This is the header that actually defuses
+            the masquerade.
+
+         3. CSP sandbox. Belt and braces: the response becomes an opaque
+            origin with scripts disabled, so even a content-type mistake
+            cannot reach the admin session. PDFs still render — the
+            viewer is the browser's, not the page's.
+
+       HEIC is forced to download regardless: no browser renders it, so
+       "view" would be a blank tab. An iPhone photo of a business card is
+       the most likely upload on this route, so this case is not rare. */
+    const ext = path.extname(resolved).toLowerCase();
+    const INLINE_TYPES = {
+      '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+      '.png': 'image/png',  '.webp': 'image/webp',
+      '.pdf': 'application/pdf',
+    };
+    const inlineType = INLINE_TYPES[ext];
+    const wantsDownload = req.query.download === '1' || !inlineType;
+
+    if (wantsDownload) {
+      res.setHeader('Content-Disposition',
+        'attachment; filename="' + path.basename(resolved) + '"');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      /* ⚠️ EXPRESS DEFAULTS THIS TO "public, max-age=0" AND THAT IS WRONG
+         HERE. Found by reading the response headers rather than assuming
+         them. These are business cards and resale certificates — "public"
+         permits a shared proxy to hold a copy. Both paths get no-store. */
+      res.setHeader('Cache-Control', 'private, no-store');
+      return res.sendFile(resolved);
+    }
+
+    res.setHeader('Content-Type', inlineType);
+    res.setHeader('Content-Disposition',
+      'inline; filename="' + path.basename(resolved) + '"');
     res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "sandbox; default-src 'none'; img-src 'self' data:; object-src 'none'");
+    /* These are personal documents behind an admin login. Nothing should
+       cache them to disk on a shared machine or in a proxy. */
+    res.setHeader('Cache-Control', 'private, no-store');
     res.sendFile(resolved);
   } catch (err) { next(err); }
 };
@@ -684,12 +789,45 @@ exports.adminDecide = async (req, res, next) => {
     const who  = (req.session.adminUser && req.session.adminUser.email) || 'admin';
 
     const [rows] = await pool().query(
-      'SELECT customer_id FROM trade_applications WHERE id = ? LIMIT 1', [id]
+      'SELECT customer_id, email FROM trade_applications WHERE id = ? LIMIT 1', [id]
     );
     const app = rows && rows[0];
     if (!app) {
       req.session.flash = { type: 'error', msg: 'Application not found.' };
       return res.redirect('/admin/trade');
+    }
+
+    /* ⚠️ LINK BY EMAIL WHEN THE APPLICATION ARRIVED UNLINKED.
+       submit() stores `req.session.customerId || null`, so anyone who
+       applies BEFORE signing in produces a row with customer_id NULL. The
+       tier is a column on `customers`, so with nothing to point at,
+       approval used to update exactly nothing — while still reporting
+       "Approved — the account is now Platinum Trade."
+
+       That is how BVO approved reno4less on 2026-10-22, saw the success
+       message, and then found full price in the cart. The approval was
+       real; the discount had nowhere to land.
+
+       Matching on email is exact and case-folded the same way submit()
+       stores it (trimmed, lowercased). A customer who signed up later
+       with the same address is the same business — that is the whole
+       point of the address being the identity on this site. */
+    let customerId = app.customer_id;
+    let linkedNow  = false;
+    if (approve && !customerId && app.email) {
+      const [cust] = await pool().query(
+        'SELECT id FROM customers WHERE email = ? LIMIT 1',
+        [String(app.email).trim().toLowerCase()]
+      ).catch(err => {
+        console.error('[trade] link-by-email lookup FAILED:', err.code, err.sqlMessage || err.message);
+        return [[]];
+      });
+      if (cust && cust[0]) {
+        customerId = cust[0].id;
+        linkedNow  = true;
+        await pool().query(
+          'UPDATE trade_applications SET customer_id = ? WHERE id = ?', [customerId, id]);
+      }
     }
 
     await pool().query(
@@ -699,7 +837,7 @@ exports.adminDecide = async (req, res, next) => {
       [approve ? 'approved' : 'declined', note, who, id]
     );
 
-    if (approve && app.customer_id) {
+    if (approve && customerId) {
       /* ⚠️ platinum_trade ONLY. elite_trade is computed from rolling spend
          and must never be written — see src/utils/tiers.js. An admin
          cannot grant 20%; the customer earns it by spending $20,000. */
@@ -707,23 +845,38 @@ exports.adminDecide = async (req, res, next) => {
         `UPDATE customers
             SET tier = ?, trade_approved_at = COALESCE(trade_approved_at, NOW())
           WHERE id = ?`,
-        [tiers.STORED.PLATINUM_TRADE, app.customer_id]
+        [tiers.STORED.PLATINUM_TRADE, customerId]
       );
     }
-    if (!approve && app.customer_id) {
+    if (!approve && customerId) {
       /* Declining removes trade pricing but leaves a Platinum Member
          enrolment alone — they are separate grants. */
       await pool().query(
         `UPDATE customers SET tier = CASE WHEN tier = ? THEN ? ELSE tier END WHERE id = ?`,
-        [tiers.STORED.PLATINUM_TRADE, tiers.STORED.NONE, app.customer_id]
+        [tiers.STORED.PLATINUM_TRADE, tiers.STORED.NONE, customerId]
       );
     }
 
-    req.session.flash = {
-      type: 'success',
-      msg: approve ? 'Approved — the account is now Platinum Trade.' : 'Declined.',
-    };
-    res.redirect('/admin/trade');
+    /* ⚠️ THE MESSAGE MUST MATCH WHAT ACTUALLY HAPPENED.
+       The old copy claimed the tier was set unconditionally. When there
+       was no customer row it set nothing, said it had, and the first
+       anyone knew was a trade account paying full price at checkout. A
+       success message that cannot be false is the cheapest guard there
+       is; this one just had to stop lying. */
+    let msg;
+    if (!approve) {
+      msg = 'Declined.';
+    } else if (customerId) {
+      msg = linkedNow
+        ? 'Approved — matched to the existing account for that email and set to Platinum Trade. They may need to sign out and back in for the cart to pick it up.'
+        : 'Approved — the account is now Platinum Trade.';
+    } else {
+      msg = 'Approved, but NO CUSTOMER ACCOUNT exists for ' + app.email
+          + ' yet, so no trade pricing has been applied. They must create an account with that exact email, then re-approve this application to grant it.';
+    }
+
+    req.session.flash = { type: approve && !customerId ? 'error' : 'success', msg };
+    res.redirect('/admin/trade?status=' + (approve ? 'approved' : 'declined'));
   } catch (err) { next(err); }
 };
 

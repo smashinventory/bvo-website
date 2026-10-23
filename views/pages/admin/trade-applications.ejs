@@ -80,12 +80,44 @@
               reachable by URL — adminDoc reads them off disk behind
               requireAdmin and sends them as attachments. Never turn these
               into static paths. %>
-          <% if (a.card_doc_path) { %>
-          <a href="/admin/trade/<%= a.id %>/doc/card" style="color:var(--color-amber)">Business card</a>
-          <% } else { %><span class="adm-meta">none</span><% } %>
-          <% if (a.resale_doc_path) { %>
-          <br><a href="/admin/trade/<%= a.id %>/doc/resale" style="color:var(--color-amber)">Resale cert</a>
-          <% } %>
+          <%# ⚠️ STILL NOT A STATIC PATH. adminDoc streams these from
+              outside public/ behind requireAdmin. What changed on
+              2026-10-23 is the disposition: images and PDFs now open
+              INLINE (correct content-type from the extension, nosniff,
+              and a CSP sandbox on the response) instead of forcing a
+              download. Reviewing a business card should not mean saving
+              a stranger's document onto your laptop first.
+
+              HEIC has no inline type, so adminDoc falls back to download
+              for it — no browser renders HEIC, and a blank tab would be
+              worse than a file. %>
+          <% var _docs = [
+               { key: 'card',   label: 'Business card',     p: a.card_doc_path,   n: a.card_doc_name },
+               { key: 'resale', label: 'Resale certificate', p: a.resale_doc_path, n: a.resale_doc_name }
+             ]; %>
+          <% var _any = false; _docs.forEach(function (d) { if (!d.p) return; _any = true;
+               var _ext = String(d.n || d.p).toLowerCase().split('.').pop();
+               var _img = ['jpg','jpeg','png','webp'].indexOf(_ext) !== -1; %>
+            <div style="margin-bottom:10px">
+              <% if (_img) { %>
+              <%# A thumbnail answers "is this a real business card?" without
+                  any click at all. Same guarded route; the browser just
+                  renders it in an <img>, where a CSP-sandboxed response
+                  with an image content-type can do nothing else. %>
+              <a href="/admin/trade/<%= a.id %>/doc/<%= d.key %>" target="_blank" rel="noopener">
+                <img src="/admin/trade/<%= a.id %>/doc/<%= d.key %>" alt="<%= d.label %>"
+                     loading="lazy"
+                     style="display:block;max-width:150px;max-height:96px;width:auto;height:auto;
+                            border:1px solid #E8E4DC;border-radius:4px;background:#FAF7F2;margin-bottom:3px">
+              </a>
+              <% } %>
+              <a href="/admin/trade/<%= a.id %>/doc/<%= d.key %>" target="_blank" rel="noopener"
+                 style="color:var(--color-amber)"><%= d.label %><%= _ext === 'pdf' ? ' (PDF)' : '' %></a>
+              <a href="/admin/trade/<%= a.id %>/doc/<%= d.key %>?download=1"
+                 class="adm-meta" style="margin-left:8px" download>download</a>
+            </div>
+          <% }); %>
+          <% if (!_any) { %><span class="adm-meta">none</span><% } %>
 
           <%# ⚠️ REPLACE, NOT ADD. One current card and one current
               certificate — adminReplaceDoc deletes the file it supersedes,
@@ -152,14 +184,31 @@
               <input type="text" name="review_note" class="adm-input"
                      placeholder="Reason (recorded)" style="width:100%;margin-bottom:6px">
               <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <%# ⚠️ data-act + data-confirm, THE HOUSE PATTERN — NOT onclick.
+                    server.js sets scriptSrcAttr: ['none'], so an inline
+                    handler is refused outright: a `return confirm(...)`
+                    guard on a DESTRUCTIVE button would silently do nothing
+                    and the first click would be the action. I shipped
+                    exactly that in c1bb354 and caught it on review.
+
+                    views/partials/admin/action-dispatch.ejs is the shared
+                    dispatcher, included by the admin layout. It resolves
+                    closest('[data-act]'), so putting data-act on each
+                    BUTTON lets the two actions carry different warnings —
+                    which matters here, because one keeps the documents and
+                    the other deletes them. 'noop' is registered there and
+                    does nothing: the confirm is the whole point, and the
+                    form submits normally once accepted. %>
                 <button type="submit" name="action" value="fraud" class="btn btn-outline btn-sm"
                         style="color:#9A3412;border-color:#9A3412;font-size:.72rem"
-                        onclick="return confirm('Flag as fraudulent?\n\nTrade pricing is revoked and they cannot reapply.\nDocuments are KEPT as evidence.')">
+                        data-act="noop"
+                        data-confirm="Flag as fraudulent?&#10;&#10;Trade pricing is revoked and they cannot reapply.&#10;Documents are KEPT as evidence.">
                   Fraudulent
                 </button>
                 <button type="submit" name="action" value="closed" class="btn btn-outline btn-sm"
                         style="color:#c53030;border-color:#c53030;font-size:.72rem"
-                        onclick="return confirm('Close at the customer\'s request?\n\nUploaded documents are PERMANENTLY DELETED.\nThe application record and order history are kept.\nThis cannot be undone.')">
+                        data-act="noop"
+                        data-confirm="Close at the customer's request?&#10;&#10;Uploaded documents are PERMANENTLY DELETED.&#10;The application record and order history are kept.&#10;This cannot be undone.">
                   Customer closed
                 </button>
               </div>
