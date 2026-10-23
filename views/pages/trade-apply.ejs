@@ -184,31 +184,41 @@
         <p>Manufacturer restocking fees of up to 25% apply to trade orders exactly as they do to retail orders. Freight on returned goods is yours.</p>
         <h3>7. Your documents</h3>
         <p>Documents you upload are stored securely, are not publicly accessible, and are used only to verify your business.</p>
+        <%# ⚠️ CLAUSE 8 IS WHERE THE EMAIL CONSENT IS DISCLOSED, AND IT MUST
+            STAY INSIDE THIS SCROLL-GATED BOX. accepts_marketing is derived
+            from the terms tick, so this clause is the only thing the
+            applicant actually reads before consenting. Move it out of here
+            and the derivation becomes consent nobody gave. %>
+        <h3>8. Email is how the trade programme runs</h3>
+        <p>Trade pricing, stock notices and programme changes — including a change to your own rate — are sent by email. Accepting these terms includes agreeing to receive them, which is why a trade account cannot be opened without it. You can unsubscribe at any time, but trade pricing and stock notices stop with it.</p>
       </div>
       <p class="trade-scrollnote" id="scrollNote">Scroll to the end of the terms to continue.</p>
 
+      <%# ⚠️ ONE TICK, AND IT CARRIES THE EMAIL CONSENT TOO.
+          accepts_marketing is derived from this checkbox server-side,
+          because clause 8 of the terms above is the disclosure. That makes
+          THIS LABEL load-bearing: it has to name the email term out loud,
+          or a derived consent is indistinguishable from a pre-ticked box —
+          the thing the previous version was careful to avoid.
+
+          So: do not shorten this label, and do not remove clause 8. Either
+          one on its own turns a documented agreement into a silent opt-in.
+          gate_trade_application section 7 asserts both.
+
+          Why one tick and not two (owner, 2026-10-23): with both mandatory,
+          a second box is an obstacle rather than a choice, and it sprang a
+          new condition on the applicant after they had already uploaded a
+          business card. The consent is still stored as its own column with
+          its own timestamp, source and IP, so unsubscribing can flip it
+          without touching their terms acceptance.
+
+          Still true and worth knowing: Brevo puts List-Unsubscribe on every
+          message and it cannot be turned off below Enterprise, so a trade
+          customer who unsubscribes from a promotion also stops receiving
+          order confirmations and sign-in codes. See task #374. %>
       <label class="trade-check">
         <input type="checkbox" name="terms_ack" value="1" id="t_ack" disabled>
-        <span>I have read and accept the trade terms, including that my rate can fall back to 15% and that commercial installations are not covered by warranty.</span>
-      </label>
-
-      <%# ⚠️ REQUIRED, AND THAT REVERSES SPEC §4. Until 2026-10-23 this was
-          optional, on the reasoning that conditioning a trade account on an
-          email permission would put off the professionals worth having.
-          Owner decision 2026-10-23: a trade account IS the mailing list —
-          tier pricing, stock and promotions reach trade by email or not at
-          all, so an account that refuses mail is an account we cannot
-          serve. Unticked now blocks the submission, server-side too.
-
-          Worth knowing if this is ever revisited: Brevo puts
-          List-Unsubscribe on every message and it cannot be turned off
-          below Enterprise, so a trade customer who unsubscribes from a
-          promotion also stops receiving order confirmations and sign-in
-          codes. Requiring the tick puts more trade accounts in front of
-          that button. %>
-      <label class="trade-check">
-        <input type="checkbox" name="accepts_marketing" value="1" id="t_mkt" <%= _o.accepts_marketing ? 'checked' : '' %>>
-        <span><strong>Required.</strong> Email me trade pricing, stock notices and new arrivals. Trade pricing and programme updates are sent by email, so a trade account cannot be opened without this. You can unsubscribe at any time, but trade pricing and stock notices stop with it.</span>
+        <span>I have read and accept the trade terms, including clause 8 — that trade pricing, stock notices and programme updates are sent to me by email — that my rate can fall back to 15%, and that commercial installations are not covered by warranty.</span>
       </label>
 
       <button type="submit" class="btn btn-amber trade-submit" id="tradeSubmit" disabled>
@@ -242,13 +252,9 @@
   if (box.scrollHeight <= box.clientHeight + 4) reveal();
   box.addEventListener('scroll', function () { if (atEnd()) reveal(); });
 
-  /* BOTH ticks now gate the button. The marketing box is absent on no
-     path today, but guard for it anyway rather than making a missing
-     element disable the form permanently — the server check is the one
-     that actually enforces this. */
-  function gate() { btn.disabled = !ack.checked || (mkt ? !mkt.checked : false); }
+  /* One tick again — it carries the clause 8 email consent with it. */
+  function gate() { btn.disabled = !ack.checked; }
   ack.addEventListener('change', gate);
-  if (mkt) mkt.addEventListener('change', gate);
   gate();
 
   if (taxCb && taxBlk) {

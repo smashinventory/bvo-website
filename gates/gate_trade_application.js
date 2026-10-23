@@ -297,62 +297,98 @@ for (const [status, shouldShow] of [[null, true], ['pending', false],
    button, which buys nothing: devtools clears the attribute, and a direct
    POST never sees it. Asserted separately below so that deleting the
    server check cannot be masked by the client one still being present. */
-console.log('\n7. Marketing consent is required, and enforced server-side');
+console.log('\n7. Email consent is disclosed in the terms and carried by the tick');
 
 const applyForm = render(null);
 
-check(/name="accepts_marketing"/.test(applyForm),
-  'the consent checkbox is on the form',
-  'Required consent with no way to give it means nobody can apply at all.');
+/* ⚠️ THIS WHOLE SECTION GUARDS A DERIVATION.
+   accepts_marketing is derived from terms_ack — there is no separate
+   checkbox any more. That is defensible ONLY because the applicant reads
+   clause 8 inside the scroll-gated box and ticks a label that names the
+   email term. Remove either and the derivation becomes a silent opt-in
+   with a timestamp and an IP attached to it, which is worse than no
+   consent record at all: it looks like evidence.
 
-check(/id="t_mkt"/.test(applyForm),
-  'it carries the id the submit gate hooks',
-  'Without the id the browser gate silently never applies to it.');
+   Shipped as two mandatory boxes in 328b6d2, changed to this the same day
+   (owner). Checks below are therefore about COPY, which is unusual for a
+   gate and entirely deliberate — here the copy IS the mechanism. */
 
-/* Not "Optional" — the previous copy actively told applicants it made no
-   difference. Copy that contradicts the validation is worse than no copy:
-   they tick nothing, submit, and get an error that reads as a bug. */
-check(!/\bOptional\b/.test(applyForm),
-  'the form no longer calls it optional',
-  'The old wording ("Optional - it makes no difference to whether you are approved") now contradicts a hard server check.');
-check(/Required\./.test(applyForm),
-  'it is labelled Required',
-  'A required field that does not say so is a dead end the applicant cannot diagnose.');
+/* The derivation itself. */
+check(/const\s+acceptsMkt\s*=\s*b\.terms_ack\s*\?/.test(CTRL),
+  'accepts_marketing is derived from the terms tick',
+  'If it reads a field that no longer exists on the form, every trade applicant is silently stored as NOT opted in.');
 
-/* The box must NOT be pre-ticked. A consent the applicant did not
-   knowingly give is not consent, and a checked-by-default box is the
-   textbook example — the whole evidence trail (source, timestamp, IP)
-   recorded alongside it is worthless if the tick was ours. */
-check(!/name="accepts_marketing"[^>]*\bchecked\b/.test(applyForm),
-  'and it is NOT pre-ticked',
-  'Pre-ticking manufactures the consent instead of collecting it, which makes the stored evidence indefensible.');
+/* ⚠️ Clause 8 must be INSIDE the scrollable terms box, not merely present
+   somewhere on the page. Sliced between the box open and close so a clause
+   moved below the fold — where the scroll gate never forces it into
+   view — fails rather than passing on a bare substring match. */
+/* ⚠️ THE SLICE ENDS AT THE BOX'S OWN </div>, NOT AT scrollNote.
+   First version of this check sliced id="termsBox" → id="scrollNote", and
+   scrollNote lives AFTER the box closes — so the markup between them
+   counted as "inside the box". A mutation that moved clause 8 out of the
+   scrollable area and into that gap passed clean. Tightened to the closing
+   tag; re-verified that the mutation now fails. */
+const iBox     = applyForm.indexOf('id="termsBox"');
+const iNote    = applyForm.indexOf('id="scrollNote"');
+const iBoxEnd  = iNote !== -1 ? applyForm.lastIndexOf('</div>', iNote) : -1;
+const termsBox = iBox !== -1 && iBoxEnd > iBox ? applyForm.slice(iBox, iBoxEnd) : '';
+check(termsBox.length > 0, 'the scroll-gated terms box is findable',
+  'The slice below cannot mean anything if the box markers moved.');
+check(iBoxEnd !== -1 && iNote > iBoxEnd,
+  'and the box closes BEFORE the scroll note',
+  'If this inverts, the slice boundary is wrong again and every check below it is measuring the wrong region.');
+check(/8\.\s*Email is how the trade programme runs/.test(termsBox),
+  'clause 8 is INSIDE the scroll-gated terms',
+  'The consent disclosure must be in the text the applicant is forced to scroll through. Outside the box it is not disclosed, it is just present.');
+check(/sent by email/i.test(termsBox),
+  'and clause 8 actually says email',
+  'A heading with no substance behind it discloses nothing.');
 
-/* ⚠️ SERVER-SIDE. Matched on the validation statement, not on the string
-   'accepts_marketing' appearing somewhere in the file — it appears in the
-   INSERT and in the carry-back object regardless of whether anything
-   checks it. */
-check(/if\s*\(!acceptsMkt\)\s*\{/.test(CTRL),
-  'submit() rejects an application without it',
-  'The consent becomes advisory: the row records accepts_marketing = 0 and the applicant is approved anyway — the exact behaviour the owner reversed.');
+/* The acknowledgement label is the other half. It has to name the email
+   term, or the tick cannot reasonably be read as consenting to it. */
+const iAck = applyForm.indexOf('name="terms_ack"');
+const ackLabel = iAck !== -1 ? applyForm.slice(iAck, iAck + 420) : '';
+check(/clause 8/i.test(ackLabel),
+  'the acknowledgement label cites clause 8',
+  'The tick must point at what it is agreeing to. Without this the consent is inferred, not given.');
+check(/email/i.test(ackLabel),
+  'and names email in the label itself',
+  'Citing a clause number without saying what it is relies on the applicant having read carefully. The label must stand alone.');
 
-/* Ordering: the rejection must land in the errors array that triggers
-   discard(files), or a refused application still leaves its uploaded
-   documents on disk with no row pointing at them. */
-const iMkt  = CTRL.indexOf('if (!acceptsMkt)');
-const iDisc = CTRL.indexOf('discard(files)', iMkt);
-const iIns2 = CTRL.indexOf('INSERT INTO trade_applications');
-check(iMkt !== -1 && iIns2 !== -1 && iMkt < iIns2,
-  'it is checked BEFORE the insert',
+/* The old second checkbox must be GONE, not merely unused. A leftover
+   input named accepts_marketing would post alongside terms_ack and
+   silently become the real source of truth again. */
+check(!/name="accepts_marketing"/.test(applyForm),
+  'there is no longer a separate marketing checkbox',
+  'A leftover input of that name would repost the old field and quietly override the derivation.');
+
+/* terms_ack keeps its own server check — the derivation leans on it. */
+check(/if\s*\(!b\.terms_ack\)/.test(CTRL),
+  'terms_ack is still validated server-side',
+  'Everything above rests on this one check. Without it the consent AND the terms acceptance are both unenforced.');
+
+const iAckChk = CTRL.indexOf('if (!b.terms_ack)');
+const iDisc2  = CTRL.indexOf('discard(files)', iAckChk);
+const iIns2   = CTRL.indexOf('INSERT INTO trade_applications');
+check(iAckChk !== -1 && iIns2 !== -1 && iAckChk < iIns2,
+  'and checked BEFORE the insert',
   'Rejecting after the insert leaves a row for an application that was refused.');
-check(iMkt !== -1 && iDisc !== -1 && iDisc < iIns2,
-  'and a rejection discards the uploaded documents',
-  'Orphaned tax certificates on disk with no row referencing them — nothing will ever clean those up.');
+check(iDisc2 !== -1 && iDisc2 < iIns2,
+  'with a rejection discarding the uploaded documents',
+  'Orphaned tax certificates on disk with no row referencing them.');
 
-/* The browser gate, asserted separately. Not a security control; it is
-   there so the applicant is not told "no" after filling the whole form. */
-check(/mkt\s*\?\s*!mkt\.checked/.test(applyForm) || /!mkt\.checked/.test(applyForm),
-  'the submit button is gated on it in the browser too',
-  'Not a guard, but without it the applicant discovers the requirement only by being rejected.');
+/* ⚠️ THE VERSION MUST HAVE MOVED. Clause 8 changed the copy, so an
+   acceptance recorded against trade-terms-2026-10-21 would claim the
+   applicant agreed to a clause that did not exist when they ticked. */
+check(/trade-terms-2026-10-2[3-9]|trade-terms-2026-1[1-9]/.test(CTRL),
+  'TERMS_VERSION was bumped past the 7-clause copy',
+  'Adding clause 8 without bumping the version backdates the new clause onto every earlier acceptance.');
+
+/* No redundant second check on the derived value — one that cannot fail
+   reads as enforcement and enforces nothing. */
+check(!/if\s*\(!acceptsMkt\)/.test(CTRL),
+  'and there is no dead check on the derived value',
+  'acceptsMkt comes from terms_ack, which is already checked — a second test can never fail and only misleads the next reader.');
 
 console.log(
   fail === 0

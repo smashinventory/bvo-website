@@ -25,7 +25,21 @@
    Owner reversed that on 2026-10-23: a trade account IS the mailing list.
    Tier pricing, stock notices and programme changes reach trade by email
    or not at all, so an account that refuses mail is an account BVO cannot
-   actually serve. Unticked now fails validation in submit().
+   actually serve.
+
+   ⚠️ HOW IT IS COLLECTED — ONE TICK, NOT TWO. Shipped first as a second
+   mandatory checkbox (328b6d2), changed the same day: with both boxes
+   required the second was an obstacle rather than a choice, and it sprang
+   a new condition on the applicant only after they had uploaded a business
+   card. So the consent is now DISCLOSED as clause 8 of the scroll-gated
+   terms and CARRIED by the single terms acknowledgement, whose label names
+   the email term explicitly.
+
+   That makes two things in the view load-bearing, and neither is obvious
+   from reading this file: clause 8 must stay in the terms box, and the
+   acknowledgement label must keep naming email. Lose either and
+   accepts_marketing becomes a silent opt-in. gate_trade_application
+   section 7 asserts both; do not "tidy" that copy.
 
    Approval itself is still MANUAL — the consent is a precondition of
    applying, not a substitute for reviewing the business.
@@ -62,7 +76,11 @@ const Customer = require('../models/Customer');
 /* The version of the terms copy. Stored on every application so an
    acceptance says WHAT was agreed, not merely that something was. Bump it
    when the copy changes. Same discipline as consent_copy_version. */
-const TERMS_VERSION = 'trade-terms-2026-10-21';
+/* 2026-10-23: bumped from trade-terms-2026-10-21 because clause 8 (email
+   is how the trade programme runs) was ADDED to the copy. Anyone who
+   accepted -10-21 agreed to seven clauses, not eight — which is the whole
+   point of storing the version rather than just a boolean. */
+const TERMS_VERSION = 'trade-terms-2026-10-23';
 
 /* ⚠️ OUTSIDE public/, AND THE DEFAULT MATTERS MORE THAN THE ENV VAR.
    If TRADE_DOCS_PATH is unset the fallback must STILL be private — a
@@ -253,9 +271,16 @@ exports.submit = async (req, res, next) => {
     const intendedUse  = String(b.intended_use || '').trim();
     const wantsTaxEx   = b.wants_tax_exempt ? 1 : 0;
     const taxId        = String(b.tax_id || '').trim();
-    /* ⚠️ REQUIRED since 2026-10-23. See the header note — this reverses
-       spec §4, by owner decision. Validated below, not merely recorded. */
-    const acceptsMkt   = b.accepts_marketing ? 1 : 0;
+    /* ⚠️ DERIVED FROM THE TERMS TICK, NOT A FIELD OF ITS OWN.
+       Clause 8 of the terms is the disclosure and the acknowledgement
+       label names it, so accepting the terms IS the email consent. See the
+       header note for why there is no longer a second checkbox.
+
+       It is still STORED separately — its own column, timestamp, source and
+       IP — so unsubscribing can flip it without disturbing the record of
+       what terms they accepted. Derived at the point of consent, not
+       conflated with it. */
+    const acceptsMkt   = b.terms_ack ? 1 : 0;
 
     const errors = [];
     if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) errors.push('A valid email address is required.');
@@ -272,15 +297,17 @@ exports.submit = async (req, res, next) => {
        devtools in about four seconds. */
     if (!b.terms_ack) errors.push('You must read and accept the trade terms.');
 
-    /* ⚠️ THE BROWSER ALSO GATES THE BUTTON ON THIS, AND THAT IS NOT A GUARD.
-       Same reasoning as terms_ack: the disabled attribute is gone in four
-       seconds with devtools, and a direct POST never sees it at all. If
-       this check is removed the consent becomes advisory — the row still
-       records accepts_marketing = 0 and the applicant is approved anyway,
-       which is exactly the behaviour the owner reversed. */
-    if (!acceptsMkt) {
-      errors.push('Trade pricing and programme updates are sent by email, so you must agree to receive them to open a trade account.');
-    }
+    /* ⚠️ acceptsMkt IS DELIBERATELY NOT VALIDATED SEPARATELY.
+       It is derived from terms_ack, checked on the line above, so a second
+       check could never fail — and a check that cannot fail is worse than
+       none, because it reads like enforcement while enforcing nothing.
+
+       What actually holds this together lives in the VIEW: clause 8 must
+       stay inside the scroll-gated terms box, and the acknowledgement label
+       must keep naming the email term. Edit either away and this derivation
+       silently becomes a consent the applicant never saw — the pre-ticked
+       box problem, arrived at from a different direction. Both are asserted
+       in gate_trade_application section 7. */
 
     if (wantsTaxEx && !taxId) {
       errors.push('A tax ID is required to claim sales-tax exemption. Leave the box unticked if you do not need it.');
