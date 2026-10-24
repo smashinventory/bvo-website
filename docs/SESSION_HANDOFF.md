@@ -161,6 +161,29 @@ files, so the dialog looks the same whether the job works or dies on line
 - **An unselected column is `undefined`, never an error.** The project's
   most common defect. `Number(undefined)` is `NaN`; `Number(null)` and
   `Number('')` are both `0`.
+- **A gate assertion is worth exactly what its mutation test proves, and
+  the recurring way it is worth nothing is LOOSE MATCHING.** Four separate
+  holes on 2026-10-24, every one written carefully, every one passing
+  review by eye, every one caught only by running the planted defect:
+
+  | Wrote | Why it passed on the mutant |
+  | --- | --- |
+  | `indexOf(a) < indexOf(b)` | `a` absent gives `-1`, and `-1 < 180` is true — the check passed on code with the subject deleted |
+  | slice `id="termsBox"` → `id="scrollNote"` | scrollNote is AFTER the box closes, so the gap counted as "inside"; a clause moved out of the scrollable area passed |
+  | `/SET\s+tier\s*=/` | a mutation appended `, tier = 'none'` to an existing SET clause — the assignment was there, just not after the keyword |
+  | `includes('c.email_blocked')` | that string is a substring of `c.email_blocked_at`, so deleting the real column passed, carried by its companions |
+
+  The shape is always the same: the pattern matches something ADJACENT to
+  the thing under test. Guard against it by anchoring on structure rather
+  than on a prefix — `\b` word boundaries (note `_` is a word character,
+  so `/email_blocked\b/` correctly refuses `email_blocked_at`), closing
+  tags rather than the next landmark, and `-1` checks before any index
+  comparison.
+
+  **Never accept a new gate check as working because it is green.** Green
+  on correct code proves nothing. Plant the defect it exists to catch and
+  watch it go red, one check at a time. A check that cannot be made to
+  fail is decoration.
 
 ---
 
