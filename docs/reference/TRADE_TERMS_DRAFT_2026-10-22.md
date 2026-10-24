@@ -23,25 +23,43 @@ should not go live on my judgement.
 Everything here is original drafting that covers the same ground mature
 retailers cover. It is not their text.
 
-## 🔴 Three things that need a decision before this publishes
+## ✅ Owner decisions, 2026-10-24
 
-1. **Clause 24 — arbitration and class-action waiver.** Large retailers
-   almost all have one. It is also the single most consequential clause
-   here, it is unenforceable or restricted in some states, and it changes
-   what a customer can do to you and what you can do to them. I have
-   drafted it as a **placeholder marked for a lawyer** rather than written
-   binding arbitration language myself. Do not publish it as-is.
+1. **Clause 19 — liability cap: US $2,500, flat.** Owner's decision, taken
+   against the recommendation below, which is recorded so the reasoning is
+   available if it is ever revisited rather than re-argued from scratch.
+
+   The alternative put forward was "the amount you paid", which scales with
+   order value and needs no revision as the business grows. The argument
+   against a flat figure: it does nothing on orders under $2,500 and caps
+   BVO below the purchase price on orders above it — a clause saying the
+   customer is owed less than they paid is the disproportion that attracts
+   scrutiny. At the time of the decision BVO had one captured order ($1.99,
+   a test) and one real authorised order, 00125 at **$2,694.60** — already
+   above the cap. Owner weighed that and chose the fixed figure.
+
+   For counsel: if the cap should never fall below what the customer paid,
+   "the greater of the amount paid or US $2,500" achieves that with the same
+   number in it.
+
+2. **Clause 24 — governing law and venue: Georgia, Fulton County.** Settled.
+   BVO trades from Roswell, which is in Fulton County, so this names BVO's
+   own home venue.
+
+## 🔴 Still open before this publishes
+
+1. **Clause 24 — the arbitration clause itself.** Governing law and venue
+   are now settled; binding arbitration is not. It is the single most
+   consequential clause here, its enforceability turns on how it was
+   presented and assented to, and it should be drafted by counsel rather
+   than inherited. The structure to brief them on is listed in clause 24.
+   Until it exists, disputes fall to the Fulton County courts.
 
 2. **Clause 10 — document retention.** It promises declined applications
    have their uploads deleted within 90 days. **Nothing enforces that
    today.** Uploads sit in `storage/` indefinitely. Either build the
    deletion job or soften the clause — publishing a promise the system
    does not keep is worse than having no clause.
-
-3. **Clause 19 — limitation of liability.** The cap I drafted is "what you
-   paid for the product." That is the conventional position and it is also
-   the kind of number a lawyer should set deliberately rather than inherit
-   from a draft.
 
 ## 🔴 Two conflicts with the existing Shipping Policy
 
@@ -379,8 +397,7 @@ before you buy.
 ### 19. Limitation of liability
 
 To the fullest extent the law allows, our total liability arising out of
-or relating to any product or order is limited to **the amount you paid
-for the product concerned.** *[🔴 see the decision note at the top.]*
+or relating to any product or order is limited to **US $2,500.**
 
 We are not liable for indirect, incidental, special, consequential,
 exemplary or punitive damages, or for loss of profit, revenue, business,
@@ -442,15 +459,34 @@ may cancel the affected part of it.
 
 ### 24. Governing law and disputes
 
-These terms are governed by the laws of the State of **[STATE — to be
-confirmed]**, without regard to conflict-of-laws rules.
+These terms are governed by the laws of the **State of Georgia**, without
+regard to conflict-of-laws rules. Any legal proceeding not subject to
+arbitration shall be brought exclusively in the courts located in **Fulton
+County, Georgia**, and you consent to that jurisdiction and venue.
 
-🔴 **PLACEHOLDER — FOR A LAWYER TO COMPLETE.** This is where mature
-retailers put a binding arbitration clause with a class-action waiver and
-a venue selection. That clause materially changes both parties' rights,
-its enforceability varies by state, and it should be written by counsel
-and not inherited from a draft. Until it is, disputes fall to the courts
-of the governing state named above.
+*Owner decision 2026-10-24. BVO trades from Roswell, which is in Fulton
+County, so this names BVO's own home venue rather than a county it has no
+presence in.*
+
+🔴 **ARBITRATION — STILL FOR A LAWYER TO WRITE.** Governing law and venue
+above are settled. The binding arbitration clause is not. It materially
+changes both parties' rights, its enforceability turns on how it was
+presented and assented to, and it should be drafted by counsel rather than
+inherited. Until it exists, disputes fall to the Fulton County courts named
+above, which is a working position, not a gap.
+
+The structure to brief counsel on, matching what comparable retailers use:
+binding arbitration under AAA rules before a single arbitrator; jury-trial
+waiver; class-action and private-attorney-general waiver; confidentiality;
+FAA governs; delegation of arbitrability to the arbitrator; carve-outs for
+small-claims court, government-agency complaints, provisional relief and
+public injunctions; cost-shifting where arbitration would otherwise be
+prohibitively expensive; severability; survival after termination; and a
+conspicuous rights-limitation notice.
+
+⚠️ Draft it in BVO's own words. Do not copy a competitor's clause text —
+terms of service are copyrightable, and the obvious model here publishes
+its own aggressive IP-enforcement clause alongside a DMCA procedure.
 
 Nothing in this clause prevents either of us from seeking an injunction to
 protect confidential information or intellectual property.
