@@ -239,8 +239,31 @@ exports.show = async (req, res, next) => {
                 WHERE pi2.product_id = p.id
                 ORDER BY pi2.sort_order ASC, pi2.id ASC
                 LIMIT 1 OFFSET 1) AS hover_image,
+               /* ⚠️ WITHOUT THIS JOIN EVERY DEAL READS "QTY: 0".
+                  Found 2026-10-24 from a screenshot: the same Bristol SKUs
+                  showed QTY: 0 on /collections/sale and QTY: 3-6 on the
+                  model page. All 22 cards on the Deals page were affected.
+
+                  It is the project's signature defect. qty lives in the
+                  inventory table, not on products, so an unjoined
+                  qty_on_hand is UNDEFINED, not an error — and
+                  collection.ejs does parseInt(product.qty_on_hand || 0),
+                  which turns undefined into a confident 0. The card then
+                  also picks up product-card--no-stock. Nothing logged,
+                  nothing threw: the page told shoppers that every
+                  discounted product was out of stock.
+
+                  WHY ONLY THIS QUERY. Every other product-card listing
+                  goes through src/models/Product.js, which has joined
+                  inventory all along. This branch hand-writes its own SQL
+                  — the Rule 18 failure in its other form: not a test that
+                  re-implements its subject, but a caller that does.
+                  COALESCE to 0 matches modelHero.js so a product with no
+                  inventory row reads as genuinely zero rather than blank. */
+               COALESCE(inv.qty_on_hand, 0) AS qty_on_hand,
                'sale' AS badge
         FROM products p
+        LEFT JOIN inventory inv ON inv.product_id = p.id
         LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
         WHERE p.is_active = 1
           AND (

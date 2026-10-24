@@ -712,12 +712,21 @@ const Product = {
         SELECT
           p.id, p.slug, p.name, p.brand, p.price, p.compare_price,
           COALESCE(p.primary_image_url, pi.url) AS primary_image,
+          /* LATENT, NOT ACTIVE, and joined anyway. The related strip on the
+             product page renders no QTY badge today, so the missing column
+             showed nothing — but the card partial reads qty_on_hand with
+             a || 0 fallback, so the day a badge is added there it would have read
+             "QTY: 0" for every related product with nothing to explain it.
+             Same root cause as the Deals page, found in the same sweep
+             2026-10-24. One line now beats the same investigation later. */
+          COALESCE(inv.qty_on_hand, 0) AS qty_on_hand,
           CASE
             WHEN p.compare_price IS NOT NULL AND p.compare_price > p.price THEN 'sale'
             WHEN p.is_new = 1 THEN 'new'
             ELSE NULL
           END AS badge
         FROM products p
+        LEFT JOIN inventory inv ON inv.product_id = p.id
         LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
         WHERE p.category_id = ? AND p.id != ? AND p.is_active = 1
         ORDER BY p.is_featured DESC, RAND()
@@ -744,6 +753,19 @@ const Product = {
           p.id, p.slug, p.name, p.brand, p.price, p.compare_price, p.is_new,
           p.video_url,
           COALESCE(p.primary_image_url, pi.url) AS primary_image,
+          /* ⚠️ findFeatured HAS NO CALLERS — checked across src/ and views/
+             on 2026-10-24. The homepage's featured strip is fed by
+             homeController's own query, which has always joined inventory
+             (the live homepage reads 4,4,4,4, not zeros).
+
+             Joined anyway rather than exempted from gate_card_stock.js.
+             An exemption list is a hole that rots: it would have to be
+             maintained, and the first person to revive this function would
+             inherit the Deals-page bug plus a gate that had been taught to
+             ignore it. One correct line costs nothing and the gate stays
+             absolute. Whether this function should exist at all is a
+             separate question — do not delete it on this evidence alone. */
+          COALESCE(inv.qty_on_hand, 0) AS qty_on_hand,
           CASE
             WHEN p.compare_price IS NOT NULL AND p.compare_price > p.price THEN 'sale'
             WHEN p.is_new = 1 THEN 'new'
@@ -751,6 +773,7 @@ const Product = {
             ELSE NULL
           END AS badge
         FROM products p
+        LEFT JOIN inventory inv ON inv.product_id = p.id
         LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
         WHERE p.is_active = 1 AND p.is_featured = 1
         -- Pinned first (see the PIN note in findByCategory): 0 is the column
