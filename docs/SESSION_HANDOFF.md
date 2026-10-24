@@ -185,6 +185,32 @@ files, so the dialog looks the same whether the job works or dies on line
   watch it go red, one check at a time. A check that cannot be made to
   fail is decoration.
 
+- **A FILE THAT EXISTS IS A FILE TO READ BEFORE YOU WRITE IT.** Added
+  2026-10-24 after destroying a good gate.
+
+  `gates/gate_shipping_claim.js` already existed and carried 85 checks. It
+  was overwritten wholesale with a 4-check directory walk, and the
+  replacement shipped in `d05cfe1` before anyone noticed. What was lost:
+
+  | The old gate had | Why the replacement was worse |
+  | --- | --- |
+  | patterns anchored to a SHIPPING context | a bare `/every order/` fires on prose like "every order arrived"; a noisy gate gets deleted within a week |
+  | `(?:\w+\s+)?` between the words | it already knew "every **single** order" had slipped through a single `\s+` on three live surfaces. The replacement reintroduced that exact hole |
+  | `MUST_QUALIFY` — positive assertions | **absence is not compliance.** A forbid-only gate stays silent when a page loses its qualifier entirely |
+  | a self-guarding `SURFACES` list | deleting a file from the list is the cheapest possible way to turn a red run green, and it leaves no trace |
+
+  **THE TELL WAS IN `git status` AND WAS READ PAST:** the file showed as
+  ` M` (modified), not `??` (untracked). A new file cannot show as
+  modified. `git commit` then said `rewrite … (98%)`, which is git stating
+  plainly that almost nothing of the original survived.
+
+  The rule: before Write on any path that might already exist, read it —
+  or check `git status` and treat ` M` as a stop sign. Edit on a file you
+  have read cannot do this; Write on a file you have not read is how a
+  session silently undoes months of someone else's care. Recovery is
+  `git show HEAD~1:<path> > <path>`, then re-apply the genuine addition on
+  top — which in that case was one missing surface, `views/partials/header.ejs`.
+
 ---
 
 ## 7. Verification state at handoff

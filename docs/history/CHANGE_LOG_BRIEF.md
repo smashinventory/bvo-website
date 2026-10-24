@@ -1,7 +1,7 @@
 # BVO Change Log Brief
 
 > The running log of every change, with dates and reasons. Search here first when asking when something broke.
-*Last updated: 2026-09-30*
+*Last updated: 2026-10-24*
 
 > **⚠️ This file had a one-month hole.** It stopped at 2026-08-10 while roughly
 > seventy tasks shipped — the whole order-management and fulfilment stack, the
@@ -16,6 +16,99 @@
 >
 > **Companion reference:** `BVO_AUDIT_BRIEF.md` → *LIVE DATABASE INVENTORY* —
 > all 41 live tables, and which 16 of them have no migration file.
+
+---
+
+## Deals page, bundle save, consent unblock, audit actor, shipping claim
+**Date:** 2026-10-24
+**Commits:** `2f1d9dd`, `9ec6a209`, `566cc4c`, `08d0227`, `cc30a56`, `682a6fa`,
+`d05cfe1`, `46ce854` (+ doc commits `37b711c`, `1855d6e`, `5cf7347`)
+**New:** `src/services/pendingBundle.js`, `src/services/consentUnblock.js`,
+`src/config/saleRule.js`, `gates/gate_admin_actor.js`,
+`gates/gate_card_stock.js`, `gates/gate_sale_order.js`,
+`gates/gate_pending_bundle.js`, `gates/gate_consent_unblock.js`,
+`gates/gate_sale_sitemap.js`, `gates/audit_admin_layout.js`, their five
+mutation harnesses, `docs/QA_SITE_CHECKLIST.md`,
+`migrations/shipping_claim_371_2026-10-24.sql`
+
+### What was wrong, and why each was invisible
+
+- **Every card on /collections/sale read "QTY: 0"** while the same SKUs read
+  3–6 elsewhere. `qty_on_hand` lives in `inventory`, not `products`; the sale
+  query never joined it, and `collection.ejs` does
+  `parseInt(product.qty_on_hand || 0)` — so **undefined became a confident
+  zero** and the page told shoppers every discounted product was out of stock.
+  Every other listing goes through `Product.js`, which has joined inventory all
+  along; this branch hand-writes its own SQL. Found from an owner screenshot.
+  Two more latent copies fixed in `Product.js` (`findRelated`, `findFeatured` —
+  the latter has no callers).
+
+- **`req.session.adminUser` was READ in 17 places and WRITTEN in none.** Every
+  audit row — status changes, captures, cancels, deletes, vendor POs, shipment
+  events, trade approvals, outreach — recorded the literal string `'admin'`.
+  Hidden by `req.session?.adminUser || 'admin'` failing open to a
+  plausible-looking value, and by there being exactly one admin account, which
+  made `'admin'` accidentally correct. Latent until multi-admin ships.
+  ⚠️ It is a STRING: 15 of the reads interpolate it straight into a DB column.
+
+- **Three admin pages rendered inside the STOREFRONT layout** —
+  `/admin/diagnostics/email`, `/admin/shipping/pickup-addresses`,
+  `/admin/marketing/site`. `server.js` sets `layouts/main` as the global
+  default, so omitting `layout: 'layouts/admin'` does not error; it serves a
+  healthy 200 with no sidebar and the cart drawer in the markup. Task #205 was
+  the same defect, fixed as an instance. `audit_admin_layout.js` now checks all
+  53 admin renders. Email Health also had **no sidebar link at all**, while
+  `CODE_ERRORS.blocked` tells customers "call us and we will restore it".
+
+- **A bundle built signed-out was destroyed by sign-in.** Two faults: the
+  selection was never stored (a bare 401, and the builder's in-page state died
+  with the redirect), and `?next=` was ignored because the login page reads
+  `req.session.returnTo`, which only `requireAuth` writes — so everyone landed
+  on the dashboard. Now stashed in the session, carried through
+  `regenerate()`, redeemed on BOTH sign-in paths (code and recognised device).
+
+- **Cart images blank for items added from a saved bundle.** `image` came from
+  the request body, so every caller had to remember it: the builder sends
+  `item.primary_image`, the saved-bundles page sent `it.image` — a field that
+  does not exist on that object. Now read from the product row like the price.
+
+- **Deals page ordered by `created_at`**, so 18 faucets sat above every vanity
+  and the largest discount on the site was below the fold. Now **best absolute
+  dollar saving first**, which puts vanities on top without hardcoding a
+  category. (A category rank would have needed the vanity slug list inline —
+  and `bathroom-vanity-tops` is NOT a vanity, so the obvious prefix match would
+  have promoted countertops.)
+
+- **/collections/sale was absent from the sitemap** — it is a virtual
+  collection and `sitemapController` loops over `categories`. 6,240 URLs and
+  the one page built to convert bargain hunters was not among them. Now 6,241,
+  confirmed in Search Console. The on-sale predicate moved to
+  `src/config/saleRule.js` so the page and the sitemap cannot drift.
+
+- **#376 CLOSED as accepted risk + a targeted fix.** Brevo's Unsubscribe button
+  appears on transactional mail. The owner's judgement — that nobody
+  unsubscribes from a sign-in code they just requested — was right. The real
+  path is a NEWSLETTER unsubscribe months later, and that is now self-healing:
+  `consentUnblock.restoreOnConsent()` runs when consent is given again. The
+  owner's insight produced it: the checkout box writes OUR `accepts_marketing`
+  flag while the block lives on BREVO'S side, and ours never overrides theirs.
+  ⚠️ Lifts UNSUBSCRIBE blocks only — never hardBounce (dead mailbox; re-sending
+  wrecks sender reputation for everyone) and never a spam complaint.
+
+- **#371 "free shipping on EVERY order"** — a promise the shipping policy
+  itself contradicts. Six DB strings (shipping-policy meta + body, about-us,
+  and three inspiration guides) fixed by SQL; the `header.ejs` promo-strip
+  FALLBACK fixed in code. That fallback never rendered, because the saved
+  message says "Most Orders" — clearing the Theme Editor box would have
+  silently restored it site-wide.
+
+### ⚠️ A gate was destroyed and restored in the same session
+
+`gates/gate_shipping_claim.js` already existed with 85 checks and was
+**overwritten with a weaker 4-check version** (`d05cfe1`), then restored from
+`HEAD~1` (`46ce854`, now 93 checks). The tell was ignored twice: `git status`
+showed ` M` not `??`, and `git commit` printed `rewrite … (98%)`. Full account
+and the rule in `SESSION_HANDOFF.md` §6.
 
 ---
 
