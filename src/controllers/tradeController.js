@@ -787,7 +787,13 @@ exports.adminRevoke = async (req, res, next) => {
     const act = REVOKE_ACTIONS[req.body.action];
     if (!act) { return res.status(400).send('Unknown action'); }
 
-    const who  = (req.session.adminUser && req.session.adminUser.email) || 'admin';
+    /* STRING, not an object. This read used to be
+       `(req.session.adminUser && req.session.adminUser.email)`, which was
+       the only .email-shaped read in the codebase and therefore always
+       resolved to 'admin' once adminUser was finally set to a string at
+       login. Corrected 2026-10-24; gate_admin_actor.js keeps all 17 reads
+       one shape. */
+    const who  = req.session?.adminUser || 'admin';
     const note = String(req.body.review_note || '').trim();
 
     const [rows] = await pool().query(
@@ -841,7 +847,13 @@ exports.adminDecide = async (req, res, next) => {
     const id = req.params.id;
     const approve = req.body.decision === 'approve';
     const note = String(req.body.review_note || '').trim() || null;
-    const who  = (req.session.adminUser && req.session.adminUser.email) || 'admin';
+    /* STRING, not an object. This read used to be
+       `(req.session.adminUser && req.session.adminUser.email)`, which was
+       the only .email-shaped read in the codebase and therefore always
+       resolved to 'admin' once adminUser was finally set to a string at
+       login. Corrected 2026-10-24; gate_admin_actor.js keeps all 17 reads
+       one shape. */
+    const who  = req.session?.adminUser || 'admin';
 
     const [rows] = await pool().query(
       'SELECT customer_id, email FROM trade_applications WHERE id = ? LIMIT 1', [id]

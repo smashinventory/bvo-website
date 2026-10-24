@@ -214,6 +214,26 @@ exports.login = async (req, res) => {
         return res.redirect('/admin/login');
       }
       req.session.isAdmin = true;
+
+      /* ⚠️ THE AUDIT TRAIL'S ACTOR. Read in 17 places across
+         ordersController, shippingController, tradeController and
+         customerOutreachController — and until 2026-10-24, written in
+         NONE of them. Every audit row in the system recorded the literal
+         string 'admin'.
+
+         It was invisible because `req.session?.adminUser || 'admin'`
+         fails open to a plausible-looking value, and because there is
+         exactly one admin account (ADMIN_USER), which made 'admin'
+         accidentally accurate. The day the "Admin Users" feature ships,
+         every row would silently keep saying 'admin'.
+
+         A STRING, NOT AN OBJECT, and that is load-bearing: the 15 reads
+         outside tradeController interpolate this value straight into a
+         DB column, so an object would store '[object Object]'.
+         tradeController used to read `.email` off it and was corrected to
+         match in the same commit. gate_admin_actor.js holds the shape. */
+      req.session.adminUser = validUser;
+
       res.redirect('/admin');
     });
     return;
