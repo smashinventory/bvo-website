@@ -287,7 +287,40 @@ exports.show = async (req, res, next) => {
           )
         /* Hand-picked first: they are deliberate choices, so they lead.
            Then the existing order, unchanged. */
-        ORDER BY p.is_deal DESC, p.is_featured DESC, p.created_at DESC
+        /* ── BEST ABSOLUTE SAVINGS FIRST (owner, 2026-10-24) ──────────────
+           Was: is_deal DESC, is_featured DESC, created_at DESC — which led
+           the page with whatever happened to be newest, so 18 faucets sat
+           above every vanity and the biggest discount on the site was below
+           the fold.
+
+           DOLLARS, NOT PERCENT, and that was the owner's explicit choice.
+           It needs no category ranking to put vanities first: a vanity
+           saving $1,000 outranks a faucet saving $50 on its own. The
+           alternative considered and rejected was a hardcoded
+           vanity-category-first rank, which would have needed the slug list
+           ('bathroom-vanities', 'bathroom-vanities-with-tops',
+           'bathroom-vanity-cabinets') hardcoded here — and note
+           'bathroom-vanity-tops' is NOT a vanity, so any prefix match on
+           'bathroom-vanit' would have silently promoted countertops. Sorting
+           by money avoids inventing a taxonomy this query does not own.
+
+           COALESCE IS LOAD-BEARING. compare_price is NULL on a hand-picked
+           product that carries no markdown, and NULL - price is NULL, which
+           MariaDB sorts as a value rather than erroring. COALESCE to price
+           makes that an honest 0 saving instead.
+
+           ⚠️ CONSEQUENCE, NAMED RATHER THAN HIDDEN: is_deal no longer leads.
+           A hand-picked SKU with small or no markdown now sorts by its real
+           saving, so it can land anywhere on the page. It is kept as the
+           first tiebreak, so hand-picks still win among equal savings. If
+           hand-picks must always lead again, move p.is_deal DESC back to
+           the front of this clause — one line, no other change.
+
+           p.id DESC last so the order is total: without a unique final key
+           the pool order is undefined between full ties, and the facet
+           counts and the 48-row page slice both read this array. */
+        ORDER BY (COALESCE(p.compare_price, p.price) - p.price) DESC,
+                 p.is_deal DESC, p.is_featured DESC, p.created_at DESC, p.id DESC
         /* ⚠️ 300, NOT 48, AND THE DIFFERENCE MATTERS NOW THAT FILTERS EXIST.
            This is the QUALIFYING POOL, not the page. It is faceted and
            filtered below, then paged at 48.

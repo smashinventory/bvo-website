@@ -145,7 +145,12 @@ function buildSaleView(pool, query) {
 
   const matched = rows.filter(p => okBrand(p) && okType(p) && okSize(p) && okPrice(p));
 
-  /* Slices, never re-sorts: the SQL already ordered hand-picks first. */
+  /* Slices, never re-sorts: the SQL already ordered the pool by BEST
+     ABSOLUTE DOLLAR SAVING first (owner, 2026-10-24 — it was hand-picks
+     first until then). Re-sorting here would be a second, divergent
+     definition of the page's order, and filtering must not reshuffle: the
+     order a shopper sees with a brand filter on has to be the same order
+     they saw without it. */
   const pages = Math.max(1, Math.ceil(matched.length / PER_PAGE));
   const page  = Math.min(Math.max(1, parseInt(q.page, 10) || 1), pages);
   const products = matched.slice((page - 1) * PER_PAGE, page * PER_PAGE);
