@@ -123,6 +123,9 @@ exports.page = async (req, res, next) => {
 
     res.render('pages/admin/diagnostics-email', {
       pageTitle: 'Email diagnostics',
+      /* Opens the Settings group in the sidebar and highlights the entry.
+         Keep in step with PAGE_GROUP in views/layouts/admin.ejs. */
+      activePage: 'email-diagnostics',
       key, account, senders, senderList, fromMatches, blocked,
       fromEmail: FROM_EMAIL,
       fromName:  FROM_NAME,

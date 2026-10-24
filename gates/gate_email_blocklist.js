@@ -215,6 +215,68 @@ function stage3() {
      'no email field');
   ok('unblock result is rendered', /unblockResult/.test(v), 'missing');
 
+  /* ── REACHABILITY ─────────────────────────────────────────────────
+     Everything above this point was green for the page's whole life
+     while the page had NO SIDEBAR LINK. A working tool nobody can find
+     is not a recovery route, and CODE_ERRORS.blocked promises the
+     customer one. So the link itself is now asserted.
+
+     Three deliberate choices:
+
+     1. EJS COMMENTS ARE STRIPPED FIRST. The nav entry carries a comment
+        explaining why it is load-bearing. Rule 18 corollary — quoting
+        something in a comment makes the comment satisfy a grep for it —
+        and a comment that mentions the page would otherwise keep this
+        green after the anchor was deleted.
+
+     2. THE SLICE IS BOUNDED BY THE NEXT STRUCTURAL LANDMARK, not by a
+        prefix. `data-group="settings"` → the next `data-group=` or
+        `</nav>`, whichever comes first. A link moved out of the Settings
+        group, or below the nav into the sidebar footer, must fail. The
+        termsBox slice on 2026-10-24 failed exactly this way by reaching
+        for the next convenient id instead of the real close.
+
+     3. THE GROUP MAP AND THE CONTROLLER ARE CHECKED TOO. The href alone
+        renders a link that works but never highlights and leaves the
+        group collapsed, so the entry is invisible until you expand
+        Settings — most of the original defect, surviving. */
+  console.log('--- reachability: the link exists and is in the right group ---');
+  const layoutRaw = fs.readFileSync(path.join(ROOT, 'views/layouts/admin.ejs'), 'utf8');
+  const layout    = layoutRaw.replace(/<%\/\*[\s\S]*?\*\/%>/g, '');
+
+  const HREF = '/admin/diagnostics/email';
+  ok('the page is linked from the admin layout at all',
+     layout.indexOf('href="' + HREF + '"') !== -1,
+     'no sidebar entry — the page is reachable only by typing the URL');
+
+  const iSettings = layout.indexOf('data-group="settings"');
+  let navSlice = '';
+  if (iSettings !== -1) {
+    const after    = layout.slice(iSettings + 1);
+    const iNextGrp = after.indexOf('data-group=');
+    const iNavEnd  = after.indexOf('</nav>');
+    const cands    = [iNextGrp, iNavEnd].filter(i => i !== -1);
+    const end      = cands.length ? Math.min.apply(null, cands) : after.length;
+    navSlice = after.slice(0, end);
+  }
+  ok('the Settings nav group was located',
+     iSettings !== -1 && navSlice.length > 0, 'could not slice the group');
+  ok('the link sits INSIDE the Settings group',
+     navSlice.indexOf('href="' + HREF + '"') !== -1,
+     'the link exists somewhere but not in the Settings group');
+
+  /* `\b` and a quote on both sides: 'email-diagnostics' must be the whole
+     key. Without this, 'email-diagnostics-v2' or a longer key containing
+     it would satisfy the check — the email_blocked / email_blocked_at
+     substring trap from the same day. */
+  ok("PAGE_GROUP maps 'email-diagnostics' to settings",
+     /'email-diagnostics'\s*:\s*'settings'/.test(layout),
+     "the group will not auto-expand and the item will not highlight");
+
+  ok('the controller sets that exact activePage',
+     /activePage\s*:\s*'email-diagnostics'/.test(dg),
+     'the nav key and the controller disagree, so nothing highlights');
+
   console.log(fail ? '\n*** ' + fail + ' GATE(S) FAILED ***' : '\nALL GATES PASS');
   process.exit(fail ? 1 : 0);
 }

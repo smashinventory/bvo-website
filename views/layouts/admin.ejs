@@ -319,6 +319,18 @@
               <svg viewBox="0 0 24 24" class="admin-nav-icon" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
               Email Templates
             </a>
+            <%/* THIS LINK IS LOAD-BEARING, NOT A CONVENIENCE.
+                   CODE_ERRORS.blocked in accountController tells a locked-out
+                   customer "call us and we will restore it". This page is the
+                   only thing on the site that can keep that promise — the
+                   unblock posts to Brevo and clears the local flags. It
+                   shipped with no nav entry, so for its whole life the tool
+                   behind a published promise was a URL you had to already
+                   know. gate_email_blocklist.js now asserts the link. */%>
+            <a href="/admin/diagnostics/email" class="admin-nav-item admin-nav-item--child <%= (typeof activePage !== 'undefined' && activePage === 'email-diagnostics') ? 'active' : '' %>">
+              <svg viewBox="0 0 24 24" class="admin-nav-icon" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+              Email Health
+            </a>
             <span class="nav-coming-soon">Admin Users <span class="admin-nav-soon">soon</span></span>
             <span class="nav-coming-soon">API Integrations <span class="admin-nav-soon">soon</span></span>
           </div>
@@ -422,7 +434,8 @@
       'authors':         'website',
       'menus':           'website',
       'inspiration':     'website',
-      'email-templates': 'settings'
+      'email-templates': 'settings',
+      'email-diagnostics': 'settings'
     };
 
     var activePage  = '<%= typeof activePage !== "undefined" ? activePage : "" %>';
