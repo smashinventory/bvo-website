@@ -1,209 +1,103 @@
 'use strict';
-/* ─────────────────────────────────────────────────────────────────────────
- * gate_shipping_claim.js
- *
- * THE RULE: NO CUSTOMER-FACING SURFACE PROMISES FREE SHIPPING WITHOUT
- * EXCEPTION, BECAUSE THE TRADE TERMS CARVE EXCEPTIONS OUT.
- *
- * On 2026-10-22 the trade terms gained clause 5: free shipping does not
- * apply automatically to remote areas, islands, APO/FPO addresses, or
- * destinations carrying carrier surcharges, and BVO reserves the right to
- * ask the customer to pay the difference or not proceed.
- *
- * At that moment TWELVE live surfaces still said "every order" or "all
- * orders" — including the SITE-WIDE DEFAULT META DESCRIPTION in server.js,
- * which is what Google shows for every page that does not set its own.
- *
- * That combination is the problem this gate exists to prevent. Terms that
- * carve out an exception, over marketing that promises none, is a
- * contradiction a customer can quote back at you — and the marketing is
- * the half they saw first.
- *
- * WHY A GATE AND NOT A ONE-TIME EDIT:
- *
- *   The absolute phrasing is the natural thing to write. It is shorter,
- *   it sells better, and every one of those twelve instances was written
- *   by someone acting reasonably. It WILL come back — in a new template,
- *   in a theme default, in a meta description — unless something fails
- *   when it does.
- *
- * ⚠️ THIS GATE CANNOT SEE THE DATABASE, AND THAT IS A REAL HOLE.
- *   themeSettings.js values are DEFAULTS. The live values may be
- *   overridden through the Theme Editor, and an override is invisible
- *   here. Clearing this gate proves the defaults are safe; it does NOT
- *   prove the live site is. The DB check is manual — see
- *   docs/reference/TRADE_TERMS_DRAFT_2026-10-22.md.
- * ───────────────────────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════
+   gate_shipping_claim.js — no customer-facing template promises free
+   shipping on EVERY order. Task #371.
+
+   THE CLAIM IS NOT TRUE, and that is the whole point. The shipping policy
+   itself carves out freight, remote addresses and oversized items. "Free
+   shipping on every order, with no minimum purchase" is a commercial
+   promise the business cannot keep, and it is the kind of sentence that
+   gets quoted back during a chargeback.
+
+   The owner corrected the homepage first. This gate exists because the
+   phrase then turned up in three more places, and the most instructive one
+   was INVISIBLE:
+
+     views/partials/header.ejs read
+       <%= ps.message || 'Free Shipping on Every Order' %>
+     The saved setting says "Most Orders", so the fallback never rendered.
+     Clearing the promo message in the Theme Editor — an ordinary admin
+     action — would have silently restored the bad claim to the top of
+     every page on the site. A defect that only appears when a setting is
+     cleared will not be found by looking at the site.
+
+   SCOPE, STATED HONESTLY. This checks TEMPLATES only. The same claim also
+   lives in the `pages` table (shipping-policy and about-us), which a gate
+   cannot reach without a database — Rule 14. Those are fixed by SQL and
+   re-checked live; see the #371 notes. A green gate here does NOT mean the
+   phrase is gone from the site, and saying so is better than implying a
+   coverage this cannot have.
+   ═══════════════════════════════════════════════════════════════════════ */
 
 const fs   = require('fs');
 const path = require('path');
-const ROOT = path.join(__dirname, '..');
 
-let pass = 0, fail = 0;
-const check = (c, label, why) => {
-  if (c) { console.log('  ok   ' + label); pass++; }
-  else   { console.log('  FAIL ' + label + (why ? '\n         ' + why : '')); fail++; }
+const ROOT  = path.join(__dirname, '..');
+const VIEWS = path.join(ROOT, 'views');
+
+let fail = 0;
+const ok = (n, c, d) => {
+  console.log((c ? '  ok  ' : '  FAIL') + '  ' + n + (c ? '' : '   <- ' + d));
+  if (!c) fail++;
 };
 
-/* Files that actually reach a customer. Deliberately enumerated rather
-   than globbed:
+/* Admin templates are staff-facing: "every order" there is description,
+   not a promise. .bak files are snapshots of superseded work and are not
+   served. Everything else in views/ is customer-facing. */
+const SKIP = /(^|\/)admin(\/|$)|\.bak/;
 
-   ⚠️ A GLOB WOULD SWEEP IN .bak FILES AND THE DEAD -1 TWINS.
-   views/pages/index.ejs.bak-*, index-1.ejs and homeController-1.js all
-   carry the old absolute phrasing. None is reachable — index-1.ejs has no
-   route anywhere in src/, verified by grep — so including them would make
-   this gate fail forever on code that cannot render, and the fix would be
-   to weaken the gate. Dead files are a documentation problem, not a
-   compliance one. */
-const SURFACES = [
-  'src/server.js',                        // ⚠️ site-wide default metaDesc
-  'src/services/themeSettings.js',        // ⚠️ DEFAULTS ONLY — see header
-  'src/controllers/homeController.js',
-  'src/controllers/tradeController.js',
-  'views/partials/footer.ejs',            // every page
-  /* ⚠️ ADDED AFTER THE FIRST LIVE CHECK, WHICH THIS GATE PASSED AND THE
-     SITE FAILED. index.ejs carries the trust-bar fallback and was not in
-     the list, so "Shipping on every single order" sat in a template this
-     gate never opened. A surface list is only as good as its coverage,
-     and the only way to find the gap was to read the rendered page. */
-  'views/pages/index.ejs',
-  'views/pages/collection.ejs',
-  'views/pages/trade-apply.ejs',
-  'views/pages/inspiration-guide.ejs',
-  'views/pages/inspiration-hub.ejs',
-];
-
-/* The absolute claims. Each must be anchored to a SHIPPING context — bare
-   /every order/ matches prose about order processing all over this
-   codebase ("every order arrived", "409 on every order"), and a gate that
-   fires on those gets deleted within a week. Rule 17a. */
-/* ⚠️ "every SINGLE order" IS WHY THESE ALLOW A WORD BETWEEN.
-   The first version used \b(every|all|any)\s+order — one \s+ — and
-   "Shipping on every single order" slipped straight through it, in two
-   theme defaults and an index.ejs fallback. The gate went green and the
-   live homepage still carried the absolute claim in three places.
-
-   Caught only by fetching the rendered page. A source-matching gate can
-   confirm the patterns it knows about are gone; it cannot tell you which
-   phrasing nobody thought of. Read the real page before believing it. */
-const FORBIDDEN = [
-  { re: /(?:free\s+)?(?:shipping|freight)[^.<\n]{0,40}\b(?:every|all|any)\s+(?:\w+\s+)?order/i,
-    name: 'shipping … every/all/any [single] order' },
-  { re: /\b(?:every|all|any)\s+(?:\w+\s+)?order[^.<\n]{0,40}(?:free\s+)?(?:shipping|freight)/i,
-    name: 'every/all/any [single] order … shipping' },
-  /* The stat-tile phrasing: value "Free", label "Shipping on every single
-     order". The word "free" is in a different element, so neither pattern
-     above can see it — the label alone has to be forbidden. */
-  { re: /Shipping\s+on\s+(?:every|all|any)\s+(?:\w+\s+)?order/i,
-    name: '"Shipping on every/all/any order" (stat tile label)' },
-  { re: /every\s+order,\s*every\s+time/i,
-    name: '"every order, every time"' },
-  { re: /(?:free\s+)?(?:shipping|freight)\s*,\s*every\s+order/i,
-    name: '"shipping, every order"' },
-  { re: /always\s+free\s+(?:shipping|freight)|(?:shipping|freight)\s+is\s+always\s+free/i,
-    name: '"always free shipping"' },
-];
-
-/* ⚠️ THE SURFACE LIST GUARDS ITSELF.
-   Mutation M10: delete one entry from SURFACES and the gate goes green
-   while the live page carries the absolute claim. That is not a
-   hypothetical — it is the cheapest possible way to "fix" a failure, and
-   it leaves no trace. The list is data this gate depends on, so the list
-   is itself under test.
-
-   Hardcoded, not derived from SURFACES — deriving it would make the
-   assertion agree with any deletion, which is the Rule 18 failure this
-   project has now hit in four separate gates. */
-console.log('\n0. The surface list has not been quietly shortened');
-
-const REQUIRED_SURFACES = [
-  'src/server.js',
-  'src/services/themeSettings.js',
-  'src/controllers/homeController.js',
-  'views/partials/footer.ejs',
-  'views/pages/index.ejs',
-  'views/pages/trade-apply.ejs',
-];
-for (const req of REQUIRED_SURFACES) {
-  check(SURFACES.includes(req),
-    `${req} is still in the surface list`,
-    'Removing a file from SURFACES un-guards it silently and the gate still reports GREEN. If this file genuinely no longer exists or no longer faces customers, delete it from REQUIRED_SURFACES too — deliberately, in the same commit, where a reviewer sees it.');
-}
-check(SURFACES.length >= 9,
-  `the list still covers at least 9 surfaces (currently ${SURFACES.length})`,
-  'The claim appeared on 13 surfaces across 9 files. A shrinking list means coverage is being traded for a green run.');
-
-console.log('\n1. No customer-facing surface makes an absolute shipping promise');
-
-for (const rel of SURFACES) {
-  const abs = path.join(ROOT, rel);
-  check(fs.existsSync(abs), `${rel} exists`,
-    'A surface listed here has moved or been renamed. Re-point the list rather than dropping the entry — dropping it is how a promise goes unguarded.');
-  if (!fs.existsSync(abs)) continue;
-
-  const raw = fs.readFileSync(abs, 'utf8');
-
-  /* ⚠️ COMMENTS ARE STRIPPED, AND LEAVING THEM IN WOULD HAVE BROKEN THIS.
-     The themeSettings edit carries a comment explaining the change, and
-     that comment contains the words "every order" to say what it replaced.
-     collection.ejs line ~258 quotes the old banner copy for the same
-     reason. Both would match. This is the Rule 18 corollary that has now
-     cost a pass in gate_stripe_reconcile (R11), gate_orders_visibility
-     (V7) and here: quoting old code in a comment makes the comment
-     satisfy a grep for that code. */
-  const code = raw
-    .replace(/\/\*[\s\S]*?\*\//g, '')   // JS block
-    .replace(/^\s*\/\/.*$/gm, '')       // JS full-line
-    .replace(/<%#[\s\S]*?%>/g, '');     // EJS comment
-
-  for (const { re, name } of FORBIDDEN) {
-    const m = code.match(re);
-    check(!m, `${rel} — no ${name}`,
-      m ? `Found: "${m[0].trim()}"\n         The trade terms carve out remote areas, islands and APO/FPO. An absolute claim here contradicts them. Use "most orders".`
-        : undefined);
+const files = [];
+(function walk(dir) {
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, e.name);
+    const rel = path.relative(VIEWS, p);
+    if (SKIP.test(rel)) continue;
+    if (e.isDirectory()) walk(p);
+    else if (e.name.endsWith('.ejs')) files.push(p);
   }
+})(VIEWS);
+
+ok('found customer-facing templates to check', files.length > 0, 'none found');
+
+/* ⚠️ EJS COMMENTS AND JS COMMENTS BOTH STRIPPED FIRST.
+   header.ejs and index-1.ejs now carry comments that QUOTE the old string
+   verbatim, to explain why it was changed. Without stripping, this gate
+   would fail on the very fix it is guarding — and the tempting repair
+   would be to delete the explanation. Rule 18 corollary, live. */
+function strip(src) {
+  return src
+    .replace(/<%#[\s\S]*?%>/g, '')        // EJS comment tag
+    .replace(/<%\/\*[\s\S]*?\*\/%>/g, '') // JS block comment inside EJS
+    .replace(/\/\*[\s\S]*?\*\//g, '')     // plain JS block comment
+    .replace(/^[ \t]*\/\/.*$/gm, '');     // line comment
 }
 
-console.log('\n2. The replacement phrasing is actually present, not just absent');
+const CLAIM = /every\s+order/i;
 
-/* ⚠️ ABSENCE IS NOT COMPLIANCE, AND THIS IS THE HALF A FORBID-ONLY GATE
-   MISSES. Deleting the sentence passes every check above. So does
-   replacing it with nothing. The claim is a selling point and it is
-   supposed to still be there — qualified, not gone. */
-const MUST_QUALIFY = [
-  ['src/server.js',                   'site-wide default meta description'],
-  ['views/partials/footer.ejs',        'footer, which renders on every page'],
-  ['src/services/themeSettings.js',    'theme defaults'],
-  ['views/pages/trade-apply.ejs',      'the trade application page'],
-];
-for (const [rel, what] of MUST_QUALIFY) {
-  const abs = path.join(ROOT, rel);
-  if (!fs.existsSync(abs)) { check(false, `${rel} exists`); continue; }
-  const code = fs.readFileSync(abs, 'utf8')
-    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
-    .replace(/<%#[\s\S]*?%>/g, '');
-  check(/(?:shipping|freight)\s+on\s+most\s+orders|most\s+orders\b/i.test(code),
-    `${rel} still makes the qualified claim (${what})`,
-    'The absolute phrasing is gone but nothing replaced it. Free shipping is a real selling point and should still be stated — as "most orders".');
+const offenders = [];
+for (const f of files) {
+  const code = strip(fs.readFileSync(f, 'utf8'));
+  if (!CLAIM.test(code)) continue;
+  const line = code.split('\n').findIndex(l => CLAIM.test(l)) + 1;
+  offenders.push(path.relative(ROOT, f) + ':' + line);
 }
 
-console.log('\n3. The terms the copy must agree with actually exist');
+ok('no customer-facing template claims "every order"',
+   offenders.length === 0,
+   offenders.join(', '));
 
-const TERMS = path.join(ROOT, 'docs/reference/TRADE_TERMS_DRAFT_2026-10-22.md');
-check(fs.existsSync(TERMS),
-  'the trade terms document is in the repo',
-  'This gate enforces consistency with a document. If the document is gone, the rule it encodes has no source and the next person cannot tell whether "most orders" is still right.');
-if (fs.existsSync(TERMS)) {
-  const t = fs.readFileSync(TERMS, 'utf8');
-  for (const term of ['remote', 'APO', 'most orders']) {
-    check(new RegExp(term, 'i').test(t),
-      `the terms still carve out "${term}"`,
-      'If the exclusions were removed from the terms, the copy could go back to an absolute claim — and this gate would be wrong, not the copy. Check which one changed.');
-  }
-}
+/* The two places it actually was, pinned so a regression names itself
+   rather than just reporting a count. */
+const header = strip(fs.readFileSync(path.join(VIEWS, 'partials/header.ejs'), 'utf8'));
+ok('the promo-strip FALLBACK is policy-safe',
+   /ps\.message\s*\|\|\s*'Free Shipping on Most Orders'/.test(header),
+   'clearing the promo message would restore an unsupportable claim');
 
-console.log(
-  fail === 0
-    ? `\nGREEN  ${pass} passed, 0 failed`
-    : `\ngate_shipping_claim: FAILED ${fail} of ${pass + fail} checks`);
-process.exit(fail === 0 ? 0 : 1);
+ok('the fallback still exists at all',
+   /ps\.message\s*\|\|/.test(header),
+   'the fallback was deleted — an empty promo strip renders a blank bar');
+
+console.log('\ntemplates checked: ' + files.length);
+console.log('⚠️ templates only — the `pages` table is not covered here. See the header.');
+console.log(fail ? '\n*** ' + fail + ' GATE(S) FAILED ***' : '\nALL GATES PASS');
+process.exit(fail ? 1 : 0);

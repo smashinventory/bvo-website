@@ -10,7 +10,18 @@
   var _psStyle = 'background:' + _psBg + ';color:' + _psFg + ';';
 %>
 <div class="promo-strip" role="banner" aria-label="Promotional announcement" style="<%= _psStyle %>">
-  <%= ps.message || 'Free Shipping on Every Order' %>
+  <%/* ⚠️ THE FALLBACK MUST MATCH THE POLICY, NOT THE OLD MARKETING LINE.
+         It read 'Free Shipping on Every Order' until 2026-10-24, which is
+         a claim the shipping policy does not support — freight, remote
+         addresses and oversized items are all exceptions.
+
+         It was invisible because the saved setting currently says "Most
+         Orders", so the fallback never renders. That is exactly what makes
+         it dangerous: clearing the promo message in the Theme Editor, the
+         most ordinary admin action there is, would silently put an
+         unsupportable commercial promise back at the top of every page.
+         Task #371. */%>
+  <%= ps.message || 'Free Shipping on Most Orders' %>
   <% if (ps.link_url && ps.link_text) { %>
   &nbsp;·&nbsp; <a href="<%= ps.link_url %>" style="color:inherit"><strong><%= ps.link_text %> →</strong></a>
   <% } %>
