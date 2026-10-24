@@ -4,6 +4,11 @@ const { bvoPool } = require('../config/database');
 const pathFilters = require('../config/pathFilters');
 const Category    = require('../models/Category');
 const Product     = require('../models/Product');
+/* The Deals page is a query, not a category — shared so the sitemap and
+   the page cannot disagree about what qualifies. See its header. */
+const saleRule    = require('../config/saleRule');
+/* The LIVE saved settings, never the Theme Editor preview — see below. */
+const themeSettings = require('../services/themeSettings');
 
 /**
  * GET /sitemap.xml
@@ -188,6 +193,62 @@ exports.xml = async (req, res) => {
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>`);
+
+    /* ── /collections/sale — THE VIRTUAL COLLECTION (task #365) ──────
+       Sale has no row in `categories`, because it is not a category: it is
+       a query. The loop below builds collection URLs from that table, so
+       the Deals page has never been in the sitemap and Google has had no
+       way to discover it.
+
+       ⚠️ ONLY IF SOMETHING QUALIFIES. Submitting a Deals page with nothing
+       on it is a thin page, and the qualifying set is a THRESHOLD away
+       from empty — raise deals_min_discount_pct above the catalogue
+       ceiling and the page legitimately empties. So this asks.
+
+       ⚠️ AND IT ASKS WITH THE PAGE'S OWN RULE. The predicate and the
+       threshold both come from src/config/saleRule.js, the same module
+       collectionsController uses to build the page. A second copy of the
+       WHERE clause here would have drifted the first time either was
+       edited — the Rule 18 trap as a second caller rather than a test.
+
+       lastmod is the newest qualifying product, which is the honest answer
+       to "when did this page last change": the page has no updated_at of
+       its own because it has no row. */
+    let saleCount = 0, saleLastmod = null;
+    try {
+      /* ⚠️ themeSettings.get(), NOT res.locals.settings, for two reasons.
+         Ordering: res.locals.settings is written by a middleware whose
+         position relative to this route is not something this file should
+         depend on, and if it ran later the sitemap would silently use the
+         default threshold while the page used the owner's.
+         Correctness: res.locals.settings is the PREVIEW object inside the
+         Theme Editor. An admin half-way through editing must not change
+         what Google is told. The live saved value is the only right
+         answer here. */
+      const frac = saleRule.fracFromSetting(
+        ((themeSettings.get() || {}).seo || {}).deals_min_discount_pct
+      );
+      const [[saleAgg]] = await bvoPool.query(
+        `SELECT COUNT(*) AS n, MAX(p.updated_at) AS newest
+           FROM products p
+          WHERE ${saleRule.SALE_WHERE}`, [frac]
+      );
+      saleCount   = Number(saleAgg && saleAgg.n) || 0;
+      saleLastmod = saleAgg && saleAgg.newest;
+    } catch (err) {
+      /* Not fatal, and deliberately so: a sitemap that loses one URL is a
+         far smaller problem than a sitemap that 500s and loses 6,240. */
+      console.error('[sitemap] sale count failed:', err.code, err.sqlMessage || err.message);
+    }
+
+    if (saleCount > 0) {
+      urls.push(`
+  <url>
+    <loc>${escUrl(siteUrl)}/collections/sale</loc>${lastmod(saleLastmod)}
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>`);
+    }
 
     // Individual category pages
     for (const cat of categories) {

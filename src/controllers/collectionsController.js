@@ -31,6 +31,8 @@ const Customer                                          = require('../models/Cus
 const { FAMILIES, normalize, getFamily, CABINET_KEYS, METAL_KEYS } = require('../config/colorFamilies');
 const { SIZE_BUCKETS }                                  = require('../config/sizeBuckets');
 const { buildSaleView }                                 = require('../utils/saleFacets');
+/* ONE definition of "on sale", shared with the sitemap. See its header. */
+const saleRule                                          = require('../config/saleRule');
 const tierService                                       = require('../services/tierService');
 /* Which product a model card leads with — shared with homeController so
    the carousel and this page cannot pick different heroes. */
@@ -201,29 +203,11 @@ exports.show = async (req, res, next) => {
          ceiling it is the only way to seed the section at all. */
       const _dealsRaw = ((res.locals.settings || {}).seo || {}).deals_min_discount_pct;
 
-      /* ⚠️ EMPTY MUST BE TESTED BEFORE Number(), AND THIS LINE WAS WRONG
-         FIRST TIME. An earlier version read `Number(raw)` and relied on a
-         comment claiming a cleared Theme Editor box arrives as '' → NaN.
-         It does not: `Number('')` is 0 — finite, in range, and therefore
-         ACCEPTED as a threshold of zero. A cleared box would have dumped
-         all 5,222 discounted products onto the Deals page, which is the
-         exact failure this threshold exists to prevent, triggered by the
-         most ordinary admin action there is.
-
-         Same family as the Number(null) === 0 defect in
-         src/config/inventoryRisk.js. Empty is NOT zero. A deliberate 0 is
-         still honoured below — "show everything" is a legitimate thing to
-         ask for — but it has to be TYPED, not left blank. */
-      const dealsPct = (_dealsRaw === '' || _dealsRaw === null || _dealsRaw === undefined)
-        ? NaN
-        : Number(_dealsRaw);
-
-      /* Guarded rather than trusted: out of range, non-numeric or unset all
-         fall back to the shipped default rather than silently changing what
-         the page shows. */
-      const dealsFrac = (Number.isFinite(dealsPct) && dealsPct >= 0 && dealsPct <= 100)
-        ? dealsPct / 100
-        : 0.375;
+      /* The empty-is-not-zero trap, the range guard and the shipped
+         default all live in src/config/saleRule.js now, so the sitemap
+         uses the SAME threshold this page does. See that file's header
+         for why Number('') === 0 made this wrong once already. */
+      const dealsFrac = saleRule.fracFromSetting(_dealsRaw);
 
       const [saleRows] = await bvoPool.query(`
         SELECT p.id, p.slug, p.name, p.brand, p.price, p.compare_price,
@@ -265,26 +249,7 @@ exports.show = async (req, res, next) => {
         FROM products p
         LEFT JOIN inventory inv ON inv.product_id = p.id
         LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
-        WHERE p.is_active = 1
-          AND (
-            /* Hand-picked. Ignores the threshold entirely — the owner
-               decides, and a flagged product stays put even after a
-               temporary James Martin markdown reverts on the next feed
-               run. It still shows its normal MSRP→MAP discount, which is
-               a real discount; the shopper cannot see the threshold, so
-               there is nothing contradictory on the page. */
-            p.is_deal = 1
-            OR (
-              /* Or a genuine markdown, admitted automatically.
-                 compare_price > 0 is required, not merely NOT NULL: a
-                 zero MSRP divides by zero, and MariaDB returns NULL
-                 rather than erroring — the row would vanish from the
-                 page with nothing to show why. */
-              p.compare_price IS NOT NULL
-              AND p.compare_price > 0
-              AND (p.compare_price - p.price) / p.compare_price >= ?
-            )
-          )
+        WHERE ${saleRule.SALE_WHERE}
         /* Hand-picked first: they are deliberate choices, so they lead.
            Then the existing order, unchanged. */
         /* ── BEST ABSOLUTE SAVINGS FIRST (owner, 2026-10-24) ──────────────
