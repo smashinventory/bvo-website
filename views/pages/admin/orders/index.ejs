@@ -179,7 +179,16 @@
               which actually mean something. %>
           <td>
             <%= o.customer_name || '—' %>
-            <% if (o.email_verified_at) { %>
+            <%# ⚠️ UNDELIVERABLE OUTRANKS UNCONFIRMED, so it is checked first
+                and shown INSTEAD of the verified flag rather than beside it.
+                "Confirmed" next to "we cannot email them" reads as
+                reassurance and is the opposite of the point: a confirmed
+                address on Brevo's blocklist still means this customer never
+                received their order confirmation. Task #374/#375. %>
+            <% if (String(o.email_blocked) === '1' || o.email_blocked === 1) { %>
+              <span class="email-vflag email-vflag--no"
+                    title="On Brevo's blocklist — order confirmations, shipping notices and sign-in codes are ALL being suppressed, not just promotions. Open the order for the reason.">&#9888; cannot email</span>
+            <% } else if (o.email_verified_at) { %>
               <span class="email-vflag email-vflag--yes" title="Email address confirmed by this customer">&#10003; email</span>
             <% } else { %>
               <span class="email-vflag email-vflag--no" title="This customer has never confirmed their email address — worth asking about on the verification call">email unconfirmed</span>

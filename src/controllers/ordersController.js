@@ -274,6 +274,10 @@ exports.list = async (req, res, next) => {
                  is a fact about a person, so a repeat buyer who verified
                  once stays verified. See emailVerificationService.js. */
               c.email_verified_at AS email_verified_at,
+              /* Task #375 — surfaced in the LIST as well as the detail,
+                 because the question "which of today's orders can I not
+                 confirm" is a scan, not a drill-down. */
+              c.email_blocked AS email_blocked,
               vpo.status AS vpo_status, vpo.sent_at AS vpo_sent_at, vpo.confirmed_at AS vpo_confirmed_at,
               s.status AS ship_status, s.estimated_delivery, s.last_tracking_scan,
               (SELECT COUNT(*) FROM order_returns r WHERE r.order_id = o.id AND r.status NOT IN ('resolved','denied')) AS open_returns,
@@ -444,7 +448,15 @@ exports.detail = async (req, res, next) => {
                  human — where 'order_link' is a seven-day link in a
                  mailbox that gets forwarded. The rep should see which
                  before the verification call. */
-              c.email_verified_at, c.email_verified_method
+              c.email_verified_at, c.email_verified_method,
+              /* ⚠️ CAN WE EVEN REACH THIS PERSON? Task #374/#375.
+                 Brevo puts List-Unsubscribe on every message and it cannot
+                 be disabled below Enterprise, so an unsubscribe from a
+                 promotion ALSO kills this order's confirmation, its
+                 shipping notice and any sign-in code. Before this, the
+                 only symptom was a customer ringing to ask where their
+                 receipt went. Populated by the daily reconcile job. */
+              c.email_blocked, c.email_blocked_at, c.email_blocked_reason
        FROM orders o
        LEFT JOIN customers c ON c.id = o.customer_id
        WHERE o.id = ?`, [id]

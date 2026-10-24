@@ -256,6 +256,60 @@ const disputeOpen = order.dispute_id
      stories, and neither is visible from a tick alone. */%>
 <div class="adm-card" style="margin-bottom:1rem">
   <h2 class="adm-card-title" style="margin-bottom:.5rem">Email address</h2>
+
+  <%/* ⚠️ DELIVERABILITY FIRST, ABOVE THE VERIFIED STATE. Task #374/#375.
+       "Confirmed" and "reachable" are different facts and the second one
+       outranks the first here: a confirmed address we cannot send to still
+       means this customer never got their receipt. Brevo attaches
+       List-Unsubscribe to every message and it cannot be turned off below
+       Enterprise, so unsubscribing from one promotion silently stops order
+       confirmations, shipping notices and sign-in codes too.
+
+       Populated by the daily reconcile job (src/jobs/brevoConsentReconcile.js)
+       — so a brand-new block can be up to 24h behind. Said in the copy
+       rather than implied. */%>
+  <% if (String(order.email_blocked) === '1' || order.email_blocked === 1) {
+       const bAt = order.email_blocked_at ? new Date(order.email_blocked_at) : null;
+       const bWhen = bAt && !isNaN(bAt.getTime())
+         ? bAt.toLocaleString('en-US', { timeZone: 'America/New_York',
+             year: 'numeric', month: 'short', day: 'numeric',
+             hour: 'numeric', minute: '2-digit' })
+         : null;
+       /* Brevo's own vocabulary, mapped to plain English for the reader but
+          with the raw value still shown — the list grows and an unmapped
+          code must not render as an empty space. */
+       const REASONS = {
+         unsubscribedViaMA:    'they unsubscribed from a marketing email',
+         unsubscribedViaEmail: 'they unsubscribed from an email',
+         unsubscribedViaApi:   'unsubscribed via the API',
+         adminBlocked:         'blocked by an administrator',
+         hardBounce:           'the address hard-bounced — it may not exist',
+         contactFlaggedAsSpam: 'they marked our email as spam',
+       };
+       const raw = order.email_blocked_reason || '';
+       const plain = REASONS[raw] || null;
+  %>
+    <div style="border:1px solid var(--border-danger,#e0b4b4);background:var(--bg-danger,#fcebeb);
+                border-radius:6px;padding:.7rem .85rem;margin-bottom:.75rem">
+      <p style="margin:0;font-size:.9rem;font-weight:500;color:var(--text-danger,#a32d2d)">
+        We cannot email this customer.
+      </p>
+      <p style="margin:.35rem 0 0;font-size:.85rem;color:var(--text-danger,#a32d2d)">
+        <%= plain ? plain.charAt(0).toUpperCase() + plain.slice(1) : 'On Brevo&rsquo;s blocklist' %><%
+        %><% if (raw && !plain) { %> (<code><%= raw %></code>)<% } %><%
+        %><% if (bWhen) { %> &middot; <%= bWhen %><% } %>.
+        This stops <strong>everything</strong> — the order confirmation and shipping
+        notices for this order, not only promotions.
+      </p>
+      <p style="margin:.4rem 0 0;font-size:.82rem;color:var(--text-danger,#a32d2d)">
+        Phone or post is the only way to reach them until it is cleared. The
+        <a href="/admin/diagnostics/email">email diagnostics page</a> can unblock the
+        address, which restores delivery but <strong>not</strong> marketing consent —
+        that is theirs to give again.
+      </p>
+    </div>
+  <% } %>
+
   <% if (order.email_verified_at) {
        const vAt  = new Date(order.email_verified_at);
        const oAt  = order.created_at ? new Date(order.created_at) : null;

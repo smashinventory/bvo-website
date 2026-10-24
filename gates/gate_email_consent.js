@@ -202,6 +202,67 @@ console.log('\n11. The migration matches what the code writes');
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   12. THE ADMIN CAN SEE IT. Task #375.
+
+   The job is worthless if the flag it sets is invisible. Two surfaces, and
+   the rule for both is the same: a customer we CANNOT EMAIL outranks a
+   customer whose address is merely unconfirmed, because "confirmed" shown
+   next to an undeliverable address reads as reassurance.
+
+   ⚠️ THE QUERY IS CHECKED SEPARATELY FROM THE TEMPLATE. A template that
+   reads order.email_blocked against a SELECT that never fetched it renders
+   `undefined` — falsy, no banner, no error, and nobody finds out. This is
+   the project's signature defect (an unselected mysql2 column is undefined,
+   never null), so each surface is asserted on BOTH sides. */
+console.log('\n12. The block is visible in the admin');
+{
+  const ORD  = fs.readFileSync(path.join(ROOT, 'src/controllers/ordersController.js'), 'utf8');
+  const DET  = fs.readFileSync(path.join(ROOT, 'views/pages/admin/orders/detail.ejs'), 'utf8');
+  const LIST = fs.readFileSync(path.join(ROOT, 'views/pages/admin/orders/index.ejs'), 'utf8');
+
+  /* Detail: needs the reason and the timestamp, not just the flag. */
+  const detailQ = ORD.slice(ORD.indexOf('c.email_verified_at, c.email_verified_method'),
+                            ORD.indexOf('WHERE o.id = ?', ORD.indexOf('c.email_verified_at, c.email_verified_method')));
+  /* ⚠️ WORD-BOUNDARY, NOT includes(). The first version used
+     detailQ.includes('c.' + col), and 'c.email_blocked' is a substring of
+     'c.email_blocked_at' — so a mutation that deleted the actual flag
+     column passed clean while its two companions carried the check.
+     `\b` works here precisely because underscore is a word character:
+     /c\.email_blocked\b/ does NOT match c.email_blocked_at. */
+  for (const col of ['email_blocked', 'email_blocked_at', 'email_blocked_reason']) {
+    ok(new RegExp('c\\.' + col + '\\b').test(detailQ), `detail query SELECTs ${col}`,
+      'An unselected column is undefined in mysql2 — the banner silently never renders.');
+  }
+  ok(/order\.email_blocked/.test(DET), 'detail.ejs reads order.email_blocked',
+    'The column is fetched and then ignored.');
+  ok(/email_blocked_reason/.test(DET), 'and shows WHY',
+    '"We cannot email this customer" without a reason gives the rep nothing to act on.');
+  ok(/cannot email this customer/i.test(DET), 'in plain language',
+    'A raw Brevo code is not a message to a human.');
+  ok(/not only promotions|not just promotions/i.test(DET),
+    'and says it stops transactional mail too',
+    'THE WHOLE POINT. Read as a marketing flag, nobody realises the order confirmation never went.');
+  ok(/diagnostics\/email/.test(DET), 'with a route to fix it',
+    'Naming a problem with no next step.');
+  ok(/not<\/strong> marketing consent|not restore marketing|NOT<\/strong> marketing/i.test(DET),
+    'and warns that unblocking does not restore consent',
+    'An operator who unblocks to send a receipt must not believe they re-subscribed the customer.');
+
+  /* List: flag only, but it must be SELECTed and must take precedence. */
+  ok(/c\.email_blocked AS email_blocked/.test(ORD), 'list query SELECTs email_blocked',
+    'Same undefined-column trap as the detail page.');
+  ok(/o\.email_blocked/.test(LIST), 'index.ejs reads it', 'fetched and ignored');
+  const iBlocked  = LIST.indexOf('o.email_blocked');
+  const iVerified = LIST.indexOf('o.email_verified_at');
+  ok(iBlocked !== -1 && iVerified !== -1 && iBlocked < iVerified,
+    'and checks "cannot email" BEFORE "verified"',
+    'Order matters: a confirmed address we cannot send to must not render the reassuring green tick.');
+  ok(/\}\s*else if \(o\.email_verified_at\)/.test(LIST),
+    'as an else-if, so the two badges are mutually exclusive',
+    'Showing "confirmed" and "cannot email" side by side is a contradiction on screen.');
+}
+
 console.log(
   fail === 0
     ? `\nGREEN  ${pass} passed, 0 failed`
