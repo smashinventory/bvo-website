@@ -16,37 +16,61 @@
 # events from the day it was wired up, and it would miss hard bounces and
 # spam complaints, which stop delivery just as dead as an unsubscribe.
 #
-# CRON (hPanel → Cron Jobs, UTC):
-#   0 7 * * *   /bin/bash /home/u222311468/domains/bathroomvanitiesoutlet.com/brevo_consent_reconcile.sh
+# CRON — LIVE AS OF 2026-10-24 (hPanel → Cron Jobs, UTC):
+#   0 7 * * *   /bin/bash /home/u222311468/domains/bathroomvanitiesoutlet.com/hbuilds/current/nodejs/brevo_consent_reconcile.sh
 #
-# Timing — 07:00 UTC, 30 min after the last existing job:
-#   04:30 UTC  jmsync.sh              → BVO DB import + archive XLSX
-#   04:59 UTC  gvssync.sh             → mirror XLSX + csv.gz
-#   05:30 UTC  jmv_rollup.sh          → JMV movement rollup
-#   06:30 UTC  erv_inventory_sync.sh  → ER Vanities stock
-#   07:00 UTC  this script            → nothing else is touching customers
+# ⚠️ IT POINTS AT THE DEPLOYED COPY, NOT THE DOMAIN ROOT, AND THAT IS
+# DELIBERATE — this is the only wrapper that does.
+# Every other .sh here was hand-copied to the domain root, and this repo
+# already records what that cost: erv_inventory_sync.sh notes that the other
+# wrappers still name the dead slategrey-falcon host because their SERVER
+# copies were edited after the rename and the repo copies never were, and
+# that jmv_rollup.sh once had two copies differing by one line. Pointing the
+# cron at hbuilds/current/nodejs means git deploy IS the update and there is
+# no second copy to drift. Cost: a run that fires mid-deploy, while `current`
+# is being swapped, fails and the next day's is fine.
 #
-# ⚠️ FIRST RUN — DO IT BY HAND, WITH NOTIFICATIONS OFF.
-# The job BACKFILLS: every address already on Brevo's blocklist is recorded
-# on the first run, carrying reasons from months ago. With notifications on
-# that could fire one owner email per historical trade unsubscribe. So:
+# ⚠️ hPANEL WRAPS THE COMMAND IN `timeout` AND DOES NOT USE A SHELL.
+# So `VAR=value /bin/bash script.sh` fails with
+#   timeout: failed to run command 'VAR=value': No such file or directory
+# because the env-var prefix is shell syntax and there is no shell. To pass
+# an environment variable from the hPanel field, front it with a real
+# executable: `/usr/bin/env VAR=value /bin/bash script.sh`. Same family of
+# trap as the `--` separator at the bottom of this file.
 #
-#   1. Run the migration first:
-#        migrations/email_consent_2026-10-23.sql
-#      Without it the job dies on an unknown column, AFTER reading Brevo.
-#   2. Backfill run, notifications suppressed:
-#        cd $BASE/hbuilds/current/nodejs
-#        BREVO_RECONCILE_NOTIFY=0 /bin/bash $BASE/brevo_consent_reconcile.sh
-#      Read the log. The 'blocked' count is your existing backlog.
-#   3. Look at who it caught before adding the cron — if a trade customer is
-#      in there, that is a conversation, not a notification.
-#   4. Add the cron line above. Leave BREVO_RECONCILE_NOTIFY unset from then
-#      on; the default is ON, deliberately, because a quiet default would
-#      mean the feature silently does nothing forever.
+# ACTUAL SCHEDULE ON THIS BOX, verified against hPanel 2026-10-24. The first
+# version of this comment was wrong on two rows and omitted four jobs; it was
+# written from the stale list in erv_inventory_sync.sh rather than checked.
+#   */5  * * * *  jm_feed_guard.sh       → JM feed watchdog
+#   04:30, 16:30  jmsync.sh              → BVO DB import + archive XLSX (twice)
+#   04:59, 17:00  gvssync.sh             → mirror XLSX + csv.gz (twice)
+#   05:45 UTC     jmv_rollup.sh          → JMV movement rollup
+#   06:15 UTC     erv_inventory_sync.sh  → ER Vanities stock
+#   06:30 UTC     bundle_catalogue.sh    → bundle catalogue rebuild
+#   07:00 UTC     this script            → nothing else is touching customers
+#   13:00, 23:00  shipment_status_poll.sh
+#
+# FIRST RUN — ALREADY DONE, 2026-10-24 01:57Z, kept as the record.
+# The job BACKFILLS: the first run records every address already on Brevo's
+# blocklist, not just unsubscribes from that day on. It was therefore run by
+# hand with notifications suppressed, so a pile of historical trade
+# unsubscribes could not fire a pile of owner emails:
+#   /usr/bin/env BREVO_RECONCILE_NOTIFY=0 /bin/bash <path>
+# Result: 2 newly blocked, 0 restored, 0 of them trade. Both were the owner's
+# own test accounts and both were hardBounce, not unsubscribes — so no
+# customer had ever silently lost mail. The suppression was removed from the
+# cron immediately afterwards.
+#
+# BREVO_RECONCILE_NOTIFY defaults to ON and should stay unset. A quiet
+# default would mean this runs every night and never tells anyone anything,
+# which is indistinguishable from it not running at all.
+#
+# ⚠️ THE MIGRATION IS A PREREQUISITE: migrations/email_consent_2026-10-23.sql
+# (applied 2026-10-23). Without those columns the job dies on an unknown
+# column AFTER it has already read Brevo.
 #
 # NO CREDENTIALS IN THIS FILE — read from the app's own .env inside the node
-# call, so this copy and the one in hbuilds/ are byte identical. Same
-# reasoning as erv_inventory_sync.sh.
+# call. Same reasoning as erv_inventory_sync.sh.
 # ═══════════════════════════════════════════════════════════════════════
 
 set -euo pipefail
