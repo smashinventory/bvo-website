@@ -272,6 +272,16 @@ exports.dashboard = async (req, res, next) => {
     ]);
 
     res.render('pages/admin/marketing/site-analytics', {
+      /* ⛔ EJS LAYOUT RULE (CLAUDE.md). Without this the page renders in
+         layouts/main — the storefront — with no admin sidebar. Silent,
+         because layouts/main is the global default in server.js. See
+         gates/audit_admin_layout.js.
+
+         NO activePage HERE ON PURPOSE: the Marketing nav group highlights
+         off `locals.path`, not activePage, and `path` is already passed on
+         the next line. Adding an activePage key the group does not consult
+         would be dead weight that later reads as wired-up. */
+      layout:    'layouts/admin',
       pageTitle: 'Site Analytics',
       path:      req.originalUrl,
       days, funnel: f, series, topAdded: added,

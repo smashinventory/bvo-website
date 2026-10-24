@@ -226,6 +226,8 @@ The largest surface and the one with the most silent-wrong-answer risk.
 ## J. Admin
 
 - [ ] Every sidebar item either loads or is clearly marked SOON/OFF — no link leads to a 404 or a blank page
+- [ ] ⚠️ **A 200 is not enough — count the nav items.** `server.js` makes `layouts/main` (the STOREFRONT layout) the global default, so an admin controller that omits `layout: 'layouts/admin'` serves a perfectly healthy 200 with the customer layout wrapped round it: no sidebar, and the cart drawer in the markup. The 2026-10-24 §J sweep passed all 23 links on status alone and missed three such pages. The cheap probe: `document.querySelectorAll('.admin-nav-item').length` should be 26, and `document.body.firstElementChild.className` should be `admin-shell`, never `cd-overlay`. `node gates/audit_admin_layout.js` checks all of them statically.
+- [ ] ⚠️ **Enumerate the sidebar's real hrefs; never type an admin path from memory.** Three "404s" in that same run were URLs I had guessed. Pages reachable only by URL are also invisible to a sidebar sweep — `/admin/diagnostics/email` had no nav entry at all until 001494f.
 - [ ] Orders list: filters, search, pagination, RAG status colours
 - [ ] Order detail: items, totals, customer, address, payment status, risk panel, auth-expiry warning
 - [ ] ⚠️ Capture and Cancel buttons are present on an authorised order (**do not press them**)

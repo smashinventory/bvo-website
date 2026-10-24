@@ -77,6 +77,14 @@ exports.index = async (req, res, next) => {
       : null;
 
     res.render('pages/admin/shipping/pickup-addresses', {
+      /* ⛔ EJS LAYOUT RULE (CLAUDE.md). Without this the page renders in
+         layouts/main — the storefront — with no admin sidebar. It does not
+         error, which is why it shipped that way. See
+         gates/audit_admin_layout.js. 'shipping-pickup' is already a
+         PAGE_GROUP key in views/layouts/admin.ejs, so this both highlights
+         the entry and opens the Orders group. */
+      layout:    'layouts/admin',
+      activePage:'shipping-pickup',
       pageTitle: 'Pickup Addresses',
       addresses: rows,
       editing,

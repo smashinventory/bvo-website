@@ -122,6 +122,13 @@ exports.page = async (req, res, next) => {
     const blocked = key.present ? await brevo.fetchBlockedContacts() : null;
 
     res.render('pages/admin/diagnostics-email', {
+      /* ⛔ EJS LAYOUT RULE (CLAUDE.md). server.js sets layouts/main as the
+         GLOBAL default, so omitting this does not error — it renders this
+         admin page inside the storefront layout, cart drawer and all, with
+         no sidebar. Found live 2026-10-24: 0 nav items, first element
+         `cd-overlay`. Same defect as task #205. gates/audit_admin_layout.js
+         now refuses any admin render without a layout. */
+      layout: 'layouts/admin',
       pageTitle: 'Email diagnostics',
       /* Opens the Settings group in the sidebar and highlights the entry.
          Keep in step with PAGE_GROUP in views/layouts/admin.ejs. */
