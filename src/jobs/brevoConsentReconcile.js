@@ -175,7 +175,24 @@ async function run() {
 
   for (const row of toRestore) {
     try {
-      /* ⚠️ accepts_marketing IS DELIBERATELY NOT TOUCHED. See the header. */
+      /* ⚠️ accepts_marketing IS DELIBERATELY NOT TOUCHED. See the header.
+
+         ⚠️ THIS JOB IS NO LONGER THE ONLY WRITER OF email_blocked.
+         Since 2026-10-24, src/services/consentUnblock.js also clears it —
+         when a customer gives consent again at checkout or on newsletter
+         signup, it removes them from Brevo's blocklist and clears these
+         same columns immediately.
+
+         NO CONFLICT, AND NO CHANGE NEEDED HERE. That path clears BOTH
+         sides at once, so by the time this job next runs the address is
+         absent from Brevo's list and unflagged locally — it simply falls
+         out of both branches. The restore branch only ever fires for
+         addresses an admin unblocked in Brevo's own UI without touching
+         our database, which is still the case worth covering.
+
+         The reason that path exists: our accepts_marketing flag does not
+         override Brevo's blocklist, so ticking the checkout consent box
+         used to record consent while Brevo kept refusing every send. */
       await pool().query(
         `UPDATE customers
             SET email_blocked = 0, email_blocked_at = NULL,
