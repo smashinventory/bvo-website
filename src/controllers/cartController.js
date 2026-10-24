@@ -150,11 +150,31 @@ exports.add = async (req, res) => {
   }
 
   // ── Fetch authoritative price from DB — never trust client-supplied prices ──
-  let pricef, comparePricef, isSample;
+  let pricef, comparePricef, isSample, dbImage;
   try {
     const [rows] = await bvoPool.query(
-      // category_id joins the same authoritative row the price comes from.
-      'SELECT price, compare_price, category_id FROM products WHERE id = ? AND is_active = 1',
+      /* category_id joins the same authoritative row the price comes from.
+
+         ⚠️ THE IMAGE COMES FROM HERE TOO, AS OF 2026-10-24, and that is a
+         fix not a tidy-up. It used to be taken from req.body alone, so
+         every caller had to remember to send it — and one did not. The
+         saved-bundles page sent `it.image` while its controller supplies
+         the field as `primary_image_url`, so the value was undefined,
+         `undefined || ''` became an empty string, and every item added
+         from a saved bundle showed a blank tile in the cart. Nothing
+         errored; items added straight from the builder looked fine,
+         because that page happens to send `item.primary_image`.
+
+         The project's signature defect in another costume: a field that
+         was never there, coerced into a plausible-looking empty value.
+         Reading it from the product row removes the whole class — a
+         caller can no longer forget it, in this path or a future one. */
+      `SELECT p.price, p.compare_price, p.category_id,
+              COALESCE(p.primary_image_url, pi.url) AS primary_image
+         FROM products p
+         LEFT JOIN product_images pi
+                ON pi.product_id = p.id AND pi.is_primary = 1
+        WHERE p.id = ? AND p.is_active = 1`,
       [product_id]
     );
     if (!rows.length) {
@@ -168,6 +188,9 @@ exports.add = async (req, res) => {
        names outside category 10, and a name test would hand out free
        vanities. Never from req.body: the client would simply claim it. */
     isSample = Number(rows[0].category_id) === SAMPLE.CATEGORY_ID;
+    /* Client value kept only as a fallback, so no path that works today can
+       regress if a product genuinely has no image row. The DB wins. */
+    dbImage  = rows[0].primary_image || null;
   } catch (err) {
     console.error('[cart/add] DB price lookup failed:', err.message);
     if (req.headers['x-requested-with'] === 'XMLHttpRequest' ||
@@ -234,6 +257,13 @@ exports.add = async (req, res) => {
        into/out of category 10, must not keep a stale answer to "is this
        free?". */
     existing.is_sample       = isSample;
+    /* SELF-HEALS A BLANK TILE. Carts already in flight hold items saved
+       with image:null from the saved-bundles path. Refreshing on re-add
+       repairs those lines instead of leaving a customer looking at a gap
+       until they empty the cart. Only fills a MISSING image — it never
+       overwrites one that is already there, so a deliberate client value
+       survives. */
+    if (!existing.image && dbImage) existing.image = dbImage;
   } else {
     cart.items.push({
       product_id,
@@ -243,7 +273,8 @@ exports.add = async (req, res) => {
       /* Boolean, not the raw category_id: cartPricing requires === true,
          so a truthy string from anywhere cannot buy a free sample. */
       is_sample:           isSample,
-      image:               image     || null,
+      /* DB first, client only as a fallback — see the query above. */
+      image:               dbImage   || image || null,
       qty,
       original_price:      comparePricef || pricef,  // MSRP, falls back to sale price
       compare_price:       comparePricef,             // MSRP (0 = not set)

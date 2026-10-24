@@ -1352,11 +1352,18 @@
      weeks shows current pricing rather than a stale figure the customer
      could reasonably expect us to honour.
 
-     Signed-out is not an error: 401 sends them to sign in with next= back
-     here. The builder keeps its state in the page, so returning re-opens a
-     fresh builder — the first pass does not restore the selection, which is
-     why the prompt says "sign in to save" rather than promising a round
-     trip. */
+     Signed-out is not an error. The server STASHES the bundle in the
+     session before answering 401, so the selection survives the sign-in
+     round trip and is written the moment the customer verifies — see
+     src/services/pendingBundle.js.
+
+     ⚠️ next= POINTS AT THE SAVED BUNDLES PAGE, NOT BACK HERE. Returning to
+     the builder would re-open it empty, which reads as "it didn't work"
+     even though the bundle was saved a second earlier. Landing on the list
+     shows them the thing they asked for. Fixed 2026-10-24 together with
+     the stash: before that, this sent next= while the login page read
+     return_to, so the parameter was ignored entirely and everyone landed
+     on the dashboard. */
   function saveBundle() {
     if (!state.cabinet) return;
     var btn = el('bb-save-bundle');
@@ -1378,7 +1385,7 @@
     })
     .then(function (r) {
       if (r.status === 401) {
-        window.location.href = '/account/login?message=save-bundle&next=' + encodeURIComponent('/bundle-builder');
+        window.location.href = '/account/login?message=save-bundle&next=' + encodeURIComponent('/account/bundles');
         return null;
       }
       return r.json().then(function (d) {

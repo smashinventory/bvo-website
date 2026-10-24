@@ -1,6 +1,9 @@
 'use strict';
 
 const { bvoPool }              = require('../config/database');
+/* Owns "what is a valid bundle" and the single INSERT, so the signed-in
+   save and the post-sign-in redemption cannot drift. See its header. */
+const pendingBundle            = require('../services/pendingBundle');
 const { FAMILIES }             = require('../config/colorFamilies');
 const { SIZE_BUCKETS }         = require('../config/sizeBuckets');
 
@@ -1011,41 +1014,40 @@ function _qty(v) {
 exports.saveBundle = async (req, res) => {
   try {
     const customerId = req.session && req.session.customerId;
-    /* 401 rather than a redirect: this is fetch()ed from the builder, and a
-       redirect would be followed silently and land an HTML login page in a
-       JSON parse. The client reads this status and sends the visitor to
-       sign in with a next= back to the builder. */
-    if (!customerId) return res.status(401).json({ ok: false, error: 'sign-in-required' });
+    const row = pendingBundle.normalise(req.body);
 
-    const b    = req.body || {};
-    const ids  = {
-      cabinet_id: _id(b.cabinet),
-      top_id:     _id(b.top),
-      mirror_id:  _id(b.mirror),
-      faucet_id:  _id(b.faucet),
-    };
+    /* An empty bundle is not worth a row, signed in or not. Checked BEFORE
+       the sign-in branch so a signed-out visitor who has picked nothing is
+       not sent through an entire email round trip to save nothing. */
+    if (!row) return res.status(400).json({ ok: false, error: 'empty-bundle' });
 
-    /* An empty bundle is not worth a row. Saving one would also put a card
-       in the dashboard with nothing in it, which reads as a bug. */
-    if (!Object.values(ids).some(Boolean)) {
-      return res.status(400).json({ ok: false, error: 'empty-bundle' });
+    if (!customerId) {
+      /* ⚠️ STASH FIRST, THEN 401. This is the fix for the owner's report
+         of 2026-10-24: "I land in my dashboard with the bundle not being
+         saved. I have to re-do the bundle and save again."
+
+         Until now this branch answered 401 and nothing else, so the
+         selection existed only in page memory and the redirect destroyed
+         it. The bundle now goes into the session, survives the sign-in
+         regenerate() because establishSession names the key, and is
+         written the moment the customer verifies.
+
+         401 rather than a redirect is unchanged and still deliberate: this
+         is fetch()ed, and a redirect would be followed silently, landing an
+         HTML login page in a JSON parse. */
+      pendingBundle.markPending(req, req.body);
+      return res.status(401).json({ ok: false, error: 'sign-in-required', saved_for_later: true });
     }
 
-    /* A cap, so a scripted loop cannot fill the table. Deliberately generous
-       — a real person planning two bathrooms may legitimately save several. */
-    const [[{ n }]] = await bvoPool.query(
-      'SELECT COUNT(*) AS n FROM saved_bundles WHERE customer_id = ?', [customerId]
-    );
-    if (n >= 50) return res.status(429).json({ ok: false, error: 'too-many-saved' });
-
-    const [r] = await bvoPool.query(
-      `INSERT INTO saved_bundles
-         (customer_id, cabinet_id, top_id, mirror_id, mirror_qty, faucet_id, faucet_qty)
-       VALUES (?,?,?,?,?,?,?)`,
-      [customerId, ids.cabinet_id, ids.top_id, ids.mirror_id,
-       _qty(b.mirrorQty), ids.faucet_id, _qty(b.faucetQty)]
-    );
-    return res.json({ ok: true, id: r.insertId });
+    /* The SAME insert the post-sign-in redemption uses. Not a copy of it —
+       see the header of pendingBundle.js on why two implementations of
+       "save a bundle" would drift. */
+    const r = await pendingBundle.insert(customerId, row);
+    if (!r.ok) {
+      const status = r.error === 'too-many-saved' ? 429 : 400;
+      return res.status(status).json({ ok: false, error: r.error });
+    }
+    return res.json({ ok: true, id: r.id });
   } catch (err) {
     console.error('[saveBundle]', err);
     return res.status(500).json({ ok: false, error: 'save-failed' });

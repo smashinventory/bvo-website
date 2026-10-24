@@ -2,6 +2,9 @@
 
 const Customer         = require('../models/Customer');
 const offerClaim = require('../services/offerClaim');
+/* A bundle built while signed out, redeemed on sign-in. Same shape of
+   problem as offerClaim, same session-carry requirement. */
+const pendingBundle = require('../services/pendingBundle');
 /* Read-only here. The account page LISTS addresses; the only writer is
    checkout, via CustomerAddress.record. */
 const CustomerAddress  = require('../models/CustomerAddress');
@@ -110,6 +113,16 @@ async function establishSession(req, customer, email) {
        does not survive. The failure is invisible: the account is created,
        no discount is granted, and nothing errors. */
     [offerClaim.PENDING_KEY]: req.session[offerClaim.PENDING_KEY],
+    /* ⚠️ WITHOUT THIS LINE THE BUNDLE IS SILENTLY LOST — the owner's
+       report, 2026-10-24: build a bundle signed out, press Save, verify by
+       code, land on the dashboard with nothing saved.
+
+       Identical mechanism to the offer claim above and to the cart before
+       it. regenerate() runs BETWEEN the Save press and the code sign-in
+       that would redeem the bundle. Anything not named here does not
+       survive, and the failure is invisible: the account is created, the
+       sign-in succeeds, and only the bundle is missing. */
+    [pendingBundle.PENDING_KEY]: req.session[pendingBundle.PENDING_KEY],
   };
 
   await new Promise((resolve, reject) =>
@@ -255,6 +268,14 @@ exports.sendCode = async (req, res) => {
       if (dev) {
         await establishSession(req, known, email);
 
+        /* THE RECOGNISED-DEVICE PATH NEEDS THIS TOO, and it is the easier
+           one to forget: there is no emailed code here, so the whole trip
+           is Save -> type email -> signed in. A redemption wired only into
+           the code path would work for new visitors and silently drop the
+           bundle for returning ones — a bug that reproduces for some people
+           and not others, which is the expensive kind. */
+        await pendingBundle.settle(req, known.id);
+
         const rt = req.body.return_to;
         const safeReturn = rt && /^\/(?!\/)/.test(rt) ? rt : '/account';
         console.log('[account.sendCode] device recognised, code skipped for', email);
@@ -384,6 +405,18 @@ exports.verifyCode = async (req, res, next) => {
        have the flag wiped by regenerate() and the grant attributed to a
        session that no longer exists. */
     await offerClaim.settle(req, customer.id, clientIp(req));
+
+    /* Redeem a bundle built before this account existed. AFTER
+       establishSession for the same reason the grant above is: regenerate()
+       would otherwise wipe the key before it could be read.
+
+       Never throws and always clears the key — see pendingBundle.settle.
+       A failed bundle insert must not turn a successful sign-in into an
+       error page. */
+    const _bundle = await pendingBundle.settle(req, customer.id);
+    if (_bundle.ok) {
+      console.log('[account.verify] saved pending bundle', _bundle.id, 'for customer', customer.id);
+    }
 
     /* ── REMEMBER THIS DEVICE (item 26) ────────────────────────────
        Opt-in, unchecked by default. This grants 90 days of signing in
@@ -584,6 +617,25 @@ exports.loginPage = (req, res) => {
   if (String(req.query.offer || '') === 'platinum') {
     offerClaim.markPending(req, String(req.query.optin || '') === '1');
   }
+
+  /* ── ?next= IS HONOURED HERE, AND UNTIL 2026-10-24 IT WAS NOT ──────
+     req.session.returnTo is written by middleware/auth.js, which only runs
+     when requireAuth INTERCEPTS a request. The bundle builder never passes
+     through it: on a 401 it navigates client-side to
+     /account/login?...&next=/... So returnTo stayed unset, the template
+     rendered the '/account' fallback, and every visitor landed on the
+     dashboard no matter what the caller asked for. That is the dashboard
+     in the owner's report.
+
+     ⚠️ SAME-ORIGIN PATHS ONLY. This value is attacker-controllable via a
+     crafted link, and it becomes a redirect target after sign-in — an open
+     redirect on an authenticated response is a phishing primitive. The
+     test demands a leading "/" NOT followed by a second "/", which rejects
+     "//evil.com" (protocol-relative) and "https://evil.com" alike. Copied
+     deliberately from the identical guard already used on return_to in the
+     two sign-in paths rather than written afresh. */
+  const _next = String(req.query.next || '');
+  if (_next && /^\/(?!\/)/.test(_next)) req.session.returnTo = _next;
   if (req.session.customerId) {
     /* Already signed in and they just claimed: grant it now rather than
        sending them to a dashboard that says nothing happened. */
