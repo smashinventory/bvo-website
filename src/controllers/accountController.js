@@ -5,6 +5,8 @@ const offerClaim = require('../services/offerClaim');
 /* A bundle built while signed out, redeemed on sign-in. Same shape of
    problem as offerClaim, same session-carry requirement. */
 const pendingBundle = require('../services/pendingBundle');
+/* Fresh consent lifts an unsubscribe block at Brevo. */
+const consentUnblock = require('../services/consentUnblock');
 /* Read-only here. The account page LISTS addresses; the only writer is
    checkout, via CustomerAddress.record. */
 const CustomerAddress  = require('../models/CustomerAddress');
@@ -828,6 +830,15 @@ exports.newsletter = async (req, res) => {
       console.error('[account] newsletter: accepts_marketing update failed for',
                     email, err.code, err.sqlMessage || err.message);
     });
+
+    /* Re-subscribing must actually reach Brevo. Our accepts_marketing flag
+       does not override Brevo's blocklist — the send is refused before the
+       flag is read — so a customer who unsubscribed and later signed up
+       again would stay silently unreachable. Unsubscribe blocks only; a
+       hard bounce or spam report is left alone. See consentUnblock.js. */
+    consentUnblock.restoreOnConsent(email)
+      .catch(e => console.error('[account] newsletter: consent unblock failed:',
+                                e && e.message));
 
     /* ⚠️ THE ROW FIRST, BREVO SECOND, AND IN THAT ORDER.
        Our own table is the durable record; Brevo is a copy of it. Pushing

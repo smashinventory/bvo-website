@@ -2,6 +2,8 @@
 
 const siteEvents = require('../services/siteEvents');
 const gaEvents   = require('../services/gaEvents');
+/* Fresh consent lifts an unsubscribe block at Brevo. */
+const consentUnblock = require('../services/consentUnblock');
 
 /* ═══════════════════════════════════════════════════════════════════════
    Checkout Controller — Stripe, embedded Payment Element
@@ -868,6 +870,23 @@ exports.saveInfo = async (req, res) => {
          wantsSms ? 1 : 0, customerIp,
          CONSENT_COPY_VERSION, orderCustomerId]
       );
+
+      /* ⚠️ THE FLAG ABOVE IS OURS. THE BLOCK IS BREVO'S.
+         Ticking this box used to change nothing for a customer Brevo had
+         blocklisted: we recorded consent, Brevo kept refusing every send,
+         and they received no confirmation for the order they had just
+         placed. Owner, 2026-10-24.
+
+         Only lifts an UNSUBSCRIBE block — a hard bounce or a spam report
+         is deliberately left in place. See consentUnblock.js.
+
+         FIRE AND FORGET. A Brevo outage must never fail a checkout over a
+         courtesy unblock, so this is not awaited and cannot reject. */
+      if (wantsMarketing) {
+        consentUnblock.restoreOnConsent(buyerEmail)
+          .catch(e => console.error('[checkout.saveInfo] consent unblock failed:',
+                                    e && e.message));
+      }
       /* Both *_at are stamped even on a NO. The date they declined is
          as much a record as the date they agreed, and it is what tells
          the checkout page not to re-tick a box they cleared. */
