@@ -311,7 +311,7 @@ Check `jmv_sync/logs/` for a recent, `exit=0` entry for each.
 
 ## ⚠️ How this checklist gets you a WRONG answer
 
-Six false alarms in the 2026-10-24 run, every one caused by the probe rather
+Seven false alarms in the 2026-10-24 run, every one caused by the probe rather
 than the site. Read these before trusting a red result.
 
 | What looked broken | Why the probe lied |
@@ -321,6 +321,7 @@ than the site. Read these before trusting a red result.
 | Every filter returning "24" | 24 is the page size. Card counts cannot detect filtering — read the stated **"N products"** total instead (4,604 → 956 white → 742 at 36"). |
 | Product IDs all identical | The **cart drawer** renders on every page with its own hidden `product_id`. Scope selectors to `<main>` or you scrape the drawer. |
 | Three admin pages 404 | **I had guessed the URLs.** The real ones are `/admin/marketing/jmv` and `/admin/marketing/site`. Extract the hrefs out of the rendered sidebar; never type an admin path from memory. |
+| "18 product images missing `width`/`height` — CLS risk" | **Counted the attribute, never checked the box.** Missing `width`/`height` only causes layout shift when *nothing else* constrains the element. Here the CSS already reserves every visible container: `.gallery-main{aspect-ratio:4/3}`, `.gallery-thumb{aspect-ratio:1}`, `.product-card-img-wrap{aspect-ratio:1/1}`, each `img` filling it with `object-fit:contain`. The other 5 are inside the lightbox, `display:none` until opened. Nothing shifts, and adding the attributes would move no metric. Closed 2026-10-25 as measured-not-a-defect. **Before reporting a CLS risk, read the CSS for the container — an attribute audit alone cannot tell you whether space is reserved.** |
 | `feed_guard.log` "stale" — last line 12 days old | The File Browser's editor is **Ace, which virtualises**: `.ace_line` returns only the lines currently rendered in the viewport, so a long file silently reads as its first screenful. Use `ace.edit(el).getValue()`. The real last line was that same day and matched the file's mtime to the minute. Exactly the "24 is the page size" error in a different costume. |
 
 Two more traps worth knowing:
