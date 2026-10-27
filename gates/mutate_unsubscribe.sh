@@ -20,14 +20,15 @@ GATE="gates/gate_unsubscribe.js"
 UTIL="src/utils/unsubscribeToken.js"
 CTRL="src/controllers/unsubscribeController.js"
 CSRF="src/middleware/csrf.js"
+VIEW="views/pages/unsubscribe.ejs"
 SRV="src/server.js"
 
 BAK="$(mktemp -d)"
-for f in "$UTIL" "$CTRL" "$CSRF" "$SRV"; do
+for f in "$UTIL" "$CTRL" "$CSRF" "$SRV" "$VIEW"; do
   mkdir -p "$BAK/$(dirname "$f")"
   cp "$f" "$BAK/$f" || { echo "cannot back up $f — aborting"; exit 2; }
 done
-restore() { for f in "$UTIL" "$CTRL" "$CSRF" "$SRV"; do cp "$BAK/$f" "$f"; done; }
+restore() { for f in "$UTIL" "$CTRL" "$CSRF" "$SRV" "$VIEW"; do cp "$BAK/$f" "$f"; done; }
 trap 'restore; rm -rf "$BAK"' EXIT
 
 caught=0; missed=0
@@ -132,6 +133,25 @@ patch_py "$CTRL" \
   "              marketing_consent_at     = NOW()," \
   "" \
   && run "M10 marketing_consent_at no longer stamped"
+
+# ── M11: an unreadable token dead-ends on a 404 again ────────────────
+# The original behaviour. Looks tidy, reads to a customer as "your
+# unsubscribe is broken", and the next email they get is marked spam.
+patch_py "$CTRL" \
+  "  if (!email) {
+    return res.status(400).render('pages/unsubscribe', {" \
+  "  if (!email) return next();
+  if (false) {
+    return res.status(400).render('pages/unsubscribe', {" \
+  && run "M11 unreadable token 404s instead of offering a way through"
+
+# ── M12: the recovery page loses its contact routes ──────────────────
+# A page that only apologises leaves the person stuck, which is the
+# same dead end wearing nicer wording.
+patch_py "views/pages/unsubscribe.ejs" \
+  'Email <a href="mailto:support@bathroomvanitiesoutlet.com?subject=Unsubscribe%20request">support@bathroomvanitiesoutlet.com</a>' \
+  'Please try again later.' \
+  && run "M12 recovery page no longer offers a way to unsubscribe"
 
 echo
 echo "caught $caught / $((caught+missed))"

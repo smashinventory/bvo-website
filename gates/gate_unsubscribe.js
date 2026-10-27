@@ -173,6 +173,33 @@ console.log('\n--- a missing secret fails loudly ---');
         'one secret serving two purposes couples a weakness in either');
 }
 
+/* ═══ 6. A MANGLED LINK STILL LEADS SOMEWHERE USEFUL ═════════════════
+ * This handler returned a 404 for an unreadable token until the
+ * reasoning was examined. Mail clients line-wrap and truncate long URLs
+ * as a matter of course, so a broken unsubscribe link is an ORDINARY
+ * event. A customer who clicks unsubscribe and gets "That page doesn't
+ * exist" concludes the unsubscribe is broken — and the next message
+ * they receive is reported as spam, which is the one outcome this
+ * feature exists to prevent.
+ */
+console.log('\n--- a mangled link does not dead-end ---');
+{
+  const ctrl = strip(read('src/controllers/unsubscribeController.js'));
+  check(!/if \(!email\) return next\(\);/.test(ctrl),
+        'an unreadable token does NOT 404',
+        'line-wrapped links are normal; a 404 reads as "unsubscribe is broken"');
+  check((ctrl.match(/broken:\s*true/g) || []).length >= 2,
+        'BOTH the GET and the POST render the recovery page',
+        'one-click POST must not dead-end either');
+
+  const view = read('views/pages/unsubscribe.ejs');
+  check(/broken/.test(view), 'the view handles the broken state');
+  /* The page is only worth rendering if it offers a way through. */
+  check(/mailto:/.test(view) && /tel:/.test(view),
+        'the recovery page offers an email AND a phone route to unsubscribe',
+        'a page that only apologises leaves them stuck');
+}
+
 console.log(fail ? `\n*** ${fail} of ${pass + fail} CHECKS FAILED ***`
                  : `\nALL ${pass} CHECKS PASS`);
 process.exit(fail ? 1 : 0);

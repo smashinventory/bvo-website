@@ -35,10 +35,30 @@ function clientIp(req) {
 /* ── GET /unsubscribe?t=… ──────────────────────────────────────────── */
 exports.page = (req, res, next) => {
   const email = token.verify(req.query.t);
-  /* A bad or missing token is a 404, not an error page explaining that
-     the token was invalid. The link either works or the page does not
-     exist; saying "invalid token" invites somebody to start guessing. */
-  if (!email) return next();
+
+  /* ⚠️ AN UNREADABLE TOKEN GETS A HELPFUL PAGE, NOT A 404.
+     This returned next() — a 404 — until it was tested and the reasoning
+     examined. Mail clients line-wrap and truncate long URLs as a matter
+     of course, so a mangled link is a NORMAL event, not an attack. A
+     customer who clicks unsubscribe and lands on "That page doesn't
+     exist" concludes the unsubscribe is broken, and the next message
+     they get is reported as spam. That is precisely the outcome this
+     whole feature exists to prevent.
+
+     Nothing is leaked by saying so: the token encodes the address it
+     belongs to, and without a valid HMAC no action is possible, so a
+     generic failure page confirms nothing an attacker could use. */
+  if (!email) {
+    return res.status(400).render('pages/unsubscribe', {
+      pageTitle: 'Unsubscribe | BathroomVanitiesOutlet.com',
+      metaDesc:  '',
+      noindex:   true,
+      email:     null,
+      t:         '',
+      done:      false,
+      broken:    true,
+    });
+  }
 
   return res.render('pages/unsubscribe', {
     pageTitle: 'Unsubscribe | BathroomVanitiesOutlet.com',
@@ -47,6 +67,7 @@ exports.page = (req, res, next) => {
     email,
     t:         String(req.query.t || ''),
     done:      false,
+    broken:    false,
   });
 };
 
@@ -56,7 +77,15 @@ exports.submit = async (req, res, next) => {
      POSTs to the List-Unsubscribe URL with its query string intact). */
   const raw   = req.body?.t || req.query?.t;
   const email = token.verify(raw);
-  if (!email) return next();
+  if (!email) {
+    /* Same reasoning as the GET. A one-click POST whose token did not
+       survive the trip must not look like a dead endpoint. */
+    return res.status(400).render('pages/unsubscribe', {
+      pageTitle: 'Unsubscribe | BathroomVanitiesOutlet.com',
+      metaDesc:  '', noindex: true,
+      email: null, t: '', done: false, broken: true,
+    });
+  }
 
   try {
     /* ⚠️ NO ROW IS CREATED IF THE ADDRESS IS UNKNOWN, AND THE PAGE STILL
@@ -87,6 +116,7 @@ exports.submit = async (req, res, next) => {
       email,
       t:         '',
       done:      true,
+      broken:    false,
     });
   } catch (err) {
     /* ⚠️ DOES NOT SWALLOW. An unsubscribe that silently fails is the

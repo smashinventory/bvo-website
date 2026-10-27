@@ -9,7 +9,38 @@
      silently removed from the list and neither they nor we would ever
      know. One button is the whole cost of preventing that. */%>
 <div class="unsub-wrap">
-  <% if (done) { %>
+  <%/* ⚠️ `broken` IS NOT AN ERROR PAGE, IT IS A SECOND ROUTE TO THE SAME
+       OUTCOME. Mail clients line-wrap and truncate long URLs routinely,
+       so a mangled unsubscribe link is ordinary, not suspicious. The one
+       thing this page must never do is leave somebody unable to
+       unsubscribe — that is how a polite customer becomes a spam
+       complaint. So it says what happened and gives two ways to finish
+       the job by hand. */%>
+  <% if (typeof broken !== 'undefined' && broken) { %>
+
+    <h1 class="unsub-h1">We couldn't read that link</h1>
+    <p class="unsub-lead">
+      Email programs sometimes split long links across two lines, which breaks them.
+      That is almost certainly what happened here &mdash; nothing is wrong with your account.
+    </p>
+
+    <div class="unsub-note">
+      <p style="margin:0 0 10px"><strong>We can still take you off the list.</strong></p>
+      <p style="margin:0">
+        Email <a href="mailto:support@bathroomvanitiesoutlet.com?subject=Unsubscribe%20request">support@bathroomvanitiesoutlet.com</a>
+        with the word <em>unsubscribe</em>, or call <a href="tel:+18777771948">(877) 777-1948</a>.
+        We will do it the same day.
+      </p>
+    </div>
+
+    <p class="unsub-lead">
+      If you copied the link by hand, try clicking it in the email instead &mdash;
+      that usually fixes it.
+    </p>
+
+    <a href="/" class="btn btn-navy">Back to the shop</a>
+
+  <% } else if (done) { %>
 
     <h1 class="unsub-h1">You're unsubscribed</h1>
     <p class="unsub-lead">
