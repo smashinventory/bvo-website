@@ -267,26 +267,40 @@ const Customer = {
    *   deliberately indistinguishable from "no such order", so the caller
    *   can 404 without confirming that an id exists.
    */
+  /* ⚠️ THIS METHOD DOES NOT CATCH, AND THAT IS THE FIX FOR A REAL DEFECT.
+     It used to end with `catch { return null }`. On 2026-10-27 the SELECT
+     below named a column that does not exist (`o.ship_name` — the table
+     stores ship_first_name / ship_last_name). MySQL raised
+     ER_BAD_FIELD_ERROR, the catch turned it into null, the controller read
+     null as "no such order", and the customer got **the exact 404 this
+     whole feature was built to fix**. The log line went to a file nobody
+     was watching; the page said the order did not exist.
+
+     A caught error that returns the same value as a legitimate empty
+     result is worse than no handling at all: it is indistinguishable from
+     success at the call site. Let it throw. The controller's try/catch
+     turns it into a 500 — honest, loud, and logged with a stack. */
   async getOrder(customerId, orderId) {
     if (!customerId || !orderId) return null;
-    try {
-      const [rows] = await bvoPool.query(`
-        SELECT o.id, o.order_number, o.status, o.payment_status,
-               o.subtotal, o.tax, o.total,
-               o.tier_pct, o.tier_at_order,
-               o.created_at,
-               o.ship_name, o.ship_address1, o.ship_address2,
-               o.ship_city, o.ship_state, o.ship_zip,
-               o.ship_address_type
-          FROM orders o
-         WHERE o.id = ? AND o.customer_id = ?
-         LIMIT 1
-      `, [orderId, customerId]);
-      return (rows && rows[0]) || null;
-    } catch (err) {
-      console.error('[Customer.getOrder]', err.code, err.sqlMessage || err.message);
-      return null;
-    }
+    const [rows] = await bvoPool.query(`
+      SELECT o.id, o.order_number, o.status, o.payment_status,
+             o.subtotal, o.tax, o.total,
+             o.tier_pct, o.tier_at_order,
+             o.created_at,
+             /* There is no ship_name column. The admin builds the same
+                string the same way — see ordersController's detail query.
+                NULLIF(TRIM(...)) gives null rather than ' ' when both
+                halves are empty, which is what the view tests. */
+             NULLIF(TRIM(CONCAT(COALESCE(o.ship_first_name,''),' ',
+                                COALESCE(o.ship_last_name,''))),'') AS ship_name,
+             o.ship_address1, o.ship_address2,
+             o.ship_city, o.ship_state, o.ship_zip,
+             o.ship_address_type
+        FROM orders o
+       WHERE o.id = ? AND o.customer_id = ?
+       LIMIT 1
+    `, [orderId, customerId]);
+    return (rows && rows[0]) || null;
   },
 
   /**
@@ -303,23 +317,22 @@ const Customer = {
    * a price changed — and on a page whose entire purpose is to show what
    * was charged.
    */
+  /* Does not catch — same reasoning as getOrder. An order with no items is
+     a real state (nothing should produce it, but an empty list is a
+     truthful answer); a broken query is not, and returning [] for both
+     would render a paid order as having bought nothing. */
   async getOrderItems(orderId) {
     if (!orderId) return [];
-    try {
-      const [rows] = await bvoPool.query(`
-        SELECT oi.id, oi.product_id, oi.sku, oi.name, oi.qty,
-               oi.unit_price, oi.line_total,
-               p.slug, p.primary_image_url
-          FROM order_items oi
-          LEFT JOIN products p ON p.id = oi.product_id
-         WHERE oi.order_id = ?
-         ORDER BY oi.id ASC
-      `, [orderId]);
-      return rows || [];
-    } catch (err) {
-      console.error('[Customer.getOrderItems]', err.code, err.sqlMessage || err.message);
-      return [];
-    }
+    const [rows] = await bvoPool.query(`
+      SELECT oi.id, oi.product_id, oi.sku, oi.name, oi.qty,
+             oi.unit_price, oi.line_total,
+             p.slug, p.primary_image_url
+        FROM order_items oi
+        LEFT JOIN products p ON p.id = oi.product_id
+       WHERE oi.order_id = ?
+       ORDER BY oi.id ASC
+    `, [orderId]);
+    return rows || [];
   },
 
   /**
@@ -332,24 +345,23 @@ const Customer = {
    * unless a number exists and the shipment is not voided. The owner's
    * instruction, 2026-10-26: tracking appears once tracking is entered.
    */
+  /* Does not catch — same reasoning as getOrder. "No tracking yet" and
+     "the tracking query is broken" must not look identical: the first
+     correctly hides the Track button, the second would hide it on a
+     shipment that IS moving, and the customer would never know. */
   async getOrderTracking(orderId) {
     if (!orderId) return null;
-    try {
-      const [rows] = await bvoPool.query(`
-        SELECT s.carrier, s.service_level, s.pro_number, s.bol_number,
-               s.status, s.product_type, s.created_at
-          FROM shipments s
-         WHERE s.order_id = ?
-           AND s.status <> 'voided'
-           AND (s.pro_number IS NOT NULL AND s.pro_number <> '')
-         ORDER BY s.created_at DESC
-         LIMIT 1
-      `, [orderId]);
-      return (rows && rows[0]) || null;
-    } catch (err) {
-      console.error('[Customer.getOrderTracking]', err.code, err.sqlMessage || err.message);
-      return null;
-    }
+    const [rows] = await bvoPool.query(`
+      SELECT s.carrier, s.service_level, s.pro_number, s.bol_number,
+             s.status, s.product_type, s.created_at
+        FROM shipments s
+       WHERE s.order_id = ?
+         AND s.status <> 'voided'
+         AND (s.pro_number IS NOT NULL AND s.pro_number <> '')
+       ORDER BY s.created_at DESC
+       LIMIT 1
+    `, [orderId]);
+    return (rows && rows[0]) || null;
   },
 
   async getOrders(customerId, limit = 20) {

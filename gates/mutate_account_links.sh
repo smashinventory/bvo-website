@@ -25,14 +25,15 @@ GATE="gates/gate_account_links_resolve.js"
 ROUTES="src/routes/account.js"
 ORDERS="views/pages/account/orders.ejs"
 TRACKVIEW="views/pages/account/order-tracking.ejs"
+MODEL="src/models/Customer.js"
 
 BAK="$(mktemp -d)"
-for f in "$ROUTES" "$ORDERS" "$TRACKVIEW"; do
+for f in "$ROUTES" "$ORDERS" "$TRACKVIEW" "$MODEL"; do
   mkdir -p "$BAK/$(dirname "$f")"
   cp "$f" "$BAK/$f" || { echo "cannot back up $f — aborting"; exit 2; }
 done
 
-restore() { for f in "$ROUTES" "$ORDERS" "$TRACKVIEW"; do cp "$BAK/$f" "$f"; done; }
+restore() { for f in "$ROUTES" "$ORDERS" "$TRACKVIEW" "$MODEL"; do cp "$BAK/$f" "$f"; done; }
 trap 'restore; rm -rf "$BAK"' EXIT
 
 caught=0; missed=0
@@ -108,6 +109,43 @@ patch_py "$ORDERS" \
 # The failure mode is a 500 at request time, not at boot: a missing
 # template is only discovered when someone asks for the page.
 rm -f "$TRACKVIEW" && run "M7 order-tracking.ejs deleted"
+
+# ── M8: the actual 2026-10-27 defect — a column that does not exist ──
+# ER_BAD_FIELD_ERROR, swallowed, rendered as "that order does not exist"
+# to a customer looking at an order they had paid for.
+patch_py "$MODEL" \
+  "             NULLIF(TRIM(CONCAT(COALESCE(o.ship_first_name,''),' '," \
+  "             o.ship_name, NULLIF(TRIM(CONCAT(COALESCE(o.ship_first_name,''),' '," \
+  && run "M8 o.ship_name reintroduced (the 2026-10-27 defect)"
+
+# ── M9: the catch comes back ─────────────────────────────────────────
+# The column fix alone is not the fix. Without this, the NEXT bad column
+# is silently a 404 again.
+# The anchor is getOrderTracking's own ORDER BY, which no other method
+# has. An anchor shared with getOrder would patch whichever came first and
+# the mutation would land somewhere other than where this claims — the
+# same trap that made M7 patch the wrong login render in an earlier
+# harness.
+patch_py "$MODEL" \
+  "       ORDER BY s.created_at DESC
+       LIMIT 1
+    \`, [orderId]);
+    return (rows && rows[0]) || null;
+  }," \
+  "       ORDER BY s.created_at DESC
+       LIMIT 1
+    \`, [orderId]).catch(() => [[]]);
+    try { return (rows && rows[0]) || null; } catch (e) { return null; }
+  }," \
+  && run "M9 a swallowing catch reintroduced in getOrderTracking"
+
+# ── M10: the CONCAT deleted outright ─────────────────────────────────
+# Removing the address block passes M8's check by having no ship_name at
+# all. The page would silently lose its delivery address.
+patch_py "$MODEL" \
+  "COALESCE(o.ship_last_name,''))),'') AS ship_name," \
+  "COALESCE(o.ship_last_name,''))),'') AS ship_nom," \
+  && run "M10 ship_name alias removed (the replacement is asserted present)"
 
 echo
 echo "caught $caught / $((caught+missed))"

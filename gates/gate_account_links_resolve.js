@@ -193,6 +193,67 @@ console.log('\n--- every account view a route renders is on disk ---');
   }
 }
 
+/* ═══ AND A BROKEN QUERY CANNOT IMPERSONATE "NOT FOUND" ════════════
+ * THE DEFECT, 2026-10-27, four hours after the fix above shipped:
+ *   `Customer.getOrder` selected `o.ship_name`. There is no such column —
+ *   the table stores ship_first_name / ship_last_name. MySQL raised
+ *   ER_BAD_FIELD_ERROR, the method's `catch { return null }` swallowed it,
+ *   the controller read null as "no such order", and the customer got
+ *   THE SAME 404 this feature was built to remove. The gate above passed
+ *   the whole time, because the route was registered and the view existed:
+ *   the link resolved perfectly to a page that then 404'd itself.
+ *
+ *   A catch that returns the same value as a legitimate empty result is
+ *   indistinguishable from success at the call site. These two checks are
+ *   the general rule and the specific column.
+ */
+console.log('\n--- a DB error cannot be disguised as "no such order" ---');
+{
+  const model = fs.readFileSync(path.join(ROOT, 'src/models/Customer.js'), 'utf8');
+
+  /* Slice each method body by name, bounded by the next `async <name>(` or
+     the module's end — not by a brace count, which comments and template
+     literals in this file would defeat. */
+  function body(name) {
+    const start = model.indexOf(`async ${name}(`);
+    if (start < 0) return null;
+    const rest = model.slice(start + 1);
+    const nextIdx = rest.search(/\n  (?:async )?[A-Za-z_]+\(/);
+    return nextIdx < 0 ? rest : rest.slice(0, nextIdx);
+  }
+
+  for (const name of ['getOrder', 'getOrderItems', 'getOrderTracking']) {
+    const b = body(name);
+    check(b !== null, `${name} found in the model`);
+    if (!b) continue;
+    /* Comments stripped: these methods explain IN PROSE why they do not
+       catch, and the word "catch" in that prose would satisfy a raw grep. */
+    const code = b.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    check(!/\bcatch\b/.test(code),
+          `${name} lets a DB error throw instead of returning a not-found value`,
+          'a swallowed error here renders as 404 "that order does not exist" ' +
+          'to a customer looking at an order they paid for');
+  }
+
+  /* The specific column. `ship_name` is fine as an AS alias — that is how
+     getOrder now exposes the CONCAT — but selecting it as a column of
+     `orders` is the bug. */
+  const SRC = ['src/models/Customer.js', 'src/controllers/accountController.js'];
+  for (const f of SRC) {
+    const src = fs.readFileSync(path.join(ROOT, f), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    check(!/\bo\.ship_name\b/.test(src) && !/\borders\.ship_name\b/.test(src),
+          `${f} does not select a ship_name column from orders`,
+          'the orders table has ship_first_name / ship_last_name; ' +
+          'o.ship_name raises ER_BAD_FIELD_ERROR');
+  }
+
+  check(/ship_first_name[\s\S]{0,120}ship_last_name[\s\S]{0,200}AS ship_name/.test(model),
+        'getOrder builds ship_name from ship_first_name + ship_last_name',
+        'deleting the CONCAT would pass the check above by removing the ' +
+        'address block entirely — this asserts the replacement is present');
+}
+
 console.log(fail ? `\n*** ${fail} of ${pass + fail} CHECKS FAILED ***`
                  : `\nALL ${pass} CHECKS PASS`);
 process.exit(fail ? 1 : 0);

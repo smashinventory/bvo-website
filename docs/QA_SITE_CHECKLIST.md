@@ -329,7 +329,8 @@ Check `jmv_sync/logs/` for a recent, `exit=0` entry for each.
 5. **Brevo's List-Unsubscribe** killing transactional mail.
 6. **The device-remember grant surviving logout** — fixed 2026-10-23, re-test after any auth change.
 7. **A link whose page was never built.** Twice in `/account` alone. Nothing throws, nothing logs, the view renders perfectly, and every test that renders it passes — because rendering a link never follows it. The two halves live in different files, so neither file is wrong on its own. Gated now, but the same class exists anywhere a view hardcodes a path.
-8. **Hostinger's deploy directory moves.** Anything written to a path inside the deploy dir is orphaned on the next deploy. Uploads under `/images/uploads/` have never been checked for this.
+8. **A `catch` that returns the same value as an empty result.** `catch { return null }` on a lookup makes a schema error indistinguishable from "not found" at the call site — so a bad column name renders as a polite 404 on an order the customer paid for. Cost four hours on 2026-10-27, on the page built to fix a 404. If a method returns `null` or `[]` for both outcomes, the error must throw instead.
+9. **Hostinger's deploy directory moves.** Anything written to a path inside the deploy dir is orphaned on the next deploy. Uploads under `/images/uploads/` have never been checked for this.
 
 ---
 

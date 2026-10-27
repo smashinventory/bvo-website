@@ -319,10 +319,29 @@ Four things a future session should not undo:
    wrong tracking link reads as a lost shipment. That needs a deliberate
    carrier → URL template table; `carrier_scac` is the key to use.
 
+**And then it 404'd anyway, for a second and different reason.** `getOrder`
+selected `o.ship_name`. There is no such column — `orders` stores
+`ship_first_name` / `ship_last_name`, which is why the admin builds the
+name with a CONCAT. MySQL raised `ER_BAD_FIELD_ERROR`, the method's
+`catch { return null }` swallowed it, the controller read `null` as "no
+such order", and the customer got **the same 404 the feature existed to
+remove** — on an order they had paid for, with the only trace in a log
+nobody was watching. `cd8dccd` shipped it; `gate_account_links_resolve`
+passed throughout, because the link did resolve: to a page that then 404'd
+itself.
+
+The column was the bug; the `catch` was the reason it was invisible. All
+three new model methods now let the error throw, so a broken query is a
+500 with a stack rather than a lie about the order not existing. The rule
+generalises: **a catch that returns the same value as a legitimate empty
+result is worse than no handling at all.**
+
 `gate_account_links_resolve.js` is the generalised fix: it reads the route
 table out of `src/routes/account.js` (comments stripped first — the header
 prose in that file quotes route paths) and asserts every `/account/*`
 `href` and form `action` in every view resolves to a registered route,
-**segment-exact, no prefix matching**. `mutate_account_links.sh` plants all
-seven defects, including both production ones and a prefix-extension link
-that a loose matcher would wave through: 7/7 caught.
+**segment-exact, no prefix matching**. It also asserts those three methods
+never catch, and that no query selects `ship_name` as a column of
+`orders`. `mutate_account_links.sh` plants all ten defects — all three
+production ones, a prefix-extension link a loose matcher would wave
+through, and a reintroduced swallowing catch: 10/10 caught.
