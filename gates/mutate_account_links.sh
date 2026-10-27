@@ -26,14 +26,15 @@ ROUTES="src/routes/account.js"
 ORDERS="views/pages/account/orders.ejs"
 TRACKVIEW="views/pages/account/order-tracking.ejs"
 MODEL="src/models/Customer.js"
+DETAIL="views/pages/account/order-detail.ejs"
 
 BAK="$(mktemp -d)"
-for f in "$ROUTES" "$ORDERS" "$TRACKVIEW" "$MODEL"; do
+for f in "$ROUTES" "$ORDERS" "$TRACKVIEW" "$MODEL" "$DETAIL"; do
   mkdir -p "$BAK/$(dirname "$f")"
   cp "$f" "$BAK/$f" || { echo "cannot back up $f — aborting"; exit 2; }
 done
 
-restore() { for f in "$ROUTES" "$ORDERS" "$TRACKVIEW" "$MODEL"; do cp "$BAK/$f" "$f"; done; }
+restore() { for f in "$ROUTES" "$ORDERS" "$TRACKVIEW" "$MODEL" "$DETAIL"; do cp "$BAK/$f" "$f"; done; }
 trap 'restore; rm -rf "$BAK"' EXIT
 
 caught=0; missed=0
@@ -146,6 +147,28 @@ patch_py "$MODEL" \
   "COALESCE(o.ship_last_name,''))),'') AS ship_name," \
   "COALESCE(o.ship_last_name,''))),'') AS ship_nom," \
   && run "M10 ship_name alias removed (the replacement is asserted present)"
+
+# ── M11: the parcel branch deleted, everyone gets freight copy ───────
+# The defect as originally shipped: one copy set, written for LTL, shown
+# to a UPS customer who then waits in for a phone call.
+patch_py "$TRACKVIEW" "        SMALLPACK: {" "        SMALLPACK_DISABLED: {" \
+  && run "M11 the parcel copy set removed"
+
+# ── M12: freight wording pasted into the parcel branch ───────────────
+# This is what passes a check that only asks "does a SMALLPACK key
+# exist". The promise is the thing that must not be there.
+patch_py "$TRACKVIEW" \
+  "            next: 'No appointment is needed" \
+  "            next: 'The carrier will call you to arrange a delivery appointment. No appointment is needed" \
+  && run "M12 the appointment promise pasted into the parcel copy"
+
+# ── M13: copy keyed on the carrier name instead of product_type ──────
+# Looks entirely reasonable and is wrong for FedEx, which runs both an
+# LTL and a parcel network under one name.
+patch_py "$TRACKVIEW" \
+  "var isParcel = String(tracking.product_type).toUpperCase() === 'SMALLPACK';" \
+  "var isParcel = tracking.carrier.toLowerCase().includes('ups');" \
+  && run "M13 copy keyed on the carrier name (FedEx is both)"
 
 echo
 echo "caught $caught / $((caught+missed))"

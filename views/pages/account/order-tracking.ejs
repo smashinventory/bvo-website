@@ -33,35 +33,83 @@
     <h1 class="account-title">Tracking</h1>
 
     <%
-      /* Status copy in ONE place. Previously this kind of mapping got
-         written inline three times in a template and drifted; keeping it
-         as a single object means the heading, the explanation and the
-         "what happens next" line can never describe different states.
-         Unknown status falls back to the raw value rather than to a
-         wrong-but-friendly sentence. */
-      var STATES = {
-        booked: {
-          head: 'Booked with the carrier',
-          body: 'Your order has been handed to the freight carrier and is waiting to be collected. A tracking number has been issued but the carrier may not show movement yet.',
-          next: 'The carrier will collect the shipment and it will move to In Transit.'
+      /* ⚠️ THE COPY IS KEYED ON product_type, NOT ON THE CARRIER NAME.
+         This page shipped telling EVERY customer that the carrier would
+         phone to arrange a delivery appointment and that the shipment
+         would not be left without someone present. That is true of LTL
+         freight and false of a UPS or FedEx parcel, which is left at the
+         door. shippingController books both — SMALLPACK has its own WWEX
+         credentials, its own pickup scheduling and its own spend
+         reporting — so roughly half the promises here could have been
+         wrong, in the direction of a customer waiting in all day for a
+         phone call that was never coming.
+
+         product_type is the discriminator and the carrier name must
+         never be. 'FedEx' is BOTH: FedEx Freight is LTL, FedEx Ground is
+         parcel. Matching on the string 'fedex' would get it wrong half
+         the time and look reasonable in review.
+
+         The column is ENUM('LTL','SMALLPACK') NOT NULL DEFAULT 'LTL', so
+         there is no third case. The test is nonetheless written as
+         "explicitly SMALLPACK, else freight": if that ever changes, the
+         page promises an appointment that does happen rather than a
+         doorstep drop that does not. Over-promising a phone call costs a
+         redelivery; under-promising one costs a pallet on a driveway. */
+      var isParcel = String(tracking.product_type).toUpperCase() === 'SMALLPACK';
+
+      /* Both sets in ONE object, so a state can never have a heading from
+         one mode and a "what happens next" from the other. */
+      var COPY = {
+        LTL: {
+          booked: {
+            head: 'Booked with the carrier',
+            body: 'Your order has been handed to the freight carrier and is waiting to be collected. A tracking number has been issued but the carrier may not show movement yet.',
+            next: 'The carrier will collect the shipment and it will move to In Transit.'
+          },
+          in_transit: {
+            head: 'On its way',
+            body: 'Your order is moving through the carrier network.',
+            next: 'The carrier will call you to arrange a delivery appointment before they deliver. Freight is not left without someone present, so expect a call.'
+          },
+          delivered: {
+            head: 'Delivered',
+            body: 'The carrier has recorded this shipment as delivered.',
+            next: 'If anything arrived damaged, tell us within 48 hours and keep the packaging — see the delivery notes on our shipping policy.'
+          },
+          exception: {
+            head: 'There is a problem with this shipment',
+            body: 'The carrier has flagged an exception. This often means a failed delivery attempt, an address problem, or a delay in the network.',
+            next: 'We are looking into it. If you would like an update now, use Contact Us below and quote your order number.'
+          }
         },
-        in_transit: {
-          head: 'On its way',
-          body: 'Your order is moving through the carrier network.',
-          next: 'The carrier will call you to arrange a delivery appointment before they deliver. Freight is not left without someone present.'
-        },
-        delivered: {
-          head: 'Delivered',
-          body: 'The carrier has recorded this shipment as delivered.',
-          next: 'If anything arrived damaged, tell us within 48 hours and keep the packaging — see the delivery notes on our shipping policy.'
-        },
-        exception: {
-          head: 'There is a problem with this shipment',
-          body: 'The carrier has flagged an exception. This often means a failed delivery attempt, an address problem, or a delay in the network.',
-          next: 'We are looking into it. If you would like an update now, use Contact Us below and quote your order number.'
+        SMALLPACK: {
+          booked: {
+            head: 'Label created',
+            body: 'Your order is packed and a tracking number has been issued. The carrier may not show movement until the package is collected.',
+            next: 'Once the carrier picks it up, tracking will start updating.'
+          },
+          in_transit: {
+            head: 'On its way',
+            body: 'Your package is moving through the carrier network.',
+            next: 'No appointment is needed — the carrier delivers on their normal route. Most packages are left at the door unless the carrier decides a signature is required.'
+          },
+          delivered: {
+            head: 'Delivered',
+            body: 'The carrier has recorded this package as delivered.',
+            next: 'If it is not where you expected, check with anyone else at the address and look for a carrier notice before contacting us — packages are sometimes left in a safe place or with a neighbour.'
+          },
+          exception: {
+            head: 'There is a problem with this package',
+            body: 'The carrier has flagged an exception. This often means a failed delivery attempt, an address problem, or a delay in the network.',
+            next: 'We are looking into it. If you would like an update now, use Contact Us below and quote your order number.'
+          }
         }
       };
-      var st = STATES[tracking.status] || {
+
+      var SET = isParcel ? COPY.SMALLPACK : COPY.LTL;
+      /* Unknown status falls back to the raw value rather than to a
+         wrong-but-friendly sentence. */
+      var st = SET[tracking.status] || {
         head: String(tracking.status).replace(/_/g,' '),
         body: 'The carrier has reported this status for your shipment.',
         next: ''
@@ -82,10 +130,15 @@
       <% if (tracking.carrier) { %>
       <div><dt>Carrier</dt><dd><%= tracking.carrier %></dd></div>
       <% } %>
-      <%/* The PRO number is what a carrier's own site asks for. Shown in
-           full and selectable — a customer phoning the carrier needs to
-           read it out. */%>
-      <div><dt>Tracking (PRO) number</dt><dd class="ot-pro"><%= tracking.pro_number %></dd></div>
+      <%/* Shown in full and selectable — a customer phoning the carrier or
+           pasting into the carrier's own site needs the whole string.
+
+           "PRO number" is freight vocabulary. A parcel customer has never
+           heard it and would not recognise it as the number on their UPS
+           notification, so the label follows the mode. Same column either
+           way: shipments.pro_number holds both. */%>
+      <div><dt><%= isParcel ? 'Tracking number' : 'Tracking (PRO) number' %></dt>
+          <dd class="ot-pro"><%= tracking.pro_number %></dd></div>
       <% if (tracking.bol_number) { %>
       <div><dt>BOL</dt><dd><%= tracking.bol_number %></dd></div>
       <% } %>
@@ -115,7 +168,7 @@
     <div class="od-contact">
       <p class="od-contact-text">Need help with this delivery?</p>
       <a class="btn btn-sage"
-         href="mailto:support@bathroomvanitiesoutlet.com?subject=<%= encodeURIComponent('Delivery question — order ' + order.order_number + ' (PRO ' + tracking.pro_number + ')') %>">
+         href="mailto:support@bathroomvanitiesoutlet.com?subject=<%= encodeURIComponent('Delivery question — order ' + order.order_number + ' (tracking ' + tracking.pro_number + ')') %>">
         Contact Us
       </a>
     </div>

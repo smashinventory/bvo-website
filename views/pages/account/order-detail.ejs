@@ -52,7 +52,12 @@
         <% if (tracking.carrier) { %>
         <div><dt>Carrier</dt><dd><%= tracking.carrier %></dd></div>
         <% } %>
-        <div><dt>Tracking (PRO)</dt><dd><%= tracking.pro_number %></dd></div>
+        <%/* Same mode test as the tracking page — "PRO" is freight
+             vocabulary a parcel customer has never seen. Keyed on
+             product_type, never on the carrier name: FedEx Freight is
+             LTL and FedEx Ground is parcel. */%>
+        <div><dt><%= String(tracking.product_type).toUpperCase() === 'SMALLPACK' ? 'Tracking' : 'Tracking (PRO)' %></dt>
+            <dd><%= tracking.pro_number %></dd></div>
         <% if (tracking.service_level) { %>
         <div><dt>Service</dt><dd><%= tracking.service_level %></dd></div>
         <% } %>

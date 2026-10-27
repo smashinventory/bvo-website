@@ -254,6 +254,70 @@ console.log('\n--- a DB error cannot be disguised as "no such order" ---');
         'address block entirely — this asserts the replacement is present');
 }
 
+/* ═══ FREIGHT COPY IS NOT SHOWN TO A PARCEL CUSTOMER ═══════════════
+ * The tracking page shipped telling every customer the carrier would
+ * phone to arrange a delivery appointment and would not leave the
+ * shipment without someone present. True of LTL, false of a UPS or
+ * FedEx parcel, which is left at the door — and shippingController
+ * books both (SMALLPACK has its own WWEX credentials and pickup flow).
+ * A customer waiting in all day for a call that was never coming is a
+ * defect the page cannot detect about itself.
+ *
+ * ⚠️ product_type IS THE DISCRIMINATOR; THE CARRIER NAME MUST NEVER BE.
+ * 'FedEx' is both — FedEx Freight is LTL, FedEx Ground is parcel — so a
+ * match on the carrier string is wrong half the time and looks fine in
+ * review.
+ */
+console.log('\n--- delivery copy follows product_type, not the carrier name ---');
+{
+  const view = fs.readFileSync(path.join(ROOT, 'views/pages/account/order-tracking.ejs'), 'utf8');
+  const code = view.replace(/<%#[\s\S]*?%>/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+
+  check(/product_type/.test(code) && /SMALLPACK/.test(code),
+        'the tracking view branches on product_type',
+        'without this every customer gets freight copy');
+
+  /* Both modes must cover every status. A mode missing a status falls
+     through to the raw-value fallback, which says nothing useful. */
+  const copyBlock = code.slice(code.indexOf('var COPY'), code.indexOf('var SET'));
+  const spIdx = copyBlock.indexOf('SMALLPACK:');
+  check(spIdx > 0, 'both copy sets are in one object');
+  if (spIdx > 0) {
+    const ltl = copyBlock.slice(0, spIdx), sp = copyBlock.slice(spIdx);
+    for (const status of ['booked', 'in_transit', 'delivered', 'exception']) {
+      check(ltl.includes(status + ':') && sp.includes(status + ':'),
+            `${status} copy exists for BOTH freight and parcel`,
+            'the missing one renders the raw status with a generic sentence');
+    }
+    /* And the two are not the same text — satisfying the check above by
+       pasting the freight wording into the parcel branch would reinstate
+       the exact defect.
+
+       ⚠️ ANCHORED ON THE PROMISE, NOT ON THE WORD 'appointment'. The
+       first version of this check tested for that word and failed on
+       correct code, because the parcel copy says "No appointment is
+       needed" — a NEGATION of the promise contains the same word as the
+       promise. What must not appear in the parcel branch is the
+       commitment that somebody will phone. */
+    check(/will call you/i.test(ltl), 'freight copy promises the carrier will call');
+    check(!/will call you/i.test(sp),
+          'parcel copy does NOT promise a call',
+          'a parcel is left at the door; promising a call costs the ' +
+          'customer a day at home');
+  }
+
+  /* No copy decision may be taken from the carrier string. */
+  for (const f of ['views/pages/account/order-tracking.ejs',
+                   'views/pages/account/order-detail.ejs']) {
+    const src = fs.readFileSync(path.join(ROOT, f), 'utf8')
+      .replace(/<%#[\s\S]*?%>/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+    check(!/tracking\.carrier\s*(?:\.(?:match|includes|indexOf|toLowerCase)|===|==|=~)/.test(src),
+          `${path.basename(f)} does not branch on the carrier name`,
+          'FedEx Freight is LTL and FedEx Ground is parcel — the name ' +
+          'cannot tell them apart');
+  }
+}
+
 console.log(fail ? `\n*** ${fail} of ${pass + fail} CHECKS FAILED ***`
                  : `\nALL ${pass} CHECKS PASS`);
 process.exit(fail ? 1 : 0);

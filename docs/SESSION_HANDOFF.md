@@ -320,7 +320,20 @@ Four things a future session should not undo:
    A progress bar with intermediate timestamps would be fabricated carrier
    data on a page someone uses to decide whether to take a day off work.
    A timeline needs an events table first.
-4. **No deep link to the carrier's own tracking page.** `carrier` is stored
+4. **Delivery copy is keyed on `product_type`, never on the carrier
+   name.** The page first shipped with one set of wording, written for
+   LTL, telling every customer the carrier would phone to arrange an
+   appointment and would not leave the shipment unattended. False for a
+   UPS or FedEx parcel, which is left at the door — and `shippingController`
+   books both (SMALLPACK has its own WWEX credentials, pickup flow and
+   spend reporting). The cost of that error is a customer waiting in all
+   day for a call that was never coming. `shipments.product_type` is
+   `ENUM('LTL','SMALLPACK')`; the carrier string cannot do this job
+   because FedEx Freight is LTL and FedEx Ground is parcel, so a match on
+   "fedex" is wrong half the time and looks fine in review. The gate
+   asserts both copy sets exist, cover all four statuses, differ on the
+   appointment promise, and that neither view branches on `carrier`.
+5. **No deep link to the carrier's own tracking page.** `carrier` is stored
    as WWEX's free-text display name ('RL Carriers', 'TFORCE FREIGHT'), not
    an id, so a URL built from it would die silently when a name changed. A
    wrong tracking link reads as a lost shipment. That needs a deliberate
