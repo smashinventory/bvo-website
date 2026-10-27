@@ -186,3 +186,43 @@ p.section-title,p.newsletter-heading,p.product-title,p.cat-title{margin-top:0}p.
    that gate greps the stylesheet text, so naming them here would make
    this comment fail it. Comment-vs-code, again. */
 
+
+/* ==== ORDER DETAIL + TRACKING (/account/orders/:id, 2026-10-26) ====
+   ⚠️ APPENDED IDENTICALLY TO site.css AND site-bundle.css. The storefront
+   loads ONLY site-bundle.css; site.css is the source file and is loaded by
+   the admin layout. Editing one and not the other is the documented trap in
+   layouts/main.ejs — the page would look right in admin and be unstyled for
+   every customer. If you change a rule here, change it in both files.
+   The three chip colours below are NEW: .status-booked, .status-in_transit
+   and .status-exception had no definition anywhere, so a shipped order's
+   chip rendered as bare text. */
+.status-booked{background:#e5e7eb;color:#374151}
+.status-in_transit{background:#dbeafe;color:#1e40af}
+.status-exception{background:#fee2e2;color:#991b1b}
+.od-back{display:inline-block;margin-bottom:14px;font-size:.8rem;font-weight:600;color:var(--text-muted);text-decoration:none}
+.od-back:hover{color:var(--color-navy)}
+.od-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+.od-date{font-size:.8rem;color:var(--text-muted);margin:0}
+.od-h2{font-size:.78rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--text-muted);margin:30px 0 10px}
+.od-track{border:1px solid var(--color-sage);background:#F4F7F4;border-radius:10px;padding:16px 18px;margin-bottom:8px}
+.od-track-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.od-track-title{margin:0;font-weight:700;color:var(--color-navy)}
+.od-track-meta,.od-totals{margin:12px 0 0;font-size:.875rem}
+.od-track-meta div,.od-totals div{display:flex;justify-content:space-between;gap:16px;padding:5px 0}
+.od-track-meta dt,.od-totals dt{color:var(--text-muted);margin:0}
+.od-track-meta dd,.od-totals dd{margin:0;font-weight:600;color:var(--color-navy);text-align:right}
+.od-track-btn{margin-top:14px}
+.od-items .od-sku{display:block;font-size:.72rem;color:var(--text-muted);margin-top:2px}
+.od-totals{max-width:360px;border-top:1px solid var(--border-card);padding-top:6px}
+.od-totals .od-free{color:var(--color-sage);font-weight:700}
+.od-totals .od-total-row{border-top:1px solid var(--border-card);margin-top:4px;padding-top:10px;font-size:1rem}
+.od-totals .od-total-row dt{color:var(--color-navy);font-weight:700}
+.od-tier-note{font-size:.78rem;color:var(--text-muted);margin:8px 0 0;max-width:360px}
+.od-address{font-style:normal;font-size:.875rem;line-height:1.6;color:var(--color-navy)}
+.od-contact{margin-top:32px;padding-top:20px;border-top:1px solid var(--border-card)}
+.od-contact-text{margin:0 0 10px;font-size:.875rem;color:var(--text-muted)}
+.ot-body{margin:10px 0 0;font-size:.9rem;line-height:1.6;color:var(--color-navy)}
+.ot-next{margin:10px 0 0;font-size:.85rem;line-height:1.6;color:var(--text-muted)}
+.ot-meta{max-width:420px}
+.ot-pro{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.04em;user-select:all}
+@media(max-width:600px){.od-head{flex-direction:column}.od-totals,.ot-meta,.od-tier-note{max-width:none}}

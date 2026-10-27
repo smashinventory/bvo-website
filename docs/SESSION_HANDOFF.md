@@ -280,3 +280,49 @@ pressure.
 - `#367` `on_sale` clean paths — verify whether the filter works, then
   decide the fate of the four indexed URLs.
 - `#344` verify the JM import and the Site Analytics tile.
+
+### Order detail + tracking viewer — built 2026-10-26
+
+A customer could not see their own order. `orders.ejs:38` and
+`dashboard.ejs:45` rendered each order number as a link to
+`/account/orders/:id`, and **that route had never existed** — so the most
+natural click after ordering 404'd, from launch until now. Found in a
+Microsoft Clarity session recording (entry `/orders/confirm?t=…`, exit
+`/account/orders/14`, 17 pages, 24 clicks, 6m51s) by the owner, not by any
+test. It is the second instance of the same class in this directory;
+`/account/addresses` was the first, fixed the day before.
+
+Shipped: `Customer.getOrder` / `getOrderItems` / `getOrderTracking`,
+`accountController.orderDetail` / `orderTracking`, routes
+`/orders/:id` and `/orders/:id/tracking`, and two new views. Scope was set
+by the owner: products and price breakdown, status, a Contact Us button
+that opens an email, and tracking that appears only once tracking exists.
+
+Four things a future session should not undo:
+
+1. **No discount row on the price breakdown.** The tier discount is already
+   baked into each line's `unit_price` by `cartPricing` at checkout, so
+   `subtotal` reflects it. A "Trade 15% off" subtraction row would
+   double-count on screen and the column would stop adding up to what the
+   customer was charged. The tier is stated as a note instead.
+2. **Shipping is the constant FREE, not a column.** No shipping column is
+   written at checkout. If paid shipping ever ships, this must become a
+   stored value — the constant is honest only while shipping is free.
+3. **The tracking page is current-state, not a timeline.** There is no
+   shipment-events table; the status poll *overwrites* one `status` column.
+   A progress bar with intermediate timestamps would be fabricated carrier
+   data on a page someone uses to decide whether to take a day off work.
+   A timeline needs an events table first.
+4. **No deep link to the carrier's own tracking page.** `carrier` is stored
+   as WWEX's free-text display name ('RL Carriers', 'TFORCE FREIGHT'), not
+   an id, so a URL built from it would die silently when a name changed. A
+   wrong tracking link reads as a lost shipment. That needs a deliberate
+   carrier → URL template table; `carrier_scac` is the key to use.
+
+`gate_account_links_resolve.js` is the generalised fix: it reads the route
+table out of `src/routes/account.js` (comments stripped first — the header
+prose in that file quotes route paths) and asserts every `/account/*`
+`href` and form `action` in every view resolves to a registered route,
+**segment-exact, no prefix matching**. `mutate_account_links.sh` plants all
+seven defects, including both production ones and a prefix-extension link
+that a loose matcher would wave through: 7/7 caught.

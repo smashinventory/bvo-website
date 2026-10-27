@@ -264,10 +264,17 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
                           this bump stops being cosmetic and becomes load
                           bearing. gate_bundle_cache_bust.js now fails the
                           build if the bundle moves without the version.
+        v=46 (2026-10-26) .od-* / .ot-* rules for the new order detail and
+                          tracking pages, plus .status-booked,
+                          .status-in_transit and .status-exception — three
+                          shipment statuses that had NO chip definition in
+                          any stylesheet, so a shipped order's status
+                          rendered as unstyled text. Appended identically to
+                          site.css and site-bundle.css.
       The source rules live in site.css / site2.css and are hand-minified
       into this bundle, per the instruction above — those files reach no
       browser on their own. %>
-  <link rel="stylesheet" href="/css/site-bundle.css?v=45">
+  <link rel="stylesheet" href="/css/site-bundle.css?v=46">
   <%# ── SECTION VISIBILITY, FROM THE OWNER'S BREAKPOINTS ─────────────
       "Visible on" offered All / Desktop / Mobile and was implemented as
       two rules hardcoded at 861px. There was no Tablet option because

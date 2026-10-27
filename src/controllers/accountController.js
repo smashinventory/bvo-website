@@ -727,6 +727,94 @@ exports.orders = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+/* ── GET /account/orders/:id ────────────────────────────────────────
+ * THE PAGE BEHIND A LINK THAT HAS NEVER WORKED.
+ *
+ * views/pages/account/orders.ejs and dashboard.ejs have both linked to
+ * /account/orders/<id> since they were written, and no such route existed.
+ * Every signed-in customer who clicked their own order number got a 404 —
+ * not some of them, all of them. Found 2026-10-26 in a Clarity session: a
+ * buyer landed from the post-order confirm link, spent 6m51s and 24 clicks
+ * trying to see the order they had just placed, and left on the 404.
+ *
+ * ⚠️ THIS IS THE SECOND TIME. See addressesPage below — same defect, same
+ * cause, different link, fixed earlier without anyone checking whether the
+ * nav had other links to pages that were never built.
+ *
+ * 404 — NOT 403 — FOR SOMEONE ELSE'S ORDER. getOrder() scopes by
+ * customer_id in its WHERE, so a foreign id returns null and lands here
+ * indistinguishable from an id that does not exist. A 403 would confirm
+ * the order is real, which is a disclosure in itself: order ids are
+ * sequential, so "403 vs 404" enumerates the order book.
+ */
+exports.orderDetail = async (req, res, next) => {
+  try {
+    /* parseInt, not the raw param: '14abc' and '14' must not both reach the
+       query as distinct values, and a non-numeric id should 404 rather than
+       depend on MySQL's string-to-int coercion. */
+    const orderId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(orderId) || orderId < 1) return next();
+
+    const order = await Customer.getOrder(req.session.customerId, orderId);
+    /* next() with no argument falls through to the 404 handler — the same
+       page a bad URL gets. Deliberate: see the header. */
+    if (!order) return next();
+
+    const [items, tracking] = await Promise.all([
+      Customer.getOrderItems(order.id),
+      Customer.getOrderTracking(order.id),
+    ]);
+
+    res.render('pages/account/order-detail', {
+      pageTitle: `Order ${order.order_number} | BathroomVanitiesOutlet.com`,
+      metaDesc:  '',
+      noindex:   true,
+      order, items, tracking,
+    });
+  } catch (err) { next(err); }
+};
+
+/* ── GET /account/orders/:id/tracking ───────────────────────────────
+ * THE TRACKING VIEWER. Did not exist before 2026-10-26.
+ *
+ * ⚠️ BUILT IN THE SAME CHANGE AS THE "Track Your Order" BUTTON THAT
+ * POINTS AT IT, on purpose. The defect this whole scope exists to fix is
+ * a link whose page was never built. Shipping the button first and the
+ * page later would have reproduced it exactly, in the same session, on
+ * the same page. A link and its destination belong in one commit.
+ *
+ * Same ownership rule and same 404-not-403 behaviour as orderDetail.
+ *
+ * WHAT IT CAN HONESTLY SHOW. There is no shipment-events table — the
+ * status poll overwrites one `status` column rather than appending — so
+ * this is a current-state view, not a timeline. It says where the
+ * shipment is and what happens next, and does not fake a progress
+ * history it has no data for.
+ */
+exports.orderTracking = async (req, res, next) => {
+  try {
+    const orderId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(orderId) || orderId < 1) return next();
+
+    const order = await Customer.getOrder(req.session.customerId, orderId);
+    if (!order) return next();
+
+    const tracking = await Customer.getOrderTracking(order.id);
+    /* No tracking yet is a 404, not an empty page. The only way to reach
+       this URL is the button, which only renders when tracking exists —
+       so arriving here without it means a stale tab or a typed URL, and
+       an empty "tracking" page would read as a system failure. */
+    if (!tracking) return next();
+
+    res.render('pages/account/order-tracking', {
+      pageTitle: `Tracking ${order.order_number} | BathroomVanitiesOutlet.com`,
+      metaDesc:  '',
+      noindex:   true,
+      order, tracking,
+    });
+  } catch (err) { next(err); }
+};
+
 /* ── GET /account/addresses ─────────────────────────────────────── */
 /* The Addresses link has been in the account nav of four views since the
    nav was written; the page behind it never existed, so every signed-in

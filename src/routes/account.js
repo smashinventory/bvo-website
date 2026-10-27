@@ -31,6 +31,20 @@ router.post('/name',              requireAuth, controller.saveName);
    authorisation. See the controller for the full reasoning. */
 router.get('/secure',             controller.secureAccount);
 router.get('/orders',             requireAuth, controller.orders);
+/* ⚠️ DECLARED AFTER '/orders' AND THAT ORDER MATTERS. Express matches in
+   registration order; '/orders/:id' placed first would still not shadow the
+   exact '/orders' path, but keeping the specific route above the parameter
+   one is the convention this codebase already follows in admin.js (see the
+   note above /orders/:id there, where bulk-delete had to be hoisted).
+
+   requireAuth, not a session check inside the controller: an unauthenticated
+   request must be redirected to sign in, never answered with a 404 that
+   would make a real order look like a dead link. */
+router.get('/orders/:id',         requireAuth, controller.orderDetail);
+/* The tracking viewer. Registered in the SAME commit as the button that
+   links to it — see the controller header for why that is a rule here and
+   not a preference. */
+router.get('/orders/:id/tracking', requireAuth, controller.orderTracking);
 router.get('/favorites',          requireAuth, controller.favoritesPage);
 
 /* Addresses. GET only — there is no POST, no :id/delete, and that is the

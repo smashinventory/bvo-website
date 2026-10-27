@@ -1,0 +1,123 @@
+<%/* Tracking viewer — /account/orders/:id/tracking. New 2026-10-26.
+
+     ⚠️ A CURRENT-STATE VIEW, NOT A TIMELINE, AND THAT IS A DATA LIMIT
+     RATHER THAN A DESIGN CHOICE. The shipment status poll OVERWRITES one
+     `status` column; there is no shipment_events table, so no history
+     exists to draw. Rendering a progress bar with invented intermediate
+     timestamps would be fabricating carrier data on a page a customer
+     uses to decide whether to take a day off work. If a timeline is
+     wanted later it needs an events table first.
+
+     The four states come from the shipments ENUM:
+       booked / in_transit / delivered / exception
+     'voided' never reaches here — Customer.getOrderTracking excludes it,
+     because a voided shipment is not something to track. */%>
+<div class="account-page">
+  <div class="account-sidebar">
+    <nav class="account-nav" aria-label="Account navigation">
+      <a href="/account" class="account-nav-item">Dashboard</a>
+      <a href="/account/orders" class="account-nav-item active">Orders</a>
+      <a href="/account/favorites" class="account-nav-item">Saved Items</a>
+      <a href="/account/bundles" class="account-nav-item">Saved Bundles</a>
+      <a href="/account/addresses" class="account-nav-item">Addresses</a>
+      <form action="/account/logout" method="POST" style="margin:0">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="account-nav-item account-nav-logout">Sign Out</button>
+      </form>
+    </nav>
+  </div>
+
+  <div class="account-main">
+    <a href="/account/orders/<%= order.id %>" class="od-back">&larr; Back to order <%= order.order_number %></a>
+
+    <h1 class="account-title">Tracking</h1>
+
+    <%
+      /* Status copy in ONE place. Previously this kind of mapping got
+         written inline three times in a template and drifted; keeping it
+         as a single object means the heading, the explanation and the
+         "what happens next" line can never describe different states.
+         Unknown status falls back to the raw value rather than to a
+         wrong-but-friendly sentence. */
+      var STATES = {
+        booked: {
+          head: 'Booked with the carrier',
+          body: 'Your order has been handed to the freight carrier and is waiting to be collected. A tracking number has been issued but the carrier may not show movement yet.',
+          next: 'The carrier will collect the shipment and it will move to In Transit.'
+        },
+        in_transit: {
+          head: 'On its way',
+          body: 'Your order is moving through the carrier network.',
+          next: 'The carrier will call you to arrange a delivery appointment before they deliver. Freight is not left without someone present.'
+        },
+        delivered: {
+          head: 'Delivered',
+          body: 'The carrier has recorded this shipment as delivered.',
+          next: 'If anything arrived damaged, tell us within 48 hours and keep the packaging — see the delivery notes on our shipping policy.'
+        },
+        exception: {
+          head: 'There is a problem with this shipment',
+          body: 'The carrier has flagged an exception. This often means a failed delivery attempt, an address problem, or a delay in the network.',
+          next: 'We are looking into it. If you would like an update now, use Contact Us below and quote your order number.'
+        }
+      };
+      var st = STATES[tracking.status] || {
+        head: String(tracking.status).replace(/_/g,' '),
+        body: 'The carrier has reported this status for your shipment.',
+        next: ''
+      };
+    %>
+
+    <div class="od-track">
+      <div class="od-track-top">
+        <p class="od-track-title"><%= st.head %></p>
+        <span class="order-status status-<%= tracking.status %>"><%= String(tracking.status).replace(/_/g,' ') %></span>
+      </div>
+      <p class="ot-body"><%= st.body %></p>
+      <% if (st.next) { %><p class="ot-next"><strong>What happens next: </strong><%= st.next %></p><% } %>
+    </div>
+
+    <h2 class="od-h2">Shipment details</h2>
+    <dl class="od-totals ot-meta">
+      <% if (tracking.carrier) { %>
+      <div><dt>Carrier</dt><dd><%= tracking.carrier %></dd></div>
+      <% } %>
+      <%/* The PRO number is what a carrier's own site asks for. Shown in
+           full and selectable — a customer phoning the carrier needs to
+           read it out. */%>
+      <div><dt>Tracking (PRO) number</dt><dd class="ot-pro"><%= tracking.pro_number %></dd></div>
+      <% if (tracking.bol_number) { %>
+      <div><dt>BOL</dt><dd><%= tracking.bol_number %></dd></div>
+      <% } %>
+      <% if (tracking.service_level) { %>
+      <div><dt>Service</dt><dd><%= tracking.service_level %></dd></div>
+      <% } %>
+      <div><dt>Shipped</dt><dd><%= new Date(tracking.created_at).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) %></dd></div>
+    </dl>
+
+    <% if (order.ship_name) { %>
+    <h2 class="od-h2">Delivering to</h2>
+    <address class="od-address">
+      <%= order.ship_name %><br>
+      <%= order.ship_address1 %><br>
+      <% if (order.ship_address2) { %><%= order.ship_address2 %><br><% } %>
+      <%= order.ship_city %>, <%= order.ship_state %> <%= order.ship_zip %>
+    </address>
+    <% } %>
+
+    <%/* No deep link to a carrier tracking page. We store the carrier as
+         free text, not an id, so building a URL from it would mean
+         guessing a format per carrier and silently producing a dead link
+         the day a name changes. A wrong tracking link is worse than
+         none — it looks like the carrier lost the shipment. If this is
+         wanted, it needs a carrier -> URL template table, deliberately
+         maintained. */%>
+    <div class="od-contact">
+      <p class="od-contact-text">Need help with this delivery?</p>
+      <a class="btn btn-sage"
+         href="mailto:support@bathroomvanitiesoutlet.com?subject=<%= encodeURIComponent('Delivery question — order ' + order.order_number + ' (PRO ' + tracking.pro_number + ')') %>">
+        Contact Us
+      </a>
+    </div>
+  </div>
+</div>

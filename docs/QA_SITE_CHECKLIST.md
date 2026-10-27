@@ -60,6 +60,29 @@ silent.
 - [ ] "Secure my account" → signs out **everywhere**, kills outstanding codes
 - [ ] The new-device email arrives, names the device coarsely ("Mac (Web)"), shows Eastern time, and contains **no IP address or city**
 
+### Your own orders — click every link, do not just look at it
+
+⚠️ **This section exists because two pages in this directory were linked for
+months and never built.** `/account/addresses` (fixed 2026-10-25) and
+`/account/orders/:id` (fixed 2026-10-26) were both styled, correct-looking
+links to routes that did not exist. The second one is the first thing a
+customer does after ordering — tap their own order number — and it 404'd
+from launch. It was found in a Clarity session recording of a real customer,
+not by any test. **A rendered link proves nothing. Follow it.**
+`gates/gate_account_links_resolve.js` now holds both halves at once.
+
+- [ ] Every item in the account sidebar → a real page (Dashboard, Orders, Saved Items, Saved Bundles, Addresses)
+- [ ] Click your **order number** on both `/account` and `/account/orders` → order detail, not a 404
+- [ ] Order detail: items, qty, unit price, line total, Subtotal / Shipping FREE / Tax / Total
+- [ ] ⚠️ The totals column **adds up to the Total charged**. There is deliberately no discount row — the tier is already inside each `unit_price`, so a subtraction row would double-count on screen. If you see one, it is a regression.
+- [ ] Tier note appears only when `tier_pct > 0`, and names the tier
+- [ ] Contact Us → opens a mail draft with the order number already in the subject
+- [ ] **No tracking yet** → no tracking block and no Track button at all (not an empty "pending" panel)
+- [ ] Once a PRO number is entered → the tracking block appears, Track Your Order resolves
+- [ ] Tracking page: status chip is **coloured**, not bare text (`booked` / `in_transit` / `delivered` / `exception` all had no CSS before 2026-10-26)
+- [ ] Someone else's order id in the URL → **404**, never a 403 and never their data
+- [ ] `/account/orders/abc` and `/account/orders/0` → 404, not a 500
+
 ### The silent one
 
 - [ ] Sign in on a device that is already remembered → the page must **not** show a code box. The server answers `skipped:true` and the page is supposed to redirect. If you see "enter your code" while already signed in, `login.ejs` has stopped honouring that flag.
@@ -305,7 +328,8 @@ Check `jmv_sync/logs/` for a recent, `exit=0` entry for each.
 4. **CSP refusing inline handlers** — destructive buttons losing their confirmation.
 5. **Brevo's List-Unsubscribe** killing transactional mail.
 6. **The device-remember grant surviving logout** — fixed 2026-10-23, re-test after any auth change.
-7. **Hostinger's deploy directory moves.** Anything written to a path inside the deploy dir is orphaned on the next deploy. Uploads under `/images/uploads/` have never been checked for this.
+7. **A link whose page was never built.** Twice in `/account` alone. Nothing throws, nothing logs, the view renders perfectly, and every test that renders it passes — because rendering a link never follows it. The two halves live in different files, so neither file is wrong on its own. Gated now, but the same class exists anywhere a view hardcodes a path.
+8. **Hostinger's deploy directory moves.** Anything written to a path inside the deploy dir is orphaned on the next deploy. Uploads under `/images/uploads/` have never been checked for this.
 
 ---
 

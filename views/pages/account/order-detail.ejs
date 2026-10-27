@@ -1,0 +1,153 @@
+<%/* Order detail — the page behind /account/orders/:id.
+
+     Scope set by the owner, 2026-10-26: products and price breakdown,
+     status, a Contact Us button that opens an email, and a Track Your
+     Order block that appears ONLY once tracking exists.
+
+     ⚠️ EVERY MONEY FIGURE HERE IS READ, NEVER COMPUTED. unit_price,
+     line_total, subtotal, tax and total are what the customer was charged,
+     captured at order time. Recomputing any of them from live product
+     prices would rewrite history on the one page whose entire job is to
+     show what was paid. There is deliberately no arithmetic in this file
+     beyond formatting. */%>
+<div class="account-page">
+  <div class="account-sidebar">
+    <nav class="account-nav" aria-label="Account navigation">
+      <a href="/account" class="account-nav-item">Dashboard</a>
+      <a href="/account/orders" class="account-nav-item active">Orders</a>
+      <a href="/account/favorites" class="account-nav-item">Saved Items</a>
+      <a href="/account/bundles" class="account-nav-item">Saved Bundles</a>
+      <a href="/account/addresses" class="account-nav-item">Addresses</a>
+      <form action="/account/logout" method="POST" style="margin:0">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="account-nav-item account-nav-logout">Sign Out</button>
+      </form>
+    </nav>
+  </div>
+
+  <div class="account-main">
+    <a href="/account/orders" class="od-back">&larr; Back to orders</a>
+
+    <div class="od-head">
+      <div>
+        <h1 class="account-title" style="margin-bottom:4px">Order <%= order.order_number %></h1>
+        <p class="od-date">Placed <%= new Date(order.created_at).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) %></p>
+      </div>
+      <span class="order-status status-<%= order.status %>"><%= String(order.status).replace(/_/g,' ') %></span>
+    </div>
+
+    <%/* ── TRACKING ─────────────────────────────────────────────────
+         Rendered only when the controller supplied it, and it supplies
+         it only for a non-voided shipment that actually has a PRO
+         number. No placeholder, no "tracking pending" box: an empty
+         tracking panel reads as a broken promise, and the owner's
+         instruction was that this appears once tracking is entered. */%>
+    <% if (typeof tracking !== 'undefined' && tracking) { %>
+    <div class="od-track">
+      <div class="od-track-top">
+        <p class="od-track-title">Your order has shipped</p>
+        <span class="order-status status-<%= tracking.status %>"><%= String(tracking.status).replace(/_/g,' ') %></span>
+      </div>
+      <dl class="od-track-meta">
+        <% if (tracking.carrier) { %>
+        <div><dt>Carrier</dt><dd><%= tracking.carrier %></dd></div>
+        <% } %>
+        <div><dt>Tracking (PRO)</dt><dd><%= tracking.pro_number %></dd></div>
+        <% if (tracking.service_level) { %>
+        <div><dt>Service</dt><dd><%= tracking.service_level %></dd></div>
+        <% } %>
+      </dl>
+      <a href="/account/orders/<%= order.id %>/tracking" class="btn btn-navy od-track-btn">Track Your Order</a>
+    </div>
+    <% } %>
+
+    <%/* ── ITEMS ───────────────────────────────────────────────────
+         name is the SNAPSHOT taken at order time, not the product's
+         current name — a renamed or deleted product must not change what
+         this order says was bought. The link to the product page is
+         rendered only when the product still exists (slug comes from a
+         LEFT JOIN and is null for a deleted row). */%>
+    <h2 class="od-h2">Items</h2>
+    <table class="orders-table od-items">
+      <thead>
+        <tr><th>Product</th><th>Qty</th><th>Unit price</th><th>Total</th></tr>
+      </thead>
+      <tbody>
+        <% items.forEach(it => { %>
+        <tr>
+          <td>
+            <% if (it.slug) { %>
+              <a href="/products/<%= it.slug %>" class="order-num"><%= it.name %></a>
+            <% } else { %>
+              <%= it.name %>
+            <% } %>
+            <% if (it.sku) { %><span class="od-sku"><%= it.sku %></span><% } %>
+          </td>
+          <td><%= it.qty %></td>
+          <td>$<%= parseFloat(it.unit_price).toLocaleString('en-US',{minimumFractionDigits:2}) %></td>
+          <td>$<%= parseFloat(it.line_total).toLocaleString('en-US',{minimumFractionDigits:2}) %></td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+
+    <%/* ── PRICE BREAKDOWN ─────────────────────────────────────────
+         ⚠️ NO DISCOUNT ROW IS SHOWN, AND THAT IS DELIBERATE. The tier
+         discount is already baked into each line's unit_price by
+         cartPricing at checkout, so subtotal ALREADY reflects it.
+         Adding a "Trade 15% off" subtraction row here would double-count
+         it on screen and the column would not add up to the total the
+         customer was charged — worse than omitting it. The tier is
+         stated as a note instead, which is true and reconciles.
+
+         Shipping is stated as FREE rather than read from a column
+         because no shipping column is written at checkout; the figure
+         would be invented. If paid shipping is ever introduced, this
+         line must become a real stored value, not a constant. */%>
+    <h2 class="od-h2">Payment</h2>
+    <dl class="od-totals">
+      <div><dt>Subtotal</dt><dd>$<%= parseFloat(order.subtotal).toLocaleString('en-US',{minimumFractionDigits:2}) %></dd></div>
+      <div><dt>Shipping</dt><dd class="od-free">FREE</dd></div>
+      <% if (order.tax !== null && parseFloat(order.tax) > 0) { %>
+      <div><dt>Tax</dt><dd>$<%= parseFloat(order.tax).toLocaleString('en-US',{minimumFractionDigits:2}) %></dd></div>
+      <% } %>
+      <div class="od-total-row"><dt>Total</dt><dd>$<%= parseFloat(order.total).toLocaleString('en-US',{minimumFractionDigits:2}) %></dd></div>
+    </dl>
+    <% if (order.tier_pct && parseFloat(order.tier_pct) > 0) { %>
+    <p class="od-tier-note">
+      <%= order.tier_at_order ? String(order.tier_at_order).replace(/_/g,' ') : 'Member' %>
+      pricing of <%= parseFloat(order.tier_pct) %>% was applied to the prices above.
+    </p>
+    <% } %>
+
+    <% if (order.ship_name) { %>
+    <h2 class="od-h2">Delivery address</h2>
+    <address class="od-address">
+      <%= order.ship_name %><br>
+      <%= order.ship_address1 %><br>
+      <% if (order.ship_address2) { %><%= order.ship_address2 %><br><% } %>
+      <%= order.ship_city %>, <%= order.ship_state %> <%= order.ship_zip %>
+    </address>
+    <% } %>
+
+    <%/* ── CONTACT ─────────────────────────────────────────────────
+         A mailto, not a form. There is no customer-facing message form
+         on this site, and building one would add an unauthenticated
+         write path and a spam surface for a button whose whole job is
+         "let me talk to a human about THIS order". The order number is
+         pre-filled into the subject so the reply lands with context
+         already attached.
+
+         encodeURIComponent on the dynamic part: an order number is
+         controlled data, but a subject line is a URL component and
+         encoding it is the rule regardless of how safe today's values
+         look. */%>
+    <div class="od-contact">
+      <p class="od-contact-text">Questions about this order?</p>
+      <a class="btn btn-sage"
+         href="mailto:support@bathroomvanitiesoutlet.com?subject=<%= encodeURIComponent('Order ' + order.order_number) %>">
+        Contact Us
+      </a>
+    </div>
+  </div>
+</div>

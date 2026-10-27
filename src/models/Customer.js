@@ -248,6 +248,110 @@ const Customer = {
     } catch { return []; }
   },
 
+  /**
+   * ONE order, scoped to its owner.
+   *
+   * ⚠️ OWNERSHIP IS IN THE `WHERE`, NOT IN JAVASCRIPT. The id comes from the
+   * URL and is attacker-controlled; the customer id comes from the SESSION.
+   * Fetching by id and then comparing in the caller is the version of this
+   * that leaks an order the first time someone forgets the comparison or
+   * returns early. Here a mismatched pair simply returns no row.
+   *
+   * ⚠️ THE PREDICATE MATCHES getOrders() EXACTLY — `o.customer_id = ?`. If
+   * the list and the detail ever disagree about whose order it is, the
+   * result is either a 404 on an order the customer can see listed (the
+   * 2026-10-26 defect this file is part of fixing) or, far worse, a detail
+   * page for an order the list would never have shown.
+   *
+   * @returns {Promise<object|null>} null for "no such order OF YOURS" —
+   *   deliberately indistinguishable from "no such order", so the caller
+   *   can 404 without confirming that an id exists.
+   */
+  async getOrder(customerId, orderId) {
+    if (!customerId || !orderId) return null;
+    try {
+      const [rows] = await bvoPool.query(`
+        SELECT o.id, o.order_number, o.status, o.payment_status,
+               o.subtotal, o.tax, o.total,
+               o.tier_pct, o.tier_at_order,
+               o.created_at,
+               o.ship_name, o.ship_address1, o.ship_address2,
+               o.ship_city, o.ship_state, o.ship_zip,
+               o.ship_address_type
+          FROM orders o
+         WHERE o.id = ? AND o.customer_id = ?
+         LIMIT 1
+      `, [orderId, customerId]);
+      return (rows && rows[0]) || null;
+    } catch (err) {
+      console.error('[Customer.getOrder]', err.code, err.sqlMessage || err.message);
+      return null;
+    }
+  },
+
+  /**
+   * The lines of one order.
+   *
+   * ⚠️ CALL ONLY AFTER getOrder() HAS RETURNED A ROW. This is keyed by
+   * order id alone, because the ownership question was already settled —
+   * duplicating the customer check here would be a second definition of
+   * ownership that can drift from the first.
+   *
+   * ⚠️ unit_price AND line_total ARE READ, NEVER RECOMPUTED. These are the
+   * figures the customer actually paid, captured at order time. Multiplying
+   * qty by a live product price would quietly rewrite history the next time
+   * a price changed — and on a page whose entire purpose is to show what
+   * was charged.
+   */
+  async getOrderItems(orderId) {
+    if (!orderId) return [];
+    try {
+      const [rows] = await bvoPool.query(`
+        SELECT oi.id, oi.product_id, oi.sku, oi.name, oi.qty,
+               oi.unit_price, oi.line_total,
+               p.slug, p.primary_image_url
+          FROM order_items oi
+          LEFT JOIN products p ON p.id = oi.product_id
+         WHERE oi.order_id = ?
+         ORDER BY oi.id ASC
+      `, [orderId]);
+      return rows || [];
+    } catch (err) {
+      console.error('[Customer.getOrderItems]', err.code, err.sqlMessage || err.message);
+      return [];
+    }
+  },
+
+  /**
+   * Tracking for one order, or null.
+   *
+   * ⚠️ A SHIPMENT ROW IS NOT TRACKING. A booking exists from the moment the
+   * label is bought, before the carrier has issued a PRO number, and a
+   * voided shipment keeps its row. "Track your order" must appear only when
+   * there is something a customer can actually act on, so this returns null
+   * unless a number exists and the shipment is not voided. The owner's
+   * instruction, 2026-10-26: tracking appears once tracking is entered.
+   */
+  async getOrderTracking(orderId) {
+    if (!orderId) return null;
+    try {
+      const [rows] = await bvoPool.query(`
+        SELECT s.carrier, s.service_level, s.pro_number, s.bol_number,
+               s.status, s.product_type, s.created_at
+          FROM shipments s
+         WHERE s.order_id = ?
+           AND s.status <> 'voided'
+           AND (s.pro_number IS NOT NULL AND s.pro_number <> '')
+         ORDER BY s.created_at DESC
+         LIMIT 1
+      `, [orderId]);
+      return (rows && rows[0]) || null;
+    } catch (err) {
+      console.error('[Customer.getOrderTracking]', err.code, err.sqlMessage || err.message);
+      return null;
+    }
+  },
+
   async getOrders(customerId, limit = 20) {
     try {
       const [rows] = await bvoPool.query(`
