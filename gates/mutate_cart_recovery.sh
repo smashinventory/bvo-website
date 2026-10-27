@@ -195,8 +195,8 @@ patch_py "$SH" \
 # `0 14 * * *` while the file narrows 12-23 means whoever sets the cron
 # up next creates a job that fires once, inside a window, and looks fine.
 patch_py "$SH" \
-  "#   0 * * * *  /bin/bash" \
-  "#   0 14 * * *  /bin/bash" \
+  "#   12 * * * *  /bin/bash" \
+  "#   12 14 * * *  /bin/bash" \
   && run "M20 header documents a daily cron, not the hourly one"
 
 echo

@@ -276,10 +276,17 @@ console.log('\n--- the cron is hourly, so the window must be in the file ---');
 
   /* The header must document the hourly cron, because the window being
      in the script is only safe if whoever schedules it knows that. */
-  check(/0 \* \* \* \*/.test(sh),
-        'the header documents the hourly cron expression',
-        'someone reading this file must be able to see that the cron is ' +
-        'hourly and the narrowing happens here');
+  /* ⚠️ ASSERTS HOURLY, NOT A LITERAL MINUTE. The minute is deliberately
+     staggered off 0 — jmv_rollup.sh and brevo_consent_reconcile.sh both
+     fire there, and cron forks concurrent matches rather than queuing
+     them. What MUST hold is that the hour field is `*`: an hour other
+     than `*` would narrow the schedule twice, once in the cron and once
+     in the window below, and the two would silently disagree. */
+  check(/^#\s+\d{1,2} \* \* \* \*\s+\/bin\/bash/m.test(sh),
+        'the header documents an HOURLY cron (minute N, hour *)',
+        'the window below is the only thing that narrows the schedule; a ' +
+        'cron hour that is not `*` narrows it a second time and the two ' +
+        'then disagree with nothing to flag it');
 }
 
 console.log(fail ? `\n*** ${fail} of ${pass + fail} CHECKS FAILED ***`

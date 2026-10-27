@@ -19,7 +19,15 @@
 #
 # ── SCHEDULE ───────────────────────────────────────────────────────────
 # CRON RUNS HOURLY; THE SENDING WINDOW IS ENFORCED BELOW, IN THIS FILE.
-#   0 * * * *  /bin/bash /home/u222311468/domains/bathroomvanitiesoutlet.com/hbuilds/current/nodejs/cart_recovery.sh
+#   12 * * * *  /bin/bash /home/u222311468/domains/bathroomvanitiesoutlet.com/hbuilds/current/nodejs/cart_recovery.sh
+#
+# ⚠️ MINUTE 12, NOT 0, AND NOT ARBITRARILY. jmv_rollup.sh and
+# brevo_consent_reconcile.sh both fire at minute 0. Cron does NOT queue
+# jobs — it forks every expression that matches the current minute and
+# they run concurrently — so three node processes would contend for the
+# same shared-hosting memory ceiling and the same MySQL connection pool.
+# Staggering costs nothing here: the window below is hour-granular, so
+# which minute of the hour this runs on is immaterial to the job.
 #
 # ⚠️ THE WINDOW IS HERE AND NOT IN THE CRON EXPRESSION ON PURPOSE.
 # hPanel's cron form offers a single-value Hour dropdown — it cannot
