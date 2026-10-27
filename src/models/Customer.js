@@ -284,7 +284,7 @@ const Customer = {
     if (!customerId || !orderId) return null;
     const [rows] = await bvoPool.query(`
       SELECT o.id, o.order_number, o.status, o.payment_status,
-             o.subtotal, o.tax, o.total,
+             o.subtotal, o.shipping_cost, o.discount, o.tax, o.total,
              o.tier_pct, o.tier_at_order,
              o.created_at,
              /* There is no ship_name column. The admin builds the same

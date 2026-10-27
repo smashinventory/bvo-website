@@ -226,3 +226,15 @@ p.section-title,p.newsletter-heading,p.product-title,p.cat-title{margin-top:0}p.
 .ot-meta{max-width:420px}
 .ot-pro{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.04em;user-select:all}
 @media(max-width:600px){.od-head{flex-direction:column}.od-totals,.ot-meta,.od-tier-note{max-width:none}}
+
+/* ==== ORDER STATUS CHIPS — THE TWO THAT NEVER HAD COLOURS (2026-10-27)
+   orderStatuses.js defines EIGHT statuses. Before today the stylesheets
+   defined five: pending, processing, shipped, delivered, cancelled.
+   `confirmed` and `refunded` fell through and rendered as unstyled text.
+   `confirmed` is the status EVERY order carries from checkout until a
+   shipment books — so the most common state of a customer's own order
+   was the one with no chip. Found by reading SHOW COLUMNS, not by
+   looking at the page, which happened to be showing a delivered order.
+   Appended identically to site.css and site-bundle.css. */
+.status-confirmed{background:#E4EDE7;color:#2F4A38}
+.status-refunded{background:#EDE9FE;color:#5B21B6}

@@ -100,14 +100,36 @@
          customer was charged — worse than omitting it. The tier is
          stated as a note instead, which is true and reconciles.
 
-         Shipping is stated as FREE rather than read from a column
-         because no shipping column is written at checkout; the figure
-         would be invented. If paid shipping is ever introduced, this
-         line must become a real stored value, not a constant. */%>
+         ⚠️ SHIPPING AND DISCOUNT ARE READ FROM THEIR COLUMNS, NOT
+         HARDCODED. This block previously printed a constant "FREE" over a
+         comment claiming no shipping column was written at checkout.
+         Verified against SHOW COLUMNS on 2026-10-27: `shipping_cost` and
+         `discount` both exist on `orders`, both NOT NULL DEFAULT 0.00,
+         and nothing in src/ writes either one today — so the rendered
+         figure was right by luck, not by construction.
+
+         Reading the column costs nothing and means the day someone starts
+         charging freight, or persists a promotion, this page is correct
+         automatically instead of quietly under-reporting what the
+         customer paid. A totals column that does not add up to the Total
+         is the single worst failure this page can have. */%>
     <h2 class="od-h2">Payment</h2>
     <dl class="od-totals">
       <div><dt>Subtotal</dt><dd>$<%= parseFloat(order.subtotal).toLocaleString('en-US',{minimumFractionDigits:2}) %></dd></div>
-      <div><dt>Shipping</dt><dd class="od-free">FREE</dd></div>
+      <%/* A persisted discount is NOT the tier discount — that one is
+           inside each unit_price and must stay un-rowed (see above). This
+           row appears only when the column actually carries a value. */%>
+      <% if (order.discount !== null && parseFloat(order.discount) > 0) { %>
+      <div><dt>Discount</dt><dd class="od-free">&minus;$<%= parseFloat(order.discount).toLocaleString('en-US',{minimumFractionDigits:2}) %></dd></div>
+      <% } %>
+      <% const shipCost = parseFloat(order.shipping_cost || 0); %>
+      <div><dt>Shipping</dt>
+        <% if (shipCost > 0) { %>
+          <dd>$<%= shipCost.toLocaleString('en-US',{minimumFractionDigits:2}) %></dd>
+        <% } else { %>
+          <dd class="od-free">FREE</dd>
+        <% } %>
+      </div>
       <% if (order.tax !== null && parseFloat(order.tax) > 0) { %>
       <div><dt>Tax</dt><dd>$<%= parseFloat(order.tax).toLocaleString('en-US',{minimumFractionDigits:2}) %></dd></div>
       <% } %>

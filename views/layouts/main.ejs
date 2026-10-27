@@ -271,10 +271,18 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
                           any stylesheet, so a shipped order's status
                           rendered as unstyled text. Appended identically to
                           site.css and site-bundle.css.
+        v=47 (2026-10-27) .status-confirmed and .status-refunded. Five of
+                          orderStatuses.js's EIGHT values had chip colours;
+                          these two never did. 'confirmed' is what every
+                          order carries from checkout until a shipment
+                          books, so the most common state of a customer's
+                          own order was the unstyled one. Found by reading
+                          SHOW COLUMNS, not by looking at the page — which
+                          happened to be showing a delivered order.
       The source rules live in site.css / site2.css and are hand-minified
       into this bundle, per the instruction above — those files reach no
       browser on their own. %>
-  <link rel="stylesheet" href="/css/site-bundle.css?v=46">
+  <link rel="stylesheet" href="/css/site-bundle.css?v=47">
   <%# ── SECTION VISIBILITY, FROM THE OWNER'S BREAKPOINTS ─────────────
       "Visible on" offered All / Desktop / Mobile and was implemented as
       two rules hardcoded at 861px. There was no Tablet option because
