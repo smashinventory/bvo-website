@@ -1,0 +1,65 @@
+<%/* Unsubscribe — the confirm page and the done page, one template.
+
+     Two states rather than two files because the difference is three
+     lines; two files would drift the first time the wording changed.
+
+     ⚠️ THE CONFIRM STEP EXISTS BECAUSE LINKS GET PREFETCHED. Mail
+     clients and corporate security gateways follow links to scan them.
+     If GET unsubscribed on sight, anybody behind a link scanner would be
+     silently removed from the list and neither they nor we would ever
+     know. One button is the whole cost of preventing that. */%>
+<div class="unsub-wrap">
+  <% if (done) { %>
+
+    <h1 class="unsub-h1">You're unsubscribed</h1>
+    <p class="unsub-lead">
+      We won't send marketing emails to <strong><%= email %></strong> any more.
+      That takes effect immediately.
+    </p>
+
+    <%/* Said plainly because it is the thing people actually worry about,
+         and because it is the difference between this and Brevo's
+         blocklist: order receipts and sign-in codes keep working. */%>
+    <div class="unsub-note">
+      <p style="margin:0">
+        You will still get <strong>emails about orders you place</strong> &mdash; receipts,
+        shipping and delivery updates &mdash; and the six-digit code you use to sign in.
+        Those are not marketing and this does not switch them off.
+      </p>
+    </div>
+
+    <p class="unsub-lead">
+      Changed your mind? Tick the box next time you check out, or call us on
+      <a href="tel:+18777771948">(877) 777-1948</a>.
+    </p>
+
+    <a href="/" class="btn btn-navy">Back to the shop</a>
+
+  <% } else { %>
+
+    <h1 class="unsub-h1">Unsubscribe</h1>
+    <p class="unsub-lead">
+      Stop sending marketing emails to <strong><%= email %></strong>?
+    </p>
+
+    <div class="unsub-note">
+      <p style="margin:0">
+        Order receipts, shipping updates and sign-in codes will keep arriving.
+        This only turns off offers and news.
+      </p>
+    </div>
+
+    <%/* No CSRF token. The HMAC in `t` IS the authorisation: it is
+         unguessable, it names the address, and it was delivered to that
+         address. Requiring a session token as well would break the
+         one-click unsubscribe button in Gmail, which POSTs here with no
+         session at all. See the route registration for the exemption. */%>
+    <form method="POST" action="/unsubscribe">
+      <input type="hidden" name="t" value="<%= t %>">
+      <button type="submit" class="btn btn-navy">Yes, unsubscribe me</button>
+    </form>
+
+    <p class="unsub-small"><a href="/">No thanks, take me back</a></p>
+
+  <% } %>
+</div>

@@ -860,6 +860,24 @@ app.use('/account/register', authLimiter);
 app.use('/account/code',     authLimiter);
 app.use('/account/verify',   authLimiter);
 app.use('/account',     require('./routes/account'));
+
+/* ── UNSUBSCRIBE ───────────────────────────────────────────────────
+   The first-party unsubscribe. Turns off customers.accepts_marketing
+   and NOTHING else — Brevo's blocklist stops every message to an
+   address including the sign-in code, which on a passwordless site
+   locks somebody out of their own account (#376).
+
+   GET renders a confirm page; POST does the work. That split is not
+   style: mail clients and corporate gateways PREFETCH links to scan
+   them, and a GET that unsubscribed on sight would silently revoke
+   consent for anyone behind a scanner. POST also receives RFC 8058
+   one-click from Gmail's header button, which is why this path is
+   exempted in middleware/csrf.js — see the note there. */
+{
+  const unsub = require('./controllers/unsubscribeController');
+  app.get('/unsubscribe',  unsub.page);
+  app.post('/unsubscribe', unsub.submit);
+}
 app.use('/admin/login',      adminAuthLimiter);
 app.use('/admin',       require('./routes/admin'));
 app.use('/api',         require('./routes/api'));

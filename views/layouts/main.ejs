@@ -271,6 +271,9 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
                           any stylesheet, so a shipped order's status
                           rendered as unstyled text. Appended identically to
                           site.css and site-bundle.css.
+        v=48 (2026-10-27) .unsub-* for the new first-party unsubscribe
+                          page. Turns off marketing only, never the
+                          Brevo blocklist that also kills sign-in codes.
         v=47 (2026-10-27) .status-confirmed and .status-refunded. Five of
                           orderStatuses.js's EIGHT values had chip colours;
                           these two never did. 'confirmed' is what every
@@ -282,7 +285,7 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
       The source rules live in site.css / site2.css and are hand-minified
       into this bundle, per the instruction above — those files reach no
       browser on their own. %>
-  <link rel="stylesheet" href="/css/site-bundle.css?v=47">
+  <link rel="stylesheet" href="/css/site-bundle.css?v=48">
   <%# ── SECTION VISIBILITY, FROM THE OWNER'S BREAKPOINTS ─────────────
       "Visible on" offered All / Desktop / Mobile and was implemented as
       two rules hardcoded at 861px. There was no Tablet option because

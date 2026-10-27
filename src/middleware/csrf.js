@@ -58,6 +58,28 @@ function globalGuard(req, res, next) {
   if (t.SAFE_METHODS.has(req.method)) return next();
   if (req.path.startsWith('/api/')) return next();   // API uses bearer auth
 
+  /* ⚠️ UNSUBSCRIBE IS EXEMPT, AND THE REASON IS NOT CONVENIENCE.
+     RFC 8058 one-click — the "Unsubscribe" button Gmail and Apple Mail
+     render in the message header — POSTs to the List-Unsubscribe URL
+     from the mail provider's own infrastructure. There is no browser,
+     no session and therefore no CSRF token, and there never can be.
+     Requiring one would mean that button silently fails, which is the
+     single worst thing an unsubscribe can do: the customer believes
+     they are off the list, keeps receiving mail, and reports it as
+     spam.
+
+     The exemption is safe because the HMAC in `t` IS the
+     authorisation. It is unguessable without SESSION_SECRET, it names
+     the address it applies to, and it was delivered to that address.
+     An attacker who forges this request can only unsubscribe somebody
+     whose token they already hold — and the only way to hold it is to
+     have received their mail. The scope is one boolean on one row, and
+     the person can re-subscribe at checkout.
+
+     Scoped to the exact path, not a prefix: /unsubscribe only, so this
+     cannot widen to anything mounted beneath it later. */
+  if (req.path === '/unsubscribe') return next();
+
   /* A readable token is validated immediately, multipart or not — a fetch()
      upload carries X-CSRF-Token and needs no special treatment. Deferring
      is only for requests whose token is genuinely unreadable yet. */
