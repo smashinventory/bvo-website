@@ -56,8 +56,8 @@
              vocabulary a parcel customer has never seen. Keyed on
              product_type, never on the carrier name: FedEx Freight is
              LTL and FedEx Ground is parcel. */%>
-        <div><dt><%= String(tracking.product_type).toUpperCase() === 'SMALLPACK' ? 'Tracking' : 'Tracking (PRO)' %></dt>
-            <dd><%= tracking.pro_number %></dd></div>
+        <div><dt><%= shipMode.trackingLabel(tracking) %></dt>
+            <dd><%= shipMode.trackingNumber(tracking) %></dd></div>
         <% if (tracking.service_level) { %>
         <div><dt>Service</dt><dd><%= tracking.service_level %></dd></div>
         <% } %>

@@ -55,7 +55,9 @@
          page promises an appointment that does happen rather than a
          doorstep drop that does not. Over-promising a phone call costs a
          redelivery; under-promising one costs a pallet on a driveway. */
-      var isParcel = String(tracking.product_type).toUpperCase() === 'SMALLPACK';
+      var isParcel = shipMode.isParcel(tracking);
+      var trackNum = shipMode.trackingNumber(tracking);
+      var trackUrl = shipMode.trackingUrl(tracking);
 
       /* Both sets in ONE object, so a state can never have a heading from
          one mode and a "what happens next" from the other. */
@@ -137,8 +139,17 @@
            heard it and would not recognise it as the number on their UPS
            notification, so the label follows the mode. Same column either
            way: shipments.pro_number holds both. */%>
-      <div><dt><%= isParcel ? 'Tracking number' : 'Tracking (PRO) number' %></dt>
-          <dd class="ot-pro"><%= tracking.pro_number %></dd></div>
+      <div><dt><%= shipMode.trackingLabel(tracking) %></dt>
+          <dd class="ot-pro">
+            <%/* Linked only when we have a URL we trust: the vendor's own
+                 pasted link, or a carrier whose format we know. Never a
+                 guessed one — a wrong tracking link reads as a lost
+                 shipment and makes the support call it was meant to
+                 prevent. */%>
+            <% if (trackUrl) { %>
+              <a href="<%= trackUrl %>" target="_blank" rel="noopener"><%= trackNum %></a>
+            <% } else { %><%= trackNum %><% } %>
+          </dd></div>
       <% if (tracking.bol_number) { %>
       <div><dt>BOL</dt><dd><%= tracking.bol_number %></dd></div>
       <% } %>
@@ -168,7 +179,7 @@
     <div class="od-contact">
       <p class="od-contact-text">Need help with this delivery?</p>
       <a class="btn btn-sage"
-         href="mailto:support@bathroomvanitiesoutlet.com?subject=<%= encodeURIComponent('Delivery question — order ' + order.order_number + ' (tracking ' + tracking.pro_number + ')') %>">
+         href="mailto:support@bathroomvanitiesoutlet.com?subject=<%= encodeURIComponent('Delivery question — order ' + order.order_number + ' (tracking ' + trackNum + ')') %>">
         Contact Us
       </a>
     </div>

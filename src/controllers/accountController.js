@@ -1,5 +1,8 @@
 'use strict';
 
+/* Freight vs parcel, the number and the link — one definition,
+   shared with the admin views. See src/utils/shipMode.js. */
+const shipMode = require('../utils/shipMode');
 const Customer         = require('../models/Customer');
 const offerClaim = require('../services/offerClaim');
 /* A bundle built while signed out, redeemed on sign-in. Same shape of
@@ -769,7 +772,7 @@ exports.orderDetail = async (req, res, next) => {
       pageTitle: `Order ${order.order_number} | BathroomVanitiesOutlet.com`,
       metaDesc:  '',
       noindex:   true,
-      order, items, tracking,
+      order, items, tracking, shipMode,
     });
   } catch (err) { next(err); }
 };
@@ -810,7 +813,7 @@ exports.orderTracking = async (req, res, next) => {
       pageTitle: `Tracking ${order.order_number} | BathroomVanitiesOutlet.com`,
       metaDesc:  '',
       noindex:   true,
-      order, tracking,
+      order, tracking, shipMode,
     });
   } catch (err) { next(err); }
 };

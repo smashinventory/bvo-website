@@ -729,18 +729,133 @@ const disputeOpen = order.dispute_id
       <% } else { %>
         <div class="detail-meta">
           <div class="detail-meta-row"><span>Status</span><span class="rag-pill rag-pill--<%= shipment.status === 'delivered' ? 'green' : shipment.status === 'exception' ? 'red' : 'yellow' %>"><%= shipment.status.replace(/_/g,' ') %></span></div>
+          <%/* Mode shown explicitly. It decides what the CUSTOMER is told —
+               appointment call vs left at the door — so it must be visible
+               to whoever enters it, not buried in a column. */%>
+          <div class="detail-meta-row"><span>Mode</span><span>
+            <%= shipMode.isParcel(shipment) ? 'Parcel (UPS / FedEx Ground)' : 'Freight (LTL)' %>
+            <% if (shipment.entry_source === 'manual') { %>
+              <span class="admin-badge">entered by hand</span>
+            <% } %>
+          </span></div>
           <div class="detail-meta-row"><span>Carrier</span><span><%= shipment.carrier || '—' %></span></div>
-          <div class="detail-meta-row"><span>Tracking#</span><span>
-            <% if (shipment.tracking_number) { %><a href="https://wwex.com/track/<%= shipment.tracking_number %>" target="_blank" style="color:var(--color-amber)"><%= shipment.tracking_number %></a><% } else { %>—<% } %>
+          <%/* ⚠️ THE LINK COMES FROM shipMode, NOT FROM A HARDCODED HOST.
+               This row used to read href="https://wwex.com/track/<number>"
+               for EVERY shipment regardless of carrier — a dead link for
+               anything FedEx or UPS carried. It also read only
+               tracking_number, so a WWEX booking (which writes pro_number)
+               showed "—" here. Both fixed by asking shipMode. */%>
+          <div class="detail-meta-row"><span><%= shipMode.trackingLabel(shipment) %></span><span>
+            <% const adminNum = shipMode.trackingNumber(shipment); const adminUrl = shipMode.trackingUrl(shipment); %>
+            <% if (adminNum && adminUrl) { %>
+              <a href="<%= adminUrl %>" target="_blank" rel="noopener" style="color:var(--color-amber)"><%= adminNum %></a>
+            <% } else if (adminNum) { %>
+              <%= adminNum %>
+            <% } else { %>—<% } %>
           </span></div>
           <div class="detail-meta-row"><span>BOL#</span><span><%= shipment.bol_number || '—' %></span></div>
-          <div class="detail-meta-row"><span>Est. Delivery</span><span><%= shipment.estimated_delivery ? new Date(shipment.estimated_delivery).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) : '—' %></span></div>
-          <div class="detail-meta-row"><span>Freight Cost</span><span><%= shipment.rate_charged ? '$'+parseFloat(shipment.rate_charged).toFixed(2) : '—' %></span></div>
+          <div class="detail-meta-row"><span>Est. Delivery</span><span><%= shipment.est_delivery || shipment.estimated_delivery ? new Date(shipment.est_delivery || shipment.estimated_delivery).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) : '—' %></span></div>
+          <%/* total_charge, not rate_charged. There is no rate_charged
+               column on shipments — verified against SHOW COLUMNS on
+               2026-10-27 — so this row has read "—" on every shipment
+               since it was written. undefined is falsy and printed the
+               dash instead of erroring: the project's signature defect. */%>
+          <div class="detail-meta-row"><span>Freight Cost</span><span><%= shipment.total_charge ? '$'+parseFloat(shipment.total_charge).toFixed(2) : '—' %></span></div>
         </div>
         <% if (shipment.bol_url) { %>
         <a href="<%= shipment.bol_url %>" target="_blank" class="btn btn-outline btn-sm" style="margin-top:12px">Download BOL</a>
         <% } %>
       <% } %>
+
+      <%/* ── MANUAL TRACKING ENTRY ──────────────────────────────────
+           For orders the VENDOR ships, where we never touch WWEX and are
+           simply handed a number.
+
+           ⚠️ MODE IS A REQUIRED CHOICE WITH NO PRE-SELECTION. Defaulting
+           it would reintroduce exactly the defect this form exists to
+           avoid: shipments.product_type defaults to 'LTL', and that
+           default is what silently told parcel customers to expect an
+           appointment call. Making someone pick is the point.
+
+           Always rendered, not only when empty: a typo'd number must be
+           correctable. order_id is UNIQUE on shipments, so the handler
+           upserts — saving again corrects the row rather than erroring.
+
+           No inline onsubmit/onclick anywhere: CSP refuses inline
+           handlers silently, which is how destructive buttons lost their
+           confirmations before. Plain form POST, no JS needed. */%>
+      <details class="admin-card-sub" style="margin-top:16px">
+        <summary style="cursor:pointer;font-weight:600;font-size:.85rem">
+          <%= shipment && shipment.entry_source === 'manual' ? 'Edit tracking' : 'Enter tracking manually' %>
+        </summary>
+        <form method="POST" action="/admin/orders/<%= order.id %>/tracking" style="margin-top:12px">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+          <label class="admin-label">Shipping mode <span style="color:#c53030">*</span></label>
+          <div style="display:flex;gap:16px;margin-bottom:12px">
+            <label style="font-weight:400;font-size:.85rem">
+              <input type="radio" name="product_type" value="LTL" required
+                     <%= shipment && !shipMode.isParcel(shipment) && shipment.entry_source === 'manual' ? 'checked' : '' %>>
+              Freight (LTL) — pallet, appointment call
+            </label>
+            <label style="font-weight:400;font-size:.85rem">
+              <input type="radio" name="product_type" value="SMALLPACK"
+                     <%= shipment && shipMode.isParcel(shipment) ? 'checked' : '' %>>
+              Parcel — UPS / FedEx Ground, left at door
+            </label>
+          </div>
+
+          <label class="admin-label">Carrier</label>
+          <input class="admin-input" name="carrier" list="carrier-options" autocomplete="off"
+                 value="<%= shipment && shipment.entry_source === 'manual' ? (shipment.carrier || '') : '' %>"
+                 placeholder="FedEx Ground">
+          <%/* datalist, not select: the list is a convenience, and a
+               carrier nobody listed must still be typeable. */%>
+          <datalist id="carrier-options">
+            <option value="FedEx Ground"></option><option value="FedEx Home Delivery"></option>
+            <option value="UPS Ground"></option><option value="USPS"></option>
+            <option value="FedEx Freight"></option><option value="RL Carriers"></option>
+            <option value="TForce Freight"></option><option value="Estes"></option>
+            <option value="Old Dominion"></option><option value="Saia"></option>
+            <option value="XPO"></option><option value="ABF Freight"></option>
+          </datalist>
+
+          <label class="admin-label" style="margin-top:10px">Tracking / PRO number <span style="color:#c53030">*</span></label>
+          <input class="admin-input" name="tracking_number" required
+                 value="<%= shipment && shipment.entry_source === 'manual' ? (shipMode.trackingNumber(shipment) || '') : '' %>">
+
+          <label class="admin-label" style="margin-top:10px">Tracking link <span style="font-weight:400;color:#718096">(optional — paste the vendor's link)</span></label>
+          <input class="admin-input" name="tracking_url" type="url" placeholder="https://..."
+                 value="<%= shipment && shipment.tracking_url ? shipment.tracking_url : '' %>">
+          <p style="margin:4px 0 0;font-size:.75rem;color:#718096">
+            Leave blank and we build one from the carrier where we know the format.
+            Paste one to be certain — carriers change their URLs.
+          </p>
+
+          <label class="admin-label" style="margin-top:10px">Estimated delivery <span style="font-weight:400;color:#718096">(optional)</span></label>
+          <input class="admin-input" name="est_delivery" type="date"
+                 value="<%= shipment && shipment.est_delivery ? new Date(shipment.est_delivery).toISOString().slice(0,10) : '' %>">
+
+          <%/* SAVE ONLY. The customer email is a SEPARATE button below,
+               on purpose: a mistyped number or the wrong mode must be
+               catchable before it reaches an inbox, and an email cannot
+               be unsent. */%>
+          <button type="submit" class="btn btn-primary btn-sm" style="margin-top:14px">Save tracking</button>
+          <span style="margin-left:8px;font-size:.75rem;color:#718096">Saves only — no email is sent.</span>
+        </form>
+
+        <% if (shipment && shipMode.isTrackable(shipment)) { %>
+        <form method="POST" action="/admin/orders/<%= order.id %>/tracking/notify"
+              style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border-card)">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button type="submit" class="btn btn-outline btn-sm">Send shipped email to customer</button>
+          <p style="margin:6px 0 0;font-size:.75rem;color:#718096">
+            Check the tracking link above works first. Wording follows the mode
+            you chose — freight promises an appointment call, parcel does not.
+          </p>
+        </form>
+        <% } %>
+      </details>
     </div>
 
     <!-- Documents -->

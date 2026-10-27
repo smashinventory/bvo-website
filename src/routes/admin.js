@@ -131,6 +131,13 @@ router.post('/orders/:id/vendor-order',             ordersCtrl.sendVendorOrder);
 router.post('/orders/:id/vendor-confirm',           ordersCtrl.confirmVendorOrder);
 router.post('/orders/:id/shipping/quote',           ordersCtrl.getShippingQuotes);
 router.post('/orders/:id/shipping/book',            ordersCtrl.bookShipment);
+/* Manual tracking entry — vendor-shipped orders, where we never touch
+   WWEX and are simply handed a number. Two endpoints on purpose: saving
+   never emails anybody, and the email has its own button, so a typo'd
+   number or the wrong shipping mode is catchable before it reaches an
+   inbox. See ordersController.saveTracking. */
+router.post('/orders/:id/tracking',                 ordersCtrl.saveTracking);
+router.post('/orders/:id/tracking/notify',          ordersCtrl.notifyTracking);
 router.post('/orders/:id/notes',                    ordersCtrl.addNote);
 router.post('/orders/:id/documents',  ordersCtrl.documentUploadMiddleware, requireCsrf, ordersCtrl.uploadDocument);
 router.post('/orders/:id/capture',                  ordersCtrl.capturePayment);

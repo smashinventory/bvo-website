@@ -31,6 +31,13 @@ const brevo          = require('../services/brevoService');
 const CustomerAddress = require('../models/CustomerAddress');
 const wwex           = require('../services/wwexService');
 const stripePay      = require('../services/stripeService');
+/* Freight vs parcel, the tracking number and the tracking link — one
+   definition, shared with the customer views. See src/utils/shipMode.js
+   for why the carrier NAME can never answer the mode question. */
+const shipMode       = require('../utils/shipMode');
+/* One agreed phrase for "the thing you ordered" when no item name is
+   available. See orderEmails.js for why it is not 'your vanity'. */
+const { PRODUCT_FALLBACK } = require('../services/orderEmails');
 
 /* ⚠️ ONE DEFINITION OF A SALE, shared with every other dashboard.
    See src/config/revenue.js. Unaliased ('') because the KPI queries below
@@ -535,6 +542,13 @@ exports.detail = async (req, res, next) => {
       items,
       vendorPo:   vendorPo || null,
       shipment:   shipment || null,
+      /* The MODULE, not a precomputed boolean. The view asks it several
+         questions — mode, label, number, link — and passing one answer
+         would mean the others got re-derived in the template, which is
+         how the tracking page ended up telling parcel customers to
+         expect a freight appointment. One definition, called where
+         needed. */
+      shipMode,
       returns,
       events,
       documents,
@@ -673,7 +687,7 @@ Reply to this email with your confirmation number.</p>
       const firstItem = items[0];
       await brevo.sendTemplate('vanity_in_preparation', customerEmail, {
         customer_first_name: (order.customer_name || '').split(' ')[0] || 'there',
-        product_name:        firstItem?.name || 'your vanity',
+        product_name:        firstItem?.name || PRODUCT_FALLBACK,
         transit_days:        '5–7',
       });
     }
@@ -801,10 +815,20 @@ exports.bookShipment = async (req, res) => {
       );
     } else {
       await conn.query(
-        `INSERT INTO shipments (order_id, wwex_shipment_id, ship_type, carrier, service_level, tracking_number,
+        /* ⚠️ pro_number AND product_type ADDED 2026-10-27. This INSERT
+           wrote tracking_number only and let product_type fall to its
+           'LTL' default. Two consequences, both silent and both live:
+           Customer.getOrderTracking required pro_number, so every order
+           booked here showed the customer NO Track button; and every
+           parcel was labelled freight, promising an appointment call
+           that was never coming. */
+        `INSERT INTO shipments (order_id, wwex_shipment_id, ship_type, product_type, carrier,
+         service_level, tracking_number, pro_number,
          bol_number, bol_url, rate_quoted, rate_charged, status, estimated_delivery, shipped_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'booked', ?, NOW())`,
-        [id, booking.shipmentId, ship_type, carrier, service_level, booking.trackingNumber,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'booked', ?, NOW())`,
+        [id, booking.shipmentId, ship_type,
+         ship_type === 'SMALLPACK' ? 'SMALLPACK' : 'LTL',
+         carrier, service_level, booking.trackingNumber, booking.trackingNumber,
          booking.bolNumber, booking.bolUrl, rate_amount, rate_amount, estimated_delivery || null]
       );
     }
@@ -825,12 +849,35 @@ exports.bookShipment = async (req, res) => {
       const [[firstItem]] = await conn.query(
         'SELECT name FROM order_items WHERE order_id = ? LIMIT 1', [id]
       );
+      /* ⚠️ THE LINK IS RESOLVED, NOT CONSTRUCTED. This was
+         `https://wwex.com/track/<number>` for every shipment regardless
+         of carrier — a dead link for anything FedEx or UPS carried, in
+         the one email a customer actually opens. shipMode returns null
+         when it has nothing it trusts, and the template then shows the
+         number without a link.
+
+         Mode is passed too, so the template never has to infer "is this
+         a pallet or a box" from the carrier name. */
+      const mailShip = { product_type: ship_type === 'SMALLPACK' ? 'SMALLPACK' : 'LTL',
+                         carrier, tracking_number: booking.trackingNumber };
+      const mailParcel = shipMode.isParcel(mailShip);
       await brevo.sendTemplate('order_shipped', customerEmail, {
         customer_first_name: (order.customer_name || '').split(' ')[0] || 'there',
-        product_name:        firstItem?.name || 'your vanity',
-        tracking_url:        `https://wwex.com/track/${booking.trackingNumber}`,
+        /* Not 'your vanity' — this fires for faucets and samples too. */
+        product_name:        firstItem?.name || PRODUCT_FALLBACK,
+        order_number:        order.order_number,
+        tracking_number:     booking.trackingNumber,
+        tracking_url:        shipMode.trackingUrl(mailShip) || '',
         carrier,
-        estimated_delivery:  estimated_delivery || 'within 5–7 business days',
+        ship_mode:           mailParcel ? 'parcel' : 'freight',
+        delivery_note:       mailParcel
+          ? 'No appointment is needed — the carrier delivers on their normal route, and most packages are left at the door.'
+          : 'The carrier will call you to arrange a delivery appointment before they deliver. Freight is not left without someone present, so expect a call.',
+        /* ⚠️ NO INVENTED WINDOW. This said "within 5-7 business days"
+           whenever the carrier gave no estimate — a delivery promise we
+           made up, on the email a customer plans their day around. Empty
+           when unknown. */
+        estimated_delivery:  estimated_delivery || '',
       });
     }
 
@@ -840,6 +887,208 @@ exports.bookShipment = async (req, res) => {
     return res.status(500).json({ ok: false, error: 'Booking failed' });
   } finally {
     conn.release();
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════
+   MANUAL TRACKING ENTRY — vendor-shipped orders
+   ───────────────────────────────────────────────────────────────
+   Some orders ship direct from the vendor. We never touch WWEX; we are
+   handed a number. Before this there was no way to record one, so those
+   orders had no shipment row, no Track button and no shipped email.
+
+   ⚠️ SAVE AND SEND ARE TWO ENDPOINTS, DELIBERATELY. Nothing here emails
+   anybody. A mistyped number or the wrong mode has to be catchable by
+   looking at the page, and an email cannot be unsent. Sending is
+   notifyTracking below, behind its own button.
+
+   ⚠️ UPSERT, NOT INSERT. shipments.order_id is UNIQUE — one shipment per
+   order, enforced by the schema. A plain INSERT would throw ER_DUP_ENTRY
+   the second time somebody corrects a typo.
+   ═══════════════════════════════════════════════════════════════ */
+exports.saveTracking = async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id) || id < 1) return res.status(400).send('Bad order id');
+
+  /* ⚠️ MODE IS VALIDATED AGAINST THE ENUM, NOT TRUSTED AND NOT DEFAULTED.
+     product_type is ENUM('LTL','SMALLPACK') and MySQL in non-strict mode
+     stores an EMPTY STRING for a value outside an ENUM rather than
+     erroring — a row that then falls outside every status filter and
+     disappears from the UI. That has happened on this table before (see
+     migrations/shipments_table.sql). Rejecting here is the fix.
+
+     No default: the form requires a choice. Defaulting to LTL is exactly
+     what made every parcel look like freight. */
+  const productType = String(req.body.product_type || '').trim().toUpperCase();
+  if (productType !== 'LTL' && productType !== 'SMALLPACK') {
+    return res.status(400).send('Choose Freight (LTL) or Parcel before saving.');
+  }
+
+  const num = String(req.body.tracking_number || '').trim();
+  if (!num) return res.status(400).send('A tracking number is required.');
+
+  const carrier = String(req.body.carrier || '').trim().slice(0, 100) || null;
+
+  /* http(s) only. This value is rendered into an href on both an admin
+     page and a customer page; javascript: or data: in that position is a
+     scripting vector even when the source is an admin form. Anything
+     else is dropped rather than stored. */
+  const rawUrl = String(req.body.tracking_url || '').trim();
+  const url = /^https?:\/\//i.test(rawUrl) ? rawUrl.slice(0, 500) : null;
+
+  /* An empty date input posts '', and new Date('') is Invalid Date —
+     which MySQL would reject or coerce. Normalise to null. */
+  const estRaw = String(req.body.est_delivery || '').trim();
+  const est = /^\d{4}-\d{2}-\d{2}$/.test(estRaw) ? estRaw : null;
+
+  const conn = await bvoPool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    const [[order]] = await conn.query(
+      'SELECT id, status FROM orders WHERE id = ? LIMIT 1', [id]);
+    if (!order) { await conn.rollback(); return res.status(404).send('No such order'); }
+
+    const [[existing]] = await conn.query(
+      'SELECT id, entry_source FROM shipments WHERE order_id = ?', [id]);
+
+    /* ⚠️ REFUSES TO OVERWRITE A WWEX BOOKING. A real booking carries a
+       product_transaction_id used to void it and to pull documents;
+       stamping entry_source='manual' over it would strand the shipment
+       at the carrier with no way to cancel. Correcting a WWEX shipment
+       is the Shipping screen's job, not this form's. */
+    if (existing && existing.entry_source !== 'manual') {
+      await conn.rollback();
+      return res.status(409).send(
+        'This order has a WWEX booking. Void it on the Shipping screen before entering tracking by hand.');
+    }
+
+    if (existing) {
+      await conn.query(
+        `UPDATE shipments
+            SET product_type = ?, carrier = ?, pro_number = ?, tracking_number = ?,
+                tracking_url = ?, est_delivery = ?, entry_source = 'manual',
+                status = CASE WHEN status = 'voided' THEN 'booked' ELSE status END
+          WHERE id = ?`,
+        [productType, carrier, num, num, url, est, existing.id]);
+    } else {
+      /* pro_number AND tracking_number both written. The two booking
+         paths in this codebase each wrote only one, so every reader had
+         to know which path produced the row — and Customer.getOrderTracking
+         read pro_number only, which is why order-page bookings showed no
+         Track button at all. Writing both ends that guessing game for
+         manual rows. shipMode.trackingNumber() handles the legacy ones.
+
+         product_transaction_id is NOT NULL with no useful value here, so
+         it gets '' — the column's own default. entry_source='manual' is
+         what tells the status poll to leave this row alone. */
+      await conn.query(
+        `INSERT INTO shipments
+           (order_id, product_type, carrier, pro_number, tracking_number,
+            tracking_url, est_delivery, status, entry_source,
+            product_transaction_id, shipped_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'booked', 'manual', '', NOW())`,
+        [id, productType, carrier, num, num, url, est]);
+    }
+
+    /* Order status follows the shipment, same as a WWEX booking does.
+       Not forced backwards: an order already delivered stays delivered. */
+    if (!['shipped', 'in_transit', 'delivered', 'cancelled', 'refunded'].includes(order.status)) {
+      await conn.query(
+        `UPDATE orders SET tracking_number = ?, carrier = ?, shipped_at = NOW(), status = 'shipped'
+          WHERE id = ?`, [num, carrier, id]);
+      await logEvent(conn, id, 'shipment_booked', order.status, 'shipped',
+        req.session?.adminUser || 'admin',
+        `Tracking entered by hand · ${productType === 'SMALLPACK' ? 'Parcel' : 'Freight'} · ${carrier || 'carrier not given'} · ${num}`);
+    } else {
+      await conn.query('UPDATE orders SET tracking_number = ?, carrier = ? WHERE id = ?',
+        [num, carrier, id]);
+      await logEvent(conn, id, 'note_added', order.status, order.status,
+        req.session?.adminUser || 'admin',
+        `Tracking corrected by hand · ${productType === 'SMALLPACK' ? 'Parcel' : 'Freight'} · ${num}`);
+    }
+
+    await conn.commit();
+    return res.redirect(`/admin/orders/${id}?saved=tracking`);
+  } catch (err) {
+    await conn.rollback().catch(() => {});
+    console.error('[ordersController.saveTracking]', err.code, err.sqlMessage || err.message);
+    /* ER_BAD_FIELD_ERROR here means the 2026-10-27 migration has not been
+       run. Said plainly rather than as a generic 500, because that is the
+       one failure a deploy can realistically produce. */
+    if (err.code === 'ER_BAD_FIELD_ERROR') {
+      return res.status(500).send(
+        'Database is missing the tracking columns. Run migrations/2026-10-27_manual_tracking_RUNME.sql.');
+    }
+    return res.status(500).send('Could not save tracking.');
+  } finally {
+    conn.release();
+  }
+};
+
+/* ── SEND THE SHIPPED EMAIL ─────────────────────────────────────
+   Separate button, separate endpoint, no state change. Reads what was
+   saved and mails it, so what the customer gets is what the admin page
+   showed — not a second derivation that can disagree with it. */
+exports.notifyTracking = async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id) || id < 1) return res.status(400).send('Bad order id');
+
+  try {
+    const [[order]] = await bvoPool.query(
+      `SELECT o.id, o.order_number, o.guest_email, o.ship_first_name,
+              c.email AS customer_email, c.first_name AS customer_first
+         FROM orders o LEFT JOIN customers c ON c.id = o.customer_id
+        WHERE o.id = ? LIMIT 1`, [id]);
+    if (!order) return res.status(404).send('No such order');
+
+    const [[shipment]] = await bvoPool.query(
+      'SELECT * FROM shipments WHERE order_id = ? LIMIT 1', [id]);
+    if (!shipMode.isTrackable(shipment)) {
+      return res.status(400).send('No trackable shipment on this order yet.');
+    }
+
+    const to = order.customer_email || order.guest_email;
+    if (!to) return res.status(400).send('No email address on this order.');
+
+    const [[firstItem]] = await bvoPool.query(
+      'SELECT name FROM order_items WHERE order_id = ? LIMIT 1', [id]);
+
+    const parcel = shipMode.isParcel(shipment);
+
+    await brevo.sendTemplate('order_shipped', to, {
+      customer_first_name: order.customer_first || order.ship_first_name || 'there',
+      /* No 'your vanity' fallback. The old default said vanity for an
+         order of faucets or samples, which is the same freight-shaped
+         assumption this whole scope has been unpicking. */
+      product_name:        firstItem?.name || PRODUCT_FALLBACK,
+      order_number:        order.order_number,
+      carrier:             shipment.carrier || (parcel ? 'the carrier' : 'the freight carrier'),
+      tracking_number:     shipMode.trackingNumber(shipment),
+      /* ⚠️ EMPTY STRING WHEN WE HAVE NO LINK, NEVER A GUESSED ONE. This
+         used to be `https://wwex.com/track/<number>` for every shipment
+         regardless of carrier — dead for anything FedEx or UPS carried,
+         in the one email a customer actually opens. */
+      tracking_url:        shipMode.trackingUrl(shipment) || '',
+      /* The template can branch on these to say the right thing about
+         delivery. Both supplied so a template never has to infer mode
+         from the carrier name. */
+      ship_mode:           parcel ? 'parcel' : 'freight',
+      delivery_note:       parcel
+        ? 'No appointment is needed — the carrier delivers on their normal route, and most packages are left at the door.'
+        : 'The carrier will call you to arrange a delivery appointment before they deliver. Freight is not left without someone present, so expect a call.',
+      estimated_delivery:  shipment.est_delivery
+        ? new Date(shipment.est_delivery).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+        : '',
+    });
+
+    await logEvent(bvoPool, id, 'note_added', null, null,
+      req.session?.adminUser || 'admin', `Shipped email sent to ${to}`);
+
+    return res.redirect(`/admin/orders/${id}?sent=shipped`);
+  } catch (err) {
+    console.error('[ordersController.notifyTracking]', err.code, err.sqlMessage || err.message);
+    return res.status(500).send('Could not send the shipped email.');
   }
 };
 

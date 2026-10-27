@@ -166,7 +166,7 @@ patch_py "$TRACKVIEW" \
 # Looks entirely reasonable and is wrong for FedEx, which runs both an
 # LTL and a parcel network under one name.
 patch_py "$TRACKVIEW" \
-  "var isParcel = String(tracking.product_type).toUpperCase() === 'SMALLPACK';" \
+  "var isParcel = shipMode.isParcel(tracking);" \
   "var isParcel = tracking.carrier.toLowerCase().includes('ups');" \
   && run "M13 copy keyed on the carrier name (FedEx is both)"
 

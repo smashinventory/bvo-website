@@ -351,13 +351,21 @@ const Customer = {
      shipment that IS moving, and the customer would never know. */
   async getOrderTracking(orderId) {
     if (!orderId) return null;
+    /* ⚠️ ACCEPTS EITHER NUMBER COLUMN. This required pro_number alone,
+       and that was a live defect: the two booking paths in this codebase
+       write different columns — shippingController writes pro_number,
+       ordersController writes tracking_number — so every shipment booked
+       from the admin order page returned null here and the customer got
+       NO Track button at all, on an order that was genuinely moving.
+       Manual entry writes both; legacy rows have one or the other. */
     const [rows] = await bvoPool.query(`
-      SELECT s.carrier, s.service_level, s.pro_number, s.bol_number,
-             s.status, s.product_type, s.created_at
+      SELECT s.carrier, s.service_level, s.pro_number, s.tracking_number,
+             s.bol_number, s.status, s.product_type, s.tracking_url,
+             s.entry_source, s.est_delivery, s.created_at
         FROM shipments s
        WHERE s.order_id = ?
          AND s.status <> 'voided'
-         AND (s.pro_number IS NOT NULL AND s.pro_number <> '')
+         AND (COALESCE(NULLIF(s.pro_number, ''), NULLIF(s.tracking_number, '')) IS NOT NULL)
        ORDER BY s.created_at DESC
        LIMIT 1
     `, [orderId]);

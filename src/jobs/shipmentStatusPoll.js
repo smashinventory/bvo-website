@@ -176,9 +176,21 @@ async function runPoll(opts = {}) {
   say(`[poll] WWEX mode: ${wwex.apiMode}`);
 
   const [rows] = await bvoPool.query(
+    /* ⚠️ MANUAL ROWS ARE EXCLUDED, AND THIS IS LOAD BEARING.
+       A hand-entered shipment has no product_transaction_id — nobody
+       booked it through WWEX, a vendor shipped it and we were handed a
+       number. Asking WWEX about it returns nothing useful, and the
+       handler below would then write that nothing over a status somebody
+       set deliberately. The customer's tracking page would go from
+       "On its way" to an exception, on a shipment that is fine.
+
+       entry_source, not "pro_number looks odd" or any other heuristic:
+       the column records how the row got here, which is exactly the
+       question being asked. */
     `SELECT id, bol_number, pro_number, product_type, status, order_id, ship_date
        FROM shipments
       WHERE status IN (?)
+        AND entry_source = 'wwex'
         AND (bol_number IS NOT NULL OR pro_number IS NOT NULL)
         AND (ship_date IS NULL OR ship_date >= DATE_SUB(CURDATE(), INTERVAL ? DAY))
       ORDER BY id ASC`,

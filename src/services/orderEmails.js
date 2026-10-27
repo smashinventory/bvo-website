@@ -176,4 +176,23 @@ async function resend(order, items, confirmToken, toEmail) {
                 : 'Brevo refused the message and gave no reason.' };
 }
 
-module.exports = { send, resend, buildVars };
+/* ─────────────────────────────────────────────────────────────────
+ * PRODUCT_FALLBACK — what we call the thing when we cannot name it.
+ *
+ * Owner's wording, 2026-10-27: vanities are the main product and
+ * everything else relates to one, so this reads correctly whether the
+ * box holds a vanity, a faucet, a mirror or a stone sample.
+ *
+ * ⚠️ A FALLBACK, NOT A REPLACEMENT. Where a template has
+ * {{product_name}} it gets the REAL item name, which is always better
+ * than a generic phrase. This is only for the case where no item name
+ * could be read — previously 'your vanity', which told someone who
+ * bought faucets that their vanity was on the way.
+ *
+ * Defined once and imported, so the three send sites in
+ * ordersController cannot drift from each other or from the email
+ * templates in the database.
+ * ───────────────────────────────────────────────────────────────── */
+const PRODUCT_FALLBACK = 'your dream vanity or related item';
+
+module.exports = { send, resend, buildVars, PRODUCT_FALLBACK };

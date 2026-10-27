@@ -273,8 +273,15 @@ console.log('\n--- delivery copy follows product_type, not the carrier name ---'
   const view = fs.readFileSync(path.join(ROOT, 'views/pages/account/order-tracking.ejs'), 'utf8');
   const code = view.replace(/<%#[\s\S]*?%>/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
 
-  check(/product_type/.test(code) && /SMALLPACK/.test(code),
-        'the tracking view branches on product_type',
+  /* Either form is correct: reading product_type directly, or asking
+     shipMode (which reads product_type and nothing else). The view moved
+     to the second on 2026-10-27 so admin and customer surfaces share ONE
+     definition — this check failed on that improvement because it tested
+     for the literal column name rather than for the rule. What matters
+     is that the mode comes from the TYPE, never from the carrier, which
+     the carrier check below enforces. */
+  check((/product_type/.test(code) || /shipMode\.isParcel/.test(code)) && /SMALLPACK/.test(code),
+        'the tracking view takes its mode from product_type (directly or via shipMode)',
         'without this every customer gets freight copy');
 
   /* Both modes must cover every status. A mode missing a status falls
