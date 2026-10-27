@@ -27,7 +27,23 @@ done
 restore() { for f in "$JOB" "$TPL" "$SH"; do cp "$BAK/$f" "$f"; done; }
 trap 'restore; rm -rf "$BAK"' EXIT
 
-caught=0; missed=0
+caught=0; missed=0; skipped=0
+
+# ⚠️ A MUTATION THAT CANNOT BE APPLIED MUST NOT VANISH.
+# On 2026-10-27 M12's target line was removed by a refactor of triage().
+# patch_py asserted, `&& run` short-circuited, and the harness printed
+# "caught 21 / 21" — full marks while silently testing one thing fewer
+# than it claimed. The assertion text scrolled past in the output and the
+# score looked perfect.
+#
+# A stale mutation is WORSE than a failing one: it is a defect nobody is
+# checking for any more, and the harness says everything is fine.
+skip() {
+  echo "  SKIPPED $1"
+  echo "          patch target not found — this mutation did NOT run."
+  echo "          The code it targets was probably refactored; retarget it."
+  skipped=$((skipped+1))
+}
 
 patch_py() {
   python3 - "$1" "$2" "$3" <<'PY'
@@ -56,12 +72,14 @@ echo
 # ── M1: the declined are emailed after all ───────────────────────────
 # The order-23 defect: she ticked no one minute before abandoning.
 patch_py "$JOB" "  declined:    false," "  declined:    true," \
-  && run "M1 people who DECLINED marketing are emailed"
+  && run "M1 people who DECLINED marketing are emailed" \
+  || skip "M1 people who DECLINED marketing are emailed"
 
 # ── M2: never-asked silently folded in with the consenting ───────────
 # Defensible as a decision; not defensible as a silent one.
 patch_py "$JOB" "  never_asked: false," "  never_asked: true," \
-  && run "M2 never-asked emailed without the switch being read"
+  && run "M2 never-asked emailed without the switch being read" \
+  || skip "M2 never-asked emailed without the switch being read"
 
 # ── M3: the consent distinction collapses ────────────────────────────
 # "Declined" and "never asked" become one thing, so the fixable gap in
@@ -69,30 +87,35 @@ patch_py "$JOB" "  never_asked: false," "  never_asked: true," \
 patch_py "$JOB" \
   "    const why = row.marketing_consent_at ? 'declined' : 'never_asked';" \
   "    const why = 'declined';" \
-  && run "M3 declined and never-asked collapsed into one reason"
+  && run "M3 declined and never-asked collapsed into one reason" \
+  || skip "M3 declined and never-asked collapsed into one reason"
 
 # ── M4: a blocked address is emailed because it has consent ──────────
 patch_py "$JOB" \
   "  if (Number(row.email_blocked) === 1) return 'blocked';" \
   "" \
-  && run "M4 blocked addresses emailed when consent is present"
+  && run "M4 blocked addresses emailed when consent is present" \
+  || skip "M4 blocked addresses emailed when consent is present"
 
 # ── M5: the payment filter goes ──────────────────────────────────────
 # Now it emails "did you forget something?" to people who have paid.
 patch_py "$JOB" \
   "        AND (o.payment_status IS NULL OR o.payment_status IN ('draft','pending'))" \
   "" \
-  && run "M5 paid orders treated as abandoned carts"
+  && run "M5 paid orders treated as abandoned carts" \
+  || skip "M5 paid orders treated as abandoned carts"
 
 # ── M6: the send-once guard goes ─────────────────────────────────────
 patch_py "$JOB" "        AND o.recovery_emailed_at IS NULL" "" \
-  && run "M6 send-once guard removed (hourly cron, hourly email)"
+  && run "M6 send-once guard removed (hourly cron, hourly email)" \
+  || skip "M6 send-once guard removed (hourly cron, hourly email)"
 
 # ── M7: the upper age bound goes ─────────────────────────────────────
 # First run after deploy mails every abandoned cart in history at once.
 patch_py "$JOB" \
   "        AND o.created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)" "" \
-  && run "M7 no upper age bound (first run mails the entire history)"
+  && run "M7 no upper age bound (first run mails the entire history)" \
+  || skip "M7 no upper age bound (first run mails the entire history)"
 
 # ── M8: stamp before send ────────────────────────────────────────────
 # A failed send is then never retried, and the customer is skipped
@@ -101,7 +124,8 @@ patch_py "$JOB" \
   "      await brevo.sendTemplate(TEMPLATE_KEY, r.email, {" \
   "      await pool().query('UPDATE orders SET recovery_emailed_at = NOW() WHERE id = ?', [r.id]);
       await brevo.sendTemplate(TEMPLATE_KEY, r.email, {" \
-  && run "M8 row stamped BEFORE the send resolves"
+  && run "M8 row stamped BEFORE the send resolves" \
+  || skip "M8 row stamped BEFORE the send resolves"
 
 # ── M9: the offer link points at the sale page ───────────────────────
 # Promises a 10% that offerClaim.js will refuse, because that page
@@ -109,11 +133,13 @@ patch_py "$JOB" \
 patch_py "$JOB" \
   "'https://www.bathroomvanitiesoutlet.com/account/login?offer=platinum&optin=1'," \
   "'https://www.bathroomvanitiesoutlet.com/collections/sale'," \
-  && run "M9 offer link points at a page that enrols nobody"
+  && run "M9 offer link points at a page that enrols nobody" \
+  || skip "M9 offer link points at a page that enrols nobody"
 
 # ── M10: the unsubscribe link is dropped ─────────────────────────────
 patch_py "$JOB" "        unsubscribe_url:     unsubToken.url(r.email) || ''," "" \
-  && run "M10 commercial email sent with no unsubscribe link"
+  && run "M10 commercial email sent with no unsubscribe link" \
+  || skip "M10 commercial email sent with no unsubscribe link"
 
 # ── M11: the template arrives ACTIVE ─────────────────────────────────
 # Live the instant it is inserted, before anybody reads it.
@@ -124,15 +150,22 @@ patch_py "$TPL" \
   "  ),
   1
 );" \
-  && run "M11 template inserted already active"
+  && run "M11 template inserted already active" \
+  || skip "M11 template inserted already active"
 
 # ── M12: the call list is dropped ────────────────────────────────────
 # The excluded simply vanish — no error, no list, no follow-up, and the
 # $2,195 cart is never called.
+# ⚠️ RETARGETED 2026-10-27. triage() became three lists (email / call /
+# held) when suppression went in, and this mutation's old target line
+# vanished — it silently stopped running for one commit. Now it drops the
+# CALL push, so an excluded cart that is NOT suppressed disappears
+# entirely: no email, no call, no held line, no error.
 patch_py "$JOB" \
-  "    else call.push({ ...r, excluded_because: why });" \
-  "    else continue;" \
-  && run "M12 excluded carts silently dropped instead of listed"
+  "    else        call.push(row);" \
+  "    else        { /* dropped */ }" \
+  && run "M12 excluded carts silently dropped instead of listed" \
+  || skip "M12 excluded carts silently dropped instead of listed"
 
 # ── M13: the curbside paragraph comes back ───────────────────────────
 # Removed by owner decision 2026-10-27. Somebody re-adding it "because
@@ -142,7 +175,8 @@ patch_py "$TPL" \
   "    '<p><strong>One more thing.</strong> Our free Platinum Member program takes '," \
   "    '<div>A note on delivery: your vanity arrives curbside on a liftgate.</div>',
     '<p><strong>One more thing.</strong> Our free Platinum Member program takes '," \
-  && run "M13 curbside paragraph re-added to the template body"
+  && run "M13 curbside paragraph re-added to the template body" \
+  || skip "M13 curbside paragraph re-added to the template body"
 
 # ── M14: the specialist block removed ────────────────────────────────
 # Leaves the email with no human offer of help at all — a button, a
@@ -150,21 +184,24 @@ patch_py "$TPL" \
 patch_py "$TPL" \
   "      '<p style=\"margin:0 0 8px\"><strong>Not sure? Talk to a bathroom specialist.</strong></p>'," \
   "" \
-  && run "M14 the specialist block removed"
+  && run "M14 the specialist block removed" \
+  || skip "M14 the specialist block removed"
 
 # ── M15: an unsubstantiated volume claim added ───────────────────────
 # BVO had four orders when this was written.
 patch_py "$TPL" \
   "      '<p style=\"margin:0\">Choosing a vanity is easier with someone who sees them every day. '," \
   "      '<p style=\"margin:0\">We have helped thousands of customers. '," \
-  && run "M15 'thousands of customers' claim added back"
+  && run "M15 'thousands of customers' claim added back" \
+  || skip "M15 'thousands of customers' claim added back"
 
 # ── M16: hour 24, which cron can never match ─────────────────────────
 # Reads as "until midnight" and is a real off-by-one somebody would
 # make. date +%-H never returns 24, so with FROM=24 the job silently
 # never sends again — and the log fills with plausible skip lines.
 patch_py "$SH" "SEND_FROM_HOUR=12" "SEND_FROM_HOUR=24" \
-  && run "M16 window starts at hour 24 (can never match)"
+  && run "M16 window starts at hour 24 (can never match)" \
+  || skip "M16 window starts at hour 24 (can never match)"
 
 # ── M17: the window is computed and then ignored ─────────────────────
 # The assignments stay, the comments stay, the guard goes. Reads
@@ -172,7 +209,8 @@ patch_py "$SH" "SEND_FROM_HOUR=12" "SEND_FROM_HOUR=24" \
 patch_py "$SH" \
   'if [ "$IN_WINDOW" -eq 0 ]; then' \
   'if false; then' \
-  && run "M17 IN_WINDOW computed but never acted on"
+  && run "M17 IN_WINDOW computed but never acted on" \
+  || skip "M17 IN_WINDOW computed but never acted on"
 
 # ── M18: the skip goes silent ────────────────────────────────────────
 # Defensible as "stop spamming the log 12 times a day". It also makes a
@@ -180,7 +218,8 @@ patch_py "$SH" \
 patch_py "$SH" \
   '  echo "$(stamp) ── outside sending window (${SEND_FROM_HOUR}-${SEND_TO_HOUR} UTC), skipping ──" >> "$LOG"' \
   '  :' \
-  && run "M18 out-of-window skip not logged"
+  && run "M18 out-of-window skip not logged" \
+  || skip "M18 out-of-window skip not logged"
 
 # ── M19: --dry-run subjected to the window ───────────────────────────
 # Tidier-looking, and it makes the dry run — the only safe way to test
@@ -188,7 +227,8 @@ patch_py "$SH" \
 patch_py "$SH" \
   '  *" --dry-run "*) IN_WINDOW=1 ;;' \
   '' \
-  && run "M19 --dry-run no longer exempt from the window"
+  && run "M19 --dry-run no longer exempt from the window" \
+  || skip "M19 --dry-run no longer exempt from the window"
 
 # ── M20: the hourly cron line replaced with a daily one ──────────────
 # The header is the only place the schedule is written down. Documenting
@@ -197,7 +237,8 @@ patch_py "$SH" \
 patch_py "$SH" \
   "#   12 * * * *  /bin/bash" \
   "#   12 14 * * *  /bin/bash" \
-  && run "M20 header documents a daily cron, not the hourly one"
+  && run "M20 header documents a daily cron, not the hourly one" \
+  || skip "M20 header documents a daily cron, not the hourly one"
 
 # ── M21: the timeframe claim comes back ──────────────────────────────
 # The original wording, which the first real send proved false. Somebody
@@ -205,15 +246,23 @@ patch_py "$SH" \
 patch_py "$TPL" \
   "    '<p>We see that your shopping session was interrupted, and we have kept your cart ready for you:</p>'," \
   "    '<p>You were setting this up a couple of days ago, and we have kept it ready for you:</p>'," \
-  && run "M21 'a couple of days ago' timeframe claim restored"
+  && run "M21 'a couple of days ago' timeframe claim restored" \
+  || skip "M21 'a couple of days ago' timeframe claim restored"
 
 # ── M22: the opening sentence deleted entirely ───────────────────────
 # Leaves the email opening on a bare product box with no lead-in.
 patch_py "$TPL" \
   "    '<p>We see that your shopping session was interrupted, and we have kept your cart ready for you:</p>'," \
   "" \
-  && run "M22 opening sentence removed entirely"
+  && run "M22 opening sentence removed entirely" \
+  || skip "M22 opening sentence removed entirely"
 
 echo
 echo "caught $caught / $((caught+missed))"
-[ "$missed" -eq 0 ] || exit 1
+if [ "$skipped" -gt 0 ]; then
+  echo
+  echo "*** $skipped MUTATION(S) DID NOT RUN — the score above is not the"
+  echo "    whole story. Retarget them or delete them deliberately; a stale"
+  echo "    mutation is a defect nobody is checking for any more. ***"
+fi
+[ "$missed" -eq 0 ] && [ "$skipped" -eq 0 ] || exit 1

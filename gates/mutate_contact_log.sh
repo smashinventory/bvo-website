@@ -32,7 +32,23 @@ done
 restore() { for f in "${FILES[@]}"; do cp "$BAK/$f" "$f"; done; }
 trap 'restore; rm -rf "$BAK"' EXIT
 
-caught=0; missed=0
+caught=0; missed=0; skipped=0
+
+# ⚠️ A MUTATION THAT CANNOT BE APPLIED MUST NOT VANISH.
+# On 2026-10-27 mutate_cart_recovery's M12 lost its target to a refactor
+# of triage(). patch_py asserted, `&& run` short-circuited, and the
+# harness printed "caught 21 / 21" — full marks while silently testing
+# one thing fewer than it claimed. The assertion scrolled past; the score
+# looked perfect.
+#
+# A stale mutation is WORSE than a failing one: it is a defect nobody is
+# checking for any more, and the harness says everything is fine.
+skip() {
+  echo "  SKIPPED $1"
+  echo "          patch target not found — this mutation did NOT run."
+  echo "          The code it targets was probably refactored; retarget it."
+  skipped=$((skipped+1))
+}
 
 patch_py() {
   python3 - "$1" "$2" "$3" <<'PY'
@@ -62,7 +78,8 @@ echo
 # >= instead of <. Reads identical; the window silently lasts a day
 # longer than the constant says it does.
 patch_py "$UTIL" "  if (ageDays < days) {" "  if (ageDays <= days) {" \
-  && run "M1 window boundary uses <= (silently one day longer)"
+  && run "M1 window boundary uses <= (silently one day longer)" \
+  || skip "M1 window boundary uses <= (silently one day longer)"
 
 # ── M2: suppression fails CLOSED on a bad date ───────────────────────
 # Looks defensive. Means an unparseable timestamp silently drops a cart
@@ -70,13 +87,15 @@ patch_py "$UTIL" "  if (ageDays < days) {" "  if (ageDays <= days) {" \
 patch_py "$UTIL" \
   "  if (Number.isNaN(then.getTime())) return { skip: false, reason: null };" \
   "  if (Number.isNaN(then.getTime())) return { skip: true, reason: 'bad date' };" \
-  && run "M2 unreadable date fails CLOSED (cart silently dropped)"
+  && run "M2 unreadable date fails CLOSED (cart silently dropped)" \
+  || skip "M2 unreadable date fails CLOSED (cart silently dropped)"
 
 # ── M3: a bad number expires like any other outcome ──────────────────
 # Three days later the dead number is dialled again, forever.
 patch_py "$UTIL" "const PERMANENT_OUTCOMES = ['bad_number'];" \
   "const PERMANENT_OUTCOMES = [];" \
-  && run "M3 bad_number no longer suppresses permanently"
+  && run "M3 bad_number no longer suppresses permanently" \
+  || skip "M3 bad_number no longer suppresses permanently"
 
 # ── M4: the lookup takes the id match unconditionally ────────────────
 # "Simpler." Reports a stale call when a newer one exists under the
@@ -87,7 +106,8 @@ patch_py "$UTIL" \
   }
   return byId || byEm || null;" \
   "  return byId || byEm || null;" \
-  && run "M4 lookup ignores which match is more recent"
+  && run "M4 lookup ignores which match is more recent" \
+  || skip "M4 lookup ignores which match is more recent"
 
 # ── M5: the bulk read keys on customer_id only ───────────────────────
 # ⚠️ THE BIG ONE. Every guest order has customer_id NULL, so this
@@ -96,14 +116,16 @@ patch_py "$UTIL" \
 patch_py "$UTIL" \
   "    if (r.to_email)    out.set(\`em:\${String(r.to_email).toLowerCase()}\`, r);" \
   "" \
-  && run "M5 bulk lookup drops the email key (guest orders never match)"
+  && run "M5 bulk lookup drops the email key (guest orders never match)" \
+  || skip "M5 bulk lookup drops the email key (guest orders never match)"
 
 # ── M6: held rows are discarded instead of returned ──────────────────
 # The list gets shorter and nothing says why. Indistinguishable from a
 # cart that was never found.
 patch_py "$JOB" "    if (s.skip) held.push({ ...row, held_because: s.reason });" \
   "    if (s.skip) { /* nothing */ }" \
-  && run "M6 suppressed rows silently discarded, not held"
+  && run "M6 suppressed rows silently discarded, not held" \
+  || skip "M6 suppressed rows silently discarded, not held"
 
 # ── M7: suppression applied to the EMAIL list too ────────────────────
 # A phone call would then block the recovery email, which has its own
@@ -115,7 +137,8 @@ patch_py "$JOB" \
       if (!contactLog.suppression(le, now).skip) email.push(r);
       continue;
     }" \
-  && run "M7 a logged call suppresses the recovery EMAIL as well"
+  && run "M7 a logged call suppresses the recovery EMAIL as well" \
+  || skip "M7 a logged call suppresses the recovery EMAIL as well"
 
 # ── M8: logging a call also sends a 'we missed you' email ────────────
 # ⚠️ THE WORST ONE. Mails exactly the people who declined marketing.
@@ -123,26 +146,30 @@ patch_py "$CTL" \
   "    return res.redirect(\`\${back}?cl_ok=\${encodeURIComponent(" \
   "    await brevo.sendTemplate('cart_recovery', order.email, {});
     return res.redirect(\`\${back}?cl_ok=\${encodeURIComponent(" \
-  && run "M8 logging a call also fires an email"
+  && run "M8 logging a call also fires an email" \
+  || skip "M8 logging a call also fires an email"
 
 # ── M9: a call is recorded as a failed send ──────────────────────────
 # Every call then renders as a failure in the timeline and in the
 # analytics counts.
 patch_py "$CTL" "      sentOk:      true," "      sentOk:      false," \
-  && run "M9 a logged call stored as sent_ok = 0"
+  && run "M9 a logged call stored as sent_ok = 0" \
+  || skip "M9 a logged call stored as sent_ok = 0"
 
 # ── M10: the outcome list is re-typed inline ─────────────────────────
 # A second copy of the list, which drifts from the shared one.
 patch_py "$CTL" \
   "    if (kind === 'call' && !contactLog.isValidOutcome(outcome))" \
   "    if (kind === 'call' && !['spoke','left_voicemail'].includes(outcome))" \
-  && run "M10 outcome validated against a re-typed inline list"
+  && run "M10 outcome validated against a re-typed inline list" \
+  || skip "M10 outcome validated against a re-typed inline list"
 
 # ── M11: the address is not stored on a call ─────────────────────────
 # Breaks the join between a call and an email for every guest order.
 patch_py "$CTL" "      toEmail:    clean(order.email) || null," \
   "      toEmail:    null," \
-  && run "M11 call logged with no address (guest timeline breaks)"
+  && run "M11 call logged with no address (guest timeline breaks)" \
+  || skip "M11 call logged with no address (guest timeline breaks)"
 
 # ── M12: outcome dropped from the INSERT ─────────────────────────────
 # Every call logs with a NULL outcome, so suppression never fires and
@@ -151,7 +178,8 @@ patch_py "$CTL" \
   "       fields.outcome      || null,
        fields.contactPhone || null," \
   "       fields.contactPhone || null," \
-  && run "M12 outcome dropped from the INSERT (placeholder mismatch)"
+  && run "M12 outcome dropped from the INSERT (placeholder mismatch)" \
+  || skip "M12 outcome dropped from the INSERT (placeholder mismatch)"
 
 # ── M13: the timeline is scoped to this order ────────────────────────
 # ⚠️ THE OBVIOUS THING, AND IT DEFEATS THE FEATURE. A repeat customer
@@ -160,7 +188,8 @@ patch_py "$ORD" \
   "          email:      order.customer_email || order.guest_email || null," \
   "          email:      order.customer_email || order.guest_email || null,
           order_id:   order.id," \
-  && run "M13 timeline filtered to this order only"
+  && run "M13 timeline filtered to this order only" \
+  || skip "M13 timeline filtered to this order only"
 
 # ── M14: order.email, the ship_name-shaped bug ───────────────────────
 # Not an error, not null — undefined. Silently degrades to customer_id
@@ -168,14 +197,16 @@ patch_py "$ORD" \
 patch_py "$ORD" \
   "          email:      order.customer_email || order.guest_email || null," \
   "          email:      order.email || null," \
-  && run "M14 reads order.email, which does not exist"
+  && run "M14 reads order.email, which does not exist" \
+  || skip "M14 reads order.email, which does not exist"
 
 # ── M15: the empty state renders nothing ─────────────────────────────
 # Blank space reads as a broken panel and gets ignored.
 patch_py "$VIEW" \
   "          No contact recorded for this customer." \
   "          &nbsp;" \
-  && run "M15 empty timeline renders blank instead of saying so"
+  && run "M15 empty timeline renders blank instead of saying so" \
+  || skip "M15 empty timeline renders blank instead of saying so"
 
 # ── M16: the dropdown hardcodes its options ──────────────────────────
 patch_py "$VIEW" \
@@ -183,7 +214,8 @@ patch_py "$VIEW" \
               <option value=\"<%= k %>\"><%= contactOutcomes[k] %></option>
             <% }); %>" \
   "            <option value=\"spoke\">Spoke</option>" \
-  && run "M16 outcome dropdown hardcoded instead of shared"
+  && run "M16 outcome dropdown hardcoded instead of shared" \
+  || skip "M16 outcome dropdown hardcoded instead of shared"
 
 # ── M17: the migration clears the table ──────────────────────────────
 # "Start clean." Destroys three rows of real outreach history.
@@ -191,8 +223,15 @@ patch_py "$SQL" \
   "-- ── STEP 3: THE TWO NEW COLUMNS ────────────────────────────────────────" \
   "DELETE FROM customer_messages;
 -- ── STEP 3: THE TWO NEW COLUMNS ────────────────────────────────────────" \
-  && run "M17 migration deletes existing outreach history"
+  && run "M17 migration deletes existing outreach history" \
+  || skip "M17 migration deletes existing outreach history"
 
 echo
 echo "caught $caught / $((caught+missed))"
-[ "$missed" -eq 0 ] || exit 1
+if [ "$skipped" -gt 0 ]; then
+  echo
+  echo "*** $skipped MUTATION(S) DID NOT RUN — the score above is not the"
+  echo "    whole story. Retarget them or delete them deliberately; a stale"
+  echo "    mutation is a defect nobody is checking for any more. ***"
+fi
+[ "$missed" -eq 0 ] && [ "$skipped" -eq 0 ] || exit 1
