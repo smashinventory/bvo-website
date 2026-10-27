@@ -256,6 +256,21 @@ module.exports = {
 
 /* Run directly: node src/jobs/cartRecovery.js [--dry-run] */
 if (require.main === module) {
+  /* ⚠️ dotenv IS LOADED HERE, AND ONLY HERE. A direct run has nothing
+     else to load it, so without this the first thing that touches the
+     pool dies with "DB_PASS is not set in .env" — which reads as a
+     missing password rather than a missing require, and sends somebody
+     looking in the wrong place. The header of this file advertises a
+     direct run, so a direct run has to work.
+
+     NOT at module scope: cart_recovery.sh loads a SPECIFIC env file
+     (hbuilds/config/.env, outside the deploy tree) before requiring
+     this, and dotenv does not override variables that are already set —
+     but putting the call at module scope would still mean a require
+     from anywhere silently pulled in whatever .env happened to sit in
+     the working directory. Scoped to the CLI path, that cannot happen. */
+  try { require('dotenv').config(); } catch { /* dotenv optional */ }
+
   run({ dryRun: process.argv.includes('--dry-run') })
     .then(r => process.exit(r.ok ? 0 : 1))
     .catch(err => { console.error('[cart-recovery] fatal:', err); process.exit(1); });
