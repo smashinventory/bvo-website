@@ -196,10 +196,35 @@ console.log('\n--- the template cannot send itself the moment it is inserted ---
   /* And the file still checks for it after the fact. */
   check(/wrong_link_should_be_0/.test(sql),
         'the migration verifies the same thing against the live row');
-  check(/curbside/.test(sql),
-        'the delivery expectation is set in the email',
-        'curbside is the biggest expectation gap in the business and a ' +
-        'likely reason somebody stops at the payment step');
+  /* ⚠️ ASSERTS THE PARAGRAPH IS ABSENT. It was present, and this check
+     asserted the opposite. Owner's decision 2026-10-27: a recovery
+     email's job is to REMOVE friction, not re-raise an objection the
+     customer already accepted at checkout. Scoped to the INSERT so the
+     explanatory comments in the migration, which necessarily say the
+     word, do not trip it — the same loose-matching trap that made the
+     sale-page check fail on correct code a few lines above. */
+  /* The reassurance block that replaced the warning. Asserted present so
+     somebody tidying the email cannot quietly leave it with no human
+     offer of help at all. */
+  check(/bathroom specialist/i.test(insert),
+        'the email offers a specialist to talk to before ordering',
+        'this replaced the curbside warning; reassurance in its place, ' +
+        'not an empty gap');
+
+  /* ⚠️ NO UNSUBSTANTIATED VOLUME CLAIM. A draft said "thousands of
+     customers"; BVO is new and had four orders when this was written.
+     A number a reader can doubt undercuts the confidence it is meant to
+     create, and an unsupported claim in commercial email is its own
+     exposure. Scoped to the INSERT so the migration's note explaining
+     this does not trip it. */
+  check(!/thousands/i.test(insert),
+        'the body makes no "thousands of customers" claim',
+        'add a volume claim only with a real number behind it');
+
+  check(!/curbside/.test(insert),
+        'the template body does NOT carry the curbside paragraph',
+        're-raising delivery in a recovery email plants a doubt for ' +
+        'anyone who stopped for an unrelated reason');
 }
 
 console.log(fail ? `\n*** ${fail} of ${pass + fail} CHECKS FAILED ***`

@@ -133,6 +133,31 @@ patch_py "$JOB" \
   "    else continue;" \
   && run "M12 excluded carts silently dropped instead of listed"
 
+# ── M13: the curbside paragraph comes back ───────────────────────────
+# Removed by owner decision 2026-10-27. Somebody re-adding it "because
+# it is honest" should fail the gate and have the conversation again,
+# not ship it quietly.
+patch_py "$TPL" \
+  "    '<p><strong>One more thing.</strong> Our free Platinum Member program takes '," \
+  "    '<div>A note on delivery: your vanity arrives curbside on a liftgate.</div>',
+    '<p><strong>One more thing.</strong> Our free Platinum Member program takes '," \
+  && run "M13 curbside paragraph re-added to the template body"
+
+# ── M14: the specialist block removed ────────────────────────────────
+# Leaves the email with no human offer of help at all — a button, a
+# discount, and nobody to ask.
+patch_py "$TPL" \
+  "      '<p style=\"margin:0 0 8px\"><strong>Not sure? Talk to a bathroom specialist.</strong></p>'," \
+  "" \
+  && run "M14 the specialist block removed"
+
+# ── M15: an unsubstantiated volume claim added ───────────────────────
+# BVO had four orders when this was written.
+patch_py "$TPL" \
+  "      '<p style=\"margin:0\">Choosing a vanity is easier with someone who sees them every day. '," \
+  "      '<p style=\"margin:0\">We have helped thousands of customers. '," \
+  && run "M15 'thousands of customers' claim added back"
+
 echo
 echo "caught $caught / $((caught+missed))"
 [ "$missed" -eq 0 ] || exit 1

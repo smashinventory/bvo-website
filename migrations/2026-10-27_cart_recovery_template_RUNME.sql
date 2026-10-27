@@ -32,13 +32,38 @@
 --   postal_address       required by CAN-SPAM
 --   phone                (877) 777-1948
 --
--- ── WHY THE DELIVERY PARAGRAPH IS IN HERE ──────────────────────────────
--- A vanity is 200–400 lbs and arrives curbside on a liftgate. The
--- project's own checkout-delivery.ejs calls curbside "the single biggest
--- expectation gap in the business". Somebody who reaches the payment step
--- on a $2,195 freight item and stops may well have stopped over
--- delivery, not price. Naming it costs nothing if that is wrong and
--- recovers the sale if it is right.
+-- ── WHAT SITS WHERE THE DELIVERY PARAGRAPH USED TO ─────────────────────
+-- A "talk to a bathroom specialist" block. Same position, opposite job:
+-- reassurance instead of warning.
+--
+-- ⚠️ DELIBERATELY CARRIES NO NUMBER. A draft said "we have helped
+-- thousands of customers". BVO is new and the orders table had four rows
+-- when this was written, so that claim was not substantiable — and a
+-- figure a reader can doubt undermines the confidence it was meant to
+-- build. "Someone who sees them every day" does the same work and is
+-- true on day one. If a volume claim is ever added it needs a real number
+-- behind it.
+--
+-- The separate "Call us on {{phone}}" paragraph that used to sit lower
+-- down was removed when this went in: the phone now appears once in the
+-- body and once in the footer, rather than three times.
+--
+-- ── WHY THERE IS NO DELIVERY PARAGRAPH ─────────────────────────────────
+-- An earlier draft carried a curbside/liftgate/200–400 lbs note, on the
+-- reasoning that delivery is the biggest expectation gap in the business
+-- and a likely reason somebody stops at the payment step.
+--
+-- Owner's decision, 2026-10-27: remove it. A recovery email's job is to
+-- REMOVE friction, not re-raise an objection. The customer has already
+-- seen the curbside terms at checkout — checkout-delivery.ejs shows them
+-- and orders.delivery_terms_ack_at records the acknowledgement — so
+-- repeating it re-litigates something they had already settled. If they
+-- stopped for an unrelated reason, a paragraph about 400 lbs on a
+-- liftgate plants a doubt that was not there.
+--
+-- ⚠️ DO NOT ADD IT BACK WITHOUT THAT CONVERSATION. gate_cart_recovery.js
+-- asserts its absence, so a well-meaning re-insertion fails the gate
+-- rather than quietly shipping.
 -- ═══════════════════════════════════════════════════════════════════════
 
 
@@ -66,13 +91,12 @@ VALUES (
       'Pick up where you left off &rarr;</a></p>',
     '<p>If something got in the way &mdash; a question about the finish, the payment step ',
       'not working, or anything else &mdash; just reply to this email and a person will read it.</p>',
-    '<div style="background:#F4F7F4;border-left:3px solid #6B8C74;padding:12px 14px;margin:18px 0">',
-      '<p style="margin:0 0 8px"><strong>A note on delivery, since it surprises people.</strong></p>',
-      '<p style="margin:0">A vanity this size ships by freight truck and is delivered ',
-      '<strong>curbside</strong> &mdash; the driver lowers it to the kerb on a liftgate rather ',
-      'than carrying it inside. It weighs 200&ndash;400&nbsp;lbs, so plan a hand. The carrier ',
-      'calls you first to book a time. If that is the part you were unsure about, we would ',
-      'rather talk it through now than after it is on a truck.</p>',
+    '<div style="background:#F4F7F4;border-left:3px solid #6B8C74;padding:14px 16px;margin:18px 0">',
+      '<p style="margin:0 0 8px"><strong>Not sure? Talk to a bathroom specialist.</strong></p>',
+      '<p style="margin:0">Choosing a vanity is easier with someone who sees them every day. ',
+      'If you have questions about sizing, finishes, or what pairs with what, our specialists ',
+      'are glad to walk you through it before you order &mdash; call <strong>{{phone}}</strong> ',
+      'or just reply to this email.</p>',
     '</div>',
     '<p><strong>One more thing.</strong> Our free Platinum Member program takes ',
       '<strong>10% off your first order</strong>. It takes a minute to join and you can do ',
@@ -80,8 +104,6 @@ VALUES (
     '<p><a href="{{offer_url}}" style="display:inline-block;background:#6B8C74;color:#ffffff;',
       'text-decoration:none;padding:13px 26px;border-radius:6px;font-weight:bold">',
       'Join and take 10% off &rarr;</a></p>',
-    '<p>Questions, or would you rather just talk it through? Call us on ',
-      '<strong>{{phone}}</strong> &mdash; a real person answers.</p>',
     '<p>Best wishes,<br>Team BVO</p>',
     '<hr style="border:none;border-top:1px solid #E8E4DC;margin:24px 0 14px">',
     '<p style="font-size:12px;color:#787063;line-height:1.6">',
@@ -95,13 +117,14 @@ VALUES (
 
 
 -- ── STEP 3: PROVE IT ───────────────────────────────────────────────────
--- Expect: one row, is_active = 0, and every flag below = 1.
+-- Expect: one row, is_active = 0, the has_* flags = 1, and BOTH
+-- *_should_be_0 flags = 0.
 SELECT id, trigger_key, is_active, subject,
        body_html LIKE '%{{product_url}}%'     AS has_product_link,
        body_html LIKE '%{{offer_url}}%'       AS has_offer_link,
        body_html LIKE '%{{unsubscribe_url}}%' AS has_unsub,
        body_html LIKE '%{{postal_address}}%'  AS has_address,
-       body_html LIKE '%curbside%'            AS has_delivery_note,
+       body_html LIKE '%curbside%'            AS curbside_should_be_0,
        body_html LIKE '%collections/sale%'    AS wrong_link_should_be_0
   FROM email_templates WHERE trigger_key = 'cart_recovery';
 
