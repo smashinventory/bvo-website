@@ -195,4 +195,33 @@ async function resend(order, items, confirmToken, toEmail) {
  * ───────────────────────────────────────────────────────────────── */
 const PRODUCT_FALLBACK = 'your dream vanity or related item';
 
-module.exports = { send, resend, buildVars, PRODUCT_FALLBACK };
+/* ─────────────────────────────────────────────────────────────────
+ * trackingBlockHtml — the tracking line, decided in CODE.
+ *
+ * ⚠️ email_templates HAS NO CONDITIONALS. substituteVars is a plain
+ * {{key}} → value replacement with no if/else, so a template that
+ * hardcodes <a href="{{tracking_url}}"> renders href="" when we have
+ * no trustworthy link — a link that goes nowhere, in the one email a
+ * customer actually opens, with no number shown to fall back on.
+ *
+ * The branch therefore lives here and the template places ONE
+ * variable. substituteVars does not escape, so this HTML passes
+ * through intact — checked, not assumed.
+ *
+ * ALWAYS shows the number. The link is the convenience; the number is
+ * the thing a customer reads out on the phone to the carrier, and it
+ * must survive a missing or rotted URL.
+ * ───────────────────────────────────────────────────────────────── */
+function trackingBlockHtml(shipment) {
+  const shipMode = require('../utils/shipMode');
+  const num = shipMode.trackingNumber(shipment);
+  if (!num) return '';
+  const label = shipMode.trackingLabel(shipment);
+  const url   = shipMode.trackingUrl(shipment);
+  const line  = `<strong>${label}:</strong> ${num}`;
+  return url
+    ? `<p><a href="${url}" style="font-weight:bold;">Follow its journey here &rarr;</a><br>${line}</p>`
+    : `<p>${line}</p>`;
+}
+
+module.exports = { send, resend, buildVars, PRODUCT_FALLBACK, trackingBlockHtml };

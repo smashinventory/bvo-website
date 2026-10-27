@@ -37,7 +37,7 @@ const stripePay      = require('../services/stripeService');
 const shipMode       = require('../utils/shipMode');
 /* One agreed phrase for "the thing you ordered" when no item name is
    available. See orderEmails.js for why it is not 'your vanity'. */
-const { PRODUCT_FALLBACK } = require('../services/orderEmails');
+const { PRODUCT_FALLBACK, trackingBlockHtml } = require('../services/orderEmails');
 
 /* ⚠️ ONE DEFINITION OF A SALE, shared with every other dashboard.
    See src/config/revenue.js. Unaliased ('') because the KPI queries below
@@ -868,6 +868,7 @@ exports.bookShipment = async (req, res) => {
         order_number:        order.order_number,
         tracking_number:     booking.trackingNumber,
         tracking_url:        shipMode.trackingUrl(mailShip) || '',
+        tracking_block:      trackingBlockHtml(mailShip),
         carrier,
         ship_mode:           mailParcel ? 'parcel' : 'freight',
         delivery_note:       mailParcel
@@ -875,9 +876,10 @@ exports.bookShipment = async (req, res) => {
           : 'The carrier will call you to arrange a delivery appointment before they deliver. Freight is not left without someone present, so expect a call.',
         /* ⚠️ NO INVENTED WINDOW. This said "within 5-7 business days"
            whenever the carrier gave no estimate — a delivery promise we
-           made up, on the email a customer plans their day around. Empty
-           when unknown. */
-        estimated_delivery:  estimated_delivery || '',
+           made up, on the email a customer plans their day around.
+           "To be confirmed" says we do not know yet, which is true, and
+           does not leave the template's label dangling. */
+        estimated_delivery:  estimated_delivery || 'To be confirmed',
       });
     }
 
@@ -1070,6 +1072,9 @@ exports.notifyTracking = async (req, res) => {
          regardless of carrier — dead for anything FedEx or UPS carried,
          in the one email a customer actually opens. */
       tracking_url:        shipMode.trackingUrl(shipment) || '',
+      /* The whole tracking line, link-or-not decided in code — the
+         template has no conditionals. See orderEmails.trackingBlockHtml. */
+      tracking_block:      trackingBlockHtml(shipment),
       /* The template can branch on these to say the right thing about
          delivery. Both supplied so a template never has to infer mode
          from the carrier name. */
@@ -1077,9 +1082,14 @@ exports.notifyTracking = async (req, res) => {
       delivery_note:       parcel
         ? 'No appointment is needed — the carrier delivers on their normal route, and most packages are left at the door.'
         : 'The carrier will call you to arrange a delivery appointment before they deliver. Freight is not left without someone present, so expect a call.',
+      /* ⚠️ NOT an empty string. The template renders
+         "Estimated arrival: {{estimated_delivery}}" with no conditional,
+         so '' leaves a dangling label. "To be confirmed" is honest — it
+         states that we do not know yet rather than inventing a window,
+         which is what the old 'within 5-7 business days' default did. */
       estimated_delivery:  shipment.est_delivery
         ? new Date(shipment.est_delivery).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-        : '',
+        : 'To be confirmed',
     });
 
     await logEvent(bvoPool, id, 'note_added', null, null,
