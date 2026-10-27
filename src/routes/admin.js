@@ -150,6 +150,12 @@ router.post('/orders/:id/cancel-authorization',     ordersCtrl.cancelAuthorizati
    recorded in customer_messages either way. */
 router.post('/orders/:id/resend-receipt',           outreachCtrl.resendReceipt);
 router.post('/orders/:id/correct-email',            outreachCtrl.correctEmail);
+/* Record a phone call or an internal note. SENDS NOTHING — see logContact.
+   This is the row that stops a second person ringing the same customer
+   about the same abandoned cart, so it is deliberately open to any admin
+   with no confirmation step: friction here means it does not get used, and
+   an unused contact log is the state we are trying to leave. */
+router.post('/orders/:id/log-contact',              outreachCtrl.logContact);
 router.post('/orders/:orderId/returns',             returnsCtrl.openReturn);
 
 /* ── Returns ─────────────────────────────────────────────────── */

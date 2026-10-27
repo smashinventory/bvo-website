@@ -1018,6 +1018,85 @@ const disputeOpen = order.dispute_id
         </div>
       </form>
 
+      <%# ═══ CONTACT HISTORY ══════════════════════════════════════════
+          WHY THIS IS HERE. Order 23 abandoned a $2,195 cart having
+          declined marketing, so she can only ever be phoned. She was
+          phoned, a message was left, and nothing recorded it. The hourly
+          cart-recovery list printed her name every run and the next
+          person to open this page saw no sign anyone had tried.
+
+          ⚠️ THE LIST IS SCOPED TO THE PERSON, NOT THIS ORDER. A call
+          logged against their other order still shows here. Filtering by
+          order_id — the obvious thing, and what the column invites —
+          would report "never contacted" for exactly the repeat customer
+          most likely to have been called already. See the controller.
+
+          Calls AND emails, on one timeline, because "have we already
+          reached out?" does not care which channel it went through. %>
+      <h4 style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin:18px 0 6px">
+        Contact history
+      </h4>
+
+      <% if (clOk)  { %><p class="rr-flash rr-flash--ok"><%= clOk %></p><% } %>
+      <% if (clErr) { %><p class="rr-flash rr-flash--err"><%= clErr %></p><% } %>
+
+      <% if (!contactTimeline || !contactTimeline.length) { %>
+        <%# ⚠️ SAYS SO PLAINLY. An empty area reads as "this feature is
+            broken" or is simply not noticed; "No contact recorded" is a
+            fact the operator can act on. %>
+        <p class="admin-card-hint" style="margin:0 0 8px">
+          No contact recorded for this customer.
+        </p>
+      <% } else { %>
+        <ul style="list-style:none;margin:0 0 10px;padding:0;font-size:13px">
+        <% contactTimeline.forEach(function (m) {
+             const isCall = m.kind === 'call' || m.kind === 'note';
+             const when   = m.created_at ? new Date(m.created_at) : null;
+             const stamp  = when && !isNaN(when) ? when.toISOString().slice(0,16).replace('T',' ') : ''; %>
+          <li style="padding:6px 0;border-bottom:1px solid var(--border-subtle,#eee)">
+            <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap">
+              <span style="font-variant-numeric:tabular-nums;color:var(--text-muted);font-size:12px"><%= stamp %></span>
+              <span style="font-weight:600"><%= m.subject %></span>
+              <%# A failed SEND is the row most worth reading, so it is
+                  marked rather than rendered identically to a success.
+                  A call always has sent_ok = 1 — see logContact. %>
+              <% if (!isCall && !m.sent_ok) { %>
+                <span style="color:var(--color-red,#b00);font-size:12px">failed<%= m.error ? ' — ' + m.error : '' %></span>
+              <% } %>
+            </div>
+            <div style="color:var(--text-muted);font-size:12px">
+              <%= isCall ? 'by ' + m.actor : (m.to_email || '(no address)') %>
+              <% if (m.contact_phone) { %> &middot; <%= m.contact_phone %><% } %>
+              <% if (m.order_id && m.order_id !== order.id) { %>
+                &middot; <a href="/admin/orders/<%= m.order_id %>">another order</a>
+              <% } %>
+            </div>
+          </li>
+        <% }); %>
+        </ul>
+      <% } %>
+
+      <%# ⚠️ THIS FORM SENDS NOTHING. It records something that already
+          happened on a phone. A handler that also fired a "sorry we
+          missed you" email would mail people who declined marketing —
+          order 23 is that person, and she is why this exists. %>
+      <form method="POST" action="/admin/orders/<%= order.id %>/log-contact" style="margin:0">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="kind" value="call">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <select name="outcome" class="ce-input" style="max-width:200px" required>
+            <option value="">What happened?</option>
+            <% Object.keys(contactOutcomes).forEach(function (k) { %>
+              <option value="<%= k %>"><%= contactOutcomes[k] %></option>
+            <% }); %>
+          </select>
+          <button class="btn btn-outline btn-sm" type="submit">Log call</button>
+        </div>
+        <input class="ce-input" type="text" name="note" maxlength="500"
+               placeholder="Optional — what was said, what to do next"
+               style="margin-top:6px;width:100%">
+      </form>
+
       <% if (order.ship_address1 || order.ship_city) { %>
       <h4 style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 6px">Shipping Address</h4>
       <p style="margin:0;font-size:13px;line-height:1.6">

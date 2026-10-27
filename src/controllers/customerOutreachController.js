@@ -33,6 +33,7 @@ const { bvoPool }   = require('../config/database');
 const brevo         = require('../services/brevoService');
 const orderEmails   = require('../services/orderEmails');
 const emailVerify   = require('../services/emailVerificationService');
+const contactLog    = require('../utils/contactLog');
 
 /* Same shape as ordersController uses (line 1023). The session is the only
    identity the admin has; 'admin' is the honest fallback, not a guess. */
@@ -57,17 +58,25 @@ async function logMessage(fields) {
     const [r] = await bvoPool.query(
       `INSERT INTO customer_messages
          (customer_id, order_id, to_email, to_name, kind, template_key,
-          subject, body_html, sent_ok, error, actor)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+          subject, body_html, sent_ok, outcome, contact_phone, error, actor)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [fields.customerId || null,
        fields.orderId    || null,
-       fields.toEmail,
+       /* ⚠️ `|| null`, ADDED 2026-10-27 WITH THE CALL LOG. Before that
+          to_email was NOT NULL and every caller was a send, so an
+          undefined here would have thrown — loudly, which was fine. A
+          phone-only contact legitimately has no address now, and the
+          column accepts NULL, so an undefined must become an explicit
+          NULL rather than reaching the driver as undefined. */
+       fields.toEmail    || null,
        fields.toName     || null,
        fields.kind,
        fields.templateKey || null,
        String(fields.subject || '').slice(0, 300),
        fields.bodyHtml   || null,
        fields.sentOk ? 1 : 0,
+       fields.outcome      || null,
+       fields.contactPhone || null,
        fields.error ? String(fields.error).slice(0, 500) : null,
        fields.actor]
     );
@@ -587,6 +596,109 @@ exports.correctEmail = async (req, res) => {
         ' The resend FAILED: ' + (r.error || 'no reason given') + '. Use Resend receipt to try again.')}`);
 };
 
+/* ─────────────────────────────────────────────────────────────────────
+   logContact — record a phone call or an internal note.
+
+   WHY THIS IS NOT A SEND. Everything else in this file tries to deliver
+   something and then records what happened. This records something that
+   already happened out in the world, on a phone. Three consequences, and
+   each one is a thing a gate asserts:
+
+     1. NOTHING IS EMAILED. No brevo call, no template lookup. A handler
+        that both logs a call and fires a "sorry we missed you" email
+        would mail people who declined marketing — order 23 is exactly
+        that person, and she is the reason this feature exists.
+
+     2. sent_ok = 1 ALWAYS. The column means "the thing we recorded
+        actually occurred". A call that happened is a true row. Writing 0
+        would make every call look like a failed email in the timeline and
+        in customerAnalyticsController's counts.
+
+     3. IT IS LOGGED WHETHER OR NOT ANYONE WAS REACHED. "No answer" is the
+        row that stops the next person dialling the same number ten
+        minutes later. An outcome-gated log would record only the
+        successful calls, which are the ones least needing a record.
+───────────────────────────────────────────────────────────────────────── */
+exports.logContact = async (req, res) => {
+  const id    = parseInt(req.params.id, 10);
+  const back  = `/admin/orders/${id}`;
+  const actor = actorOf(req);
+  const fail  = m => res.redirect(`${back}?cl_err=${encodeURIComponent(m)}`);
+
+  try {
+    if (!Number.isInteger(id) || id < 1) return res.redirect('/admin/orders');
+
+    const [[order]] = await bvoPool.query(
+      `SELECT o.id, o.customer_id, o.ship_first_name, o.ship_last_name,
+              o.ship_phone, COALESCE(c.email, o.guest_email) AS email,
+              c.phone AS customer_phone
+         FROM orders o
+         LEFT JOIN customers c ON c.id = o.customer_id
+        WHERE o.id = ? LIMIT 1`, [id]);
+    if (!order) return res.redirect('/admin/orders');
+
+    const kind    = String(req.body.kind || 'call').trim();
+    const outcome = String(req.body.outcome || '').trim();
+    const note    = String(req.body.note || '').trim();
+
+    if (!contactLog.CONTACT_KINDS.includes(kind))
+      return fail('Unknown contact type.');
+
+    /* ⚠️ VALIDATED AGAINST THE SHARED LIST, not re-typed here. The column
+       is a VARCHAR precisely so this list can change without an ALTER —
+       which only holds if there is ONE list and this is the thing that
+       reads it. */
+    if (kind === 'call' && !contactLog.isValidOutcome(outcome))
+      return fail('Pick what happened on the call.');
+
+    if (kind === 'note' && !note)
+      return fail('A note needs something in it.');
+
+    /* The number as dialled. ship_phone first: that is the number on the
+       order the operator was looking at when they picked up the phone.
+       customers.phone is the fallback for an order placed before the
+       2026-10-19 backfill. */
+    const phone = String(req.body.contact_phone || order.ship_phone ||
+                         order.customer_phone || '').trim() || null;
+
+    await logMessage({
+      customerId: order.customer_id || null,
+      orderId:    id,
+      /* ⚠️ POPULATED EVEN THOUGH NOTHING WAS EMAILED. This is what joins a
+         call to an email about the same person when customer_id is NULL,
+         which is every guest order. See the migration's note on what
+         to_email means now. NULL only when we genuinely have no address. */
+      toEmail:    clean(order.email) || null,
+      toName:     [order.ship_first_name, order.ship_last_name].join(' ').trim() || null,
+      kind,
+      templateKey: null,
+      subject:     contactLog.subjectFor(kind, outcome),
+      bodyHtml:    note ? `<p>${escapeHtml(note)}</p>` : null,
+      sentOk:      true,
+      error:       null,
+      outcome:     kind === 'call' ? outcome : 'note',
+      contactPhone: phone,
+      actor,
+    });
+
+    return res.redirect(`${back}?cl_ok=${encodeURIComponent(
+      kind === 'note' ? 'Note saved.'
+                      : `Logged: ${contactLog.outcomeLabel(outcome).toLowerCase()}.`)}`);
+  } catch (err) {
+    console.error('[outreach.logContact]', err && err.message);
+    return fail('Could not save that — check the server log.');
+  }
+};
+
+/* Minimal, and only ever applied to a note the operator typed. The note is
+   rendered inside the admin timeline, so an unescaped apostrophe is
+   cosmetic but an unescaped <script> is not. */
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 /* Exported for the gate, which exercises the real functions rather than a
    restatement of them. */
-exports._internals = { EMAIL_RE, clean, varsFor, mergeImpact, logMessage, actorOf };
+exports._internals = { EMAIL_RE, clean, varsFor, mergeImpact, logMessage, actorOf, escapeHtml };

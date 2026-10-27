@@ -43,6 +43,11 @@
 function pool() { return require('../config/database').bvoPool; }
 
 const unsubToken = require('../utils/unsubscribeToken');
+/* Pure rules at module scope; its pool is lazy too, so this stays loadable
+   by the gate without a database. One definition of "recently contacted",
+   shared with the admin order page — a second copy here is how the list and
+   the panel end up disagreeing about whether somebody has been called. */
+const contactLog = require('../utils/contactLog');
 
 /* ── TUNING ─────────────────────────────────────────────────────────────── */
 
@@ -122,17 +127,44 @@ function emailEligibility(row) {
 }
 
 /** Split a batch into who gets mailed and who gets called. */
-function triage(rows) {
-  const email = [], call = [];
+/* ⚠️ THREE LISTS NOW, NOT TWO — `held` IS NEW (2026-10-27).
+
+   The hourly cron made a latent problem visible. recovery_emailed_at is
+   stamped only on the EMAIL path, so somebody on the call list is never
+   stamped and reprints every single run — order 23 appeared twelve times a
+   day for as long as her cart stayed inside the 14-day window. Worse than
+   the noise: with more than one person working that list, she gets rung
+   about the same abandoned cart repeatedly.
+
+   So a row that was contacted recently moves to `held` instead of `call`.
+
+   ⚠️ held IS RETURNED, NOT DISCARDED, and run() prints it. A name that
+   simply vanishes from a list is indistinguishable from a bug, and the
+   operator needs to see "we already called her Tuesday" rather than
+   wonder where the $2,195 cart went. Same reasoning as excluded_because.
+
+   `lastMap` is optional. Called without it — as the gate's pure triage
+   checks do — nothing is suppressed and the behaviour is exactly what it
+   was before. Suppression is an enrichment, never a prerequisite. */
+function triage(rows, lastMap = null, now = new Date()) {
+  const email = [], call = [], held = [];
   for (const r of rows || []) {
     const why = emailEligibility(r);
-    if (why === 'ok') email.push(r);
-    else call.push({ ...r, excluded_because: why });
+    if (why === 'ok') { email.push(r); continue; }
+
+    const last = lastMap ? contactLog.lookup(lastMap, r) : null;
+    const s    = contactLog.suppression(last, now);
+    const row  = { ...r, excluded_because: why, last_contact: last || null };
+
+    if (s.skip) held.push({ ...row, held_because: s.reason });
+    else        call.push(row);
   }
   /* Highest value first: a call list is worked top-down and somebody's
      attention runs out before the list does. */
-  call.sort((a, b) => Number(b.total || 0) - Number(a.total || 0));
-  return { email, call };
+  const byValue = (a, b) => Number(b.total || 0) - Number(a.total || 0);
+  call.sort(byValue);
+  held.sort(byValue);
+  return { email, call, held };
 }
 
 /* ── THE QUERY ──────────────────────────────────────────────────────────── */
@@ -188,24 +220,54 @@ async function run({ dryRun = false } = {}) {
     throw err;
   }
 
-  const { email, call } = triage(rows);
-  say(`${rows.length} abandoned cart(s): ${email.length} emailable, ${call.length} to call`);
+  /* ⚠️ ONE QUERY FOR EVERY CANDIDATE, not one per row. The list is short
+     today; it is short because the shop is new, which is not a property to
+     design around.
+
+     A failure here must NOT take the run down: not knowing who was called
+     is a reason to show the whole list, never a reason to email nobody. So
+     it degrades to an unsuppressed list and says so, rather than throwing. */
+  let lastMap = null;
+  try {
+    lastMap = await contactLog.readLastContactBulk(rows);
+  } catch (err) {
+    say(`WARN: could not read contact history (${err.code || err.message}) — ` +
+        'showing the full call list unsuppressed');
+  }
+
+  const { email, call, held } = triage(rows, lastMap);
+  say(`${rows.length} abandoned cart(s): ${email.length} emailable, ` +
+      `${call.length} to call, ${held.length} already contacted`);
 
   /* The call list is printed EVERY run, dry or not. It is the half of the
      output a human acts on, and a report nobody sees is a report that does
      not exist. */
+  const line = c =>
+    `  $${Number(c.total).toFixed(2).padStart(9)}  ${c.order_number}  ` +
+    `${c.ship_first_name || '(no name)'}  ${c.ship_phone || '(no phone)'}  ` +
+    `[${c.excluded_because}]  ${c.first_item || ''}`;
+
   if (call.length) {
     say('— CALL LIST (highest value first) —');
     for (const c of call) {
-      say(`  $${Number(c.total).toFixed(2).padStart(9)}  ${c.order_number}  ` +
-          `${c.ship_first_name || '(no name)'}  ${c.ship_phone || '(no phone)'}  ` +
-          `[${c.excluded_because}]  ${c.first_item || ''}`);
+      /* Prior contact is shown even when it did not suppress: "we spoke on
+         the 20th" changes how the next call opens. */
+      const prior = c.last_contact ? `  — last: ${contactLog.describe(c.last_contact)}` : '';
+      say(line(c) + prior);
     }
+  }
+
+  /* ⚠️ PRINTED, NOT SILENTLY DROPPED. This is the list that stops the
+     second person ringing the same customer, and it is also the only
+     evidence that suppression is working rather than eating rows. */
+  if (held.length) {
+    say(`— ALREADY CONTACTED (held ${contactLog.SUPPRESS_DAYS}d, no action) —`);
+    for (const c of held) say(line(c) + `  — ${c.held_because}`);
   }
 
   if (dryRun) {
     say('--dry-run: nothing sent, nothing stamped');
-    return { ok: true, found: rows.length, emailed: 0, toCall: call.length, dryRun: true };
+    return { ok: true, found: rows.length, emailed: 0, toCall: call.length, held: held.length, dryRun: true };
   }
 
   const brevo = require('../services/brevoService');
@@ -246,7 +308,7 @@ async function run({ dryRun = false } = {}) {
 
   say(`done in ${((Date.now() - started) / 1000).toFixed(1)}s — ` +
       `sent ${sent}, failed ${failed}, to call ${call.length}`);
-  return { ok: failed === 0, found: rows.length, emailed: sent, failed, toCall: call.length };
+  return { ok: failed === 0, found: rows.length, emailed: sent, failed, toCall: call.length, held: held.length };
 }
 
 module.exports = {

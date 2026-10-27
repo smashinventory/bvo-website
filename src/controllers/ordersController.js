@@ -35,6 +35,7 @@ const stripePay      = require('../services/stripeService');
    definition, shared with the customer views. See src/utils/shipMode.js
    for why the carrier NAME can never answer the mode question. */
 const shipMode       = require('../utils/shipMode');
+const contactLog     = require('../utils/contactLog');
 /* One agreed phrase for "the thing you ordered" when no item name is
    available. See orderEmails.js for why it is not 'your vanity'. */
 const { PRODUCT_FALLBACK, trackingBlockHtml } = require('../services/orderEmails');
@@ -583,6 +584,39 @@ exports.detail = async (req, res, next) => {
       rrErr: req.query.rr_err || '',
       ceOk:  req.query.ce_ok  || '',
       ceErr: req.query.ce_err || '',
+      clOk:  req.query.cl_ok  || '',
+      clErr: req.query.cl_err || '',
+
+      /* ── contact history (2026-10-27) ───────────────────────────────
+         ⚠️ THE WHOLE POINT IS THAT IT IS NOT SCOPED TO THIS ORDER.
+         customer_messages has an order_id, and filtering on it would be
+         the obvious thing to do here and would defeat the feature: a
+         customer with two orders would show a call logged against the
+         other one as "never contacted". The lookup is by person —
+         customer_id when there is one, email otherwise, because every
+         guest order has customer_id NULL.
+
+         ⚠️ `customer_email || guest_email`, NOT `order.email`. There is no
+         email column on orders — the detail query aliases c.email to
+         customer_email and o.* supplies guest_email. `order.email` would
+         be undefined, which is not null and not an error: readTimeline
+         would simply fall back to customer_id alone and report "never
+         contacted" for every guest order, forever, with nothing in any
+         log. Same shape as the o.ship_name defect on 2026-10-27. Line 705
+         already does it this way; this matches it rather than inventing a
+         second spelling.
+
+         Degrades rather than 500s. A missing migration or a slow query
+         must not take the order page down; an empty timeline with the
+         panel still rendered is honest about knowing nothing, and a page
+         that will not load tells the operator nothing at all. */
+      contactTimeline: await contactLog
+        .readTimeline({
+          customerId: order.customer_id || null,
+          email:      order.customer_email || order.guest_email || null,
+        })
+        .catch(e => { console.error('[orders.detail] contact timeline:', e && e.message); return []; }),
+      contactOutcomes: contactLog.CONTACT_OUTCOMES,
     });
   } catch (err) { next(err); }
 };
