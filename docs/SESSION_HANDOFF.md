@@ -305,9 +305,16 @@ Four things a future session should not undo:
    `subtotal` reflects it. A "Trade 15% off" subtraction row would
    double-count on screen and the column would stop adding up to what the
    customer was charged. The tier is stated as a note instead.
-2. **Shipping is the constant FREE, not a column.** No shipping column is
-   written at checkout. If paid shipping ever ships, this must become a
-   stored value — the constant is honest only while shipping is free.
+2. **Shipping and discount are read from their columns.** ~~Shipping is the
+   constant FREE, not a column.~~ That was written from assumption and is
+   wrong: `SHOW COLUMNS FROM orders` on 2026-10-27 shows `shipping_cost`
+   and `discount`, both `NOT NULL DEFAULT 0.00`. Nothing in `src/` writes
+   either one today — grep before you rely on that — so the hardcoded FREE
+   was right by luck. Both are read from the column now (`491a53f`), which
+   means the first order that carries real freight renders correctly
+   rather than under-reporting what the customer paid. The `discount`
+   column is NOT the tier discount; that one is inside each `unit_price`
+   and must stay un-rowed, per point 1.
 3. **The tracking page is current-state, not a timeline.** There is no
    shipment-events table; the status poll *overwrites* one `status` column.
    A progress bar with intermediate timestamps would be fabricated carrier
