@@ -81,7 +81,11 @@ VALUES (
   'Still deciding on the {{product_name}}?',
   CONCAT(
     '<p>Hi {{customer_first_name}},</p>',
-    '<p>You were setting this up a couple of days ago, and we have kept it ready for you:</p>',
+    -- ⚠️ NO TIMEFRAME CLAIM. This read "a couple of days ago" until the
+    -- first real send went to a cart minutes old. MIN_AGE_HOURS = 4, so
+    -- hours is the common case and days is the exception. See
+    -- 2026-10-27_cart_recovery_timing_RUNME.sql.
+    '<p>We see that your shopping session was interrupted, and we have kept your cart ready for you:</p>',
     '<p style="border:1px solid #E8E4DC;border-radius:8px;padding:14px;margin:18px 0">',
       '<strong>{{product_name}}</strong><br>',
       '<span style="color:#787063">$', '{{cart_total}}</span>',

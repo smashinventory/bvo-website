@@ -187,8 +187,16 @@ console.log('\n--- the template cannot send itself the moment it is inserted ---
      which is the file checking for the same mistake this gate checks
      for. A check that cannot tell a link from an assertion about links
      is the loose matching this project keeps getting bitten by. */
+  /* ⚠️ SQL LINE COMMENTS STRIPPED, and this is the THIRD time today that
+     a comment has satisfied a grep for the code it describes — after the
+     collections/sale check below and the EJS case in gate_contact_log.
+     The INSERT now carries a comment explaining why the timeframe claim
+     was removed, and that comment necessarily quotes the claim. Strip
+     first, then match, every time a gate greps a file a human writes
+     prose in. */
   const insert = sql.slice(sql.indexOf('INSERT INTO email_templates'),
-                           sql.indexOf('-- ── STEP 3'));
+                           sql.indexOf('-- ── STEP 3'))
+                    .replace(/^\s*--.*$/gm, '');
   check(insert.length > 200, 'the INSERT statement was located');
   check(!/collections\/sale/.test(insert),
         'the template BODY does not link to the generic sale page',
@@ -220,6 +228,26 @@ console.log('\n--- the template cannot send itself the moment it is inserted ---
   check(!/thousands/i.test(insert),
         'the body makes no "thousands of customers" claim',
         'add a volume claim only with a real number behind it');
+
+  /* ⚠️ NO CLAIM ABOUT WHEN THEY SHOPPED. The body said "a couple of days
+     ago" until the first real send went out to a cart that was MINUTES
+     old. MIN_AGE_HOURS = 4 in the job, so hours is the ordinary case and
+     days is the exception — the sentence was false for most recipients,
+     in the opening line.
+
+     No gate could have caught it before: the phrase is valid HTML,
+     renders fine, substitutes nothing, and is wrong only against a
+     constant in a different file. It took sending one and reading it.
+     Asserted here so it cannot come back. Scoped to the INSERT so the
+     migration's own explanation does not satisfy the check — the same
+     trap that made the sale-page check fail on correct code above. */
+  check(!/couple of days/i.test(insert),
+        'the body makes no claim about when they shopped',
+        'MIN_AGE_HOURS = 4, so a timeframe in the copy is wrong for most ' +
+        'recipients; removing the claim beats computing it');
+  check(/shopping session was interrupted/i.test(insert),
+        'the replacement wording is in place',
+        'asserted positively so a deletion is caught as well as a revert');
 
   check(!/curbside/.test(insert),
         'the template body does NOT carry the curbside paragraph',

@@ -199,6 +199,21 @@ patch_py "$SH" \
   "#   12 14 * * *  /bin/bash" \
   && run "M20 header documents a daily cron, not the hourly one"
 
+# ── M21: the timeframe claim comes back ──────────────────────────────
+# The original wording, which the first real send proved false. Somebody
+# restoring it "because it reads warmer" should fail the gate.
+patch_py "$TPL" \
+  "    '<p>We see that your shopping session was interrupted, and we have kept your cart ready for you:</p>'," \
+  "    '<p>You were setting this up a couple of days ago, and we have kept it ready for you:</p>'," \
+  && run "M21 'a couple of days ago' timeframe claim restored"
+
+# ── M22: the opening sentence deleted entirely ───────────────────────
+# Leaves the email opening on a bare product box with no lead-in.
+patch_py "$TPL" \
+  "    '<p>We see that your shopping session was interrupted, and we have kept your cart ready for you:</p>'," \
+  "" \
+  && run "M22 opening sentence removed entirely"
+
 echo
 echo "caught $caught / $((caught+missed))"
 [ "$missed" -eq 0 ] || exit 1
