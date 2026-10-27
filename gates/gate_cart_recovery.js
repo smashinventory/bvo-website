@@ -227,6 +227,61 @@ console.log('\n--- the template cannot send itself the moment it is inserted ---
         'anyone who stopped for an unrelated reason');
 }
 
+/* ═══ 6. THE SENDING WINDOW LIVES IN THE SCRIPT ══════════════════════ */
+console.log('\n--- the cron is hourly, so the window must be in the file ---');
+{
+  const sh = read('cart_recovery.sh');
+  /* Comments are NOT stripped here, deliberately: this is a shell script
+     and the window is nine lines of code, not a quotable block. But the
+     checks below anchor on assignments and syntax, never on prose, so a
+     comment that merely MENTIONS the window cannot satisfy them. */
+
+  check(/^SEND_FROM_HOUR=(\d+)$/m.test(sh) && /^SEND_TO_HOUR=(\d+)$/m.test(sh),
+        'the window bounds are assigned, not just described',
+        'hPanel cannot express `12-23` in its Hour dropdown, so the ' +
+        'window has to be enforced here — and in git, where it is ' +
+        'readable, rather than in a control panel nobody can diff');
+
+  const from = Number((sh.match(/^SEND_FROM_HOUR=(\d+)$/m) || [])[1]);
+  const to   = Number((sh.match(/^SEND_TO_HOUR=(\d+)$/m)   || [])[1]);
+  check(Number.isInteger(from) && Number.isInteger(to) &&
+        from >= 0 && to <= 23 && from <= to,
+        `the bounds are a valid 0-23 range (${from}-${to})`,
+        'cron hours are 0-23; an hour 24 can never match and the job ' +
+        'would silently never send');
+
+  /* The guard must actually gate the run. A computed IN_WINDOW that
+     nothing acts on is the switch-nothing-reads failure again. */
+  check(/IN_WINDOW/.test(sh) && /if \[ "\$IN_WINDOW" -eq 0 \]/.test(sh) &&
+        /exit 0/.test(sh.slice(sh.indexOf('if [ "$IN_WINDOW" -eq 0 ]'))),
+        'being outside the window exits before the node call',
+        'a window that is computed and then ignored is decoration');
+
+  /* ⚠️ THE SKIP MUST BE LOGGED. "it did not run" and "it ran and found
+     nothing" looking identical in a log is how a cron that has been
+     dead for a month goes unnoticed. */
+  const guard = sh.slice(sh.indexOf('if [ "$IN_WINDOW" -eq 0 ]'),
+                         sh.indexOf('cart recovery started'));
+  check(/>> "\$LOG"/.test(guard),
+        'the skip is written to the log, not silent',
+        '"did not run" and "ran and found nothing" must never look the ' +
+        'same in this log');
+
+  check(/--dry-run/.test(sh.slice(sh.indexOf('case " $* "'),
+                                  sh.indexOf('if [ "$IN_WINDOW" -eq 0 ]'))),
+        '--dry-run is exempt from the window',
+        'the dry run sends nothing, so refusing to run it outside ' +
+        'working hours would make the thing you TEST with unavailable ' +
+        'for most of the day');
+
+  /* The header must document the hourly cron, because the window being
+     in the script is only safe if whoever schedules it knows that. */
+  check(/0 \* \* \* \*/.test(sh),
+        'the header documents the hourly cron expression',
+        'someone reading this file must be able to see that the cron is ' +
+        'hourly and the narrowing happens here');
+}
+
 console.log(fail ? `\n*** ${fail} of ${pass + fail} CHECKS FAILED ***`
                  : `\nALL ${pass} CHECKS PASS`);
 process.exit(fail ? 1 : 0);

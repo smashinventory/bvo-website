@@ -18,12 +18,25 @@
 # the call list is the half a human acts on and it works on day one.
 #
 # ── SCHEDULE ───────────────────────────────────────────────────────────
-# NOT YET IN hPANEL. Add when you are ready to send:
-#   0 14 * * *  /bin/bash /home/u222311468/domains/bathroomvanitiesoutlet.com/hbuilds/current/nodejs/cart_recovery.sh
+# CRON RUNS HOURLY; THE SENDING WINDOW IS ENFORCED BELOW, IN THIS FILE.
+#   0 * * * *  /bin/bash /home/u222311468/domains/bathroomvanitiesoutlet.com/hbuilds/current/nodejs/cart_recovery.sh
 #
-# 14:00 UTC = 10:00 ET. Chosen so the mail ARRIVES at a sensible hour for
-# the recipient rather than at whatever time suits the server, and because
-# nothing else runs then — the box is busy 04:30–07:00 UTC.
+# ⚠️ THE WINDOW IS HERE AND NOT IN THE CRON EXPRESSION ON PURPOSE.
+# hPanel's cron form offers a single-value Hour dropdown — it cannot
+# express `12-23`. Rather than create twelve separate cron entries, or
+# accept sends at 3am, the hour check lives in the script. That also
+# means the sending window is in git, visible to whoever reads this file,
+# instead of buried in a control panel nobody can diff.
+#
+# Hourly matters because recovery rates fall off steeply with delay: a
+# daily run means somebody who abandons at 3pm hears nothing until the
+# next morning. Hourly is SAFE to run because the send-once guard
+# (orders.recovery_emailed_at IS NULL) is in the query — no frequency can
+# produce a second email. gate_cart_recovery.js asserts that guard and
+# mutation M6 removes it to prove the gate catches it.
+#
+# Combined with MIN_AGE_HOURS = 4 in src/jobs/cartRecovery.js, the worst
+# case is about five hours from abandonment to email.
 #
 # ⚠️ POINTS AT hbuilds/current/nodejs, NOT THE DOMAIN ROOT. Same reasoning
 # as brevo_consent_reconcile.sh: every wrapper that was hand-copied to the
@@ -53,6 +66,38 @@ if [ -f "$LOG" ] && [ "$(stat -c%s "$LOG" 2>/dev/null || echo 0)" -gt 5242880 ];
 fi
 
 stamp() { date -u '+%Y-%m-%dT%H:%M:%SZ'; }
+
+# ── SENDING WINDOW ─────────────────────────────────────────────────────
+# Hours are UTC, because the server is. 12–23 UTC is roughly 8am–7pm
+# Eastern; after US daylight saving ends it becomes 7am–6pm. That drift
+# is accepted — an hour either way does not change whether a recovery
+# email is welcome, and a DST-aware window would need a timezone library
+# in a shell script for no real gain.
+#
+# ⚠️ --dry-run IGNORES THE WINDOW. The dry run sends nothing, so refusing
+# to run it outside working hours would only make the thing you use to
+# TEST the job unavailable for most of the day.
+SEND_FROM_HOUR=12
+SEND_TO_HOUR=23
+
+case " $* " in
+  *" --dry-run "*) IN_WINDOW=1 ;;
+  *)
+    HOUR_NOW=$(date -u +%-H)
+    if [ "$HOUR_NOW" -ge "$SEND_FROM_HOUR" ] && [ "$HOUR_NOW" -le "$SEND_TO_HOUR" ]; then
+      IN_WINDOW=1
+    else
+      IN_WINDOW=0
+    fi
+    ;;
+esac
+
+if [ "$IN_WINDOW" -eq 0 ]; then
+  # Logged rather than silent: "it did not run" and "it ran and found
+  # nothing" must never look the same in this log.
+  echo "$(stamp) ── outside sending window (${SEND_FROM_HOUR}-${SEND_TO_HOUR} UTC), skipping ──" >> "$LOG"
+  exit 0
+fi
 
 echo "$(stamp) ── cart recovery started ──────────────────────────────────" >> "$LOG"
 

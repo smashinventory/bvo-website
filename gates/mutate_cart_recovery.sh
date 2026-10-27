@@ -17,13 +17,14 @@ cd "$(dirname "$0")/.." || exit 1
 GATE="gates/gate_cart_recovery.js"
 JOB="src/jobs/cartRecovery.js"
 TPL="migrations/2026-10-27_cart_recovery_template_RUNME.sql"
+SH="cart_recovery.sh"
 
 BAK="$(mktemp -d)"
-for f in "$JOB" "$TPL"; do
+for f in "$JOB" "$TPL" "$SH"; do
   mkdir -p "$BAK/$(dirname "$f")"
   cp "$f" "$BAK/$f" || { echo "cannot back up $f — aborting"; exit 2; }
 done
-restore() { for f in "$JOB" "$TPL"; do cp "$BAK/$f" "$f"; done; }
+restore() { for f in "$JOB" "$TPL" "$SH"; do cp "$BAK/$f" "$f"; done; }
 trap 'restore; rm -rf "$BAK"' EXIT
 
 caught=0; missed=0
@@ -157,6 +158,46 @@ patch_py "$TPL" \
   "      '<p style=\"margin:0\">Choosing a vanity is easier with someone who sees them every day. '," \
   "      '<p style=\"margin:0\">We have helped thousands of customers. '," \
   && run "M15 'thousands of customers' claim added back"
+
+# ── M16: hour 24, which cron can never match ─────────────────────────
+# Reads as "until midnight" and is a real off-by-one somebody would
+# make. date +%-H never returns 24, so with FROM=24 the job silently
+# never sends again — and the log fills with plausible skip lines.
+patch_py "$SH" "SEND_FROM_HOUR=12" "SEND_FROM_HOUR=24" \
+  && run "M16 window starts at hour 24 (can never match)"
+
+# ── M17: the window is computed and then ignored ─────────────────────
+# The assignments stay, the comments stay, the guard goes. Reads
+# entirely correct to anybody skimming the top of the file.
+patch_py "$SH" \
+  'if [ "$IN_WINDOW" -eq 0 ]; then' \
+  'if false; then' \
+  && run "M17 IN_WINDOW computed but never acted on"
+
+# ── M18: the skip goes silent ────────────────────────────────────────
+# Defensible as "stop spamming the log 12 times a day". It also makes a
+# job that has been dead for a month look exactly like a quiet month.
+patch_py "$SH" \
+  '  echo "$(stamp) ── outside sending window (${SEND_FROM_HOUR}-${SEND_TO_HOUR} UTC), skipping ──" >> "$LOG"' \
+  '  :' \
+  && run "M18 out-of-window skip not logged"
+
+# ── M19: --dry-run subjected to the window ───────────────────────────
+# Tidier-looking, and it makes the dry run — the only safe way to test
+# this job — unusable for half the day.
+patch_py "$SH" \
+  '  *" --dry-run "*) IN_WINDOW=1 ;;' \
+  '' \
+  && run "M19 --dry-run no longer exempt from the window"
+
+# ── M20: the hourly cron line replaced with a daily one ──────────────
+# The header is the only place the schedule is written down. Documenting
+# `0 14 * * *` while the file narrows 12-23 means whoever sets the cron
+# up next creates a job that fires once, inside a window, and looks fine.
+patch_py "$SH" \
+  "#   0 * * * *  /bin/bash" \
+  "#   0 14 * * *  /bin/bash" \
+  && run "M20 header documents a daily cron, not the hourly one"
 
 echo
 echo "caught $caught / $((caught+missed))"
