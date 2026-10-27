@@ -91,3 +91,68 @@ SELECT id, trigger_key, is_active, subject
  WHERE subject   LIKE '%dream vanity or related item%'
     OR body_html LIKE '%dream vanity or related item%'
  ORDER BY id;
+
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- STEP 5 — ADDED AFTER READING THE ACTUAL TEMPLATES (2026-10-27)
+--
+-- Step 1's survey turned up two things the blanket replace above could
+-- not have handled, because they do not contain the lowercase phrase.
+--
+-- ── 5a. order_confirmed PROMISES FREIGHT ON EVERY ORDER ────────────────
+-- Its body says, verbatim:
+--   "Your vanity ships by freight, curbside with liftgate. The driver
+--    brings it to the curb and lowers it — not into your home. A vanity
+--    can weigh 200–400 lbs, so plan for help. The carrier will call to
+--    schedule; missed appointments mean redelivery and storage charges."
+--
+-- ⚠️ THIS FIRES AT PURCHASE, BEFORE ANY SHIPMENT EXISTS. At that moment
+-- the mode is genuinely unknown — no carrier has been chosen and no
+-- shipments row has been written. So this is not merely wrong for a
+-- parcel order; it is a promise made before anything has been decided,
+-- and it is the FIRST thing a faucet buyer reads.
+--
+-- The fix is a qualifier rather than a rewrite. The freight description
+-- is correct and valuable for the vanity orders that are the majority,
+-- and deleting it would cost the expectation-setting that exists because
+-- curbside is the biggest expectation gap in the business (see
+-- views/pages/checkout-delivery.ejs). Owner's wording, 2026-10-27.
+--
+-- Appended INSIDE the existing <p> so it inherits that paragraph's
+-- styling — the opening tag's style attribute was never read, and
+-- guessing it would have produced a mismatched block.
+UPDATE email_templates
+   SET body_html = REPLACE(
+         body_html,
+         'missed appointments mean redelivery and storage charges.</p>',
+         'missed appointments mean redelivery and storage charges. If you ordered a smaller component, then it may be shipped via FedEx or UPS and a tracking number will be provided.</p>')
+ WHERE id = 1
+   AND body_html LIKE '%missed appointments mean redelivery and storage charges.</p>%'
+   -- Idempotent: the guard stops a second run appending the sentence twice.
+   AND body_html NOT LIKE '%smaller component%';
+-- Expect: 1 row affected the first time, 0 every time after.
+
+
+-- ── 5b. cross_sell WAS CORRECT AND STEP 3 BROKE IT ─────────────────────
+-- Step 3's blanket REPLACE rewrote "The mirror that was made for your
+-- vanity" into "...for your dream vanity or related item". That subject
+-- was RIGHT: it is a mirror pitched at somebody who bought a vanity, so
+-- naming the vanity is the whole point of the line.
+--
+-- The lesson is in the ordering, not the wording: Step 3 was written
+-- before Step 1's survey had been read. A blanket replace across rows
+-- nobody has looked at will find the cases where the old text was
+-- correct. Survey first, then target.
+UPDATE email_templates
+   SET subject = 'The mirror that was made for your vanity'
+ WHERE trigger_key = 'cross_sell'
+   AND subject     = 'The mirror that was made for your dream vanity or related item';
+
+
+-- ── 5c. STILL OPEN, BY DECISION ────────────────────────────────────────
+-- review_request (id 6) subject: "How is the new vanity looking?"
+-- Says "vanity" but not "your vanity", so nothing above touched it.
+-- Wrong for a faucet-only order. Awaiting the owner's preferred wording
+-- rather than being guessed at.
+SELECT id, trigger_key, is_active, subject
+  FROM email_templates WHERE id = 6;
