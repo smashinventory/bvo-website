@@ -240,6 +240,12 @@
 
     <div class="footer-bottom">
       <span>&copy; <%= new Date().getFullYear() %> <%= ft.copyright_name || gl.site_name || 'BathroomVanitiesOutlet.com' %>. All rights reserved.</span>
+      <%/* Your Privacy Choices — the opt-out for advertising tags (Meta
+           pixel), added 2026-10-30. Hard-coded rather than a Theme Editor
+           menu item on purpose: it must be on every page, and a menu entry
+           can be deleted from the admin without anyone noticing what it was
+           for. gate_analytics_tags.js asserts it is here. */%>
+      <a href="/privacy-choices" class="footer-privacy-choices" style="color:inherit">Your Privacy Choices</a>
       <div class="footer-payment-icons" aria-label="Payment methods accepted">
         <span class="payment-label">Secure checkout</span>
       </div>

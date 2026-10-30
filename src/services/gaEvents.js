@@ -69,15 +69,77 @@ function flush(req) {
       `_bvoGa(${safeJson(e.n)},${safeJson(e.p)});`
     ).join('');
 
+    /* The same moments, sent to the Meta pixel (added 2026-10-30). Built
+       from the SAME payload GA4 gets, so the two can never disagree about
+       a price. Emitted only for the four events Meta has a standard name
+       for; anything else stays GA4-only. */
+    const metaCalls = q.map(e => {
+      const m = metaEvent(e.n, e.p);
+      return m ? `_bvoFb(${safeJson(m.name)},${safeJson(m.params)},${safeJson(m.opts)});` : '';
+    }).join('');
+
     /* gtag when it exists; otherwise the GTM dataLayer shape. Neither is
-       assumed to be present - a blocked tag must not throw in the page. */
+       assumed to be present - a blocked tag must not throw in the page.
+
+       _bvoFb is a no-op unless fbq exists. fbq is ONLY defined when the
+       pixel block in main.ejs rendered — i.e. META_PIXEL_ID is set AND the
+       visitor has not opted out (GPC or /privacy-choices). So opt-out is
+       enforced by the layout, and this needs no second copy of that rule. */
     return 'function _bvoGa(n,p){try{' +
              'if(typeof gtag==="function"){gtag("event",n,p);}' +
              'else if(window.dataLayer){window.dataLayer.push({event:n,ecommerce:p});}' +
-           '}catch(e){}}' + calls;
+           '}catch(e){}}' +
+           'function _bvoFb(n,p,o){try{' +
+             'if(typeof fbq==="function"){fbq("track",n,p,o||{});}' +
+           '}catch(e){}}' + calls + metaCalls;
   } catch (_) {
     return '';
   }
+}
+
+/* ── GA4 -> Meta standard events ─────────────────────────────────────────
+   Meta's names and parameter shape for the four GA4 ecommerce events this
+   site queues. content_ids are the same item_id GA4 receives (our product
+   id), which is also what a future Meta catalog feed must use as its id
+   for dynamic ads to match.
+
+   eventID on Purchase is "purchase-<order number>". Nothing uses it yet;
+   it is there so a later Conversions API (server-side) send can carry the
+   same id and Meta de-duplicates the pair instead of counting the sale
+   twice. Adding it now costs nothing; adding it later means a period of
+   double-counted purchases. */
+const META_EVENT = {
+  view_item:      'ViewContent',
+  add_to_cart:    'AddToCart',
+  begin_checkout: 'InitiateCheckout',
+  purchase:       'Purchase',
+};
+
+function metaEvent(gaName, p) {
+  const name = META_EVENT[gaName];
+  if (!name) return null;
+  p = p || {};
+  const items = Array.isArray(p.items) ? p.items : [];
+  const params = {
+    currency:     p.currency || 'USD',
+    value:        Number(p.value) || 0,
+    content_type: 'product',
+    content_ids:  items.map(i => String(i.item_id)),
+    contents:     items.map(i => {
+      const c = { id: String(i.item_id), quantity: Number(i.quantity) || 1 };
+      if (i.price) c.item_price = i.price;
+      return c;
+    }),
+    num_items:    items.reduce((n, i) => n + (Number(i.quantity) || 1), 0),
+  };
+  if (name === 'ViewContent' && items[0] && items[0].item_name) {
+    params.content_name = items[0].item_name;
+  }
+  const opts = {};
+  if (name === 'Purchase' && p.transaction_id) {
+    opts.eventID = 'purchase-' + String(p.transaction_id).slice(0, 60);
+  }
+  return { name, params, opts };
 }
 
 /* ── payload builders ───────────────────────────────────────────────────
@@ -134,4 +196,4 @@ function fromCart(req, name, cart, extra) {
   }, extra || {}));
 }
 
-module.exports = { queue, flush, viewItem, addToCart, fromCart };
+module.exports = { queue, flush, viewItem, addToCart, fromCart, metaEvent };

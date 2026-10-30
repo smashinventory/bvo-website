@@ -165,5 +165,82 @@ console.log('\n--- no deferred loader anywhere in the layout ---');
      `record the number in the template comment`);
 }
 
+/* ═══ 5. META PIXEL — ENV-GUARDED, OPT-OUT HONORED, EVENTS WIRED ═════
+   Added 2026-10-30. The owner chose the US "middle path": the pixel runs by
+   default, and is suppressed for anyone who opts out at /privacy-choices or
+   whose browser sends Global Privacy Control. Every failure below is
+   invisible on the page — an ignored opt-out looks exactly like a working
+   one — so each piece is asserted. */
+console.log('\n--- Meta pixel: env-guarded, opt-out honored, events wired ---');
+{
+  ok('server.js exposes metaPixelId from the environment',
+     /res\.locals\.metaPixelId\s*=\s*process\.env\.META_PIXEL_ID\s*\|\|\s*''/.test(server));
+  ok('server.js exposes adOptOut from adPrivacy',
+     /res\.locals\.adOptOut\s*=\s*require\('\.\/services\/adPrivacy'\)\.status\(req\)\.optedOut/.test(server));
+
+  const fi = code.indexOf('connect.facebook.net/en_US/fbevents.js');
+  ok('the Meta pixel snippet is present', fi > -1);
+  const fStart = code.lastIndexOf('<% if', fi);
+  const fGuard = code.slice(fStart, code.indexOf('%>', fStart) + 2);
+  ok('the pixel block is guarded on metaPixelId', /metaPixelId/.test(fGuard),
+     'an unset META_PIXEL_ID must render no tag at all');
+  ok('the pixel block is guarded on adOptOut (negated)', /!\s*\(?[^%]*adOptOut/.test(fGuard),
+     'without this the opt-out link and GPC do nothing — the pixel fires for everyone');
+  ok('the pixel id is interpolated, not hardcoded',
+     /fbq\('init',\s*'<%=\s*metaPixelId\s*%>'\)/.test(code));
+  ok('the pixel block renders BEFORE the ecommerce flush',
+     fi > -1 && fi < code.indexOf('gaFlush()'),
+     'the flush calls fbq(); after the flush, fbq does not exist yet and every event is dropped');
+
+  const ni = code.indexOf('facebook.com/tr?id=');
+  const nStart = code.lastIndexOf('<% if', ni);
+  const nGuard = code.slice(nStart, code.indexOf('%>', nStart) + 2);
+  ok('the noscript pixel carries the same two guards',
+     ni > -1 && /metaPixelId/.test(nGuard) && /adOptOut/.test(nGuard),
+     'a noscript image that ignores opt-out still shares the page view');
+
+  const connect = server.slice(server.indexOf('connectSrc:'), server.indexOf('frameSrc:'));
+  ok("connect-src allows www.facebook.com (event beacons)",
+     /'https:\/\/www\.facebook\.com'/.test(connect));
+  ok("connect-src allows connect.facebook.net (pixel config)",
+     /'https:\/\/connect\.facebook\.net'/.test(connect));
+
+  /* Behavioural, not textual: load the real module and feed it requests. */
+  const ap = require(path.join(ROOT, 'src/services/adPrivacy'));
+  ok('adPrivacy: no signal -> not opted out',
+     ap.status({ headers: {} }).optedOut === false);
+  ok('adPrivacy: Sec-GPC: 1 -> opted out',
+     ap.status({ headers: { 'sec-gpc': '1' } }).optedOut === true,
+     'Global Privacy Control must be honored automatically');
+  ok('adPrivacy: opt-out cookie among others -> opted out',
+     ap.status({ headers: { cookie: 'sid=abc; bvo_ad_optout=1; x=y' } }).optedOut === true);
+  ok('adPrivacy: a lookalike cookie does not count',
+     ap.status({ headers: { cookie: 'bvo_ad_optout=10; not_bvo_ad_optout=1' } }).optedOut === false);
+
+  const ga = require(path.join(ROOT, 'src/services/gaEvents'));
+  const req = { session: {} };
+  ga.viewItem(req, { id: 1, name: 'X', price: 10 });
+  ga.addToCart(req, { product_id: 1, name: 'X', price: 10, qty: 1 });
+  ga.fromCart(req, 'begin_checkout', { items: [{ product_id: 1, name: 'X', price: 10, qty: 1 }], subtotal: 10 });
+  ga.fromCart(req, 'purchase', { items: [{ product_id: 1, name: 'X', price: 10, qty: 1 }], subtotal: 10 },
+              { transaction_id: 'T1', value: 12 });
+  const js = ga.flush(req);
+  ok('the flush emits all four Meta standard events',
+     ['ViewContent', 'AddToCart', 'InitiateCheckout', 'Purchase'].every(n => js.includes('_bvoFb("' + n + '"')));
+  ok('Meta calls are guarded on typeof fbq',
+     /typeof fbq==="function"/.test(js),
+     'opted-out pages have no fbq; an unguarded call would throw in the page');
+  ok('Purchase carries the value actually charged and an eventID for dedupe',
+     /_bvoFb\("Purchase",\{[^}]*"value":12/.test(js) && js.includes('"eventID":"purchase-T1"'));
+
+  const footer = read('views/partials/footer.ejs');
+  ok('the footer links to /privacy-choices on every page',
+     /href="\/privacy-choices"/.test(footer));
+  ok('/privacy-choices is routed for GET and POST',
+     /app\.get\('\/privacy-choices'/.test(server) && /app\.post\('\/privacy-choices'/.test(server));
+  ok('the privacy-choices form carries a CSRF token',
+     /name="_csrf"/.test(read('views/pages/privacy-choices.ejs')));
+}
+
 console.log(fail ? `\n*** ${fail} GATE(S) FAILED ***` : '\nALL GATES PASS');
 process.exit(fail ? 1 : 0);

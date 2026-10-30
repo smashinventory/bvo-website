@@ -132,6 +132,35 @@ sequence matters: policy and opt-out first, tag second.
 
 **Owner:** Sam, at advertising launch. Do not enable a tag before items 1–4.
 
+> **UPDATE 2026-10-30 — Meta pixel shipped. Read this before the list above.**
+>
+> **Correction of record:** items 1–4 above were *Claude's suggestions* from
+> the start of the project, not a decision Sam made. The wording above
+> ("Do not enable a tag before items 1–4") presented them as his rule. He
+> pointed this out on 2026-10-30. Do not record suggestions as owner
+> decisions.
+>
+> **What Sam actually decided, 2026-10-30 — the US "middle path":**
+> - **No pre-consent cookie banner** (item 2 not adopted — that is the EU/UK
+>   model, not the US norm). The pixel runs by default.
+> - **Item 1 done:** "Your Privacy Choices" link in the footer on every page
+>   → `/privacy-choices`, which sets a first-party opt-out cookie.
+> - **Item 3 done:** `Sec-GPC: 1` is honored automatically, per request
+>   (`src/services/adPrivacy.js`).
+> - **Item 4 done:** Privacy Policy updated by
+>   `database/migrations/029_privacy_policy_ad_sharing.sql` (also corrects
+>   Authorize.Net → Stripe and removes the "cookie banner" claim — the site
+>   has none).
+> - Opted-out visitors never receive the pixel snippet; enforced at render
+>   time in `views/layouts/main.ejs`, asserted by `gates/gate_analytics_tags.js`
+>   section 5.
+>
+> Pixel: "BVO - BathroomVanitiesOutlet.com Pixel", id 1499344253267498, owner
+> business Smash Inventory Solutions. Env var `META_PIXEL_ID`.
+>
+> **Still open:** Google Ads remarketing, if ever enabled, is a second ad tag
+> and must also be suppressed by `adOptOut`.
+
 ---
 
 ## ⚠ MAP price compliance — check before launch

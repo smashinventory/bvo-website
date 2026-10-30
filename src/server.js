@@ -294,7 +294,18 @@ const CSP_DIRECTIVES = {
                       Clarity posts its own telemetry; without it the recorder
                       still works but throws on every page. */
                    'https://*.clarity.ms',
-                   'https://c.bing.com'],
+                   'https://c.bing.com',
+                   /* Meta (Facebook) pixel — added 2026-10-30, BVO's own pixel.
+                      Same reasoning as Clarity above: scriptSrc needs no entry
+                      ('strict-dynamic' trusts the fbevents.js the nonced
+                      loader injects, and the config script it injects in
+                      turn). connect-src is what matters: the pixel POSTs its
+                      events to www.facebook.com/tr by fetch/sendBeacon, and
+                      fetches config from connect.facebook.net. Omit either
+                      and the events die silently. The <img> fallback is
+                      already covered by img-src 'https:'. */
+                   'https://www.facebook.com',
+                   'https://connect.facebook.net'],
   frameSrc:       ["'self'", 'https://www.youtube-nocookie.com', 'https://www.youtube.com',
                    /* The Payment Element renders inside an iframe served by
                       js.stripe.com — the same hosted-field model AcceptUI used,
@@ -705,6 +716,11 @@ app.use((req, res, next) => {
      as a second opinion alongside GA4. Env-guarded like the others, so an
      unset CLARITY_ID renders no tag at all rather than a broken one. */
   res.locals.clarityId  = process.env.CLARITY_ID || '';
+  /* Meta pixel — added 2026-10-30. Env-guarded like the tags above, AND
+     suppressed for a visitor who has opted out (Global Privacy Control or
+     the /privacy-choices cookie). See src/services/adPrivacy.js. */
+  res.locals.metaPixelId = process.env.META_PIXEL_ID || '';
+  res.locals.adOptOut    = require('./services/adPrivacy').status(req).optedOut;
   res.locals.tidioKey   = process.env.TIDIO_PUBLIC_KEY || '';
   res.locals.gmcId      = process.env.GMC_MERCHANT_ID  || '';
   /* Hosts the admin hotlink warning treats as ours. Exposed from
@@ -877,6 +893,13 @@ app.use('/account',     require('./routes/account'));
   const unsub = require('./controllers/unsubscribeController');
   app.get('/unsubscribe',  unsub.page);
   app.post('/unsubscribe', unsub.submit);
+}
+/* Your Privacy Choices — the footer opt-out for advertising tags (2026-10-30).
+   POST is CSRF-checked by the global guard like any other form. */
+{
+  const pc = require('./controllers/privacyChoicesController');
+  app.get('/privacy-choices',  pc.page);
+  app.post('/privacy-choices', pc.submit);
 }
 app.use('/admin/login',      adminAuthLimiter);
 app.use('/admin',       require('./routes/admin'));

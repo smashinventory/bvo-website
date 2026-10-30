@@ -1,0 +1,53 @@
+<%/* Your Privacy Choices — linked from the footer on every page.
+     Reuses the unsubscribe page's classes (site.css) so no CSS bundle change
+     was needed. The state comes from src/services/adPrivacy.js. */%>
+<div class="unsub-wrap">
+  <h1 class="unsub-h1">Your Privacy Choices</h1>
+
+  <p class="unsub-lead">
+    We do not sell your personal information. We do use advertising tools, such as the
+    Meta (Facebook) pixel, that share information about how you browse this site with
+    those advertising partners so we can measure and show our ads. Under some state
+    privacy laws that counts as &ldquo;sharing.&rdquo; You can opt out of it here.
+  </p>
+
+  <% if (saved === 'out') { %>
+    <div class="unsub-note"><p style="margin:0"><strong>Saved.</strong> Advertising tags are now off in this browser.</p></div>
+  <% } else if (saved === 'in') { %>
+    <div class="unsub-note"><p style="margin:0"><strong>Saved.</strong> Your opt-out has been removed in this browser.</p></div>
+  <% } %>
+
+  <% if (gpc) { %>
+    <div class="unsub-note">
+      <p style="margin:0">
+        <strong>Your browser is sending a Global Privacy Control signal, so you are already opted out.</strong>
+        We honor it automatically on every page; there is nothing else you need to do.
+      </p>
+    </div>
+  <% } else if (optedOut) { %>
+    <p class="unsub-lead"><strong>Status:</strong> you are opted out in this browser.</p>
+    <form method="POST" action="/privacy-choices">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="choice" value="optin">
+      <button type="submit" class="btn btn-navy">Turn advertising tags back on</button>
+    </form>
+  <% } else { %>
+    <p class="unsub-lead"><strong>Status:</strong> advertising tags are on.</p>
+    <form method="POST" action="/privacy-choices">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="choice" value="optout">
+      <button type="submit" class="btn btn-navy">Opt out of sharing</button>
+    </form>
+  <% } %>
+
+  <div class="unsub-note">
+    <p style="margin:0">
+      Your choice is saved in this browser with a cookie. If you clear cookies or use another
+      browser or device, you will need to choose again &mdash; or turn on Global Privacy Control
+      in your browser, which we honor automatically. Opting out does not affect your cart,
+      your account or your orders. To make any other privacy request, email
+      <a href="mailto:legal@bathroomvanitiesoutlet.com">legal@bathroomvanitiesoutlet.com</a>.
+      See our <a href="/pages/privacy-policy">Privacy Policy</a> for details.
+    </p>
+  </div>
+</div>

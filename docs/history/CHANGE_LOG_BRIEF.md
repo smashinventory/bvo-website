@@ -1,7 +1,7 @@
 # BVO Change Log Brief
 
 > The running log of every change, with dates and reasons. Search here first when asking when something broke.
-*Last updated: 2026-10-24*
+*Last updated: 2026-10-30*
 
 > **⚠️ This file had a one-month hole.** It stopped at 2026-08-10 while roughly
 > seventy tasks shipped — the whole order-management and fulfilment stack, the
@@ -16,6 +16,37 @@
 >
 > **Companion reference:** `BVO_AUDIT_BRIEF.md` → *LIVE DATABASE INVENTORY* —
 > all 41 live tables, and which 16 of them have no migration file.
+
+---
+
+## Meta pixel, Your Privacy Choices, Privacy Policy ad-sharing disclosure
+**Date:** 2026-10-30
+**New:** `src/services/adPrivacy.js`, `src/controllers/privacyChoicesController.js`,
+`views/pages/privacy-choices.ejs`, `database/migrations/029_privacy_policy_ad_sharing.sql`
+**Changed:** `src/server.js` (locals, CSP connect-src, routes), `views/layouts/main.ejs`,
+`src/services/gaEvents.js`, `views/partials/footer.ejs`, `gates/gate_analytics_tags.js`
+(section 5), `docs/reference/PRE_LAUNCH_CHECKLIST.md`
+
+- **BVO's own Meta pixel** (1499344253267498, Smash Inventory Solutions) on every
+  public page, env-guarded on `META_PIXEL_ID` like GA4 and Clarity.
+- **Standard events** ViewContent / AddToCart / InitiateCheckout / Purchase are
+  emitted from the existing GA4 server-side queue (`gaEvents.flush`), from the
+  same payload GA4 gets. Purchase value is the amount charged; Purchase carries
+  `eventID = purchase-<order number>` so a future Conversions API send dedupes.
+- **Opt-out, owner's "middle path":** no cookie banner; footer link
+  "Your Privacy Choices" → `/privacy-choices` (httpOnly cookie `bvo_ad_optout`,
+  1 year); Global Privacy Control (`Sec-GPC: 1`) honored per request. An
+  opted-out visitor never receives the snippet — decided at render time.
+  Correct only while HTML stays `Cache-Control: no-store`.
+- **CSP:** connect-src + `www.facebook.com`, `connect.facebook.net`. No
+  script-src change (`'strict-dynamic'`).
+- **Privacy Policy:** 029 discloses Meta sharing and the opt-out, and fixes two
+  pre-existing inaccuracies (Authorize.Net → Stripe; no cookie banner exists).
+  Targeted REPLACE()s, not an overwrite; verification SELECT must show all 1s.
+- **Backups:** `*.bak-metapixel-202610301720` beside each changed file.
+- **Pre-existing reds, not caused by this change** (red at `be48863` too):
+  gate_cart_pricing, gate_customer_outreach, gate_cutover_config,
+  gate_deals_banners, gate_saved_bundles, gate_tiers_and_trade.
 
 ---
 

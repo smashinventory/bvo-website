@@ -434,6 +434,40 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   </script>
   <% } %>
 
+  <!-- Meta Pixel -->
+  <%/* BVO's own Meta pixel (1499344253267498, owned by Smash Inventory
+       Solutions), added 2026-10-30. Meta's stock snippet, verbatim apart
+       from the nonce and the interpolated id.
+
+       TWO GUARDS. metaPixelId: an unset META_PIXEL_ID renders nothing, the
+       same rule as GA4 and Clarity. adOptOut: a visitor with Global Privacy
+       Control on, or who opted out at /privacy-choices, never receives the
+       snippet at all — the decision is made here, at render time, so
+       fbevents.js is never downloaded for them. See src/services/adPrivacy.js.
+
+       PLACED BEFORE THE ECOMMERCE FLUSH BELOW ON PURPOSE. gaEvents.flush()
+       also emits the matching Meta events (ViewContent, AddToCart,
+       InitiateCheckout, Purchase) and calls fbq() — which only exists if
+       this block has already run. The stub queues calls until fbevents.js
+       arrives, so nothing is lost to load order.
+
+       CSP: connect-src carries www.facebook.com and connect.facebook.net
+       (server.js); script-src needs nothing thanks to 'strict-dynamic'. */%>
+  <% if (typeof metaPixelId !== 'undefined' && metaPixelId && !(typeof adOptOut !== 'undefined' && adOptOut)) { %>
+  <script nonce="<%= cspNonce %>">
+  !function(f,b,e,v,n,t,s)
+  {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+  n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+  if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+  n.queue=[];t=b.createElement(e);t.async=!0;
+  t.src=v;s=b.getElementsByTagName(e)[0];
+  s.parentNode.insertBefore(t,s)}(window, document,'script',
+  'https://connect.facebook.net/en_US/fbevents.js');
+  fbq('init', '<%= metaPixelId %>');
+  fbq('track', 'PageView');
+  </script>
+  <% } %>
+
   <%# ── GA4 ECOMMERCE EVENTS ────────────────────────────────────────
       Queued server-side (see src/services/gaEvents.js) and flushed here.
       Emitted AFTER the gtag/GTM bootstrap above so gtag exists by the time
@@ -492,6 +526,12 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
   <% if (typeof gtmId !== 'undefined' && gtmId) { %>
   <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=<%= gtmId %>"
   height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+  <% } %>
+
+  <!-- Meta Pixel noscript — same two guards as the head block -->
+  <% if (typeof metaPixelId !== 'undefined' && metaPixelId && !(typeof adOptOut !== 'undefined' && adOptOut)) { %>
+  <noscript><img height="1" width="1" style="display:none" alt=""
+  src="https://www.facebook.com/tr?id=<%= metaPixelId %>&amp;ev=PageView&amp;noscript=1"></noscript>
   <% } %>
 
   <!-- Cart drawer (included once, JS toggles visibility) -->
