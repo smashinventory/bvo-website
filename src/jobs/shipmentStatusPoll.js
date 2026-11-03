@@ -93,6 +93,8 @@ console.log('[poll] env loaded from:', ENV_LOADED_FROM);
 
 const { bvoPool } = require('../config/database');
 const wwex        = require('../services/wwexService');
+const brevo       = require('../services/brevoService');
+const shipMode    = require('../utils/shipMode');
 
 /* Statuses worth polling. Anything already delivered, voided or cancelled
    is terminal and never checked again — that keeps the API call count
@@ -155,6 +157,105 @@ function mapCarrierStatus(raw) {
   return v;
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   POST-DELIVERY EMAIL (GAP-01, 2026-11-02)
+
+   `out_for_delivery` and `order_delivered` have been active rows in
+   email_templates since August with NO CODE PATH SENDING THEM. This poll
+   flipped orders to delivered and emailed nobody. See
+   docs/BVO_GAP_ANALYSIS.md GAP-01.
+
+   ⚠️ THESE TWO ARE TRANSACTIONAL, SO THERE IS NO CONSENT GATE AND THAT IS
+   DELIBERATE. They tell a buyer where the thing they paid for is. Someone
+   who ticked "no marketing" is still owed them. The other two orphan
+   templates — review_request and cross_sell — ARE marketing and must go
+   through cartRecovery's emailEligibility() instead; they are NOT wired
+   here, on purpose.
+
+   ⚠️ A SEND MUST NEVER BREAK THE POLL. The per-shipment try/catch below
+   counts a throw as `failed` and skips to the next shipment — so a Brevo
+   timeout inside that block could cost a STATUS UPDATE, leaving the
+   Shipments dashboard and the customer's tracking page stale. Every
+   send therefore happens AFTER the status writes, inside sendOnce(),
+   which swallows everything and only logs.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/** Who to write to, and what the templates' {{vars}} need. */
+async function orderEmailContext(orderId) {
+  const [[o]] = await bvoPool.query(
+    `SELECT o.id, o.order_number, o.is_test, o.guest_email, o.ship_first_name,
+            o.ofd_email_sent_at, o.delivered_email_sent_at,
+            c.email AS customer_email, c.first_name AS customer_first
+       FROM orders o
+       LEFT JOIN customers c ON c.id = o.customer_id
+      WHERE o.id = ? LIMIT 1`, [orderId]);
+  if (!o) return null;
+
+  const [[item]] = await bvoPool.query(
+    'SELECT name FROM order_items WHERE order_id = ? LIMIT 1', [orderId]);
+
+  return {
+    row:   o,
+    to:    o.customer_email || o.guest_email || null,
+    name:  o.customer_first  || o.ship_first_name || 'there',
+    /* No 'your vanity' default — this catalogue sells faucets and samples
+       too, and that assumption has already been unpicked once. */
+    product: item?.name || 'your order',
+  };
+}
+
+/**
+ * Send one template to one order, at most once, ever.
+ *
+ * @param {object} ctx      from orderEmailContext()
+ * @param {string} key      email_templates.trigger_key
+ * @param {string} column   the marker column on `orders`
+ * @param {object} vars     template variables
+ * @param {boolean} dry
+ * @returns {Promise<'sent'|'skipped'|'failed'>}
+ */
+async function sendOnce(ctx, key, column, vars, dry) {
+  try {
+    if (!ctx || !ctx.to) return 'skipped';
+
+    /* Test orders are excluded the same way cartRecovery does it
+       (cartRecovery.js:192). Five real orders exist today and some rows
+       in this table are test rows; mailing those addresses would be the
+       first thing anybody noticed. */
+    if (Number(ctx.row.is_test) === 1) return 'skipped';
+
+    /* The marker is the ONLY thing standing between this and sending the
+       same email twice a day forever. Checked here, and written in the
+       same breath as the send. */
+    if (ctx.row[column]) return 'skipped';
+
+    if (dry) return 'sent';   // report it, write nothing, send nothing
+
+    const res = await brevo.sendTemplate(key, ctx.to, vars, ctx.name);
+
+    /* ⚠️ STAMP ONLY ON A CONFIRMED SEND. brevoService never throws — it
+       returns {skipped:true} with no API key and {ok:false} when Brevo
+       rejects. Stamping regardless would mark an email as sent that
+       never left, and nothing would ever retry it. */
+    if (!res || !res.ok) {
+      console.warn(`[poll] ${key} NOT sent for order ${ctx.row.id} —`,
+        res && res.skipped ? 'skipped (no key or no active template)'
+                           : JSON.stringify(res && res.error).slice(0, 200));
+      return 'failed';
+    }
+
+    await bvoPool.query(
+      `UPDATE orders SET \`${column}\` = NOW() WHERE id = ?`, [ctx.row.id]);
+    ctx.row[column] = new Date();   // keep this run consistent with itself
+    return 'sent';
+  } catch (err) {
+    /* Deliberately terminal. Nothing above may reach the caller. */
+    console.error(`[poll] ${key} threw for order ${ctx && ctx.row && ctx.row.id}:`,
+                  err && err.message);
+    return 'failed';
+  }
+}
+
 /**
  * Run the poll.
  * @param {{dry?:boolean}} opts  dry = report only, write nothing
@@ -187,7 +288,12 @@ async function runPoll(opts = {}) {
        entry_source, not "pro_number looks odd" or any other heuristic:
        the column records how the row got here, which is exactly the
        question being asked. */
-    `SELECT id, bol_number, pro_number, product_type, status, order_id, ship_date
+    /* carrier, tracking_number and tracking_url are read ONLY so that
+       shipMode.trackingUrl() can be given a whole row. It reads all three
+       and a partial row would make it return null — a delivery email with
+       no tracking link, for no reason anybody could see. */
+    `SELECT id, bol_number, pro_number, product_type, status, order_id, ship_date,
+            carrier, tracking_number, tracking_url
        FROM shipments
       WHERE status IN (?)
         AND entry_source = 'wwex'
@@ -205,6 +311,10 @@ async function runPoll(opts = {}) {
   say(`[poll] checking ${rows.length} active shipment(s)…`);
 
   let changed = 0, deliveredOrders = 0, inTransitOrders = 0, failed = 0, unchanged = 0;
+  /* Counted and reported separately from `failed`: an email that did not
+     go out is not a poll failure, and burying it in the same number is
+     how a silent email problem stays silent. */
+  let ofdEmails = 0, deliveredEmails = 0;
 
   for (const s of rows) {
     const ref  = s.bol_number || s.pro_number;
@@ -222,6 +332,31 @@ async function runPoll(opts = {}) {
       if (!carrier?.status) { unchanged++; continue; }
 
       const next = mapCarrierStatus(carrier.status);
+
+      /* ⚠️ THE OUT-FOR-DELIVERY EMAIL MUST BE SENT HERE, ABOVE THE
+         EARLY RETURN ON THE NEXT LINE, AND KEYED ON THE RAW CARRIER
+         STRING RATHER THAN ON `next`.
+
+         mapCarrierStatus deliberately folds "Out For Delivery" into
+         in_transit (line ~142) because the shipments ENUM has no such
+         value. So for a shipment already in_transit, next === s.status,
+         and the `continue` below fires. Hanging this send off the status
+         change — the obvious place, and where the plan originally put it
+         — would mean it NEVER SENT ONCE, while looking entirely correct
+         in review. That is precisely how GAP-01 happened. */
+      if (/out for/i.test(String(carrier.status || '')) && s.order_id) {
+        const ctx = await orderEmailContext(s.order_id);
+        const r = await sendOnce(ctx, 'out_for_delivery', 'ofd_email_sent_at', {
+          customer_first_name: ctx ? ctx.name : '',
+          product_name:        ctx ? ctx.product : '',
+          carrier:             s.carrier || 'the carrier',
+          /* Empty string, never a guessed link — shipMode returns null
+             when it cannot build one it trusts. */
+          tracking_url:        shipMode.trackingUrl(s) || '',
+        }, DRY);
+        if (r === 'sent') { ofdEmails++; say(`[poll]     order ${s.order_id} — out_for_delivery email${DRY ? ' (DRY)' : ''}`); }
+      }
+
       if (next === s.status) { unchanged++; continue; }
 
       say(`[poll]   #${s.id} ${ref} — ${s.status} → ${next} ("${carrier.status}")`);
@@ -266,6 +401,19 @@ async function runPoll(opts = {}) {
           );
           if (target === 'delivered') deliveredOrders++; else inTransitOrders++;
           say(`[poll]     order ${s.order_id} ${ord.status} → ${target}`);
+
+          /* ⚠️ AFTER the status writes, never before. A Brevo failure
+             here must not be able to cost the customer their tracking
+             update — sendOnce() cannot throw, and this line is reached
+             only once the order row is already correct. */
+          if (target === 'delivered') {
+            const ctx = await orderEmailContext(s.order_id);
+            const r = await sendOnce(ctx, 'order_delivered', 'delivered_email_sent_at', {
+              customer_first_name: ctx ? ctx.name : '',
+              product_name:        ctx ? ctx.product : '',
+            }, DRY);
+            if (r === 'sent') { deliveredEmails++; say(`[poll]     order ${s.order_id} — order_delivered email${DRY ? ' (DRY)' : ''}`); }
+          }
         }
       }
     } catch (err) {
@@ -277,12 +425,14 @@ async function runPoll(opts = {}) {
   const secs = ((Date.now() - started) / 1000).toFixed(1);
   say(`[poll] done in ${secs}s — checked ${rows.length}, shipments changed ${changed}, `
     + `orders → in transit ${inTransitOrders}, → delivered ${deliveredOrders}, `
+    + `emails: out-for-delivery ${ofdEmails}, delivered ${deliveredEmails}, `
     + `unchanged ${unchanged}, failed ${failed}`
     + (DRY ? '  (DRY RUN — nothing written)' : ''));
 
   return {
     ok: true, dry: DRY,
     checked: rows.length, changed, inTransitOrders, deliveredOrders,
+    ofdEmails, deliveredEmails,
     unchanged, failed, seconds: Number(secs), lines,
   };
 }
