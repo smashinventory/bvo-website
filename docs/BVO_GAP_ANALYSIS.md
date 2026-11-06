@@ -198,6 +198,58 @@ Verified: `grep -rn "'out_for_delivery'" src/` returns 3 hits, **all three are e
 
 ---
 
+## 4b. GAP-01 — the half-close that still sent nothing (2026-11-03)
+
+**The 2026-11-02 wiring reached no one, and the deploy is what revealed it.**
+
+`shipmentStatusPoll` only polls shipments with `entry_source = 'wwex'`
+(deliberately — a hand-entered row has no WWEX record to look up). The only
+real shipment on the site is:
+
+| | |
+|---|---|
+| Order | #14, FedEx Ground parcel, est. delivery 2026-11-03 |
+| `entry_source` | **`manual`** |
+| `ship_date` / `delivered_at` | NULL / NULL |
+
+So the poll skips it. Worse, WWEX is in **STAGING** — the Shipments page
+says so in a banner — which means *every* shipment is manual today and the
+poll path is, in practice, dead code. GAP-01 was reported half-closed while
+still sending nothing to anybody.
+
+**The actual missing sender was `ordersController.updateStatus`** — the admin
+"mark delivered" dropdown, the only path in use. It wrote `status` and logged
+an event. It sent no email, and **it never set `delivered_at`**, which is not
+just a cosmetic gap: `review_request` and `cross_sell` are keyed on
+`delivered_at`, so an order marked delivered by hand was invisible to every
+post-delivery follow-up, permanently.
+
+Fixed 2026-11-03: `updateStatus` sets `delivered_at` (COALESCE, so a real
+carrier timestamp is never overwritten by a later correction) and sends
+`order_delivered`. **Forward transitions only** — from `shipped` or
+`in_transit` — by the owner's decision, because marking delivered is
+sometimes a correction and "your new bathroom chapter starts now" cannot be
+unsent. `sendOnce` and the context builder moved to `services/orderEmails.js`
+so both callers share one definition.
+
+### What the gate does NOT cover, stated plainly
+
+The gate's rule is *every active template has **a** sender*. `order_delivered`
+now has two. Delete either one alone and the gate stays correctly green — so
+**it cannot protect the admin path specifically**, which is the only one that
+fires today. That assertion lives in the push script, not the gate. The
+mutation harness prints this limitation on every run rather than letting it
+be assumed away.
+
+### The lesson, which is the same one as §4.2
+
+The register's own rule — *a feature is done when a human has used it end to
+end* — was not applied to the fix for the register's own top finding. The
+code was correct, gated, mutation-tested and pushed. It reached nobody,
+and only looking at the live data showed it.
+
+---
+
 ## 4a. GAP-01 — what is still blocked (2026-11-02)
 
 Two of the four were wired. The other two are **not blocked on effort**:

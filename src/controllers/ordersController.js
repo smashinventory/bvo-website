@@ -38,7 +38,12 @@ const shipMode       = require('../utils/shipMode');
 const contactLog     = require('../utils/contactLog');
 /* One agreed phrase for "the thing you ordered" when no item name is
    available. See orderEmails.js for why it is not 'your vanity'. */
-const { PRODUCT_FALLBACK, trackingBlockHtml } = require('../services/orderEmails');
+/* Namespace AND destructured: the two named helpers were already used
+   bare throughout this file, and updateStatus needs deliveryContext /
+   sendOnce. Importing only the destructured pair left `orderEmails`
+   undefined — a ReferenceError on the first delivered status change. */
+const orderEmails = require('../services/orderEmails');
+const { PRODUCT_FALLBACK, trackingBlockHtml } = orderEmails;
 
 /* ⚠️ ONE DEFINITION OF A SALE, shared with every other dashboard.
    See src/config/revenue.js. Unaliased ('') because the KPI queries below
@@ -638,8 +643,51 @@ exports.updateStatus = async (req, res) => {
     const [[order]] = await conn.query('SELECT status FROM orders WHERE id = ?', [id]);
     if (!order) return res.status(404).json({ ok: false, error: 'Not found' });
 
-    await conn.query('UPDATE orders SET status = ? WHERE id = ?', [status, id]);
+    /* ⚠️ delivered_at WAS NEVER SET BY THIS HANDLER, and that is a bigger
+       hole than it looks. It is not just a timestamp: the review_request
+       and cross_sell passes are keyed on delivered_at, so an order marked
+       delivered from this dropdown was invisible to every post-delivery
+       follow-up, permanently. COALESCE so a real carrier timestamp from
+       the poll is never overwritten by a later hand-correction. */
+    const toDelivered = status === 'delivered';
+    await conn.query(
+      `UPDATE orders
+          SET status = ?,
+              delivered_at = CASE WHEN ? THEN COALESCE(delivered_at, NOW()) ELSE delivered_at END
+        WHERE id = ?`,
+      [status, toDelivered ? 1 : 0, id]
+    );
     await logEvent(conn, id, 'status_change', order.status, status, req.session?.adminUser || 'admin', notes || null);
+
+    /* ── The delivery email (GAP-01) ────────────────────────────────
+       ⚠️ THIS IS THE PATH THAT ACTUALLY RUNS ON THIS SITE. The twice-daily
+       poll only looks at shipments with entry_source = 'wwex'; every real
+       shipment here is 'manual', so the poll's copy of this send reaches
+       nobody. Wiring only the poll left GAP-01 open while reporting it
+       closed.
+
+       ⚠️ FORWARD TRANSITIONS ONLY, by the owner's decision. Marking an
+       order delivered is sometimes a CORRECTION — fixing a mis-set
+       status, or tidying a cancelled order. Emailing "your new bathroom
+       chapter starts now" on a correction cannot be unsent. So it fires
+       only when the order genuinely moves INTO delivered from a shipping
+       state. The send-once marker then prevents any repeat. */
+    const FORWARD_INTO_DELIVERED = ['shipped', 'in_transit'];
+    if (toDelivered && FORWARD_INTO_DELIVERED.includes(order.status)) {
+      /* Awaited so the marker is written before the response, but it
+         cannot throw: sendOnce swallows everything. A mail problem must
+         not turn a successful status change into a 500 for the operator. */
+      const ctx = await orderEmails.deliveryContext(id).catch(() => null);
+      const sent = await orderEmails.sendOnce(
+        ctx, 'order_delivered', 'delivered_email_sent_at',
+        {
+          customer_first_name: ctx ? ctx.name : '',
+          product_name:        ctx ? ctx.product : '',
+        }, false);
+      if (sent === 'sent') {
+        console.log(`[orders.updateStatus] order_delivered emailed for order ${id}`);
+      }
+    }
 
     return res.json({ ok: true });
   } catch (err) {

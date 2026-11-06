@@ -224,4 +224,103 @@ function trackingBlockHtml(shipment) {
     : `<p>${line}</p>`;
 }
 
-module.exports = { send, resend, buildVars, PRODUCT_FALLBACK, trackingBlockHtml };
+/* ═══════════════════════════════════════════════════════════════════
+   POST-DELIVERY SEND-ONCE (GAP-01, moved here 2026-11-03)
+
+   These two were written inside shipmentStatusPoll.js on 2026-11-02 and
+   lived there for one day. They moved because THE POLL IS NOT THE ONLY
+   PATH, and on this site it is not even the path in use.
+
+   ⚠️ WHAT THE FIRST VERSION MISSED. The poll only looks at shipments with
+   entry_source = 'wwex'. Order #14 — the only real shipment on the site,
+   a FedEx Ground parcel delivering 2026-11-03 — is entry_source =
+   'manual'. The poll skips it entirely, so the delivery email wired into
+   the poll could never reach that customer. WWEX is also in STAGING, so
+   every shipment is manual today and the poll path is, in practice, dead
+   code. GAP-01 was declared half-closed while still sending nothing.
+
+   So the admin's own "mark delivered" dropdown
+   (ordersController.updateStatus) sends it too, and both callers share
+   THIS definition rather than growing a second copy that drifts.
+
+   ⚠️ TRANSACTIONAL, SO NO CONSENT GATE. These tell a buyer where the
+   thing they paid for is; somebody who declined marketing is still owed
+   them. review_request and cross_sell are marketing and must go through
+   cartRecovery's emailEligibility() instead — do NOT add them here.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/** Who to write to, and what the templates' {{vars}} need. */
+async function deliveryContext(orderId) {
+  const { bvoPool } = require('../config/database');
+
+  const [[o]] = await bvoPool.query(
+    `SELECT o.id, o.order_number, o.is_test, o.guest_email, o.ship_first_name,
+            o.ofd_email_sent_at, o.delivered_email_sent_at,
+            c.email AS customer_email, c.first_name AS customer_first
+       FROM orders o
+       LEFT JOIN customers c ON c.id = o.customer_id
+      WHERE o.id = ? LIMIT 1`, [orderId]);
+  if (!o) return null;
+
+  const [[item]] = await bvoPool.query(
+    'SELECT name FROM order_items WHERE order_id = ? LIMIT 1', [orderId]);
+
+  return {
+    row:     o,
+    to:      o.customer_email || o.guest_email || null,
+    name:    o.customer_first  || o.ship_first_name || 'there',
+    /* No 'your vanity' default — this catalogue sells faucets and samples
+       too, and that assumption has already been unpicked once. */
+    product: item?.name || 'your order',
+  };
+}
+
+/**
+ * Send one template to one order, at most once, ever.
+ *
+ * @returns {Promise<'sent'|'skipped'|'failed'>} — never throws.
+ */
+async function sendOnce(ctx, key, column, vars, dry) {
+  try {
+    if (!ctx || !ctx.to) return 'skipped';
+
+    /* Test orders excluded the same way cartRecovery.js:192 does it. */
+    if (Number(ctx.row.is_test) === 1) return 'skipped';
+
+    /* The marker is the ONLY thing standing between this and sending the
+       same email twice a day forever. */
+    if (ctx.row[column]) return 'skipped';
+
+    if (dry) return 'sent';   // report it, write nothing, send nothing
+
+    const res = await brevo.sendTemplate(key, ctx.to, vars, ctx.name);
+
+    /* ⚠️ STAMP ONLY ON A CONFIRMED SEND. brevoService never throws — it
+       returns {skipped:true} with no API key and {ok:false} when Brevo
+       rejects. Stamping regardless would mark an email as sent that
+       never left, and nothing would ever retry it. */
+    if (!res || !res.ok) {
+      console.warn(`[orderEmails] ${key} NOT sent for order ${ctx.row.id} —`,
+        res && res.skipped ? 'skipped (no key or no active template)'
+                           : JSON.stringify(res && res.error).slice(0, 200));
+      return 'failed';
+    }
+
+    const { bvoPool } = require('../config/database');
+    await bvoPool.query(
+      `UPDATE orders SET \`${column}\` = NOW() WHERE id = ?`, [ctx.row.id]);
+    ctx.row[column] = new Date();   // keep this run consistent with itself
+    return 'sent';
+  } catch (err) {
+    /* Deliberately terminal. Nothing above may reach the caller — this is
+       called from a cron loop AND from an admin request handler. */
+    console.error(`[orderEmails] ${key} threw for order ${ctx && ctx.row && ctx.row.id}:`,
+                  err && err.message);
+    return 'failed';
+  }
+}
+
+module.exports = {
+  send, resend, buildVars, PRODUCT_FALLBACK, trackingBlockHtml,
+  deliveryContext, sendOnce,
+};

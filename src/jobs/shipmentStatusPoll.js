@@ -158,103 +158,24 @@ function mapCarrierStatus(raw) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   POST-DELIVERY EMAIL (GAP-01, 2026-11-02)
+   POST-DELIVERY EMAIL (GAP-01)
 
-   `out_for_delivery` and `order_delivered` have been active rows in
-   email_templates since August with NO CODE PATH SENDING THEM. This poll
-   flipped orders to delivered and emailed nobody. See
-   docs/BVO_GAP_ANALYSIS.md GAP-01.
+   out_for_delivery and order_delivered were active rows in
+   email_templates since August with NO CODE PATH SENDING THEM.
 
-   ⚠️ THESE TWO ARE TRANSACTIONAL, SO THERE IS NO CONSENT GATE AND THAT IS
-   DELIBERATE. They tell a buyer where the thing they paid for is. Someone
-   who ticked "no marketing" is still owed them. The other two orphan
-   templates — review_request and cross_sell — ARE marketing and must go
-   through cartRecovery's emailEligibility() instead; they are NOT wired
-   here, on purpose.
+   ⚠️ THE SEND LOGIC MOVED TO services/orderEmails.js ON 2026-11-03, AND
+   THE REASON MATTERS. This poll only sees shipments with entry_source =
+   'wwex'. The only real shipment on the site is 'manual', so wiring the
+   email HERE ALONE reached nobody. The admin's own "mark delivered"
+   dropdown sends it too, and both share one definition.
 
    ⚠️ A SEND MUST NEVER BREAK THE POLL. The per-shipment try/catch below
    counts a throw as `failed` and skips to the next shipment — so a Brevo
-   timeout inside that block could cost a STATUS UPDATE, leaving the
-   Shipments dashboard and the customer's tracking page stale. Every
-   send therefore happens AFTER the status writes, inside sendOnce(),
-   which swallows everything and only logs.
+   timeout inside that block could cost a STATUS UPDATE. Every send
+   happens AFTER the status writes, inside sendOnce(), which swallows
+   everything and only logs.
    ═══════════════════════════════════════════════════════════════════ */
-
-/** Who to write to, and what the templates' {{vars}} need. */
-async function orderEmailContext(orderId) {
-  const [[o]] = await bvoPool.query(
-    `SELECT o.id, o.order_number, o.is_test, o.guest_email, o.ship_first_name,
-            o.ofd_email_sent_at, o.delivered_email_sent_at,
-            c.email AS customer_email, c.first_name AS customer_first
-       FROM orders o
-       LEFT JOIN customers c ON c.id = o.customer_id
-      WHERE o.id = ? LIMIT 1`, [orderId]);
-  if (!o) return null;
-
-  const [[item]] = await bvoPool.query(
-    'SELECT name FROM order_items WHERE order_id = ? LIMIT 1', [orderId]);
-
-  return {
-    row:   o,
-    to:    o.customer_email || o.guest_email || null,
-    name:  o.customer_first  || o.ship_first_name || 'there',
-    /* No 'your vanity' default — this catalogue sells faucets and samples
-       too, and that assumption has already been unpicked once. */
-    product: item?.name || 'your order',
-  };
-}
-
-/**
- * Send one template to one order, at most once, ever.
- *
- * @param {object} ctx      from orderEmailContext()
- * @param {string} key      email_templates.trigger_key
- * @param {string} column   the marker column on `orders`
- * @param {object} vars     template variables
- * @param {boolean} dry
- * @returns {Promise<'sent'|'skipped'|'failed'>}
- */
-async function sendOnce(ctx, key, column, vars, dry) {
-  try {
-    if (!ctx || !ctx.to) return 'skipped';
-
-    /* Test orders are excluded the same way cartRecovery does it
-       (cartRecovery.js:192). Five real orders exist today and some rows
-       in this table are test rows; mailing those addresses would be the
-       first thing anybody noticed. */
-    if (Number(ctx.row.is_test) === 1) return 'skipped';
-
-    /* The marker is the ONLY thing standing between this and sending the
-       same email twice a day forever. Checked here, and written in the
-       same breath as the send. */
-    if (ctx.row[column]) return 'skipped';
-
-    if (dry) return 'sent';   // report it, write nothing, send nothing
-
-    const res = await brevo.sendTemplate(key, ctx.to, vars, ctx.name);
-
-    /* ⚠️ STAMP ONLY ON A CONFIRMED SEND. brevoService never throws — it
-       returns {skipped:true} with no API key and {ok:false} when Brevo
-       rejects. Stamping regardless would mark an email as sent that
-       never left, and nothing would ever retry it. */
-    if (!res || !res.ok) {
-      console.warn(`[poll] ${key} NOT sent for order ${ctx.row.id} —`,
-        res && res.skipped ? 'skipped (no key or no active template)'
-                           : JSON.stringify(res && res.error).slice(0, 200));
-      return 'failed';
-    }
-
-    await bvoPool.query(
-      `UPDATE orders SET \`${column}\` = NOW() WHERE id = ?`, [ctx.row.id]);
-    ctx.row[column] = new Date();   // keep this run consistent with itself
-    return 'sent';
-  } catch (err) {
-    /* Deliberately terminal. Nothing above may reach the caller. */
-    console.error(`[poll] ${key} threw for order ${ctx && ctx.row && ctx.row.id}:`,
-                  err && err.message);
-    return 'failed';
-  }
-}
+const { deliveryContext: orderEmailContext, sendOnce } = require('../services/orderEmails');
 
 /**
  * Run the poll.
