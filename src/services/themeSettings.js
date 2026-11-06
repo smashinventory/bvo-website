@@ -7,6 +7,7 @@
  * if the file is missing (same DB-absent pattern used elsewhere).
  */
 
+const jmvReviews = require('../config/jmvReviews');
 const fs   = require('fs');
 const path = require('path');
 const { bvoPool } = require('../config/database');
@@ -273,6 +274,17 @@ const DEFAULTS = {
     google_reviews_rating:  '4.9',   // e.g. '4.9'
     google_reviews_count:   '150',   // e.g. '312'
   },
+
+  /* ── JAMES MARTIN REVIEW FIGURES ──────────────────────────────────────
+     The figures and the publish rules live in src/config/jmvReviews.js, which
+     requires NOTHING — no database, no settings service. That is deliberate:
+     gates/gate_structured_data.js re-derives these numbers to check them, and
+     gates run on a laptop with no DB_PASS. Requiring THIS file from the gate
+     pulls in src/config/database, which refuses to load without a password and
+     took the whole gate down on 2026-11-06. Importing the data instead of
+     declaring it here keeps one copy and keeps the gate runnable anywhere. */
+  jmv_reviews: jmvReviews.DEFAULTS,
+
   promo_strip: {
     enabled: true,
     message: 'Free Shipping on Most Orders — No Minimum Required',
@@ -2155,6 +2167,15 @@ function deepMerge(target, source) {
    Exported frozen. Nothing outside this file has any business editing the
    defaults at runtime, and a template that did so would change the site for
    every later request in the process. */
+/* ── JM REVIEW FIGURE LOOKUP ───────────────────────────────────────────
+ * Thin delegate. The rules and the data are in src/config/jmvReviews.js so the
+ * gate can reach them without a database; this exists only so callers that
+ * already have themeSettings do not need a second import.
+ */
+function jmvReviewFor(brand, model) {
+  return jmvReviews.resolve((get() || {}).jmv_reviews, brand, model);
+}
+
 module.exports = { get, save, reload, persistToDb, initFromDb,
-                   writeSettingsFile, thinForStorage,
+                   writeSettingsFile, thinForStorage, jmvReviewFor,
                    DEFAULTS: Object.freeze(DEFAULTS) };

@@ -51,6 +51,7 @@ const pathFilters                                       = require('../config/pat
 /* Title/meta/H1/intro per filter value, plus the lookup. Separate file so
    the copy can be reviewed and gated without reading controller logic. */
 const filterLandingPages                                = require('../config/filterLandingPages');
+const { jmvReviewFor }                                  = require('../services/themeSettings');
 
 /* ── Color family hex lookup: family_key → hex / border ──────────── */
 const FAMILY_HEX = {};
@@ -1581,6 +1582,28 @@ exports.show = async (req, res, next) => {
       return rows.length ? rows[0] : null;
     })();
 
+    /* ── Retailer review figure for this model ────────────────────────────
+       Plain text shown under the model copy: the collection's average
+       rating at Home Depot and Ferguson, with the review count and the
+       month it was last checked by hand. NOT our reviews.
+
+       KEYED ON (model, brand), the same pair as _modelCopy above and for
+       the same reason — 'Bristol' exists under both brands and the ER
+       Vanities page must not inherit James Martin's 184 reviews.
+
+       NOT derived from _modelCopy, deliberately. _modelCopy is null when
+       model_groups.description is empty, and a missing description is no
+       reason to drop a true, verified rating off the page. The two are
+       independent facts about the same model.
+
+       jmvReviewFor() returns null for anything disqualified — switch off,
+       too few reviews, retailers disagreeing, unparseable numbers — so
+       there is no threshold logic here or in the template. One resolver,
+       shared with the gate. */
+    const _jmvReview = (model && brands.length === 1)
+      ? jmvReviewFor(brands[0], model)
+      : null;
+
     /* ── Model landing SEO ────────────────────────────────────────────────
        THE CANONICAL IS THE POINT OF THIS BLOCK.
 
@@ -1663,6 +1686,7 @@ exports.show = async (req, res, next) => {
       canonicalUrl: effectiveCanonical,
       landing:      _landing,
       modelCopy:    _modelCopy,
+      jmvReview:    _jmvReview,
       modelSeo:     _modelSeo,
       noindex,
       category,

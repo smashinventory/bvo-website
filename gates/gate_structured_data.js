@@ -40,7 +40,19 @@ const read = p => fs.readFileSync(path.join(ROOT, p), 'utf8');
    text matches prose. That trap has produced both false reds and a false
    green in this codebase. */
 const js  = p => read(p).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-const ejs = p => read(p).replace(/<%\/\*[\s\S]*?\*\/%>/g, '').replace(/<!--[\s\S]*?-->/g, '');
+/* ⚠️ <%# %> IS STRIPPED TOO, ADDED 2026-11-06. It was not, and that is a hole
+   in exactly the protection the note above describes: <%# %> is an EJS
+   comment, so a view can explain "this block must never emit
+   aggregateRating" and a raw scan for `aggregateRating` then matches the
+   explanation rather than any code. The JM review block in collection.ejs
+   names both `aggregateRating` and `ld+json` in its warning comment, so
+   without this the new checks below would have gone red against correct
+   code — or, far worse, a later check written the other way round would
+   have gone GREEN because the prose satisfied it. Verified when added: every
+   pre-existing check in this file still passes with the wider strip. */
+const ejs = p => read(p).replace(/<%\/\*[\s\S]*?\*\/%>/g, '')
+                        .replace(/<%#[\s\S]*?%>/g, '')
+                        .replace(/<!--[\s\S]*?-->/g, '');
 
 /* controller -> the view it renders */
 const PAIRS = [
@@ -146,6 +158,103 @@ ok('the module never emits aggregateRating', !/aggregateRating/.test(mod),
      !sd.scriptTag(sd.graph([{ '@type': 'Thing', name: 'x</script><img src=y>' }]))
         .includes('</script><img'),
      'JSON-LD can be broken out of');
+}
+
+console.log('--- JM retailer review figures stay out of the markup ---');
+/* ⚠️ WHAT THIS GUARDS. The JM model pages publish an aggregate rating
+   collected from Home Depot and Ferguson. Those are not reviews this site
+   collected, and Google requires review markup to describe reviews the site
+   DID collect. Marking these up is the same manual-action risk as the
+   site-wide seller rating above, with the added twist that the figure looks
+   product-specific and therefore legitimate. It is not.
+   Second job: the numbers themselves must satisfy the publish rules. A
+   figure can be edited from the Theme Editor at any hour with no CI run in
+   between, so the resolver enforces them at render time; this proves the
+   REPOSITORY state is clean and that nobody has loosened the rules. */
+{
+  /* ⚠️ REQUIRE src/config/jmvReviews, NEVER src/services/themeSettings.
+     themeSettings pulls in src/config/database, which aborts the process when
+     DB_PASS is absent from .env. Every check in this file passed in an
+     environment that happened to have it set, then the gate died on the
+     owner's laptop — where there is correctly no database password — taking
+     the push script with it. A gate that only runs where the secrets are is
+     not a gate. jmvReviews.js requires nothing, by design. */
+  const jmv  = require(path.join(ROOT, 'src/config/jmvReviews'));
+  const cv   = ejs('views/pages/collection.ejs');
+  const jr   = jmv.DEFAULTS || {};
+  const figs = jr.figures || {};
+  const resolve = (b, m) => jmv.resolve(jr, b, m);
+
+  /* Isolate the block so a match elsewhere on this large page cannot pass
+     for a match inside it. */
+  /* ⚠️ ANCHORED ON THE EXACT CLASS, class="jmv-rev", NOT ON THE SUBSTRING
+     'jmv-rev'. The mutation harness caught this: a loose indexOf('jmv-rev')
+     still matches 'jmv-rev-REMOVED', so renaming or deleting the section
+     left the gate green while nothing rendered. A check that cannot tell
+     "present" from "renamed" is not checking presence. */
+  const i = cv.indexOf('class="jmv-rev"');
+  const block = i === -1 ? '' : cv.slice(cv.lastIndexOf('<%', i), cv.indexOf('</section>', i) + 10);
+  ok('the review block exists in collection.ejs', block.length > 0,
+     'the figures resolve but nothing renders them');
+  /* It must also be wired to the local, or it renders on every collection. */
+  ok('the block is guarded on the jmvReview local',
+     /typeof\s+jmvReview\s*!==\s*['"]undefined['"]/.test(cv) && /\bjmvReview\b/.test(block),
+     'either it throws on pages without the local, or it renders unconditionally');
+
+  for (const bad of ['aggregateRating', 'itemprop', 'ld+json', 'reviewCount', 'ratingValue']) {
+    ok(`the block emits no ${bad}`, !new RegExp(bad, 'i').test(block),
+       'these figures are not ours to mark up');
+  }
+
+  /* The attribution is what separates a true statement from a false one.
+     Without it the page says four-point-five next to a BVO product name. */
+  ok('the block states the figures are not ours',
+     /at national\s+retailers/i.test(block.replace(/\s+/g, ' ')),
+     'the rating reads as BVO’s own without this phrase');
+
+  /* The thresholds are not a matter of taste. */
+  ok('min_reviews is still 30',  Number(jr.min_reviews) === 30, `got ${jr.min_reviews}`);
+  ok('max_spread is still 0.5',  Number(jr.max_spread)  === 0.5, `got ${jr.max_spread}`);
+
+  /* ⚠️ RECOMPUTED, NOT TRUSTED. A gate that cannot re-derive the thing it
+     guards is a decoration. Every shipped figure is re-checked against the
+     two rules and against its own retailer inputs. */
+  const shown = Object.entries(figs).filter(([, f]) => f && f.show === true);
+  ok('at least one figure is published', shown.length > 0, 'nothing would render');
+  for (const [k, f] of shown) {
+    const rating = parseFloat(f.rating), count = parseInt(f.count, 10);
+    const hd = parseFloat(f.hd), fg = parseFloat(f.ferguson);
+    ok(`${k}: brand and model are both set`,
+       !!String(f.brand || '').trim() && !!String(f.model || '').trim(),
+       'the lookup key is incomplete, so it matches nothing or the wrong brand');
+    ok(`${k}: rating ${f.rating} is a number in 0-5`,
+       isFinite(rating) && rating > 0 && rating <= 5, 'unpublishable');
+    ok(`${k}: ${count} reviews clears the floor of ${jr.min_reviews}`,
+       isFinite(count) && count >= Number(jr.min_reviews),
+       'too few reviews to mean anything');
+    ok(`${k}: retailers agree within ${jr.max_spread} (HD ${f.hd} / FG ${f.ferguson})`,
+       isFinite(hd) && isFinite(fg) && Math.abs(hd - fg) <= Number(jr.max_spread),
+       'averaging two figures this far apart is true arithmetic and a false impression');
+    /* The published number must actually sit between the two sources. */
+    ok(`${k}: published ${f.rating} lies between the two retailer averages`,
+       rating >= Math.min(hd, fg) - 0.05 && rating <= Math.max(hd, fg) + 0.05,
+       'the published figure is not supported by either source');
+  }
+
+  /* The resolver is the only place the rules live. A threshold retyped into
+     the template is how the page and the gate start disagreeing, with the
+     page winning silently. */
+  ok('the template contains no threshold numbers',
+     !/\b30\b/.test(block) && !/0\.5/.test(block),
+     'the publish rules were duplicated into the view');
+
+  /* Prove the resolver actually refuses, rather than asserting it does. */
+  ok('the resolver rejects an unknown brand/model',
+     resolve('ER Vanities', 'Bristol') === null,
+     'the ER Vanities page would inherit James Martin reviews');
+  ok('the resolver returns a figure for a published model',
+     !!resolve(shown[0][1].brand, shown[0][1].model),
+     'nothing renders even though a figure is marked show:true');
 }
 
 console.log('--- the product page emits one graph, not islands ---');

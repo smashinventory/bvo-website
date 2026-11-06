@@ -958,6 +958,56 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
               </div>
             </details>
 
+            <%# ── JAMES MARTIN REVIEW FIGURES ────────────────────────────
+                Quarterly refresh lives here so updating a number is an edit,
+                not a deploy. See docs/SCHEDULED_jmv_review_figures_refresh.md.
+
+                THE ROWS ARE A LOOP OVER THE SETTINGS OBJECT, not three
+                hardcoded blocks. Add a fourth collection to themeSettings and
+                its row appears here with no edit to this file — three
+                hardcoded panels is how the fourth one silently has no editor.
+
+                min_reviews and max_spread are deliberately NOT editable. They
+                decide whether a number is honest enough to publish, which is
+                not a matter of taste, and the gate asserts they are still
+                30 and 0.5. %>
+            <% var jr = t.jmv_reviews || {}; var jrF = jr.figures || {}; %>
+            <details class="te4-accord">
+              <summary class="te4-accord-head">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                James Martin Review Figures
+                <svg class="te4-accord-arrow" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+              </summary>
+              <div class="te4-accord-body">
+                <p class="te4-panel-desc">Ratings collected by hand from Home Depot and Ferguson,
+                  shown as plain text on that collection’s model page. <strong>These are not our
+                  reviews</strong> and are never added to structured data — doing so risks a
+                  sitewide Google penalty. Re-checked quarterly.</p>
+
+                <%- teToggle('jmv_reviews.enabled','Show review figures on model pages', jr.enabled === true) %>
+                <%- teField('text','jmv_reviews.verified_on','Verified (month shown on the page)', jr.verified_on) %>
+                <p class="te4-hint" style="margin:.35rem 0 .9rem">One date for every figure below.
+                  Update it only when you have actually re-checked them — the date is the claim.</p>
+
+                <% Object.keys(jrF).forEach(function (k) { var f = jrF[k] || {}; %>
+                  <div class="te4-section-label"><%= f.brand || '' %> <%= f.model || k %></div>
+                  <%- teToggle('jmv_reviews.figures.' + k + '.show', 'Show this collection’s rating', f.show === true, true) %>
+                  <%- teField('text','jmv_reviews.figures.' + k + '.rating','Published rating (0–5)', f.rating) %>
+                  <%- teField('text','jmv_reviews.figures.' + k + '.count','Total reviews', f.count) %>
+                  <%- teField('text','jmv_reviews.figures.' + k + '.hd','Home Depot average', f.hd) %>
+                  <%- teField('text','jmv_reviews.figures.' + k + '.ferguson','Ferguson average', f.ferguson) %>
+                  <%# brand and model are NOT editable. They are the lookup key —
+                      'Bristol' exists under both James Martin and ER Vanities, so a
+                      typo here would move the rating onto the wrong brand's page,
+                      or onto no page at all, with nothing to show for it. %>
+                  <input type="hidden" name="jmv_reviews.figures.<%= k %>.brand" value="<%= f.brand || '' %>">
+                  <input type="hidden" name="jmv_reviews.figures.<%= k %>.model" value="<%= f.model || '' %>">
+                  <p class="te4-hint" style="margin:.2rem 0 1rem">Hidden automatically if the two
+                    retailer averages differ by more than 0.5, or the review count is under 30.</p>
+                <% }); %>
+              </div>
+            </details>
+
             <details class="te4-accord">
               <summary class="te4-accord-head">
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>

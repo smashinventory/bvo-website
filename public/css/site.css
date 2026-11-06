@@ -34,6 +34,21 @@
    promoted filtered collection. Needs readable body styling, not the
    amber one-liner treatment .cat-header p gives the category blurb. */
 .cat-header .cat-intro{font-size:.95rem;line-height:1.6;color:var(--navy);max-width:68ch;margin-top:10px}.model-copy{margin-top:18px;max-width:68ch}.model-copy-title{font-size:1.05rem;line-height:1.35;font-weight:600;color:var(--navy);margin:0 0 8px}.model-copy-body{font-size:.95rem;line-height:1.65;color:var(--navy);margin:0 0 10px}.model-copy-body:last-child{margin-bottom:0}
+/* ── RETAILER REVIEW FIGURE (JM model pages) ──────────────────────────
+   letter-spacing is 0 ON PURPOSE. .jmv-rev-fill is clipped to a PERCENTAGE
+   of .jmv-rev-stars, so 100% must equal exactly five glyph widths. Any
+   letter-spacing adds a trailing gap after the fifth star that is inside
+   the 100% but outside the stars, so every rating would render slightly
+   fuller than it is — which is the one direction this block must never
+   round. */
+.jmv-rev{margin-top:16px;max-width:68ch;padding-top:14px;border-top:1px solid #e3ded4}
+.jmv-rev-top{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.jmv-rev-score{font-size:1.45rem;font-weight:700;line-height:1;color:var(--navy)}
+.jmv-rev-stars{position:relative;display:inline-block;font-size:1.15rem;line-height:1;letter-spacing:0;white-space:nowrap}
+.jmv-rev-track{color:#d8d1c4}
+.jmv-rev-fill{position:absolute;left:0;top:0;overflow:hidden;white-space:nowrap;color:#d79b22}
+.jmv-rev-count{font-size:.85rem;color:#6b6257}
+.jmv-rev-src{font-size:.8rem;line-height:1.5;color:#6b6257;margin:5px 0 0}
 p.section-title,p.newsletter-heading,p.product-title,p.cat-title{margin-top:0}p.product-title{margin-bottom:8px}
 
 /* ── FREE SAMPLES BANNER ALIGNMENT ──────────────────────────────────

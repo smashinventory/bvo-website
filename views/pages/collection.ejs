@@ -68,6 +68,52 @@
       <% }) %>
     </section>
     <% } %>
+
+    <%# ── RETAILER REVIEW FIGURE ────────────────────────────────────────
+        The collection's average rating at Home Depot and Ferguson, the
+        number of reviews behind it, and the month a human last checked.
+
+        ⚠️ NOT OUR REVIEWS, AND NOT MARKED UP. There is deliberately no
+        JSON-LD, no itemprop and no microdata anywhere in this block.
+        Google requires review markup to describe reviews the site itself
+        collected; marking up a competitor's aggregate is the textbook
+        route to a sitewide manual action, and review snippets being one
+        of the few surviving rich results is exactly what makes it a
+        tempting mistake. gates/gate_structured_data.js asserts the
+        absence. The same rule already governs the site-wide Google
+        rating — see src/utils/structuredData.js.
+
+        ⚠️ THE ATTRIBUTION LINE IS NOT DECORATION. "at national retailers"
+        is the only thing standing between this and a claim that BVO's own
+        customers rated the vanity. It renders from the same block as the
+        number, so the two cannot be separated by a later edit.
+
+        Rendered independently of model-copy above: a model with no
+        description still gets its rating.
+
+        No threshold logic here. jmvReviewFor() already returned null for
+        anything not publishable — duplicating the rule in the template is
+        how the template and the gate end up disagreeing. %>
+    <% if (typeof jmvReview !== 'undefined' && jmvReview) { %>
+    <section class="jmv-rev">
+      <div class="jmv-rev-top">
+        <span class="jmv-rev-score"><%= jmvReview.ratingText %></span>
+        <%# Partial fill by PERCENTAGE, never a rounded count of solid
+            stars. 4.3 drawn as five full stars is a false claim, and on a
+            star row there is no room for a qualifier to soften it. The
+            grey row underneath is the track; the gold row is clipped to
+            fillPct over the top. aria-hidden because the accessible value
+            is the text beside it, not the glyphs. %>
+        <span class="jmv-rev-stars" aria-hidden="true">
+          <span class="jmv-rev-track">★★★★★</span>
+          <span class="jmv-rev-fill" style="width:<%= jmvReview.fillPct.toFixed(1) %>%">★★★★★</span>
+        </span>
+        <span class="jmv-rev-count">· <%= jmvReview.count.toLocaleString('en-US') %> reviews</span>
+      </div>
+      <p class="jmv-rev-src">Average across verified customer reviews at national
+        retailers<% if (jmvReview.verifiedOn) { %>, <%= jmvReview.verifiedOn %><% } %>.</p>
+    </section>
+    <% } %>
   </div>
 </div>
 
