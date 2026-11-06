@@ -135,7 +135,15 @@
     <h2>Signups &amp; orders over time</h2>
     <p class="ca-panel-note">Daily, last 90 days.</p>
     <% if (trend.sufficient) { %>
-    <canvas id="caTrend" height="200"></canvas>
+    <%/* ⚠️ THE WRAPPER WITH AN EXPLICIT HEIGHT IS THE FIX, NOT DECORATION.
+          The chart sets maintainAspectRatio:false, which makes Chart.js size
+          the canvas to its CONTAINER rather than to the height attribute.
+          .ca-panel has no height, so the container grew to fit the canvas and
+          the canvas grew to fit the container — an unbounded loop that
+          rendered the trend line as two spikes running off the page.
+          The height="200" attribute was ignored the whole time.
+          Same fix as the jmv-reports charts; keep the two consistent. */%>
+    <div style="position:relative;height:260px"><canvas id="caTrend"></canvas></div>
     <% } else { %>
     <div class="ca-pending">
       <p class="ca-pending-t">Not enough data yet</p>
