@@ -271,6 +271,16 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
                           any stylesheet, so a shipped order's status
                           rendered as unstyled text. Appended identically to
                           site.css and site-bundle.css.
+        v=49 (2026-11-06) .jmv-rev-* for the James Martin retailer review
+                          figures on model pages. SHIPPED AT v=48 BY
+                          MISTAKE AND BROKE ON THE LIVE SITE: the fill
+                          star row is position:absolute over the grey
+                          track, so with a cached v=48 stylesheet it fell
+                          back to static and rendered TEN navy stars side
+                          by side instead of one partially-filled row.
+                          The push script now runs gate_bundle_cache_bust,
+                          which had caught this and was simply never
+                          invoked.
         v=48 (2026-10-27) .unsub-* for the new first-party unsubscribe
                           page. Turns off marketing only, never the
                           Brevo blocklist that also kills sign-in codes.
@@ -285,7 +295,7 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
       The source rules live in site.css / site2.css and are hand-minified
       into this bundle, per the instruction above — those files reach no
       browser on their own. %>
-  <link rel="stylesheet" href="/css/site-bundle.css?v=48">
+  <link rel="stylesheet" href="/css/site-bundle.css?v=49">
   <%# ── SECTION VISIBILITY, FROM THE OWNER'S BREAKPOINTS ─────────────
       "Visible on" offered All / Desktop / Mobile and was implemented as
       two rules hardcoded at 861px. There was no Tablet option because
