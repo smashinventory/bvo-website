@@ -145,7 +145,17 @@ async function trend(days = 90) {
     return { sufficient: false, need: NEED.trend.label, have: num(n), rows: [] };
   }
   const [rows] = await bvoPool.query(`
-    SELECT d.day,
+    /* ⚠️ DATE_FORMAT, NOT THE BARE DATE COLUMN. A MySQL DATE comes back as a
+       JS Date object, and JSON.stringify turns that into a full ISO string —
+       "2026-10-21T00:00:00.000Z" — which is what the chart was printing
+       along its x-axis.
+
+       The cosmetic half is the lesser half. Date -> ISO is rendered in UTC,
+       so on a server running behind UTC the midnight boundary moves and a
+       signup can be attributed to the wrong DAY. Formatting in SQL keeps
+       the value a plain 'YYYY-MM-DD' string in the database's own calendar
+       and never constructs a Date at all. */
+    SELECT DATE_FORMAT(d.day, '%Y-%m-%d') AS day,
            COALESCE(s.signups, 0) AS signups,
            COALESCE(x.orders,  0) AS orders
       FROM (SELECT DATE(c.created_at) AS day FROM ${REAL_CUSTOMER} WHERE ${C_OK}

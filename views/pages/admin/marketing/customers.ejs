@@ -332,10 +332,22 @@
   var data = <%- JSON.stringify(trend.rows) %>;
   var el = document.getElementById('caTrend');
   if (!el || !window.Chart) return;
+
+  /* ⚠️ SPLIT THE STRING, NEVER new Date(r.day). Parsing 'YYYY-MM-DD' gives a
+     UTC midnight, which in any timezone behind UTC renders as the PREVIOUS
+     day — the chart would silently be off by one for half the world. The
+     controller already hands us a plain date string in the database's own
+     calendar; keep it that way. */
+  var MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function shortDay(s) {
+    var p = String(s).split('-');
+    return (p.length === 3) ? MON[+p[1] - 1] + ' ' + (+p[2]) : String(s);
+  }
+
   new Chart(el, {
     type: 'line',
     data: {
-      labels: data.map(function (r) { return r.day; }),
+      labels: data.map(function (r) { return shortDay(r.day); }),
       datasets: [
         { label: 'Signups', data: data.map(function (r) { return r.signups; }),
           borderColor: '#182840', backgroundColor: 'rgba(24,40,64,.08)', fill: true, tension: .25 },
