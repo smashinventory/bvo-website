@@ -1,23 +1,41 @@
-# Scheduled task — quarterly JMV review-figure refresh
+# Scheduled task — monthly JMV review-figure refresh
 
-Create this from the **Scheduled** section in the Claude sidebar. It could not be
-created from a chat session: new scheduled tasks run in the cloud.
+Create this from the **Scheduled** section in the Claude sidebar. It cannot be
+created from a chat session — new scheduled tasks run in the cloud. (Tried and
+refused on 2026-11-06; this note exists so nobody tries a third time.)
 
 | Field | Value |
 |---|---|
-| **Title** | Quarterly — refresh the James Martin review figures |
-| **Schedule** | `0 14 1 2,5,8,11 *` — 2pm on the 1st of Feb, May, Aug, Nov |
-| **Description** | Re-check retailer review ratings for BVO's top James Martin collections so the cited figures on the site stay accurate. |
+| **Title** | Monthly — refresh the James Martin review figures |
+| **Schedule** | `0 14 1 * *` — 2pm on the 1st of every month |
+| **Description** | Re-check retailer review ratings for BVO's seven published James Martin collections so the cited figures on the site stay accurate. |
 
-Monthly instead of quarterly: change the cron to `0 14 1 * *`. Quarterly was chosen
-because the counts move slowly — Brittany 36" has 47 reviews and gains a handful a
-year, so twelve checks would be eleven no-ops.
+⚠️ **THIS WAS QUARTERLY UNTIL 2026-11-06.** The original reasoning — "the counts move
+slowly, so twelve checks would be eleven no-ops" — was true of Brittany and false of
+everything else, and the wave-2 capture is what exposed it. The published set now
+includes collections thin enough that a SINGLE review moves the figure on the page:
+
+| Collection | Reviews | One new 1★ takes it to |
+|---|---|---|
+| Laurent | 11 | 3.9 → **3.7** |
+| Lorelai | 10 | 4.9 → **4.6** |
+| Addison | 25 | 4.5 → **4.3** |
+| Brittany | 407 | 4.5 → 4.5 (needs ~30 of them to shift) |
+
+Quarterly meant Laurent could sit on the site at a visibly wrong number for three
+months while carrying a "verified" date. Monthly is the floor, not an abundance of
+caution. The stable three are re-checked along with them because splitting the
+cadence per collection buys very little and makes the task easy to half-run.
+
+The second reason: **Breckenridge is riding a manual override.** What retires it is
+Home Depot's review count climbing until the spread closes. Checking that four times
+a year is how a dated override quietly becomes permanent.
 
 ---
 
 ## Prompt — paste everything below this line
 
-Quarterly refresh of the James Martin review figures cited on bathroomvanitiesoutlet.com.
+Monthly refresh of the James Martin review figures cited on bathroomvanitiesoutlet.com.
 
 ### Why this exists
 
@@ -27,7 +45,7 @@ one condition: the numbers must be accurate and carry a date a human actually
 verified. This task exists so that date never becomes a lie.
 
 ⚠️ THIS IS A LOW-VOLUME MANUAL CHECK, NOT A SCRAPER, AND THE DIFFERENCE IS THE POINT.
-Open a handful of pages, four times a year, and hand the result to a human who decides
+Open a handful of pages, once a month, and hand the result to a human who decides
 what to publish. Do NOT build, suggest, or run any automated or recurring harvester
 against these retailers — their terms prohibit automated collection, and a daily job
 would get the IP blocked and then silently publish stale numbers under a fresh date.
@@ -36,18 +54,73 @@ reason.
 
 ### What to check
 
-Five collections, two sizes each — BVO's top sellers by demand (JMV Demand Reports,
-Nov 2026):
+**The seven published collections** (everything else is dark for lack of data — see
+the baseline table below, and do not re-sweep the long tail hoping it filled in):
 
-  Brittany, Breckenridge, Lorelai, Bristol, Myrrin   ×   36" and 48"
+  Brittany, Bristol, Breckenridge, Myrrin, Addison, Laurent, Lorelai
 
-Two retailers:
-- Home Depot — `https://www.homedepot.com/s/james+martin+<collection>+<size>`
-- Ferguson Home — `https://www.fergusonhome.com/search?term=james%20martin%20<collection>%20<size>`
+Two retailers. **Ferguson is the reliable one; Home Depot is a floor.**
 
-Use the browser (Claude in Chrome). For Home Depot the search HTML carries the data as
-escaped JSON — unescape `\"` first, then read `"averageRating"` and `"totalReviews"`
-near each product.
+#### Ferguson — deterministic, use collection pages not search
+
+    https://www.fergusonhome.com/james-martin-vanities-<collection>/c<id>?page=N
+
+Keyed by SKU, one review set per listing, same answer every run.
+
+⚠️ **FERGUSON WRAPS BACK TO PAGE 1 PAST THE LAST PAGE** rather than returning an
+empty result. A naive "keep paging until empty" loop never terminates and silently
+double-counts. Dedupe by SKU and stop when a page repeats SKUs you already have.
+
+⚠️ **RATINGS ARE IN `aria-label`, NOT IN THE HTML AS JSON.** A same-origin `fetch()`
+returns a ~2.4 KB shell — the page is client-rendered. An earlier version of this
+document said to read `"reviewCount"` from the HTML; it produced `null` for every
+SKU, which was then written down as "Ferguson has counts but no ratings". Navigate
+and read the **rendered DOM**:
+
+```js
+document.querySelectorAll('[aria-label*="out of 5 stars"]')   // -> "4.875 out of 5 stars"
+```
+
+Walk up from each star node to the tile containing "James Martin", take the SKU from
+the `/s<digits>` href, and the per-SKU count from the `(n)` in the tile text.
+
+#### Home Depot — a floor, not a measurement
+
+    https://www.homedepot.com/s/james+martin+<collection>+<size>
+
+⚠️ **SIZE-QUALIFIED `+` URLS ONLY.** An unsized search returns nothing (`bristol` → 0
+tiles, `bristol+48` → 23). The `%20` URL form triggers a bot interstitial; the `+`
+form does not. `james+martin+boston` redirects to a single product page.
+
+⚠️ **HD RESULT SETS GENUINELY VARY PER REQUEST.** Breckenridge 36" returned 15
+reviews on one run and 30 on another, same day. Run each search more than once and
+**take the LOWEST observation.** HD figures are floors, deliberately.
+
+⚠️ **BOUND EACH PRODUCT'S WINDOW BY THE NEXT `"productLabel"`.** The data is escaped
+JSON — unescape `\"` first, then:
+
+```js
+const hits = [...html.matchAll(/"productLabel":"([^"]{0,160})"/g)];
+// for each hit i: slice from hits[i].index to hits[i+1].index
+// read averageRating and totalReviews from WITHIN that slice only
+```
+
+Two parsers that look reasonable and are both WRONG, each of which cost a round trip
+on 2026-11-06 — the full post-mortem is in
+`migrations/2026-11-06_jmv_brittany_hd_RESTORE_RUNME.sql`:
+
+- **A fixed character count** (e.g. "rating sits ~1,900 chars after the label")
+  straddles product boundaries on dense pages.
+- **Splitting on `"itemId"`** looks tighter and is worse: on some pages `itemId`
+  delimits COLOUR SWATCHES (`"itemId":"330023082","label":"Mid-Century Walnut"`),
+  which carry no `productLabel`, so real products are silently dropped. This parser
+  returned 212 for Brittany against the correct 245, and ZERO for Bristol and Myrrin
+  on pages that plainly had reviews. An undercount from a broken parser looks exactly
+  like an honest low number.
+
+Cross-check any new number against the baseline before believing it. A figure that
+DROPS sharply is far more likely to be a parser regression than a real collapse in
+reviews.
 
 ⚠️ FERGUSON RATINGS ARE IN `aria-label`, NOT IN THE HTML AS JSON. A same-origin
 `fetch()` of a Ferguson search URL returns a ~2.4 KB shell — the page is
@@ -107,7 +180,7 @@ Rolled up to the collection level, both sizes and both retailers combined.
 
 Everything else in the 40 is dark for lack of data, not for lack of trying.
 **Review volume essentially does not exist beyond these seven.** Chicago has 115
-products on Ferguson and ONE review. Do not spend the quarterly refresh re-sweeping
+products on Ferguson and ONE review. Do not spend the monthly refresh re-sweeping
 the long tail hoping it filled in; spot-check two or three and move on.
 
 The 19 orphan collections (no landing page, Glenbrooke the largest at 37 SKUs) are
@@ -184,7 +257,7 @@ A short message to the owner, not a document:
    is_published = 0, suppressed_reason = '<why>'`; that beats good data and needs no
    deploy.
 
-   ⚠️ And re-confirm the Breckenridge override every quarter. An override is a
+   ⚠️ And re-confirm the Breckenridge override every run. An override is a
    decision with a date on it, and a decision nobody revisits is just a stale number
    with extra confidence.
 5. If a retailer could not be checked, say which and why, in its own line. Never let a
