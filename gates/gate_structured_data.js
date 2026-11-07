@@ -248,6 +248,60 @@ console.log('--- JM retailer review figures stay out of the markup ---');
      !/\b30\b/.test(block) && !/0\.5/.test(block),
      'the publish rules were duplicated into the view');
 
+  /* ── THE DB-BACKED PATH ────────────────────────────────────────────────
+     The figures now come from jmv_review_pools. The RULES stay here as pure
+     functions precisely so this gate can still prove them with no database;
+     these checks feed synthetic rows in and assert the verdict. */
+  {
+    const P = (ret, r, n) => ({ retailer: ret, pool_key: r + '/' + n, rating: r, count: n });
+
+    /* ⚠️ THE DEDUPE IS THE ONE THAT MATTERS. Home Depot surfaces a single
+       review pool against every finish of a model: six Brittany 36"
+       listings all report 47 reviews at 4.5957. Counting listings instead
+       of pools inflated Brittany roughly fourfold in testing, and a count
+       four times too large looks entirely ordinary on the page. */
+    const six = Array(6).fill(P('home_depot', 4.5957, 47));
+    const dd  = jmv.aggregate(six);
+    ok('six listings of one pool aggregate to one pool',
+       dd && dd.count === 47 && dd.poolCount === 1,
+       'review counts will be multiplied by the number of finishes');
+
+    /* Weighted by volume, never a mean of means. */
+    const w = jmv.aggregate([P('home_depot', 5.0, 2), P('home_depot', 4.0, 98)]);
+    ok('the average is weighted by review count', w && w.rating === 4.02,
+       `a 2-review pool would otherwise move the figure as much as a 98-review one (got ${w && w.rating})`);
+
+    /* Both rules must refuse, and say why. */
+    const thin = jmv.decide(jmv.aggregate([P('home_depot', 5, 29)]));
+    ok('29 reviews is refused with a reason', !thin.ok && /29/.test(thin.reason || ''), 'the floor does not fire');
+    ok('30 reviews is allowed', jmv.decide(jmv.aggregate([P('home_depot', 5, 30)])).ok, 'off-by-one at the boundary');
+
+    const split = jmv.decide(jmv.aggregate([P('home_depot', 3.43, 11), P('ferguson', 4.57, 21)]));
+    ok('a 1.14 retailer spread is refused with a reason',
+       !split.ok && /1\.14/.test(split.reason || ''),
+       'Breckenridge-shaped data would publish');
+
+    /* A single retailer cannot disagree with anyone, so the spread rule must
+       not fire on it — but it must be flagged so a report can say so. */
+    const solo = jmv.aggregate([P('home_depot', 4.6, 50)]);
+    ok('one retailer yields spread 0 and a singleRetailer flag',
+       solo.spread === 0 && solo.singleRetailer === true,
+       'either the spread rule misfires, or a one-source figure looks corroborated');
+
+    /* Fill is proportional, never rounded up to five stars. */
+    ok('4.3 presents as 86% fill, not 100%',
+       Math.abs(jmv.present(4.3, 200, 'x').fillPct - 86) < 0.001, 'the stars would overstate');
+
+    /* The page must read the service, not the hardcoded resolver. */
+    const cc = js('src/controllers/collectionsController.js');
+    ok('collectionsController reads jmvReviewService',
+       /jmvReviewService\.forModel\(/.test(cc),
+       'the page is still on the hardcoded figures');
+    ok('and awaits it',
+       /await\s+jmvReviewService\.forModel\(/.test(cc),
+       'an un-awaited Promise is truthy, so the block renders with undefined in it');
+  }
+
   /* Prove the resolver actually refuses, rather than asserting it does. */
   ok('the resolver rejects an unknown brand/model',
      resolve('ER Vanities', 'Bristol') === null,

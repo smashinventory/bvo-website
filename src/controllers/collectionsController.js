@@ -51,7 +51,7 @@ const pathFilters                                       = require('../config/pat
 /* Title/meta/H1/intro per filter value, plus the lookup. Separate file so
    the copy can be reviewed and gated without reading controller logic. */
 const filterLandingPages                                = require('../config/filterLandingPages');
-const { jmvReviewFor }                                  = require('../services/themeSettings');
+const jmvReviewService                                  = require('../services/jmvReviewService');
 
 /* ── Color family hex lookup: family_key → hex / border ──────────── */
 const FAMILY_HEX = {};
@@ -1596,12 +1596,18 @@ exports.show = async (req, res, next) => {
        reason to drop a true, verified rating off the page. The two are
        independent facts about the same model.
 
-       jmvReviewFor() returns null for anything disqualified — switch off,
-       too few reviews, retailers disagreeing, unparseable numbers — so
-       there is no threshold logic here or in the template. One resolver,
-       shared with the gate. */
+       Reads jmv_review_pools / jmv_review_collections and applies the two
+       publish rules, returning null for anything disqualified — switched
+       off, too few reviews, retailers disagreeing, unparseable numbers — so
+       there is no threshold logic here or in the template.
+
+       ⚠️ AWAITED, AND IT NEVER THROWS. The service swallows its own errors
+       and falls back to the previously-hardcoded figures, because a model
+       page must not 500 over one sentence of social proof. A missing await
+       here would hand the template a Promise, which is truthy, and the
+       block would render with `undefined` where the rating belongs. */
     const _jmvReview = (model && brands.length === 1)
-      ? jmvReviewFor(brands[0], model)
+      ? await jmvReviewService.forModel(brands[0], model)
       : null;
 
     /* ── Model landing SEO ────────────────────────────────────────────────
