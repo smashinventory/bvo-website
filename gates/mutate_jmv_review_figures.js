@@ -79,11 +79,11 @@ const MUTATIONS = [
     repl: '<span class="jmv-rev-count" data-min="30">',
     guards: 'the template contains no threshold numbers' },
 
-  { name: 'the review floor is loosened to 10',
+  { name: 'the review floor is loosened to 1',
     file: SETT,
-    find: 'min_reviews: 30,',
-    repl: 'min_reviews: 10,',
-    guards: 'min_reviews is still 30' },
+    find: 'min_reviews: 5,',
+    repl: 'min_reviews: 1,',
+    guards: 'min_reviews is still 5' },
 
   { name: 'the spread rule is loosened to 2.0',
     file: SETT,

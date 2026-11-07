@@ -48,7 +48,7 @@ const DEFAULTS = {
      number is honest enough to publish, which is not a matter of taste. The
      gate asserts both are still 30 and 0.5, so loosening them fails CI rather
      than quietly shipping. */
-  min_reviews: 30,
+  min_reviews: 5,
   max_spread:  0.5,
 
   figures: {
@@ -149,7 +149,16 @@ function resolve(jr, brand, model) {
 /* The two rules that decide whether a number is honest enough to publish.
    Not in the database and not in the Theme Editor, on purpose: they are not
    a matter of taste, and the gate asserts these exact values. */
-const THRESHOLDS = { MIN_REVIEWS: 30, MAX_SPREAD: 0.5 };
+/* ⚠️ MIN_REVIEWS WAS 30 UNTIL 2026-11-06. Lowered to 5 by the owner after a
+   full sweep of the ten largest collections found that review volume simply
+   is not there: Chicago has 115 products on Ferguson and ONE review. At 30
+   only three collections would ever qualify. At 5, Addison, Laurent and
+   Lorelai become publishable too.
+   The trade-off is accepted knowingly: a 5-review average is noisy, and one
+   angry customer moves it visibly. The review COUNT is always shown beside
+   the rating, so a reader can weigh it themselves — which is the thing that
+   makes a low floor defensible rather than misleading. */
+const THRESHOLDS = { MIN_REVIEWS: 5, MAX_SPREAD: 0.5 };
 
 /* ── aggregate(rows) ──────────────────────────────────────────────────────
  * Rows are jmv_review_pools records: { retailer, pool_key, rating, count }.

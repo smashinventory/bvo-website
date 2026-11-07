@@ -92,21 +92,63 @@ Ferguson figures are count-weighted across every SKU in that collection+size.
 | Lorelai 36"      | 4.92 — 2        | 4.83 — 6        |
 | Lorelai 48"      | 4.88 — 2        | 5.00 — 2        |
 
-Rolled up to the collection level, both sizes and both retailers combined:
+Rolled up to the collection level, both sizes and both retailers combined.
+**This is the 2026-11-06 state after the full 40-collection sweep.**
 
-| Collection | HD    | Ferguson | Published | Reviews | Status |
+| Collection | HD   | Ferguson | Published | Reviews | Status |
 |---|---|---|---|---|---|
-| Brittany     | 4.55 | 4.51 | **4.5** | 143 | live |
-| Bristol      | 4.31 | 4.24 | **4.3** | 184 | live |
-| Myrrin       | 5.00 | 4.83 | **4.9** | 33  | live |
-| Lorelai      | 4.90 | 4.88 | —       | 12  | below the 30-review floor |
-| Breckenridge | 3.43 | 4.57 | —       | 32  | 1.14 spread, over the 0.5 limit |
+| Brittany     | 4.55 | 4.51 | **4.5** | 407 | live, derived |
+| Bristol      | 4.31 | 4.24 | **4.4** | 220 | live, derived |
+| Breckenridge | 3.80 | 4.64 | **4.4** | 60  | live, **OVERRIDE** — see below |
+| Myrrin       | 5.00 | 4.83 | **4.9** | 40  | live, derived |
+| Addison      | 4.58 | 4.38 | **4.5** | 25  | live, derived |
+| Laurent      | —    | 3.91 | **3.9** | 11  | live, derived, Ferguson only |
+| Lorelai      | —    | 4.90 | **4.9** | 10  | live, derived, Ferguson only |
 
-The two publish rules, enforced in `themeSettings.jmvReviewFor()` and asserted by
-`gates/gate_structured_data.js`: **at least 30 reviews**, and **the two retailers
-within 0.5 of each other**. Breckenridge fails the second. Its combined 4.2 is
-arithmetically true and misleading in both directions, and it is BVO's #2 seller —
-the worst place on the site to publish a number nobody can stand behind.
+Everything else in the 40 is dark for lack of data, not for lack of trying.
+**Review volume essentially does not exist beyond these seven.** Chicago has 115
+products on Ferguson and ONE review. Do not spend the quarterly refresh re-sweeping
+the long tail hoping it filled in; spot-check two or three and move on.
+
+The 19 orphan collections (no landing page, Glenbrooke the largest at 37 SKUs) are
+out of scope by the owner's decision — that structure is intentional.
+
+#### The two publish rules
+
+Enforced in `src/config/jmvReviews.js` (`decide()`) and asserted by
+`gates/gate_structured_data.js`:
+
+- **at least 5 reviews** — `MIN_REVIEWS`. ⚠️ **This was 30 until 2026-11-06.** It was
+  lowered because the sweep proved the volume is not there and never will be, not
+  because 5 is a comfortable number. Do not raise it back without re-reading that
+  finding.
+- **the two retailers within 0.5 of each other** — `MAX_SPREAD`. Unchanged.
+
+⚠️ **The spread rule has no minimum sample size.** A retailer with 2 reviews can veto
+a retailer with 200. That is a known hole; it has not bitten yet because so few
+collections have two retailers at all.
+
+#### ⚠️ Breckenridge is an override. Do not "correct" it.
+
+Breckenridge aggregates to 60 reviews @ 4.43, but Ferguson says 4.64 across 45 and
+Home Depot says 3.80 across 15 — a **0.84 spread** against the 0.50 limit, so
+`decide()` refuses it.
+
+The owner reviewed this on 2026-11-06 and chose to publish **4.4 / 60** anyway, via
+`jmv_review_collections.override_rating` / `override_count`. Reasoning: it is the #2
+collection by volume, the disagreement is one-sided (HD's 3.80 rests on 15 reviews
+against Ferguson's 45), and 4.4 is the honest weighted average of everything
+captured rather than a number picked to flatter.
+
+The spread rule itself was **not** loosened and still blocks everything else. If a
+future refresh finds HD volume has risen and the spread has closed, clear the
+override and let the figure derive. If the spread *widens*, say so first and loudest.
+
+#### Laurent publishes at 3.9
+
+Deliberate. A rule that only publishes flattering numbers is not a rule, it is a
+filter, and a visitor who notices once stops believing the other six. Owner approved
+2026-11-06.
 
 The two retailers are NOT a shared syndicated pool. That was tested: where volume is
 real the counts and ratings diverge sharply (Bristol 48" is 123 reviews at Home Depot
@@ -123,16 +165,28 @@ A short message to the owner, not a document:
    which is BVO's #2 seller and already the weakest at ~3.4. If it drops further, say
    so plainly and first.
 3. Whether any figure currently published on the BVO site is now wrong, and what it
-   should say. The figures live in **Admin → Theme Editor → James Martin Review
-   Figures**, and render on the model landing pages
+   should say. ⚠️ **The figures no longer live in the Theme Editor.** They are derived
+   from the `jmv_review_pools` table and gated by `jmv_review_collections`. The Theme
+   Editor panel and `src/config/jmvReviews.js` DEFAULTS are now only a *fallback* for
+   when the DB is unreachable. They render on the model landing pages
    (`/collections/vanity-models/james-martin-vanities/<model>`). Check the live page
    before claiming anything about it.
-4. The exact values to type into that panel — rating, review count, Home Depot
-   average, Ferguson average, and the "Verified" month. No deploy is needed.
+4. The SQL to run — a new `capture_batch` (e.g. `2027-02`) of `jmv_review_pools`
+   rows, following the pattern in
+   `migrations/2026-11-06_jmv_pools_wave2_RUNME.sql`. Do NOT edit or delete the
+   previous batch; the service reads the latest batch and the old one is the audit
+   trail. No deploy is needed.
+
    Re-check both rules before proposing any change: a collection that drops under
-   30 reviews, or whose retailers drift more than 0.5 apart, must be switched OFF
-   rather than updated. The site enforces this itself — a figure that breaks either
-   rule stops rendering — but say so plainly instead of letting it vanish silently.
+   **5** reviews, or whose retailers drift more than 0.5 apart, stops rendering by
+   itself — the service enforces it — but say so plainly instead of letting it vanish
+   silently. To take one off deliberately, `UPDATE jmv_review_collections SET
+   is_published = 0, suppressed_reason = '<why>'`; that beats good data and needs no
+   deploy.
+
+   ⚠️ And re-confirm the Breckenridge override every quarter. An override is a
+   decision with a date on it, and a decision nobody revisits is just a stale number
+   with extra confidence.
 5. If a retailer could not be checked, say which and why, in its own line. Never let a
    partial check read as a complete one.
 

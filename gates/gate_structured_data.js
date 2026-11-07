@@ -213,7 +213,7 @@ console.log('--- JM retailer review figures stay out of the markup ---');
      'the rating reads as BVO’s own without this phrase');
 
   /* The thresholds are not a matter of taste. */
-  ok('min_reviews is still 30',  Number(jr.min_reviews) === 30, `got ${jr.min_reviews}`);
+  ok('min_reviews is still 5',   Number(jr.min_reviews) === 5,  `got ${jr.min_reviews}`);
   ok('max_spread is still 0.5',  Number(jr.max_spread)  === 0.5, `got ${jr.max_spread}`);
 
   /* ⚠️ RECOMPUTED, NOT TRUSTED. A gate that cannot re-derive the thing it
@@ -272,9 +272,9 @@ console.log('--- JM retailer review figures stay out of the markup ---');
        `a 2-review pool would otherwise move the figure as much as a 98-review one (got ${w && w.rating})`);
 
     /* Both rules must refuse, and say why. */
-    const thin = jmv.decide(jmv.aggregate([P('home_depot', 5, 29)]));
-    ok('29 reviews is refused with a reason', !thin.ok && /29/.test(thin.reason || ''), 'the floor does not fire');
-    ok('30 reviews is allowed', jmv.decide(jmv.aggregate([P('home_depot', 5, 30)])).ok, 'off-by-one at the boundary');
+    const thin = jmv.decide(jmv.aggregate([P('home_depot', 5, 4)]));
+    ok('4 reviews is refused with a reason', !thin.ok && /4/.test(thin.reason || ''), 'the floor does not fire');
+    ok('5 reviews is allowed', jmv.decide(jmv.aggregate([P('home_depot', 5, 5)])).ok, 'off-by-one at the boundary');
 
     const split = jmv.decide(jmv.aggregate([P('home_depot', 3.43, 11), P('ferguson', 4.57, 21)]));
     ok('a 1.14 retailer spread is refused with a reason',
