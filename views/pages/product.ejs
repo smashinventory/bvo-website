@@ -1,4 +1,102 @@
 <link rel="stylesheet" href="/css/site3.css?v=31"><!-- site3: injected per-page (perf) -->
+
+<%# ═══════════════════════════════════════════════════════════════════════
+    ABOVE-THE-FOLD COMPACTION — PHONES ONLY.
+
+    Measured on the live page at 390x844 (iPhone 14), 2026-11-09:
+
+        header        36   109    (the logo alone is 90)
+        breadcrumb   145    44    (two lines — the product name wraps)
+        gallery      205   557    main image 269 + thumbnail grid 288
+        title        830   130    four lines at 30px
+        PRICE       1000    48    <- 156px BELOW the fold
+        ADD TO CART 1180   101    <- 336px BELOW the fold
+
+    A shopper had to scroll about 1.4 screens to find out what it costs.
+    The thumbnail grid was the biggest single offender: 288px, larger than
+    the 269px image it serves, because it is a 3-column grid of square
+    tiles and six thumbs make two ~114px rows.
+
+    This block takes ~314px out of the fold on phones. The remaining ~45px
+    is the logo, which is NOT here on purpose — see the note below.
+
+    ⚠️ WHY THIS IS INLINE AND NOT IN site-bundle.css.
+    The bundle is rebuilt by hand and the documented `cat` recipe does not
+    reproduce it (main.ejs:178). src/utils/breakpoints.js records what that
+    cost once already: `@media (max-width:480px){.site-nav{padding:0 12px}}`
+    sat in site4.css while phones still rendered 40px of padding, because
+    site4's storefront rules never reached the bundle. Settings-driven CSS
+    on this site is therefore emitted inline in the page that uses it. It
+    cannot go stale, needs no rebuild, and needs no ?v= bump.
+
+    ⚠️ THE MEDIA QUERY IS NOT TYPED BY HAND. mobile_max is a Theme Editor
+    setting; breakpoints.mq.mobile derives the condition so the +/-1 against
+    the tablet band can never drift. Do not replace it with a literal.
+
+    ⚠️ THE LOGO IS DELIBERATELY NOT TOUCHED HERE. .nav-logo is already
+    settings-driven per band (header.ejs:121, logo_width_mobile /
+    logo_height_mobile), and the nav bar height derives from it as
+    max(64, logo+16). Hard-coding a height here would fight that system and
+    desync the <img> width/height that reserve space against CLS. Shrinking
+    the phone logo is a Theme Editor change, not a code change.
+    ═══════════════════════════════════════════════════════════════════════ %>
+<% var _bpPdp = breakpoints.resolve(settings || {}); %>
+<style nonce="<%= cspNonce %>">
+@media <%= _bpPdp.mq.mobile %> {
+  /* ── 1. THUMBNAILS: ONE SCROLLING ROW, NOT A TWO-ROW GRID  (-224px) ──
+     The grid is overridden rather than removed: display:flex wins over
+     display:grid, and grid-template-columns is reset so a future edit to
+     the desktop rule cannot leak a column count into the scroller. */
+  .detail-gallery .gallery-thumbs {
+    display: flex;
+    grid-template-columns: none;
+    gap: 6px;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+  }
+  .detail-gallery .gallery-thumb {
+    flex: 0 0 56px;
+    width: 56px;
+    height: 56px;
+    aspect-ratio: auto;      /* the desktop rule sets 1; flex-basis owns it now */
+    scroll-snap-align: start;
+  }
+  /* Past the sixth image the markup adds .thumb-hidden and renders a
+     "See N more" button. In a horizontal scroller both are pointless —
+     swiping IS the reveal — so every thumb is shown and the button goes.
+     Hiding the button rather than removing it keeps the JS handler
+     harmless: it simply never fires. */
+  .detail-gallery .gallery-thumb.thumb-hidden { display: block; }
+  .detail-gallery .gallery-seemore-btn        { display: none; }
+
+  /* ── 2. TITLE: TWO LINES, NOT FOUR  (-70px) ──────────────────────────
+     line-clamp is VISUAL ONLY — the full product name stays in the DOM,
+     so the h1 Google reads is unchanged, as are <title>, the meta
+     description and the Product JSON-LD. */
+  .detail-title {
+    font-size: 1.35rem;
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* ── 3. BREADCRUMB: ONE LINE  (-20px) ────────────────────────────────
+     Clipped to a single scrollable line rather than hiding crumbs. The
+     separators between the links are bare text nodes, so hiding the <a>
+     elements would leave orphaned chevrons behind. */
+  .breadcrumb {
+    white-space: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .breadcrumb::-webkit-scrollbar { display: none; }
+}
+</style>
+
 <!-- Breadcrumb -->
 <div class="breadcrumb">
   <a href="/">Home</a> &rsaquo;
