@@ -199,6 +199,12 @@ exports.show = async (req, res, next) => {
       canonicalUrl,
       noindex:      false,
       siteUrl,
+      /* Read by the back-in-stock block to show its confirmation on the
+         no-JS path, where /notify-me redirects back here with ?notified=1.
+         Passed explicitly rather than added to res.locals: a global would
+         expose req.query to every template on the site to serve one line
+         on one of them. */
+      query:        req.query || {},
       product,
       category,
       related,

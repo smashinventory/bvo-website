@@ -906,6 +906,23 @@ app.use('/admin',       require('./routes/admin'));
 app.use('/api',         require('./routes/api'));
 app.use('/bundle-builder', require('./routes/bundle'));
 
+/* Back-in-stock capture. Rate-limited on its own because it is an
+   unauthenticated POST that writes a row: without a cap, one script can fill
+   stock_notifications with junk and every future restock then fans out into a
+   burst of bounces, which is a Brevo reputation problem rather than just a
+   messy table. Generous enough that a household sharing an IP and asking
+   about several vanities is never blocked. */
+const notifyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  /* Same calm answer as the handler gives — a limiter that announces itself
+     tells a scraper exactly what to back off to. */
+  handler: (req, res) => res.json({ ok: true }),
+});
+app.use('/notify-me', notifyLimiter, require('./routes/notifyMe'));
+
 // ── Public CMS routes ────────────────────────────────────────
 // Must come before the 404 handler
 const pagesCtrl = require('./controllers/pagesController');

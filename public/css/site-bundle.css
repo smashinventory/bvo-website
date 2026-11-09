@@ -267,3 +267,29 @@ p.section-title,p.newsletter-heading,p.product-title,p.cat-title{margin-top:0}p.
   font-size:.9rem;line-height:1.6;color:var(--text-muted)}
 .unsub-small{margin:16px 0 0;font-size:.85rem}
 .unsub-small a{color:var(--text-muted)}
+
+/* ── BACK IN STOCK CAPTURE (out-of-stock product pages only) ───────────────
+   ⚠️ LIVES IN BOTH site.css AND site-bundle.css, IDENTICALLY.
+   main.ejs:213 records that the documented `cat` recipe does NOT reproduce
+   site-bundle.css and loses 4,917 bytes, so the bundle is hand-patched. The
+   live page loads the BUNDLE: a rule added only to site.css is a rule that
+   never renders, which is exactly how the review stars shipped as ten navy
+   glyphs at ?v=48. gates/gate_bundle_cache_bust.js now catches that. */
+.bis{margin-top:14px;padding:16px;background:#f7f6f3;border:1px solid #e6e3dc;border-radius:6px}
+.bis-lead{margin:0 0 10px;font-weight:700;font-size:15px;color:#15192b}
+.bis-row{display:flex;gap:8px;flex-wrap:wrap}
+.bis-row input[type=email]{flex:1 1 180px;min-width:0;padding:12px 14px;border:1px solid #cfccc4;
+  border-radius:4px;font-size:16px;background:#fff;color:#15192b}
+.bis-row input[type=email]:focus{outline:2px solid #8a6d2f;outline-offset:1px;border-color:#8a6d2f}
+.bis-go{flex:0 0 auto;white-space:nowrap}
+.bis-opt{display:flex;align-items:flex-start;gap:8px;margin-top:12px;font-size:13px;
+  line-height:1.45;color:#4a4f60;cursor:pointer}
+.bis-opt input{margin-top:2px;flex:0 0 auto}
+.bis-fine{margin:10px 0 0;font-size:12px;color:#7a7f8e}
+.bis-done{margin:10px 0 0;font-size:14px;font-weight:600;color:#1b6b3a}
+/* Honeypot: off-screen rather than display:none, because some bots skip
+   anything explicitly hidden and would sail straight past the trap. */
+.bis-hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none}
+.bis-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+  clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.bis.is-sent .bis-row,.bis.is-sent .bis-opt,.bis.is-sent .bis-fine,.bis.is-sent .bis-lead{display:none}

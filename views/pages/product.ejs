@@ -406,6 +406,49 @@
           <%= product.inStock ? 'Add to Cart' : 'Out of Stock' %>
         </button>
       </form>
+
+      <%# ── BACK IN STOCK CAPTURE ─────────────────────────────────────────
+           Out-of-stock pages only. 20% of the feed (1,178 of 5,873) is out of
+           stock, 725 of them in the largest category, and until this existed
+           every one of those pages was a dead end: a disabled button, a
+           wishlist link, and cross-sells to four different models. The person
+           who wanted THIS vanity left and we learned nothing.
+
+           ⚠️ THE OPT-IN BOX IS UNTICKED AND MUST STAY UNTICKED. A pre-ticked
+           box re-subscribing somebody who previously opted out is the fastest
+           route to spam complaints, and Brevo scores complaint rate at the
+           ACCOUNT level — the same account that delivers order confirmations
+           for $5,000 freight orders. Owner decision 2026-11-09, after
+           explicitly considering the pre-ticked version and rejecting it. %>
+      <% if (!product.inStock) { %>
+        <form class="bis" action="/notify-me" method="POST" data-bis>
+          <input type="hidden" name="_csrf"      value="<%= csrfToken %>">
+          <input type="hidden" name="product_id" value="<%= product.id %>">
+          <input type="hidden" name="sku"        value="<%= product.sku %>">
+          <%# Honeypot. Real people leave it empty; bots fill everything in.
+              Hidden from assistive tech too, so nobody is asked to skip it. %>
+          <input type="text" name="company" class="bis-hp" tabindex="-1"
+                 autocomplete="off" aria-hidden="true">
+
+          <p class="bis-lead">Email me when this is back in stock</p>
+          <div class="bis-row">
+            <label class="bis-sr" for="bis-email-<%= product.id %>">Email address</label>
+            <input type="email" id="bis-email-<%= product.id %>" name="email"
+                   placeholder="your@email.com" required autocomplete="email">
+            <button type="submit" class="btn btn-amber bis-go">Notify me</button>
+          </div>
+          <label class="bis-opt">
+            <input type="checkbox" name="marketing_opt_in">
+            <span>Also send me occasional updates on similar vanities</span>
+          </label>
+          <p class="bis-fine">We'll email you once, when this item is back. Nothing else.</p>
+          <%# Shown immediately on the no-JS path, where /notify-me redirects
+               back here with ?notified=1. With JS the same line is revealed in
+               place by site.js without reloading. %>
+          <p class="bis-done" <%= (query && query.notified) ? '' : 'hidden' %>>Done — we'll email you the moment it's back.</p>
+        </form>
+      <% } %>
+
       <button type="button"
               class="btn btn-outline heart-btn heart-btn--pdp<%= isFavorited ? ' is-saved' : '' %>"
               data-product-id="<%= product.id %>"

@@ -271,6 +271,9 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
                           any stylesheet, so a shipped order's status
                           rendered as unstyled text. Appended identically to
                           site.css and site-bundle.css.
+        v=50 (2026-11-09) .bis-* back-in-stock capture on out-of-stock
+                          product pages. 20% of the catalogue (1,178 of
+                          5,873) was a dead end before this.
         v=49 (2026-11-06) .jmv-rev-* for the James Martin retailer review
                           figures on model pages. SHIPPED AT v=48 BY
                           MISTAKE AND BROKE ON THE LIVE SITE: the fill
@@ -295,7 +298,7 @@ const _siteName  = (settings && settings.global) ? (settings.global.site_name ||
       The source rules live in site.css / site2.css and are hand-minified
       into this bundle, per the instruction above — those files reach no
       browser on their own. %>
-  <link rel="stylesheet" href="/css/site-bundle.css?v=49">
+  <link rel="stylesheet" href="/css/site-bundle.css?v=50">
   <%# ── SECTION VISIBILITY, FROM THE OWNER'S BREAKPOINTS ─────────────
       "Visible on" offered All / Desktop / Mobile and was implemented as
       two rules hardcoded at 861px. There was no Tablet option because

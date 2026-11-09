@@ -1,0 +1,161 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Mobile PDP — current vs proposed</title>
+<!--
+  Measured on the live site 2026-11-09, iPhone viewport 390x844,
+  product 157-V30-BW-1WZ (Bristol 30" Single Vanity, $2,407).
+
+  CURRENT, measured not estimated:
+     price first paints at   868px  (1.0 screens down)
+     ADD TO CART at         1049px  (1.2 screens down)
+     full page height       8322px
+  Both frames below show the FIRST 844px only - what a shopper sees
+  before scrolling. Everything below the dashed line is unseen.
+-->
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#eceae5;font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#1a2238;padding:28px}
+  h1{font:600 20px/1.3 Georgia,serif;margin:0 0 4px}
+  .sub{color:#5d6475;margin:0 0 24px;font-size:13px}
+  .wrap{display:flex;gap:40px;flex-wrap:wrap;align-items:flex-start}
+  .col{flex:0 0 auto}
+  .lab{font-weight:700;font-size:13px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px}
+  .lab.bad{color:#b3261e}.lab.good{color:#1b6b3a}
+  .phone{width:390px;height:844px;background:#fff;border:10px solid #15192b;border-radius:34px;
+         overflow:hidden;position:relative;box-shadow:0 10px 30px rgba(0,0,0,.18)}
+  .scr{position:absolute;inset:0;overflow:hidden}
+
+  /* shared chrome */
+  .ann{background:#15192b;color:#fff;font-size:12px;height:34px;display:flex;align-items:center;
+       justify-content:center;white-space:nowrap;overflow:hidden}
+  .hdr{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #e6e3dc}
+  .logo{width:62px;height:62px;border:2px solid #15192b;border-radius:8px;display:flex;align-items:center;
+        justify-content:center;font:700 15px Georgia,serif;color:#15192b;flex:0 0 auto}
+  .logo.sm{width:38px;height:38px;font-size:11px}
+  .icons{margin-left:auto;display:flex;gap:14px;color:#55596b;font-size:15px}
+  .crumb{padding:9px 14px;font-size:12px;color:#6b6f80;border-bottom:1px solid #f0eee9;white-space:nowrap;overflow:hidden}
+  .hero{background:#f7f6f3;display:flex;align-items:center;justify-content:center;position:relative}
+  .vty{width:150px;height:150px;background:#fff;border:2px solid #cfd3dc;border-radius:5px;position:relative}
+  .vty:before{content:"";position:absolute;left:12%;right:12%;top:9%;height:11%;background:#eef1f5;border-radius:3px}
+  .vty:after{content:"";position:absolute;left:12%;right:52%;top:27%;bottom:12%;background:#f4f6f9;border-radius:3px}
+  .sale{position:absolute;left:12px;top:12px;background:#8a6d2f;color:#fff;font-size:11px;font-weight:700;
+        padding:5px 11px;border-radius:3px;letter-spacing:.05em}
+  .thumbs{display:flex;gap:10px;padding:12px 14px}
+  .th{width:74px;height:74px;border:2px solid #e2e0da;border-radius:6px;background:#fafafa}
+  .th.on{border-color:#8a6d2f}
+  .th.broken{background:repeating-linear-gradient(45deg,#f3f3f3,#f3f3f3 6px,#e8e8e8 6px,#e8e8e8 12px)}
+  .brand{padding:0 14px;font-size:12px;letter-spacing:.14em;color:#6b6f80;text-transform:uppercase}
+  .ttl{padding:4px 14px 0;font:700 32px/1.14 Georgia,serif;color:#15192b}
+  .ttl.sm{font-size:19px;line-height:1.22;padding-top:2px}
+  .sku{padding:8px 14px;font-size:12px;color:#8d91a0}
+
+  .fold{position:absolute;left:0;right:0;top:844px;border-top:2px dashed #b3261e}
+  .foldtag{position:absolute;right:6px;top:-9px;background:#b3261e;color:#fff;font-size:10px;
+           font-weight:700;padding:2px 7px;border-radius:3px}
+
+  /* proposed-only bits */
+  .pricerow{display:flex;align-items:baseline;gap:10px;padding:10px 14px 2px}
+  .now{font:700 26px/1 Georgia,serif;color:#15192b}
+  .was{font-size:15px;color:#9aa0ad;text-decoration:line-through}
+  .save{background:#e7f3ea;color:#1b6b3a;font-size:12px;font-weight:700;padding:3px 8px;border-radius:3px}
+  .ship{padding:4px 14px 0;font-size:13px;color:#1b6b3a;font-weight:600}
+  .cta{margin:12px 14px 0;background:#8a6d2f;color:#fff;text-align:center;font-weight:700;
+       letter-spacing:.06em;padding:16px;border-radius:5px;font-size:15px}
+  .alt{margin:8px 14px 0;border:1.5px solid #15192b;color:#15192b;text-align:center;font-weight:600;
+       padding:12px;border-radius:5px;font-size:13px}
+  .trust{display:flex;gap:6px;padding:10px 14px 0;font-size:11px;color:#55596b;flex-wrap:wrap}
+  .trust span{background:#f3f1ec;padding:5px 9px;border-radius:3px;white-space:nowrap}
+  .stars{padding:6px 14px 0;font-size:13px;color:#15192b}
+  .stars b{color:#8a6d2f}
+
+  .notes{margin-top:14px;width:390px;font-size:12.5px;line-height:1.6;color:#3b4157}
+  .notes li{margin-bottom:5px}
+  .notes .hit{color:#b3261e;font-weight:600}
+  .notes .win{color:#1b6b3a;font-weight:600}
+  .legend{margin-top:26px;padding:14px 16px;background:#fff;border-left:4px solid #8a6d2f;
+          max-width:860px;font-size:13px;line-height:1.65}
+</style>
+
+<h1>Mobile product page — current vs proposed</h1>
+<p class="sub">iPhone 390&times;844. Both frames show only what paints <strong>before any scrolling</strong>.
+Measured live 2026-11-09 on Bristol 30" Single Vanity ($2,407).</p>
+
+<div class="wrap">
+
+  <!-- ─────────── CURRENT ─────────── -->
+  <div class="col">
+    <div class="lab bad">✕ Current — no price, no buy button</div>
+    <div class="phone"><div class="scr">
+      <div class="ann">ree Shipping on Most Orders&nbsp; · &nbsp;Shop Now →</div>
+      <div class="hdr">
+        <div class="logo">BVO</div>
+        <div class="icons"><span>⌕</span><span>☺</span><span>♡</span><span>🛍</span><span>☰</span></div>
+      </div>
+      <div class="crumb">Home › Bathroom Vanities- All › Bristol 30" Single Vanity, Br…</div>
+      <div class="hero" style="height:300px"><div class="sale">SALE</div><div class="vty"></div></div>
+      <div class="thumbs"><div class="th on"></div><div class="th broken"></div></div>
+      <div class="brand">James Martin Vanities</div>
+      <div class="ttl">Bristol 30" Single Vanity, Bright White w/ Single Hole 3 CM White Zeus Silestone Top &amp; Backsplash</div>
+      <div class="sku">SKU: 157-V30-BW-1WZ</div>
+      <div class="fold"><span class="foldtag">FOLD 844px</span></div>
+    </div></div>
+    <ul class="notes">
+      <li><span class="hit">Price at 868px</span> — one full screen down</li>
+      <li><span class="hit">ADD TO CART at 1,049px</span> — 1.2 screens down</li>
+      <li><span class="hit">Banner text clipped</span> — the “F” of “Free” is cut off</li>
+      <li><span class="hit">Broken 2nd thumbnail</span> (empty tile)</li>
+      <li>Title consumes ~350px across 5 lines</li>
+      <li>62px logo + 34px banner = 96px of chrome before content</li>
+      <li>Page is 8,322px tall</li>
+    </ul>
+  </div>
+
+  <!-- ─────────── PROPOSED ─────────── -->
+  <div class="col">
+    <div class="lab good">✓ Proposed — price, CTA and trust all above the fold</div>
+    <div class="phone"><div class="scr">
+      <div class="ann">Free Shipping on Most Orders →</div>
+      <div class="hdr" style="padding:7px 14px">
+        <div class="logo sm">BVO</div>
+        <div class="icons"><span>⌕</span><span>♡</span><span>🛍</span><span>☰</span></div>
+      </div>
+      <div class="hero" style="height:232px"><div class="sale">SALE</div>
+        <div class="vty" style="width:118px;height:118px"></div></div>
+      <div class="thumbs" style="padding:8px 14px">
+        <div class="th on" style="width:54px;height:54px"></div>
+        <div class="th" style="width:54px;height:54px"></div>
+        <div class="th" style="width:54px;height:54px"></div>
+        <div class="th" style="width:54px;height:54px"></div>
+      </div>
+      <div class="brand">James Martin Vanities</div>
+      <div class="ttl sm">Bristol 30" Single Vanity — Bright White<br>w/ White Zeus Silestone Top</div>
+      <div class="stars">★★★★☆ <b>4.4</b> · 220 reviews at national retailers</div>
+      <div class="pricerow"><span class="now">$2,407</span><span class="was">$3,647</span>
+        <span class="save">Save $1,240</span></div>
+      <div class="ship">✓ In stock · Free shipping · usually arrives in 5–10 business days</div>
+      <div class="cta">ADD TO CART</div>
+      <div class="alt">📅 Book a free design consult</div>
+      <div class="trust"><span>30-day returns</span><span>Authorized dealer</span><span>Secure checkout</span></div>
+      <div class="fold"><span class="foldtag">FOLD 844px</span></div>
+    </div></div>
+    <ul class="notes">
+      <li><span class="win">Price at ~505px</span> — visible on load</li>
+      <li><span class="win">ADD TO CART at ~640px</span> — visible on load</li>
+      <li><span class="win">Review figure surfaced</span> — already in the DB, just not on PDPs</li>
+      <li><span class="win">Stock + shipping promise</span> stated before the ask</li>
+      <li><span class="win">Consult booking</span> as the secondary path for high-ticket hesitation</li>
+      <li>Logo 62→38px, hero 300→232px, title 5→2 lines</li>
+      <li>Banner shortened so it cannot clip</li>
+    </ul>
+  </div>
+</div>
+
+<div class="legend">
+  <strong>What actually changed:</strong> nothing was removed — the long title, full gallery, specs and
+  description all still live below the fold. The reorder moves four decision inputs
+  (<em>price, availability, social proof, buy button</em>) above it, which is the span where a mobile
+  shopper decides whether to keep scrolling at all.
+  <br><br>
+  <strong>Not reflected here:</strong> a sticky bottom add-to-cart bar that appears once the real button
+  scrolls away. That is usually worth as much as the reorder itself on long PDPs, and this page is 8,322px.
+</div>
