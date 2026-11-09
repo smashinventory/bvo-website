@@ -11,7 +11,24 @@
 -- Run in phpMyAdmin against the BVO database. Safe to run twice.
 --
 -- ⚠️ NO information_schema. This DB user is denied it (#1044).
+--
+-- ⚠️ THE USE LINE IS NOT OPTIONAL. Same reason as
+-- 2026-10-04_sample_redemptions_RUNME.sql records: a migration that relies
+-- on whichever database the phpMyAdmin sidebar happened to have selected
+-- works right up until it does not, and the failure is a table created in
+-- the wrong schema with the verification queries reporting on a schema
+-- nobody meant.
+--
+-- ⚠️ THE email_templates COLUMNS ARE label AND body_html. NOT name AND
+-- html_body. The first version of this file guessed them and died on
+-- "#1054 - Unknown column 'name'" AFTER the CREATE TABLE had already
+-- succeeded — so the table existed, the template did not, and the feature
+-- would have captured addresses and silently never emailed anyone.
+-- gate_stock_notify.js now asserts these names against the columns the
+-- code actually selects.
 -- ─────────────────────────────────────────────────────────────────────────
+
+USE `u222311468_BVO_website`;
 
 CREATE TABLE IF NOT EXISTS stock_notifications (
   id            INT UNSIGNED  NOT NULL AUTO_INCREMENT,
@@ -53,7 +70,7 @@ CREATE TABLE IF NOT EXISTS stock_notifications (
 -- Reuses the existing email_templates + Brevo path that cartRecovery already
 -- uses. Voice: plain, short, no exclamation marks, no false urgency — the
 -- person asked for this and already wants it.
-INSERT INTO email_templates (trigger_key, name, subject, html_body, is_active)
+INSERT INTO email_templates (trigger_key, label, subject, body_html, is_active)
 VALUES (
   'back_in_stock',
   'Back in stock notice',
@@ -79,9 +96,9 @@ VALUES (
   1
 )
 ON DUPLICATE KEY UPDATE
-  name      = VALUES(name),
+  label     = VALUES(label),
   subject   = VALUES(subject),
-  html_body = VALUES(html_body),
+  body_html = VALUES(body_html),
   is_active = VALUES(is_active);
 
 
@@ -91,6 +108,6 @@ SHOW TABLES LIKE 'stock_notifications';          -- expect 1 row
 SELECT COUNT(*) AS requests FROM stock_notifications;
 -- expect 0 — nobody has asked yet
 
-SELECT trigger_key, is_active, subject
+SELECT trigger_key, label, is_active, subject
   FROM email_templates WHERE trigger_key = 'back_in_stock';
 -- expect 1 row, is_active = 1

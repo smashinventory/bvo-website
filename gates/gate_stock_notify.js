@@ -142,6 +142,48 @@ check('stockNotify.js requires nothing',
 check('the job defers its database require into a function',
   /function pool\(\)\s*\{\s*return require/.test(job));
 
+/* ── 9. THE MIGRATION'S COLUMN NAMES MATCH THE REAL email_templates ───────
+   ⚠️ THIS SECTION EXISTS BECAUSE THE FIRST VERSION GUESSED.
+
+   The migration was written with `name` and `html_body`. The real columns
+   are `label` and `body_html`. phpMyAdmin ran the CREATE TABLE, succeeded,
+   then died on the INSERT with "#1054 - Unknown column 'name'" — so the
+   table existed and the template did not, which is the worst of the three
+   possible outcomes: the capture form saves addresses and the job finds
+   them and sends nothing, silently, forever.
+
+   Rather than hard-code the column names here (a second guess is no better
+   than the first), this derives them from the queries brevoService and
+   emailTemplatesController actually run against the table, and asserts the
+   migration uses only names that appear there. */
+section('the migration speaks the schema the code speaks');
+
+const brevo    = read('src/services/brevoService.js');
+const etCtl    = read('src/controllers/emailTemplatesController.js');
+const codeCols = brevo + etCtl;
+
+/* ⚠️ COMMENTS STRIPPED FIRST. The mutation harness caught this: commenting
+   the INSERT out with `-- ` left the regex matching the dead line, so the
+   gate reported a healthy INSERT in a migration that no longer had one. */
+const migLive = mig.replace(/^\s*--.*$/gm, '');
+const insert = (migLive.match(/INSERT INTO email_templates\s*\(([^)]*)\)/i) || [])[1] || '';
+check('the migration has an email_templates INSERT at all', Boolean(insert.trim()));
+
+for (const col of insert.split(',').map(c => c.trim()).filter(Boolean)) {
+  check(`column \`${col}\` is one the code actually selects or updates`,
+    new RegExp(`\\b${col}\\b`).test(codeCols),
+    `no query in brevoService/emailTemplatesController mentions "${col}"`);
+}
+
+/* The two specific names that were wrong, pinned so a revert is loud. */
+check('it uses label, not name',
+  /\blabel\b/.test(insert) && !/\bname\b/.test(insert));
+check('it uses body_html, not html_body',
+  /\bbody_html\b/.test(insert) && !/\bhtml_body\b/.test(insert));
+
+check('the migration names its database rather than trusting the open tab',
+  /^USE\s+`/m.test(migLive), 'no USE line — it would run against whatever was selected');
+
 /* ── RESULT ──────────────────────────────────────────────────────────────── */
 console.log();
 if (failures) {
