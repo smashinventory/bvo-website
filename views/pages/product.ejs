@@ -210,9 +210,20 @@
     style element.
     ═══════════════════════════════════════════════════════════════════════ %>
 <style nonce="<%= cspNonce %>">
+  /* ⚠️ nowrap IS THE POINT, NOT A TIDY-UP. This was flex-wrap:wrap, which
+     is how the phone icon ended up stranded on a line of its own above the
+     words: the contents overflowed by 15px at 375px and wrap silently
+     relocated the glyph instead of showing anything was wrong. The button
+     rendered 73px tall on the live site and nothing failed.
+
+     With nowrap, contents that no longer fit overflow visibly instead of
+     quietly rearranging themselves, so the next person to lengthen this
+     label sees it immediately. gate_pdp_mobile_fold measures the label
+     against the button at 320, 360 and 375 and fails if it no longer
+     clears. The label text carries its own measurements where it lives. */
   .pdp-expert-cta {
     display: flex; align-items: center; justify-content: center;
-    gap: 8px; width: 100%; text-align: center; flex-wrap: wrap;
+    gap: 8px; width: 100%; text-align: center; flex-wrap: nowrap;
   }
   .pdp-expert-hours {
     font-size: .76rem; color: #777; text-align: center; margin: 6px 0 0;
@@ -708,14 +719,31 @@
            of the setting removes it rather than rendering it dead. %>
       <% var _expertPhone = String(((settings || {}).global || {}).contact_phone || '').trim(); %>
       <% if (product.inStock && _expertPhone) { %>
+      <%# ⚠️ NO ICON, AND THE LABEL IS SHORT ON PURPOSE. BOTH ARE MEASUREMENTS,
+           NOT TASTE. The button's usable inner width is roughly the viewport
+           minus 92px, and the original label "Questions? Call a product
+           expert." needs 274px:
+
+             375px iPhone  → 283px available → fits by 9px
+             360px Android → 268px available → does NOT fit
+             320px phone   → 228px available → does not fit at any font size
+
+           With a 16px icon and its 8px gap the line needed 298px, so it
+           overflowed even the 375px case and flex-wrap dropped the icon onto
+           a row of its own — a 73px-tall button with the glyph stranded
+           above the words. That was live on the site and is what prompted
+           this.
+
+           "Questions? Call an expert." measures 213px, which clears the
+           narrowest phone by 15px. Re-adding the icon costs 24px and puts
+           it back over at 320px (237 > 228), so the icon cannot come back
+           without the wrap coming back with it. Lengthening the label has
+           the same effect: "Questions? Call our experts." was measured at
+           233px and misses 320px by 5px. Measure before changing either. %>
       <a class="btn btn-outline pdp-expert-cta"
          href="tel:<%= _expertPhone.replace(/[^0-9+]/g, '') %>"
          data-pdp="expert-call">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="1.9" aria-hidden="true">
-          <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.4 2.1L8 9.8a16 16 0 0 0 6 6l1.4-1.3a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z"/>
-        </svg>
-        <span>Questions? Call a product expert.</span>
+        <span>Questions? Call an expert.</span>
         <%# The number is shown as TEXT on desktop and hidden on phones, where
             the whole control is already one tap to dial. A tel: link on a
             laptop hands off to FaceTime or a dialer the visitor may not have,

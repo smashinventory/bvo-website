@@ -325,6 +325,48 @@ check('the hours line is present',
   /pdp-expert-hours/.test(pdp),
   'a call button with no hours invites the 9pm call that rings out');
 
+/* ── 9b. THE BUTTON MUST STAY ON ONE LINE ────────────────────────────────
+   This gate cannot measure pixels — there is no browser here. What it CAN
+   do is pin the three things that were decided BY measurement on the live
+   page, so that changing any of them fails loudly and sends the next
+   person back to re-measure rather than shipping a wrapped button.
+
+   The measurements, taken on the deployed page at three widths. Usable
+   inner width is about the viewport minus 92px:
+
+     label "Questions? Call an expert."          213px
+     the same label plus the 16px icon + 8px gap 237px
+     former label "…Call a product expert."      274px
+     proposed      "…Call our experts."          233px
+
+     320px phone   228px available  → only the 213px label clears it
+     360px Android 268px available
+     375px iPhone  283px available
+
+   The icon pushed the content past the button at every width and
+   flex-wrap:wrap silently moved it to its own row — a 73px-tall button
+   with the glyph stranded above the words, live, with every gate green. */
+section('the call button cannot silently wrap again');
+
+const CTA_MARKUP = (pdp.match(/<a class="btn btn-outline pdp-expert-cta[\s\S]*?<\/a>/) || [''])[0];
+
+check('the call button contains no icon',
+  CTA_MARKUP !== '' && !/<svg/.test(CTA_MARKUP),
+  're-adding the icon costs 24px and overflows the 320px phone (237 > 228)');
+
+check('the label is the measured one',
+  /<span>Questions\? Call an expert\.<\/span>/.test(CTA_MARKUP),
+  'this exact string measures 213px and clears the narrowest phone by 15px; ' +
+  'any other wording has to be measured on the live page before it ships');
+
+/* ⚠️ nowrap, NOT wrap. wrap is what hid the overflow: it rearranged the
+   contents rather than letting anything look broken, so nothing failed
+   and the button shipped two rows tall. */
+check('the button does not wrap its contents',
+  /\.pdp-expert-cta\s*\{[^}]*flex-wrap:\s*nowrap/.test(pdp) &&
+  !/\.pdp-expert-cta\s*\{[^}]*flex-wrap:\s*wrap/.test(pdp),
+  'wrap hides an overflow instead of showing it; nowrap makes it visible');
+
 /* ── RESULT ──────────────────────────────────────────────────────────────── */
 console.log();
 if (failures) {
