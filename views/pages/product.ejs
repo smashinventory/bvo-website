@@ -43,6 +43,111 @@
 <% var _bpPdp = breakpoints.resolve(settings || {}); %>
 <style nonce="<%= cspNonce %>">
 @media <%= _bpPdp.mq.mobile %> {
+  /* ── 0. THE REORDER — BUY BOX COMPACTED BENEATH THE HERO ────────
+     docs/mockups/mobile_pdp_current_vs_proposed.html, approved. Order is
+     hero → badges → brand → title → price → availability → buy button →
+     trust. Nothing is removed: the full gallery, variant cards, specs and
+     description all still follow, in their existing order.
+
+     ⚠️ THE HERO STAYS FIRST. The photo is what sells a $2,400 vanity, and
+     an earlier attempt at this put price and button ABOVE the image. That
+     was wrong and it was not what the mockup asked for — its note reads
+     "hero 300→232px", i.e. keep the image and shrink it.
+
+     ⚠️ display:contents IS LOAD-BEARING, NOT DECORATION.
+     .detail-layout is a two-column grid whose only children are
+     .detail-gallery and .detail-info. Everything we need to reorder lives
+     INSIDE .detail-info, and `order` sorts siblings — so without
+     dissolving that wrapper the buy box cannot be reordered against the
+     gallery at all. Splitting .detail-info into two divs would work too,
+     and would add a third child to a `3fr 2fr` grid, breaking every
+     desktop product page.
+
+     ⚠️ EVERY CHILD NEEDS AN EXPLICIT order, AND order TAKES AN INTEGER.
+     Default order is 0, so one unlisted element silently jumps to the top.
+     The catch-all sets 10 first; the named rules then pull eight elements
+     forward. A fractional value (order: 8.5) is invalid — the declaration
+     is dropped and that element falls back to 0, i.e. to the very top. */
+  .detail-layout { display: grid; grid-template-columns: 118px 1fr; gap: 10px; }
+  .detail-info   { display: contents; }
+
+  /* ⚠️ .detail-gallery IS A CHILD OF .detail-layout, NOT OF .detail-info,
+     so the rule beneath does not reach it. Without this line the gallery
+     auto-placed into column one and the product photo was squeezed into
+     the 118px stepper column — 89px tall. It is also what made an earlier
+     `auto` first column measure 247px: the track was sizing itself to the
+     gallery rather than to the stepper. */
+  .detail-layout > * { grid-column: 1 / -1; }
+  .detail-info > *   { grid-column: 1 / -1; order: 10; }
+
+  .detail-gallery   { order: 1; }
+  .detail-badges    { order: 2; }
+  .product-brand    { order: 3; margin-bottom: 2px; }
+  .detail-title     { order: 4; }
+  .detail-price-row { order: 5; }
+  .detail-shipping  { order: 6; }
+  .pdp-trust-bar    { order: 9; }
+
+  /* ── THE BUY ROW: STEPPER BESIDE THE BUTTON, ONE LINE AT ANY WIDTH ──
+     .detail-ctas is dissolved too, so the add-to-cart form can take the
+     second column while the wishlist button stays full width beneath it.
+     Without that, everything inside .detail-ctas would be trapped in one
+     column together.
+
+     ⚠️ COLUMN ONE IS 118px, NOT `auto`. With `auto` the track sized itself
+     from items SPANNING both columns rather than from the stepper, and on
+     the live page the stepper came out 247px wide while Add to Cart was
+     squeezed to 101px with its label wrapped onto three lines. A fixed
+     118px is the stepper's natural width and leaves the button the rest,
+     which is what makes the row hold at any screen size.
+
+     ⚠️ :not(.bis) MATTERS. On out-of-stock pages the back-in-stock capture
+     form is also a child of .detail-ctas; without the exclusion it would be
+     pulled into the narrow second column instead of spanning the width. */
+  .detail-ctas      { display: contents; }
+  .detail-ctas > *  { grid-column: 1 / -1; order: 8; }
+  .detail-qty       { grid-column: 1; order: 7; margin: 0; width: auto; }
+  .detail-ctas > form:not(.bis) { grid-column: 2; order: 7; margin: 0; }
+  .detail-ctas > form:not(.bis) .btn { height: 100%; }
+
+  /* ⚠️ THE HERO KEEPS ITS FULL 4:3 SIZE. A draft shrank it to 3:2 to buy
+     30px and the owner pushed back — on a product sold by appearance, the
+     viewer is the page. Measured at full size the trust row still finishes
+     at 843 against an 844 fold, so the space was never needed, and the
+     thumbnail strip stays for the same reason. */
+  .gallery-main { margin-bottom: 6px; }
+  .detail-sku  { order: 10; margin-bottom: 0; }
+  .detail-rule { display: none; }
+  .detail-price-row, .detail-shipping { margin-bottom: 0; }
+
+  /* ── PRICE, WAS-PRICE AND SAVINGS BADGE ON ONE LINE AT ANY WIDTH ─────
+     clamp() scales all three with the viewport instead of wrapping, so
+     the savings never drops to a second row and never has to be hunted
+     for. Measured on the live page: 390px gives 24.2 / 12.5 / 10.2px and
+     the row totals 281 of 358 available; 320px gives 21 / 12.3 / 10.2 and
+     totals 264 of 288. Both fit with room.
+
+     ⚠️ THE clamp() FLOORS ARE DELIBERATELY NOT LOWER. A first pass used
+     .58rem for the badge and it rendered at 8.96px on a 320px phone —
+     technically on one line, practically unreadable. The floors are the
+     smallest sizes that still read; below them the badge should wrap
+     rather than shrink. */
+  .detail-price-row { flex-wrap: nowrap; gap: 7px; align-items: baseline; }
+  .detail-price { font-size: clamp(1.4rem, 6.2vw, 1.95rem); white-space: nowrap; }
+  .detail-was   { font-size: clamp(.82rem, 3.2vw, 1rem);    white-space: nowrap; }
+  .detail-save  { font-size: clamp(.68rem, 2.6vw, .75rem);  white-space: nowrap;
+                  padding: 3px 6px; flex: 0 0 auto; }
+
+  /* All three trust statements on one row. At the inherited size they
+     wrapped onto two, costing 32px and reading as a list rather than as a
+     reassurance strip. */
+  .pdp-trust-bar { flex-wrap: nowrap; gap: 8px; font-size: .68rem; }
+  .pdp-trust-bar .ptb-item { white-space: nowrap; gap: 4px; }
+  .pdp-trust-bar svg { width: 13px; height: 13px; flex: 0 0 auto; }
+
+  /* The SKU and the Google rating sat ~30px apart for no reason. */
+  .pdp-google-rating { margin: 2px 0 0; }
+
   /* ── 1. THUMBNAILS: ONE SCROLLING ROW, NOT A TWO-ROW GRID  (-224px) ──
      The grid is overridden rather than removed: display:flex wins over
      display:grid, and grid-template-columns is reset so a future edit to
@@ -84,17 +189,42 @@
     overflow: hidden;
   }
 
-  /* ── 3. BREADCRUMB: ONE LINE  (-20px) ────────────────────────────────
-     Clipped to a single scrollable line rather than hiding crumbs. The
-     separators between the links are bare text nodes, so hiding the <a>
-     elements would leave orphaned chevrons behind. */
-  .breadcrumb {
-    white-space: nowrap;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-  .breadcrumb::-webkit-scrollbar { display: none; }
+  /* ── 3. BREADCRUMB: GONE ON PHONES  (-44px) ──────────────────────────
+     The approved mockup has no breadcrumb in the proposed frame, and it is
+     right: the back gesture does that job on a phone, and two lines of
+     "Home > Bathroom Vanities- All > <the whole product name again>" buy
+     nothing in the opening screen. display:none, not removed — the markup
+     and its BreadcrumbList structured data stay intact for Google and for
+     every width above the mobile band. */
+  .breadcrumb { display: none; }
 }
+</style>
+
+<%# ═══════════════════════════════════════════════════════════════════════
+    PRODUCT-EXPERT CALL — ITS OWN BLOCK, AND DELIBERATELY SO.
+
+    The block above is mobile-only by construction and a gate asserts that
+    every rule in it sits inside the media query. This control renders at
+    every width, so its rules cannot live there without breaking that
+    guarantee — and the guarantee is worth more than the tidiness of one
+    style element.
+    ═══════════════════════════════════════════════════════════════════════ %>
+<style nonce="<%= cspNonce %>">
+  .pdp-expert-cta {
+    display: flex; align-items: center; justify-content: center;
+    gap: 8px; width: 100%; text-align: center; flex-wrap: wrap;
+  }
+  .pdp-expert-hours {
+    font-size: .76rem; color: #777; text-align: center; margin: 6px 0 0;
+  }
+  /* The number is hidden on phones, where the control is already one tap
+     to dial, and shown from the tablet band up, where a tel: link may hand
+     off to an app the visitor does not have. The band comes from the same
+     resolved settings as everything else — never a typed literal. */
+  .pdp-expert-num { display: none; font-weight: 700; }
+  @media <%= _bpPdp.mq.tabletAndUp %> {
+    .pdp-expert-num { display: inline; }
+  }
 </style>
 
 <!-- Breadcrumb -->
@@ -456,8 +586,56 @@
     </div>
 
     <% if (product.brand) { %><p class="product-brand" style="margin-bottom:6px"><%= product.brand %></p><% } %>
-    <h1 class="detail-title"><%= product.name %></h1>
+    <%# ⚠️ THE HEADING IS THE ONLY PLACE THE SHORTENED TITLE APPEARS.
+         src/utils/displayTitle.js trims James Martin vanity names of
+         "Single Hole", "3 CM" and "& Backsplash" — all of which remain in
+         the specifications table below. Everything else on this page and on
+         every collection card keeps product.name: the <title>, the meta
+         description, the Product JSON-LD and the breadcrumb trail. Search
+         listings are therefore unchanged.
+
+         Anything outside James Martin vanities comes back untouched, as do
+         names where the result fails the safety checks in that file. %>
+    <h1 class="detail-title"><%= displayTitle(product.name, product) %></h1>
     <p class="detail-sku">SKU: <%= product.sku %></p>
+
+    <%# ── PRODUCT REVIEW FIGURE ──────────────────────────────────────────
+         The same figure and the same treatment the collection pages use —
+         src/services/jmvReviewService.forModel(). It sits ABOVE the price
+         because that is where a rating belongs: it is the reason the price
+         is worth considering, not a footnote to it.
+
+         ⚠️ NOTHING HERE GOES INTO STRUCTURED DATA, EVER. These are reviews
+         collected by Home Depot and Ferguson, not by us. Google requires
+         review markup to describe the site's own reviews, and
+         gates/gate_structured_data.js asserts that no aggregateRating or
+         review itemprop appears on this page. The figure is shown to a
+         human and withheld from the crawler, deliberately.
+
+         ⚠️ THE ATTRIBUTION LINE IS NOT DECORATION. "at national retailers"
+         is what keeps the claim honest — without it the page implies these
+         are our reviews. It renders with the figure or not at all.
+
+         forModel() returns null when the rules refuse the figure — too few
+         reviews, too wide a spread between retailers, or an unpublished
+         row — and null renders nothing rather than a placeholder. %>
+    <% if (jmvReview) { %>
+    <section class="jmv-rev jmv-rev--pdp">
+      <div class="jmv-rev-top">
+        <span class="jmv-rev-score"><%= jmvReview.ratingText %></span>
+        <%# Partial fill by PERCENTAGE, never a rounded count of solid stars:
+            4.3 drawn as five full stars is a false claim. aria-hidden
+            because the accessible value is the text beside it. %>
+        <span class="jmv-rev-stars" aria-hidden="true">
+          <span class="jmv-rev-track">★★★★★</span>
+          <span class="jmv-rev-fill" style="width:<%= jmvReview.fillPct.toFixed(1) %>%">★★★★★</span>
+        </span>
+        <span class="jmv-rev-count">· <%= jmvReview.count.toLocaleString('en-US') %> reviews</span>
+      </div>
+      <p class="jmv-rev-src">Average across verified customer reviews at national
+        retailers<% if (jmvReview.verifiedOn) { %>, <%= jmvReview.verifiedOn %><% } %>.</p>
+    </section>
+    <% } %>
 
     <!-- Price -->
     <div class="detail-price-row">
@@ -504,6 +682,48 @@
           <%= product.inStock ? 'Add to Cart' : 'Out of Stock' %>
         </button>
       </form>
+
+      <%# ── CALL A PRODUCT EXPERT ──────────────────────────────────────────
+           A $2,400 vanity is not an impulse buy, and the questions that stop
+           one — will it fit, is the finish what the photo shows, what does
+           delivery actually involve — are answered in two minutes by a person
+           and not at all by a spec table.
+
+           ⚠️ A DIRECT CALL, NOT A BOOKING. Owner decision: a scheduler means
+           a calendar, a notification path and a dashboard to build, and it
+           makes somebody who is ready NOW wait until Tuesday. tel: is one tap
+           on the device where the hesitation is happening.
+
+           ⚠️ IN-STOCK PAGES ONLY. Owner decision, from the two options in
+           docs/mockups/expert_cta_out_of_stock_options.html. On an
+           out-of-stock page the back-in-stock capture form is the one ask,
+           and it exists precisely because those pages were dead ends —
+           putting a second call-to-action beside it makes the shopper choose
+           between leaving an address and making a call, with neither clearly
+           primary.
+
+           ⚠️ IT RENDERS ONLY WHEN THERE IS A NUMBER TO CALL. contact_phone is
+           blank until it is filled in at Theme Editor > Global. A "call us"
+           control that dials nothing is worse than no control, so the absence
+           of the setting removes it rather than rendering it dead. %>
+      <% var _expertPhone = String(((settings || {}).global || {}).contact_phone || '').trim(); %>
+      <% if (product.inStock && _expertPhone) { %>
+      <a class="btn btn-outline pdp-expert-cta"
+         href="tel:<%= _expertPhone.replace(/[^0-9+]/g, '') %>"
+         data-pdp="expert-call">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.9" aria-hidden="true">
+          <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.4 2.1L8 9.8a16 16 0 0 0 6 6l1.4-1.3a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z"/>
+        </svg>
+        <span>Questions? Call a product expert.</span>
+        <%# The number is shown as TEXT on desktop and hidden on phones, where
+            the whole control is already one tap to dial. A tel: link on a
+            laptop hands off to FaceTime or a dialer the visitor may not have,
+            so the number itself has to be readable there. %>
+        <span class="pdp-expert-num"><%= _expertPhone %></span>
+      </a>
+      <p class="pdp-expert-hours">Available 9am&ndash;5:30pm ET, Mon&ndash;Sat</p>
+      <% } %>
 
       <%# ── BACK IN STOCK CAPTURE ─────────────────────────────────────────
            Out-of-stock pages only. 20% of the feed (1,178 of 5,873) is out of
@@ -569,18 +789,6 @@
       var _grRating = parseFloat(_gs.google_reviews_rating) || 0;
       var _grCount  = parseInt(_gs.google_reviews_count, 10) || 0;
     %>
-    <% if (_grRating > 0) { %>
-    <div class="pdp-google-rating">
-      <span class="pgr-stars" aria-hidden="true">★★★★★</span>
-      <span class="pgr-score"><%= _grRating.toFixed(1) %></span>
-      <a href="https://www.google.com/search?q=Bathroom+Vanities+Outlet+reviews"
-         target="_blank" rel="noopener noreferrer" class="pgr-link"
-         aria-label="<%= _grCount > 0 ? _grCount + ' Google Reviews' : 'Google Reviews' %>">
-        <%= _grCount > 0 ? '(' + _grCount + ' Google Reviews)' : 'Google Reviews' %>
-      </a>
-    </div>
-    <% } %>
-
     <div class="pdp-trust-bar">
       <div class="ptb-item">
         <!-- return/refresh icon -->
@@ -642,6 +850,29 @@
         </svg>
       </div>
     </div>
+
+    <%# ── THE STORE'S GOOGLE RATING ──────────────────────────────────────
+         ⚠️ THIS DESCRIBES THE SHOP, NOT THIS VANITY, AND IT USED TO SIT
+         DIRECTLY UNDER THE ADD TO CART BUTTON — where a shopper reads it as
+         the product's rating. Two different ratings now appear on this page:
+         the product's own figure above the price, and this one. Putting the
+         store rating in the buy box made the page quietly claim that every
+         product is rated 4.9.
+
+         It is kept, because it is real and it is ours, but moved below the
+         payment logos and relabelled so the subject is unambiguous. %>
+    <% if (_grRating > 0) { %>
+    <div class="pdp-google-rating pdp-google-rating--store">
+      <span class="pgr-stars" aria-hidden="true">★★★★★</span>
+      <span class="pgr-score"><%= _grRating.toFixed(1) %></span>
+      <a href="https://www.google.com/search?q=Bathroom+Vanities+Outlet+reviews"
+         target="_blank" rel="noopener noreferrer" class="pgr-link"
+         aria-label="BathroomVanitiesOutlet.com is rated <%= _grRating.toFixed(1) %> from <%= _grCount %> Google reviews">
+        BathroomVanitiesOutlet.com<% if (_grCount > 0) { %> &middot; <%= _grCount %> Google reviews<% } %>
+      </a>
+    </div>
+    <% } %>
+
 
     <!-- ── Social Share Bar ──────────────────────────────────────────── -->
     <%# ONE definition, in views/partials/social-share.ejs. This bar used to be

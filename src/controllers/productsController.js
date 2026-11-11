@@ -8,6 +8,14 @@ const { FAMILIES } = require('../config/colorFamilies');
 const sd          = require('../utils/structuredData');
 const siteEvents  = require('../services/siteEvents');
 const gaEvents    = require('../services/gaEvents');
+/* The James Martin review figures, same source the collection pages use.
+   forModel() does its own try/catch and returns null when the rules refuse
+   the figure, so a bad read degrades to "no rating shown" rather than an
+   error on the page that carries the revenue. */
+const jmvReviewService = require('../services/jmvReviewService');
+/* The shortened <h1>. A pure function, so the database keeps the real
+   product name and nothing is migrated. See src/utils/displayTitle.js. */
+const { displayTitle } = require('../utils/displayTitle');
 
 /* Four inline `.catch(() => [])` swallows lived in this file — product
    documents, product videos, and both "Complete the Look" mirror queries.
@@ -171,6 +179,13 @@ exports.show = async (req, res, next) => {
       product.savingsPct = Math.round((1 - product.price / product.compare_price) * 100);
     }
 
+    /* ⚠️ VISUAL ONLY — THIS FIGURE MUST NEVER REACH STRUCTURED DATA.
+       These are other retailers' reviews, not ours. Google requires review
+       markup to describe reviews the site itself collected, and
+       gates/gate_structured_data.js asserts no aggregateRating is emitted.
+       It is passed to the view for display and nothing else. */
+    const jmvReview = await jmvReviewService.forModel(product.brand, product.model);
+
     const siteUrl     = require('../utils/siteUrl').base();
     const canonicalUrl = `${siteUrl}/products/${product.slug}`;
 
@@ -205,6 +220,8 @@ exports.show = async (req, res, next) => {
          expose req.query to every template on the site to serve one line
          on one of them. */
       query:        req.query || {},
+      jmvReview,
+      displayTitle,
       product,
       category,
       related,

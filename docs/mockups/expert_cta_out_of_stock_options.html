@@ -1,0 +1,180 @@
+<!doctype html><html><head><meta charset="utf-8">
+<title>Expert CTA — what happens on an out-of-stock page</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#f4f3ef;color:#15192b;
+       font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  .page{max-width:1300px;margin:0 auto;padding:28px 22px 70px}
+  h1{font:600 23px/1.3 Georgia,serif;margin:0 0 4px}
+  .sub{color:#5d6475;margin:0 0 20px;font-size:13px}
+  .q{background:#fff8e6;border:1px solid #e8d9a8;border-radius:5px;padding:12px 14px;
+     font-size:13.5px;color:#5a4c22;margin:0 0 26px;max-width:860px}
+  .cols{display:flex;gap:34px;flex-wrap:wrap;align-items:flex-start}
+  .col{flex:0 0 360px}
+  .lab{font-weight:700;font-size:13px;margin:0 0 3px}
+  .lab.ref{color:#55596b}.lab.a{color:#2f6f3f}.lab.b{color:#9a5a1e}
+  .sublab{font-size:12px;color:#6b7280;margin:0 0 10px;min-height:32px}
+
+  .phone{width:360px;border:9px solid #1c1c1e;border-radius:30px;overflow:hidden;background:#fff;
+         box-shadow:0 12px 34px rgba(0,0,0,.2)}
+  .bar{background:#15192b;color:#fff;font-size:10px;padding:6px 12px;letter-spacing:.03em}
+  .nav{display:flex;align-items:center;gap:10px;padding:9px 13px;border-bottom:1px solid #e6e3dc}
+  .logo{width:34px;height:34px;border:2px solid #15192b;border-radius:5px;display:flex;
+        align-items:center;justify-content:center;font:700 10px Georgia,serif}
+  .navicons{margin-left:auto;color:#9aa0ad;font-size:13px;letter-spacing:7px}
+  .shot{margin:11px 13px 0;aspect-ratio:4/3;background:#f6f5f1;border:1px solid #e6e3dc;
+        border-radius:8px;position:relative;display:flex;align-items:center;justify-content:center}
+  .shot i{width:42%;height:52%;border:2px dashed #c9cdc6;border-radius:5px;display:block}
+  .oos{position:absolute;top:10px;left:10px;background:#7A7264;color:#fff;font-size:9.5px;
+       font-weight:700;letter-spacing:.07em;padding:3px 8px;border-radius:3px}
+  .sale{position:absolute;top:10px;left:10px;background:#8a6d2f;color:#fff;font-size:9.5px;
+        font-weight:700;letter-spacing:.07em;padding:3px 8px;border-radius:3px}
+  .thumbs{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:8px 13px 0}
+  .thumbs b{aspect-ratio:1;background:#f0efea;border:1.5px solid #e2dfd8;border-radius:5px;display:block}
+  .thumbs b:first-child{border-color:#8a6d2f}
+  .brand{margin:12px 13px 0;font-size:10.5px;letter-spacing:.14em;color:#6b6f80;text-transform:uppercase}
+  .ttl{margin:4px 13px 0;font:700 18px/1.22 Georgia,serif}
+  .prow{display:flex;align-items:baseline;gap:7px;margin:10px 13px 0}
+  .price{font:700 23px Georgia,serif;color:#8a6d2f}
+  .was{font-size:12px;color:#9aa0ad;text-decoration:line-through}
+  .save{background:#e7f3ea;color:#1b6b3a;font-size:10px;font-weight:700;padding:3px 6px;border-radius:3px}
+  .ship{margin:8px 13px 0;font-size:12px;color:#55596b}
+  .buyrow{display:grid;grid-template-columns:110px 1fr;gap:9px;margin:12px 13px 0}
+  .qty{display:flex;align-items:center;justify-content:space-between;border:1px solid #e2dfd8;
+       border-radius:5px;padding:11px 10px;font-size:13px;color:#55596b}
+  .cta{background:#8a6d2f;color:#fff;text-align:center;font-weight:700;padding:13px;
+       border-radius:5px;font-size:12.5px;letter-spacing:.04em}
+  .cta.dead{background:#7A7264}
+  .bis{margin:12px 13px 0;border:1px solid #e2dfd8;border-radius:6px;padding:11px;background:#fbfaf7}
+  .bis p{margin:0 0 8px;font-weight:600;font-size:12.5px}
+  .bisrow{display:flex;gap:7px}
+  .bisrow span{flex:1;border:1px solid #d9d6cf;border-radius:4px;padding:9px;font-size:11.5px;color:#9aa0ad;background:#fff}
+  .bisrow b{background:#8a6d2f;color:#fff;border-radius:4px;padding:9px 11px;font-size:11px;font-weight:700}
+  .bisopt{margin:8px 0 0;font-size:10.5px;color:#6b6f80}
+  .alt{margin:10px 13px 0;border:1.5px solid #15192b;border-radius:5px;text-align:center;
+       font-weight:600;padding:11px;font-size:12.5px}
+  .hours{margin:6px 13px 0;text-align:center;font-size:10.5px;color:#6b6f7e}
+  .wish{margin:10px 13px 0;border:1px solid #d9d6cf;border-radius:5px;text-align:center;
+        padding:10px;font-size:12px;color:#3c4254}
+  .trust{display:flex;gap:7px;margin:12px 13px 14px;font-size:9.6px;color:#55596b;white-space:nowrap}
+
+  .flag{display:inline-block;background:#fdf4e3;border:1px solid #e8d9a8;color:#6b5720;
+        font-size:10px;font-weight:700;padding:2px 6px;border-radius:3px;margin-left:6px}
+  ul.n{margin:12px 0 0;padding-left:18px;font-size:12.5px;color:#444}
+  ul.n li{margin:5px 0}
+  .foot{margin-top:34px;padding-top:16px;border-top:1px solid #ddd;font-size:13px;color:#4a4f5e;max-width:900px}
+</style></head><body><div class="page">
+
+<h1>The expert CTA on an out-of-stock page</h1>
+<p class="sub">360px frames. The question is only about the middle and right frames — the in-stock page
+is shown first so you can see what the button looks like when nothing competes with it.</p>
+
+<div class="q"><strong>The question:</strong> roughly 1 in 5 of your products is out of stock at any
+time. On those pages the buy button is dead and the back-in-stock capture form takes its place. Should
+the &ldquo;Call a product expert&rdquo; button <em>also</em> appear there?</div>
+
+<div class="cols">
+
+  <!-- ── reference: in stock ───────────────────────────────── -->
+  <div class="col">
+    <p class="lab ref">For reference — IN STOCK</p>
+    <p class="sublab">Not in question. One buy path, one talk-to-a-person path.</p>
+    <div class="phone">
+      <div class="bar">Free Shipping on Most Orders</div>
+      <div class="nav"><div class="logo">BVO</div><div class="navicons">· · · ·</div></div>
+      <div class="shot"><span class="sale">SALE</span><i></i></div>
+      <div class="thumbs"><b></b><b></b><b></b></div>
+      <div class="brand">James Martin Vanities</div>
+      <div class="ttl">Bristol 30&quot; Single Vanity — Bright White</div>
+      <div class="prow"><span class="price">$2,407</span><span class="was">$3,647</span>
+        <span class="save">Save $1,240</span></div>
+      <div class="ship">🚚 Free shipping — usually arrives in 5–10 business days</div>
+      <div class="buyrow"><div class="qty">− 1 +</div><div class="cta">ADD TO CART</div></div>
+      <div class="alt">📞 Questions? Call a product expert.</div>
+      <div class="hours">Available 9am–5:30pm ET, Mon–Sat</div>
+      <div class="wish">♡ Save to Wishlist</div>
+      <div class="trust"><span>↺ 30-Day Returns</span><span>🚚 Free Shipping</span><span>🛡 Secure Checkout</span></div>
+    </div>
+  </div>
+
+  <!-- ── option A ──────────────────────────────────────────── -->
+  <div class="col">
+    <p class="lab a">Option A — show it on out-of-stock pages too</p>
+    <p class="sublab">The person who wanted <em>this</em> vanity can reach someone today, instead of
+      only being able to wait for an email.</p>
+    <div class="phone">
+      <div class="bar">Free Shipping on Most Orders</div>
+      <div class="nav"><div class="logo">BVO</div><div class="navicons">· · · ·</div></div>
+      <div class="shot"><span class="oos">OUT OF STOCK</span><i></i></div>
+      <div class="thumbs"><b></b><b></b><b></b></div>
+      <div class="brand">James Martin Vanities</div>
+      <div class="ttl">Bristol 30&quot; Single Vanity — Bright White</div>
+      <div class="prow"><span class="price">$2,407</span><span class="was">$3,647</span>
+        <span class="save">Save $1,240</span></div>
+      <div class="ship">🚚 Free shipping — usually arrives in 5–10 business days</div>
+      <div class="buyrow"><div class="qty">− 1 +</div><div class="cta dead">OUT OF STOCK</div></div>
+      <div class="bis">
+        <p>Email me when this is back in stock</p>
+        <div class="bisrow"><span>your@email.com</span><b>NOTIFY ME</b></div>
+        <p class="bisopt">☐ Also send me occasional updates on similar vanities</p>
+      </div>
+      <div class="alt">📞 Questions? Call a product expert. <span class="flag">in question</span></div>
+      <div class="hours">Available 9am–5:30pm ET, Mon–Sat</div>
+      <div class="wish">♡ Save to Wishlist</div>
+      <div class="trust"><span>↺ 30-Day Returns</span><span>🚚 Free Shipping</span><span>🛡 Secure Checkout</span></div>
+    </div>
+    <ul class="n">
+      <li><strong>For:</strong> this is exactly when someone wants a person — &ldquo;when will it be
+        back?&rdquo;, &ldquo;is there a similar one in stock?&rdquo; An expert can sell them something
+        else today.</li>
+      <li><strong>Against:</strong> two asks stacked. The eye has to choose between leaving an email
+        and making a call, and neither is clearly the primary action.</li>
+    </ul>
+  </div>
+
+  <!-- ── option B ──────────────────────────────────────────── -->
+  <div class="col">
+    <p class="lab b">Option B — hide it on out-of-stock pages</p>
+    <p class="sublab">The capture form is the only ask. Cleaner, but the shopper&rsquo;s only option
+      is to wait.</p>
+    <div class="phone">
+      <div class="bar">Free Shipping on Most Orders</div>
+      <div class="nav"><div class="logo">BVO</div><div class="navicons">· · · ·</div></div>
+      <div class="shot"><span class="oos">OUT OF STOCK</span><i></i></div>
+      <div class="thumbs"><b></b><b></b><b></b></div>
+      <div class="brand">James Martin Vanities</div>
+      <div class="ttl">Bristol 30&quot; Single Vanity — Bright White</div>
+      <div class="prow"><span class="price">$2,407</span><span class="was">$3,647</span>
+        <span class="save">Save $1,240</span></div>
+      <div class="ship">🚚 Free shipping — usually arrives in 5–10 business days</div>
+      <div class="buyrow"><div class="qty">− 1 +</div><div class="cta dead">OUT OF STOCK</div></div>
+      <div class="bis">
+        <p>Email me when this is back in stock</p>
+        <div class="bisrow"><span>your@email.com</span><b>NOTIFY ME</b></div>
+        <p class="bisopt">☐ Also send me occasional updates on similar vanities</p>
+      </div>
+      <div class="wish">♡ Save to Wishlist</div>
+      <div class="trust"><span>↺ 30-Day Returns</span><span>🚚 Free Shipping</span><span>🛡 Secure Checkout</span></div>
+    </div>
+    <ul class="n">
+      <li><strong>For:</strong> one clear action. The capture form was built precisely because these
+        pages were dead ends, and nothing competes with it.</li>
+      <li><strong>Against:</strong> a shopper ready to spend $2,400 today is told to wait for an
+        email, when you may well have a near-identical vanity in stock.</li>
+    </ul>
+  </div>
+
+</div>
+
+<div class="foot">
+<p><strong>My read:</strong> Option A, but with the two asks ranked rather than stacked — the capture
+form stays the visually dominant one, and the call sits beneath it as the quieter alternative, exactly
+as drawn. On a product this expensive, a person who wants to talk is worth more than a list signup,
+and an expert can move them to something that <em>is</em> in stock.</p>
+<p><strong>What this costs if you pick A:</strong> nothing extra to build — it is one conditional in
+the template either way. The only real cost is a busier out-of-stock page.</p>
+<p>Note the phone number only renders once <code>contact_phone</code> is set in Theme Editor &rsaquo;
+Global, so until you fill that in neither option shows anything.</p>
+</div>
+
+</div></body></html>

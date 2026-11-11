@@ -1,0 +1,864 @@
+<!doctype html><html><head><meta charset=utf-8>
+<title>Mobile PDP — current vs proposed (step 1)</title><style>
+body{margin:0;background:#f4f3ef;font:14px/1.5 system-ui,-apple-system,sans-serif;color:#2d3340}
+.wrap{max-width:1040px;margin:0 auto;padding:26px 20px 60px}
+h1{font:600 22px/1.3 Georgia,serif;margin:0 0 4px}
+.sub{color:#6b7280;margin:0 0 22px;font-size:13px}
+.cols{display:flex;gap:44px;flex-wrap:wrap}
+.col{flex:0 0 390px}
+.lab{font-weight:700;margin:0 0 8px;font-size:14px}
+.lab.bad{color:#a33} .lab.good{color:#2f6f3f}
+.phone{position:relative;width:390px;height:1120px;border:10px solid #1c1c1e;border-radius:34px;
+       overflow:hidden;background:#fff;box-shadow:0 14px 40px rgba(0,0,0,.22)}
+.phone iframe{width:390px;height:1120px;border:0;display:block}
+.fold{position:absolute;left:0;right:0;top:844px;border-top:2px dashed #d33;pointer-events:none}
+.foldtag{position:absolute;right:6px;top:848px;background:#d33;color:#fff;font:600 10px/1 system-ui;
+         padding:4px 6px;border-radius:3px;pointer-events:none}
+.notes{margin:14px 0 0;padding-left:18px;font-size:12.5px;color:#444}
+.notes li{margin:5px 0}
+.foot{margin-top:32px;padding-top:16px;border-top:1px solid #ddd;font-size:12.5px;color:#555;max-width:840px}
+code{background:#e9e8e3;padding:1px 4px;border-radius:3px;font-size:11.5px}
+</style></head><body><div class=wrap>
+<h1>Mobile product page &mdash; current vs proposed</h1>
+<p class=sub>390px wide. Real markup, real stylesheet, real images from the live Bristol 30&quot; page.
+Frames are 1120px tall so you can see past the fold; the dashed line marks 844px.</p>
+<div class=cols>
+ <div class=col>
+  <p class="lab bad">&#10007; Current</p>
+  <div class=phone><iframe srcdoc="<base href=&quot;https://www.bathroomvanitiesoutlet.com/&quot;>
+<meta charset=utf-8><meta name=viewport content=&quot;width=device-width,initial-scale=1&quot;>
+<link rel=&quot;stylesheet&quot; href=&quot;/css/site-bundle.css?v=50&quot;>
+<link rel=&quot;stylesheet&quot; href=&quot;/css/site3.css?v=31&quot;>
+<style>html,body{overflow-x:hidden}</style><style>@media (max-width:600px){.nav-logo{width:90px;height:90px}.site-nav{padding:0 14px;gap:12px;height:106px}}@media (max-width:1251px){.nav-brand{display:none}.nav-hamburger{display:flex}.nav-links{display:none}}</style><header class=&quot;site-header&quot;><nav class=&quot;site-nav&quot;>
+<a href=&quot;#&quot; class=&quot;nav-logo-link&quot;><img class=&quot;nav-logo&quot; src=&quot;https://images.bathroomvanitiesoutlet.com/site/logos/BVOLOGOSQ_512-v2.webp&quot; alt=&quot;BVO&quot; width=&quot;120&quot; height=&quot;120&quot;></a>
+<a href=&quot;#&quot; class=&quot;nav-brand&quot;>BathroomVanities<span>Outlet</span>.com</a><ul class=&quot;nav-links&quot;></ul>
+<div class=&quot;nav-icons&quot;>
+<button class=&quot;nav-icon-btn&quot;><svg class=&quot;nav-icon&quot; viewBox=&quot;0 0 24 24&quot;><circle cx=&quot;11&quot; cy=&quot;11&quot; r=&quot;7&quot;/><line x1=&quot;16.5&quot; y1=&quot;16.5&quot; x2=&quot;22&quot; y2=&quot;22&quot;/></svg></button>
+<a href=&quot;#&quot; class=&quot;nav-icon-btn&quot;><svg class=&quot;nav-icon&quot; viewBox=&quot;0 0 24 24&quot;><path d=&quot;M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2&quot;/><circle cx=&quot;12&quot; cy=&quot;7&quot; r=&quot;4&quot;/></svg></a>
+<a href=&quot;#&quot; class=&quot;nav-icon-btn&quot;><svg class=&quot;nav-icon&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot;><path d=&quot;M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z&quot;/></svg></a>
+<a href=&quot;#&quot; class=&quot;nav-icon-btn nav-cart-wrap&quot;><svg class=&quot;nav-icon&quot; viewBox=&quot;0 0 24 24&quot;><path d=&quot;M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z&quot;/><line x1=&quot;3&quot; y1=&quot;6&quot; x2=&quot;21&quot; y2=&quot;6&quot;/><path d=&quot;M16 10a4 4 0 0 1-8 0&quot;/></svg></a></div>
+<button class=&quot;nav-hamburger&quot;><svg viewBox=&quot;0 0 24 24&quot; width=&quot;24&quot; height=&quot;24&quot; stroke=&quot;currentColor&quot; fill=&quot;none&quot; stroke-width=&quot;2&quot;><line x1=&quot;3&quot; y1=&quot;6&quot; x2=&quot;21&quot; y2=&quot;6&quot;/><line x1=&quot;3&quot; y1=&quot;12&quot; x2=&quot;21&quot; y2=&quot;12&quot;/><line x1=&quot;3&quot; y1=&quot;18&quot; x2=&quot;21&quot; y2=&quot;18&quot;/></svg></button>
+</nav></header><div class=&quot;breadcrumb&quot;><a href=&quot;#&quot;>Home</a> › <a href=&quot;#&quot;>Bathroom Vanities- All</a> › <span>Bristol 30&quot; Single Vanity, Bright White w/ Single Hole 3 CM White Zeus Silestone Top &amp; Backsplash</span></div><div class=&quot;detail-layout&quot;><div class=&quot;detail-gallery&quot; id=&quot;pdp-gallery&quot;>
+<div class=&quot;gallery-main&quot;><img class=&quot;gallery-main-img&quot; src=&quot;https://images.bathroomvanitiesoutlet.com/157-V30-BW-1WZ/bathroom-vanities-bristol-30-bright-white-157-v30-bw-1wz-1.webp&quot; alt=&quot;&quot;><span class=&quot;gallery-badge&quot;>SALE</span></div>
+<div class=&quot;gallery-thumbs-wrap&quot;><div class=&quot;gallery-thumbs&quot;>
+<button class=&quot;gallery-thumb is-active&quot;><img src=&quot;https://images.bathroomvanitiesoutlet.com/157-V30-BW-1WZ/bathroom-vanities-bristol-30-bright-white-157-v30-bw-1wz-1.webp&quot; alt=&quot;&quot;></button>
+<button class=&quot;gallery-thumb&quot;><img src=&quot;https://images.bathroomvanitiesoutlet.com/157-V30-BW-1WZ/bathroom-vanities-bristol-30-bright-white-157-v30-bw-1wz-2.webp&quot; alt=&quot;&quot;></button>
+</div></div></div><div class=&quot;detail-info&quot;>
+<div class=&quot;detail-badges&quot;><span class=&quot;product-badge badge-sale&quot;>SALE</span></div>
+<p class=&quot;product-brand&quot; style=&quot;margin-bottom:6px&quot;>James Martin Vanities</p>
+<h1 class=&quot;detail-title&quot;>Bristol 30&quot; Single Vanity, Bright White w/ Single Hole 3 CM White Zeus Silestone Top &amp; Backsplash</h1>
+<p class=&quot;detail-sku&quot;>SKU: 157-V30-BW-1WZ</p>
+<div class=&quot;detail-price-row&quot;><span class=&quot;detail-price&quot;>$2,407.00</span>
+<span class=&quot;detail-was&quot;>$3,647.00</span><span class=&quot;detail-save&quot;>Save $1240.00</span></div>
+<p class=&quot;detail-shipping&quot;><svg width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;1.8&quot;><rect x=&quot;1&quot; y=&quot;3&quot; width=&quot;15&quot; height=&quot;13&quot; rx=&quot;1&quot;/><path d=&quot;M16 8h4l3 3v5h-7V8z&quot;/><circle cx=&quot;5.5&quot; cy=&quot;18.5&quot; r=&quot;2.5&quot;/><circle cx=&quot;18.5&quot; cy=&quot;18.5&quot; r=&quot;2.5&quot;/></svg>
+Free shipping &mdash; arrives in 5&ndash;10 business days</p>
+<hr class=&quot;detail-rule&quot;>
+<div class=&quot;detail-qty&quot;><button class=&quot;qty-btn&quot;>&minus;</button><span class=&quot;qty-val&quot;>1</span><button class=&quot;qty-btn&quot;>+</button></div>
+<div class=&quot;detail-ctas&quot;>
+<form action=&quot;#&quot; method=&quot;POST&quot;><button type=&quot;button&quot; class=&quot;btn btn-amber&quot; style=&quot;width:100%&quot;>Add to Cart</button></form>
+<button type=&quot;button&quot; class=&quot;btn btn-outline heart-btn&quot; style=&quot;width:100%;text-align:center&quot;>
+<svg viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; width=&quot;16&quot; height=&quot;16&quot; style=&quot;vertical-align:middle;margin-right:6px&quot;><path d=&quot;M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z&quot;/></svg>Save to Wishlist</button></div>
+<div class=&quot;pdp-google-rating&quot;><span class=&quot;pgr-stars&quot;>&#9733;&#9733;&#9733;&#9733;&#9733;</span> <span class=&quot;pgr-score&quot;>4.9</span> <a href=&quot;#&quot; class=&quot;pgr-link&quot;>(150 Google Reviews)</a></div>
+<div class=&quot;pdp-trust-bar&quot;>
+<div class=&quot;ptb-item&quot;><svg width=&quot;15&quot; height=&quot;15&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot;><polyline points=&quot;1 4 1 10 7 10&quot;/><path d=&quot;M3.51 15a9 9 0 1 0 .49-3.51&quot;/></svg><span>30-Day Returns</span></div>
+<div class=&quot;ptb-item&quot;><svg width=&quot;15&quot; height=&quot;15&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot;><rect x=&quot;1&quot; y=&quot;3&quot; width=&quot;15&quot; height=&quot;13&quot; rx=&quot;1&quot;/><path d=&quot;M16 8h3l4 4v5h-7V8z&quot;/><circle cx=&quot;5.5&quot; cy=&quot;18.5&quot; r=&quot;2.5&quot;/><circle cx=&quot;18.5&quot; cy=&quot;18.5&quot; r=&quot;2.5&quot;/></svg><span>Free Shipping</span></div>
+<div class=&quot;ptb-item&quot;><svg width=&quot;15&quot; height=&quot;15&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot;><path d=&quot;M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z&quot;/></svg><span>Secure Checkout</span></div></div>
+<div class=&quot;pdp-vc-card&quot;><h4 class=&quot;pdp-vc-heading&quot;>View Other Options</h4>
+<div class=&quot;pdp-vc-row&quot;><span class=&quot;pdp-vc-label&quot;>SIZE</span><div class=&quot;pdp-vc-options&quot;>
+<a href=&quot;#&quot; class=&quot;pdp-size-chip is-selected&quot;>30&quot;</a><a href=&quot;#&quot; class=&quot;pdp-size-chip&quot;>36&quot;</a>
+<a href=&quot;#&quot; class=&quot;pdp-size-chip&quot;>48&quot;</a><a href=&quot;#&quot; class=&quot;pdp-size-chip&quot;>60&quot;</a></div></div></div>
+</div></div>" scrolling="no"></iframe><div class=fold></div><div class=foldtag>FOLD</div></div>
+  <ul class=notes><li>Price around 1,000px, Add to Cart around 1,050px</li>
+  <li>90px logo, breadcrumb wrapping to two lines</li>
+  <li>Quantity stepper on its own row above the button</li></ul>
+ </div>
+ <div class=col>
+  <p class="lab good">&#10003; Proposed &mdash; step 1, layout only</p>
+  <div class=phone><iframe srcdoc="<base href=&quot;https://www.bathroomvanitiesoutlet.com/&quot;>
+<meta charset=utf-8><meta name=viewport content=&quot;width=device-width,initial-scale=1&quot;>
+<link rel=&quot;stylesheet&quot; href=&quot;/css/site-bundle.css?v=50&quot;>
+<link rel=&quot;stylesheet&quot; href=&quot;/css/site3.css?v=31&quot;>
+<style>html,body{overflow-x:hidden}</style><style>
+@media (max-width:600px) {
+  /* ── 0. THE REORDER — BUY BOX COMPACTED BENEATH THE HERO ────────
+     docs/mockups/mobile_pdp_current_vs_proposed.html, approved. Order is
+     hero → badges → brand → title → price → availability → buy button →
+     trust. Nothing is removed: the full gallery, variant cards, specs and
+     description all still follow, in their existing order.
+
+     ⚠️ THE HERO STAYS FIRST. The photo is what sells a $2,400 vanity, and
+     an earlier attempt at this put price and button ABOVE the image. That
+     was wrong and it was not what the mockup asked for — its note reads
+     &quot;hero 300→232px&quot;, i.e. keep the image and shrink it.
+
+     ⚠️ display:contents IS LOAD-BEARING, NOT DECORATION.
+     .detail-layout is a two-column grid whose only children are
+     .detail-gallery and .detail-info. Everything we need to reorder lives
+     INSIDE .detail-info, and `order` sorts siblings — so without
+     dissolving that wrapper the buy box cannot be reordered against the
+     gallery at all. Splitting .detail-info into two divs would work too,
+     and would add a third child to a `3fr 2fr` grid, breaking every
+     desktop product page.
+
+     ⚠️ EVERY CHILD NEEDS AN EXPLICIT order, AND order TAKES AN INTEGER.
+     Default order is 0, so one unlisted element silently jumps to the top.
+     The catch-all sets 10 first; the named rules then pull eight elements
+     forward. A fractional value (order: 8.5) is invalid — the declaration
+     is dropped and that element falls back to 0, i.e. to the very top. */
+  .detail-layout { display: grid; grid-template-columns: 118px 1fr; gap: 10px; }
+  .detail-info   { display: contents; }
+
+  /* ⚠️ .detail-gallery IS A CHILD OF .detail-layout, NOT OF .detail-info,
+     so the rule beneath does not reach it. Without this line the gallery
+     auto-placed into column one and the product photo was squeezed into
+     the 118px stepper column — 89px tall. It is also what made an earlier
+     `auto` first column measure 247px: the track was sizing itself to the
+     gallery rather than to the stepper. */
+  .detail-layout > * { grid-column: 1 / -1; }
+  .detail-info > *   { grid-column: 1 / -1; order: 10; }
+
+  .detail-gallery   { order: 1; }
+  .detail-badges    { order: 2; }
+  .product-brand    { order: 3; margin-bottom: 2px; }
+  .detail-title     { order: 4; }
+  .detail-price-row { order: 5; }
+  .detail-shipping  { order: 6; }
+  .pdp-trust-bar    { order: 9; }
+
+  /* ── THE BUY ROW: STEPPER BESIDE THE BUTTON, ONE LINE AT ANY WIDTH ──
+     .detail-ctas is dissolved too, so the add-to-cart form can take the
+     second column while the wishlist button stays full width beneath it.
+     Without that, everything inside .detail-ctas would be trapped in one
+     column together.
+
+     ⚠️ COLUMN ONE IS 118px, NOT `auto`. With `auto` the track sized itself
+     from items SPANNING both columns rather than from the stepper, and on
+     the live page the stepper came out 247px wide while Add to Cart was
+     squeezed to 101px with its label wrapped onto three lines. A fixed
+     118px is the stepper's natural width and leaves the button the rest,
+     which is what makes the row hold at any screen size.
+
+     ⚠️ :not(.bis) MATTERS. On out-of-stock pages the back-in-stock capture
+     form is also a child of .detail-ctas; without the exclusion it would be
+     pulled into the narrow second column instead of spanning the width. */
+  .detail-ctas      { display: contents; }
+  .detail-ctas > *  { grid-column: 1 / -1; order: 8; }
+  .detail-qty       { grid-column: 1; order: 7; margin: 0; width: auto; }
+  .detail-ctas > form:not(.bis) { grid-column: 2; order: 7; margin: 0; }
+  .detail-ctas > form:not(.bis) .btn { height: 100%; }
+
+  /* ⚠️ THE HERO KEEPS ITS FULL 4:3 SIZE. A draft shrank it to 3:2 to buy
+     30px and the owner pushed back — on a product sold by appearance, the
+     viewer is the page. Measured at full size the trust row still finishes
+     at 843 against an 844 fold, so the space was never needed, and the
+     thumbnail strip stays for the same reason. */
+  .gallery-main { margin-bottom: 6px; }
+  .detail-sku  { order: 10; margin-bottom: 0; }
+  .detail-rule { display: none; }
+  .detail-price-row, .detail-shipping { margin-bottom: 0; }
+
+  /* All three trust statements on one row. At the inherited size they
+     wrapped onto two, costing 32px and reading as a list rather than as a
+     reassurance strip. */
+  .pdp-trust-bar { flex-wrap: nowrap; gap: 8px; font-size: .68rem; }
+  .pdp-trust-bar .ptb-item { white-space: nowrap; gap: 4px; }
+  .pdp-trust-bar svg { width: 13px; height: 13px; flex: 0 0 auto; }
+
+  /* The SKU and the Google rating sat ~30px apart for no reason. */
+  .pdp-google-rating { margin: 2px 0 0; }
+
+  /* ── 1. THUMBNAILS: ONE SCROLLING ROW, NOT A TWO-ROW GRID  (-224px) ──
+     The grid is overridden rather than removed: display:flex wins over
+     display:grid, and grid-template-columns is reset so a future edit to
+     the desktop rule cannot leak a column count into the scroller. */
+  .detail-gallery .gallery-thumbs {
+    display: flex;
+    grid-template-columns: none;
+    gap: 6px;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+  }
+  .detail-gallery .gallery-thumb {
+    flex: 0 0 56px;
+    width: 56px;
+    height: 56px;
+    aspect-ratio: auto;      /* the desktop rule sets 1; flex-basis owns it now */
+    scroll-snap-align: start;
+  }
+  /* Past the sixth image the markup adds .thumb-hidden and renders a
+     &quot;See N more&quot; button. In a horizontal scroller both are pointless —
+     swiping IS the reveal — so every thumb is shown and the button goes.
+     Hiding the button rather than removing it keeps the JS handler
+     harmless: it simply never fires. */
+  .detail-gallery .gallery-thumb.thumb-hidden { display: block; }
+  .detail-gallery .gallery-seemore-btn        { display: none; }
+
+  /* ── 2. TITLE: TWO LINES, NOT FOUR  (-70px) ──────────────────────────
+     line-clamp is VISUAL ONLY — the full product name stays in the DOM,
+     so the h1 Google reads is unchanged, as are <title>, the meta
+     description and the Product JSON-LD. */
+  .detail-title {
+    font-size: 1.35rem;
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* ── 3. BREADCRUMB: GONE ON PHONES  (-44px) ──────────────────────────
+     The approved mockup has no breadcrumb in the proposed frame, and it is
+     right: the back gesture does that job on a phone, and two lines of
+     &quot;Home > Bathroom Vanities- All > <the whole product name again>&quot; buy
+     nothing in the opening screen. display:none, not removed — the markup
+     and its BreadcrumbList structured data stay intact for Google and for
+     every width above the mobile band. */
+  .breadcrumb { display: none; }
+}
+</style><style>
+@media (max-width:600px) {
+  /* ── 0. THE REORDER — BUY BOX COMPACTED UNDER A SHRUNKEN HERO ────────
+     docs/mockups/mobile_pdp_current_vs_proposed.html, approved. Order is
+     hero → badges → brand → title → price → availability → buy button →
+     trust. Nothing is removed: the full gallery, variant cards, specs and
+     description all still follow, in their existing order.
+
+     ⚠️ THE HERO STAYS FIRST. The photo is what sells a $2,400 vanity, and
+     an earlier attempt at this put price and button ABOVE the image. That
+     was wrong and it was not what the mockup asked for — its note reads
+     &quot;hero 300→232px&quot;, i.e. keep the image and shrink it.
+
+     ⚠️ display:contents IS LOAD-BEARING, NOT DECORATION.
+     .detail-layout is a two-column grid whose only children are
+     .detail-gallery and .detail-info. Everything we need to reorder lives
+     INSIDE .detail-info, and `order` sorts siblings — so without
+     dissolving that wrapper the buy box cannot be reordered against the
+     gallery at all. Splitting .detail-info into two divs would work too,
+     and would add a third child to a `3fr 2fr` grid, breaking every
+     desktop product page.
+
+     ⚠️ EVERY CHILD NEEDS AN EXPLICIT order, AND order TAKES AN INTEGER.
+     Default order is 0, so one unlisted element silently jumps to the top.
+     The catch-all sets 10 first; the named rules then pull eight elements
+     forward. A fractional value (order: 8.5) is invalid — the declaration
+     is dropped and that element falls back to 0, i.e. to the very top. */
+  .detail-layout { display: grid; grid-template-columns: 118px 1fr; gap: 10px; }
+  .detail-info   { display: contents; }
+  .detail-info > *  { grid-column: 1 / -1; order: 10; }
+
+  .detail-gallery   { order: 1; }
+  .detail-badges    { order: 2; }
+  .product-brand    { order: 3; margin-bottom: 2px; }
+  .detail-title     { order: 4; }
+  .detail-price-row { order: 5; }
+  .detail-shipping  { order: 6; }
+  .pdp-trust-bar    { order: 9; }
+
+  /* ── THE BUY ROW: STEPPER BESIDE THE BUTTON, ONE LINE AT ANY WIDTH ──
+     .detail-ctas is dissolved too, so the add-to-cart form can take the
+     second column while the wishlist button stays full width beneath it.
+     Without that, everything inside .detail-ctas would be trapped in one
+     column together.
+
+     ⚠️ COLUMN ONE IS 118px, NOT `auto`. With `auto` the track sized itself
+     from items SPANNING both columns rather than from the stepper, and on
+     the live page the stepper came out 247px wide while Add to Cart was
+     squeezed to 101px with its label wrapped onto three lines. A fixed
+     118px is the stepper's natural width and leaves the button the rest,
+     which is what makes the row hold at any screen size.
+
+     ⚠️ :not(.bis) MATTERS. On out-of-stock pages the back-in-stock capture
+     form is also a child of .detail-ctas; without the exclusion it would be
+     pulled into the narrow second column instead of spanning the width. */
+  .detail-ctas      { display: contents; }
+  .detail-ctas > *  { grid-column: 1 / -1; order: 8; }
+  .detail-qty       { grid-column: 1; order: 7; margin: 0; width: auto; }
+  .detail-ctas > form:not(.bis) { grid-column: 2; order: 7; margin: 0; }
+  .detail-ctas > form:not(.bis) .btn { height: 100%; }
+
+  .gallery-main { aspect-ratio: 3 / 2; margin-bottom: 6px; }
+  .detail-sku  { order: 10; }
+  .detail-rule { display: none; }
+  .detail-price-row, .detail-shipping { margin-bottom: 0; }
+
+  /* ── 1. THUMBNAILS: ONE SCROLLING ROW, NOT A TWO-ROW GRID  (-224px) ──
+     The grid is overridden rather than removed: display:flex wins over
+     display:grid, and grid-template-columns is reset so a future edit to
+     the desktop rule cannot leak a column count into the scroller. */
+  .detail-gallery .gallery-thumbs {
+    display: flex;
+    grid-template-columns: none;
+    gap: 6px;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+  }
+  .detail-gallery .gallery-thumb {
+    flex: 0 0 56px;
+    width: 56px;
+    height: 56px;
+    aspect-ratio: auto;      /* the desktop rule sets 1; flex-basis owns it now */
+    scroll-snap-align: start;
+  }
+  /* Past the sixth image the markup adds .thumb-hidden and renders a
+     &quot;See N more&quot; button. In a horizontal scroller both are pointless —
+     swiping IS the reveal — so every thumb is shown and the button goes.
+     Hiding the button rather than removing it keeps the JS handler
+     harmless: it simply never fires. */
+  .detail-gallery .gallery-thumb.thumb-hidden { display: block; }
+  .detail-gallery .gallery-seemore-btn        { display: none; }
+
+  /* ── 2. TITLE: TWO LINES, NOT FOUR  (-70px) ──────────────────────────
+     line-clamp is VISUAL ONLY — the full product name stays in the DOM,
+     so the h1 Google reads is unchanged, as are <title>, the meta
+     description and the Product JSON-LD. */
+  .detail-title {
+    font-size: 1.35rem;
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* ── 3. BREADCRUMB: GONE ON PHONES  (-44px) ──────────────────────────
+     The approved mockup has no breadcrumb in the proposed frame, and it is
+     right: the back gesture does that job on a phone, and two lines of
+     &quot;Home > Bathroom Vanities- All > <the whole product name again>&quot; buy
+     nothing in the opening screen. display:none, not removed — the markup
+     and its BreadcrumbList structured data stay intact for Google and for
+     every width above the mobile band. */
+  .breadcrumb { display: none; }
+}
+</style><header class=&quot;site-header&quot;><nav class=&quot;site-nav&quot;>
+<a href=&quot;#&quot; class=&quot;nav-logo-link&quot;><img class=&quot;nav-logo&quot; src=&quot;https://images.bathroomvanitiesoutlet.com/site/logos/BVOLOGOSQ_512-v2.webp&quot; alt=&quot;BVO&quot; width=&quot;120&quot; height=&quot;120&quot;></a>
+<a href=&quot;#&quot; class=&quot;nav-brand&quot;>BathroomVanities<span>Outlet</span>.com</a><ul class=&quot;nav-links&quot;></ul>
+<div class=&quot;nav-icons&quot;>
+<button class=&quot;nav-icon-btn&quot;><svg class=&quot;nav-icon&quot; viewBox=&quot;0 0 24 24&quot;><circle cx=&quot;11&quot; cy=&quot;11&quot; r=&quot;7&quot;/><line x1=&quot;16.5&quot; y1=&quot;16.5&quot; x2=&quot;22&quot; y2=&quot;22&quot;/></svg></button>
+<a href=&quot;#&quot; class=&quot;nav-icon-btn&quot;><svg class=&quot;nav-icon&quot; viewBox=&quot;0 0 24 24&quot;><path d=&quot;M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2&quot;/><circle cx=&quot;12&quot; cy=&quot;7&quot; r=&quot;4&quot;/></svg></a>
+<a href=&quot;#&quot; class=&quot;nav-icon-btn&quot;><svg class=&quot;nav-icon&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot;><path d=&quot;M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z&quot;/></svg></a>
+<a href=&quot;#&quot; class=&quot;nav-icon-btn nav-cart-wrap&quot;><svg class=&quot;nav-icon&quot; viewBox=&quot;0 0 24 24&quot;><path d=&quot;M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z&quot;/><line x1=&quot;3&quot; y1=&quot;6&quot; x2=&quot;21&quot; y2=&quot;6&quot;/><path d=&quot;M16 10a4 4 0 0 1-8 0&quot;/></svg></a></div>
+<button class=&quot;nav-hamburger&quot;><svg viewBox=&quot;0 0 24 24&quot; width=&quot;24&quot; height=&quot;24&quot; stroke=&quot;currentColor&quot; fill=&quot;none&quot; stroke-width=&quot;2&quot;><line x1=&quot;3&quot; y1=&quot;6&quot; x2=&quot;21&quot; y2=&quot;6&quot;/><line x1=&quot;3&quot; y1=&quot;12&quot; x2=&quot;21&quot; y2=&quot;12&quot;/><line x1=&quot;3&quot; y1=&quot;18&quot; x2=&quot;21&quot; y2=&quot;18&quot;/></svg></button>
+</nav></header><div class=&quot;breadcrumb&quot;><a href=&quot;#&quot;>Home</a> › <a href=&quot;#&quot;>Bathroom Vanities- All</a> › <span>Bristol 30&quot; Single Vanity, Bright White w/ Single Hole 3 CM White Zeus Silestone Top &amp; Backsplash</span></div><div class=&quot;detail-layout&quot;><div class=&quot;detail-gallery&quot; id=&quot;pdp-gallery&quot;>
+<div class=&quot;gallery-main&quot;><img class=&quot;gallery-main-img&quot; src=&quot;https://images.bathroomvanitiesoutlet.com/157-V30-BW-1WZ/bathroom-vanities-bristol-30-bright-white-157-v30-bw-1wz-1.webp&quot; alt=&quot;&quot;><span class=&quot;gallery-badge&quot;>SALE</span></div>
+<div class=&quot;gallery-thumbs-wrap&quot;><div class=&quot;gallery-thumbs&quot;>
+<button class=&quot;gallery-thumb is-active&quot;><img src=&quot;https://images.bathroomvanitiesoutlet.com/157-V30-BW-1WZ/bathroom-vanities-bristol-30-bright-white-157-v30-bw-1wz-1.webp&quot; alt=&quot;&quot;></button>
+<button class=&quot;gallery-thumb&quot;><img src=&quot;https://images.bathroomvanitiesoutlet.com/157-V30-BW-1WZ/bathroom-vanities-bristol-30-bright-white-157-v30-bw-1wz-2.webp&quot; alt=&quot;&quot;></button>
+</div></div></div><div class=&quot;detail-info&quot;>
+<div class=&quot;detail-badges&quot;><span class=&quot;product-badge badge-sale&quot;>SALE</span></div>
+<p class=&quot;product-brand&quot; style=&quot;margin-bottom:6px&quot;>James Martin Vanities</p>
+<h1 class=&quot;detail-title&quot;>Bristol 30&quot; Single Vanity, Bright White w/ Single Hole 3 CM White Zeus Silestone Top &amp; Backsplash</h1>
+<p class=&quot;detail-sku&quot;>SKU: 157-V30-BW-1WZ</p>
+<div class=&quot;detail-price-row&quot;><span class=&quot;detail-price&quot;>$2,407.00</span>
+<span class=&quot;detail-was&quot;>$3,647.00</span><span class=&quot;detail-save&quot;>Save $1240.00</span></div>
+<p class=&quot;detail-shipping&quot;><svg width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;1.8&quot;><rect x=&quot;1&quot; y=&quot;3&quot; width=&quot;15&quot; height=&quot;13&quot; rx=&quot;1&quot;/><path d=&quot;M16 8h4l3 3v5h-7V8z&quot;/><circle cx=&quot;5.5&quot; cy=&quot;18.5&quot; r=&quot;2.5&quot;/><circle cx=&quot;18.5&quot; cy=&quot;18.5&quot; r=&quot;2.5&quot;/></svg>
+Free shipping &mdash; arrives in 5&ndash;10 business days</p>
+<hr class=&quot;detail-rule&quot;>
+<div class=&quot;detail-qty&quot;><button class=&quot;qty-btn&quot;>&minus;</button><span class=&quot;qty-val&quot;>1</span><button class=&quot;qty-btn&quot;>+</button></div>
+<div class=&quot;detail-ctas&quot;>
+<form action=&quot;#&quot; method=&quot;POST&quot;><button type=&quot;button&quot; class=&quot;btn btn-amber&quot; style=&quot;width:100%&quot;>Add to Cart</button></form>
+<button type=&quot;button&quot; class=&quot;btn btn-outline heart-btn&quot; style=&quot;width:100%;text-align:center&quot;>
+<svg viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; width=&quot;16&quot; height=&quot;16&quot; style=&quot;vertical-align:middle;margin-right:6px&quot;><path d=&quot;M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z&quot;/></svg>Save to Wishlist</button></div>
+<div class=&quot;pdp-google-rating&quot;><span class=&quot;pgr-stars&quot;>&#9733;&#9733;&#9733;&#9733;&#9733;</span> <span class=&quot;pgr-score&quot;>4.9</span> <a href=&quot;#&quot; class=&quot;pgr-link&quot;>(150 Google Reviews)</a></div>
+<div class=&quot;pdp-trust-bar&quot;>
+<div class=&quot;ptb-item&quot;><svg width=&quot;15&quot; height=&quot;15&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot;><polyline points=&quot;1 4 1 10 7 10&quot;/><path d=&quot;M3.51 15a9 9 0 1 0 .49-3.51&quot;/></svg><span>30-Day Returns</span></div>
+<div class=&quot;ptb-item&quot;><svg width=&quot;15&quot; height=&quot;15&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot;><rect x=&quot;1&quot; y=&quot;3&quot; width=&quot;15&quot; height=&quot;13&quot; rx=&quot;1&quot;/><path d=&quot;M16 8h3l4 4v5h-7V8z&quot;/><circle cx=&quot;5.5&quot; cy=&quot;18.5&quot; r=&quot;2.5&quot;/><circle cx=&quot;18.5&quot; cy=&quot;18.5&quot; r=&quot;2.5&quot;/></svg><span>Free Shipping</span></div>
+<div class=&quot;ptb-item&quot;><svg width=&quot;15&quot; height=&quot;15&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot;><path d=&quot;M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z&quot;/></svg><span>Secure Checkout</span></div></div>
+<div class=&quot;pdp-vc-card&quot;><h4 class=&quot;pdp-vc-heading&quot;>View Other Options</h4>
+<div class=&quot;pdp-vc-row&quot;><span class=&quot;pdp-vc-label&quot;>SIZE</span><div class=&quot;pdp-vc-options&quot;>
+<a href=&quot;#&quot; class=&quot;pdp-size-chip is-selected&quot;>30&quot;</a><a href=&quot;#&quot; class=&quot;pdp-size-chip&quot;>36&quot;</a>
+<a href=&quot;#&quot; class=&quot;pdp-size-chip&quot;>48&quot;</a><a href=&quot;#&quot; class=&quot;pdp-size-chip&quot;>60&quot;</a></div></div></div>
+</div></div>" scrolling="no"></iframe><div class=fold></div><div class=foldtag>FOLD</div></div>
+  <ul class=notes>
+  <li>Hero stays first at its <strong>full size</strong> &mdash; measured, the space was not needed</li>
+  <li>Buy box compacted beneath: brand, title, price, shipping</li>
+  <li><strong>Quantity stepper beside Add to Cart, one line at any width</strong></li>
+  <li>Wishlist full width below; <strong>all three trust statements on one row</strong></li>
+  <li>Breadcrumb hidden on phones; logo 90&rarr;46px (Theme Editor)</li>
+  <li>Tighter gap between SKU and the rating line</li>
+  <li><strong>Price, was-price and savings badge scale to stay on one line</strong> &mdash; verified at 390px and 320px</li></ul>
+ </div>
+</div>
+<div class=foot>
+<p><strong>This is step 1 only: layout, mobile, CSS.</strong> No markup and no data changed, so desktop
+renders exactly as it does today. The shortened title, review figure and the
+&ldquo;Questions? Call a product expert&rdquo; button are steps 2&ndash;4 and are not in these frames.</p>
+<p>The buy row is a two-column grid: <code>118px</code> for the stepper, the rest for the button.
+A first attempt used <code>auto</code> for that column and the live page came back with a 247px stepper
+and a 101px button whose label wrapped onto three lines &mdash; which is why it is a fixed width.</p>
+</div></div></body></html<style>
+@media (max-width:600px) {
+  /* ── 0. THE REORDER — BUY BOX COMPACTED BENEATH THE HERO ────────
+     docs/mockups/mobile_pdp_current_vs_proposed.html, approved. Order is
+     hero → badges → brand → title → price → availability → buy button →
+     trust. Nothing is removed: the full gallery, variant cards, specs and
+     description all still follow, in their existing order.
+
+     ⚠️ THE HERO STAYS FIRST. The photo is what sells a $2,400 vanity, and
+     an earlier attempt at this put price and button ABOVE the image. That
+     was wrong and it was not what the mockup asked for — its note reads
+     &quot;hero 300→232px&quot;, i.e. keep the image and shrink it.
+
+     ⚠️ display:contents IS LOAD-BEARING, NOT DECORATION.
+     .detail-layout is a two-column grid whose only children are
+     .detail-gallery and .detail-info. Everything we need to reorder lives
+     INSIDE .detail-info, and `order` sorts siblings — so without
+     dissolving that wrapper the buy box cannot be reordered against the
+     gallery at all. Splitting .detail-info into two divs would work too,
+     and would add a third child to a `3fr 2fr` grid, breaking every
+     desktop product page.
+
+     ⚠️ EVERY CHILD NEEDS AN EXPLICIT order, AND order TAKES AN INTEGER.
+     Default order is 0, so one unlisted element silently jumps to the top.
+     The catch-all sets 10 first; the named rules then pull eight elements
+     forward. A fractional value (order: 8.5) is invalid — the declaration
+     is dropped and that element falls back to 0, i.e. to the very top. */
+  .detail-layout { display: grid; grid-template-columns: 118px 1fr; gap: 10px; }
+  .detail-info   { display: contents; }
+
+  /* ⚠️ .detail-gallery IS A CHILD OF .detail-layout, NOT OF .detail-info,
+     so the rule beneath does not reach it. Without this line the gallery
+     auto-placed into column one and the product photo was squeezed into
+     the 118px stepper column — 89px tall. It is also what made an earlier
+     `auto` first column measure 247px: the track was sizing itself to the
+     gallery rather than to the stepper. */
+  .detail-layout > * { grid-column: 1 / -1; }
+  .detail-info > *   { grid-column: 1 / -1; order: 10; }
+
+  .detail-gallery   { order: 1; }
+  .detail-badges    { order: 2; }
+  .product-brand    { order: 3; margin-bottom: 2px; }
+  .detail-title     { order: 4; }
+  .detail-price-row { order: 5; }
+  .detail-shipping  { order: 6; }
+  .pdp-trust-bar    { order: 9; }
+
+  /* ── THE BUY ROW: STEPPER BESIDE THE BUTTON, ONE LINE AT ANY WIDTH ──
+     .detail-ctas is dissolved too, so the add-to-cart form can take the
+     second column while the wishlist button stays full width beneath it.
+     Without that, everything inside .detail-ctas would be trapped in one
+     column together.
+
+     ⚠️ COLUMN ONE IS 118px, NOT `auto`. With `auto` the track sized itself
+     from items SPANNING both columns rather than from the stepper, and on
+     the live page the stepper came out 247px wide while Add to Cart was
+     squeezed to 101px with its label wrapped onto three lines. A fixed
+     118px is the stepper's natural width and leaves the button the rest,
+     which is what makes the row hold at any screen size.
+
+     ⚠️ :not(.bis) MATTERS. On out-of-stock pages the back-in-stock capture
+     form is also a child of .detail-ctas; without the exclusion it would be
+     pulled into the narrow second column instead of spanning the width. */
+  .detail-ctas      { display: contents; }
+  .detail-ctas > *  { grid-column: 1 / -1; order: 8; }
+  .detail-qty       { grid-column: 1; order: 7; margin: 0; width: auto; }
+  .detail-ctas > form:not(.bis) { grid-column: 2; order: 7; margin: 0; }
+  .detail-ctas > form:not(.bis) .btn { height: 100%; }
+
+  /* ⚠️ THE HERO KEEPS ITS FULL 4:3 SIZE. A draft shrank it to 3:2 to buy
+     30px and the owner pushed back — on a product sold by appearance, the
+     viewer is the page. Measured at full size the trust row still finishes
+     at 843 against an 844 fold, so the space was never needed, and the
+     thumbnail strip stays for the same reason. */
+  .gallery-main { margin-bottom: 6px; }
+  .detail-sku  { order: 10; margin-bottom: 0; }
+  .detail-rule { display: none; }
+  .detail-price-row, .detail-shipping { margin-bottom: 0; }
+
+  /* ── PRICE, WAS-PRICE AND SAVINGS BADGE ON ONE LINE AT ANY WIDTH ─────
+     clamp() scales all three with the viewport instead of wrapping, so
+     the savings never drops to a second row and never has to be hunted
+     for. Measured on the live page: 390px gives 24.2 / 12.5 / 10.2px and
+     the row totals 281 of 358 available; 320px gives 21 / 12.3 / 10.2 and
+     totals 264 of 288. Both fit with room.
+
+     ⚠️ THE clamp() FLOORS ARE DELIBERATELY NOT LOWER. A first pass used
+     .58rem for the badge and it rendered at 8.96px on a 320px phone —
+     technically on one line, practically unreadable. The floors are the
+     smallest sizes that still read; below them the badge should wrap
+     rather than shrink. */
+  .detail-price-row { flex-wrap: nowrap; gap: 7px; align-items: baseline; }
+  .detail-price { font-size: clamp(1.4rem, 6.2vw, 1.95rem); white-space: nowrap; }
+  .detail-was   { font-size: clamp(.82rem, 3.2vw, 1rem);    white-space: nowrap; }
+  .detail-save  { font-size: clamp(.68rem, 2.6vw, .75rem);  white-space: nowrap;
+                  padding: 3px 6px; flex: 0 0 auto; }
+
+  /* All three trust statements on one row. At the inherited size they
+     wrapped onto two, costing 32px and reading as a list rather than as a
+     reassurance strip. */
+  .pdp-trust-bar { flex-wrap: nowrap; gap: 8px; font-size: .68rem; }
+  .pdp-trust-bar .ptb-item { white-space: nowrap; gap: 4px; }
+  .pdp-trust-bar svg { width: 13px; height: 13px; flex: 0 0 auto; }
+
+  /* The SKU and the Google rating sat ~30px apart for no reason. */
+  .pdp-google-rating { margin: 2px 0 0; }
+
+  /* ── 1. THUMBNAILS: ONE SCROLLING ROW, NOT A TWO-ROW GRID  (-224px) ──
+     The grid is overridden rather than removed: display:flex wins over
+     display:grid, and grid-template-columns is reset so a future edit to
+     the desktop rule cannot leak a column count into the scroller. */
+  .detail-gallery .gallery-thumbs {
+    display: flex;
+    grid-template-columns: none;
+    gap: 6px;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+  }
+  .detail-gallery .gallery-thumb {
+    flex: 0 0 56px;
+    width: 56px;
+    height: 56px;
+    aspect-ratio: auto;      /* the desktop rule sets 1; flex-basis owns it now */
+    scroll-snap-align: start;
+  }
+  /* Past the sixth image the markup adds .thumb-hidden and renders a
+     &quot;See N more&quot; button. In a horizontal scroller both are pointless —
+     swiping IS the reveal — so every thumb is shown and the button goes.
+     Hiding the button rather than removing it keeps the JS handler
+     harmless: it simply never fires. */
+  .detail-gallery .gallery-thumb.thumb-hidden { display: block; }
+  .detail-gallery .gallery-seemore-btn        { display: none; }
+
+  /* ── 2. TITLE: TWO LINES, NOT FOUR  (-70px) ──────────────────────────
+     line-clamp is VISUAL ONLY — the full product name stays in the DOM,
+     so the h1 Google reads is unchanged, as are <title>, the meta
+     description and the Product JSON-LD. */
+  .detail-title {
+    font-size: 1.35rem;
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* ── 3. BREADCRUMB: GONE ON PHONES  (-44px) ──────────────────────────
+     The approved mockup has no breadcrumb in the proposed frame, and it is
+     right: the back gesture does that job on a phone, and two lines of
+     &quot;Home > Bathroom Vanities- All > <the whole product name again>&quot; buy
+     nothing in the opening screen. display:none, not removed — the markup
+     and its BreadcrumbList structured data stay intact for Google and for
+     every width above the mobile band. */
+  .breadcrumb { display: none; }
+}
+</style>ref=&quot;https://www.bathroomvanitiesoutlet.com/&quot;>
+<meta charset=utf-8><meta name=viewport content=&quot;width=device-width,initial-scale=1&quot;>
+<link rel=&quot;stylesheet&quot; href=&quot;/css/site-bundle.css?v=50&quot;>
+<link rel=&quot;stylesheet&quot; href=&quot;/css/site3.css?v=31&quot;>
+<style>html,body{overflow-x:hidden}</style><style>
+@media (max-width:600px) {
+  /* ── 0. THE REORDER — BUY BOX COMPACTED BENEATH THE HERO ────────
+     docs/mockups/mobile_pdp_current_vs_proposed.html, approved. Order is
+     hero → badges → brand → title → price → availability → buy button →
+     trust. Nothing is removed: the full gallery, variant cards, specs and
+     description all still follow, in their existing order.
+
+     ⚠️ THE HERO STAYS FIRST. The photo is what sells a $2,400 vanity, and
+     an earlier attempt at this put price and button ABOVE the image. That
+     was wrong and it was not what the mockup asked for — its note reads
+     &quot;hero 300→232px&quot;, i.e. keep the image and shrink it.
+
+     ⚠️ display:contents IS LOAD-BEARING, NOT DECORATION.
+     .detail-layout is a two-column grid whose only children are
+     .detail-gallery and .detail-info. Everything we need to reorder lives
+     INSIDE .detail-info, and `order` sorts siblings — so without
+     dissolving that wrapper the buy box cannot be reordered against the
+     gallery at all. Splitting .detail-info into two divs would work too,
+     and would add a third child to a `3fr 2fr` grid, breaking every
+     desktop product page.
+
+     ⚠️ EVERY CHILD NEEDS AN EXPLICIT order, AND order TAKES AN INTEGER.
+     Default order is 0, so one unlisted element silently jumps to the top.
+     The catch-all sets 10 first; the named rules then pull eight elements
+     forward. A fractional value (order: 8.5) is invalid — the declaration
+     is dropped and that element falls back to 0, i.e. to the very top. */
+  .detail-layout { display: grid; grid-template-columns: 118px 1fr; gap: 10px; }
+  .detail-info   { display: contents; }
+
+  /* ⚠️ .detail-gallery IS A CHILD OF .detail-layout, NOT OF .detail-info,
+     so the rule beneath does not reach it. Without this line the gallery
+     auto-placed into column one and the product photo was squeezed into
+     the 118px stepper column — 89px tall. It is also what made an earlier
+     `auto` first column measure 247px: the track was sizing itself to the
+     gallery rather than to the stepper. */
+  .detail-layout > * { grid-column: 1 / -1; }
+  .detail-info > *   { grid-column: 1 / -1; order: 10; }
+
+  .detail-gallery   { order: 1; }
+  .detail-badges    { order: 2; }
+  .product-brand    { order: 3; margin-bottom: 2px; }
+  .detail-title     { order: 4; }
+  .detail-price-row { order: 5; }
+  .detail-shipping  { order: 6; }
+  .pdp-trust-bar    { order: 9; }
+
+  /* ── THE BUY ROW: STEPPER BESIDE THE BUTTON, ONE LINE AT ANY WIDTH ──
+     .detail-ctas is dissolved too, so the add-to-cart form can take the
+     second column while the wishlist button stays full width beneath it.
+     Without that, everything inside .detail-ctas would be trapped in one
+     column together.
+
+     ⚠️ COLUMN ONE IS 118px, NOT `auto`. With `auto` the track sized itself
+     from items SPANNING both columns rather than from the stepper, and on
+     the live page the stepper came out 247px wide while Add to Cart was
+     squeezed to 101px with its label wrapped onto three lines. A fixed
+     118px is the stepper's natural width and leaves the button the rest,
+     which is what makes the row hold at any screen size.
+
+     ⚠️ :not(.bis) MATTERS. On out-of-stock pages the back-in-stock capture
+     form is also a child of .detail-ctas; without the exclusion it would be
+     pulled into the narrow second column instead of spanning the width. */
+  .detail-ctas      { display: contents; }
+  .detail-ctas > *  { grid-column: 1 / -1; order: 8; }
+  .detail-qty       { grid-column: 1; order: 7; margin: 0; width: auto; }
+  .detail-ctas > form:not(.bis) { grid-column: 2; order: 7; margin: 0; }
+  .detail-ctas > form:not(.bis) .btn { height: 100%; }
+
+  /* ⚠️ THE HERO KEEPS ITS FULL 4:3 SIZE. A draft shrank it to 3:2 to buy
+     30px and the owner pushed back — on a product sold by appearance, the
+     viewer is the page. Measured at full size the trust row still finishes
+     at 843 against an 844 fold, so the space was never needed, and the
+     thumbnail strip stays for the same reason. */
+  .gallery-main { margin-bottom: 6px; }
+  .detail-sku  { order: 10; margin-bottom: 0; }
+  .detail-rule { display: none; }
+  .detail-price-row, .detail-shipping { margin-bottom: 0; }
+
+  /* All three trust statements on one row. At the inherited size they
+     wrapped onto two, costing 32px and reading as a list rather than as a
+     reassurance strip. */
+  .pdp-trust-bar { flex-wrap: nowrap; gap: 8px; font-size: .68rem; }
+  .pdp-trust-bar .ptb-item { white-space: nowrap; gap: 4px; }
+  .pdp-trust-bar svg { width: 13px; height: 13px; flex: 0 0 auto; }
+
+  /* The SKU and the Google rating sat ~30px apart for no reason. */
+  .pdp-google-rating { margin: 2px 0 0; }
+
+  /* ── 1. THUMBNAILS: ONE SCROLLING ROW, NOT A TWO-ROW GRID  (-224px) ──
+     The grid is overridden rather than removed: display:flex wins over
+     display:grid, and grid-template-columns is reset so a future edit to
+     the desktop rule cannot leak a column count into the scroller. */
+  .detail-gallery .gallery-thumbs {
+    display: flex;
+    grid-template-columns: none;
+    gap: 6px;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+  }
+  .detail-gallery .gallery-thumb {
+    flex: 0 0 56px;
+    width: 56px;
+    height: 56px;
+    aspect-ratio: auto;      /* the desktop rule sets 1; flex-basis owns it now */
+    scroll-snap-align: start;
+  }
+  /* Past the sixth image the markup adds .thumb-hidden and renders a
+     &quot;See N more&quot; button. In a horizontal scroller both are pointless —
+     swiping IS the reveal — so every thumb is shown and the button goes.
+     Hiding the button rather than removing it keeps the JS handler
+     harmless: it simply never fires. */
+  .detail-gallery .gallery-thumb.thumb-hidden { display: block; }
+  .detail-gallery .gallery-seemore-btn        { display: none; }
+
+  /* ── 2. TITLE: TWO LINES, NOT FOUR  (-70px) ──────────────────────────
+     line-clamp is VISUAL ONLY — the full product name stays in the DOM,
+     so the h1 Google reads is unchanged, as are <title>, the meta
+     description and the Product JSON-LD. */
+  .detail-title {
+    font-size: 1.35rem;
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* ── 3. BREADCRUMB: GONE ON PHONES  (-44px) ──────────────────────────
+     The approved mockup has no breadcrumb in the proposed frame, and it is
+     right: the back gesture does that job on a phone, and two lines of
+     &quot;Home > Bathroom Vanities- All > <the whole product name again>&quot; buy
+     nothing in the opening screen. display:none, not removed — the markup
+     and its BreadcrumbList structured data stay intact for Google and for
+     every width above the mobile band. */
+  .breadcrumb { display: none; }
+}
+</style><style>
+@media (max-width:600px) {
+  /* ── 0. THE REORDER — BUY BOX COMPACTED UNDER A SHRUNKEN HERO ────────
+     docs/mockups/mobile_pdp_current_vs_proposed.html, approved. Order is
+     hero → badges → brand → title → price → availability → buy button →
+     trust. Nothing is removed: the full gallery, variant cards, specs and
+     description all still follow, in their existing order.
+
+     ⚠️ THE HERO STAYS FIRST. The photo is what sells a $2,400 vanity, and
+     an earlier attempt at this put price and button ABOVE the image. That
+     was wrong and it was not what the mockup asked for — its note reads
+     &quot;hero 300→232px&quot;, i.e. keep the image and shrink it.
+
+     ⚠️ display:contents IS LOAD-BEARING, NOT DECORATION.
+     .detail-layout is a two-column grid whose only children are
+     .detail-gallery and .detail-info. Everything we need to reorder lives
+     INSIDE .detail-info, and `order` sorts siblings — so without
+     dissolving that wrapper the buy box cannot be reordered against the
+     gallery at all. Splitting .detail-info into two divs would work too,
+     and would add a third child to a `3fr 2fr` grid, breaking every
+     desktop product page.
+
+     ⚠️ EVERY CHILD NEEDS AN EXPLICIT order, AND order TAKES AN INTEGER.
+     Default order is 0, so one unlisted element silently jumps to the top.
+     The catch-all sets 10 first; the named rules then pull eight elements
+     forward. A fractional value (order: 8.5) is invalid — the declaration
+     is dropped and that element falls back to 0, i.e. to the very top. */
+  .detail-layout { display: grid; grid-template-columns: 118px 1fr; gap: 10px; }
+  .detail-info   { display: contents; }
+  .detail-info > *  { grid-column: 1 / -1; order: 10; }
+
+  .detail-gallery   { order: 1; }
+  .detail-badges    { order: 2; }
+  .product-brand    { order: 3; margin-bottom: 2px; }
+  .detail-title     { order: 4; }
+  .detail-price-row { order: 5; }
+  .detail-shipping  { order: 6; }
+  .pdp-trust-bar    { order: 9; }
+
+  /* ── THE BUY ROW: STEPPER BESIDE THE BUTTON, ONE LINE AT ANY WIDTH ──
+     .detail-ctas is dissolved too, so the add-to-cart form can take the
+     second column while the wishlist button stays full width beneath it.
+     Without that, everything inside .detail-ctas would be trapped in one
+     column together.
+
+     ⚠️ COLUMN ONE IS 118px, NOT `auto`. With `auto` the track sized itself
+     from items SPANNING both columns rather than from the stepper, and on
+     the live page the stepper came out 247px wide while Add to Cart was
+     squeezed to 101px with its label wrapped onto three lines. A fixed
+     118px is the stepper's natural width and leaves the button the rest,
+     which is what makes the row hold at any screen size.
+
+     ⚠️ :not(.bis) MATTERS. On out-of-stock pages the back-in-stock capture
+     form is also a child of .detail-ctas; without the exclusion it would be
+     pulled into the narrow second column instead of spanning the width. */
+  .detail-ctas      { display: contents; }
+  .detail-ctas > *  { grid-column: 1 / -1; order: 8; }
+  .detail-qty       { grid-column: 1; order: 7; margin: 0; width: auto; }
+  .detail-ctas > form:not(.bis) { grid-column: 2; order: 7; margin: 0; }
+  .detail-ctas > form:not(.bis) .btn { height: 100%; }
+
+  .gallery-main { aspect-ratio: 3 / 2; margin-bottom: 6px; }
+  .detail-sku  { order: 10; }
+  .detail-rule { display: none; }
+  .detail-price-row, .detail-shipping { margin-bottom: 0; }
+
+  /* ── 1. THUMBNAILS: ONE SCROLLING ROW, NOT A TWO-ROW GRID  (-224px) ──
+     The grid is overridden rather than removed: display:flex wins over
+     display:grid, and grid-template-columns is reset so a future edit to
+     the desktop rule cannot leak a column count into the scroller. */
+  .detail-gallery .gallery-thumbs {
+    display: flex;
+    grid-template-columns: none;
+    gap: 6px;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+  }
+  .detail-gallery .gallery-thumb {
+    flex: 0 0 56px;
+    width: 56px;
+    height: 56px;
+    aspect-ratio: auto;      /* the desktop rule sets 1; flex-basis owns it now */
+    scroll-snap-align: start;
+  }
+  /* Past the sixth image the markup adds .thumb-hidden and renders a
+     &quot;See N more&quot; button. In a horizontal scroller both are pointless —
+     swiping IS the reveal — so every thumb is shown and the button goes.
+     Hiding the button rather than removing it keeps the JS handler
+     harmless: it simply never fires. */
+  .detail-gallery .gallery-thumb.thumb-hidden { display: block; }
+  .detail-gallery .gallery-seemore-btn        { display: none; }
+
+  /* ── 2. TITLE: TWO LINES, NOT FOUR  (-70px) ──────────────────────────
+     line-clamp is VISUAL ONLY — the full product name stays in the DOM,
+     so the h1 Google reads is unchanged, as are <title>, the meta
+     description and the Product JSON-LD. */
+  .detail-title {
+    font-size: 1.35rem;
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* ── 3. BREADCRUMB: GONE ON PHONES  (-44px) ──────────────────────────
+     The approved mockup has no breadcrumb in the proposed frame, and it is
+     right: the back gesture does that job on a phone, and two lines of
+     &quot;Home > Bathroom Vanities- All > <the whole product name again>&quot; buy
+     nothing in the opening screen. display:none, not removed — the markup
+     and its BreadcrumbList structured data stay intact for Google and for
+     every width above the mobile band. */
+  .breadcrumb { display: none; }
+}
+</style><header class=&quot;site-header&quot;><nav class=&quot;site-nav&quot;>
+<a href=&quot;#&quot; class=&quot;nav-logo-link&quot;><img class=&quot;nav-logo&quot; src=&quot;https://images.bathroomvanitiesoutlet.com/site/logos/BVOLOGOSQ_512-v2.webp&quot; alt=&quot;BVO&quot; width=&quot;120&quot; height=&quot;120&quot;></a>
+<a href=&quot;#&quot; class=&quot;nav-brand&quot;>BathroomVanities<span>Outlet</span>.com</a><ul class=&quot;nav-links&quot;></ul>
+<div class=&quot;nav-icons&quot;>
+<button class=&quot;nav-icon-btn&quot;><svg class=&quot;nav-icon&quot; viewBox=&quot;0 0 24 24&quot;><circle cx=&quot;11&quot; cy=&quot;11&quot; r=&quot;7&quot;/><line x1=&quot;16.5&quot; y1=&quot;16.5&quot; x2=&quot;22&quot; y2=&quot;22&quot;/></svg></button>
+<a href=&quot;#&quot; class=&quot;nav-icon-btn&quot;><svg class=&quot;nav-icon&quot; viewBox=&quot;0 0 24 24&quot;><path d=&quot;M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2&quot;/><circle cx=&quot;12&quot; cy=&quot;7&quot; r=&quot;4&quot;/></svg></a>
+<a href=&quot;#&quot; class=&quot;nav-icon-btn&quot;><svg class=&quot;nav-icon&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot;><path d=&quot;M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z&quot;/></svg></a>
+<a href=&quot;#&quot; class=&quot;nav-icon-btn nav-cart-wrap&quot;><svg class=&quot;nav-icon&quot; viewBox=&quot;0 0 24 24&quot;><path d=&quot;M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z&quot;/><line x1=&quot;3&quot; y1=&quot;6&quot; x2=&quot;21&quot; y2=&quot;6&quot;/><path d=&quot;M16 10a4 4 0 0 1-8 0&quot;/></svg></a></div>
+<button class=&quot;nav-hamburger&quot;><svg viewBox=&quot;0 0 24 24&quot; width=&quot;24&quot; height=&quot;24&quot; stroke=&quot;currentColor&quot; fill=&quot;none&quot; stroke-width=&quot;2&quot;><line x1=&quot;3&quot; y1=&quot;6&quot; x2=&quot;21&quot; y2=&quot;6&quot;/><line x1=&quot;3&quot; y1=&quot;12&quot; x2=&quot;21&quot; y2=&quot;12&quot;/><line x1=&quot;3&quot; y1=&quot;18&quot; x2=&quot;21&quot; y2=&quot;18&quot;/></svg></button>
+</nav></header><div class=&quot;breadcrumb&quot;><a href=&quot;#&quot;>Home</a> › <a href=&quot;#&quot;>Bathroom Vanities- All</a> › <span>Bristol 30&quot; Single Vanity, Bright White w/ Single Hole 3 CM White Zeus Silestone Top &amp; Backsplash</span></div><div class=&quot;detail-layout&quot;><div class=&quot;detail-gallery&quot; id=&quot;pdp-gallery&quot;>
+<div class=&quot;gallery-main&quot;><img class=&quot;gallery-main-img&quot; src=&quot;https://images.bathroomvanitiesoutlet.com/157-V30-BW-1WZ/bathroom-vanities-bristol-30-bright-white-157-v30-bw-1wz-1.webp&quot; alt=&quot;&quot;><span class=&quot;gallery-badge&quot;>SALE</span></div>
+<div class=&quot;gallery-thumbs-wrap&quot;><div class=&quot;gallery-thumbs&quot;>
+<button class=&quot;gallery-thumb is-active&quot;><img src=&quot;https://images.bathroomvanitiesoutlet.com/157-V30-BW-1WZ/bathroom-vanities-bristol-30-bright-white-157-v30-bw-1wz-1.webp&quot; alt=&quot;&quot;></button>
+<button class=&quot;gallery-thumb&quot;><img src=&quot;https://images.bathroomvanitiesoutlet.com/157-V30-BW-1WZ/bathroom-vanities-bristol-30-bright-white-157-v30-bw-1wz-2.webp&quot; alt=&quot;&quot;></button>
+</div></div></div><div class=&quot;detail-info&quot;>
+<div class=&quot;detail-badges&quot;><span class=&quot;product-badge badge-sale&quot;>SALE</span></div>
+<p class=&quot;product-brand&quot; style=&quot;margin-bottom:6px&quot;>James Martin Vanities</p>
+<h1 class=&quot;detail-title&quot;>Bristol 30&quot; Single Vanity, Bright White w/ Single Hole 3 CM White Zeus Silestone Top &amp; Backsplash</h1>
+<p class=&quot;detail-sku&quot;>SKU: 157-V30-BW-1WZ</p>
+<div class=&quot;detail-price-row&quot;><span class=&quot;detail-price&quot;>$2,407.00</span>
+<span class=&quot;detail-was&quot;>$3,647.00</span><span class=&quot;detail-save&quot;>Save $1240.00</span></div>
+<p class=&quot;detail-shipping&quot;><svg width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;1.8&quot;><rect x=&quot;1&quot; y=&quot;3&quot; width=&quot;15&quot; height=&quot;13&quot; rx=&quot;1&quot;/><path d=&quot;M16 8h4l3 3v5h-7V8z&quot;/><circle cx=&quot;5.5&quot; cy=&quot;18.5&quot; r=&quot;2.5&quot;/><circle cx=&quot;18.5&quot; cy=&quot;18.5&quot; r=&quot;2.5&quot;/></svg>
+Free shipping &mdash; arrives in 5&ndash;10 business days</p>
+<hr class=&quot;detail-rule&quot;>
+<div class=&quot;detail-qty&quot;><button class=&quot;qty-btn&quot;>&minus;</button><span class=&quot;qty-val&quot;>1</span><button class=&quot;qty-btn&quot;>+</button></div>
+<div class=&quot;detail-ctas&quot;>
+<form action=&quot;#&quot; method=&quot;POST&quot;><button type=&quot;button&quot; class=&quot;btn btn-amber&quot; style=&quot;width:100%&quot;>Add to Cart</button></form>
+<button type=&quot;button&quot; class=&quot;btn btn-outline heart-btn&quot; style=&quot;width:100%;text-align:center&quot;>
+<svg viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; width=&quot;16&quot; height=&quot;16&quot; style=&quot;vertical-align:middle;margin-right:6px&quot;><path d=&quot;M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z&quot;/></svg>Save to Wishlist</button></div>
+<div class=&quot;pdp-google-rating&quot;><span class=&quot;pgr-stars&quot;>&#9733;&#9733;&#9733;&#9733;&#9733;</span> <span class=&quot;pgr-score&quot;>4.9</span> <a href=&quot;#&quot; class=&quot;pgr-link&quot;>(150 Google Reviews)</a></div>
+<div class=&quot;pdp-trust-bar&quot;>
+<div class=&quot;ptb-item&quot;><svg width=&quot;15&quot; height=&quot;15&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot;><polyline points=&quot;1 4 1 10 7 10&quot;/><path d=&quot;M3.51 15a9 9 0 1 0 .49-3.51&quot;/></svg><span>30-Day Returns</span></div>
+<div class=&quot;ptb-item&quot;><svg width=&quot;15&quot; height=&quot;15&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot;><rect x=&quot;1&quot; y=&quot;3&quot; width=&quot;15&quot; height=&quot;13&quot; rx=&quot;1&quot;/><path d=&quot;M16 8h3l4 4v5h-7V8z&quot;/><circle cx=&quot;5.5&quot; cy=&quot;18.5&quot; r=&quot;2.5&quot;/><circle cx=&quot;18.5&quot; cy=&quot;18.5&quot; r=&quot;2.5&quot;/></svg><span>Free Shipping</span></div>
+<div class=&quot;ptb-item&quot;><svg width=&quot;15&quot; height=&quot;15&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot;><path d=&quot;M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z&quot;/></svg><span>Secure Checkout</span></div></div>
+<div class=&quot;pdp-vc-card&quot;><h4 class=&quot;pdp-vc-heading&quot;>View Other Options</h4>
+<div class=&quot;pdp-vc-row&quot;><span class=&quot;pdp-vc-label&quot;>SIZE</span><div class=&quot;pdp-vc-options&quot;>
+<a href=&quot;#&quot; class=&quot;pdp-size-chip is-selected&quot;>30&quot;</a><a href=&quot;#&quot; class=&quot;pdp-size-chip&quot;>36&quot;</a>
+<a href=&quot;#&quot; class=&quot;pdp-size-chip&quot;>48&quot;</a><a href=&quot;#&quot; class=&quot;pdp-size-chip&quot;>60&quot;</a></div></div></div>
+</div></div>" scrolling="no"></iframe><div class=fold></div><div class=foldtag>FOLD</div></div>
+  <ul class=notes>
+  <li>Hero stays first at its <strong>full size</strong> &mdash; measured, the space was not needed</li>
+  <li>Buy box compacted beneath: brand, title, price, shipping</li>
+  <li><strong>Quantity stepper beside Add to Cart, one line at any width</strong></li>
+  <li>Wishlist full width below; <strong>all three trust statements on one row</strong></li>
+  <li>Breadcrumb hidden on phones; logo 90&rarr;46px (Theme Editor)</li>
+  <li>Tighter gap between SKU and the rating line</li>
+  <li><strong>Price, was-price and savings badge scale to stay on one line</strong> &mdash; verified at 390px and 320px</li></ul>
+ </div>
+</div>
+<div class=foot>
+<p><strong>This is step 1 only: layout, mobile, CSS.</strong> No markup and no data changed, so desktop
+renders exactly as it does today. The shortened title, review figure and the
+&ldquo;Questions? Call a product expert&rdquo; button are steps 2&ndash;4 and are not in these frames.</p>
+<p>The buy row is a two-column grid: <code>118px</code> for the stepper, the rest for the button.
+A first attempt used <code>auto</code> for that column and the live page came back with a 247px stepper
+and a 101px button whose label wrapped onto three lines &mdash; which is why it is a fixed width.</p>
+</div></div></body></html>

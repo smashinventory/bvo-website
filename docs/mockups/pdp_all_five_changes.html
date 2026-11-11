@@ -1,0 +1,216 @@
+<!doctype html><html><head><meta charset="utf-8">
+<title>Product page — all five changes</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#f4f3ef;color:#15192b;
+       font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  .page{max-width:1320px;margin:0 auto;padding:28px 22px 70px}
+  h1{font:600 24px/1.3 Georgia,serif;margin:0 0 4px}
+  .sub{color:#5d6475;margin:0 0 18px;font-size:13px}
+  .key{display:flex;gap:9px;flex-wrap:wrap;margin:0 0 26px}
+  .key span{background:#fff;border:1px solid #ddd9d1;border-radius:4px;padding:5px 10px;font-size:12.5px}
+  .key b{display:inline-block;width:17px;height:17px;border-radius:50%;background:#8a6d2f;color:#fff;
+         font-size:10.5px;line-height:17px;text-align:center;margin-right:6px}
+  .cols{display:flex;gap:46px;flex-wrap:wrap;align-items:flex-start}
+  .lab{font-weight:700;font-size:13px;letter-spacing:.05em;text-transform:uppercase;margin:0 0 10px;color:#2f6f3f}
+
+  .n{display:inline-block;width:17px;height:17px;border-radius:50%;background:#8a6d2f;color:#fff;
+     font:700 10.5px/17px system-ui;text-align:center;vertical-align:middle;margin-left:6px}
+
+  /* ── phone ─────────────────────────────────────────────── */
+  .phone{width:390px;border:10px solid #1c1c1e;border-radius:34px;overflow:hidden;background:#fff;
+         box-shadow:0 14px 38px rgba(0,0,0,.22);position:relative}
+  .fold{position:absolute;left:0;right:0;top:844px;border-top:2px dashed #d33;pointer-events:none;z-index:5}
+  .foldtag{position:absolute;right:8px;top:848px;background:#d33;color:#fff;font:600 10px/1 system-ui;
+           padding:4px 6px;border-radius:3px;z-index:5}
+  .bar{background:#15192b;color:#fff;font-size:10.5px;padding:7px 13px}
+  .nav{display:flex;align-items:center;gap:10px;padding:9px 13px;border-bottom:1px solid #e6e3dc;height:64px}
+  .logo{width:46px;height:46px;border:2px solid #15192b;border-radius:6px;display:flex;
+        align-items:center;justify-content:center;font:700 12px Georgia,serif}
+  .navicons{margin-left:auto;color:#9aa0ad;letter-spacing:8px;font-size:14px}
+  .shot{margin:11px 16px 0;aspect-ratio:4/3;background:#f6f5f1;border:1px solid #e6e3dc;border-radius:9px;
+        position:relative;display:flex;align-items:center;justify-content:center}
+  .shot i{width:44%;height:54%;border:2px dashed #c9cdc6;border-radius:5px;display:block}
+  .sale{position:absolute;top:11px;left:11px;background:#8a6d2f;color:#fff;font:700 10px/1 system-ui;
+        letter-spacing:.07em;padding:4px 8px;border-radius:3px}
+  .thumbs{display:flex;gap:6px;margin:8px 16px 0;overflow:hidden}
+  .thumbs b{width:56px;height:56px;background:#f0efea;border:1.5px solid #e2dfd8;border-radius:5px;
+            display:block;flex:0 0 56px}
+  .thumbs b:first-child{border-color:#8a6d2f}
+  .brand{margin:12px 16px 0;font-size:11px;letter-spacing:.14em;color:#6b6f80;text-transform:uppercase}
+  .ttl{margin:3px 16px 0;font:700 21px/1.24 Georgia,serif}
+  .rev{margin:9px 16px 0}
+  .rev .score{font-weight:700;font-size:14px}
+  .rev .stars{color:#8a6d2f;letter-spacing:1px;font-size:13px}
+  .rev .cnt{color:#6b6f80;font-size:12.5px}
+  .rev .src{margin:2px 0 0;font-size:10.6px;color:#8d91a0;line-height:1.35}
+  .prow{display:flex;align-items:baseline;gap:7px;margin:10px 16px 0}
+  .price{font:700 24px Georgia,serif;color:#8a6d2f}
+  .was{font-size:12.5px;color:#9aa0ad;text-decoration:line-through}
+  .save{background:#e7f3ea;color:#1b6b3a;font-size:10.2px;font-weight:700;padding:3px 6px;border-radius:3px}
+  .ship{margin:8px 16px 0;font-size:12.3px;color:#55596b}
+  .buyrow{display:grid;grid-template-columns:118px 1fr;gap:10px;margin:11px 16px 0}
+  .qty{display:flex;align-items:center;justify-content:space-between;border:1px solid #e2dfd8;
+       border-radius:5px;padding:12px 11px;font-size:13px;color:#55596b}
+  .cta{background:#8a6d2f;color:#fff;text-align:center;font-weight:700;padding:14px;
+       border-radius:5px;font-size:12.6px;letter-spacing:.04em}
+  .alt{margin:10px 16px 0;border:1.5px solid #15192b;border-radius:5px;text-align:center;
+       font-weight:600;padding:12px;font-size:12.6px}
+  .hours{margin:6px 16px 0;text-align:center;font-size:10.6px;color:#6b6f7e}
+  .wish{margin:10px 16px 0;border:1px solid #d9d6cf;border-radius:5px;text-align:center;
+        padding:11px;font-size:12.3px;color:#3c4254}
+  .trust{display:flex;gap:8px;margin:12px 16px 0;font-size:10.9px;color:#55596b;white-space:nowrap}
+  .sku{margin:11px 16px 0;font-size:11.5px;color:#8d91a0}
+  .pay{display:flex;align-items:center;gap:6px;margin:10px 16px 0}
+  .pay em{font-style:normal;font-size:10px;color:#8d91a0;margin-right:2px}
+  .pay b{width:30px;height:19px;background:#f0efea;border:1px solid #e2dfd8;border-radius:3px;display:block}
+  .store{margin:11px 16px 16px;font-size:11.6px;color:#55596b}
+  .store .s{color:#8a6d2f;letter-spacing:1px}
+
+  /* ── desktop ───────────────────────────────────────────── */
+  .win{flex:1 1 640px;min-width:600px;background:#fff;border:1px solid #d9d6cf;border-radius:8px;
+       overflow:hidden;box-shadow:0 8px 26px rgba(0,0,0,.09)}
+  .chrome{background:#e9e7e1;padding:8px 12px;display:flex;align-items:center;gap:7px;border-bottom:1px solid #d9d6cf}
+  .dot{width:10px;height:10px;border-radius:50%;background:#cbc8c1}
+  .url{flex:1;background:#fff;border-radius:4px;padding:4px 10px;font-size:11px;color:#8a8e99;margin-left:8px}
+  .dhdr{display:flex;align-items:center;gap:22px;padding:13px 28px;border-bottom:1px solid #e6e3dc}
+  .dlogo{width:54px;height:54px;border:2px solid #15192b;border-radius:6px;display:flex;align-items:center;
+         justify-content:center;font:700 13px Georgia,serif}
+  .dnav{display:flex;gap:17px;font-size:12px;color:#3c4254;margin-left:auto}
+  .dcrumb{padding:10px 28px;font-size:11.5px;color:#6b6f80;border-bottom:1px solid #f0eee9}
+  .dgrid{display:grid;grid-template-columns:3fr 2fr;gap:36px;padding:24px 28px 30px;align-items:start}
+  .dshot{width:100%;aspect-ratio:4/3;background:#f6f5f1;border:1px solid #e6e3dc;border-radius:9px;
+         position:relative;display:flex;align-items:center;justify-content:center}
+  .dthumbs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:9px}
+  .dthumbs b{aspect-ratio:1;background:#f0efea;border:1.5px solid #e2dfd8;border-radius:5px;display:block}
+  .dthumbs b:first-child{border-color:#8a6d2f}
+  .dttl{font:700 27px/1.17 Georgia,serif;margin:5px 0 0}
+  .dprice{font:700 29px Georgia,serif;color:#8a6d2f}
+  .dqty{display:inline-flex;align-items:center;border:1px solid #e2dfd8;border-radius:5px;padding:10px 14px;
+        font-size:13px;color:#55596b;gap:14px}
+  .drow{display:flex;gap:10px;margin:13px 0 0;align-items:stretch}
+  .dcta{flex:1;background:#8a6d2f;color:#fff;text-align:center;font-weight:700;padding:14px;
+        border-radius:5px;font-size:13.4px;letter-spacing:.04em}
+
+  ul.notes{margin:14px 0 0;padding-left:19px;font-size:12.8px;color:#444;max-width:560px}
+  ul.notes li{margin:7px 0}
+  .foot{margin-top:36px;padding-top:16px;border-top:1px solid #ddd;font-size:13px;color:#4a4f5e;max-width:950px}
+  code{background:#e9e8e3;padding:1px 5px;border-radius:3px;font-size:12px}
+</style></head><body><div class="page">
+
+<h1>Product page — all five changes together</h1>
+<p class="sub">Phone at 390&times;844 with the fold marked, desktop at full width. Bristol 30&quot; ($2,407).</p>
+
+<div class="key">
+  <span><b>1</b>Fold rework — mobile only</span>
+  <span><b>2</b>Call a product expert</span>
+  <span><b>3</b>Product review figure</span>
+  <span><b>4</b>Store rating moved &amp; relabelled</span>
+  <span><b>5</b>Shortened title</span>
+</div>
+
+<div class="cols">
+
+  <!-- ── MOBILE ──────────────────────────────────────────── -->
+  <div>
+    <p class="lab">Mobile</p>
+    <div class="phone">
+      <div class="fold"></div><div class="foldtag">FOLD 844</div>
+      <div class="bar">Free Shipping on Most Orders · Shop Now →</div>
+      <div class="nav"><div class="logo">BVO</div><div class="navicons">· · · ·</div></div>
+      <div class="shot"><span class="sale">SALE</span><i></i></div>
+      <div class="thumbs"><b></b><b></b><b></b><b></b><b></b></div>
+      <div class="brand">James Martin Vanities</div>
+      <div class="ttl">Bristol 30&quot; Single Vanity — Bright White w/ White Zeus Silestone Top<span class="n">5</span></div>
+      <div class="rev">
+        <span class="score">4.4</span>
+        <span class="stars">★★★★☆</span>
+        <span class="cnt">· 220 reviews</span><span class="n">3</span>
+        <p class="src">Average across verified customer reviews at national retailers, Nov 2026.</p>
+      </div>
+      <div class="prow"><span class="price">$2,407.00</span><span class="was">$3,647.00</span>
+        <span class="save">Save $1,240</span></div>
+      <div class="ship">🚚 Free shipping — usually arrives in 5–10 business days</div>
+      <div class="buyrow"><div class="qty">− 1 +</div><div class="cta">ADD TO CART</div></div>
+      <div class="alt">📞 Questions? Call a product expert.<span class="n">2</span></div>
+      <div class="hours">Available 9am–5:30pm ET, Mon–Sat</div>
+      <div class="wish">♡ Save to Wishlist</div>
+      <div class="trust"><span>↺ 30-Day Returns</span><span>🚚 Free Shipping</span><span>🛡 Secure Checkout</span></div>
+      <div class="sku">SKU: 157-V30-BW-1WZ</div>
+      <div class="pay"><em>We accept</em><b></b><b></b><b></b><b></b><b></b><b></b></div>
+      <div class="store"><span class="s">★★★★★</span> <strong>4.9</strong>
+        BathroomVanitiesOutlet.com · 150 Google reviews<span class="n">4</span></div>
+    </div>
+    <ul class="notes">
+      <li><strong>1</strong> — hero keeps full size, thumbnails one scrolling row, breadcrumb hidden,
+        stepper beside the button. Add to Cart ends at 691px, trust row at 843.</li>
+      <li><strong>2</strong> — in-stock pages only; on out-of-stock pages the back-in-stock form is the
+        single ask. Phone number hidden here because the whole control is one tap to dial.</li>
+      <li><strong>3</strong> — above the price, where a rating belongs.</li>
+      <li><strong>4</strong> — the store rating now sits well below the buy box, with the subject named.</li>
+    </ul>
+  </div>
+
+  <!-- ── DESKTOP ─────────────────────────────────────────── -->
+  <div class="win">
+    <p class="lab" style="padding:14px 28px 0;margin:0">Desktop</p>
+    <div class="chrome" style="margin-top:10px"><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      <span class="url">bathroomvanitiesoutlet.com/products/157-v30-bw-1wz</span></div>
+    <div class="dhdr"><div class="dlogo">BVO</div>
+      <div style="font:600 15px Georgia,serif">BathroomVanities<span style="color:#a9793a">Outlet</span>.com</div>
+      <div class="dnav"><span>Vanities</span><span>Mirrors</span><span>Bath Faucets</span>
+        <span>Accessories</span><span>Bundle/Save</span><span>Vanity Sale</span></div></div>
+    <div class="dcrumb">Home › Bathroom Vanities- All › Bristol 30&quot; Single Vanity — Bright White</div>
+    <div class="dgrid">
+      <div>
+        <div class="dshot"><span class="sale">SALE</span><i style="width:42%;height:52%;border:2px dashed #c9cdc6;border-radius:5px;display:block"></i></div>
+        <div class="dthumbs"><b></b><b></b><b></b><b></b></div>
+      </div>
+      <div>
+        <div class="brand" style="margin:0">James Martin Vanities</div>
+        <h2 class="dttl">Bristol 30&quot; Single Vanity — Bright White w/ White Zeus Silestone Top<span class="n">5</span></h2>
+        <div class="rev" style="margin:11px 0 0">
+          <span class="score">4.4</span> <span class="stars">★★★★☆</span>
+          <span class="cnt">· 220 reviews</span><span class="n">3</span>
+          <p class="src">Average across verified customer reviews at national retailers, Nov 2026.</p>
+        </div>
+        <div class="prow" style="margin:13px 0 0"><span class="dprice">$2,407.00</span>
+          <span class="was" style="font-size:15px">$3,647.00</span>
+          <span class="save" style="font-size:11.5px">Save $1,240</span></div>
+        <div class="ship" style="margin:9px 0 0;font-size:13px">🚚 Free shipping — usually arrives in 5–10 business days</div>
+        <div class="drow"><div class="dqty">− 1 +</div><div class="dcta">ADD TO CART</div></div>
+        <div class="alt" style="margin:10px 0 0">📞 Questions? Call a product expert — <strong>(877) 777-1948</strong><span class="n">2</span></div>
+        <div class="hours" style="margin:6px 0 0">Available 9am–5:30pm ET, Mon–Sat</div>
+        <div class="wish" style="margin:10px 0 0">♡ Save to Wishlist</div>
+        <div class="trust" style="margin:15px 0 0;font-size:12px;gap:16px">
+          <span>↺ 30-Day Returns</span><span>🚚 Free Shipping</span><span>🛡 Secure Checkout</span></div>
+        <div class="pay" style="margin:12px 0 0"><em>We accept</em><b></b><b></b><b></b><b></b><b></b><b></b></div>
+        <div class="store" style="margin:12px 0 0"><span class="s">★★★★★</span> <strong>4.9</strong>
+          BathroomVanitiesOutlet.com · 150 Google reviews<span class="n">4</span></div>
+      </div>
+    </div>
+    <ul class="notes" style="padding:0 28px 20px 46px">
+      <li><strong>1</strong> does not appear here at all — every rule sits inside
+        <code>@media (max-width:600px)</code>. Desktop layout is untouched.</li>
+      <li><strong>2</strong> shows the number <em>as text</em>; a <code>tel:</code> link on a laptop
+        hands off to an app the visitor may not have.</li>
+      <li><strong>5</strong> the heading only. The full product name stays in the page title, meta
+        description and structured data, so search listings are unaffected.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="foot">
+<p><strong>Two ratings now appear, and that is the point of 4.</strong> The product's own figure sits
+above the price; the store's Google score sits near the bottom with its subject named. Previously the
+store score sat directly under Add to Cart, where it read as this vanity's rating.</p>
+<p><strong>The review figure never enters structured data.</strong> Those are Home Depot's and
+Ferguson's reviews. Google requires review markup to describe reviews the site collected itself, and
+<code>gate_structured_data.js</code> asserts no <code>aggregateRating</code> appears on this page.
+The figure is shown to a person and withheld from the crawler, deliberately.</p>
+<p><strong>Status:</strong> 1–4 are built and all gates pass. <strong>5 is drawn here but not built</strong>
+— titles are data and reach collection cards, so the rule output goes to you as a before/after file for
+every affected SKU before a single title changes on the site.</p>
+</div>
+
+</div></body></html>

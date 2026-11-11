@@ -1,0 +1,210 @@
+<!doctype html><html><head><meta charset="utf-8">
+<title>Desktop PDP — current vs proposed</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#f4f3ef;color:#15192b;
+       font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  .page{max-width:1300px;margin:0 auto;padding:30px 24px 70px}
+  h1{font:600 24px/1.3 Georgia,serif;margin:0 0 4px}
+  .sub{color:#5d6475;margin:0 0 10px;font-size:13px}
+  .note{background:#fff8e6;border:1px solid #e8d9a8;border-radius:5px;padding:12px 14px;
+        font-size:13px;color:#5a4c22;margin:0 0 28px;max-width:900px}
+  .lab{font-weight:700;font-size:13px;letter-spacing:.06em;text-transform:uppercase;margin:30px 0 10px}
+  .lab.bad{color:#a33}.lab.good{color:#2f6f3f}
+
+  /* ── the browser frame ───────────────────────────────────────────── */
+  .win{background:#fff;border:1px solid #d9d6cf;border-radius:8px;overflow:hidden;
+       box-shadow:0 8px 28px rgba(0,0,0,.09)}
+  .chrome{background:#e9e7e1;padding:8px 12px;display:flex;align-items:center;gap:7px;
+          border-bottom:1px solid #d9d6cf}
+  .dot{width:10px;height:10px;border-radius:50%;background:#cbc8c1}
+  .url{flex:1;background:#fff;border-radius:4px;padding:4px 10px;font-size:11px;color:#8a8e99;margin-left:8px}
+
+  /* ── site header ─────────────────────────────────────────────────── */
+  .hdr{display:flex;align-items:center;gap:26px;padding:14px 34px;border-bottom:1px solid #e6e3dc}
+  .logo{width:60px;height:60px;border:2px solid #15192b;border-radius:6px;display:flex;
+        align-items:center;justify-content:center;font:700 15px Georgia,serif;flex:0 0 auto}
+  .wordmark{font:600 16px Georgia,serif}
+  .wordmark span{color:#a9793a}
+  .nav{display:flex;gap:20px;font-size:12.5px;color:#3c4254;margin-left:auto}
+  .icons{display:flex;gap:12px;color:#8a8e99;font-size:13px;margin-left:16px}
+  .crumb{padding:11px 34px;font-size:12px;color:#6b6f80;border-bottom:1px solid #f0eee9}
+
+  /* ── the two-column product layout (3fr 2fr, as the live grid) ───── */
+  .detail{display:grid;grid-template-columns:3fr 2fr;gap:44px;padding:28px 34px 34px;align-items:start}
+  .shot{width:100%;aspect-ratio:4/3;background:#f6f5f1;border:1px solid #e6e3dc;border-radius:9px;
+        position:relative;display:flex;align-items:center;justify-content:center}
+  .shot i{width:40%;height:52%;border:2px dashed #c9cdc6;border-radius:5px;display:block}
+  .sale{position:absolute;top:12px;left:12px;background:#8a6d2f;color:#fff;font-size:10.5px;
+        font-weight:700;letter-spacing:.07em;padding:4px 9px;border-radius:3px}
+  .thumbs{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:10px}
+  .thumbs b{aspect-ratio:1;background:#f0efea;border:1.5px solid #e2dfd8;border-radius:6px;display:block}
+  .thumbs b:first-child{border-color:#8a6d2f}
+
+  .brand{font-size:11.5px;letter-spacing:.15em;color:#6b6f80;text-transform:uppercase}
+  .ttl{font:700 30px/1.16 Georgia,serif;margin:6px 0 0}
+  .ttl.short{font-size:29px}
+  .sku{font-size:12px;color:#8d91a0;margin:9px 0 0}
+  .stars{margin:10px 0 0;font-size:13.5px}
+  .stars b{color:#8a6d2f}
+  .stars s{color:#6b6f80;text-decoration:none;font-size:12.5px}
+  .pricerow{display:flex;align-items:baseline;gap:11px;margin:14px 0 0;flex-wrap:wrap}
+  .price{font:700 31px Georgia,serif;color:#8a6d2f}
+  .was{font-size:16px;color:#9aa0ad;text-decoration:line-through}
+  .save{background:#e7f3ea;color:#1b6b3a;font-size:12px;font-weight:700;padding:4px 9px;border-radius:3px}
+  .ship{margin:9px 0 0;font-size:13px;color:#1b6b3a;font-weight:600}
+  .rule{border:0;border-top:1px solid #eceae4;margin:17px 0}
+  .qty{display:inline-flex;align-items:center;border:1px solid #e2dfd8;border-radius:5px;
+       overflow:hidden;margin:0 0 13px}
+  .qty i{padding:9px 14px;font-style:normal;color:#55596b}
+  .qty u{padding:9px 16px;text-decoration:none;border-left:1px solid #e2dfd8;border-right:1px solid #e2dfd8}
+  .cta{background:#8a6d2f;color:#fff;text-align:center;font-weight:700;padding:15px;
+       border-radius:5px;font-size:14.5px;letter-spacing:.04em}
+  .alt{margin-top:10px;border:1.5px solid #15192b;color:#15192b;text-align:center;font-weight:600;
+       padding:13px;border-radius:5px;font-size:13.5px}
+  .hours{margin:7px 0 0;text-align:center;font-size:11.5px;color:#6b6f7e}
+  .wish{margin-top:10px;border:1px solid #d9d6cf;color:#3c4254;text-align:center;
+        padding:12px;border-radius:5px;font-size:13px}
+  .trust{display:flex;gap:16px;margin:18px 0 0;font-size:12px;color:#55596b;flex-wrap:wrap}
+  .pay{display:flex;align-items:center;gap:7px;margin:14px 0 0}
+  .pay em{font-style:normal;font-size:11px;color:#8d91a0;margin-right:3px}
+  .pay b{width:34px;height:22px;background:#f0efea;border:1px solid #e2dfd8;border-radius:3px;display:block}
+
+  .cards{margin-top:18px;border:1px solid #e6e3dc;border-radius:7px;padding:14px}
+  .cards p{margin:0 0 9px;font:700 12px/1 system-ui;letter-spacing:.05em;text-transform:uppercase;color:#55596b}
+  .chips{display:flex;gap:7px;flex-wrap:wrap}
+  .chips a{border:1px solid #d9d6cf;border-radius:4px;padding:6px 11px;font-size:12.5px;
+           color:#3c4254;text-decoration:none}
+  .chips a.on{border-color:#8a6d2f;color:#8a6d2f;font-weight:700}
+
+  .callout{display:inline-block;background:#fdf4e3;border:1px solid #e8d9a8;color:#6b5720;
+           font-size:11px;font-weight:700;padding:2px 7px;border-radius:3px;margin-left:8px;
+           letter-spacing:.03em;vertical-align:middle}
+  ul.why{margin:12px 0 0;padding-left:19px;font-size:13px;color:#444;max-width:960px}
+  ul.why li{margin:6px 0}
+  .win2 b{color:#2f6f3f;font-weight:700}
+  .foot{margin-top:34px;padding-top:16px;border-top:1px solid #ddd;font-size:13px;
+        color:#4a4f5e;max-width:960px}
+  code{background:#e9e8e3;padding:1px 5px;border-radius:3px;font-size:12px}
+</style></head><body><div class="page">
+
+<h1>Desktop product page — current vs proposed</h1>
+<p class="sub">1,300px viewport. The live two-column grid (3fr / 2fr) is unchanged in both.</p>
+
+<div class="note"><strong>The fold rework does not appear here.</strong> Every rule from that work sits
+inside <code>@media (max-width:600px)</code> — hero shrink, reorder, hidden breadcrumb, moved quantity
+stepper are all phone-only. What you see below are the three <em>content</em> items, which are markup
+and data rather than CSS, and therefore do reach desktop.</div>
+
+<!-- ─────────────────────────── CURRENT ─────────────────────────── -->
+<p class="lab bad">✗ Current</p>
+<div class="win">
+  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    <span class="url">bathroomvanitiesoutlet.com/products/157-v30-bw-1wz</span></div>
+  <div class="hdr">
+    <div class="logo">BVO</div>
+    <div class="wordmark">BathroomVanities<span>Outlet</span>.com</div>
+    <div class="nav"><span>Vanities</span><span>Mirrors</span><span>Bath Faucets</span>
+      <span>Accessories</span><span>Bundle/Save</span><span>Vanity Sale</span></div>
+    <div class="icons"><span>⌕</span><span>☺</span><span>♡</span><span>🛍</span></div>
+  </div>
+  <div class="crumb">Home › Bathroom Vanities- All › Bristol 30" Single Vanity, Bright White w/ Single Hole 3 CM White Zeus Silestone Top &amp; Backsplash</div>
+  <div class="detail">
+    <div>
+      <div class="shot"><span class="sale">SALE</span><i></i></div>
+      <div class="thumbs"><b></b><b></b><b></b></div>
+    </div>
+    <div>
+      <div class="brand">James Martin Vanities</div>
+      <h2 class="ttl">Bristol 30" Single Vanity, Bright White w/ Single Hole 3 CM White Zeus Silestone Top &amp; Backsplash</h2>
+      <p class="sku">SKU: 157-V30-BW-1WZ</p>
+      <div class="pricerow"><span class="price">$2,407.00</span>
+        <span class="was">$3,647.00</span><span class="save">Save $1240.00</span></div>
+      <p class="ship" style="color:#55596b;font-weight:500">🚚 Free shipping — arrives in 5–10 business days</p>
+      <hr class="rule">
+      <div class="qty"><i>−</i><u>1</u><i>+</i></div>
+      <div class="cta">ADD TO CART</div>
+      <div class="wish">♡ Save to Wishlist</div>
+      <p class="stars" style="margin-top:14px">★★★★★ <b>4.9</b> <s>(150 Google Reviews)</s></p>
+      <div class="trust"><span>↺ 30-Day Returns</span><span>🚚 Free Shipping</span><span>🛡 Secure Checkout</span></div>
+      <div class="pay"><em>We accept</em><b></b><b></b><b></b><b></b><b></b><b></b></div>
+      <div class="cards"><p>View Other Options</p>
+        <div class="chips"><a class="on">30"</a><a>36"</a><a>48"</a><a>60"</a><a>72"</a></div></div>
+    </div>
+  </div>
+</div>
+<ul class="why">
+  <li>Title runs the full raw product name — three lines in the column</li>
+  <li>The only rating shown is the <em>site-wide</em> Google score, sitting below the buy button where it reads as a product rating</li>
+  <li>Nothing states availability; a shopper infers it from the button not being greyed out</li>
+  <li>No way to reach a person from this page</li>
+</ul>
+
+<!-- ─────────────────────────── PROPOSED ─────────────────────────── -->
+<p class="lab good">✓ Proposed — the three content changes, at desktop width</p>
+<div class="win">
+  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    <span class="url">bathroomvanitiesoutlet.com/products/157-v30-bw-1wz</span></div>
+  <div class="hdr">
+    <div class="logo">BVO</div>
+    <div class="wordmark">BathroomVanities<span>Outlet</span>.com</div>
+    <div class="nav"><span>Vanities</span><span>Mirrors</span><span>Bath Faucets</span>
+      <span>Accessories</span><span>Bundle/Save</span><span>Vanity Sale</span></div>
+    <div class="icons"><span>⌕</span><span>☺</span><span>♡</span><span>🛍</span></div>
+  </div>
+  <div class="crumb">Home › Bathroom Vanities- All › Bristol 30" Single Vanity — Bright White</div>
+  <div class="detail">
+    <div>
+      <div class="shot"><span class="sale">SALE</span><i></i></div>
+      <div class="thumbs"><b></b><b></b><b></b></div>
+    </div>
+    <div>
+      <div class="brand">James Martin Vanities</div>
+      <h2 class="ttl short">Bristol 30" Single Vanity — Bright White w/ White Zeus Silestone Top
+        <span class="callout">1 · shortened</span></h2>
+      <p class="sku">SKU: 157-V30-BW-1WZ</p>
+      <p class="stars">★★★★☆ <b>4.4</b> <s>· 220 reviews at national retailers</s>
+        <span class="callout">2 · review figure</span></p>
+      <div class="pricerow"><span class="price">$2,407.00</span>
+        <span class="was">$3,647.00</span><span class="save">Save $1240.00</span></div>
+      <p class="ship">✓ In stock · Free shipping · usually arrives in 5–10 business days</p>
+      <hr class="rule">
+      <div class="qty"><i>−</i><u>1</u><i>+</i></div>
+      <div class="cta">ADD TO CART</div>
+      <div class="alt">📞 Questions? Call a product expert — (770) 000-0000
+        <span class="callout">3 · expert contact</span></div>
+      <p class="hours">Available 9am–5:30pm ET, Mon–Sat</p>
+      <div class="wish">♡ Save to Wishlist</div>
+      <div class="trust" style="margin-top:18px"><span>↺ 30-Day Returns</span><span>🚚 Free Shipping</span><span>🛡 Secure Checkout</span></div>
+      <div class="pay"><em>We accept</em><b></b><b></b><b></b><b></b><b></b><b></b></div>
+      <div class="cards"><p>View Other Options</p>
+        <div class="chips"><a class="on">30"</a><a>36"</a><a>48"</a><a>60"</a><a>72"</a></div></div>
+    </div>
+  </div>
+</div>
+<ul class="why win2">
+  <li><b>1 · Shortened title</b> — three lines become two. Dropped: "Single Hole", "3 CM",
+      "&amp; Backsplash". All three remain in the specifications table further down the page.</li>
+  <li><b>2 · Review figure</b> moves <em>above</em> the price, where a rating belongs, and is the
+      product's own figure rather than the site-wide Google score. The Google score still has a home —
+      just not directly under the buy button where it looks like a product rating.</li>
+  <li><b>3 · Expert contact</b> renders the number <em>as text</em> on desktop rather than a
+      <code>tel:</code> link. On a laptop a tel: link hands off to FaceTime or a dialer the visitor
+      may not have; on a phone it stays one tap to call.</li>
+  <li><b>Availability stated</b> before the ask, same wording as mobile.</li>
+</ul>
+
+<div class="foot">
+<p><strong>Unchanged on desktop:</strong> the 3fr / 2fr grid, image and thumbnail sizes, header and
+navigation, breadcrumb, quantity stepper position, payment logos, the variant cards, specifications
+and description. The fold rework touches none of it.</p>
+<p><strong>Two decisions this mockup takes a position on, so you can disagree with it:</strong>
+the phone number shows as text on desktop and as a tap-to-call link on mobile; and the shortened
+title is used for the visible heading only — the full product name stays in the page title, meta
+description and structured data, so search listings are unaffected.</p>
+<p><strong>Not shown, because they are not built:</strong> the review figure is in the database but
+renders only on collection pages today, and <code>contact_phone</code> is blank in the Theme Editor,
+so the number above is a placeholder.</p>
+</div>
+
+</div></body></html>
