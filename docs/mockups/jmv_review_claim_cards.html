@@ -1,0 +1,200 @@
+<meta charset="utf-8">
+<title>JMV review claim — cards, refined</title>
+<style>
+  :root{ --ink:#16302b; --cream:#faf7f2; --line:#e3ded4; --green:#1d4d3e;
+         --orange:#c05621; --muted:#6b6257; --gold:#d79b22; }
+  *{box-sizing:border-box}
+  body{margin:0;background:#eeeae2;font:15px/1.55 Georgia,'Times New Roman',serif;color:var(--ink)}
+  .wrap{max-width:980px;margin:0 auto;padding:26px 18px 60px}
+  h1.pg{font-size:21px;margin:0 0 4px}
+  .sub{font:13px/1.5 system-ui,sans-serif;color:var(--muted);margin:0 0 24px}
+
+  .opt{background:#fff;border:1px solid var(--line);border-radius:8px;margin:0 0 28px;overflow:hidden}
+  .opt-hd{padding:13px 18px;border-bottom:1px solid var(--line);background:#fcfaf6;
+    display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .tag{font:11px/1 system-ui,sans-serif;letter-spacing:.09em;text-transform:uppercase;
+    background:var(--green);color:#fff;padding:5px 9px;border-radius:3px}
+  .tag.alt{background:#8a7f70}
+  .opt-hd h2{font-size:16px;margin:0}
+  .opt-bd{padding:20px 18px}
+  .note{font:12.5px/1.6 system-ui,sans-serif;color:var(--muted);
+    border-top:1px dashed var(--line);margin-top:16px;padding-top:12px}
+  .note b{color:var(--ink)}
+
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:6px;padding:11px;
+    display:flex;flex-direction:column;min-height:232px;position:relative}
+  .badge{position:absolute;top:9px;left:9px;background:var(--green);color:#fff;
+    font:9px/1 system-ui,sans-serif;padding:4px 6px;border-radius:3px;letter-spacing:.05em}
+  .rate{position:absolute;top:8px;right:9px;font:11.5px/1 system-ui,sans-serif;
+    display:flex;align-items:center;gap:4px}
+  .rate .n{font-weight:700;font-size:12.5px}
+  .rate .c{color:var(--muted);font-size:10.5px}
+  .shot{height:80px;margin:28px 0 10px;background:#efeae1;border-radius:4px;
+    display:flex;align-items:flex-end;justify-content:center;padding-bottom:7px}
+  .vanity{width:64px;height:52px;border-radius:2px}
+  .cname{font:bold 12.5px/1.3 system-ui,sans-serif;margin-bottom:3px}
+  .cbrand{font:10.5px/1.3 system-ui,sans-serif;color:var(--muted);margin-bottom:7px}
+  .cprice{font:bold 12px/1 system-ui,sans-serif;color:var(--green);margin-top:auto}
+  .cprice s{color:#aaa;font-weight:400;margin-left:4px}
+  .btn{margin-top:9px;background:var(--ink);color:#fff;text-align:center;
+    font:9.5px/1 system-ui,sans-serif;padding:8px;border-radius:3px;letter-spacing:.06em}
+
+  .foot{font:11.5px/1.6 system-ui,sans-serif;color:var(--muted);margin-top:13px;
+    padding-top:10px;border-top:1px solid var(--line)}
+
+  /* close-up */
+  .zoomrow{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap}
+  .zoom{transform-origin:top left;width:232px}
+  .zoom .card{min-height:0;padding:14px}
+  .zoomlbl{font:11px/1.4 system-ui,sans-serif;color:var(--muted);margin-bottom:7px;
+    text-transform:uppercase;letter-spacing:.07em}
+  .big .rate{position:static;margin:0 0 9px;justify-content:flex-start}
+  .big .shot{margin-top:4px}
+
+  @media(max-width:700px){.grid{grid-template-columns:1fr 1fr}}
+</style>
+
+<div class="wrap">
+  <h1 class="pg">Option B, refined — the figure on the model cards</h1>
+  <p class="sub">Review count included. No-data cards simply omit the row rather than announcing it.
+     Nothing here is live.</p>
+
+  <!-- ══ the grid ══ -->
+  <div class="opt">
+    <div class="opt-hd">
+      <span class="tag">The grid as it would look</span>
+      <h2>6 of 40 cards, real proportion</h2>
+    </div>
+    <div class="opt-bd">
+      <div class="grid">
+        <div class="card">
+          <span class="badge">TRENDING</span>
+          <span class="rate"><span class="n">4.5</span><span class="c">(143 reviews)</span></span>
+          <div class="shot"><div class="vanity" style="background:#8c9e8a"></div></div>
+          <div class="cname">The Brittany Collection</div>
+          <div class="cbrand">James Martin Vanities</div>
+          <div class="cprice">$1,343 <s>$2,035</s></div>
+          <div class="btn">SHOP THE BRITTANY</div>
+        </div>
+
+        <div class="card">
+          <span class="badge">TRENDING</span>
+          <div class="shot"><div class="vanity" style="background:#b9a284"></div></div>
+          <div class="cname">The Breckenridge Collection</div>
+          <div class="cbrand">James Martin Vanities</div>
+          <div class="cprice">$2,451 <s>$3,713</s></div>
+          <div class="btn">SHOP THE BRECKENRIDGE</div>
+        </div>
+
+        <div class="card">
+          <span class="badge">POPULAR</span>
+          <div class="shot"><div class="vanity" style="background:#6b3f32"></div></div>
+          <div class="cname">The Amberly Collection</div>
+          <div class="cbrand">James Martin Vanities</div>
+          <div class="cprice">$2,947 <s>$4,462</s></div>
+          <div class="btn">SHOP THE AMBERLY</div>
+        </div>
+
+        <div class="card">
+          <span class="badge">TRENDING</span>
+          <span class="rate"><span class="n">4.3</span><span class="c">(184 reviews)</span></span>
+          <div class="shot"><div class="vanity" style="background:#d8d2c6"></div></div>
+          <div class="cname">The Bristol Collection</div>
+          <div class="cbrand">James Martin Vanities</div>
+          <div class="cprice">$1,619 <s>$2,453</s></div>
+          <div class="btn">SHOP THE BRISTOL</div>
+        </div>
+
+        <div class="card">
+          <span class="badge">LOW STOCK</span>
+          <span class="rate"><span class="n">4.9</span><span class="c">(33 reviews)</span></span>
+          <div class="shot"><div class="vanity" style="background:#e4ded2"></div></div>
+          <div class="cname">The Myrrin Collection</div>
+          <div class="cbrand">James Martin Vanities</div>
+          <div class="cprice">$2,180 <s>$3,303</s></div>
+          <div class="btn">SHOP THE MYRRIN</div>
+        </div>
+
+        <div class="card">
+          <span class="badge">TRENDING</span>
+          <div class="shot"><div class="vanity" style="background:#c9b89c"></div></div>
+          <div class="cname">The Hudson Collection</div>
+          <div class="cbrand">James Martin Vanities</div>
+          <div class="cprice">$2,595 <s>$3,932</s></div>
+          <div class="btn">SHOP THE HUDSON</div>
+        </div>
+      </div>
+
+      <div class="foot">
+        Ratings shown are averages of verified customer reviews collected at national retailers,
+        last checked November 2026. Collections without a rating have too few independent reviews
+        to report.
+      </div>
+
+      <div class="note">
+        <b>The footnote is load-bearing.</b> It is the only place "national retailers" and the date
+        can live on a grid, and without them a bare "4.5" on a BVO card reads as BVO's own rating.
+        One line under the grid covers all 40 cards. The second sentence is what stops a missing
+        rating from reading as a bad one.
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ close-up ══ -->
+  <div class="opt">
+    <div class="opt-hd"><span class="tag alt">Close-up</span><h2>The rating row at full size</h2></div>
+    <div class="opt-bd">
+      <div class="zoomrow">
+        <div>
+          <div class="zoomlbl">Has a figure</div>
+          <div class="zoom big">
+            <div class="card">
+              <span class="rate"><span class="n">4.5</span><span class="c">(143 reviews)</span></span>
+              <div class="shot"><div class="vanity" style="background:#8c9e8a"></div></div>
+              <div class="cname">The Brittany Collection</div>
+              <div class="cbrand">James Martin Vanities</div>
+              <div class="cprice">$1,343 <s>$2,035</s></div>
+              <div class="btn">SHOP THE BRITTANY</div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="zoomlbl">No figure — row absent, nothing else moves</div>
+          <div class="zoom big">
+            <div class="card">
+              <div class="shot" style="margin-top:4px"><div class="vanity" style="background:#b9a284"></div></div>
+              <div class="cname">The Breckenridge Collection</div>
+              <div class="cbrand">James Martin Vanities</div>
+              <div class="cprice">$2,451 <s>$3,713</s></div>
+              <div class="btn">SHOP THE BRECKENRIDGE</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="note">
+        No stars, by design — gold stars are what every store uses for its <i>own</i> reviews, and
+        these are not ours. The plain number plus the count carries the credibility without the
+        implied ownership.
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ what still needs deciding ══ -->
+  <div class="opt">
+    <div class="opt-hd"><span class="tag alt">One open question</span><h2>Breckenridge</h2></div>
+    <div class="opt-bd" style="font:13.5px/1.65 system-ui,sans-serif">
+      <p style="margin:0 0 10px">Breckenridge is your <b>#2 seller</b> and the one collection where
+         the two retailers flatly disagree — <b>3.4 at Home Depot</b> across 11 reviews,
+         <b>4.6 at Ferguson</b> across 21. Combined that is 4.2, which is arithmetically true and,
+         I think, misleading in both directions.</p>
+      <p style="margin:0 0 10px">On a card grid its blank is more conspicuous than it would be on a
+         landing page, because Brittany's 4.5 sits two cards away. The footnote's second sentence
+         is what makes that survivable — it says "too few independent reviews," not "poorly rated."</p>
+      <p style="margin:0"><b>My recommendation stands: leave it off.</b> If you would rather show
+         something, the honest version is the Home Depot figure alone with its count, and that
+         means publishing a 3.4 next to your second-best seller. Your call — I will build whichever
+         you pick, and the gate will enforce it either way.</p>
+    </div>
+  </div>
+</div>

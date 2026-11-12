@@ -5,7 +5,7 @@
  * Reads jmv_review_pools + jmv_review_collections, applies the pure rules in
  * src/config/jmvReviews.js, and hands collection.ejs a render-ready object.
  *
- * ⚠️ THE RULES ARE NOT IN THIS FILE, ON PURPOSE. The 30-review floor, the
+ * ⚠️ THE RULES ARE NOT IN THIS FILE, ON PURPOSE. The 5-review floor, the
  * 0.5 spread limit and the pool dedupe live in src/config/jmvReviews.js,
  * which requires nothing. That is what lets gates/gate_structured_data.js
  * prove them on a laptop with no DB_PASS — the exact failure that broke the

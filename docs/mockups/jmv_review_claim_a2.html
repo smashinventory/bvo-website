@@ -1,0 +1,172 @@
+<meta charset="utf-8">
+<title>JMV review claim — A2 treatments</title>
+<style>
+  :root{ --ink:#16302b; --cream:#faf7f2; --line:#e3ded4; --green:#1d4d3e;
+         --orange:#c05621; --muted:#6b6257; --gold:#d79b22; }
+  *{box-sizing:border-box}
+  body{margin:0;background:#eeeae2;font:15px/1.55 Georgia,'Times New Roman',serif;color:var(--ink)}
+  .wrap{max-width:980px;margin:0 auto;padding:26px 18px 60px}
+  h1.pg{font-size:21px;margin:0 0 4px}
+  .sub{font:13px/1.5 system-ui,sans-serif;color:var(--muted);margin:0 0 24px}
+
+  .opt{background:#fff;border:1px solid var(--line);border-radius:8px;margin:0 0 24px;overflow:hidden}
+  .opt-hd{padding:12px 18px;border-bottom:1px solid var(--line);background:#fcfaf6;
+    display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .tag{font:11px/1 system-ui,sans-serif;letter-spacing:.09em;text-transform:uppercase;
+    background:var(--green);color:#fff;padding:5px 9px;border-radius:3px}
+  .tag.alt{background:#8a7f70}
+  .tag.warn{background:#9b3024}
+  .opt-hd h2{font-size:15.5px;margin:0}
+  .opt-bd{padding:18px}
+  .note{font:12.5px/1.6 system-ui,sans-serif;color:var(--muted);
+    border-top:1px dashed var(--line);margin-top:14px;padding-top:11px}
+  .note b{color:var(--ink)}
+
+  .panel{background:var(--cream);border:1px solid var(--line);border-radius:5px;padding:18px 20px}
+  .panel p.copy{color:var(--orange);font-size:13.5px;margin:0 0 12px}
+
+  /* ── fractional stars ── */
+  .rs{display:inline-block;position:relative;font:16px/1 system-ui,sans-serif;
+    letter-spacing:2px;vertical-align:-1px}
+  .rs .bg{color:#d8d1c4}
+  .rs .fg{position:absolute;left:0;top:0;overflow:hidden;white-space:nowrap;color:var(--gold)}
+  .rs.ink .fg{color:var(--green)}
+
+  .line{font:13.5px/1.7 system-ui,sans-serif;color:var(--ink);
+    border-top:1px solid var(--line);padding-top:13px;margin-top:4px}
+  .score{font:bold 17px/1 system-ui,sans-serif;vertical-align:-1px}
+  .muted{color:var(--muted)}
+
+  .cmp{display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+    font:13px/1.5 system-ui,sans-serif;padding:7px 0}
+  .cmp .lbl{width:118px;color:var(--muted);font-size:11.5px;
+    text-transform:uppercase;letter-spacing:.06em}
+
+  table{width:100%;border-collapse:collapse;font:13px/1.5 system-ui,sans-serif}
+  th{text-align:left;padding:7px 6px;border-bottom:2px solid var(--line)}
+  td{padding:7px 6px;border-bottom:1px solid var(--line)}
+</style>
+
+<div class="wrap">
+  <h1 class="pg">A2 — landing page, with stars and the review count</h1>
+  <p class="sub">Three treatments of the same sentence. Pick one. Nothing here is live.</p>
+
+  <!-- ── fill accuracy ── -->
+  <div class="opt">
+    <div class="opt-hd"><span class="tag warn">Fix first</span>
+      <h2>Five solid stars is not 4.5</h2></div>
+    <div class="opt-bd">
+      <div class="cmp"><span class="lbl">Your mockup</span>
+        <span style="color:var(--gold);font:16px/1 system-ui,sans-serif;letter-spacing:2px">★★★★★</span>
+        <span class="muted">— reads as 5.0</span></div>
+      <div class="cmp"><span class="lbl">Correct for 4.5</span>
+        <span class="rs"><span class="bg">★★★★★</span><span class="fg" style="width:90%">★★★★★</span></span>
+        <span class="muted">— 90% fill</span></div>
+      <div class="cmp"><span class="lbl">Correct for 4.3</span>
+        <span class="rs"><span class="bg">★★★★★</span><span class="fg" style="width:86%">★★★★★</span></span>
+        <span class="muted">— 86% fill, Bristol</span></div>
+      <div class="cmp"><span class="lbl">Correct for 4.9</span>
+        <span class="rs"><span class="bg">★★★★★</span><span class="fg" style="width:98%">★★★★★</span></span>
+        <span class="muted">— 98% fill, Myrrin</span></div>
+      <div class="note">
+        Pure CSS, no images, no library. Whichever treatment you pick below uses this —
+        rounding 4.3 up to five gold stars is the one version of this that is straightforwardly
+        a false claim.
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Treatment 1 ── -->
+  <div class="opt">
+    <div class="opt-hd"><span class="tag">Treatment 1 — recommended</span>
+      <h2>Score, stars, then the full attribution</h2></div>
+    <div class="opt-bd">
+      <div class="panel">
+        <p class="copy">Burnished mahogany and black onyx are the two that photograph best. Satin nickel
+           or champagne brass hardware, 21.7" to 84" of width, soft-close doors and drawers
+           throughout. If you want one range to cover a whole-house renovation, this is it.</p>
+        <div class="line">
+          <span class="score">4.5</span>
+          <span class="rs"><span class="bg">★★★★★</span><span class="fg" style="width:90%">★★★★★</span></span>
+          &nbsp;The Brittany collection averages 4.5 out of 5 across
+          <b>143 customer reviews</b> at national retailers —
+          <span class="muted">verified November 2026.</span>
+        </div>
+      </div>
+      <div class="note">
+        Closest to your mockup. The count sits in bold mid-sentence where it does the most work,
+        and "at national retailers" lands before the eye leaves the line, so the stars never stand
+        alone as <i>our</i> rating.
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Treatment 2 ── -->
+  <div class="opt">
+    <div class="opt-hd"><span class="tag alt">Treatment 2</span>
+      <h2>Stacked — rating block above the sentence</h2></div>
+    <div class="opt-bd">
+      <div class="panel">
+        <p class="copy">…soft-close doors and drawers throughout. If you want one range to cover a
+           whole-house renovation, this is it.</p>
+        <div class="line">
+          <div style="margin-bottom:5px">
+            <span class="score" style="font-size:22px">4.5</span>
+            <span class="rs" style="font-size:19px"><span class="bg">★★★★★</span><span class="fg" style="width:90%">★★★★★</span></span>
+            <span class="muted" style="font-size:12.5px">&nbsp;· 143 reviews</span>
+          </div>
+          <div class="muted" style="font-size:12.5px">
+            Average across verified customer reviews at national retailers, November 2026.
+          </div>
+        </div>
+      </div>
+      <div class="note">
+        More visual weight, scannable on mobile. Trade-off: the attribution drops to a second line
+        in smaller grey type, so a skimmer can take the number without it.
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Treatment 3 ── -->
+  <div class="opt">
+    <div class="opt-hd"><span class="tag alt">Treatment 3</span>
+      <h2>Brand-green stars instead of gold</h2></div>
+    <div class="opt-bd">
+      <div class="panel">
+        <p class="copy">…soft-close doors and drawers throughout. If you want one range to cover a
+           whole-house renovation, this is it.</p>
+        <div class="line">
+          <span class="score">4.5</span>
+          <span class="rs ink"><span class="bg">★★★★★</span><span class="fg" style="width:90%">★★★★★</span></span>
+          &nbsp;The Brittany collection averages 4.5 out of 5 across
+          <b>143 customer reviews</b> at national retailers —
+          <span class="muted">verified November 2026.</span>
+        </div>
+      </div>
+      <div class="note">
+        Identical to Treatment 1 but in BVO green. Gold stars are the house style of first-party
+        review widgets everywhere; green reads as "our presentation of someone else's data" and
+        matches the site. Slightly less eye-catching.
+      </div>
+    </div>
+  </div>
+
+  <!-- ── what gets published ── -->
+  <div class="opt">
+    <div class="opt-hd"><span class="tag alt">Reference</span><h2>The three lines that would go live</h2></div>
+    <div class="opt-bd">
+      <table>
+        <tr><th>Page</th><th>Line</th></tr>
+        <tr><td><b>Brittany</b></td><td>averages <b>4.5</b> out of 5 across <b>143</b> customer reviews</td></tr>
+        <tr><td><b>Bristol</b></td><td>averages <b>4.3</b> out of 5 across <b>184</b> customer reviews</td></tr>
+        <tr><td><b>Myrrin</b></td><td>averages <b>4.9</b> out of 5 across <b>33</b> customer reviews</td></tr>
+        <tr><td class="muted">Lorelai</td><td class="muted">no line — 12 reviews, below the 30 threshold</td></tr>
+        <tr><td class="muted">Breckenridge</td><td class="muted">no line — 3.4 at Home Depot vs 4.6 at Ferguson, 1.14 spread</td></tr>
+      </table>
+      <div class="note">
+        The other 35 James Martin collections have no line at all. On landing pages that is
+        invisible — nobody views two of them side by side.
+      </div>
+    </div>
+  </div>
+</div>

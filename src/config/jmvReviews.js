@@ -46,8 +46,18 @@ const DEFAULTS = {
 
   /* NOT surfaced in the Theme Editor, deliberately. These decide whether a
      number is honest enough to publish, which is not a matter of taste. The
-     gate asserts both are still 30 and 0.5, so loosening them fails CI rather
-     than quietly shipping. */
+     gate asserts both are still 5 and 0.5, so loosening them fails CI rather
+     than quietly shipping.
+
+     ⚠️ THE FLOOR WAS 30 UNTIL 2026-11-06 (b3e66db). A sweep of all 40 James
+     Martin collections found review counts collapse after the top three —
+     Chicago carries 115 products on Ferguson and ONE review. A 30-review
+     floor was not protecting the site from thin data, it was permanently
+     hiding every collection except the three that happened to clear it.
+
+     max_spread did NOT move with it, and that was deliberate: loosening the
+     floor and the spread together would have been one change carrying two
+     unrelated risks. */
   min_reviews: 5,
   max_spread:  0.5,
 
@@ -65,16 +75,37 @@ const DEFAULTS = {
       rating: '4.9', count: '33',  hd: '5.00', ferguson: '4.83',
     },
 
-    /* ── DELIBERATELY ABSENT ────────────────────────────────────────────
-       Lorelai      — 12 reviews across both retailers, below min_reviews.
-                      4.9 off 12 is noise wearing a decimal point.
-       Breckenridge — 3.43 at Home Depot against 4.57 at Ferguson, a 1.14
-                      spread. The combined 4.2 is arithmetically true and
-                      misleading in both directions, and Breckenridge is the
-                      #2 seller, so it is the worst possible place to publish
-                      a number nobody can stand behind. Decided 2026-11-06.
-                      Adding either one fails the gate, which is the point —
-                      this comment is not the enforcement. */
+    /* ⚠️ THIS LIST IS THE FALLBACK, NOT THE LIVE SET. These three are what
+       renders when jmv_review_pools cannot be read — a DB outage, or before
+       the collector has run. The LIVE figures come from the database and
+       there are more of them (Addison, Laurent, Lorelai, Breckenridge and
+       others), so what a page shows today is NOT decided here.
+
+       ⚠️ THE COUNTS HERE DRIFT, AND THAT IS TOLERATED. They were true on
+       2026-11-06; the DB has since moved (Bristol reads 220 live against
+       the 184 below). The fallback exists to keep the site truthful during
+       an outage, not current — a slightly stale real number beats a blank.
+       Refresh them at the quarterly re-check, not piecemeal.
+
+       ── WHAT USED TO BE HERE, AND WHY IT IS GONE ──────────────────────
+       A "DELIBERATELY ABSENT" block listed Lorelai and Breckenridge as
+       excluded and ended "Adding either one fails the gate, which is the
+       point — this comment is not the enforcement."
+
+       Both are live today, and the comment was wrong on every count. The
+       floor moved 30 -> 5 on 2026-11-06 (b3e66db), which let Lorelai's 10
+       reviews through; Breckenridge is published through
+       override_rating/override_count on jmv_review_collections, a dated
+       human decision, because decide() still refuses its 0.84 spread.
+       Neither change failed any gate, because the gate tracked the
+       threshold rather than the exclusion.
+
+       The comment outlived the decision it described and then asserted an
+       enforcement that did not exist — exactly what it warned against. A
+       future reader would have "corrected" a figure that was published on
+       purpose. Removed 2026-11-12 rather than updated: the live set belongs
+       in jmv_review_collections and in auditAll(), which reports every
+       collection with its verdict and the reason it is dark. */
   },
 };
 
