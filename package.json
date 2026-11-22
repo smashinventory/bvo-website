@@ -49,6 +49,11 @@
     "body-parser": "^1.20.9",
     "qs": "^6.16.1",
     "follow-redirects": "^1.16.2",
-    "mysql2": "^3.24.6"
+    "mysql2": "^3.24.6",
+    "browserslist": "^4.28.7",
+    "baseline-browser-mapping": "^2.11.0",
+    "nodemon": {
+      "minimatch": "^11.0.1"
+    }
   }
 }
