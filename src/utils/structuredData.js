@@ -258,7 +258,28 @@ function organization(settings) {
   const phone    = String(g.contact_phone      || '').trim();
   const email    = String(g.contact_email      || '').trim();
   return {
-    '@type': 'OnlineStore',
+    /* ⚠️ BOTH TYPES, AND THE ORDER IS COSMETIC ONLY.
+       OnlineStore IS an Organization — Thing > Organization >
+       OnlineBusiness > OnlineStore — so naming the supertype alongside
+       the subtype is redundant but TRUE, and multi-typed nodes are
+       ordinary JSON-LD. Nothing is weakened: OnlineStore is still
+       declared, so the Merchant Knowledge Panel behaviour that made it
+       the right choice is intact.
+
+       WHY IT IS SPELLED OUT. Consumers that string-match for the literal
+       word "Organization" miss a valid subtype entirely. Hostinger's
+       AI-visibility scan is one: after the address shipped on 2026-11-23
+       it still scored "Organization or LocalBusiness schema is complete"
+       at 0/4, because the node said only OnlineStore. The address was
+       there and correct — verified in the live page — so the check was
+       reading the type name, not the content. Any other naive parser
+       would have had the same blind spot.
+
+       ⚠️ THIS IS NOT LICENCE TO ADD LocalBusiness. That is a different
+       claim, not a supertype: it asserts a place the public can enter,
+       and 5120 Old Ellis Pt is office and warehouse only. Owner
+       confirmed 2026-11-23. gate_structured_data.js fails if it appears. */
+    '@type': ['Organization', 'OnlineStore'],
     '@id':   ID.organization,
     name:    ORG_NAME,
     /* Trading name stays ORG_NAME; legalName carries the LLC. Both are
@@ -385,6 +406,89 @@ function collectionPage(url, name, products, opts = {}) {
   };
 }
 
+/**
+ * An ItemList of the products a listing page actually displays, each with a
+ * real Offer. Returns null when there is nothing priced to describe.
+ *
+ * WHY THIS EXISTS. Hostinger's AI-visibility scan reported "Prices are
+ * reachable without JavaScript or login: 0/4 — the site sells something, but
+ * no prices are linked or marked up on the homepage." Half of that is wrong:
+ * prices ARE in the server-rendered HTML as text, verified by fetching the
+ * raw page. The half that is right is that the homepage displayed four
+ * priced products and carried no Product or Offer markup for any of them.
+ * This marks up what is genuinely on the page; it is not a trick to satisfy
+ * a scanner, and it would be worth doing with no scanner involved.
+ *
+ * ⚠️ THE SAME @id AS THE PRODUCT PAGE'S OWN NODE.
+ * product.ejs declares `${SITE_URL}/products/${slug}#product`. Reusing it
+ * here means the homepage DESCRIBES the same entity rather than minting a
+ * second one. Invent a different @id and the catalogue acquires two
+ * Products per SKU that happen to share a name, which is exactly the
+ * duplicate-entity mess that makes listing markup a liability.
+ *
+ * ⚠️ NO aggregateRating. The site-wide Google seller rating is not a
+ * per-product rating; see the long note below and gate_structured_data.js.
+ *
+ * ⚠️ Number() FIRST, then > 0. A MySQL DECIMAL arrives as a STRING, so a
+ * bare truthiness test passes on "0.00" and would publish a free vanity.
+ * The product page learned this the hard way; the rule is the same here.
+ * An unpriced item is SKIPPED rather than listed without an Offer: a
+ * listing entry that makes no price claim is noise in a list whose whole
+ * purpose is the price claim.
+ */
+function itemListWithOffers(products, opts = {}) {
+  const rows = (products || []).filter((p) => {
+    if (!p || !p.slug || !p.name) return false;
+    const n = Number(p.price);
+    return Number.isFinite(n) && n > 0;
+  });
+  if (!rows.length) return null;
+
+  return {
+    '@type': 'ItemList',
+    '@id':   `${SITE_URL}${opts.id || '/#featured-products'}`,
+    name:    opts.name || 'Featured products',
+    numberOfItems: rows.length,
+    itemListElement: rows.map((p, i) => {
+      const url   = `${SITE_URL}/products/${p.slug}`;
+      const price = Number(p.price);
+      /* qty_on_hand is the only stock signal the listing query carries. A
+         missing value means "not selected", not "out of stock", so the
+         claim is only made when the number is actually there. */
+      const qty   = Number(p.qty_on_hand);
+      const avail = Number.isFinite(qty)
+        ? (qty > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock')
+        : undefined;
+      return {
+        '@type':  'ListItem',
+        position: i + 1,
+        item: {
+          '@type': 'Product',
+          '@id':   `${url}#product`,
+          name:    p.name,
+          url,
+          ...(p.brand ? { brand: { '@type': 'Brand', name: p.brand } } : {}),
+          ...(p.primary_image ? { image: abs(p.primary_image) } : {}),
+          offers: {
+            '@type':       'Offer',
+            url,
+            priceCurrency: 'USD',
+            price:         price.toFixed(2),
+            ...(avail ? { availability: avail } : {}),
+            itemCondition: 'https://schema.org/NewCondition',
+            /* Resolve by @id to the one OnlineStore and its policy nodes,
+               which pageGraph already emits at top level. Copying the
+               policies onto every Offer is how they drift. */
+            seller:                  ref(ID.organization),
+            shippingDetails:         ref(`${SITE_URL}/#shipping`),
+            hasMerchantReturnPolicy: ref(`${SITE_URL}/#returnpolicy`),
+          },
+        },
+      };
+    }),
+  };
+}
+
 /* ═══════════════ ASSEMBLY ════════════════════════════════════════════════ */
 
 /** Wrap nodes in a single @graph. Nulls are dropped, so callers can pass
@@ -471,6 +575,6 @@ module.exports = {
   RETURN_POLICY_DAYS, RESTOCKING_FEE_PCT, SHIP_DAYS_MIN, SHIP_DAYS_MAX,
   abs, ref, sameAs,
   organization, merchantReturnPolicy, shippingService,
-  webSite, webPage, breadcrumbList, collectionPage,
+  webSite, webPage, breadcrumbList, collectionPage, itemListWithOffers,
   graph, scriptTag, pageGraph,
 };

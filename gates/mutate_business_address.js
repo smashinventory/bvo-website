@@ -29,6 +29,7 @@ const F = {
   ts: 'src/services/themeSettings.js',
   pd: 'views/pages/product.ejs',
   cr: 'src/jobs/cartRecovery.js',
+  hc: 'src/controllers/homeController.js',
 };
 
 /* Snapshot every file this harness can touch, before touching any. */
@@ -44,8 +45,13 @@ const EN = String.fromCharCode(0x2013);
 const MUTATIONS = [
   { file: 'sd',
     name: 'the org claims LocalBusiness (the Hostinger temptation)',
-    from: "'@type': 'OnlineStore',",
-    to:   "'@type': ['OnlineStore', 'LocalBusiness']," },
+    from: "'@type': ['Organization', 'OnlineStore'],",
+    to:   "'@type': ['Organization', 'OnlineStore', 'LocalBusiness']," },
+
+  { file: 'sd',
+    name: 'the Organization supertype is dropped again',
+    from: "'@type': ['Organization', 'OnlineStore'],",
+    to:   "'@type': 'OnlineStore'," },
 
   { file: 'sd',
     name: 'openingHours added to the org (invites walk-ins to a warehouse)',
@@ -54,8 +60,8 @@ const MUTATIONS = [
 
   { file: 'sd',
     name: 'the org becomes a Store',
-    from: "'@type': 'OnlineStore',",
-    to:   "'@type': 'Store'," },
+    from: "'@type': ['Organization', 'OnlineStore'],",
+    to:   "'@type': ['Organization', 'Store']," },
 
   { file: 'sd',
     name: 'the address is dropped again (the original finding)',
@@ -83,6 +89,28 @@ const MUTATIONS = [
     name: 'the hours get hardcoded back into the product page',
     from: '      <p class="pdp-expert-hours">Available <%= _expertHours %></p>',
     to:   '      <p class="pdp-expert-hours">Available 9am&ndash;5:30pm ET, Mon&ndash;Sat</p>' },
+
+  /* ── THE HOMEPAGE LISTING ─────────────────────────────────────────── */
+
+  { file: 'sd',
+    name: 'the listing mints a NEW @id instead of the product page\'s',
+    from: "          '@id':   `${url}#product`,",
+    to:   "          '@id':   `${url}#listing-item`," },
+
+  { file: 'sd',
+    name: 'the "0.00" string guard is removed (a free vanity ships)',
+    from: '    return Number.isFinite(n) && n > 0;',
+    to:   '    return !!p.price;' },
+
+  { file: 'sd',
+    name: 'missing stock is guessed as InStock rather than left unstated',
+    from: '      const avail = Number.isFinite(qty)',
+    to:   '      const avail = true' + '\n        ? \'https://schema.org/InStock\' : undefined; const _unused = Number.isFinite(qty)' },
+
+  { file: 'hc',
+    name: 'the homepage stops emitting the listing at all',
+    from: '      nodes:       [_featured],',
+    to:   '      /* mutated: listing dropped */' },
 
   { file: 'cr',
     name: 'the CAN-SPAM address gets hardcoded at the send site again',

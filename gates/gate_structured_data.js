@@ -91,9 +91,28 @@ console.log('--- one source for the organisation ---');
 const MOD = 'src/utils/structuredData.js';
 ok('the module exists', fs.existsSync(path.join(ROOT, MOD)), 'missing');
 const mod = js(MOD);
-ok('it declares OnlineStore, not generic Organization',
-   /'@type':\s*'OnlineStore'/.test(mod),
-   'OnlineStore is the subtype that unlocks the merchant knowledge panel');
+/* ⚠️ BOTH TYPES, NOT ONE. This check used to require exactly
+   '@type': 'OnlineStore' and was loosened DELIBERATELY on 2026-11-23, not
+   to accommodate a scanner's opinion but because declaring the supertype
+   alongside the subtype is true and strictly more legible:
+
+       '@type': ['Organization', 'OnlineStore']
+
+   OnlineStore IS an Organization, so nothing is weakened — the subtype is
+   still declared and the Merchant Knowledge Panel behaviour is intact.
+   What changed is that consumers which string-match for the literal word
+   "Organization" no longer miss the node entirely. Hostinger's scan was
+   one such consumer; it scored the Organization check 0/4 even with a
+   complete, verified-live address, because it was reading the type name.
+
+   The check now requires BOTH names, so dropping either is a failure.
+   Removing 'Organization' would reopen the blind spot; removing
+   'OnlineStore' would be a genuine downgrade. */
+ok('it declares BOTH Organization and OnlineStore',
+   /'@type':\s*\[\s*'Organization'\s*,\s*'OnlineStore'\s*\]/.test(mod),
+   'OnlineStore is the subtype that unlocks the merchant knowledge panel; ' +
+   'Organization is the supertype that naive string-matching parsers look for. ' +
+   'Both, or the node is less legible than it was.');
 ok('the company name is defined once', (mod.match(/const ORG_NAME/g) || []).length === 1, 'duplicated');
 /* The reason the module was written. If a controller hardcodes the name or
    logo again, the graph stops being one entity. */
@@ -116,9 +135,11 @@ ok('the module never emits aggregateRating', !/aggregateRating/.test(mod),
   ok('a built graph contains no aggregateRating',
      !JSON.stringify(g).includes('aggregateRating'), 'it leaked in at runtime');
 
-  const types = g['@graph'].map(n => n['@type']);
-  ok('the root graph carries OnlineStore + WebSite + WebPage',
-     ['OnlineStore', 'WebSite', 'WebPage'].every(t => types.includes(t)),
+  /* Flattened, because the organisation node now carries an ARRAY of types
+     and a bare includes() on the node values would never match it. */
+  const types = g['@graph'].flatMap(n => [].concat(n['@type']));
+  ok('the root graph carries Organization + OnlineStore + WebSite + WebPage',
+     ['Organization', 'OnlineStore', 'WebSite', 'WebPage'].every(t => types.includes(t)),
      `got ${types.join(', ')}`);
 
   /* Every @id referenced must resolve to a node defined somewhere in the
@@ -554,6 +575,108 @@ console.log('\n--- the address and hours have exactly one source ---');
   ok('its fallback is a named constant, not an inline string',
      /POSTAL_ADDRESS_FALLBACK\s*=/.test(cr),
      'CAN-SPAM needs a guaranteed address; it must be visible and named');
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   THE HOMEPAGE PRICES WHAT IT DISPLAYS
+   ═════════════════════════════════════════════════════════════════════════
+   Added 2026-11-23. The homepage showed four priced products and carried no
+   Product or Offer markup for any of them. (Hostinger's wording for this —
+   "prices are not reachable without JavaScript" — is wrong: they are in the
+   server-rendered HTML as text, verified by fetching the raw page. The real
+   gap was markup, on the homepage only.)
+
+   ⚠️ THE RISK THIS GUARDS IS DUPLICATE ENTITIES, NOT MISSING ONES. Listing
+   markup earns its keep only if each Product is the SAME entity the product
+   page describes. Mint a fresh @id here and the catalogue grows a second
+   Product per SKU sharing a name and a price, which is worse than no
+   listing markup at all. */
+console.log('\n--- the homepage marks up the products it displays ---');
+{
+  const sd = require(path.join(ROOT, 'src/utils/structuredData'));
+
+  const ROWS = [
+    { slug: 'a-thing', name: 'A Thing', brand: 'Acme', price: 1995,
+      qty_on_hand: 9, primary_image: 'https://img.example/a.webp' },
+    { slug: 'free-thing', name: 'Free Thing', price: '0.00', qty_on_hand: 3 },
+    { slug: 'gone-thing', name: 'Gone Thing', price: 499.5, qty_on_hand: 0 },
+    { slug: 'mystery-thing', name: 'Mystery Thing', price: 100 },
+    null,
+  ];
+  const list = sd.itemListWithOffers(ROWS, { id: '/#featured-products' });
+
+  /* ⚠️ ARGUMENT ORDER IS ok(NAME, CONDITION, DETAIL). The first draft of
+     this block passed the condition first, so every check evaluated the
+     LABEL STRING as its condition — a non-empty string is truthy, so all
+     twelve printed "ok true" and tested precisely nothing. Caught only by
+     reading the output rather than the exit code. A green gate that asserts
+     nothing is the most expensive kind of wrong. */
+  ok('it builds an ItemList', !!list && list['@type'] === 'ItemList');
+  ok('unpriced and null rows are skipped, priced rows kept',
+     list.numberOfItems === 3,
+     `expected 3, got ${list && list.numberOfItems}`);
+
+  const items = list.itemListElement.map(e => e.item);
+
+  /* ⚠️ "0.00" IS A TRUTHY STRING. MySQL DECIMAL arrives as text, so a bare
+     truthiness check publishes a free vanity. The product page shipped that
+     bug once; the same guard is asserted here rather than assumed. */
+  ok('a "0.00" STRING price is excluded, not published as free',
+     !items.some(i => i['@id'].includes('free-thing')),
+     'Number() must coerce before the > 0 comparison');
+
+  ok("every Product @id matches the product page's own node",
+     items.every(i => /\/products\/[a-z0-9-]+#product$/.test(i['@id'])),
+     'a different @id mints a SECOND Product for the same SKU — see the ' +
+     'note above itemListWithOffers. This is the check that matters most.');
+
+  ok('every listed Product carries an Offer with price and currency',
+     items.every(i => i.offers && i.offers.price && i.offers.priceCurrency === 'USD'));
+  ok('prices are formatted to two decimals',
+     items.every(i => /^\d+\.\d{2}$/.test(i.offers.price)),
+     `got ${items.map(i => i.offers.price).join(', ')}`);
+
+  const gone = items.find(i => i['@id'].includes('gone-thing'));
+  ok('qty_on_hand 0 is published as OutOfStock, not quietly InStock',
+     !!gone && /OutOfStock/.test(gone.offers.availability));
+  /* A missing qty is "the query did not select it", not "none left".
+     Guessing either way is a false claim about stock. */
+  const mystery = items.find(i => i['@id'].includes('mystery-thing'));
+  ok('an ABSENT qty_on_hand makes no availability claim at all',
+     !!mystery && mystery.offers.availability === undefined,
+     'missing data is not the same as zero stock');
+
+  ok('no products yields null, not an empty ItemList',
+     sd.itemListWithOffers([]) === null && sd.itemListWithOffers(null) === null);
+
+  /* The standing rule, re-asserted on this new surface. */
+  ok('the listing publishes no aggregateRating',
+     !JSON.stringify(list).includes('aggregateRating'),
+     'the 4.9 is a site-wide seller rating, not a per-product one');
+
+  /* The helper must actually be WIRED, or it is dead code that passes
+     every test above while the homepage publishes nothing. */
+  const home = js('src/controllers/homeController.js');
+  ok('homeController calls itemListWithOffers',
+     /itemListWithOffers\(/.test(home),
+     'the helper exists but nothing emits it');
+  ok('it is built from the SAME rows the cards render',
+     /itemListWithOffers\(\s*sectionData\.featured_section/.test(home),
+     'a second query would let the markup and the visible price drift apart');
+
+  /* ⚠️ BUILT IS NOT EMITTED, AND THE HARNESS PROVED IT. Deleting
+     `nodes: [_featured]` from the pageGraph call passed every check above:
+     the helper was still called, still built from the right rows, and the
+     result went straight in the bin. Same shape as the three-part trap
+     documented in adminController._buildSettingsFromBody — extraction plus
+     wiring plus assignment, and two of three is a silent no-op. */
+  const built = (home.match(/const\s+(_?\w+)\s*=\s*sd\.itemListWithOffers\(/) || [])[1];
+  ok('the built listing is actually passed into pageGraph',
+     !!built && new RegExp(`nodes\\s*:\\s*\\[[^\\]]*\\b${built}\\b`).test(home),
+     built
+       ? `${built} is built but never reaches pageGraph's nodes — the markup ` +
+         'is computed and discarded'
+       : 'could not find the variable the listing is assigned to');
 }
 
 console.log(fail ? `\n*** ${fail} GATE(S) FAILED ***` : '\nALL GATES PASS');

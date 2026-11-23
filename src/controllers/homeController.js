@@ -801,11 +801,27 @@ exports.index = async (req, res, next) => {
        extractor picks it up and joins it with the page's own four
        scripts rather than replacing them. No breadcrumb node here: the
        homepage is the root, and a single-item trail is not a trail. */
+    /* ⚠️ MARK UP THE PRODUCTS THE PAGE ACTUALLY SHOWS, from the SAME rows
+       the cards render. Passing sectionData.featured_section means the
+       markup cannot describe a product the visitor cannot see, and cannot
+       quote a price different from the one on screen — the two have one
+       source. Building this from a second query is how they drift.
+
+       The helper skips anything unpriced and returns null when nothing
+       qualifies, so pageGraph simply receives no ItemList rather than an
+       empty one. See itemListWithOffers in src/utils/structuredData.js for
+       why the Product @id deliberately matches the product page's own. */
+    const _featured = sd.itemListWithOffers(sectionData.featured_section, {
+      id:   '/#featured-products',
+      name: 'Featured products',
+    });
+
     const jsonLd = sd.scriptTag(sd.pageGraph({
       url:         '/',
       name:        _title,
       description: _desc,
       settings:    ts,
+      nodes:       [_featured],   // graph() drops nulls, so no guard needed
     }));
 
     res.render('pages/index', {
