@@ -1,7 +1,9 @@
 # Dependency security — state, reasoning, and what to do next
 
-**Last updated:** 2026-11-22
+**Last updated:** 2026-11-22 (third revision — see §4.2 for two corrections)
 **Live commit at time of writing:** `0dbf443` (deployed 2026-11-22 15:42, build `01a204fe`)
+**Since superseded by:** `9fb8832` (dev CVEs), `6d2f0a2` (admin lockout), and the
+express-rate-limit v8 commit this revision documents.
 **Trigger:** Hostinger hPanel vulnerability scan, 2026-11-18, reported 41 unpatched
 dependencies on bathroomvanitiesoutlet.com.
 
@@ -125,7 +127,68 @@ release; they all declare `20 || >=22`. The class of problem grows with time.
 Change the Node version in the deployment settings and redeploy. Test checkout and
 admin login. Roll back by redeploying `0dbf443` if anything misbehaves.
 
-### 4.2 express-rate-limit 7.5.1 → 8.7.5
+### 4.2 express-rate-limit 7.5.1 → 8.7.5 — ✅ DONE 2026-11-22
+
+**Shipped.** One line in `package.json`, zero changes in `src/`. What follows is
+kept because the reasoning is worth more than the outcome — including two
+places where the original note below was WRONG.
+
+**⚠️ TWO CLAIMS IN THE ORIGINAL NOTE WERE WRONG.** Both were flagged as
+untested at the time, and both were wrong:
+
+* **`max` was NOT renamed-and-removed.** `limit` has been *preferred* since
+  v7.0.0, but `max` is still fully supported in v8. No call site needed
+  touching.
+* **`standardHeaders` default behaviour did NOT change in v8.** That was
+  speculation. `standardHeaders: true` still means draft-6.
+
+The lesson is the one the note itself gave: *do not trust an untested line in
+a doc.* It is left visible rather than quietly deleted.
+
+**The only breaking change in all of 8.0.0** is IPv6 masking to a /56 subnet,
+which closes a bypass where a user could walk their ISP-assigned subnet to
+evade the limit. It only affects custom `keyGenerator`s. We have none — all
+five sites use the default — so the migration was a version bump.
+
+**Hostinger flagged one CVE. v8 fixed three.** The other two specifically hit
+our configuration, and neither appeared on any scan:
+
+* **GHSA-j3cq-92fq-qg5f** (fixed 8.7.2) — with `skipSuccessfulRequests` and
+  the memory store, a request from an earlier window could be un-counted in
+  the current one, letting **up to 2× the limit** through. Both auth limiters
+  use `skipSuccessfulRequests`, so the admin limiter's nominal 5-per-15-min
+  was really 10.
+* **8.7.4** — unhandled promise rejections while decrementing under
+  `skipSuccessfulRequests` could **crash the process**. An availability bug,
+  not a security one, and invisible to `npm audit`.
+
+**What it cost:** v7.5.1 had zero runtime dependencies; v8 adds `debug` and
+`ip-address`. Production audit after the bump reports only `xlsx` (§4.3).
+
+**One real v7→v8 difference that bit during the work:** v8 added an `exports`
+map that does not expose `./package.json`, so
+`require('express-rate-limit/package.json')` now throws
+`ERR_PACKAGE_PATH_NOT_EXPORTED`. Read it from disk instead.
+
+**`gates/gate_rate_limit_runtime.js` was added in the same commit** and is the
+durable part. It drives real HTTP traffic through real limiters and asserts
+the behaviours the app depends on — the limit blocks, `skipSuccessfulRequests`
+exempts successes, `skip()` still spares robots.txt, the RateLimit-* headers
+are emitted, and the IPv6 /56 grouping is present. Negative-tested by
+installing 7.5.1: it fails on exactly the IPv6 check and nothing else. That is
+the gate to run at every future upgrade, because no static gate can tell you
+whether a dependency bump worked.
+
+Also fixed: `gate_rate_limiter.js` had been red since notifyLimiter was added,
+because it asserted `blocks.length === 3` and found 4. Every other assertion in
+it — including the ones guarding the auth limits — had therefore been unread
+for weeks. It now anchors on the limiters **by name**. **Never assert on a
+count.**
+
+---
+
+<details>
+<summary>Original pre-upgrade note, kept for the reasoning</summary>
 
 `GHSA-cppf-2hm6-mrvm` — prototype pollution **disables rate limiting**. Rated
 Moderate; behaves worse than that, because the protection deliberately tuned for
@@ -154,7 +217,9 @@ changelog at the time — do not trust this line alone, it was not tested this s
 
 Unrelated pre-existing note found while measuring: the limiters use the default
 **memory store**, so with PM2 cluster workers the limits are per-worker, not global.
-Not a CVE; worth knowing before tuning any limit.
+Not a CVE; worth knowing before tuning any limit. Still true after the upgrade.
+
+</details>
 
 ### 4.3 xlsx@0.18.5 — recommend DOCUMENT AND ACCEPT, not migrate
 
@@ -218,6 +283,18 @@ path rather than in a nightly job.
 **Suggested order:** Node 22 (§4.1) → express-rate-limit (§4.2) → the gate (§5a).
 Arguably the gate first, since it is the lowest-risk piece and makes every later
 step self-checking.
+
+**Status 2026-11-22:** §4.2 is done. Node (§4.1) is now the largest remaining
+exposure and the one no scanner will ever show. §5a and §5b are still open.
+
+**Also closed on 2026-11-22, not from this scan at all:** `/admin/login` had no
+per-account lockout — express-rate-limit was the *only* thing standing between
+it and unlimited password guessing, which is exactly what GHSA-cppf-2hm6-mrvm
+silently disables. There is now a lockout in `adminController` that owes
+nothing to any npm package (5 failures per IP → 15 minutes), with
+`gate_admin_lockout.js` and a 7-mutation harness behind it. **The lesson
+generalises past this one CVE: a security control whose only implementation is
+a third-party package is a control you do not actually own.**
 
 ---
 

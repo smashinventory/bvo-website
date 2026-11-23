@@ -31,11 +31,32 @@ const ok = (n, c, d) => {
   if (!c) fail += 1;
 };
 
-/* Pull each rateLimit({...}) block in declaration order. The storefront
-   limiter is first, then authLimiter, then adminAuthLimiter. */
-const blocks = code.match(/rateLimit\(\{[\s\S]*?\}\)/g) || [];
-ok('three rateLimit blocks exist', blocks.length === 3, `found ${blocks.length}`);
-if (blocks.length < 3) { console.log('\n*** cannot continue ***'); process.exit(1); }
+/* ⚠️ FIND EACH LIMITER BY NAME, NEVER BY POSITION OR COUNT.
+   This gate used to assert `blocks.length === 3` and then destructure
+   [store, auth, adminAuth] positionally. notifyLimiter was added to
+   server.js later, the count became 4, and this gate went red and STAYED
+   red — so every other assertion in this file, including the ones
+   guarding the auth limits, stopped being read. A gate that fails for a
+   bookkeeping reason is a gate nobody trusts, and an untrusted gate is a
+   deleted gate.
+
+   The count was never the point. Adding a fourth limiter is a perfectly
+   normal thing to do; CHANGING the three below is what must be caught.
+   Anchoring on the declaration means a fifth limiter tomorrow costs
+   nothing, and renaming or deleting one of these three fails loudly. */
+const grab = (anchor) => {
+  const m = code.match(new RegExp(anchor + '\\s*rateLimit\\(\\{[\\s\\S]*?\\}\\)'));
+  return m ? m[0] : null;
+};
+const store     = grab('app\\.use\\(');
+const auth      = grab('const\\s+authLimiter\\s*=');
+const adminAuth = grab('const\\s+adminAuthLimiter\\s*=');
+
+ok('the storefront limiter is still app.use(rateLimit({...}))', !!store,
+   'not found — it was renamed, moved, or is no longer applied globally');
+ok('authLimiter is still declared',      !!auth,      'not found');
+ok('adminAuthLimiter is still declared', !!adminAuth, 'not found');
+if (!store || !auth || !adminAuth) { console.log('\n*** cannot continue ***'); process.exit(1); }
 
 const num = (block, key) => {
   const m = block.match(new RegExp(key + '\\s*:\\s*([0-9*\\s]+?)[,\\n]'));
@@ -43,8 +64,6 @@ const num = (block, key) => {
   // eslint-disable-next-line no-eval
   return eval(m[1]);          // only ever digits and '*', from our own source
 };
-
-const [store, auth, adminAuth] = blocks;
 
 console.log('--- storefront limiter ---');
 const winMs = num(store, 'windowMs');
