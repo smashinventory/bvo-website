@@ -582,9 +582,38 @@ Disallow: /
 `);
   }
 
+  /* ── CONTENT-SIGNAL ────────────────────────────────────────────────
+     Owner decision, 2026-11-23: findable and citable by assistants, NOT
+     offered as model training data.
+
+       search=yes     index it and link to it, as search engines always have
+       ai-input=yes   may be retrieved to GROUND an answer about us, which is
+                      the point of being in an assistant's reply at all
+       ai-train=no    may not be used to TRAIN a model
+
+     ⚠️ ai-input AND ai-train ARE DIFFERENT THINGS, and conflating them is
+     the easy mistake. Hostinger's hint showed only "search=yes, ai-train=no";
+     omitting ai-input leaves the retrieval case unstated, which is the one
+     case the owner actively wants. All three are declared explicitly so no
+     reader has to guess what silence meant.
+
+     ⚠️ IT IS A REQUEST, NOT A FENCE. Well-behaved crawlers honour it; others
+     ignore it, and nothing here enforces anything. It is a stated
+     preference, worth having for that reason and no stronger one.
+
+     ⚠️ PLACED AFTER "Allow: /", NOT DIRECTLY UNDER "User-agent: *".
+     Content-Signal applies to the whole user-agent group, so its position
+     within the group carries no meaning — but gate_canonical_redirect.js
+     asserts /User-agent:\s*\*\s*\nAllow:\s*\// , i.e. that those two lines
+     stay ADJACENT. Slipping this line between them turned that gate red on
+     a first attempt. The gate is right: "the canonical host still allows
+     crawling" is worth protecting, and it should not be loosened to
+     accommodate the cosmetic ordering of a new directive. So this line
+     moved instead. */
   return res.send(
 `User-agent: *
 Allow: /
+Content-Signal: search=yes, ai-input=yes, ai-train=no
 Disallow: /admin/
 Disallow: /api/
 Disallow: /cart
@@ -592,6 +621,126 @@ Disallow: /account/
 Disallow: /checkout
 
 Sitemap: ${siteUrl}/sitemap.xml
+`);
+});
+
+/* ── ADVERTISE llms.txt AND THE SITEMAP ON THE HOMEPAGE ────────────────
+   A crawler that fetches "/" and reads headers learns where the map is
+   without having to guess at well-known paths. Homepage only: on every
+   page it would be noise on 6,000 responses to say the same thing twice.
+
+   ⚠️ SET HERE, NOT IN THE HOMEPAGE CONTROLLER. The header has to exist on
+   the response even when the controller short-circuits (a 304, a cached
+   render), and the controller is not the only thing that can answer "/".
+
+   rel="llms-txt" is the convention the llms.txt proposal uses; "sitemap"
+   is a registered relation. Neither is load-bearing — if a scanner wants
+   a different token this is the one line to change. */
+app.use((req, res, next) => {
+  if (req.path === '/') {
+    const base = require('./utils/siteUrl').base();
+    res.setHeader('Link',
+      `<${base}/llms.txt>; rel="llms-txt", <${base}/sitemap.xml>; rel="sitemap"`);
+  }
+  next();
+});
+
+/* ── llms.txt ───────────────────────────────────────────────────────────
+   A short, stable map of the site for AI crawlers, served above
+   express.static for exactly the reason robots.txt is: a file dropped into
+   public/llms.txt would otherwise shadow this route silently, which has
+   already happened once on this host with robots.txt.
+
+   ⚠️ DELIBERATELY A MAP, NOT A CATALOGUE. It would be easy to dump 6,000
+   product URLs here, and it would be wrong twice: llms.txt exists to
+   orient a reader toward the right entry points, and a generated list of
+   every SKU is the thing that rots the moment the feed changes. The full
+   URL set already has a canonical home — sitemap.xml — and this points
+   there. Every line below is a ROUTE-LEVEL fact, true for as long as the
+   route exists, so there is nothing here to go stale.
+
+   ⚠️ NO PRODUCT COUNT, NO PRICES, NO "4,604 vanities". Those change daily
+   and a stale number in a file an assistant quotes is worse than no number.
+
+   HOST-AWARE, like robots.txt: the staging hostname must not advertise
+   itself as a source. */
+app.get('/llms.txt', (req, res) => {
+  const host = String(req.hostname || '').toLowerCase();
+  res.type('text/plain');
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+
+  if (host !== CANONICAL_HOST) {
+    return res.send(
+`# ${host} is not the canonical host for this site.
+# The canonical host is ${CANONICAL_HOST}. Please use that instead.
+`);
+  }
+
+  const siteUrl = require('./utils/siteUrl').base();
+  const g = (require('./services/themeSettings').get() || {}).global || {};
+  /* "5120 Old Ellis Pt, Suite C, Roswell, GA 30076" — US convention puts a
+     SPACE between state and ZIP, not a comma. Comma-joining all four parts
+     gave "Roswell, GA, 30076", which reads as a mistake in a file an
+     assistant may quote verbatim. */
+  const _p = k => String(g[k] || '').trim();
+  const _cityLine = [_p('contact_city'),
+                     [_p('contact_region'), _p('contact_postal')].filter(Boolean).join(' ')]
+                      .filter(Boolean).join(', ');
+  const addr = [_p('contact_street'), _cityLine].filter(Boolean).join(', ');
+
+  return res.send(
+`# BathroomVanitiesOutlet.com
+
+> Online retailer of bathroom vanities, vanity tops, mirrors, faucets and
+> bath accessories. Authorised dealer for James Martin Vanities, ER Vanities
+> and Huntington Brass. Ships across the United States; free shipping on
+> most orders. Online only - no retail showroom.
+
+Operated by ${String(g.contact_legal_name || '').trim() || 'Smash Inventory Solutions, LLC'}${addr ? `, ${addr}` : ''}.
+Customer service: ${String(g.contact_email || '').trim()}${g.contact_phone ? `, ${String(g.contact_phone).trim()}` : ''}${g.contact_hours ? ` (${String(g.contact_hours).trim()})` : ''}.
+
+## Shop
+
+- [All bathroom vanities](${siteUrl}/collections/bathroom-vanities): single, double and freestanding, with or without tops
+- [Vanities with tops](${siteUrl}/collections/bathroom-vanities-with-tops): matched cabinet and countertop sets
+- [Vanity cabinets only](${siteUrl}/collections/bathroom-vanity-cabinets): cabinet without a top
+- [Vanity tops](${siteUrl}/collections/bathroom-vanity-tops): quartz and stone countertops
+- [Bathroom mirrors](${siteUrl}/collections/bathroom-mirrors)
+- [Plumbing fixtures](${siteUrl}/collections/faucets): bath and kitchen faucets, shower sets, tub fillers
+- [Storage](${siteUrl}/collections/storage): linen towers, hutches, shelving
+- [Accessories](${siteUrl}/collections/accessories): cabinet hardware, towel bars, holders
+- [Material samples](${siteUrl}/collections/samples): first two samples free, shipping included
+- [Vanity models](${siteUrl}/collections/vanity-models): browse by collection, every finish and size
+- [Sale](${siteUrl}/collections/sale)
+
+## Tools
+
+- [Bundle builder](${siteUrl}/bundle-builder): combine a James Martin cabinet, top, mirror and faucet for a tiered discount
+- [Design inspiration guides](${siteUrl}/inspiration): style guides on farmhouse, floating, small-bathroom and other vanity choices
+- [Lookbook](${siteUrl}/lookbook)
+
+## Policies
+
+- [Shipping policy](${siteUrl}/pages/shipping-policy)
+- [Returns and refunds](${siteUrl}/pages/returns-policy)
+- [Contact us](${siteUrl}/pages/contact-us)
+- [About us](${siteUrl}/pages/about-us)
+- [Privacy policy](${siteUrl}/pages/privacy-policy)
+- [Terms and conditions](${siteUrl}/pages/terms-and-conditions)
+
+## Notes for AI crawlers
+
+- The complete URL set is in [sitemap.xml](${siteUrl}/sitemap.xml). This file
+  is a map of entry points, not a product catalogue: product URLs, prices and
+  stock change daily, so read them from the page or the sitemap rather than
+  from here.
+- Every page renders its content server-side. No JavaScript is required to
+  read product names, descriptions or prices.
+- Prices and availability are also published as schema.org Product/Offer
+  JSON-LD on each product page. Treat that as authoritative over any figure
+  quoted elsewhere.
+- Content-Signal in [robots.txt](${siteUrl}/robots.txt) states our usage
+  preference: indexing and answer-grounding are welcome, model training is not.
 `);
 });
 
