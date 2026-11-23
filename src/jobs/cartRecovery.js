@@ -68,6 +68,55 @@ const MIN_VALUE = 50;
 
 const TEMPLATE_KEY = 'cart_recovery';
 
+/* ── THE CAN-SPAM POSTAL ADDRESS ────────────────────────────────────────────
+   Commercial email must carry a valid physical postal address. Until
+   2026-11-23 this file held the only copy of it in the entire codebase, as a
+   literal string below — which is why the site's Organization structured data
+   published no address at all, and why the Contact Us page had none either.
+   The address was never missing; it was filed where nothing else could read it.
+
+   It now comes from settings.global, the same source the structured data and
+   the Contact Us page use.
+
+   ⚠️ THE FALLBACK IS NOT BELT-AND-BRACES, IT IS THE LAW. If the settings read
+   fails or an admin blanks a field in the Theme Editor, the honest output for
+   structured data is to omit the address (see postalAddress() in
+   structuredData.js). Here it is NOT: an email that goes out without a postal
+   address is a CAN-SPAM violation, not a missing nicety, and the penalty is
+   per message. So this falls back to the known-good literal and logs loudly,
+   rather than sending something non-compliant or silently sending nothing.
+
+   ⚠️ REQUIRED LAZILY, like pool() above — themeSettings pulls in
+   src/config/database, which exits the process when DB_PASS is unset. A
+   top-level require here would make this module unloadable by a gate. */
+const POSTAL_ADDRESS_FALLBACK =
+  'Smash Inventory Solutions, LLC, 5120 Old Ellis Pt, Suite C, Roswell, GA 30076';
+
+function postalAddressLine() {
+  try {
+    const g = (require('../services/themeSettings').get() || {}).global || {};
+    const parts = [
+      String(g.contact_legal_name || '').trim(),
+      String(g.contact_street     || '').trim(),
+      [String(g.contact_city || '').trim(),
+       String(g.contact_region || '').trim()].filter(Boolean).join(', '),
+      String(g.contact_postal     || '').trim(),
+    ].filter(Boolean);
+    /* Four parts means legal name, street, "City, ST" and postcode all
+       present. Fewer means somebody saved a half-filled form. */
+    if (parts.length === 4) {
+      return parts.slice(0, 2).join(', ') + ', ' + parts[2] + ' ' + parts[3];
+    }
+    console.error('[cartRecovery] settings postal address incomplete — ' +
+                  'falling back to the literal. CAN-SPAM requires a real ' +
+                  'address; fix settings.global.contact_* .');
+  } catch (err) {
+    console.error('[cartRecovery] could not read settings for the postal ' +
+                  'address, falling back to the literal:', err && err.message);
+  }
+  return POSTAL_ADDRESS_FALLBACK;
+}
+
 /* ── WHO MAY BE EMAILED — THE ONE SWITCH ────────────────────────────────
    ⚠️ THIS IS A BUSINESS DECISION, NOT A LEGAL REQUIREMENT, AND IT IS HERE
    RATHER THAN BURIED IN A CONDITION SO THAT CHANGING IT IS DELIBERATE.
@@ -286,7 +335,7 @@ async function run({ dryRun = false } = {}) {
            /collections/sale, which enrols nobody — see offerClaim.js. */
         offer_url:           'https://www.bathroomvanitiesoutlet.com/account/login?offer=platinum&optin=1',
         unsubscribe_url:     unsubToken.url(r.email) || '',
-        postal_address:      'Smash Inventory Solutions, LLC, 5120 Old Ellis Pt, Suite C, Roswell, GA 30076',
+        postal_address:      postalAddressLine(),
         phone:               '(877) 777-1948',
       });
 

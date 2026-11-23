@@ -954,7 +954,54 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
                 <%- teField('text','global.site_tagline','Tagline',gl2.site_tagline) %>
                 <%- teField('email','global.contact_email','Contact Email',gl2.contact_email) %>
                 <%- teField('text','global.contact_phone','Contact Phone',gl2.contact_phone) %>
+                <%- teField('text','global.contact_hours','Customer Service Hours',gl2.contact_hours) %>
                 <%- teField('text','global.free_shipping_label','Free Shipping Label',gl2.free_shipping_label) %>
+              </div>
+            </details>
+
+            <%# ── BUSINESS ADDRESS ───────────────────────────────────────
+                ⚠️ EDIT ALL FIVE OR NONE. structuredData.js publishes the
+                address only when street, city, region, postcode AND country
+                are all present — a half-filled address counts against the
+                business with Google rather than for it, so a partial save
+                yields no address at all rather than a broken one.
+
+                ⚠️ THE SAME FIELDS FEED THE CAN-SPAM FOOTER on cart-recovery
+                email, where blank is NOT an option: commercial mail without
+                a postal address is a violation. That path falls back to a
+                hardcoded constant and logs loudly, so blanking these here
+                degrades the structured data but cannot send illegal email.
+                Still: do not leave them half-saved.
+
+                ⚠️ NOT A SHOWROOM, AND THE MARKUP SAYS SO. This address is
+                published as Organization.address only. There is deliberately
+                no LocalBusiness node and no openingHours, because customers
+                do not visit 5120 Old Ellis Pt. Hostinger's AI-visibility scan
+                offers 4 points for a LocalBusiness node; collecting them
+                would be a false claim about a physical storefront, and
+                gate_structured_data.js fails if those appear. If a real
+                showroom ever opens, that is a code change with a decision
+                behind it, not a settings edit.  ───────────────────────── %>
+            <details class="te4-accord">
+              <summary class="te4-accord-head">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                Business Address
+                <svg class="te4-accord-arrow" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+              </summary>
+              <div class="te4-accord-body">
+                <p class="te4-hint">
+                  Published as the company address in the site's structured
+                  data, and used as the postal address required on marketing
+                  email. Office and warehouse &mdash; not a showroom, and not
+                  marked as one. Fill in all five address fields or leave them
+                  all alone; a partial address is worse than none.
+                </p>
+                <%- teField('text','global.contact_legal_name','Legal Entity Name',gl2.contact_legal_name) %>
+                <%- teField('text','global.contact_street','Street Address',gl2.contact_street) %>
+                <%- teField('text','global.contact_city','City',gl2.contact_city) %>
+                <%- teField('text','global.contact_region','State / Region',gl2.contact_region) %>
+                <%- teField('text','global.contact_postal','Postal Code',gl2.contact_postal) %>
+                <%- teField('text','global.contact_country','Country Code',gl2.contact_country) %>
               </div>
             </details>
 

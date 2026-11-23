@@ -179,13 +179,96 @@ function shippingService() {
  * surfaces return policy, shipping and contact details on a branded search.
  * A generic Organization node gets none of that.
  */
+/**
+ * The business address, as a PostalAddress — or null when settings are
+ * incomplete.
+ *
+ * ⚠️ ALL-OR-NOTHING ON PURPOSE. A half-filled address (street but no
+ * postcode, say) is worse than none: Google treats an incomplete address
+ * node as a quality signal against the entity, and a partial address is
+ * exactly what you get the first time someone adds these settings through
+ * the Theme Editor and saves halfway. Returning null means the node simply
+ * carries no address until every part is present, which is the honest
+ * output rather than a broken claim.
+ */
+function postalAddress(settings) {
+  const g = (settings && settings.global) || {};
+  const street  = String(g.contact_street  || '').trim();
+  const city    = String(g.contact_city    || '').trim();
+  const region  = String(g.contact_region  || '').trim();
+  const postal  = String(g.contact_postal  || '').trim();
+  const country = String(g.contact_country || '').trim();
+  if (!street || !city || !region || !postal || !country) return null;
+  return {
+    '@type':          'PostalAddress',
+    streetAddress:    street,
+    addressLocality:  city,
+    addressRegion:    region,
+    postalCode:       postal,
+    addressCountry:   country,
+  };
+}
+
+/**
+ * Customer-service contact point, with the hours the phone is answered.
+ *
+ * ⚠️ hoursAvailable, NOT openingHours. The distinction is the whole reason
+ * this function exists rather than a LocalBusiness node. `openingHours` is
+ * a property of a place the public can enter; 5120 Old Ellis Pt is an
+ * office and warehouse and customers do not visit it. `hoursAvailable` on
+ * a ContactPoint says only "this is when someone answers", which is true.
+ * Publishing openingHours on a non-visitable address invites people to
+ * turn up at a closed loading dock, and misrepresents the business to
+ * Google. See the note in themeSettings.js global.
+ */
+function contactPoint(settings) {
+  const g = (settings && settings.global) || {};
+  const phone = String(g.contact_phone || '').trim();
+  const email = String(g.contact_email || '').trim();
+  if (!phone && !email) return null;
+
+  const days   = Array.isArray(g.contact_hours_days) ? g.contact_hours_days : [];
+  const opens  = String(g.contact_hours_opens  || '').trim();
+  const closes = String(g.contact_hours_closes || '').trim();
+
+  return {
+    '@type':       'ContactPoint',
+    contactType:   'customer service',
+    ...(phone ? { telephone: phone } : {}),
+    ...(email ? { email }            : {}),
+    areaServed:    'US',
+    availableLanguage: 'English',
+    ...(days.length && opens && closes ? {
+      hoursAvailable: {
+        '@type':     'OpeningHoursSpecification',
+        dayOfWeek:   days.map(d => `https://schema.org/${d}`),
+        opens,
+        closes,
+      },
+    } : {}),
+  };
+}
+
 function organization(settings) {
   const profiles = sameAs(settings);
+  const g        = (settings && settings.global) || {};
+  const address  = postalAddress(settings);
+  const contact  = contactPoint(settings);
+  const legal    = String(g.contact_legal_name || '').trim();
+  const phone    = String(g.contact_phone      || '').trim();
+  const email    = String(g.contact_email      || '').trim();
   return {
     '@type': 'OnlineStore',
     '@id':   ID.organization,
     name:    ORG_NAME,
+    /* Trading name stays ORG_NAME; legalName carries the LLC. Both are
+       true and schema.org expects them in exactly these two fields. */
+    ...(legal ? { legalName: legal } : {}),
     url:     SITE_URL + '/',
+    ...(address ? { address } : {}),
+    ...(phone   ? { telephone: phone } : {}),
+    ...(email   ? { email }            : {}),
+    ...(contact ? { contactPoint: contact } : {}),
     logo: {
       '@type': 'ImageObject',
       '@id':   `${SITE_URL}/#logo`,

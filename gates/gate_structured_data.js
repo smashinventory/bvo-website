@@ -400,5 +400,161 @@ ok('inspirationController emits a matching trail',
    /trail\s*:/.test(js('src/controllers/inspirationController.js')),
    'the visible trail is unmarked');
 
+/* ═════════════════════════════════════════════════════════════════════════
+   THE BUSINESS ADDRESS, AND THE CLAIM IT MUST NOT MAKE
+   ═════════════════════════════════════════════════════════════════════════
+   Added 2026-11-23. Hostinger's AI-visibility scan reported "No Organization
+   or LocalBusiness node in the structured data" and told us to add one. Two
+   things were wrong with that advice and one thing was right:
+
+   WRONG (1): the site already declares OnlineStore, which IS an Organization
+   (Thing > Organization > OnlineBusiness > OnlineStore). The scanner
+   string-matches two literal type names and misses a valid subtype.
+   WRONG (2): "or LocalBusiness" is the dangerous half. 5120 Old Ellis Pt is
+   an office and warehouse; customers do not visit. Owner confirmed this on
+   2026-11-23.
+   RIGHT: the node carried no address at all. It does now.
+
+   ⚠️ THE TEMPTATION THIS GUARDS AGAINST. A future reader sees 4 points
+   sitting there, adds LocalBusiness or openingHours, and the score goes up.
+   That is a false claim about a physical storefront, and openingHours on a
+   non-visitable address invites people to drive to a closed loading dock.
+   These checks exist so that change cannot be made quietly. */
+console.log('\n--- the organisation carries an address, and claims no storefront ---');
+{
+  const sd = require(path.join(ROOT, 'src/utils/structuredData'));
+
+  /* A complete settings object, shaped like themeSettings.global. Synthetic
+     rather than the real themeSettings, which cannot be required here:
+     Rule 14 — it pulls in src/config/database, which exits without DB_PASS. */
+  const FULL = { social: {}, global: {
+    contact_legal_name: 'Example Holdings, LLC',
+    contact_street:     '1 Example Way, Suite Z',
+    contact_city:       'Roswell',
+    contact_region:     'GA',
+    contact_postal:     '30076',
+    contact_country:    'US',
+    contact_phone:      '(877) 000-0000',
+    contact_email:      'support@example.com',
+    contact_hours_days: ['Monday','Saturday'],
+    contact_hours_opens:  '09:00',
+    contact_hours_closes: '17:30',
+  } };
+
+  const org = sd.organization(FULL);
+  ok('the address is emitted as a PostalAddress',
+     org.address && org.address['@type'] === 'PostalAddress',
+     'the Organization node publishes no address — the finding that started this');
+  for (const f of ['streetAddress','addressLocality','addressRegion','postalCode','addressCountry']) {
+    ok(`  address carries ${f}`, !!(org.address && org.address[f]),
+       'an incomplete address counts against the entity rather than for it');
+  }
+  ok('legalName carries the LLC, name stays the trading name',
+     org.legalName === 'Example Holdings, LLC' && org.name !== org.legalName,
+     'schema.org expects these in two separate fields');
+  ok('a ContactPoint carries the service hours',
+     org.contactPoint && org.contactPoint.hoursAvailable &&
+     org.contactPoint.hoursAvailable['@type'] === 'OpeningHoursSpecification',
+     'hours are published nowhere machine-readable');
+
+  /* ⚠️ THE HONESTY CONSTRAINT. hoursAvailable on a ContactPoint says "this is
+     when the phone is answered". openingHours says "this is when you may
+     walk in". Only the first is true here. */
+  const orgStr = JSON.stringify(org);
+  for (const forbidden of ['LocalBusiness', 'openingHours']) {
+    ok(`the organisation never emits ${forbidden}`, !orgStr.includes(forbidden),
+       'that asserts a storefront the public can enter. 5120 Old Ellis Pt is ' +
+       'office and warehouse only — see themeSettings.js global. Do not add ' +
+       'this for the Hostinger AI-visibility points.');
+  }
+  ok('the organisation never declares @type Store',
+     !/"@type":"Store"/.test(orgStr),
+     'Store is a LocalBusiness subtype and makes the same false claim');
+  ok('the module source never mentions LocalBusiness or openingHours',
+     !/LocalBusiness|openingHours/.test(js(MOD)),
+     'even unreached code here is a standing invitation');
+
+  /* ALL-OR-NOTHING. A half-saved Theme Editor form must yield no address
+     rather than a partial one. */
+  for (const blank of ['contact_street','contact_city','contact_region','contact_postal','contact_country']) {
+    const partial = JSON.parse(JSON.stringify(FULL));
+    partial.global[blank] = '';
+    ok(`  blanking ${blank} drops the address entirely`,
+       !sd.organization(partial).address,
+       'a partial address is worse than none');
+  }
+}
+
+console.log('\n--- the address and hours have exactly one source ---');
+{
+  const ts = read('src/services/themeSettings.js');
+  for (const k of ['contact_legal_name','contact_street','contact_city','contact_region',
+                   'contact_postal','contact_country','contact_hours',
+                   'contact_hours_days','contact_hours_opens','contact_hours_closes']) {
+    ok(`themeSettings declares ${k}`, new RegExp(k + '\\s*:').test(ts),
+       'the one source is incomplete, so something downstream will hardcode it');
+  }
+
+  /* The human string and the machine times must agree, or the page and the
+     structured data tell a visitor two different things. */
+  const human = (ts.match(/contact_hours:\s*'([^']+)'/) || [])[1] || '';
+  const opens = (ts.match(/contact_hours_opens:\s*'([^']+)'/) || [])[1] || '';
+  const closes= (ts.match(/contact_hours_closes:\s*'([^']+)'/) || [])[1] || '';
+  const h12 = t => { const [H, M] = t.split(':').map(Number);
+                     const h = H % 12 || 12; return M ? `${h}:${String(M).padStart(2,'0')}` : `${h}`; };
+  ok(`the human hours string matches the machine times (${opens}-${closes})`,
+     human.includes(h12(opens)) && human.includes(h12(closes)),
+     `contact_hours is "${human}" but opens/closes say ${h12(opens)}/${h12(closes)}. ` +
+     'These drift silently: the PDP renders the string and Google reads the times.');
+
+  /* ⚠️ WHY THIS CHECK EXISTS. product.ejs hardcoded "9am-5:30pm ET, Mon-Sat"
+     while the Contact Us CMS page said "Monday-Friday, 9am-5pm ET". Two
+     answers to "when are you open", and the one on a $2,000 product page was
+     the more generous. A shopper could call at 4pm Saturday and reach nobody. */
+  const pd = ejs('views/pages/product.ejs');
+  ok('product.ejs reads the hours from settings',
+     /contact_hours/.test(pd), 'it is hardcoded again');
+
+  /* ⚠️ COMMENTS ARE NOT CODE — and this check proved it the hard way. The
+     ejs() helper strips EJS comments (<%/* ... *%>) but NOT JavaScript block
+     comments inside a <% %> scriptlet. The note explaining WHY the hours
+     moved to settings quotes the old strings, so the first version of this
+     check failed on its own documentation. The same trap has now caught six
+     gates in this repo, so strip block comments before looking for a clock
+     time.
+
+     ⚠️ AND THEN IT BIT AGAIN, ONE LINE LOWER. The first draft of this very
+     note spelled out the comment delimiters literally, which closed this
+     comment early and made the gate unparseable — the same one-character
+     fault that has stopped src/jobs/searchSync.js from loading since
+     August (its line 26 documents a cron schedule inside a block comment).
+     Describe the delimiters; never type the closing pair. */
+  const pdCode = pd.replace(/\/\*[\s\S]*?\*\//g, '');
+  /* ⚠️ MATCH THE CLOCK TIME, NOT THE DASH. The first version looked for a
+     digit followed by am/pm and then a dash character — and the mutation
+     harness proved it useless: the line it is meant to catch was written
+     "9am&ndash;5:30pm", where the separator is an HTML ENTITY, so there is
+     no dash character to find and the broken template passed. Any am/pm
+     clock literal in this template is the thing worth flagging, whatever
+     sits between the two times. Verified zero matches against the fixed
+     template, so this is specific as well as sensitive. */
+  const clock = pdCode.match(/\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/ig);
+  ok('product.ejs hardcodes no clock time',
+     !clock,
+     'a second copy of the hours has reappeared in the template: ' +
+     (clock || []).join(', '));
+
+  /* The CAN-SPAM address: one source, with a NAMED fallback. The fallback is
+     legally required — an email without a postal address is a violation, so
+     unlike the structured data this must not degrade to empty. */
+  const cr = js('src/jobs/cartRecovery.js');
+  ok('cartRecovery sends the address from the shared helper',
+     /postal_address:\s*postalAddressLine\(\)/.test(cr),
+     'the send site hardcodes the address again');
+  ok('its fallback is a named constant, not an inline string',
+     /POSTAL_ADDRESS_FALLBACK\s*=/.test(cr),
+     'CAN-SPAM needs a guaranteed address; it must be visible and named');
+}
+
 console.log(fail ? `\n*** ${fail} GATE(S) FAILED ***` : '\nALL GATES PASS');
 process.exit(fail ? 1 : 0);

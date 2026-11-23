@@ -750,7 +750,20 @@
             so the number itself has to be readable there. %>
         <span class="pdp-expert-num"><%= _expertPhone %></span>
       </a>
-      <p class="pdp-expert-hours">Available 9am&ndash;5:30pm ET, Mon&ndash;Sat</p>
+      <%
+        /* ⚠️ FROM SETTINGS, NOT TYPED HERE. This line read
+           "Available 9am-5:30pm ET, Mon-Sat" as literal text while the
+           Contact Us page said "Monday-Friday, 9am-5pm ET". Two answers to
+           "when are you open", and the one a shopper sees on a $2,000
+           product page was the more generous of the two. Owner confirmed
+           Mon-Sat 9am-5:30pm on 2026-11-23. Both now come from
+           settings.global.contact_hours, which also feeds the
+           Organization's ContactPoint, so there is one answer. */
+        var _expertHours = String((((settings || {}).global) || {}).contact_hours || '').trim();
+      %>
+      <% if (_expertHours) { %>
+      <p class="pdp-expert-hours">Available <%= _expertHours %></p>
+      <% } %>
       <% } %>
 
       <%# ── BACK IN STOCK CAPTURE ─────────────────────────────────────────

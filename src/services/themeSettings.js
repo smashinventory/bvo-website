@@ -264,8 +264,53 @@ const DEFAULTS = {
   global: {
     site_name:              'BathroomVanitiesOutlet.com',
     site_tagline:           'Premium Vanities. Outlet Prices.',
-    contact_email:          'info@bathroomvanitiesoutlet.com',
+    /* support@, not info@. Both inboxes exist; support@ is what the live
+       Contact Us page shows and what the Organization node publishes, so
+       the default agrees with the page rather than contradicting it. The
+       old 'info@' default disagreed with the page for months and nothing
+       noticed, because nothing read it. */
+    contact_email:          'support@bathroomvanitiesoutlet.com',
     contact_phone:          '',
+
+    /* ── THE BUSINESS ADDRESS AND HOURS ───────────────────────────────
+       ⚠️ THIS IS THE ONE SOURCE. Before 2026-11-23 the postal address
+       existed in exactly one place in the whole codebase — a hardcoded
+       string in src/jobs/cartRecovery.js, there to satisfy CAN-SPAM on
+       recovery emails. It was on no page of the site and invisible to
+       the structured-data layer, so the Organization node published no
+       address at all. The address was never missing; it was just filed
+       where nothing else could reach it.
+
+       Hours were worse: TWO copies that disagreed. product.ejs said
+       Mon-Sat 9am-5:30pm, the Contact Us page said Mon-Fri 9am-5pm. A
+       customer reading a product page could call at 4pm on a Saturday
+       and reach nobody. Owner confirmed Mon-Sat 9am-5:30pm ET on
+       2026-11-23; the CMS page was corrected to match.
+
+       ⚠️ OFFICE AND WAREHOUSE ONLY — NOT A SHOWROOM. Customers do not
+       visit. This is why the structured data carries Organization.address
+       and NOT LocalBusiness, Store, or openingHours: those assert a place
+       the public can walk into. Hostinger's AI-visibility scan asks for
+       "Organization or LocalBusiness" and a future reader may be tempted
+       to add LocalBusiness for the 4 points. Don't. It would be a false
+       claim about a physical storefront, and gate_structured_data.js
+       fails if those types appear. */
+    contact_legal_name:     'Smash Inventory Solutions, LLC',
+    contact_street:         '5120 Old Ellis Pt, Suite C',
+    contact_city:           'Roswell',
+    contact_region:         'GA',
+    contact_postal:         '30076',
+    contact_country:        'US',
+    /* Customer-service hours, not store hours. Rendered as-is on the PDP
+       expert CTA, and expressed machine-readably on the Organization's
+       ContactPoint. Change BOTH by changing this. */
+    contact_hours:          '9am–5:30pm ET, Mon–Sat',
+    /* The machine-readable form of the line above. Kept beside it so the
+       two cannot drift: gate_structured_data.js asserts they agree. */
+    contact_hours_days:     ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],
+    contact_hours_opens:    '09:00',
+    contact_hours_closes:   '17:30',
+
     free_shipping_threshold: 0,
     free_shipping_label:    'Free Shipping on Most Orders',
     // Google Reviews — update these from your Google Business Profile for
