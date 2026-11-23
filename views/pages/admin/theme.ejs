@@ -2188,6 +2188,15 @@ function teImage(imgName,altName,imgValue,altValue,label,compact){
                 each time and rendered the URL as the broken image's alt text.
                 Compare the hero calls above: names, values, THEN label. %>
             <%- teImage('sample_banner.image','sample_banner.image_alt',sbsec.image,sbsec.image_alt,'Banner image') %>
+            <%# ⚠️ SET THIS WHENEVER THE IMAGE ABOVE CHANGES SHAPE.
+                It is the box the browser reserves before the picture
+                arrives, so the page does not jump. Ratio only — "1:1"
+                and "1024x1024" mean the same thing.
+
+                A WRONG value is worse than a blank one: it reserves the
+                wrong shape and causes the very jump it prevents. Leave
+                it empty if unsure and nothing is claimed. %>
+            <%- teField('text','sample_banner.image_aspect','Image aspect (e.g. 1:1, 4:3)',sbsec.image_aspect) %>
             <%- teVisibleOn('sample_banner', sbsec.show_on||'all') %>
                       <%- teSectionLayout('sample_banner', t.sample_banner||{}) %>
             <%- teTextGroup('sample_banner', t.sample_banner||{}, 'sample_banner') %>

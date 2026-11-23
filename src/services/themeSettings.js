@@ -1923,6 +1923,31 @@ const DEFAULTS = {
     cta_url:  '/collections/samples',
     image:    '',
     image_alt: 'Wood, stone and metal finish samples',
+    /* ── THE BOX THE BROWSER RESERVES ────────────────────────────────
+       Same field image_with_text and the heroes already carry, added
+       here 2026-11-23 because this section never got one.
+
+       WHY IT WAS MISSING AND WHY IT MATTERS. Task #121 ("add width/height
+       to iwt-img") covered the image_with_text image and stopped there.
+       The samples banner was built later, reuses the SAME .iwt-img class,
+       and shipped with no dimensions — so a Lighthouse run flagged
+       "image elements do not have explicit width and height" against a
+       task that was already marked done. One class, two render sites, one
+       of them fixed.
+
+       ⚠️ RATIO ONLY, NEVER PIXELS. _heroBox turns '1:1' into 1000x1000
+       and the CSS still sets width:100%;height:auto — so the numbers
+       reserve the right SHAPE, nothing more. '1:1' and '1024x1024'
+       behave identically.
+
+       ⚠️ A WRONG VALUE IS WORSE THAN NO VALUE. CLS is currently 0.
+       Reserving a box of the wrong shape would reintroduce the exact
+       layout shift this is meant to prevent, so index.ejs emits NOTHING
+       when this is blank or unparseable rather than guessing. Default is
+       '1:1' because the live banner is square (1024x1024, measured
+       2026-11-23); change it here if a differently-shaped image is
+       uploaded. */
+    image_aspect: '1:1',
   },
 
   cart_drawer: {

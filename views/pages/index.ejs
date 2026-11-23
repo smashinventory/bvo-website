@@ -2564,8 +2564,33 @@ _DEFAULT_ORDER.forEach(function(k) {
       inside .section keeps the horizontal padding the iwt shell lacks. %>
   <div class="iwt-grid">
     <div class="iwt-image-col">
+      <%
+        /* ⚠️ SAME HELPER AS THE OTHER .iwt-img, NOT A SECOND SCHEME.
+           This image shipped with no width/height while its twin at the
+           image_with_text section had them, so one CSS class had two
+           behaviours and a Lighthouse audit flagged a task already marked
+           complete. _heroBox returns null for a blank or unparseable
+           aspect, and nothing is emitted in that case: reserving a box of
+           the WRONG shape would create the layout shift this prevents,
+           and CLS is currently 0. No guessing.
+
+           ⚠️ GUARDED ON typeof, AND THAT IS NOT PARANOIA. This block is
+           rendered STANDALONE in at least two places — gate_sample_offer.js
+           extracts the banner fragment and renders it alone, and the Theme
+           Editor preview path does not go through the controller either.
+           _heroBox is declared at the top of index.ejs, so in a fragment
+           render it is simply not in scope and a bare call throws
+           ReferenceError, taking the whole section down. The gate caught
+           this immediately; a preview would have caught it in front of the
+           owner. Same guard shape as `typeof jsonLd !== 'undefined'`
+           elsewhere in this file, and it degrades the right way: no box
+           rather than no section. */
+        var _sbBox = (typeof _heroBox === 'function')
+          ? _heroBox(sb_.image, sb_.image_aspect)
+          : null;
+      %>
       <img class="iwt-img" src="<%= sb_.image %>"
-           alt="<%= sb_.image_alt || '' %>" loading="lazy" decoding="async">
+           alt="<%= sb_.image_alt || '' %>" loading="lazy" decoding="async"<% if (_sbBox) { %> width="<%= _sbBox.w %>" height="<%= _sbBox.h %>"<% } %>>
     </div>
     <div class="iwt-text-col">
       <% if (sb_.eyebrow) { %><p class="section-eyebrow"><%= sb_.eyebrow %></p><% } %>
