@@ -169,6 +169,103 @@ const { safeQuery, safeQueryOne, mustQuery, mustAffect } =
    AUTH
    ════════════════════════════════════════════════════════════════ */
 
+/* ── ADMIN LOGIN LOCKOUT ──────────────────────────────────────────
+   WHY THIS EXISTS. Until 2026-11-22 the ONLY thing standing between
+   this login and unlimited password guessing was express-rate-limit
+   (adminAuthLimiter, 5 per 15 min). On 2026-11-18 Hostinger flagged
+   GHSA-cppf-2hm6-mrvm against that package: a prototype-pollution
+   path makes the request counter return an INHERITED value, so it
+   never crosses the threshold. The limiter does not crash and does
+   not warn — it keeps returning 200 while silently no longer
+   counting. Brute-force protection that fails open and quiet is the
+   worst failure shape there is.
+
+   So the control that actually matters does not live in an npm
+   package any more. It lives here, in ~40 lines we own.
+   adminAuthLimiter STAYS — this sits underneath it, not instead.
+
+   ⚠️ IN MEMORY ON PURPOSE, AND THAT IS NOT LAZINESS.
+   A database-backed counter puts a query in the login path, which
+   invents a failure mode that does not exist today: when the query
+   errors you must either fail OPEN (no protection, silently — the
+   exact bug we are fixing) or fail CLOSED (the owner is locked out
+   of their own admin by a DB hiccup, on a live store). A Map has
+   neither. The cost is that the counter resets on restart, and that
+   cost is approximately zero: an attacker cannot cause a restart.
+   Deploys can, but a deploy is the owner's own action.
+
+   ⚠️ KEYED ON IP, NOT ON THE ACCOUNT, DELIBERATELY.
+   Keying on the username would also blunt a distributed attack, but
+   it hands any stranger a way to lock the owner out of their own
+   admin from anywhere, for free. There is ONE admin account here, and
+   bcrypt already makes each guess expensive, so a botnet is a slow
+   attack to begin with. Denying the owner their store to slow it
+   down further is a bad trade. If that ever changes, add a SECOND
+   global ceiling — do not re-key this one.
+
+   ⚠️ NOT LOGGED TO site_events. That table feeds the customer
+   analytics dashboards; admin auth noise would corrupt them. The
+   runtime log is the right destination for this. */
+const LOCKOUT_MAX_ATTEMPTS = 5;
+const LOCKOUT_MS           = 15 * 60 * 1000;
+
+/* key: req.ip -> { fails, lockedUntil } */
+const _loginAttempts = new Map();
+
+/* Drop entries nobody has touched inside a full window, so a long
+   attack from rotating IPs cannot grow this Map without bound. An
+   entry is only interesting while it is either counting toward a
+   lock or serving one. */
+function _pruneAttempts(now) {
+  for (const [key, rec] of _loginAttempts) {
+    if (now - rec.seen > LOCKOUT_MS) _loginAttempts.delete(key);
+  }
+}
+
+/* Returns 0 when not locked, else MILLISECONDS remaining. */
+function _lockRemaining(key, now = Date.now()) {
+  const rec = _loginAttempts.get(key);
+  if (!rec || !rec.lockedUntil) return 0;
+  if (rec.lockedUntil <= now) {
+    /* Window served. Clear the whole record rather than just the
+       lock — otherwise fails stays at 5 and the very next wrong
+       guess re-locks instantly, turning a 15-minute penalty into a
+       permanent one. */
+    _loginAttempts.delete(key);
+    return 0;
+  }
+  return rec.lockedUntil - now;
+}
+
+function _registerFailure(key, now = Date.now()) {
+  _pruneAttempts(now);
+  const rec = _loginAttempts.get(key) || { fails: 0, lockedUntil: 0, seen: now };
+  rec.fails += 1;
+  rec.seen   = now;
+  if (rec.fails >= LOCKOUT_MAX_ATTEMPTS) rec.lockedUntil = now + LOCKOUT_MS;
+  _loginAttempts.set(key, rec);
+  return rec;
+}
+
+function _clearFailures(key) {
+  _loginAttempts.delete(key);
+}
+
+/* Test seam for gate_admin_lockout.js, which has to EXECUTE this
+   rather than grep for it — a lockout nobody has watched engage is
+   decoration. Named with the __ prefix siteEvents.js established, to
+   mark it as a seam and not an API. `now` is injectable so the gate
+   can prove the window EXPIRES without sleeping 15 real minutes. */
+exports.__lockoutInternals = {
+  MAX: LOCKOUT_MAX_ATTEMPTS,
+  MS:  LOCKOUT_MS,
+  lockRemaining:   _lockRemaining,
+  registerFailure: _registerFailure,
+  clearFailures:   _clearFailures,
+  reset: () => _loginAttempts.clear(),
+  size:  () => _loginAttempts.size,
+};
+
 /* GET /admin/login */
 exports.loginPage = (req, res) => {
   if (req.session?.isAdmin) return res.redirect('/admin');
@@ -188,6 +285,29 @@ exports.loginPage = (req, res) => {
 /* POST /admin/login */
 exports.login = async (req, res) => {
   const { username, password } = req.body;
+
+  /* ⚠️ CHECKED FIRST, BEFORE bcrypt.compare. A locked IP must never
+     reach the hash — that is the whole point: bcrypt is the expensive
+     step, and letting a locked attacker spend our CPU on it would
+     hand them a cheap denial-of-service on top of the guessing. */
+  const _ipKey = req.ip || 'unknown';
+  const _lockMs = _lockRemaining(_ipKey);
+  if (_lockMs > 0) {
+    const mins = Math.ceil(_lockMs / 60000);
+    console.warn(`[admin/login] LOCKED OUT ip=${_ipKey} ${mins}m remaining`);
+    return res.status(429).render('pages/admin/login', {
+      ...LAYOUT,
+      pageTitle: 'Admin Login',
+      activePage: '',
+      /* Says "lockout", not "wrong password" — on purpose. The owner
+         has to be able to tell these apart or they will spend the
+         window convinced their password is broken. It leaks nothing:
+         whoever is locked out already knows they failed. */
+      error: `Too many failed attempts. Try again in ${mins} minute${mins === 1 ? '' : 's'}.`,
+      flash: null,
+    });
+  }
+
   const validUser = process.env.ADMIN_USER;
   // ADMIN_PW_B64: bcrypt hash stored as base64 to survive shell $ interpolation in env vars.
   // Decode back to the raw bcrypt hash string before comparing.
@@ -207,6 +327,11 @@ exports.login = async (req, res) => {
   const passMatch = passHash ? await bcrypt.compare(password || '', passHash) : false;
 
   if (userMatch && passMatch) {
+    /* A good password wipes the slate. Without this, four typos
+       followed by a correct login would leave the counter at 4 and
+       lock the owner out on their next single typo, an hour later. */
+    _clearFailures(_ipKey);
+
     // Regenerate session ID to prevent session fixation
     req.session.regenerate((err) => {
       if (err) {
@@ -239,6 +364,16 @@ exports.login = async (req, res) => {
     return;
   }
 
+  const _rec = _registerFailure(_ipKey);
+  if (_rec.lockedUntil) {
+    console.warn(`[admin/login] ${_rec.fails} failures — ip=${_ipKey} locked for ${LOCKOUT_MS / 60000}m`);
+  }
+
+  /* ⚠️ BYTE-IDENTICAL to what this said before the lockout existed.
+     Not "4 attempts remaining", not a different message once the
+     username happens to be right. The attempt count is already in
+     the runtime log, where the owner can see it and an attacker
+     cannot. */
   res.render('pages/admin/login', {
     ...LAYOUT,
     pageTitle: 'Admin Login',
