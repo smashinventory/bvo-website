@@ -135,6 +135,7 @@ const _inScope = (_scopes[_scopeKey] && _scopes[_scopeKey].families) || null;
     </p>
     <button type="button" class="btn btn-outline" id="wc-run-rollup">Run rollup</button>
     <span class="adm-label" id="wc-rollup-status"></span>
+    <div class="adm-label" id="wc-rollup-diag"></div>
   </div>
 <% } else { %>
 
@@ -400,6 +401,7 @@ const dimCards = [
   <h3 class="admin-card-title">Ingestion audit — last 60 days evaluated</h3>
   <button type="button" class="btn btn-outline" id="wc-run-rollup">Run rollup</button>
   <span class="adm-label" id="wc-rollup-status"></span>
+  <div class="adm-label" id="wc-rollup-diag"></div>
   <div class="adm-table-wrap jmv-scroll-wrap">
     <table class="adm-table">
       <thead><tr><th>Date</th><th>Rows</th><th>Valid</th><th>Schema</th><th>Notes</th></tr></thead>
@@ -444,6 +446,30 @@ const dimCards = [
         if (!d.ok) { out.textContent = ' Failed: ' + (d.error || 'unknown'); return; }
         out.textContent = ' Processed ' + d.processed + ' date(s), ' + d.errors +
           ' error(s). ' + (d.processed ? 'Press again to continue.' : 'Backlog clear.');
+
+        /* 0 processed with files on disk is ambiguous from outside the
+           process — wrong path, unreadable directory and unmatched filenames
+           all look identical. Show what the job actually saw. */
+        var diag = document.getElementById('wc-rollup-diag');
+        if (diag && d.disk) {
+          if (d.processed === 0 && d.disk.matchedSnapshots === 0) {
+            diag.innerHTML =
+              '<strong>Found no snapshots.</strong> This is what the job can see:' +
+              '<pre style="white-space:pre-wrap;font-size:12px;margin:6px 0">' +
+              'resolved path : ' + (d.disk.resolved || '(none)')   + '\n' +
+              'exists        : ' + d.disk.exists                    + '\n' +
+              'entries in it : ' + d.disk.entryCount                + '\n' +
+              'matching wc_* : ' + d.disk.matchedSnapshots          + '\n' +
+              'sample        : ' + (d.disk.sample || []).join(', ') + '\n' +
+              'WC_SNAPSHOTS_PATH : ' + (d.disk.configured || '(not set)') + '\n' +
+              '__dirname     : ' + d.disk.dirname                   + '\n' +
+              'cwd           : ' + d.disk.cwd                       +
+              (d.disk.error ? '\nerror         : ' + d.disk.error : '') +
+              '</pre>';
+          } else {
+            diag.textContent = '';
+          }
+        }
         if (d.processed) setTimeout(function () { location.reload(); }, 1200);
       })
       .catch(function (e) {

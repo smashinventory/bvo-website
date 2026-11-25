@@ -43,7 +43,7 @@
  */
 
 const { bvoPool } = require('../config/database');
-const { runRollup, getSnapshotStatus } = require('../jobs/wcMovementRollup');
+const { runRollup, getSnapshotStatus, describeSnapshotsDir } = require('../jobs/wcMovementRollup');
 
 const LAYOUT = { layout: 'layouts/admin' };
 
@@ -393,12 +393,19 @@ async function triggerRollup(req, res) {
     const errors    = results.filter(r => r.error);
     const dims      = results.find(r => r.type === 'dimensions');
 
+    /* Always report what the job could see. When processed is 0 this is the
+       difference between "wrong path", "unreadable directory" and "filenames
+       do not match" — three causes with identical symptoms from outside. */
+    let disk = null;
+    try { disk = describeSnapshotsDir(); } catch (e) { disk = { error: e.message }; }
+
     res.json({
       ok: true,
       processed,
       errors: errors.length,
       errorSample: errors.slice(0, 5),
       dimensions: dims || null,
+      disk,
       note: 'Resumable — press again to continue the backlog.',
     });
   } catch (err) {

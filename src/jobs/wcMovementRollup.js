@@ -761,6 +761,47 @@ async function runRollup({ dates = null, includeDimensions = false } = {}) {
   }
 }
 
+/**
+ * describeSnapshotsDir()
+ * What the job can actually SEE on disk, reported back to the UI.
+ *
+ * WHY THIS EXISTS. The first live run reported "0 processed, backlog clear"
+ * with 1,628 files sitting in the folder, and from outside the process there
+ * was no way to tell whether the path was wrong, the directory unreadable, or
+ * the filenames unmatched — the three have identical symptoms and the guess
+ * costs a deploy each time. This returns the resolved path and a sample of
+ * what is in it, so the answer is on screen instead of inferred.
+ *
+ * Cheap, read-only, and safe to call on every rollup.
+ */
+function describeSnapshotsDir() {
+  const out = {
+    configured: process.env.WC_SNAPSHOTS_PATH || null,
+    defaultPath: path.join(__dirname, '../../../wc_sync/snapshots'),
+    dirname: __dirname,
+    cwd: process.cwd(),
+    resolved: null,
+    exists: false,
+    entryCount: 0,
+    matchedSnapshots: 0,
+    sample: [],
+    error: null,
+  };
+  try {
+    out.resolved = resolveSnapshotsDir();
+    out.exists = fs.existsSync(out.resolved);
+    if (out.exists) {
+      const entries = fs.readdirSync(out.resolved);
+      out.entryCount = entries.length;
+      out.matchedSnapshots = entries.filter(f => parseDateFromFilename(f)).length;
+      out.sample = entries.slice(0, 5);
+    }
+  } catch (err) {
+    out.error = err.message;
+  }
+  return out;
+}
+
 /** Status for the admin header: coverage, last snapshot, validity counts. */
 async function getSnapshotStatus() {
   const [rows] = await bvoPool.query(
@@ -778,6 +819,7 @@ module.exports = {
   processSnapshot,
   upsertDimensions,
   getSnapshotStatus,
+  describeSnapshotsDir,
   // exported for the gates
   parseSku,
   classifyFamily,
