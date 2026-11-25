@@ -325,8 +325,13 @@ const dimCards = [
         </tbody>
       </table>
     </div>
+    <%# "described" = resolved from the SKU codebook OR the supplier catalogue.
+        This used to say "the catalogue describes", which stopped being true on
+        2026-11-25 when the decode became the primary source — the catalogue
+        only ever covered ~22%. Keep this wording source-agnostic so it does
+        not go stale again the next time the source changes. %>
     <p class="adm-label">
-      Covers the <strong><%= pct(covPct) %></strong> of SKUs the catalogue describes for
+      Covers the <strong><%= pct(covPct) %></strong> of SKUs we can describe for
       <%= noun %>. The remainder are not represented here at all.
     </p>
     <% } %>
