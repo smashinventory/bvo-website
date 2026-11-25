@@ -176,9 +176,8 @@ const _inScope = (_scopes[_scopeKey] && _scopes[_scopeKey].families) || null;
     catalogue describes a SKU directly, <strong>it wins</strong>; the decode only fills gaps.
     <strong>Undescribed rows are the ones to watch</strong>: a non-zero count means WC has
     shipped a code we have not verified yet, not that the card is broken.
-    <strong>Top finish is the known exception</strong> and will read as undescribed &mdash; the
-    same top code maps to different stone across collections, so it cannot honestly be
-    derived from the SKU.
+    There is deliberately no <em>top finish</em> or <em>mounting</em> cut &mdash; neither can be
+    sourced honestly today, so they were removed rather than left permanently empty.
   </p>
 </div>
 
@@ -279,12 +278,33 @@ const _inScope = (_scopes[_scopeKey] && _scopes[_scopeKey].families) || null;
 <h2 class="report-section-title" style="margin-top:28px">Dimension breakdowns</h2>
 
 <%
+/* ⚠️ TOP FINISH AND MOUNTING TYPE WERE REMOVED (2026-11-25). DO NOT RE-ADD
+   THEM WITHOUT A NEW DATA SOURCE — they were not forgotten, they were cut
+   because neither can be populated honestly, and a permanently empty card
+   makes a working report look broken.
+
+   MOUNTING. The obvious source is the 2020 catalogue's "Installation Type"
+   column. It is a FAUCET attribute, not a vanity one: its values are
+   "Deck mount" and "Freestanding", Potenza carries BOTH at once (12 and 20),
+   and only 7 of 30 collections have any value at all. Filling the vanity's
+   mounting from it would have put faucet installation data under a vanity
+   label — correct-looking and wrong. Separately, every WC vanity in the
+   vendor's own copy is free-standing, so even a correct card would read
+   "Freestanding 100%" and carry no information.
+
+   TOP FINISH. It cannot be derived from the SKU: the same QZ code is
+   Whitebrook on Sequoia and Westin but Carrara on Palace. The 2020
+   catalogue only ever says "Carrara White", and only for the 7 CW
+   collections, which merely restates top_material. Real coverage needs a
+   current WC product-data export, or a (collection + top code) table built
+   by hand from vendor copy — roughly a third coverage for ~20 lookups.
+
+   The wc_dimensions.top_finish and .mounting COLUMNS are deliberately left
+   in place so a future source can fill them without a migration. */
 const dimCards = [
   ['byColour',      'Cabinet colours',  'cabinet colour', coverage.colour_pct],
   ['bySize',        'Sizes',            'size',           coverage.size_pct],
   ['byTopMaterial', 'Top material',     'top material',   coverage.top_pct],
-  ['byTopFinish',   'Top finish',       'top finish',     coverage.top_pct],
-  ['byMounting',    'Mounting type',    'mounting',       coverage.top_pct],
   ['bySinks',       'Sink count',       'sink count',     coverage.top_pct],
 ];
 %>

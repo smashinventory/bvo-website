@@ -180,6 +180,15 @@ mutate "decode allowed to overwrite the supplier catalogue" "$JOB" \
 mutate "non-grammar SKUs no longer rejected" "$CODEBOOK" \
   's/if \(!m\) return null;/if (!m) return { collection: null, size_nominal: null, top_material: null, cabinet_color: null, sinks: null, codes: {} };/'
 
+# 12g/12h. The two unsourceable cards creep back. Easy to do by reflex
+#      ("there's a column for it"), and the result is a report with dead
+#      blocks that make the working parts look broken too.
+mutate "Top finish card re-added to the view" "$VIEW" \
+  "s/  \['bySinks',       'Sink count',       'sink count',     coverage.top_pct\],/  ['byTopFinish',   'Top finish',       'top finish',     coverage.top_pct],\n  ['bySinks',       'Sink count',       'sink count',     coverage.top_pct],/"
+
+mutate "Mounting card re-added to the controller" "$CTRL" \
+  "s/    cards.bySinks      = await card\('bySinks',      \(\) => byDim\('sinks'\)\);/    cards.byMounting   = await card('byMounting',   () => byDim('mounting'));\n    cards.bySinks      = await card('bySinks',      () => byDim('sinks'));/"
+
 # 12f. The codebook made to read from disk — the hbuilds trap, which would
 #      break it on the next deploy and only the next deploy.
 #      /m is required: perl -0 slurps the file, so ^ only anchors per-line

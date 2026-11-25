@@ -273,8 +273,13 @@ async function dashboard(req, res) {
     cards.byColour     = await card('byColour',     () => byDim('cabinet_color'));
     cards.bySize       = await card('bySize',       () => byDim('size_nominal'));
     cards.byTopMaterial= await card('byTopMaterial',() => byDim('top_material'));
-    cards.byTopFinish  = await card('byTopFinish',  () => byDim('top_finish'));
-    cards.byMounting   = await card('byMounting',   () => byDim('mounting'));
+    /* No byTopFinish / byMounting cards — removed 2026-11-25. Neither
+       attribute can be sourced honestly (top finish is not derivable from
+       the SKU code; "Installation Type" in the supplier catalogue is a
+       FAUCET attribute, not the vanity's). The columns remain in
+       wc_dimensions so a future product-data export can fill them without a
+       migration. Full reasoning in the view. Querying them here would just
+       pay for two round trips that return nothing. */
     cards.bySinks      = await card('bySinks',      () => byDim('sinks'));
 
     cards.collectionBySize = await card('collectionBySize', () => q(

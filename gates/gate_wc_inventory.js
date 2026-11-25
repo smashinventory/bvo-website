@@ -471,6 +471,26 @@ section('11. SKU codebook — decode, precedence, and honest gaps');
          `got ${JSON.stringify(novel)} / unknown=${JSON.stringify(novelUnknown)}`);
   }
 
+  /* 11c-ii. NO PERMANENTLY-EMPTY DIMENSION CARDS.
+     Top finish and Mounting type were removed on 2026-11-25 because neither
+     can be populated from any source we have. They are easy to re-add by
+     reflex ("there's a column for it"), and the result is a report with two
+     dead blocks that makes the working parts look broken too.
+     Re-adding either is only correct alongside a real data source. */
+  const viewSrc = read(VIEW);
+  const ctlSrc  = read(CONTROLLER);
+  const revived = [];
+  if (/\['byTopFinish'/.test(viewSrc) || /cards\.byTopFinish\s*=/.test(ctlSrc)) revived.push('Top finish');
+  if (/\['byMounting'/.test(viewSrc)  || /cards\.byMounting\s*=/.test(ctlSrc))  revived.push('Mounting type');
+  if (!revived.length) {
+    pass('no top-finish or mounting card (removed — unsourceable, not forgotten)');
+  } else {
+    fail(`${revived.join(' and ')} card(s) are back`,
+         'Neither can be sourced: top finish is not code-derivable (QZ is Whitebrook on ' +
+         'Sequoia, Carrara on Palace), and the catalogue\'s "Installation Type" is a FAUCET ' +
+         'attribute. Re-add only with a real product-data export.');
+  }
+
   /* 11d. ⚠️ top_finish MUST NOT be derived from the code.
      Measured: SE30QZ00MW is "Whitebrook", PA60QZ05PW is "Carrara" — same QZ
      code, different stone. Deriving finish from the code would fill a card
