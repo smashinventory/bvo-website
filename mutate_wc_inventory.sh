@@ -123,6 +123,33 @@ mutate "kitchen_sink rule removed — sinks fall through to vanity" "$JOB" \
 mutate "DROP TABLE added to the migration" "$MIG" \
   's/^CREATE TABLE IF NOT EXISTS wc_snapshots \(/DROP TABLE IF EXISTS wc_snapshots;\nCREATE TABLE IF NOT EXISTS wc_snapshots (/m'
 
+# ── 11. THE VALIDITY ONE-WAY DOOR ──────────────────────────────────────
+#   This is the bug that shipped. It discarded 400 of 1,628 days — every
+#   snapshot after 2025-10-08 — and the only symptom was one card reading
+#   "No movement in this window". These three mutations reintroduce it by
+#   each of the routes it could come back by.
+
+# 11a. The original bug, exactly: baseline computed over valid days only.
+#      WC steps its catalogue down, every later day deviates from a frozen
+#      median, and being invalid none of them can ever move it.
+mutate "trailing median filtered back down to valid days only" "$JOB" \
+  's/WHERE snapshot_date < \? ORDER BY snapshot_date DESC LIMIT 7/WHERE snapshot_date < ? AND is_valid = 1 ORDER BY snapshot_date DESC LIMIT 7/'
+
+# 11b. Same door, other hinge: the whole-series recompute stops following
+#      the counts and only ever ratchets one way.
+mutate "recomputeValidity window stops updating after an invalid day" "$JOB" \
+  's/    window\.push\(r\.row_count\);\n    if \(window\.length > 7\) window\.shift\(\);/    if (isValid) { window.push(r.row_count); if (window.length > 7) window.shift(); }/s'
+
+# 11c. Validity rescued but deltas never rebuilt — days marked valid that
+#      contain nothing, which reads on the dashboard as "no demand".
+mutate "rebuild step removed — rescued days stay empty" "$JOB" \
+  's/const unbuilt = await findUnbuiltValidDays\(conn\);/const unbuilt = [];/'
+
+# 11d. The two gate paths given different minimum baselines, so they
+#      disagree on the earliest days and flip them on alternate runs.
+mutate "validity paths given divergent minimum baselines" "$JOB" \
+  's/if \(window\.length >= VALIDITY_MIN_BASELINE\)/if (window.length >= 3)/'
+
 echo ""
 echo "Restoring originals and re-running the gate:"
 restore_check() {

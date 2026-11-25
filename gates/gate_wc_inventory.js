@@ -377,11 +377,184 @@ section('9. Product scope — the feed is not all vanities');
   }
 }
 
-/* ── RESULT ───────────────────────────────────────────────────────── */
-console.log('');
-if (failures) {
-  console.error(`gate_wc_inventory: ${failures} failure(s)`);
-  process.exit(1);
+/* ── 10. THE VALIDITY GATE MUST NOT BE A ONE-WAY DOOR ─────────────────
+ *
+ * THE BUG THIS EXISTS TO PREVENT, because it shipped once and hid itself.
+ * The trailing-median baseline was originally computed over days already
+ * marked valid. WC stepped its catalogue down on 2025-10-09, 1,553 SKUs ->
+ * 1,344. Every day from then on deviated >10% from a median frozen at 1,553,
+ * so every day was invalid; being invalid, not one of them could move the
+ * median. Replayed over the real row counts of all 1,628 snapshots: 400 days
+ * discarded, the last valid day 2025-10-08. Thirteen months of the most
+ * commercially relevant data, gone, and the only visible symptom was
+ * "No movement in this window" on one card.
+ *
+ * These run recomputeValidity() against a STUBBED connection — no database,
+ * no files — so the actual shipped function is exercised, not a paraphrase
+ * of it. A test that reimplements the algorithm would have passed happily
+ * while the real one was broken.
+ */
+section('10. VALIDITY GATE — recovery from a catalogue step change');
+{
+  process.env.DB_PASS = process.env.DB_PASS || 'gate-dummy-never-connects';
+  const job = require(path.join(ROOT, JOB));
+
+  /* Minimal fake connection: serves the SELECT from an in-memory series and
+     applies the UPDATEs back onto it. Anything unexpected throws rather than
+     returning empty, so a query the stub does not model fails loudly instead
+     of silently passing the test. */
+  function stub(series) {
+    const rows = series.map(([d, n]) => ({ d, row_count: n, is_valid: 1, notes: null }));
+    return {
+      rows,
+      async query(sql, params) {
+        if (/FROM wc_snapshot_validity ORDER BY snapshot_date ASC/.test(sql)) {
+          return [rows.map(r => ({ ...r }))];
+        }
+        if (/UPDATE wc_snapshot_validity SET is_valid/.test(sql)) {
+          const [isValid, notes, d] = params;
+          const r = rows.find(x => x.d === d);
+          if (!r) throw new Error(`stub: UPDATE for unknown date ${d}`);
+          r.is_valid = isValid; r.notes = notes;
+          return [{ affectedRows: 1 }];
+        }
+        if (/UPDATE wc_daily_movement/.test(sql)) return [{ affectedRows: 0 }];
+        throw new Error(`stub: unmodelled query: ${sql.slice(0, 60)}`);
+      },
+    };
+  }
+
+  /* getTrailingMedian is the OTHER half of the door, and it is a separate
+     test because recomputeValidity carries its own window and never calls
+     it. The mutation harness found exactly this hole: restoring
+     "AND is_valid = 1" to getTrailingMedian left every check below green.
+     Do not merge these two tests.
+
+     The stub honestly plays MariaDB here — it reads the WHERE clause and
+     applies the filter — so this asserts behaviour, not the presence of a
+     string. A filtered baseline returns the pre-step median and the test
+     fails; an unfiltered one tracks the counts. */
+  function medianStub(rows) {
+    return {
+      async query(sql, params) {
+        let r = rows;
+        if (/snapshot_date < \?/.test(sql)) r = r.filter(x => x.d < params[0]);
+        if (/is_valid\s*=\s*1/.test(sql)) r = r.filter(x => x.is_valid === 1);
+        r = [...r].sort((a, b) => a.d < b.d ? 1 : -1).slice(0, 7);
+        return [r.map(x => ({ row_count: x.row_count }))];
+      },
+    };
+  }
+
+  /* Ten flat days at 1,553, then ten at 1,344 which a stale gate has marked
+     invalid — the live state of the table on 2026-11-25. */
+  const mixed = [];
+  for (let i = 1; i <= 10; i++) mixed.push({ d: `2025-10-${String(i).padStart(2,'0')}`, row_count: 1553, is_valid: 1 });
+  for (let i = 11; i <= 20; i++) mixed.push({ d: `2025-10-${String(i).padStart(2,'0')}`, row_count: 1344, is_valid: 0 });
+
+  /* The real shape of the event: flat, one-day step down, flat again. */
+  const series = [];
+  for (let i = 0; i < 40; i++) series.push([`2025-09-${String(i + 1).padStart(2,'0')}`, 1553]);
+  for (let i = 0; i < 40; i++) series.push([`2025-11-${String(i + 1).padStart(2,'0')}`, 1344]);
+
+  /* ONE async IIFE for the whole section, deliberately. A second one would
+     race this: whichever finished first would call process.exit and the
+     other's assertions would never run, which is a gate that reports green
+     without having checked. */
+  (async () => {
+    /* FIRST: the incremental path. getTrailingMedian is what processSnapshot
+       consults as each snapshot is ingested, and it is NOT reached by
+       recomputeValidity below. */
+    const m = await job.getTrailingMedian(medianStub(mixed), '2025-10-21');
+    if (m === 1344) {
+      pass('trailing median follows the actual row counts, not just valid days');
+    } else {
+      fail(`trailing median returned ${m}, expected 1344`,
+           'getTrailingMedian is filtering its baseline on is_valid. That is the ' +
+           'one-way door: once a catalogue step marks days invalid the median ' +
+           'freezes at the old count and every later day is invalid for ever. ' +
+           'Measured cost when this shipped: 400 of 1,628 days discarded.');
+    }
+
+    const c = stub(series);
+    await job.recomputeValidity(c);
+    const after = c.rows.slice(45);                 // well clear of the step
+    const stillInvalid = after.filter(r => !r.is_valid);
+    if (!stillInvalid.length) {
+      pass('days after a sustained catalogue step return to valid (baseline self-heals)');
+    } else {
+      fail(`${stillInvalid.length} day(s) remain invalid long after a catalogue step`,
+           'The trailing median is not following the row counts — this is the one-way door. ' +
+           'Check that getTrailingMedian does NOT filter on is_valid.');
+    }
+
+    /* The other half: it must still reject a genuinely bad file. A gate that
+       recovers from everything is not a gate. */
+    const trunc = series.map(([d, n], i) => [d, i === 60 ? Math.round(n / 2) : n]);
+    const c2 = stub(trunc);
+    await job.recomputeValidity(c2);
+    if (!c2.rows[60].is_valid) {
+      pass('a truncated file is still marked invalid');
+    } else {
+      fail('a half-length snapshot was accepted as valid',
+           'The validity gate no longer catches truncated feeds.');
+    }
+
+    /* And one bad day must not take its neighbours with it — a median over
+       seven absorbs a single outlier. */
+    const collateral = c2.rows.slice(61, 69).filter(r => !r.is_valid);
+    if (!collateral.length) {
+      pass('one bad day does not collaterally invalidate the days after it');
+    } else {
+      fail(`${collateral.length} day(s) after a single truncated file were also invalidated`,
+           'One bad file is contaminating the baseline.');
+    }
+
+    /* The two code paths must agree. processSnapshot judges a day as it is
+       ingested; recomputeValidity re-judges the whole series afterwards. If
+       they use different minimum baselines they will reach opposite verdicts
+       on the earliest days and flip them on alternate runs, for ever. */
+    const src = read(JOB);
+    const usesShared = (src.match(/VALIDITY_MIN_BASELINE/g) || []).length >= 3;
+    const noMagic3 = !/window\.length\s*>=\s*3/.test(src);
+    if (usesShared && noMagic3) {
+      pass('both validity paths share VALIDITY_MIN_BASELINE (no divergent verdicts)');
+    } else {
+      fail('the two validity paths do not share one minimum-baseline constant',
+           'They will disagree on the earliest days and flip them every run.');
+    }
+
+    /* Flipping is_valid back on is only half a fix: processSnapshot returns
+       before computing any delta on an invalid day, so a rescued day is valid
+       and EMPTY unless its movement rows are rebuilt. */
+    if (typeof job.findUnbuiltValidDays === 'function'
+        && /findUnbuiltValidDays\(/.test(src.split('async function runRollup')[1] || '')) {
+      pass('rescued days have their deltas rebuilt (runRollup calls findUnbuiltValidDays)');
+    } else {
+      fail('nothing rebuilds movement rows for days that become valid',
+           'processSnapshot returns before computing deltas when a day is invalid, so ' +
+           'recomputeValidity alone yields days marked valid that contain nothing.');
+    }
+
+    /* ── RESULT ─────────────────────────────────────────────────────── */
+    console.log('');
+    if (failures) {
+      console.error(`gate_wc_inventory: ${failures} failure(s)`);
+      process.exit(1);
+    }
+    console.log('gate_wc_inventory: all checks passed');
+    process.exit(0);
+  })().catch(err => {
+    console.error(`\ngate_wc_inventory: section 10 threw — ${err.message}`);
+    process.exit(1);
+  });
 }
-console.log('gate_wc_inventory: all checks passed');
-process.exit(0);
+
+/* NOTE ON CONTROL FLOW. Sections 1-9 are synchronous; section 10 is async
+   because it awaits recomputeValidity against a stubbed connection. The
+   result block therefore lives INSIDE section 10's IIFE above, which owns
+   process.exit, and its .catch exits non-zero if the section throws. There
+   is deliberately no second result block here: two of them would let the
+   file exit 0 before the async assertions had run, which is the classic way
+   a gate quietly stops gating. If section 10 is ever removed, move the
+   result block back out here. */

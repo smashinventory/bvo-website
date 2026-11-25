@@ -1569,6 +1569,63 @@ real and is not a market effect. The **cause is open** — demand, competition,
 pricing and staffing all remain live candidates and nothing currently
 discriminates between them.
 
+### 24. ⚠️ Hostinger runs the app from a versioned build directory — never use `__dirname` to reach outside the app
+*Logged 2026-11-25 · cost about an hour on the WC rollup's first live run · **a
+standing warning, not a task***
+
+The Node app does not run from the path File Manager shows
+(`domains/<site>/nodejs/`). It runs from a per-deploy copy at
+`hbuilds/versions/<uuid>/nodejs/`, and **the UUID changes on every deploy**. Any
+`__dirname`-relative path to a data folder outside the app therefore points at a
+directory that does not exist, and breaks again the moment it is fixed.
+
+Use an absolute path from an environment variable. Set so far:
+`WC_SNAPSHOTS_PATH`. **Still needed: `WC_CATALOGUE_PATH`** — the WC dimension
+loader reads the 2021 catalogue xlsx by relative path and will hit the same wall
+the first time it runs on the server.
+
+Symptom to recognise: a job reports `0 processed, backlog clear` while the files
+are plainly there. A wrong path, an unreadable directory and unmatched filenames
+are indistinguishable from outside the process, and each guess costs a deploy —
+so give any disk-reading job a diagnostic that reports the resolved path and
+what it can see (`describeSnapshotsDir()` is the pattern). Do not debug this by
+guessing.
+
+This does **not** affect the JMV rollup, which has run correctly for months:
+`jmv_rollup.sh` is launched by system cron from the real directory, where
+`__dirname` resolves. Only the web-trigger path breaks. Full note:
+`docs/briefs/WC_REPORTS_SPEC.md` §8.1.
+
+### 25. ⚠️ A validity gate whose baseline excludes rejected data is a latch, not a gate
+*Logged 2026-11-25 · the WC rollup silently discarded 400 of 1,628 days · **a
+standing warning, not a task***
+
+Pattern worth remembering because it was invisible and because the same shape
+exists in the JMV job. A row-count gate rejected any snapshot deviating >10%
+from the trailing 7-day median, and computed that median over **days already
+marked valid**. WC stepped its catalogue down on 2025-10-09, 1,553 SKUs → 1,344,
+in one day. Every later day deviated from a median frozen at 1,553; being
+invalid, none could move it. Result: 24.6% of history dropped, nothing after
+2025-10-08 counted, and the only symptom was one card reading "No movement in
+this window".
+
+Two lessons, both general:
+
+- **A gate's baseline must be computed from observed reality, not from data the
+  gate has already approved.** Otherwise the first genuine step change latches
+  it shut for ever.
+- **Rejecting a day is not the same as being able to un-reject it.** Here the
+  ingest path returned before computing deltas, so flipping the flag back on
+  produced days marked valid that contained nothing — which reads on a
+  dashboard as "no demand", a worse failure than being marked invalid. Any
+  re-decidable quality flag needs a matching rebuild path.
+
+Also: the comment asserting this could not happen was the root cause of the
+misjudgement — it claimed WC's SKU count "drifts slowly", and WC does not drift,
+it steps. Fixed, replay-verified (400 → 4 flagged days), and pinned by
+`gate_wc_inventory.js` §10 plus `mutate_wc_inventory.sh` 11a–11d. Full note:
+`docs/briefs/WC_REPORTS_SPEC.md` §8.2.
+
 ---
 
 ## Cutover — completed 2026-09-30 ~02:00, verified

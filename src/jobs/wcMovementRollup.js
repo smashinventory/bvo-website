@@ -48,10 +48,32 @@ const SNAPSHOTS_DIR = process.env.WC_SNAPSHOTS_PATH
 const CATALOGUE_PATH = process.env.WC_CATALOGUE_PATH
   || path.join(__dirname, '../../../Water Creation product catalog 2021 NEW collections.xlsx');
 
-/* Row-count validity gate: >10% deviation from trailing 7-day median → INVALID.
-   Same threshold as JMV. WC's SKU count drifts slowly (1,834 in 2021 → 1,301
-   now), so a genuine catalogue change never trips this; a truncated file does. */
+/* Row-count validity gate: >10% deviation from the trailing 7-day median
+   marks a snapshot INVALID. Same threshold as JMV.
+ *
+ * ⚠️ THE ORIGINAL COMMENT HERE WAS WRONG, and the error was expensive enough
+ * to be worth recording. It read: "WC's SKU count drifts slowly (1,834 in
+ * 2021 → 1,301 now), so a genuine catalogue change never trips this; a
+ * truncated file does."
+ *
+ * Drift is not how WC does it. The count holds flat for months and then steps
+ * — on 2025-10-09 it went 1,553 → 1,344 in a single day, a 13.5% fall, which
+ * is exactly what this gate is built to reject. Combined with a trailing
+ * median computed over valid days only, that one step blacked out every
+ * snapshot from then to the present: ~410 days, the whole recent period.
+ *
+ * Two changes keep that from recurring: the median now follows the actual
+ * counts regardless of validity (see getTrailingMedian), and the gate is
+ * re-decided over the whole series on every run (see recomputeValidity).
+ * The threshold itself stays at 10% — it is the right test for a truncated
+ * file, which is what it is for. */
 const VALIDITY_THRESHOLD = 0.10;
+
+/* Snapshots needed before the gate will judge anything. Both the incremental
+   path and the whole-series recompute must use this same number, or they will
+   reach different verdicts on the earliest days and flip them back and forth
+   on alternate runs. */
+const VALIDITY_MIN_BASELINE = 3;
 
 /* Trailing window for demand imputation on restock days. Same as JMV. */
 const TRAILING_DAYS = 14;
@@ -316,14 +338,126 @@ function classifyFamily(sku) {
    DB HELPERS — same shape as the JMV job
 ───────────────────────────────────────────────────────────────────── */
 
-async function getTrailingMedian(conn) {
-  const [rows] = await conn.query(
-    `SELECT row_count FROM wc_snapshot_validity
-     WHERE is_valid = 1 ORDER BY snapshot_date DESC LIMIT 7`
-  );
-  if (!rows.length) return null;
+/**
+ * Trailing row-count median, used by the validity gate.
+ *
+ * ⚠️ DELIBERATELY IGNORES is_valid. The first version filtered on
+ * `is_valid = 1`, copied from the JMV job, and it made the gate a one-way
+ * door:
+ *
+ *   WC permanently shrank its catalogue on 2025-10-09, 1,553 SKUs -> ~1,344.
+ *   Every day after that deviated >10% from the frozen median of 1,553, so
+ *   every day was marked invalid. Being invalid, none of them could update
+ *   the median. The median stayed at 1,553 for ever and ~410 days — all of
+ *   the most recent and most commercially relevant data — were silently
+ *   excluded from every figure on the dashboard.
+ *
+ * The baseline has to follow reality. Taking the median over the last 7
+ * snapshots regardless of validity keeps the two cases apart:
+ *
+ *   truncated file   one outlier against six normal days — still caught,
+ *                    and it barely moves a median
+ *   catalogue change a sustained step; after ~4 days the median has moved
+ *                    with it and the gate re-opens by itself
+ *
+ * The few days spanning a step change are still flagged, which is honest:
+ * at the moment it happens, a real shrink and a truncated file are
+ * indistinguishable. What matters is that it recovers.
+ */
+async function getTrailingMedian(conn, beforeDate = null) {
+  const [rows] = beforeDate
+    ? await conn.query(
+        `SELECT row_count FROM wc_snapshot_validity
+          WHERE snapshot_date < ? ORDER BY snapshot_date DESC LIMIT 7`, [beforeDate])
+    : await conn.query(
+        `SELECT row_count FROM wc_snapshot_validity
+          ORDER BY snapshot_date DESC LIMIT 7`);
+  /* Fewer than 3 priors is not a baseline, it is a coin toss. The very first
+     snapshots must not be judged against one another — and this threshold
+     has to match recomputeValidity's or the two paths will disagree and flip
+     the same day back and forth on alternate runs. */
+  if (rows.length < VALIDITY_MIN_BASELINE) return null;
   const counts = rows.map(r => r.row_count).sort((a, b) => a - b);
   return counts[Math.floor(counts.length / 2)];
+}
+
+/**
+ * recomputeValidity()
+ * Re-decide is_valid for the WHOLE series, in date order, from the row counts
+ * already stored in wc_snapshot_validity.
+ *
+ * No file I/O: row_count is recorded at ingestion, so this is a single pass
+ * over one small table. That matters because the validity rule has changed
+ * once already and will change again — without this, fixing the rule would
+ * mean re-parsing 1,628 CSVs, and the already-evaluated check would skip them
+ * all anyway.
+ *
+ * Runs at the end of every rollup, so the series is always judged by the
+ * current rule rather than by whatever rule was in force the day each
+ * snapshot happened to be ingested.
+ */
+async function recomputeValidity(conn) {
+  const [rows] = await conn.query(
+    `SELECT DATE_FORMAT(snapshot_date,'%Y-%m-%d') AS d, row_count, is_valid, notes
+       FROM wc_snapshot_validity ORDER BY snapshot_date ASC`
+  );
+  if (!rows.length) return { checked: 0, changed: 0, nowValid: 0, nowInvalid: 0 };
+
+  let changed = 0, nowValid = 0, nowInvalid = 0;
+  const window = [];
+
+  for (const r of rows) {
+    let isValid = 1;
+    let note = null;
+
+    if (window.length >= VALIDITY_MIN_BASELINE) {
+      const sorted = [...window].sort((a, b) => a - b);
+      const median = sorted[Math.floor(sorted.length / 2)];
+      if (median > 0) {
+        const deviation = Math.abs(r.row_count - median) / median;
+        if (deviation > VALIDITY_THRESHOLD) {
+          isValid = 0;
+          note = `Row count ${r.row_count} deviates ${(deviation*100).toFixed(1)}% ` +
+                 `from trailing median ${median} — marked INVALID`;
+        }
+      }
+    }
+
+    /* Preserve any non-validity note already on the row (schema variant
+       warnings, duplicate-SKU conflicts, "feed unchanged"). Those are
+       observations about the file, not verdicts, and must survive. */
+    const keep = (r.notes || '').split(' | ')
+      .filter(n => n && !/deviates .* from (the )?(trailing )?median/i.test(n))
+      .join(' | ');
+    const merged = [note, keep].filter(Boolean).join(' | ') || null;
+
+    if (Number(r.is_valid) !== isValid || (r.notes || null) !== merged) {
+      await conn.query(
+        `UPDATE wc_snapshot_validity SET is_valid = ?, notes = ? WHERE snapshot_date = ?`,
+        [isValid, merged, r.d]
+      );
+      changed++;
+      if (isValid) nowValid++; else nowInvalid++;
+    }
+
+    window.push(r.row_count);
+    if (window.length > 7) window.shift();
+  }
+
+  /* Movement rows carry their own is_valid, used by every report query.
+     Re-point them at the snapshot verdict or the fix only half lands. */
+  await conn.query(
+    `UPDATE wc_daily_movement m
+       JOIN wc_snapshot_validity v ON v.snapshot_date = m.movement_date
+        SET m.is_valid = v.is_valid
+      WHERE m.is_valid <> v.is_valid`
+  );
+
+  if (changed) {
+    console.log(`[wc-rollup] validity recomputed: ${changed} day(s) changed ` +
+                `(${nowValid} now valid, ${nowInvalid} now invalid)`);
+  }
+  return { checked: rows.length, changed, nowValid, nowInvalid };
 }
 
 async function getTrailingAvg(conn, sku, dateStr) {
@@ -374,15 +508,22 @@ async function processSnapshot(dateStr, conn) {
              isValid: false, notes: 'Unrecognised header' };
   }
 
-  // Validity gate
-  const median = await getTrailingMedian(conn);
+  /* Validity gate.
+     beforeDate matters: the baseline must be the 7 days preceding THIS
+     snapshot, not the 7 most recent rows in the table. Without it, a forced
+     re-read of a 2022 date — runRollup({ dates: [...] }) — would be judged
+     against 2026 counts and fail on a catalogue that had not happened yet.
+     The note wording is shared with recomputeValidity, whose regex strips it
+     on rewrite; change one and change both. */
+  const median = await getTrailingMedian(conn, dateStr);
   let isValid = 1;
   let notes   = null;
   if (median !== null) {
     const deviation = Math.abs(rowCount - median) / median;
     if (deviation > VALIDITY_THRESHOLD) {
       isValid = 0;
-      notes = `Row count ${rowCount} deviates ${(deviation*100).toFixed(1)}% from median ${median} — marked INVALID`;
+      notes = `Row count ${rowCount} deviates ${(deviation*100).toFixed(1)}% ` +
+              `from trailing median ${median} — marked INVALID`;
     }
   }
 
@@ -700,6 +841,48 @@ async function upsertDimensions(conn, { skus = null } = {}) {
 ───────────────────────────────────────────────────────────────────── */
 
 /**
+ * findUnbuiltValidDays()
+ * Valid snapshot days that have no movement rows and no legitimate reason to
+ * lack them.
+ *
+ * WHY THIS IS NEEDED AND NOT JUST recomputeValidity. processSnapshot returns
+ * early on an invalid day, after writing wc_snapshots but BEFORE computing any
+ * delta. So flipping is_valid back on does not restore the data — it produces
+ * a day that is marked valid and holds nothing, which is worse than one marked
+ * invalid, because nothing on the dashboard says so. The raw counts are in
+ * wc_snapshots; the deltas have to be built from them.
+ *
+ * The repair set is defined by the data, not by what changed in this run.
+ * A "dates that just flipped" list would be lost the moment a run was
+ * interrupted — and the one that matters here is 410 days long, which will not
+ * clear inside a single Hostinger process window. Asking the database which
+ * valid days are empty is resumable by construction and empties itself out.
+ *
+ * Two outcomes legitimately write no movement rows, and both record why in
+ * notes. They must not be dragged back in on every run for ever:
+ *   'Feed unchanged'  — WC republished an identical file; a false zero was
+ *                       deliberately not written
+ *   'First snapshot'  — nothing earlier to diff against
+ */
+async function findUnbuiltValidDays(conn, limit = 400) {
+  const [rows] = await conn.query(
+    `SELECT DATE_FORMAT(v.snapshot_date,'%Y-%m-%d') AS d
+       FROM wc_snapshot_validity v
+       LEFT JOIN wc_daily_movement m ON m.movement_date = v.snapshot_date
+      WHERE v.is_valid = 1
+        AND m.movement_date IS NULL
+        AND (v.notes IS NULL
+             OR (v.notes NOT LIKE '%Feed unchanged%'
+             AND  v.notes NOT LIKE '%First snapshot%'))
+      GROUP BY v.snapshot_date
+      ORDER BY v.snapshot_date ASC
+      LIMIT ?`,
+    [limit]
+  );
+  return rows.map(r => r.d);
+}
+
+/**
  * runRollup({ dates, includeDimensions })
  * Defaults to every unevaluated date found in SNAPSHOTS_DIR.
  */
@@ -753,6 +936,48 @@ async function runRollup({ dates = null, includeDimensions = false } = {}) {
         console.error('[wc-rollup] dimensions FAILED:', dimErr.message);
         results.push({ type: 'dimensions', error: dimErr.message });
       }
+    }
+
+    /* ALWAYS re-judge the whole series against the CURRENT rule.
+       Each snapshot's is_valid was decided by whatever rule was in force the
+       day it happened to be ingested. That is fine until the rule changes —
+       and it has: the trailing median used to be computed over valid days
+       only, which turned a genuine catalogue shrink into a permanent
+       blackout (see getTrailingMedian). Re-deciding every run means a rule
+       fix lands on the whole history without re-reading 1,628 CSVs, which
+       the already-evaluated filter above would skip anyway.
+
+       Cheap: one pass over ~1,600 rows of one small table, no file I/O.
+       Isolated like the dimensions step — a failure here must not discard
+       snapshots this run has already committed. */
+    try {
+      const rev = await recomputeValidity(conn);
+      if (rev.changed) results.push({ type: 'validity', ...rev });
+
+      /* Then rebuild any valid day left without deltas — days this recompute
+         just rescued, plus anything a previous interrupted run left half
+         done. Only on the default path: an explicit-dates call is a targeted
+         re-read and must not quietly turn into a 400-day repair. */
+      if (!dates) {
+        const unbuilt = await findUnbuiltValidDays(conn);
+        if (unbuilt.length) {
+          console.log(`[wc-rollup] ${unbuilt.length} valid day(s) have no ` +
+                      `movement rows — rebuilding deltas`);
+          let rebuilt = 0, failed = 0;
+          for (const d of unbuilt) {
+            try { await processSnapshot(d, conn); rebuilt++; }
+            catch (e) {
+              failed++;
+              console.error(`[wc-rollup] rebuild ${d} failed: ${e.message}`);
+            }
+          }
+          results.push({ type: 'rebuild', days: unbuilt.length, rebuilt, failed,
+                         from: unbuilt[0], to: unbuilt[unbuilt.length - 1] });
+        }
+      }
+    } catch (revErr) {
+      console.error('[wc-rollup] validity recompute FAILED:', revErr.message);
+      results.push({ type: 'validity', error: revErr.message });
     }
 
     return results;
@@ -818,6 +1043,9 @@ module.exports = {
   runRollup,
   processSnapshot,
   upsertDimensions,
+  recomputeValidity,
+  getTrailingMedian,
+  findUnbuiltValidDays,
   getSnapshotStatus,
   describeSnapshotsDir,
   // exported for the gates

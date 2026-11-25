@@ -264,3 +264,92 @@ National baseline to render against (from `WC_MARKET_ANALYSIS.md` §2):
 4. **Does the feed still arrive daily?** Last snapshot in hand is 2026-11-23. A
    guard like `jm_feed_guard.sh` would be needed, and that script's own
    liveness problem is already logged as `OPEN_ITEMS.md` #16.
+
+---
+
+## 8. Operational notes from the live build (2026-11-25)
+
+Two things cost real time on the first deploy. Both are recorded here because
+neither is discoverable from the code alone.
+
+### 8.1 Hostinger runs the app from a versioned build directory
+
+The Node app does **not** run from the path File Manager shows
+(`domains/<site>/nodejs/`). It runs from a per-deploy copy:
+
+```
+/home/u222311468/hbuilds/versions/<uuid>/nodejs/
+```
+
+The UUID **changes on every deploy**. So any `__dirname`-relative path to a
+sibling data folder outside the app resolves to a directory that does not
+exist, and is broken again the moment it is fixed.
+
+Symptom: the rollup reported `0 snapshots processed, backlog clear` with 1,628
+files sitting in the folder. A missing path, an unreadable directory, and
+unmatched filenames all look identical from outside the process, and each wrong
+guess costs a deploy.
+
+Rules that follow:
+
+- **Absolute paths via environment variables** for anything outside the app
+  directory. Currently set: `WC_SNAPSHOTS_PATH`. Still needed:
+  `WC_CATALOGUE_PATH`, which the dimension loader reads by relative path and
+  which will hit the same wall.
+- **Any job that reads from disk gets a diagnostic** that reports the resolved
+  path, whether it exists, and what is in it — see `describeSnapshotsDir()`,
+  surfaced on the admin page. Do not debug this class of problem by guessing.
+- **This does not affect the JMV rollup**, which has run correctly for months:
+  `jmv_rollup.sh` is invoked by system cron from the real directory, where
+  `__dirname` resolves. The web-trigger path is the one that breaks. Do not
+  assume a shared failure.
+
+### 8.2 The validity gate was a one-way door — 400 of 1,628 days discarded
+
+A row-count validity gate marks a snapshot invalid when it deviates more than
+10% from the trailing 7-day median. The baseline was originally computed over
+**days already marked valid**. That is a latch, not a gate:
+
+> WC stepped its catalogue down on **2025-10-09**, 1,553 SKUs → 1,344, in a
+> single day. Every day after that deviated 13.5% from a median frozen at
+> 1,553, so every day was marked invalid — and being invalid, not one of them
+> could move the median.
+
+Replayed over the real row counts of all 1,628 snapshots: **400 days
+discarded, 24.6% of the history, last valid day 2025-10-08.** Thirteen months
+of the most commercially relevant data. The only visible symptom was one card
+reading "No movement in this window".
+
+The original comment on the threshold asserted the opposite and was the root
+cause of the misjudgement: *"WC's SKU count drifts slowly, so a genuine
+catalogue change never trips this."* WC does not drift. It holds flat for
+months and then steps.
+
+Three changes, all gated:
+
+1. `getTrailingMedian` ignores `is_valid` — the baseline follows the actual
+   counts, so a sustained step is absorbed within ~4 days while a single
+   truncated file is still an outlier against six normal days. Replay after
+   the fix: **4 days flagged instead of 400**, and those four are the step
+   edge itself, which is honest — at the moment it happens, a real shrink and
+   a truncated file are indistinguishable.
+2. `recomputeValidity()` re-judges the whole series on every run from the row
+   counts already stored, so a rule change lands on all of history without
+   re-reading 1,628 CSVs.
+3. `findUnbuiltValidDays()` rebuilds the deltas. This is the part that is easy
+   to miss: `processSnapshot` returns **before** computing any delta on an
+   invalid day, so flipping `is_valid` back on alone produces days that are
+   marked valid and contain nothing — worse than invalid, because nothing on
+   the dashboard says so.
+
+Verified both directions: a half-length, 15%-short, empty, and doubled file
+are all still rejected, a 5% trim is not, and one bad day does not
+contaminate its neighbours. Section 10 of `gate_wc_inventory.js` pins all of
+it against a stubbed connection, and `mutate_wc_inventory.sh` 11a–11d
+reintroduce the bug by each route it could return by.
+
+**The mutation harness earned its keep here.** The first version of section 10
+tested `recomputeValidity` only — which carries its own window and never calls
+`getTrailingMedian` — so restoring `AND is_valid = 1`, the actual original
+bug, left the gate completely green. Two code paths decide validity; a test
+that exercises one of them proves nothing about the other.
