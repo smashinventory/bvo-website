@@ -64,6 +64,8 @@ line — add one to the top of that file, under its H1, then reindex.
 | `docs/briefs/SHIPPING_GAP_ANALYSIS.md` | Field-by-field gap analysis between the BVO shipping form and the SpeedShip API. |
 | `docs/briefs/SHIPPING_WWEX_BRIEF.md` | WWEX / SpeedShip V4 integration. Read before touching wwexService, shippingController or the shipping admin views. |
 | `docs/briefs/SHOPIFY_IMPORT_BRIEF.md` | Standing rules for importing the Shopify catalogue. |
+| `docs/briefs/WC_MARKET_ANALYSIS.md` | WC national demand arc, seasonality and the RFL store-level comparison, plus the two data-integrity findings that void all pre-2024 RFL revenue and any quote-conversion metric. Read the ⚠️ section before quoting any RFL number earlier than Jan 2024. |
+| `docs/briefs/WC_REPORTS_SPEC.md` | Parked spec for a WC analogue of the JMV reports dashboard — models, velocity, colours, sizes and tops from the national inventory feed. Units only, no financials. Not approved; see OPEN_ITEMS #22. |
 | `docs/briefs/WWEX_SUPPORT_REQUEST.md` | Open integration questions raised with WWEX, and their answers. |
 | `docs/briefs/james-martin-feed-analysis.md` | The JM feed: its columns, its quirks, and how each maps into the BVO schema. |
 | `docs/briefs/jmv-sync-interface-note.md` | Interface contract for the JMV sync — what each side sends and expects. |
@@ -75,7 +77,9 @@ line — add one to the top of that file, under its H1, then reindex.
 | `docs/reference/POLICY_ANSWERS.md` | Agreed answers to the store policy questions — returns, damage, freight. |
 | `docs/reference/POLICY_INTAKE_QUESTIONNAIRE.md` | The questionnaire the policy answers came from. |
 | `docs/reference/PRE_LAUNCH_CHECKLIST.md` | Everything that must be true before cutover. |
+| `docs/reference/SHIPPING_POLICY_REVISION_2026-10-22.md` | ⚠ NO DESCRIPTION — titled "Shipping Policy — proposed revision" |
 | `docs/reference/TRADE_PROGRAM_SPEC.md` | Trade program: eligibility, pricing visibility rules and the gating requirement. |
+| `docs/reference/TRADE_TERMS_DRAFT_2026-10-22.md` | ⚠ NO DESCRIPTION — titled "Trade Program Terms — DRAFT for review" |
 | `docs/reference/URL_CUTOVER_CHECKLIST.md` | ⚠ NO DESCRIPTION — titled "URL cutover checklist — Shopify → Node.js" |
 | `docs/reference/VENDOR_POLICY_CONSTRAINTS.md` | What each vendor permits and forbids — the constraints our policies must sit inside. |
 
@@ -111,7 +115,14 @@ Either move them into an existing section, or add the folder to
 
 | Document | Purpose |
 |---|---|
+| `docs/BVO_GAP_ANALYSIS.md` | ⚠ NO DESCRIPTION — titled "BVO — Operational Gap Analysis" |
+| `docs/CHECKOUT_PAYMENT_LIFECYCLE.md` | ⚠ NO DESCRIPTION — titled "The checkout and payment lifecycle — the artifact of record" |
+| `docs/DEPENDENCY_SECURITY_STATE.md` | ⚠ NO DESCRIPTION — titled "Dependency security — state, reasoning, and what to do next" |
 | `docs/MODEL_DESCRIPTIONS_PREVIEW.md` | ⚠ NO DESCRIPTION — titled "Model descriptions - preview" |
+| `docs/QA_SITE_CHECKLIST.md` | ⚠ NO DESCRIPTION — titled "BVO full-site QA checklist — everything short of checkout" |
+| `docs/RECOVER_STRANDED_ORDERS.md` | ⚠ NO DESCRIPTION — titled "Recovering the two orders stranded by the 2026-10-21 webhook defect" |
+| `docs/SCHEDULED_jmv_review_figures_refresh.md` | ⚠ NO DESCRIPTION — titled "Scheduled task — monthly JMV review-figure refresh" |
+| `docs/SESSION_HANDOFF.md` | ⚠ NO DESCRIPTION — titled "SESSION HANDOFF — written 2026-10-21, late" |
 
 ---
 

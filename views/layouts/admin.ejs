@@ -270,6 +270,10 @@
               <svg viewBox="0 0 24 24" class="admin-nav-icon" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
               JMV Demand Reports
             </a>
+            <a href="/admin/marketing/wc" class="admin-nav-item admin-nav-item--child <%= locals.pageTitle==='WC Inventory Analysis'?'active':'' %>">
+              <svg viewBox="0 0 24 24" class="admin-nav-icon" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><polyline points="7 14 11 10 15 13 20 7"/></svg>
+              WC Inventory Analysis
+            </a>
             <%# Active on the list AND on a customer detail page, whose title
                 is the customer's email — so match on the path instead of the
                 title, or the nav loses its highlight the moment you open a

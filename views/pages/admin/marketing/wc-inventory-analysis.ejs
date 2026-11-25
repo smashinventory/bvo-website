@@ -1,0 +1,454 @@
+<%
+/* ═══════════════════════════════════════════════════════════════════
+   WC Inventory Analysis
+
+   SOURCE NOTE (required on every chart and table on this page):
+     "Water Creation national wholesale shipments — not BVO sales, not
+      RFL sales."
+
+   A reader who mistakes this for our own sales draws the exact opposite
+   conclusion about our performance, so the labelling is not decoration.
+
+   AGGREGATION — stated accurately.
+   Every model/collection/colour/size/top figure is MAX(demand_min) per
+   base_sku per day, then summed. A TRUE base collapse, unlike the JMV
+   dashboard's variant-level collapse. WC publishes one cabinet as many
+   SKUs (one per mirror/faucet permutation) against one stock pool, so
+   SUMMING ACROSS CONFIGS OVERSTATES BY 3.8–6.0x. Measured, not assumed.
+
+   COVERAGE. Attribute cuts are only as complete as the coverage strip at
+   the top of this page says. The 2021 supplier catalogue describes ~22%
+   of the feed for colour/top. Every attribute card therefore carries its
+   undescribed count. Do not remove those — a card that reports on a fifth
+   of the catalogue while looking whole is worse than no card.
+
+   NO PRICING. Units only. There is no revenue figure on this page by
+   design; do not add one.
+
+   NEVER add the express-ejs-layouts script-block helper to this file. It
+   wipes every <script> on the page. See PROJECT_BRIEF §9 for the mechanism
+   and the four admin pages it already broke. (The helper's literal name is
+   deliberately not written here, so a grep-based gate counts zero.)
+═══════════════════════════════════════════════════════════════════ */
+const fmt  = n => (n === null || n === undefined || n === '') ? '—' : Number(n).toLocaleString();
+const fmt1 = n => (n === null || n === undefined || n === '') ? '—' : Number(n).toFixed(1);
+const pct  = n => (n === null || n === undefined) ? '—' : Number(n).toFixed(1) + '%';
+const MONTHS = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const c = (k) => (cards && cards[k]) ? cards[k] : { rows: [], error: null };
+const rows = (k) => c(k).rows || [];
+const sizeLabel = v => (v === null || v === undefined || v === '') ? '—' : (Number(v) + '"');
+%>
+
+<div class="adm-toolbar">
+  <h1 class="adm-toolbar-title">WC Inventory Analysis</h1>
+  <div class="adm-meta">
+    <% if (!empty && status && status.last_date) { %>
+      Data through <strong><%= status.last_date %></strong>
+      · <%= fmt(status.valid_days) %> of <%= fmt(status.days) %> days valid
+      · from <%= status.first_date %>
+    <% } %>
+  </div>
+</div>
+
+<p class="adm-label" style="margin:0 0 14px">
+  <strong>Water Creation national wholesale shipments</strong> — inferred from daily
+  inventory snapshots across all WC dealers. <strong>Not BVO sales. Not RFL sales.</strong>
+  Units only. Figures are <em>observed drawdown (minimum demand)</em>, never units sold:
+  restock days hide real demand.
+</p>
+
+<% if (typeof fatal !== 'undefined' && fatal) { %>
+  <div class="admin-card kpi-card kpi-card--warn">
+    <h3 class="admin-card-title">Dashboard failed to load</h3>
+    <p class="adm-label"><%= fatal %></p>
+    <p class="adm-label">If this mentions a missing table, migration 030 has not been run.</p>
+  </div>
+<% } %>
+
+<% if (empty) { %>
+  <div class="admin-card">
+    <h3 class="admin-card-title">No snapshots ingested yet</h3>
+    <p class="adm-label">
+      The four <code>wc_*</code> tables exist but hold no data. Put the daily snapshot
+      CSVs (named <code>wc_YYYY-MM-DD.csv</code>) in
+      <code>&lt;domain root&gt;/wc_sync/snapshots/</code>, then run the rollup.
+    </p>
+    <p class="adm-label">
+      Ingestion is <strong>resumable</strong>: each run skips dates it has already
+      evaluated. With ~1,628 snapshots the backlog will not clear in one pass, so
+      press this repeatedly until it reports 0 processed.
+    </p>
+    <button type="button" class="btn btn-outline" id="wc-run-rollup">Run rollup</button>
+    <span class="adm-label" id="wc-rollup-status"></span>
+  </div>
+<% } else { %>
+
+<!-- ══ COVERAGE ════════════════════════════════════════════════════ -->
+<div class="admin-card">
+  <h3 class="admin-card-title">Catalogue coverage — read this before trusting any attribute cut</h3>
+  <p class="adm-label">
+    <%= fmt(coverage.skus) %> SKUs collapse to <strong><%= fmt(coverage.bases) %> models</strong>
+    (base SKUs). Attributes come from the 2021 supplier catalogue, which does not
+    describe the whole feed.
+  </p>
+  <div class="adm-table-wrap">
+    <table class="adm-table">
+      <thead><tr><th>Attribute</th><th>Described</th><th>Coverage</th><th>Undescribed</th></tr></thead>
+      <tbody>
+        <tr><td>Collection</td><td><%= fmt(coverage.with_collection) %></td><td><%= pct(coverage.collection_pct) %></td><td><%= fmt(Number(coverage.skus) - Number(coverage.with_collection||0)) %></td></tr>
+        <tr><td>Size</td><td><%= fmt(coverage.with_size) %></td><td><%= pct(coverage.size_pct) %></td><td><%= fmt(Number(coverage.skus) - Number(coverage.with_size||0)) %></td></tr>
+        <tr class="<%= Number(coverage.colour_pct) < 50 ? 'jmv-row--warn' : '' %>"><td>Cabinet colour</td><td><%= fmt(coverage.with_colour) %></td><td><%= pct(coverage.colour_pct) %></td><td><%= fmt(Number(coverage.skus) - Number(coverage.with_colour||0)) %></td></tr>
+        <tr class="<%= Number(coverage.top_pct) < 50 ? 'jmv-row--warn' : '' %>"><td>Top material</td><td><%= fmt(coverage.with_top) %></td><td><%= pct(coverage.top_pct) %></td><td><%= fmt(Number(coverage.skus) - Number(coverage.with_top||0)) %></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="adm-label">
+    Colour and top sit around a fifth of the catalogue. Those cards below are
+    <strong>directional for the described subset only</strong> — they are not the whole
+    market. Raising this needs a newer WC product-data export.
+  </p>
+</div>
+
+<!-- ══ ROW 1 — ALERT STRIP ════════════════════════════════════════ -->
+<h2 class="report-section-title">Stock position — as of <%= status.last_date %></h2>
+<% const ss = rows('stockoutSummary')[0] || {}; %>
+<div class="admin-card kpi-card kpi-card--<%= Number(ss.no_eta||0) > 0 ? 'warn' : 'ok' %>">
+  <h3 class="admin-card-title">Out of stock</h3>
+  <p class="adm-label">
+    <strong><%= fmt(ss.bases_out) %> models</strong> fully out —
+    <strong><%= fmt(ss.no_eta) %> with no restock date</strong>,
+    <%= fmt(ss.with_eta) %> with an ETA.
+  </p>
+  <p class="adm-label">
+    Counted at model level. A model is "out" only when every one of its
+    configurations is at zero.
+  </p>
+</div>
+
+<div class="admin-card">
+  <h3 class="admin-card-title">Models at zero — no ETA first</h3>
+  <% if (c('stockouts').error) { %>
+    <p class="adm-label">Could not load: <%= c('stockouts').error %></p>
+  <% } else if (!rows('stockouts').length) { %>
+    <p class="adm-empty">Nothing out of stock in the latest snapshot.</p>
+  <% } else { %>
+  <div class="adm-table-wrap jmv-scroll-wrap">
+    <table class="adm-table">
+      <thead><tr><th>Model</th><th>Collection</th><th>Colour</th><th>Size</th><th>Restock ETA</th></tr></thead>
+      <tbody>
+      <% rows('stockouts').forEach(r => { %>
+        <tr class="<%= Number(r.has_eta) === 0 ? 'jmv-row--critical' : '' %>">
+          <td><code><%= r.base_sku %></code><% if (r.product_name) { %><br><span class="adm-label"><%= r.product_name %></span><% } %></td>
+          <td><%= r.collection || '—' %></td>
+          <td><%= r.cabinet_color || '—' %></td>
+          <td><%= sizeLabel(r.size_nominal) %></td>
+          <td><%= Number(r.has_eta) === 0 ? 'NO ETA' : r.eta %></td>
+        </tr>
+      <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+</div>
+
+<!-- ══ ROW 2 — HEADLINE MOVERS ════════════════════════════════════ -->
+<h2 class="report-section-title" style="margin-top:28px">
+  Headline movers — last <%= windowDays %> days
+</h2>
+
+<div class="admin-card">
+  <h3 class="admin-card-title">Top collections by observed drawdown</h3>
+  <% if (!rows('topCollections').length) { %>
+    <p class="adm-empty">No movement in this window<%= c('topCollections').error ? ' — ' + c('topCollections').error : '' %>.</p>
+  <% } else { %>
+  <div class="adm-table-wrap">
+    <table class="adm-table">
+      <thead><tr><th>Collection</th><th>Drawdown</th><th>Units/observed day</th><th>Models</th><th>Days seen</th></tr></thead>
+      <tbody>
+      <% rows('topCollections').forEach(r => { %>
+        <tr><td><%= r.collection %></td><td><%= fmt(r.drawdown) %></td>
+            <td><%= fmt1(r.units_per_day) %></td><td><%= fmt(r.models) %></td>
+            <td><%= fmt(r.observed_days) %></td></tr>
+      <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <p class="adm-label">MAX per model per day, then summed. Never SUM across configurations.</p>
+  <% } %>
+</div>
+
+<div class="admin-card">
+  <h3 class="admin-card-title">Top models</h3>
+  <% if (!rows('topModels').length) { %>
+    <p class="adm-empty">No movement in this window.</p>
+  <% } else { %>
+  <div class="adm-table-wrap jmv-scroll-wrap">
+    <table class="adm-table">
+      <thead><tr><th>Model</th><th>Collection</th><th>Colour</th><th>Size</th><th>Drawdown</th><th>Units/day</th></tr></thead>
+      <tbody>
+      <% rows('topModels').forEach(r => { %>
+        <tr><td><code><%= r.base_sku %></code></td>
+            <td><%= r.collection || '—' %></td>
+            <td><%= r.cabinet_color || '—' %></td>
+            <td><%= sizeLabel(r.size_nominal) %></td>
+            <td><%= fmt(r.drawdown) %></td>
+            <td><%= fmt1(r.units_per_day) %></td></tr>
+      <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+</div>
+
+<!-- ══ ROW 3 — DIMENSION BREAKDOWNS ═══════════════════════════════ -->
+<h2 class="report-section-title" style="margin-top:28px">Dimension breakdowns</h2>
+
+<%
+const dimCards = [
+  ['byColour',      'Cabinet colours',  'cabinet colour', coverage.colour_pct],
+  ['bySize',        'Sizes',            'size',           coverage.size_pct],
+  ['byTopMaterial', 'Top material',     'top material',   coverage.top_pct],
+  ['byTopFinish',   'Top finish',       'top finish',     coverage.top_pct],
+  ['byMounting',    'Mounting type',    'mounting',       coverage.top_pct],
+  ['bySinks',       'Sink count',       'sink count',     coverage.top_pct],
+];
+%>
+<% dimCards.forEach(([key, title, noun, covPct]) => { %>
+  <div class="admin-card">
+    <h3 class="admin-card-title"><%= title %></h3>
+    <% if (!rows(key).length) { %>
+      <p class="adm-empty">No described rows for <%= noun %> in this window.</p>
+    <% } else { %>
+    <div class="adm-table-wrap">
+      <table class="adm-table">
+        <thead><tr><th><%= title %></th><th>Drawdown</th><th>Models</th></tr></thead>
+        <tbody>
+        <% rows(key).forEach(r => { %>
+          <tr><td><%= key === 'bySize' ? sizeLabel(r.label) : (r.label || '—') %></td>
+              <td><%= fmt(r.drawdown) %></td><td><%= fmt(r.models) %></td></tr>
+        <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <p class="adm-label">
+      Covers the <strong><%= pct(covPct) %></strong> of SKUs the catalogue describes for
+      <%= noun %>. The remainder are not represented here at all.
+    </p>
+    <% } %>
+  </div>
+<% }) %>
+
+<div class="admin-card">
+  <h3 class="admin-card-title">Collection × size</h3>
+  <% if (!rows('collectionBySize').length) { %>
+    <p class="adm-empty">No described rows in this window.</p>
+  <% } else { %>
+  <div class="adm-table-wrap jmv-scroll-wrap">
+    <table class="adm-table">
+      <thead><tr><th>Collection</th><th>Size</th><th>Drawdown</th></tr></thead>
+      <tbody>
+      <% rows('collectionBySize').forEach(r => { %>
+        <tr><td><%= r.collection %></td><td><%= sizeLabel(r.size_nominal) %></td><td><%= fmt(r.drawdown) %></td></tr>
+      <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+</div>
+
+<!-- ══ TREND ══════════════════════════════════════════════════════ -->
+<h2 class="report-section-title" style="margin-top:28px">Trend — units per observed day</h2>
+<div class="admin-card">
+  <h3 class="admin-card-title">Monthly rate, one line per year</h3>
+  <% if (!trend.length) { %>
+    <p class="adm-empty">Not enough history yet.</p>
+  <% } else { %>
+    <canvas id="wcTrendChart" height="110"></canvas>
+    <p class="adm-label">
+      Rates, not totals — a short or sparsely-observed month is not a weak month.
+      Days actually observed are in the table below.
+    </p>
+    <div class="adm-table-wrap jmv-scroll-wrap">
+      <table class="adm-table">
+        <thead><tr><th>Month</th><th>Units/observed day</th><th>Drawdown</th><th>Days observed</th></tr></thead>
+        <tbody>
+        <% trend.slice().reverse().forEach(r => { %>
+          <tr><td><%= r.yr %>-<%= String(r.mo).padStart(2,'0') %></td>
+              <td><%= fmt1(r.units_per_day) %></td>
+              <td><%= fmt(r.drawdown) %></td>
+              <td class="<%= Number(r.observed_days) < 10 ? 'jmv-row--warn' : '' %>"><%= fmt(r.observed_days) %></td></tr>
+        <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+
+<div class="admin-card">
+  <h3 class="admin-card-title">Seasonality — year-normalised index</h3>
+  <% if (!seasonality.length) { %>
+    <p class="adm-empty">Needs at least one year with 8+ observed months.</p>
+  <% } else { %>
+    <canvas id="wcSeasonChart" height="90"></canvas>
+    <div class="adm-table-wrap">
+      <table class="adm-table">
+        <thead><tr><th>Month</th><th>Index (100 = that year's average)</th><th>Years in sample</th></tr></thead>
+        <tbody>
+        <% seasonality.forEach(r => { %>
+          <tr><td><%= MONTHS[r.mo] %></td><td><%= fmt1(r.index) %></td><td><%= r.years %></td></tr>
+        <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <p class="adm-label">
+      Each month is indexed against its own year's mean before averaging across years,
+      so the multi-year decline cannot leak into the seasonal shape.
+    </p>
+  <% } %>
+</div>
+
+<!-- ══ ONBOARDING PRIORITY ════════════════════════════════════════ -->
+<h2 class="report-section-title" style="margin-top:28px">Onboarding priority</h2>
+<div class="admin-card">
+  <h3 class="admin-card-title">Selling nationally — we don't carry it</h3>
+  <p class="adm-label">
+    BVO carries no Water Creation today, so this is currently the whole moving
+    catalogue ranked by national drawdown. Rows drop off by themselves as SKUs are
+    onboarded — the link is resolved from our own product records, not maintained by hand.
+  </p>
+  <% if (!rows('onboarding').length) { %>
+    <p class="adm-empty">No movement in this window.</p>
+  <% } else { %>
+  <div class="adm-table-wrap jmv-scroll-wrap">
+    <table class="adm-table">
+      <thead><tr><th>#</th><th>Model</th><th>Collection</th><th>Colour</th><th>Size</th><th>Drawdown</th></tr></thead>
+      <tbody>
+      <% rows('onboarding').forEach((r, i) => { %>
+        <tr><td><%= i + 1 %></td>
+            <td><code><%= r.base_sku %></code><% if (r.product_name) { %><br><span class="adm-label"><%= r.product_name %></span><% } %></td>
+            <td><%= r.collection || '—' %></td>
+            <td><%= r.cabinet_color || '—' %></td>
+            <td><%= sizeLabel(r.size_nominal) %></td>
+            <td><%= fmt(r.drawdown) %></td></tr>
+      <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+</div>
+
+<!-- ══ SNAPSHOT HISTORY ═══════════════════════════════════════════ -->
+<h2 class="report-section-title" style="margin-top:28px">Snapshot history</h2>
+<div class="admin-card">
+  <h3 class="admin-card-title">Ingestion audit — last 60 days evaluated</h3>
+  <button type="button" class="btn btn-outline" id="wc-run-rollup">Run rollup</button>
+  <span class="adm-label" id="wc-rollup-status"></span>
+  <div class="adm-table-wrap jmv-scroll-wrap">
+    <table class="adm-table">
+      <thead><tr><th>Date</th><th>Rows</th><th>Valid</th><th>Schema</th><th>Notes</th></tr></thead>
+      <tbody>
+      <% rows('history').forEach(r => { %>
+        <tr class="<%= Number(r.is_valid) === 0 ? 'jmv-row--critical' : '' %>">
+          <td><%= r.d %></td><td><%= fmt(r.row_count) %></td>
+          <td><%= Number(r.is_valid) ? 'yes' : 'NO' %></td>
+          <td><%= r.schema_variant || '—' %></td>
+          <td><span class="adm-label"><%= r.notes || '' %></span></td>
+        </tr>
+      <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<% } %>
+
+<script nonce="<%= cspNonce %>" src="/js/vendor/chart.umd.4.4.1.js"></script>
+<script nonce="<%= cspNonce %>">
+(function () {
+  'use strict';
+
+  /* Rollup trigger. Delegated listener, never an inline onclick — the admin
+     CSP forbids inline handlers (see the 2026 CSP sweep). */
+  document.addEventListener('click', function (ev) {
+    var btn = ev.target.closest('#wc-run-rollup');
+    if (!btn) return;
+    var out = document.getElementById('wc-rollup-status');
+    btn.disabled = true;
+    if (out) out.textContent = ' Running — this can take several minutes…';
+    fetch('/admin/marketing/wc/run-rollup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        btn.disabled = false;
+        if (!out) return;
+        if (!d.ok) { out.textContent = ' Failed: ' + (d.error || 'unknown'); return; }
+        out.textContent = ' Processed ' + d.processed + ' date(s), ' + d.errors +
+          ' error(s). ' + (d.processed ? 'Press again to continue.' : 'Backlog clear.');
+        if (d.processed) setTimeout(function () { location.reload(); }, 1200);
+      })
+      .catch(function (e) {
+        btn.disabled = false;
+        if (out) out.textContent = ' Failed: ' + e.message;
+      });
+  });
+
+  var TREND  = <%- JSON.stringify(trend || []) %>;
+  var SEASON = <%- JSON.stringify(seasonality || []) %>;
+  var MONTH  = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  var trendEl = document.getElementById('wcTrendChart');
+  if (trendEl && TREND.length && window.Chart) {
+    var years = [];
+    TREND.forEach(function (r) { if (years.indexOf(r.yr) < 0) years.push(r.yr); });
+    var palette = ['#8c6b4f','#2f6f6b','#9c5b3f','#4a6fa5','#6b7f4a','#a05c7b'];
+    var sets = years.map(function (y, i) {
+      var byMonth = new Array(12).fill(null);
+      TREND.forEach(function (r) {
+        if (r.yr === y) byMonth[r.mo - 1] = Number(r.units_per_day);
+      });
+      return {
+        label: String(y), data: byMonth,
+        borderColor: palette[i % palette.length],
+        backgroundColor: 'transparent',
+        borderWidth: 2, tension: 0.25, spanGaps: true, pointRadius: 2,
+      };
+    });
+    new Chart(trendEl, {
+      type: 'line',
+      data: { labels: MONTH.slice(1), datasets: sets },
+      options: {
+        responsive: true, maintainAspectRatio: true, aspectRatio: 3,
+        plugins: { legend: { position: 'bottom' },
+          title: { display: true, text: 'WC national shipments — units per observed day' } },
+        scales: { y: { beginAtZero: true, title: { display: true, text: 'units / observed day' } } },
+      },
+    });
+  }
+
+  var seasonEl = document.getElementById('wcSeasonChart');
+  if (seasonEl && SEASON.length && window.Chart) {
+    new Chart(seasonEl, {
+      type: 'bar',
+      data: {
+        labels: SEASON.map(function (r) { return MONTH[r.mo]; }),
+        datasets: [{
+          label: 'Seasonal index',
+          data: SEASON.map(function (r) { return r.index; }),
+          backgroundColor: SEASON.map(function (r) {
+            return r.index >= 110 ? '#2f6f6b' : (r.index <= 90 ? '#9c5b3f' : '#8c6b4f');
+          }),
+        }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: true, aspectRatio: 3,
+        plugins: { legend: { display: false },
+          title: { display: true, text: '100 = that year’s own average' } },
+        scales: { y: { beginAtZero: false, suggestedMin: 60, suggestedMax: 130 } },
+      },
+    });
+  }
+})();
+</script>

@@ -1,0 +1,356 @@
+'use strict';
+
+/**
+ * wcReportsController.js
+ * WC Inventory Analysis — admin reporting layer over the Water Creation
+ * daily inventory feed.
+ *
+ * DELIBERATELY MIRRORS jmvReportsController.js. Same three-hazard discipline,
+ * same source-note requirement, same "observed drawdown" vocabulary. Read that
+ * file before changing the shape of this one.
+ *
+ * THREE HAZARDS, AS THEY APPLY HERE:
+ *
+ *  1. DEDUPLICATION: MAX(demand_min) per base_sku per day, NEVER SUM.
+ *     WC publishes one cabinet as many SKUs, one per mirror/faucet
+ *     permutation, all drawing on one stock pool. Measured on real snapshots:
+ *       2026-11-23  1,301 SKUs →  244 bases   SUM 33,713 vs MAX 8,871  = 3.80x
+ *       2025-06-16  1,555 SKUs →  249 bases   SUM 25,119 vs MAX 6,066  = 4.14x
+ *       2022-03-01  1,766 SKUs →  227 bases   SUM 46,388 vs MAX 7,737  = 6.00x
+ *     SUM is not slightly wrong, it is 4–6x wrong.
+ *
+ *     Note the contrast with JMV: there, DEDUPED_INNER groups by twelve
+ *     columns and so collapses at VARIANT level, running high on purpose.
+ *     Here the collapse is a TRUE base collapse, and it is safe to also group
+ *     by collection / colour / size / top, because every one of those is a
+ *     property of the base SKU — they cannot split a base into two rows.
+ *     Mirror and faucet are the only config-level attributes. See §ATTACH.
+ *
+ *  2. METRIC LABEL: "observed drawdown (minimum demand)" — NEVER "units sold".
+ *
+ *  3. FEED-GAP EXCLUSION: is_valid = 1 only. Rates are per OBSERVED day, using
+ *     span_days, never per calendar day.
+ *
+ * SOURCE NOTE required on every chart and table:
+ *   "Water Creation national wholesale shipments — not BVO sales, not RFL sales."
+ *
+ * NO PRICING. Units only (Sam, 2026-11-24). There is no price column in the
+ * schema and no revenue figure anywhere in this file. Do not add one.
+ *
+ * Admin routes:
+ *   GET  /admin/marketing/wc            — main dashboard
+ *   POST /admin/marketing/wc/run-rollup — trigger the ingestion/rollup job
+ */
+
+const { bvoPool } = require('../config/database');
+const { runRollup, getSnapshotStatus } = require('../jobs/wcMovementRollup');
+
+const LAYOUT = { layout: 'layouts/admin' };
+
+/* Default trailing window for the "recent" cards, in days. */
+const DEFAULT_WINDOW = 90;
+
+/* ─────────────────────────────────────────────────────────────────────
+   THE DEDUPE
+   One row per (movement_date, base_sku) carrying the base's drawdown and its
+   attributes. Every model/collection/colour/size/top card reads from this.
+───────────────────────────────────────────────────────────────────── */
+const DEDUPED_BASE = (whereExtra = '') => `
+  SELECT m.movement_date,
+         d.base_sku,
+         MAX(d.collection)    AS collection,
+         MAX(d.cabinet_color) AS cabinet_color,
+         MAX(d.size_nominal)  AS size_nominal,
+         MAX(d.top_material)  AS top_material,
+         MAX(d.top_finish)    AS top_finish,
+         MAX(d.sinks)         AS sinks,
+         MAX(d.mounting)      AS mounting,
+         MAX(d.product_name)  AS product_name,
+         MAX(m.span_days)     AS span_days,
+         MAX(m.demand_min)    AS base_drawdown
+    FROM wc_daily_movement m
+    JOIN wc_dimensions     d ON d.sku = m.sku
+   WHERE m.is_valid = 1
+     AND m.demand_min > 0
+     ${whereExtra}
+   GROUP BY m.movement_date, d.base_sku
+`;
+
+const q = async (sql, params = []) => {
+  const [rows] = await bvoPool.query(sql, params);
+  return rows;
+};
+
+/* Safe wrapper — one failing card must not blank the whole dashboard.
+   The JMV build learned this when an optional enhancement took the page down
+   with it. A card that cannot load says so; the rest still render. */
+async function card(name, fn) {
+  try { return { name, rows: await fn(), error: null }; }
+  catch (err) {
+    console.error(`[wc-reports] card "${name}" failed:`, err.sqlMessage || err.message);
+    return { name, rows: [], error: err.sqlMessage || err.message };
+  }
+}
+
+async function dashboard(req, res) {
+  try {
+    const windowDays = Math.max(7, Math.min(3650, parseInt(req.query.days, 10) || DEFAULT_WINDOW));
+
+    const status = await getSnapshotStatus().catch(() => null);
+
+    /* Nothing ingested yet — render the empty state with instructions rather
+       than a wall of zero cards that look like real findings. */
+    if (!status || !Number(status.days)) {
+      return res.render('pages/admin/marketing/wc-inventory-analysis', {
+        ...LAYOUT,
+        pageTitle: 'WC Inventory Analysis',
+        path: req.originalUrl,
+        empty: true,
+        status: status || {},
+        windowDays,
+        cards: {}, coverage: {}, trend: [], seasonality: [],
+      });
+    }
+
+    const lastDate = status.last_date;
+
+    /* ── Coverage. Shown at the top of the page, always, because every
+       attribute cut below is only as complete as this. ───────────────── */
+    const [cov] = await q(
+      `SELECT COUNT(*)                                            AS skus,
+              COUNT(DISTINCT base_sku)                            AS bases,
+              SUM(attr_source IS NOT NULL)                        AS described,
+              SUM(cabinet_color IS NOT NULL AND cabinet_color<>'')AS with_colour,
+              SUM(top_material  IS NOT NULL AND top_material <>'')AS with_top,
+              SUM(size_nominal  IS NOT NULL)                      AS with_size,
+              SUM(collection    IS NOT NULL AND collection   <>'')AS with_collection,
+              SUM(carried_sku   IS NOT NULL)                      AS carried
+         FROM wc_dimensions`
+    );
+
+    const coverage = {
+      ...cov,
+      undescribed:      Number(cov.skus) - Number(cov.described || 0),
+      colour_pct:     cov.skus ? (100 * Number(cov.with_colour)     / Number(cov.skus)) : 0,
+      top_pct:        cov.skus ? (100 * Number(cov.with_top)        / Number(cov.skus)) : 0,
+      size_pct:       cov.skus ? (100 * Number(cov.with_size)       / Number(cov.skus)) : 0,
+      collection_pct: cov.skus ? (100 * Number(cov.with_collection) / Number(cov.skus)) : 0,
+    };
+
+    const W = `AND m.movement_date >= DATE_SUB(?, INTERVAL ? DAY)`;
+    const WP = [lastDate, windowDays];
+
+    /* ── ROW 1 — ALERT STRIP ───────────────────────────────────────────
+       Reads the latest snapshot only. A SKU at zero WITH an ETA is a wait;
+       one WITHOUT an ETA is an unknown, and that is the list worth looking
+       at. Deduped to base so "47 out of stock" means 47 cabinets, not 47
+       option permutations of a dozen cabinets. */
+    const cards = {};
+
+    cards.stockouts = await card('stockouts', () => q(
+      `SELECT d.base_sku,
+              MAX(d.collection)   AS collection,
+              MAX(d.product_name) AS product_name,
+              MAX(d.cabinet_color)AS cabinet_color,
+              MAX(d.size_nominal) AS size_nominal,
+              MAX(CASE WHEN s.available_date IS NULL OR s.available_date=''
+                       THEN 0 ELSE 1 END) AS has_eta,
+              MAX(s.available_date) AS eta
+         FROM wc_snapshots  s
+         JOIN wc_dimensions d ON d.sku = s.sku
+        WHERE s.snapshot_date = ? AND s.qty = 0
+        GROUP BY d.base_sku
+        HAVING MAX(s.qty) = 0
+        ORDER BY has_eta ASC, collection ASC
+        LIMIT 200`, [lastDate]));
+
+    cards.stockoutSummary = await card('stockoutSummary', () => q(
+      `SELECT COUNT(*) AS bases_out,
+              SUM(has_eta = 0) AS no_eta,
+              SUM(has_eta = 1) AS with_eta
+         FROM (
+           SELECT d.base_sku,
+                  MAX(CASE WHEN s.available_date IS NULL OR s.available_date=''
+                           THEN 0 ELSE 1 END) AS has_eta
+             FROM wc_snapshots s
+             JOIN wc_dimensions d ON d.sku = s.sku
+            WHERE s.snapshot_date = ? AND s.qty = 0
+            GROUP BY d.base_sku
+            HAVING MAX(s.qty) = 0
+         ) t`, [lastDate]));
+
+    /* ── ROW 2 — HEADLINE MOVERS (trailing window) ─────────────────── */
+    cards.topCollections = await card('topCollections', () => q(
+      `SELECT gd.collection,
+              SUM(gd.base_drawdown)                       AS drawdown,
+              COUNT(DISTINCT gd.base_sku)                 AS models,
+              COUNT(DISTINCT gd.movement_date)            AS observed_days,
+              ROUND(SUM(gd.base_drawdown)
+                    / NULLIF(SUM(gd.span_days),0), 1)     AS units_per_day
+         FROM (${DEDUPED_BASE(W)}) gd
+        WHERE gd.collection IS NOT NULL AND gd.collection <> ''
+        GROUP BY gd.collection
+        ORDER BY drawdown DESC LIMIT 20`, WP));
+
+    cards.topModels = await card('topModels', () => q(
+      `SELECT gd.base_sku,
+              MAX(gd.collection)    AS collection,
+              MAX(gd.product_name)  AS product_name,
+              MAX(gd.cabinet_color) AS cabinet_color,
+              MAX(gd.size_nominal)  AS size_nominal,
+              SUM(gd.base_drawdown) AS drawdown,
+              ROUND(SUM(gd.base_drawdown)
+                    / NULLIF(SUM(gd.span_days),0), 1) AS units_per_day
+         FROM (${DEDUPED_BASE(W)}) gd
+        GROUP BY gd.base_sku
+        ORDER BY drawdown DESC LIMIT 50`, WP));
+
+    /* ── ROW 3 — DIMENSION BREAKDOWNS ──────────────────────────────────
+       Each of these is only as complete as `coverage` says. The view MUST
+       render the undescribed count beside them. A card covering a fifth of
+       the catalogue while looking whole is worse than no card. */
+    const byDim = (col) => q(
+      `SELECT gd.${col} AS label,
+              SUM(gd.base_drawdown)       AS drawdown,
+              COUNT(DISTINCT gd.base_sku) AS models
+         FROM (${DEDUPED_BASE(W)}) gd
+        WHERE gd.${col} IS NOT NULL AND gd.${col} <> ''
+        GROUP BY gd.${col}
+        ORDER BY drawdown DESC LIMIT 25`, WP);
+
+    cards.byColour     = await card('byColour',     () => byDim('cabinet_color'));
+    cards.bySize       = await card('bySize',       () => byDim('size_nominal'));
+    cards.byTopMaterial= await card('byTopMaterial',() => byDim('top_material'));
+    cards.byTopFinish  = await card('byTopFinish',  () => byDim('top_finish'));
+    cards.byMounting   = await card('byMounting',   () => byDim('mounting'));
+    cards.bySinks      = await card('bySinks',      () => byDim('sinks'));
+
+    cards.collectionBySize = await card('collectionBySize', () => q(
+      `SELECT gd.collection, gd.size_nominal,
+              SUM(gd.base_drawdown) AS drawdown
+         FROM (${DEDUPED_BASE(W)}) gd
+        WHERE gd.collection IS NOT NULL AND gd.collection <> ''
+          AND gd.size_nominal IS NOT NULL
+        GROUP BY gd.collection, gd.size_nominal
+        ORDER BY drawdown DESC LIMIT 100`, WP));
+
+    /* ── ONBOARDING PRIORITY ───────────────────────────────────────────
+       BVO carries no Water Creation at all today, so every row here is
+       "not carried" and the list IS the assortment question: what is moving
+       nationally that we do not stock. Fills in by itself as SKUs are
+       onboarded — carried_sku is resolved by the rollup, not by hand. */
+    cards.onboarding = await card('onboarding', () => q(
+      `SELECT gd.base_sku,
+              MAX(gd.collection)    AS collection,
+              MAX(gd.product_name)  AS product_name,
+              MAX(gd.cabinet_color) AS cabinet_color,
+              MAX(gd.size_nominal)  AS size_nominal,
+              SUM(gd.base_drawdown) AS drawdown
+         FROM (${DEDUPED_BASE(W)}) gd
+         LEFT JOIN wc_dimensions c
+                ON c.base_sku = gd.base_sku AND c.carried_sku IS NOT NULL
+        WHERE c.base_sku IS NULL
+        GROUP BY gd.base_sku
+        ORDER BY drawdown DESC LIMIT 50`, WP));
+
+    /* ── TREND — monthly units/day, one series per year ────────────────
+       Rates, not sums, so a short or sparsely-observed month is not read as
+       a weak one. observed_days is carried through so the view can show it. */
+    const trend = await q(
+      `SELECT YEAR(gd.movement_date)  AS yr,
+              MONTH(gd.movement_date) AS mo,
+              SUM(gd.base_drawdown)   AS drawdown,
+              SUM(gd.span_days)       AS span_total,
+              COUNT(DISTINCT gd.movement_date) AS observed_days,
+              ROUND(SUM(gd.base_drawdown)
+                    / NULLIF(COUNT(DISTINCT gd.movement_date),0), 1) AS units_per_day
+         FROM (${DEDUPED_BASE('')}) gd
+        GROUP BY YEAR(gd.movement_date), MONTH(gd.movement_date)
+        ORDER BY yr, mo`
+    ).catch(err => { console.error('[wc-reports] trend failed:', err.message); return []; });
+
+    /* ── SEASONALITY — year-normalised so trend cannot contaminate it ──
+       Each month is indexed against its OWN year's mean, then averaged across
+       years. A raw month-of-year average would just re-report the decline. */
+    const seasonality = (() => {
+      const byYear = new Map();
+      for (const r of trend) {
+        if (!byYear.has(r.yr)) byYear.set(r.yr, []);
+        byYear.get(r.yr).push(r);
+      }
+      const idx = new Map();
+      for (const [, months] of byYear) {
+        if (months.length < 8) continue;        // too few months to normalise
+        const mean = months.reduce((s, m) => s + Number(m.units_per_day || 0), 0) / months.length;
+        if (!mean) continue;
+        for (const m of months) {
+          if (!idx.has(m.mo)) idx.set(m.mo, []);
+          idx.get(m.mo).push(100 * Number(m.units_per_day || 0) / mean);
+        }
+      }
+      return [...idx.entries()]
+        .map(([mo, vals]) => ({
+          mo,
+          index: Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10,
+          years: vals.length,
+        }))
+        .sort((a, b) => a.mo - b.mo);
+    })();
+
+    /* ── Snapshot history, for auditing coverage ──────────────────────── */
+    cards.history = await card('history', () => q(
+      `SELECT DATE_FORMAT(snapshot_date,'%Y-%m-%d') AS d,
+              row_count, is_valid, schema_variant, notes
+         FROM wc_snapshot_validity
+        ORDER BY snapshot_date DESC LIMIT 60`));
+
+    res.render('pages/admin/marketing/wc-inventory-analysis', {
+      ...LAYOUT,
+      pageTitle: 'WC Inventory Analysis',
+      path: req.originalUrl,
+      empty: false,
+      status, coverage, cards, trend, seasonality, windowDays,
+    });
+  } catch (err) {
+    console.error('[wc-reports] dashboard failed:', err);
+    res.status(500).render('pages/admin/marketing/wc-inventory-analysis', {
+      ...LAYOUT,
+      pageTitle: 'WC Inventory Analysis',
+      path: req.originalUrl,
+      empty: true, fatal: err.sqlMessage || err.message,
+      status: {}, coverage: {}, cards: {}, trend: [], seasonality: [], windowDays: DEFAULT_WINDOW,
+    });
+  }
+}
+
+/**
+ * POST /admin/marketing/wc/run-rollup
+ * Ingestion is resumable by design: the job skips any date that already has a
+ * validity row, so this can be pressed repeatedly until the backlog clears.
+ * With 1,628 snapshots that is expected to take several presses — a single
+ * Hostinger process window will not finish it.
+ */
+async function triggerRollup(req, res) {
+  try {
+    const includeDimensions = req.body?.dimensions !== 'false';
+    const results = await runRollup({ includeDimensions });
+
+    const processed = results.filter(r => r.date && !r.error).length;
+    const errors    = results.filter(r => r.error);
+    const dims      = results.find(r => r.type === 'dimensions');
+
+    res.json({
+      ok: true,
+      processed,
+      errors: errors.length,
+      errorSample: errors.slice(0, 5),
+      dimensions: dims || null,
+      note: 'Resumable — press again to continue the backlog.',
+    });
+  } catch (err) {
+    console.error('[wc-reports] rollup failed:', err);
+    res.status(500).json({ ok: false, error: err.sqlMessage || err.message });
+  }
+}
+
+module.exports = { dashboard, triggerRollup, DEDUPED_BASE };

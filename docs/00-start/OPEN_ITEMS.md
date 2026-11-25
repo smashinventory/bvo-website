@@ -1478,6 +1478,99 @@ effort and move on"** — logged, not scheduled. Fix belongs in the importer
 
 ---
 
+### 22. Water Creation reports dashboard for BVO admin
+*Logged 2026-11-24 · requested by Sam · **specced, not approved***
+
+Full spec: **`docs/briefs/WC_REPORTS_SPEC.md`**. Findings and method it depends
+on: **`docs/briefs/WC_MARKET_ANALYSIS.md`**.
+
+A WC analogue of the JMV reports dashboard, built on the Water Creation daily
+inventory feed — 1,628 snapshots, 2021-05-17 → 2026-11-23, already extracted to
+Google Drive (`WC Inventory Feed`) with dates recovered from the email headers.
+Differencing consecutive snapshots gives a **national wholesale shipment proxy**:
+which models, colours, sizes and top configurations WC is actually shipping
+across all its dealers, every day. A merchandising signal we have no other
+source for, and one that reads the market well ahead of our own sales data.
+
+**Sam's scope decision: units only, no financials.** No revenue, no MSRP, no
+price-band card, no unit→dollar mapping anywhere. This deliberately avoids the
+entire class of problem that dominated the JMV build (pivot dedup, warranty
+haircut, revenue-basis definitions, unpriced counts). Do not reintroduce it.
+
+Three traps the spec exists to prevent:
+
+- **It is not our sales data.** WC national shipments to all dealers. Must be
+  labelled as such on the page, in every card and in every export, or a reader
+  will draw the opposite conclusion about our own performance.
+- **The SKU suffix is a bill of materials** — `PY30CW03GG-` + `[mirror:3]` +
+  `[faucet:6]`. Model rollups must strip it, or one cabinet is counted once per
+  option permutation and option-heavy collections rank far too high. Both views
+  are wanted: base SKU for "what models sell", full SKU for mirror/faucet attach
+  rates.
+- **Deltas are valid only on consecutive-day pairs** (`gap == 1`), and coverage
+  is uneven — ~17 observed days/month before 2024-05, a real gap in 2024-05/06,
+  daily from 2024-07. Report units/day, never period sums, and show
+  `days_observed` beside every figure.
+
+Dimension source found and verified: `Water Creation product catalog 2021 NEW
+collections.xlsx`, sheet `Product Data - Vanity`, **header on row 2** — 984 rows
+× **145 attribute columns** (Collection Name, Overall Width, Cabinet Color, Top
+Material/Finish/Size, Number of Sinks, Mirror/Faucet Included, Mounting Type,
+ADA, and more). Coverage is partial against a feed of 1,301–1,834 SKUs;
+unmatched SKUs must be surfaced as an explicit unmapped count, never dropped or
+hidden in an "Other" bucket.
+
+**Four questions for Sam before anyone starts** (spec §7): history depth (all
+1,628 days vs 2024-07 onward); ingestion route (Drive read vs server drop zone);
+whether to overlay our own assortment so "selling nationally, we don't carry it"
+becomes visible; and whether the feed still arrives daily — a guard would be
+needed, and `jm_feed_guard.sh`'s own liveness problem is #16 above.
+
+---
+
+### 23. ⚠️ RFL has no usable sales history before January 2024 — do not rebuild one
+*Logged 2026-11-24 · discovered during the WC/RFL demand analysis · **a standing
+warning, not a task***
+
+Recorded here because the bad data looks entirely usable and cost most of a
+session. Full evidence in `docs/briefs/WC_MARKET_ANALYSIS.md` ⚠️ §1.
+
+The GVS Shopify store holds POS orders for 2021–2023 (2,000 orders,
+$1,935,076) that appear to be the pre-RFLPOS showroom history. **They are not.**
+Revenue per store was $279K in 2023 (Shopify) against $703K in 2024 (RFLPOS) —
+a 2.5x jump across a pure system change, in a year the market was falling. The
+Shopify till captured roughly a **third** of actual store sales; it was never
+the system of record. Corroborated three ways: 85% of its revenue carries no
+product record at all (blank title, vendor and type — custom line items typed at
+the register); only one undifferentiated POS location exists despite Norcross
+opening May 2022 and Marietta Q2 2023; and `net_items_sold` is contaminated by
+tile and laminate flooring sold through the same till, inseparable because the
+lines are untyped.
+
+**So: the usable baseline starts at the RFLPOS cutover, January 2024** (confirmed
+— the only 2023 rows in RFLPOS are 1,544 `opening_stock` records, and Shopify POS
+goes to zero the same month). 2024 is the only pre-decline year available. Do not
+set a target, index a chart, or quote a growth rate off a longer series.
+
+**Second warning, same document ⚠️ §2: RFLPOS `sell`/`draft` records cannot
+measure conversion.** Drafts are quotes, and a converted quote is
+indistinguishable from a lost one — the walk-in is finalised later as a *new*
+transaction under their name while the original draft sits unresolved forever.
+Customers also routinely request separate quotes to compare vanity/top
+combinations, so several drafts can represent one buyer. Both biases inflate the
+denominator, and not necessarily equally across stores, so even a store-vs-store
+close-rate comparison is unsafe. This applies to any close-rate report inside
+RFLPOS itself.
+
+What *is* established, from final transactions only: Roswell $622,788 → $517,267
+→ ~$433K annualised; Kennesaw $761,054 → $802,794 → ~$728K; Roswell's share of
+the two surviving stores 45.0% → 39.2% → 37.3%. The store-level divergence is
+real and is not a market effect. The **cause is open** — demand, competition,
+pricing and staffing all remain live candidates and nothing currently
+discriminates between them.
+
+---
+
 ## Cutover — completed 2026-09-30 ~02:00, verified
 
 Recorded so nobody re-checks these. All confirmed live on the day.

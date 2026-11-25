@@ -11,6 +11,7 @@ const ordersCtrl    = require('../controllers/ordersController');
 const returnsCtrl   = require('../controllers/returnsController');
 const emailTplCtrl  = require('../controllers/emailTemplatesController');
 const jmvCtrl       = require('../controllers/jmvReportsController');
+const wcCtrl        = require('../controllers/wcReportsController');
 const custCtrl      = require('../controllers/customerAnalyticsController');
 const siteCtrl = require('../controllers/siteAnalyticsController');
 const outreachCtrl  = require('../controllers/customerOutreachController');
@@ -203,6 +204,12 @@ router.post('/marketing/jmv/run-rollup',     jmvCtrl.triggerRollup);
 router.get ('/marketing/jmv/stockout',       jmvCtrl.stockoutDrilldown);
 router.get ('/marketing/jmv/new-arrivals',   jmvCtrl.newArrivalsDrilldown);
 router.get ('/marketing/jmv/financials',     jmvCtrl.getFinancials);
+
+/* ── Marketing / WC Inventory Analysis ──────────────────────────
+   Water Creation national wholesale shipments. Units only — there is
+   deliberately no financials route here, unlike JMV above. */
+router.get ('/marketing/wc',                 wcCtrl.dashboard);
+router.post('/marketing/wc/run-rollup',      wcCtrl.triggerRollup);
 
 /* ── Marketing / Customers & Acquisition ────────────────────────
    Every figure on these pages excludes rows flagged is_test. See
