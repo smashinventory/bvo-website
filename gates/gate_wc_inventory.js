@@ -377,6 +377,153 @@ section('9. Product scope — the feed is not all vanities');
   }
 }
 
+/* ── 11. THE SKU CODEBOOK ─────────────────────────────────────────────
+ *
+ * The base SKU is a five-part structured code and decoding it is what took
+ * attribute coverage from ~0% to 100% of observed drawdown. These checks
+ * exercise the SHIPPED decoder, not a copy of its rules.
+ *
+ * Runs before section 10 because section 10 is async and owns process.exit.
+ */
+section('11. SKU codebook — decode, precedence, and honest gaps');
+{
+  const cb = require(path.join(ROOT, 'src/data/wcCodebook.js'));
+
+  /* 11a. Known SKUs decode to the values their vendor/retailer listing states.
+     Each expectation below was read off a primary source, so a failure here
+     means the codebook drifted from reality — not that the test is stale. */
+  const CASES = [
+    // SKU            collection    colour            top                      sinks
+    ['PA60QZ05PW', 'Palace',     'Pure White',     'Quartz',                2], // Lowe's
+    ['SE30QZ00MW', 'Sequoia',    'Mango Wood',     'Quartz',                1], // vendor
+    ['BD20CR06HW', 'Brandy',     'Honey Walnut',   'Ceramic',               1], // Home Depot
+    ['WE30QZ01LW', 'Westin',     'Lustrous Walnut','Quartz',                1], // Home Depot
+    ['OX30CW00CO', 'Oxford',     'Charcoal Oak',   'Carrara White Marble',  1], // Yala
+    ['EU48EM00TO', 'Eureka',     'Truffle Oak',    'Engineered Marble',     1], // Kingston Brass
+    ['MS72CW01GN', 'Madison',    'Glacial Green',  'Carrara White Marble',  2], // Home Depot
+    ['CH24CW03GK', 'Chestnut',   'Grey Oak',       'Carrara White Marble',  1], // 2020 catalogue
+  ];
+  let bad = [];
+  for (const [sku, coll, colour, top, sinks] of CASES) {
+    const d = cb.decodeBaseSku(sku);
+    if (!d) { bad.push(`${sku}: did not decode at all`); continue; }
+    if (d.collection    !== coll)   bad.push(`${sku}: collection "${d.collection}" != "${coll}"`);
+    if (d.cabinet_color !== colour) bad.push(`${sku}: colour "${d.cabinet_color}" != "${colour}"`);
+    if (d.top_material  !== top)    bad.push(`${sku}: top "${d.top_material}" != "${top}"`);
+    if (d.sinks         !== sinks)  bad.push(`${sku}: sinks ${d.sinks} != ${sinks}`);
+  }
+  if (!bad.length) pass(`all ${CASES.length} verified SKUs decode correctly`);
+  else fail('a verified SKU decodes wrongly', bad.join('\n          '));
+
+  /* 11a-ii. FINGERPRINT THE WHOLE CODEBOOK.
+   *
+   * The spot-checks above pin 8 of 30 collections and 8 of 19 colours. The
+   * mutation harness proved that is not enough: remapping NJ from "Noir
+   * Juglans" to "Monarch Blue" passed every check above, because no case
+   * used an NJ SKU. A wrong label is the quietest bug available here — every
+   * card still populates, just with the wrong names on it.
+   *
+   * So the codebook is fingerprinted as a whole. This is a TRIPWIRE, not an
+   * independent verification: it cannot tell a correct entry from an
+   * incorrect one, it only guarantees that nothing changes silently. When it
+   * fires, the job is to re-check the changed entry against a PRIMARY SOURCE
+   * (vendor copy or a retailer listing) and then update the constant below.
+   * Updating the constant to make the gate pass, without doing that check,
+   * defeats the entire point. */
+  const EXPECTED_FINGERPRINT = '59a637afd370692e';
+  const EXPECTED_COUNTS = { COLLECTION: 30, CABINET_COLOUR: 19, TOP_MATERIAL: 5,
+                            HARDWARE_FINISH: 7, SINKS_BY_WIDTH: 8 };
+  const keys = Object.keys(EXPECTED_COUNTS);
+  const canon = JSON.stringify(keys.map(k =>
+    [k, Object.entries(cb[k]).sort(([a], [b]) => (a < b ? -1 : 1))]));
+  const fp = require('crypto').createHash('sha256').update(canon).digest('hex').slice(0, 16);
+  const countMismatch = keys.filter(k => Object.keys(cb[k]).length !== EXPECTED_COUNTS[k]);
+
+  if (fp === EXPECTED_FINGERPRINT && !countMismatch.length) {
+    pass(`codebook matches its fingerprint (${keys.map(k => `${k}=${EXPECTED_COUNTS[k]}`).join(' ')})`);
+  } else {
+    fail(`codebook changed — fingerprint ${fp}, expected ${EXPECTED_FINGERPRINT}`,
+         (countMismatch.length ? `counts changed: ${countMismatch.join(', ')}. ` : '') +
+         'Re-verify the changed entry against a primary source (vendor copy or a ' +
+         'retailer listing), THEN update EXPECTED_FINGERPRINT. Do not just paste ' +
+         'the new hash in — that is how a wrong label ships.');
+  }
+
+  /* 11b. A SKU that does not use the grammar must return null outright —
+     never a half-filled object. Washstands, accessories and named one-offs
+     are 46 of 244 bases and must stay out of the vanity attribute cuts. */
+  const NON = ['SEQUOIA-30MW', 'EB30A', 'BA-0001-01', 'CIRILLA', 'EMPIRE', 'F5-0011-01'];
+  const leaked = NON.filter(s => cb.decodeBaseSku(s) !== null);
+  if (!leaked.length) pass('non-grammar SKUs return null, never a partial guess');
+  else fail(`${leaked.length} non-grammar SKU(s) decoded anyway`, leaked.join(', '));
+
+  /* 11c. An unknown code must yield null for that field and be reported.
+     This is the alarm that tells us WC shipped a new collection. If it ever
+     returns a plausible-looking value instead, a new product line gets
+     silently misfiled under an existing one. */
+  const novel = cb.decodeBaseSku('ZZ30CW03ZZ');
+  const novelUnknown = cb.unknownCodes('ZZ30CW03ZZ') || [];
+  if (novel && novel.collection === null && novel.cabinet_color === null
+      && novel.size_nominal === 30 && novelUnknown.length >= 2) {
+    pass('unknown codes return null and are reported, while width still resolves');
+  } else {
+    fail('an unknown code was not handled honestly',
+         `got ${JSON.stringify(novel)} / unknown=${JSON.stringify(novelUnknown)}`);
+  }
+
+  /* 11d. ⚠️ top_finish MUST NOT be derived from the code.
+     Measured: SE30QZ00MW is "Whitebrook", PA60QZ05PW is "Carrara" — same QZ
+     code, different stone. Deriving finish from the code would fill a card
+     with confident nonsense. The decoder must not return it at all. */
+  const anyFinish = CASES.some(([s]) => 'top_finish' in (cb.decodeBaseSku(s) || {}));
+  if (!anyFinish) {
+    pass('top_finish is NOT derived from the SKU code (QZ maps to >1 stone)');
+  } else {
+    fail('the decoder is deriving top_finish from the code',
+         'QZ is Whitebrook on Sequoia and Carrara on Palace — this cannot be code-derived.');
+  }
+
+  /* 11e. Hardware finish must not be written into cabinet_finish. There is
+     no hardware column; filling the cabinet's finish with the handle's would
+     corrupt a different card rather than leave an honest blank. */
+  const jobSrc = read(JOB);
+  if (!/cabinet_finish\s*:\s*[^,\n]*hardware/i.test(jobSrc)
+      && !/hardware_finish[^\n]*cabinet_finish/i.test(jobSrc)) {
+    pass('hardware finish is not written into cabinet_finish');
+  } else {
+    fail('hardware finish is being written to cabinet_finish',
+         'Those are different attributes; this would silently corrupt the cabinet cut.');
+  }
+
+  /* 11f. PRECEDENCE: the supplier catalogue outranks the decode. The merge
+     must spread the decode FIRST and the catalogue second, so catalogue
+     values win and the decode only fills gaps. */
+  if (/\{\s*\.\.\.dec,[\s\S]{0,200}?\.\.\.Object\.fromEntries\(Object\.entries\(cat\)/.test(jobSrc)) {
+    pass('catalogue outranks decode in the attribute merge (decode fills gaps only)');
+  } else {
+    fail('the attribute merge does not put the catalogue above the decode',
+         'A rule applied to a code must never overwrite a per-SKU supplier statement.');
+  }
+
+  /* 11g. The codebook must be a committed module, never read from disk.
+     Hostinger runs from hbuilds/versions/<uuid>/, so any relative data path
+     breaks on every deploy (OPEN_ITEMS #24). */
+  /* Strip comments FIRST. The codebook's own header explains why it must not
+     use __dirname, and an earlier version of this check matched that prose
+     and failed the gate on its own documentation. The gate already hit this
+     exact trap once (a COLLATE count that included a comment) — test code,
+     never commentary. */
+  const cbSrc = read('src/data/wcCodebook.js')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/.*$/gm, '$1');
+  if (!/require\(\s*['"]fs['"]/.test(cbSrc) && !/readFile|existsSync|__dirname/.test(cbSrc)) {
+    pass('codebook is a committed module with no disk or path dependency');
+  } else {
+    fail('the codebook reads from disk',
+         'It must be a plain module — a relative data path cannot survive a Hostinger deploy.');
+  }
+}
+
 /* ── 10. THE VALIDITY GATE MUST NOT BE A ONE-WAY DOOR ─────────────────
  *
  * THE BUG THIS EXISTS TO PREVENT, because it shipped once and hid itself.

@@ -41,6 +41,9 @@ const fs       = require('fs');
 const zlib     = require('zlib');
 const readline = require('readline');
 const { bvoPool } = require('../config/database');
+/* Committed module, NOT a file read from disk — see wcCodebook.js header for
+   why (Hostinger's versioned build dir makes relative data paths unusable). */
+const { decodeBaseSku, unknownCodes } = require('../data/wcCodebook');
 
 const SNAPSHOTS_DIR = process.env.WC_SNAPSHOTS_PATH
   || path.join(__dirname, '../../../wc_sync/snapshots');
@@ -690,16 +693,25 @@ async function processSnapshot(dateStr, conn) {
 /* ─────────────────────────────────────────────────────────────────────
    DIMENSION UPSERT
 
-   ⚠️ COVERAGE IS PARTIAL AND THAT IS THE KNOWN STATE.
+   ⚠️ THE CATALOGUE ALONE COVERS ~22%. THE SKU DECODE COVERS ~100%.
    The 2021 supplier catalogue carries 145 attribute columns but only 284 rows
    with a Supplier SKU — 64 distinct base SKUs across 13 collections, against
    765 base SKUs in the feed. ~79% of current feed SKUs get a row here; only
-   ~22% get cabinet_color / top_material / top_finish.
+   ~22% get cabinet_color / top_material / top_finish from it.
 
-   Sam declined to source a newer catalogue (2026-11-24). So the reporting
-   layer MUST show the undescribed count next to any card that cuts by those
-   attributes. Never let a card look complete while covering a fifth of the
-   catalogue.
+   That was the whole story until 2026-11-25, when the base SKU turned out to
+   be a structured code that decodes the rest (src/data/wcCodebook.js). The
+   catalogue is now the SECONDARY source: it still wins where it speaks,
+   because a per-SKU supplier statement outranks a rule applied to a code,
+   and the two disagreeing is a signal worth logging rather than smoothing.
+
+   Sam declined to source a newer catalogue (2026-11-24) and, with the decode
+   in place, one is no longer needed for colour/collection/top-material. It
+   would still help for TOP FINISH, which cannot be code-derived.
+
+   The reporting layer MUST still show the undescribed count next to any card
+   that cuts by these attributes. High coverage today is not permanent — a new
+   WC collection arrives as an unresolved code, and the card has to say so.
 
    Colours are stored VERBATIM as WC names them (Sam, 2026-11-24) — no colour
    family mapping, no normalisation.
@@ -766,10 +778,49 @@ async function upsertDimensions(conn, { skus = null } = {}) {
   let upserted = 0, described = 0;
   const families = {};
 
+  /* ── SKU DECODE: the attribute source that actually covers the feed ────
+     The catalogue describes 64 of 244 base models. The base SKU itself is a
+     structured code (collection/width/top/hardware/colour) and decoding it
+     covers 100% of observed drawdown. See src/data/wcCodebook.js, including
+     why the earlier "decoding is too thin" verdict was wrong.
+
+     PRECEDENCE: catalogue first, decode underneath. The catalogue is a
+     per-SKU statement from the supplier; the decode is a rule applied to a
+     code. Where both speak, the supplier wins — so this merge fills gaps
+     and never overwrites. That also means the two can be compared: a
+     disagreement is a bug worth seeing, not something to smooth over. */
+  let decoded = 0, conflicts = 0;
+  const unresolved = {};
+
   for (const sku of targets) {
     const p = parseSku(sku);
     if (!p) continue;
-    const a = catalogue.get(p.sku) || {};
+
+    const cat = catalogue.get(p.sku) || {};
+    const dec = decodeBaseSku(p.base) || {};
+
+    if (dec.collection || dec.cabinet_color || dec.top_material) decoded++;
+    for (const code of (unknownCodes(p.base) || [])) {
+      unresolved[code] = (unresolved[code] || 0) + 1;
+    }
+
+    /* Surface catalogue-vs-decode disagreement rather than silently
+       preferring one. If this ever fires in volume the codebook is wrong. */
+    for (const f of ['collection', 'cabinet_color', 'top_material']) {
+      if (cat[f] && dec[f] && String(cat[f]).toLowerCase() !== String(dec[f]).toLowerCase()) {
+        conflicts++;
+        if (conflicts <= 10) {
+          console.warn(`[wc-rollup] attr conflict ${p.sku} ${f}: ` +
+                       `catalogue="${cat[f]}" decode="${dec[f]}" — catalogue kept`);
+        }
+      }
+    }
+
+    const a = {
+      ...dec,
+      ...Object.fromEntries(Object.entries(cat).filter(([, v]) => v != null && v !== '')),
+      attr_source: cat.attr_source || (dec.collection ? 'sku_decode' : null),
+    };
     if (a.attr_source) described++;
     const famKey = classifyFamily(p.sku) || 'unclassified';
     families[famKey] = (families[famKey] || 0) + 1;
@@ -823,15 +874,34 @@ async function upsertDimensions(conn, { skus = null } = {}) {
                  `classified into a product family — check for a new WC line`);
   }
 
+  /* A code that parses the grammar but is not in the codebook means WC has
+     shipped a new collection or colour. That is exactly the moment to add a
+     VERIFIED entry — never a guessed one. Loud, because the alternative is a
+     dashboard that quietly undercounts a new line. */
+  const unresolvedList = Object.entries(unresolved).sort((a, b) => b[1] - a[1]);
+  if (unresolvedList.length) {
+    console.warn(`[wc-rollup] ${unresolvedList.length} SKU code(s) not in the ` +
+                 `codebook: ${unresolvedList.map(([c, n]) => `${c} x${n}`).join(', ')}`);
+  }
+  if (conflicts) {
+    console.warn(`[wc-rollup] ${conflicts} catalogue/decode attribute conflict(s) ` +
+                 `— catalogue kept; if this is more than a handful the codebook is wrong`);
+  }
+
   return {
     upserted,
     described,
+    decoded,
+    conflicts,
+    unresolved: unresolvedList,
     undescribed: upserted - described,
     families,
     source,
-    notes: `${described}/${upserted} SKUs carry catalogue attributes ` +
-           `(${(100*described/Math.max(upserted,1)).toFixed(1)}%) — the rest are ` +
-           `SKU-derived only and MUST be surfaced as undescribed in the UI. ` +
+    notes: `${described}/${upserted} SKUs carry attributes ` +
+           `(${(100*described/Math.max(upserted,1)).toFixed(1)}%), of which ` +
+           `${decoded} come from the SKU codebook and the rest from the supplier ` +
+           `catalogue. Catalogue wins any disagreement (${conflicts} seen). ` +
+           `Unresolved codes: ${unresolvedList.length || 'none'}. ` +
            `Families: ${Object.entries(families).map(([k,v])=>`${k}=${v}`).join(', ')}`,
   };
 }

@@ -1,0 +1,70 @@
+attribute,code,value,source
+collection,AB,Aberdeen,supplier catalogue / water-creation.com
+collection,BD,Brandy,supplier catalogue / water-creation.com
+collection,BE,Belmont,supplier catalogue / water-creation.com
+collection,BR,Bristol,supplier catalogue / water-creation.com
+collection,CH,Chestnut,supplier catalogue / water-creation.com
+collection,CI,Cirilla,supplier catalogue / water-creation.com
+collection,DE,Derby,supplier catalogue / water-creation.com
+collection,EA,Elsa,supplier catalogue / water-creation.com
+collection,EL,Elizabeth,supplier catalogue / water-creation.com
+collection,ES,Elise,supplier catalogue / water-creation.com
+collection,EU,Eureka,supplier catalogue / water-creation.com
+collection,FE,Ferrero,supplier catalogue / water-creation.com
+collection,HA,Hartford,supplier catalogue / water-creation.com
+collection,HU,Hugo,supplier catalogue / water-creation.com
+collection,MA,Madalyn,supplier catalogue / water-creation.com
+collection,MI,Mia,supplier catalogue / water-creation.com
+collection,MQ,Marquis,supplier catalogue / water-creation.com
+collection,MS,Madison,supplier catalogue / water-creation.com
+collection,MY,Myra,supplier catalogue / water-creation.com
+collection,OA,Oakman,supplier catalogue / water-creation.com
+collection,OX,Oxford,supplier catalogue / water-creation.com
+collection,PA,Palace,supplier catalogue / water-creation.com
+collection,PE,Perris,supplier catalogue / water-creation.com
+collection,PO,Potenza,supplier catalogue / water-creation.com
+collection,PY,Paisley,supplier catalogue / water-creation.com
+collection,QU,Queen,supplier catalogue / water-creation.com
+collection,SE,Sequoia,supplier catalogue / water-creation.com
+collection,VE,Vera,supplier catalogue / water-creation.com
+collection,VI,Viola,supplier catalogue / water-creation.com
+collection,WE,Westin,supplier catalogue / water-creation.com
+cabinet_colour,BK,Brown Oak,supplier catalogue / vendor+retailer listings
+cabinet_colour,CG,Cashmere Grey,supplier catalogue / vendor+retailer listings
+cabinet_colour,CL,Casa Latte,supplier catalogue / vendor+retailer listings
+cabinet_colour,CO,Charcoal Oak,supplier catalogue / vendor+retailer listings
+cabinet_colour,EG,Earl Grey,supplier catalogue / vendor+retailer listings
+cabinet_colour,ES,Espresso,supplier catalogue / vendor+retailer listings
+cabinet_colour,GG,Grizzle Grey,supplier catalogue / vendor+retailer listings
+cabinet_colour,GK,Grey Oak,supplier catalogue / vendor+retailer listings
+cabinet_colour,GN,Glacial Green,supplier catalogue / vendor+retailer listings
+cabinet_colour,HW,Honey Walnut,supplier catalogue / vendor+retailer listings
+cabinet_colour,LW,Lustrous Walnut,supplier catalogue / vendor+retailer listings
+cabinet_colour,MB,Monarch Blue,supplier catalogue / vendor+retailer listings
+cabinet_colour,MW,Mango Wood,supplier catalogue / vendor+retailer listings
+cabinet_colour,NJ,Noir Juglans,supplier catalogue / vendor+retailer listings
+cabinet_colour,PW,Pure White,supplier catalogue / vendor+retailer listings
+cabinet_colour,RS,Rustic Sienna,supplier catalogue / vendor+retailer listings
+cabinet_colour,TL,Toffee Latte,supplier catalogue / vendor+retailer listings
+cabinet_colour,TO,Truffle Oak,supplier catalogue / vendor+retailer listings
+cabinet_colour,WO,Weathered Oak,supplier catalogue / vendor+retailer listings
+top_material,BL,Ceramic/Granite,vendor product copy
+top_material,CR,Ceramic,vendor product copy
+top_material,CW,Carrara White Marble,vendor product copy
+top_material,EM,Engineered Marble,vendor product copy
+top_material,QZ,Quartz,vendor product copy
+hardware_finish,00,None,2020 supplier catalogue / vendor copy
+hardware_finish,01,Chrome,2020 supplier catalogue / vendor copy
+hardware_finish,03,Oil-rubbed Bronze,2020 supplier catalogue / vendor copy
+hardware_finish,05,Polished Nickel,2020 supplier catalogue / vendor copy
+hardware_finish,06,Satin Gold,2020 supplier catalogue / vendor copy
+hardware_finish,07,Matte Black,2020 supplier catalogue / vendor copy
+hardware_finish,08,Antique Gold,2020 supplier catalogue / vendor copy
+sink_count,18,1,derived from width (vendor titles)
+sink_count,20,1,derived from width (vendor titles)
+sink_count,24,1,derived from width (vendor titles)
+sink_count,30,1,derived from width (vendor titles)
+sink_count,36,1,derived from width (vendor titles)
+sink_count,48,1,derived from width (vendor titles)
+sink_count,60,2,derived from width (vendor titles)
+sink_count,72,2,derived from width (vendor titles)

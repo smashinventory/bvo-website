@@ -15,17 +15,18 @@ JOB=src/jobs/wcMovementRollup.js
 CTRL=src/controllers/wcReportsController.js
 VIEW=views/pages/admin/marketing/wc-inventory-analysis.ejs
 MIG=database/migrations/030_wc_inventory_analysis.sql
+CODEBOOK=src/data/wcCodebook.js
 GATE="node gates/gate_wc_inventory.js"
 
 BACKUP_DIR=$(mktemp -d)
 restore() {
-  for f in "$JOB" "$CTRL" "$VIEW" "$MIG"; do
+  for f in "$JOB" "$CTRL" "$VIEW" "$MIG" "$CODEBOOK"; do
     [ -f "$BACKUP_DIR/$(basename "$f")" ] && cp "$BACKUP_DIR/$(basename "$f")" "$f"
   done
   rm -rf "$BACKUP_DIR"
 }
 trap restore EXIT INT TERM
-for f in "$JOB" "$CTRL" "$VIEW" "$MIG"; do cp "$f" "$BACKUP_DIR/$(basename "$f")"; done
+for f in "$JOB" "$CTRL" "$VIEW" "$MIG" "$CODEBOOK"; do cp "$f" "$BACKUP_DIR/$(basename "$f")"; done
 
 FAILED=0
 pass() { echo "  CAUGHT    $1"; }
@@ -150,10 +151,47 @@ mutate "rebuild step removed — rescued days stay empty" "$JOB" \
 mutate "validity paths given divergent minimum baselines" "$JOB" \
   's/if \(window\.length >= VALIDITY_MIN_BASELINE\)/if (window.length >= 3)/'
 
+# ── 12. THE SKU CODEBOOK ───────────────────────────────────────────────
+#   The decode is now the source of ~100% of attribute coverage, so a wrong
+#   codebook is a wrong dashboard with no outward sign of trouble.
+
+# 12a. A code mapped to the wrong name. This is the quietest possible
+#      failure: every card still populates, just with the wrong labels.
+mutate "colour code NJ remapped to the wrong name" "$CODEBOOK" \
+  "s/NJ: 'Noir Juglans'/NJ: 'Monarch Blue'/"
+
+# 12b. An unknown code guessed instead of left null — a new WC collection
+#      would be silently misfiled under an existing one.
+mutate "unknown collection code falls back to a guess" "$CODEBOOK" \
+  "s/collection:      COLLECTION\[coll\]       \|\| null,/collection: COLLECTION[coll] || 'Palace',/"
+
+# 12c. top_finish derived from the code. QZ is Whitebrook on Sequoia and
+#      Carrara on Palace, so this fills a card with confident nonsense.
+mutate "top_finish derived from the top code" "$CODEBOOK" \
+  "s/    top_material:    TOP_MATERIAL\[top\]      \|\| null,/    top_material: TOP_MATERIAL[top] || null,\n    top_finish: 'Carrara White',/"
+
+# 12d. Precedence inverted — a rule applied to a code would overwrite a
+#      per-SKU statement from the supplier.
+mutate "decode allowed to overwrite the supplier catalogue" "$JOB" \
+  's/\{\s*\n?\s*\.\.\.dec,/{\n      ...cat,/'
+
+# 12e. Non-grammar SKUs decoded anyway, dragging washstands and
+#      accessories into the vanity attribute cuts.
+mutate "non-grammar SKUs no longer rejected" "$CODEBOOK" \
+  's/if \(!m\) return null;/if (!m) return { collection: null, size_nominal: null, top_material: null, cabinet_color: null, sinks: null, codes: {} };/'
+
+# 12f. The codebook made to read from disk — the hbuilds trap, which would
+#      break it on the next deploy and only the next deploy.
+#      /m is required: perl -0 slurps the file, so ^ only anchors per-line
+#      with the m flag. Without it the pattern silently never matches and the
+#      harness reports BROKEN rather than testing anything.
+mutate "codebook reads its data from disk" "$CODEBOOK" \
+  "s/^'use strict';/'use strict';\nconst fs = require('fs');\nconst DATA = __dirname + '\/..\/..\/codebook.json';/m"
+
 echo ""
 echo "Restoring originals and re-running the gate:"
 restore_check() {
-  for f in "$JOB" "$CTRL" "$VIEW" "$MIG"; do cp "$BACKUP_DIR/$(basename "$f")" "$f"; done
+  for f in "$JOB" "$CTRL" "$VIEW" "$MIG" "$CODEBOOK"; do cp "$BACKUP_DIR/$(basename "$f")" "$f"; done
 }
 restore_check
 if $GATE >/dev/null 2>&1; then

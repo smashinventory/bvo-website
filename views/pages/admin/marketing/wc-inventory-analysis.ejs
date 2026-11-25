@@ -17,10 +17,21 @@
    SUMMING ACROSS CONFIGS OVERSTATES BY 3.8–6.0x. Measured, not assumed.
 
    COVERAGE. Attribute cuts are only as complete as the coverage strip at
-   the top of this page says. The 2021 supplier catalogue describes ~22%
-   of the feed for colour/top. Every attribute card therefore carries its
-   undescribed count. Do not remove those — a card that reports on a fifth
-   of the catalogue while looking whole is worse than no card.
+   the top of this page says — which is computed live, so trust the strip
+   over any number written in prose.
+
+   As of 2026-11-25 coverage is ~100% for collection, colour, top material
+   and sink count, because attributes are now decoded from the base SKU
+   (src/data/wcCodebook.js) rather than looked up in the 2021 supplier
+   catalogue, which only ever described ~22%. Earlier versions of this
+   comment said a fifth, and that is no longer true.
+
+   Every attribute card still carries its undescribed count, and those must
+   stay. Coverage is high today but a new WC collection arrives as an
+   unresolved code, and the card must show that rather than quietly shrink
+   its own denominator. TOP FINISH IS THE STANDING EXCEPTION: it cannot be
+   derived from the SKU (the same QZ code is Whitebrook on Sequoia and
+   Carrara on Palace), so that card is expected to read as undescribed.
 
    NO PRICING. Units only. There is no revenue figure on this page by
    design; do not add one.
@@ -159,9 +170,15 @@ const _inScope = (_scopes[_scopeKey] && _scopes[_scopeKey].families) || null;
     </table>
   </div>
   <p class="adm-label">
-    Colour and top sit around a fifth of the catalogue. Those cards below are
-    <strong>directional for the described subset only</strong> — they are not the whole
-    market. Raising this needs a newer WC product-data export.
+    Attributes are decoded from the base SKU itself &mdash; <code>PA</code>&middot;<code>60</code>&middot;<code>QZ</code>&middot;<code>05</code>&middot;<code>PW</code>
+    is Palace, 60&quot;, Quartz, Polished Nickel, Pure White &mdash; against a codebook verified
+    from the supplier catalogues and the vendor&rsquo;s own product copy. Where the 2021
+    catalogue describes a SKU directly, <strong>it wins</strong>; the decode only fills gaps.
+    <strong>Undescribed rows are the ones to watch</strong>: a non-zero count means WC has
+    shipped a code we have not verified yet, not that the card is broken.
+    <strong>Top finish is the known exception</strong> and will read as undescribed &mdash; the
+    same top code maps to different stone across collections, so it cannot honestly be
+    derived from the SKU.
   </p>
 </div>
 
