@@ -244,7 +244,8 @@ National baseline to render against (from `WC_MARKET_ANALYSIS.md` §2):
 4. Controller — queries per §5
 5. View — four rows, with the "not our sales" labelling of §2.1
 6. Nav entry under Marketing, beside JMV Reports
-7. Cron wrapper, matching `jmv_rollup.sh`
+7. ~~Cron wrapper, matching `jmv_rollup.sh`~~ — **NOT BUILT, BY DECISION
+   (Sam, 2026-11-25). Do not build it.** See §9.
 8. Gate + mutation test: assert the suffix strip actually collapses
    configurations into models, assert no `gap > 1` delta is ever written, and
    assert unmapped SKUs appear in the output rather than vanishing
@@ -353,3 +354,44 @@ tested `recomputeValidity` only — which carries its own window and never calls
 `getTrailingMedian` — so restoring `AND is_valid = 1`, the actual original
 bug, left the gate completely green. Two code paths decide validity; a test
 that exercises one of them proves nothing about the other.
+
+---
+
+## 9. Ingestion: manual, by decision (2026-11-25)
+
+**There is no cron, and that is deliberate. Do not build one.**
+
+How the data arrives: Water Creation emails a CSV nightly. Everything in the
+snapshots folder was put there by hand. Nothing fetches it.
+
+Asked directly whether to automate — Apps Script push to an authenticated
+endpoint, server-side IMAP pull, or Gmail→Drive→pull — Sam's answer was:
+
+> "I dont need this automated. I will do an upload every so often as needed."
+
+So the operating model is: upload a batch of CSVs when it matters, press
+**Run rollup**, done. The rollup is built for exactly this — it is resumable,
+idempotent, re-decides validity across the whole series each run, and rebuilds
+any deltas it finds missing. A six-month gap followed by one bulk upload lands
+correctly; nothing needs to run nightly for the numbers to be right.
+
+**Staleness is already visible and needs no alert.** The page header reads
+"Data through YYYY-MM-DD", so the age of the data is the first thing on the
+report. That is what a staleness banner would have told you, without the code.
+
+### If this is ever revisited
+
+Three routes were costed. The deciding factor is where the credentials live:
+
+| Route | Credentials | Cost |
+|---|---|---|
+| Apps Script → authenticated BVO endpoint | none on the server | new endpoint, must be locked to CSV + one directory + shared secret |
+| Server-side IMAP pull | Gmail app password in server env | new npm dependency, matches `jmv_rollup.sh` pattern |
+| Gmail filter → Drive → server pulls | Drive API | two hops to keep working |
+
+⚠️ Nothing in this codebase reads email today — no IMAP client, no mail
+parser, no Gmail dependency. Any of these is net-new work, not wiring.
+
+⚠️ And whatever runs it, an inbound upload endpoint is a file-write primitive
+pointed at the server. It must be constrained to CSV, to one fixed directory,
+and to an authenticated caller — never a general write.
