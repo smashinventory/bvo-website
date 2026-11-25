@@ -102,6 +102,23 @@ mutate "inline onclick added to the view" "$VIEW" \
 mutate "COLLATE dropped from wc_dimensions" "$MIG" \
   's/(CREATE TABLE IF NOT EXISTS wc_dimensions.*?)COLLATE=utf8mb4_unicode_ci;/$1;/s'
 
+# 10a. Default scope widened to everything — faucets and kitchen sinks
+#      silently counted as vanity demand.
+mutate "default scope changed from vanity to all" "$CTRL" \
+  "s/const DEFAULT_SCOPE = 'vanity';/const DEFAULT_SCOPE = 'all';/"
+
+# 10b. Scope computed but not applied — the quietest failure of all.
+mutate "scope fragment dropped from a DEDUPED_BASE call" "$CTRL" \
+  's/\$\{DEDUPED_BASE\(W, SC\.sql\)\}/\${DEDUPED_BASE(W)}/'
+
+# 10c. Classifier guesses instead of returning null for an unknown shape.
+mutate "unknown SKU guessed as vanity instead of null" "$JOB" \
+  "s/  return null;   \/\/ unclassified — surfaced, never guessed/  return 'vanity';/"
+
+# 10d. Kitchen sinks fall through to the vanity rule.
+mutate "kitchen_sink rule removed — sinks fall through to vanity" "$JOB" \
+  "s/\['kitchen_sink', \/\^\(CF\\\\d\+\|SS\[A-Z\]\*\)-\[A-Z\]\{1,2\}-\\\\d\{4\}\[A-Z\]\?\(-\\\\d\+\)\?\\\$\/\],//"
+
 # 10. Migration made destructive.
 mutate "DROP TABLE added to the migration" "$MIG" \
   's/^CREATE TABLE IF NOT EXISTS wc_snapshots \(/DROP TABLE IF EXISTS wc_snapshots;\nCREATE TABLE IF NOT EXISTS wc_snapshots (/m'

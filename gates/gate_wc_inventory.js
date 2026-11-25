@@ -303,6 +303,80 @@ section('8. Migration safety');
   }
 }
 
+/* ── 9. PRODUCT SCOPE ─────────────────────────────────────────────── */
+section('9. Product scope — the feed is not all vanities');
+{
+  const ctrl = require(path.join(ROOT, CONTROLLER));
+  const job  = require(path.join(ROOT, JOB));
+
+  if (ctrl.DEFAULT_SCOPE === 'vanity') {
+    pass('default scope is vanities');
+  } else {
+    fail(`default scope is "${ctrl.DEFAULT_SCOPE}", expected "vanity"`,
+         'A third of the feed is faucets and accessories; defaulting to all of it reports a number nobody asked for.');
+  }
+
+  /* Classifier: each family must be recognised, and an unknown shape must
+     return null rather than be guessed into vanity. */
+  const cases = [
+    ['AB30CW03RS-000TL1203', 'vanity'],
+    ['CH24CW03GK-000000000', 'vanity'],
+    ['F1-0003-01-AL',        'faucet'],
+    ['F5-0011-01',           'faucet'],        // kitchen faucet, no finish code
+    ['CF511-AS-3022A',       'kitchen_sink'],
+    ['SS-U-1520A',           'kitchen_sink'],
+    ['SSSG-AD-3322B-16',     'kitchen_sink'],
+    ['EB30A-0100',           'washstand'],
+    ['BA-0006-02',           'accessory'],
+    ['MADISON-LC-E',         'cabinet'],
+    ['EMPIRE-M-1824-01',     'mirror'],
+    ['CTAB2727BLGG',         'furniture'],
+  ];
+  let bad = 0;
+  for (const [sku, want] of cases) {
+    const got = job.classifyFamily(sku);
+    if (got !== want) { bad++; fail(`classifyFamily("${sku}")`, `got "${got}", expected "${want}"`); }
+  }
+  if (!bad) pass(`all ${cases.length} family cases classify correctly`);
+
+  if (job.classifyFamily('TOTALLY-NEW-SHAPE-9') === null) {
+    pass('an unrecognised SKU returns null, never a guess');
+  } else {
+    fail('unrecognised SKU was guessed into a family',
+         'A NULL is how a new WC product line announces itself. Guessing hides it.');
+  }
+
+  /* THE LEAK THAT MATTERS: a kitchen sink or faucet reaching the vanity scope
+     would inflate the one number this page exists to report. */
+  const leaks = ['CF511-AS-3022A','SS-U-1520A','SSSG-AD-3322C','F1-0003-01-AL','CTAB2727BLGG']
+    .filter(s => job.classifyFamily(s) === 'vanity');
+  if (!leaks.length) pass('no kitchen sink / faucet / furniture SKU classifies as vanity');
+  else fail('non-vanity SKUs leaked into the vanity family', leaks.join(', '));
+
+  /* The scope must actually reach the SQL. A scope computed but not applied
+     is the quietest possible failure — the page looks scoped and is not. */
+  const src = read(CONTROLLER);
+  const scopedCalls   = (src.match(/DEDUPED_BASE\([^)]*SC\.sql\)/g) || []).length;
+  const unscopedCalls = (src.match(/DEDUPED_BASE\(W\)|DEDUPED_BASE\(''\)/g) || []).length;
+  if (scopedCalls > 0 && unscopedCalls === 0) {
+    pass(`all ${scopedCalls} DEDUPED_BASE calls pass the scope fragment`);
+  } else {
+    fail(`${unscopedCalls} DEDUPED_BASE call(s) ignore the scope`,
+         'An unscoped card silently reports faucets and kitchen sinks as vanity demand.');
+  }
+
+  if (/product_family IN/.test(src)) pass('scope filters on product_family');
+  else fail('scopeClause does not filter on product_family');
+
+  /* Tops are a dimension, not a family. Anyone adding a "tops" scope has
+     misunderstood the catalogue and will find nothing. */
+  if (!/SCOPES\s*=\s*\{[\s\S]*?\btop\b\s*:/.test(src)) {
+    pass('no "top" scope — tops are a dimension of the vanity, not a family');
+  } else {
+    fail('a "top" scope exists', 'There is no separate vanity-top SKU; the top is part of the vanity.');
+  }
+}
+
 /* ── RESULT ───────────────────────────────────────────────────────── */
 console.log('');
 if (failures) {

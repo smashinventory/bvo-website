@@ -251,6 +251,68 @@ function parseSku(sku) {
 const hasOption = code => !!code && !/^0+$/.test(code);
 
 /* ─────────────────────────────────────────────────────────────────────
+   PRODUCT FAMILY
+
+   The feed is not all bathroom vanities. Classified from SKU shape and
+   verified against catalogue product names across the whole archive:
+
+     vanity        AB30CW03RS-000TL1203   "Chestnut 24" Single Bathroom Vanity"
+     faucet        F1-0003-01-AL          "Vintage Classic Basin Cocks Lavatory Faucets"
+     kitchen_sink  CF511-AS-3022A         "30x22 Zero Radius Single Bowl Stainless Steel"
+                   SS-AD-3322B-16          (same product, later SKU scheme)
+     washstand     EB30A-0100             "Embassy 30 Inch Wide Single Wash Stand"
+     accessory     BA-0006-02             robe hooks, bath caddies, P-trap kits
+     cabinet       MADISON-LC-E           "Madison Collection Linen Cabinet"
+                   MADISON-TT-E           "Madison Collection Wall Cabinet"
+     mirror        EMPIRE-M-1824-01       "Metal Rectangular Mirror 18" X 24""
+
+   ORDER MATTERS. The vanity pattern is the loosest, so it is tested LAST
+   among the specific shapes — otherwise a kitchen sink SKU like
+   SS-AD-3322B-16 could be swallowed by a broad rule. The kitchen_sink and
+   mirror rules in particular must precede anything general.
+
+   An unrecognised shape returns null rather than a guess. A NULL is how a
+   new WC product line announces itself; silently filing it under "vanity"
+   would quietly corrupt the one number this dashboard exists to report.
+───────────────────────────────────────────────────────────────────── */
+const FAMILY_RULES = [
+  /* Kitchen sinks. THREE SKU schemes across the years — CF511-, SS-, SSS- —
+     and the middle segment is 1 or 2 letters (AD/AS/TD = apron styles,
+     U = undermount). Tuning these on a single snapshot missed 121 SKUs;
+     they were only found by classifying the whole archive at once. */
+  ['kitchen_sink', /^(CF\d+|SS[A-Z]*)-[A-Z]{1,2}-\d{4}[A-Z]?(-\d+)?$/],
+  // Mirrors: a -M- segment between name and dimensions.
+  ['mirror',       /^[A-Z]+-M-\d{4}/],
+  // Linen cabinets (LC) and wall cabinets (TT).
+  ['cabinet',      /-(LC|TT)-/],
+  /* Faucets. The trailing finish code is optional: F5-0011-01 has none.
+     NOTE the family mixes rooms — F1 is "Basin Cocks Lavatory Faucets"
+     (bathroom) while F5 is "Pull-Out Kitchen Faucet". Not split further
+     because the vanity scope excludes both; split it if faucets ever
+     become a reporting target in their own right. */
+  ['faucet',       /^F\d-\d{4}-\d{2}(-[A-Z]{2})?$/],
+  // Wash stands: EB30A-0100
+  ['washstand',    /^[A-Z]{2}\d{2}[A-Z]-\d{4}$/],
+  // Bath accessories: BA-/BC-/PS- nnnn-nn
+  ['accessory',    /^[A-Z]{2}-\d{4}-\d{2}$/],
+  /* Furniture. Exactly one SKU ever: CTAB2727BLGG, "Aberdeen Collection
+     27 Inch By 27 Inch Blue Limestone Top Coffee Table". Given its own
+     family rather than left unclassified, so the unclassified count stays
+     a genuine alarm rather than a known-noise number people learn to ignore. */
+  ['furniture',    /^CT[A-Z]{2}\d{4}[A-Z]+$/],
+  /* Vanity combos: <base>-<9-char option suffix>. The loosest rule, so it is
+     tested LAST — every more specific shape gets first refusal. */
+  ['vanity',       /^[A-Z0-9]+-[A-Z0-9]{9}$/],
+];
+
+function classifyFamily(sku) {
+  const s = String(sku || '').trim().toUpperCase();
+  if (!s) return null;
+  for (const [family, rx] of FAMILY_RULES) if (rx.test(s)) return family;
+  return null;   // unclassified — surfaced, never guessed
+}
+
+/* ─────────────────────────────────────────────────────────────────────
    DB HELPERS — same shape as the JMV job
 ───────────────────────────────────────────────────────────────────── */
 
@@ -561,21 +623,25 @@ async function upsertDimensions(conn, { skus = null } = {}) {
 
   const today = new Date().toISOString().slice(0, 10);
   let upserted = 0, described = 0;
+  const families = {};
 
   for (const sku of targets) {
     const p = parseSku(sku);
     if (!p) continue;
     const a = catalogue.get(p.sku) || {};
     if (a.attr_source) described++;
+    const famKey = classifyFamily(p.sku) || 'unclassified';
+    families[famKey] = (families[famKey] || 0) + 1;
 
     await conn.query(
       `INSERT INTO wc_dimensions
-         (sku, base_sku, mirror_code, faucet_code, has_mirror, has_faucet,
+         (sku, base_sku, product_family, mirror_code, faucet_code, has_mirror, has_faucet,
           collection, product_name, size_nominal, cabinet_color, cabinet_finish,
           top_material, top_finish, sinks, mounting, ada, attr_source, updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
        ON DUPLICATE KEY UPDATE
-         base_sku=VALUES(base_sku), mirror_code=VALUES(mirror_code),
+         base_sku=VALUES(base_sku), product_family=VALUES(product_family),
+         mirror_code=VALUES(mirror_code),
          faucet_code=VALUES(faucet_code), has_mirror=VALUES(has_mirror),
          has_faucet=VALUES(has_faucet),
          /* Never overwrite a described row with a blank one. A re-run without
@@ -594,7 +660,7 @@ async function upsertDimensions(conn, { skus = null } = {}) {
          attr_source=COALESCE(VALUES(attr_source), attr_source),
          updated_at=VALUES(updated_at)`,
       [
-        p.sku, p.base, p.mirror || null, p.faucet || null,
+        p.sku, p.base, classifyFamily(p.sku), p.mirror || null, p.faucet || null,
         hasOption(p.mirror) ? 1 : 0, hasOption(p.faucet) ? 1 : 0,
         a.collection ?? null, a.product_name ?? null, a.size_nominal ?? null,
         a.cabinet_color ?? null, a.cabinet_finish ?? null,
@@ -606,14 +672,26 @@ async function upsertDimensions(conn, { skus = null } = {}) {
     upserted++;
   }
 
+  /* An unclassified SKU is a FINDING, not noise: it is how a new WC product
+     line announces itself. Known benign case as of 2026-11-25 is exactly one
+     — SEQUOIA-30MW, which appeared in 2 of 1,628 snapshots, always at qty 0
+     with an expired ETA, is in no catalogue and never moved a unit. Anything
+     beyond that deserves a look before the next report is trusted. */
+  if (families.unclassified) {
+    console.warn(`[wc-rollup] ${families.unclassified} SKU(s) could not be ` +
+                 `classified into a product family — check for a new WC line`);
+  }
+
   return {
     upserted,
     described,
     undescribed: upserted - described,
+    families,
     source,
     notes: `${described}/${upserted} SKUs carry catalogue attributes ` +
            `(${(100*described/Math.max(upserted,1)).toFixed(1)}%) — the rest are ` +
-           `SKU-derived only and MUST be surfaced as undescribed in the UI`,
+           `SKU-derived only and MUST be surfaced as undescribed in the UI. ` +
+           `Families: ${Object.entries(families).map(([k,v])=>`${k}=${v}`).join(', ')}`,
   };
 }
 
@@ -702,6 +780,7 @@ module.exports = {
   getSnapshotStatus,
   // exported for the gates
   parseSku,
+  classifyFamily,
   detectSchema,
   readSnapshotFile,
   findSnapshotFile,

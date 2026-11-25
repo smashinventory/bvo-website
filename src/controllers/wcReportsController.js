@@ -51,11 +51,45 @@ const LAYOUT = { layout: 'layouts/admin' };
 const DEFAULT_WINDOW = 90;
 
 /* ─────────────────────────────────────────────────────────────────────
+   PRODUCT SCOPE
+
+   The WC feed is NOT all bathroom vanities. Across the archive:
+     vanity 1,212 · faucet 393 · kitchen_sink 197 · washstand 165 ·
+     accessory 53 · cabinet 22 · mirror 12 · furniture 1
+
+   A third of the current feed is faucets and accessories, and the 2021 feed
+   carried 197 KITCHEN sinks and a coffee table. Reporting "WC demand" across
+   all of that answers nothing. Sam's scope (2026-11-25): bathroom vanities,
+   with wash stands as a separate family excluded by default.
+
+   ⚠️ There is no separate vanity-TOP family, and there never will be: the top
+   is part of the vanity SKU. "Tops" is a DIMENSION (top_material,
+   top_finish) cut within family='vanity', never a scope of its own.
+───────────────────────────────────────────────────────────────────── */
+const SCOPES = {
+  vanity:     { label: 'Vanities',               families: ['vanity'] },
+  vanity_ws:  { label: 'Vanities + wash stands', families: ['vanity', 'washstand'] },
+  washstand:  { label: 'Wash stands only',       families: ['washstand'] },
+  all:        { label: 'All families',           families: null },
+};
+const DEFAULT_SCOPE = 'vanity';
+
+/** Build the SQL fragment + params that restrict a query to the chosen scope. */
+function scopeClause(scopeKey) {
+  const scope = SCOPES[scopeKey] || SCOPES[DEFAULT_SCOPE];
+  if (!scope.families) return { sql: '', params: [] };
+  return {
+    sql: ` AND d.product_family IN (${scope.families.map(() => '?').join(',')})`,
+    params: scope.families.slice(),
+  };
+}
+
+/* ─────────────────────────────────────────────────────────────────────
    THE DEDUPE
    One row per (movement_date, base_sku) carrying the base's drawdown and its
    attributes. Every model/collection/colour/size/top card reads from this.
 ───────────────────────────────────────────────────────────────────── */
-const DEDUPED_BASE = (whereExtra = '') => `
+const DEDUPED_BASE = (whereExtra = '', scopeSql = '') => `
   SELECT m.movement_date,
          d.base_sku,
          MAX(d.collection)    AS collection,
@@ -72,6 +106,7 @@ const DEDUPED_BASE = (whereExtra = '') => `
     JOIN wc_dimensions     d ON d.sku = m.sku
    WHERE m.is_valid = 1
      AND m.demand_min > 0
+     ${scopeSql}
      ${whereExtra}
    GROUP BY m.movement_date, d.base_sku
 `;
@@ -95,6 +130,8 @@ async function card(name, fn) {
 async function dashboard(req, res) {
   try {
     const windowDays = Math.max(7, Math.min(3650, parseInt(req.query.days, 10) || DEFAULT_WINDOW));
+    const scopeKey   = SCOPES[req.query.scope] ? req.query.scope : DEFAULT_SCOPE;
+    const SC         = scopeClause(scopeKey);
 
     const status = await getSnapshotStatus().catch(() => null);
 
@@ -107,7 +144,7 @@ async function dashboard(req, res) {
         path: req.originalUrl,
         empty: true,
         status: status || {},
-        windowDays,
+        windowDays, scopeKey, scopes: SCOPES, families: [],
         cards: {}, coverage: {}, trend: [], seasonality: [],
       });
     }
@@ -125,8 +162,20 @@ async function dashboard(req, res) {
               SUM(size_nominal  IS NOT NULL)                      AS with_size,
               SUM(collection    IS NOT NULL AND collection   <>'')AS with_collection,
               SUM(carried_sku   IS NOT NULL)                      AS carried
-         FROM wc_dimensions`
+         FROM wc_dimensions d
+        WHERE 1=1${SC.sql}`, SC.params
     );
+
+    /* Family census — always across ALL families, never scoped. This is what
+       tells the reader what the scope is EXCLUDING, and an unclassified count
+       here is a new WC product line rather than noise. */
+    const families = await q(
+      `SELECT COALESCE(product_family,'unclassified') AS family,
+              COUNT(*) AS skus, COUNT(DISTINCT base_sku) AS models
+         FROM wc_dimensions
+        GROUP BY product_family
+        ORDER BY skus DESC`
+    ).catch(() => []);
 
     const coverage = {
       ...cov,
@@ -138,7 +187,10 @@ async function dashboard(req, res) {
     };
 
     const W = `AND m.movement_date >= DATE_SUB(?, INTERVAL ? DAY)`;
-    const WP = [lastDate, windowDays];
+    /* Param order must mirror fragment order inside DEDUPED_BASE: the scope
+       IN(...) placeholders come before the date window. Getting this backwards
+       silently filters on the wrong values rather than erroring. */
+    const WP = [...SC.params, lastDate, windowDays];
 
     /* ── ROW 1 — ALERT STRIP ───────────────────────────────────────────
        Reads the latest snapshot only. A SKU at zero WITH an ETA is a wait;
@@ -158,11 +210,11 @@ async function dashboard(req, res) {
               MAX(s.available_date) AS eta
          FROM wc_snapshots  s
          JOIN wc_dimensions d ON d.sku = s.sku
-        WHERE s.snapshot_date = ? AND s.qty = 0
+        WHERE s.snapshot_date = ? AND s.qty = 0${SC.sql}
         GROUP BY d.base_sku
         HAVING MAX(s.qty) = 0
         ORDER BY has_eta ASC, collection ASC
-        LIMIT 200`, [lastDate]));
+        LIMIT 200`, [lastDate, ...SC.params]));
 
     cards.stockoutSummary = await card('stockoutSummary', () => q(
       `SELECT COUNT(*) AS bases_out,
@@ -174,10 +226,10 @@ async function dashboard(req, res) {
                            THEN 0 ELSE 1 END) AS has_eta
              FROM wc_snapshots s
              JOIN wc_dimensions d ON d.sku = s.sku
-            WHERE s.snapshot_date = ? AND s.qty = 0
+            WHERE s.snapshot_date = ? AND s.qty = 0${SC.sql}
             GROUP BY d.base_sku
             HAVING MAX(s.qty) = 0
-         ) t`, [lastDate]));
+         ) t`, [lastDate, ...SC.params]));
 
     /* ── ROW 2 — HEADLINE MOVERS (trailing window) ─────────────────── */
     cards.topCollections = await card('topCollections', () => q(
@@ -187,7 +239,7 @@ async function dashboard(req, res) {
               COUNT(DISTINCT gd.movement_date)            AS observed_days,
               ROUND(SUM(gd.base_drawdown)
                     / NULLIF(SUM(gd.span_days),0), 1)     AS units_per_day
-         FROM (${DEDUPED_BASE(W)}) gd
+         FROM (${DEDUPED_BASE(W, SC.sql)}) gd
         WHERE gd.collection IS NOT NULL AND gd.collection <> ''
         GROUP BY gd.collection
         ORDER BY drawdown DESC LIMIT 20`, WP));
@@ -201,7 +253,7 @@ async function dashboard(req, res) {
               SUM(gd.base_drawdown) AS drawdown,
               ROUND(SUM(gd.base_drawdown)
                     / NULLIF(SUM(gd.span_days),0), 1) AS units_per_day
-         FROM (${DEDUPED_BASE(W)}) gd
+         FROM (${DEDUPED_BASE(W, SC.sql)}) gd
         GROUP BY gd.base_sku
         ORDER BY drawdown DESC LIMIT 50`, WP));
 
@@ -213,7 +265,7 @@ async function dashboard(req, res) {
       `SELECT gd.${col} AS label,
               SUM(gd.base_drawdown)       AS drawdown,
               COUNT(DISTINCT gd.base_sku) AS models
-         FROM (${DEDUPED_BASE(W)}) gd
+         FROM (${DEDUPED_BASE(W, SC.sql)}) gd
         WHERE gd.${col} IS NOT NULL AND gd.${col} <> ''
         GROUP BY gd.${col}
         ORDER BY drawdown DESC LIMIT 25`, WP);
@@ -228,7 +280,7 @@ async function dashboard(req, res) {
     cards.collectionBySize = await card('collectionBySize', () => q(
       `SELECT gd.collection, gd.size_nominal,
               SUM(gd.base_drawdown) AS drawdown
-         FROM (${DEDUPED_BASE(W)}) gd
+         FROM (${DEDUPED_BASE(W, SC.sql)}) gd
         WHERE gd.collection IS NOT NULL AND gd.collection <> ''
           AND gd.size_nominal IS NOT NULL
         GROUP BY gd.collection, gd.size_nominal
@@ -246,7 +298,7 @@ async function dashboard(req, res) {
               MAX(gd.cabinet_color) AS cabinet_color,
               MAX(gd.size_nominal)  AS size_nominal,
               SUM(gd.base_drawdown) AS drawdown
-         FROM (${DEDUPED_BASE(W)}) gd
+         FROM (${DEDUPED_BASE(W, SC.sql)}) gd
          LEFT JOIN wc_dimensions c
                 ON c.base_sku = gd.base_sku AND c.carried_sku IS NOT NULL
         WHERE c.base_sku IS NULL
@@ -264,9 +316,9 @@ async function dashboard(req, res) {
               COUNT(DISTINCT gd.movement_date) AS observed_days,
               ROUND(SUM(gd.base_drawdown)
                     / NULLIF(COUNT(DISTINCT gd.movement_date),0), 1) AS units_per_day
-         FROM (${DEDUPED_BASE('')}) gd
+         FROM (${DEDUPED_BASE('', SC.sql)}) gd
         GROUP BY YEAR(gd.movement_date), MONTH(gd.movement_date)
-        ORDER BY yr, mo`
+        ORDER BY yr, mo`, SC.params
     ).catch(err => { console.error('[wc-reports] trend failed:', err.message); return []; });
 
     /* ── SEASONALITY — year-normalised so trend cannot contaminate it ──
@@ -310,6 +362,7 @@ async function dashboard(req, res) {
       path: req.originalUrl,
       empty: false,
       status, coverage, cards, trend, seasonality, windowDays,
+      scopeKey, scopes: SCOPES, families,
     });
   } catch (err) {
     console.error('[wc-reports] dashboard failed:', err);
@@ -319,6 +372,7 @@ async function dashboard(req, res) {
       path: req.originalUrl,
       empty: true, fatal: err.sqlMessage || err.message,
       status: {}, coverage: {}, cards: {}, trend: [], seasonality: [], windowDays: DEFAULT_WINDOW,
+      scopeKey: DEFAULT_SCOPE, scopes: SCOPES, families: [],
     });
   }
 }
@@ -353,4 +407,4 @@ async function triggerRollup(req, res) {
   }
 }
 
-module.exports = { dashboard, triggerRollup, DEDUPED_BASE };
+module.exports = { dashboard, triggerRollup, DEDUPED_BASE, SCOPES, DEFAULT_SCOPE, scopeClause };
