@@ -644,9 +644,15 @@ Worth noting what this does NOT do: it does not remove the amount from
 Shopify, and anyone reconciling the chart against the Norcross dashboard will
 find a $13,047 difference. That is intended and is why it is written down.
 
-### §10.6 — Divisor $1,000 → $1,150, from the books (2026-11-26)
+### §10.6 — Divisor $1,000 → $850, from the books (2026-11-26)
 
-Sam checked the books: the pre-2024 average ticket is **$1,150**.
+Sam checked the books: the pre-2024 average ticket is **$850** — $150 BELOW
+the blended $1,000, not above it. The earlier years transacted at a lower
+ticket than the span average, which is the direction you would expect.
+
+(It was briefly set to $1,150 the same day: the $150 was added instead of
+subtracted. Corrected within the hour. Recorded because the intermediate
+value shipped and someone comparing screenshots will otherwise wonder.)
 
 This is a pre-2024 number and it only ever applies pre-2024, because the
 divisor is reached only where a row has no counted units
@@ -658,28 +664,30 @@ governs.
 
 Effect on the pre-2024 line:
 
-| year | dollars | units @ $1,000 | units @ $1,150 |
+| year | dollars | units @ $1,000 | units @ $850 |
 |---|---|---|---|
-| 2021 (Feb–Dec) | $1,085,106 | 1,085 | **944** |
-| 2022 | $1,811,986 | 1,812 | **1,576** |
-| 2023 | $1,785,335 | 1,785 | **1,552** |
+| 2021 (Feb–Dec) | $1,085,106 | 1,085 | **1,277** |
+| 2022 | $1,811,986 | 1,812 | **2,132** |
+| 2023 | $1,785,335 | 1,785 | **2,100** |
 
 **The 2024 seam, which is what the divisor was always really about:**
 
-    $1,000   4.89 -> 3.80 units/day   -22.2%
-    $1,150   4.25 -> 3.80 units/day   -10.6%   <- current
     $1,422   3.44 -> 3.80 units/day   +10.6%
+    $1,150   4.25 -> 3.80 units/day   -10.6%
+    $1,000   4.89 -> 3.80 units/day   -22.2%
+      $850   5.75 -> 3.80 units/day   -33.9%   <- current
 
-§10.3 flagged that this step's SIGN was divisor-dependent. It still is. What
-has changed is that the divisor is now measured for the period it governs
-rather than estimated across periods, so −10.6% is the best available read of
-that step — not that the ambiguity has gone. A ±13% error in the ticket still
-flips it.
+§10.3 flagged that this step's SIGN was divisor-dependent, and the table
+above is why that warning was worth making: across the range of values this
+constant has plausibly taken, the same data has read anywhere from +11% to
+−34%. What has changed is that $850 is measured for the period it governs
+rather than estimated across periods, so −33.9% is the best available read of
+that step. It is not a resolved one. Treat the 2023→2024 change as the
+weakest number on the chart.
 
-Third value this constant has taken: $1,430 (inferred from Home Depot
-retail), $1,000 (blended observed ticket), $1,150 (pre-2024 observed ticket).
-Each replaced an inferred number with a measured one, and each was closer to
-the period it is applied to.
+Fourth value this constant has taken: $1,430 (inferred from Home Depot
+retail), $1,000 (blended observed), $1,150 (slip), $850 (pre-2024 observed).
 
 Unchanged: for RFL's own trend, read dollars. They need no divisor and carry
-none of this ambiguity.
+none of this ambiguity: 2021 $1.09M · 2022 $1.81M · 2023 $1.79M ·
+2024 $2.01M · 2025 $1.62M · 2026 $0.99M (11 months).

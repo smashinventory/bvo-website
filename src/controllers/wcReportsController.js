@@ -65,7 +65,10 @@ const DEFAULT_WINDOW = 90;
    constant, here, so retuning it is a one-line change and never a data
    migration.
 
-   $1,150 — THE PRE-2024 AVERAGE TICKET, FROM THE BOOKS (Sam, 2026-11-26).
+   $850 — THE PRE-2024 AVERAGE TICKET, FROM THE BOOKS (Sam, 2026-11-26).
+   $150 BELOW the blended $1,000, not above it: the earlier years transacted
+   at a lower ticket than the span average, which is the direction you would
+   expect. Briefly set to $1,150 by a sign slip; corrected same day.
 
    WHICH ROWS THIS ACTUALLY TOUCHES, AND WHY THAT MAKES IT PRE-2024-ONLY.
    The divisor is applied only where a row has no real unit count
@@ -80,7 +83,7 @@ const DEFAULT_WINDOW = 90;
              Queen ~$1,200). HD list is a retail REFERENCE and RFL discounts
              off it, so this understated units by roughly 30%.
      $1,000  RFL's blended average ticket across the whole span.
-     $1,150  the pre-2024 ticket, read off the books.
+       $850  the pre-2024 ticket, read off the books.
    Each step replaced an inferred number with a measured one, and each was
    closer to the period it is actually applied to. Do not re-derive this from
    published retail prices; that is the mistake the first value made.
@@ -100,7 +103,7 @@ const DEFAULT_WINDOW = 90;
    level slightly; they do not move the shape, and the shape is what the
    chart is read for.
 ───────────────────────────────────────────────────────────────────── */
-const RFL_UNIT_PRICE = 1150;
+const RFL_UNIT_PRICE = 850;
 
 /* ─────────────────────────────────────────────────────────────────────
    NON-RETAIL EVENT CAPS
