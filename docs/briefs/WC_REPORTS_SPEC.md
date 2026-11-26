@@ -612,3 +612,34 @@ the same thing, and the pre-2024 line is showroom trade only — which is what
 it is being compared against.
 
 2021-01 drops out: its only activity was two online orders.
+
+### §10.5 — Norcross opening sequence, and the Feb-2021 anomaly resolved
+
+Sam, 2026-11-26: lease May 2021, **soft open August 2021, grand opening
+October 2021**. The Norcross POS figures track that exactly, which is a
+useful independent check that the store mapping is right:
+
+    Jul 2021   $0        — not trading
+    Aug 2021   $14,794   20 orders   soft open
+    Sep 2021   $25,576   34 orders   ramping
+    Oct 2021   $64,619   87 orders   grand opening
+
+**The Feb-2021 anomaly.** §10.4 left $13,047 on 4 Norcross orders sitting six
+months before the soft open. Sam's reading was that these were online orders
+on the old Shopify BVO site; the data disagrees in detail — they carry
+`is_pos_sale = true`, so they were rung through the register, most plausibly
+online orders keyed in by hand. The conclusion is the same either way: no
+showroom was trading in February 2021, so the amount is not showroom trade
+and does not belong in a showroom series.
+
+Removed from the combined figure. Feb 2021 is now Roswell only:
+
+    was  $117,585.13  (Roswell $104,537.93 + Norcross $13,047.20)
+    now  $104,537.93  (Roswell only)
+    series total  $4,695,474 -> $4,682,427
+
+Roswell's own Feb-2021 trade is untouched; that showroom was open.
+
+Worth noting what this does NOT do: it does not remove the amount from
+Shopify, and anyone reconciling the chart against the Norcross dashboard will
+find a $13,047 difference. That is intended and is why it is written down.
