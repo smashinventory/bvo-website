@@ -378,23 +378,31 @@ async function dashboard(req, res) {
      * scope selector does not force a reload. Scope is applied in SQL for the
      * cards above, which are the figures people quote.
      */
+    /* ⚠️ scopeClause() returns { sql, params }, NOT a string. Pass SC.sql and
+       bind SC.params — exactly as every other card on this page does. The
+       first version of this query passed the whole object, which stringified
+       to "[object Object]" inside the SQL and failed at parse time. */
     cards.dailySeries = await card('dailySeries', () => q(
       `SELECT DATE_FORMAT(g.movement_date,'%Y-%m-%d') AS d,
               ROUND(SUM(g.base_drawdown))            AS units,
               GREATEST(COALESCE(MAX(g.span_days),1),1) AS span
-         FROM ( ${DEDUPED_BASE('', scopeClause(scopeKey))} ) g
+         FROM ( ${DEDUPED_BASE('', SC.sql)} ) g
         GROUP BY g.movement_date
-        ORDER BY g.movement_date ASC`));
+        ORDER BY g.movement_date ASC`, [...SC.params]));
 
     /* ── KPI strip. The four numbers worth reading before scrolling. ──── */
     cards.kpis = await card('kpis', async () => {
+      /* WP is the existing binding for exactly this shape:
+         [...SC.params, lastDate, windowDays]. Param order follows the SQL
+         TEXT, not the argument list — DEDUPED_BASE interpolates ${scopeSql}
+         BEFORE ${whereExtra}, so the scope placeholders come first. (The
+         stockout queries bind [lastDate, ...SC.params] because their own ?
+         sits before SC.sql. Same rule, different sentence.) */
       const [w] = await q(
         `SELECT ROUND(SUM(g.base_drawdown))        AS units,
                 COUNT(DISTINCT g.base_sku)         AS models,
                 SUM(g.span_days)                   AS days
-           FROM ( ${DEDUPED_BASE(
-             'AND m.movement_date >= DATE_SUB(?, INTERVAL ? DAY)',
-             scopeClause(scopeKey))} ) g`, [lastDate, windowDays]);
+           FROM ( ${DEDUPED_BASE(W, SC.sql)} ) g`, WP);
       return [{
         units:  Number(w?.units  || 0),
         models: Number(w?.models || 0),

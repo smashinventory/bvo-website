@@ -210,6 +210,19 @@ mutate "quarterly granularity dropped from the control" "$VIEW" \
 mutate "inline onchange handler added to the period select" "$VIEW" \
   's/<select id="wc-p1" class="adm-input"><\/select>/<select id="wc-p1" class="adm-input" onchange="render()"><\/select>/'
 
+# 13f. THE BUG THAT ACTUALLY SHIPPED: the scopeClause OBJECT passed to
+#      DEDUPED_BASE instead of SC.sql. Stringifies to "[object Object]",
+#      the query dies at parse time, card() swallows it, and the section
+#      shows its empty state. Invisible without a gate.
+#      Pattern deliberately avoids the \${...} template braces — escaping
+#      them through bash into perl is what broke the first attempt here.
+mutate "scopeClause object passed to DEDUPED_BASE instead of SC.sql" "$CTRL" \
+  "s/DEDUPED_BASE\('', SC\.sql\)/DEDUPED_BASE('', scopeClause(scopeKey))/"
+
+# 13g. Scope params not bound, so SC.sql's ? placeholders dangle.
+mutate "daily series stops binding SC.params" "$CTRL" \
+  "s/ORDER BY g\.movement_date ASC\`, \[\.\.\.SC\.params\]/ORDER BY g.movement_date ASC\`/"
+
 # 13e. span_days dropped from the server payload entirely.
 mutate "daily series stops selecting span_days" "$CTRL" \
   's/GREATEST\(COALESCE\(MAX\(g\.span_days\),1\),1\) AS span/1 AS span/'

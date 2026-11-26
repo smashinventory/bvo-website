@@ -597,6 +597,32 @@ section('12. Trend chart — observed-day normalisation and CSP');
     fail('a dataset is plotting raw units', 'Every series must plot the rate.');
   }
 
+  /* 12c-ii. ⚠️ scopeClause() RETURNS AN OBJECT, NOT A STRING.
+     Every DEDUPED_BASE call must be handed SC.sql. Passing the object
+     stringifies to "[object Object]" inside the SQL, the query dies at parse
+     time, card() swallows it, and the section renders its empty state —
+     indistinguishable from "no data yet". That is exactly how the trend
+     chart shipped broken: two cards were passing scopeClause(scopeKey).
+     Cheap to write, invisible without a gate. */
+  const badScope = [...c.matchAll(/DEDUPED_BASE\(\s*[^)]*?scopeClause\s*\(/g)];
+  if (!badScope.length) {
+    pass('every DEDUPED_BASE call passes SC.sql, never the scopeClause object');
+  } else {
+    fail(`${badScope.length} DEDUPED_BASE call(s) pass the scopeClause OBJECT`,
+         'Use SC.sql and bind SC.params. The object stringifies to ' +
+         '"[object Object]" and the query fails at parse time.');
+  }
+
+  /* 12c-iii. A scoped query must also BIND the scope params. SC.sql contains
+     ? placeholders; forgetting the params is a different, quieter failure. */
+  const dsCall = (c.match(/cards\.dailySeries[\s\S]{0,800}?\)\);/) || [''])[0];
+  if (/SC\.sql/.test(dsCall) && /SC\.params/.test(dsCall)) {
+    pass('daily series binds SC.params alongside SC.sql');
+  } else {
+    fail('the daily series does not bind SC.params',
+         'SC.sql carries ? placeholders; they must be bound or the query errors.');
+  }
+
   /* 12d. All five granularities the report was asked for. */
   const grans = ['D', 'W', 'M', 'Q', 'Y'].filter(g => v.includes(`data-g="${g}"`));
   if (grans.length === 5) pass('all five granularities present (day/week/month/quarter/year)');
