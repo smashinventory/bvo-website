@@ -1128,6 +1128,40 @@ section('10. VALIDITY GATE — recovery from a catalogue step change');
            'recomputeValidity alone yields days marked valid that contain nothing.');
     }
 
+    /* 13p. THE DEC-2023 → JAN-2024 BRIDGE MUST STAY A BRIDGE.
+       The GVS line is extended by exactly one segment so it meets the RFLPOS
+       line at the handover. Three things make that cosmetic rather than
+       fabricated, and all three are load-bearing:
+         (a) it runs AFTER the indexing block, so the value it copies is the
+             one the solid line actually shows. Copy before the rebase and it
+             gets divided by the GVS mean and lands somewhere else — the gap
+             the user asked us to close would still be there, just smaller.
+         (b) it only ever writes into a null slot, so it cannot overwrite or
+             silently replace a real month.
+         (c) it copies, never computes. The moment it derives a value the
+             dashed line stops being a join and starts being data. */
+    {
+      const v = read('views/pages/admin/marketing/wc-inventory-analysis.ejs');
+      const body = v.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+      const iIdx = body.indexOf('Math.round(v / base * 1000) / 10');
+      const iBr  = body.indexOf('bridgeHandover');
+      if (iIdx > -1 && iBr > iIdx) {
+        pass('the handover bridge runs after indexing (copies the displayed value)');
+      } else {
+        fail('the Dec-2023 bridge does not run after the indexing block',
+             'Copied before the rebase, the point is divided by the GVS series mean ' +
+             'and does not land on the solid line, so the gap stays open.');
+      }
+      const fn = body.slice(iBr, iBr + 1400);
+      if (/dash\.data\[j\] !== null/.test(fn) && /dash\.data\[j\] = solid\.data\[j\]/.test(fn)) {
+        pass('the bridge writes one copied value into an empty slot only');
+      } else {
+        fail('the bridge no longer guards the slot it writes, or no longer copies',
+             'It must refuse a non-null slot and assign solid.data[j] verbatim — ' +
+             'anything computed there is invented data wearing a dashed line.');
+      }
+    }
+
     /* ── RESULT ─────────────────────────────────────────────────────── */
     console.log('');
     if (failures) {

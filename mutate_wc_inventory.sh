@@ -60,6 +60,16 @@ pass() { echo "  CAUGHT    $1"; }
 miss() { echo "  NOT CAUGHT $1"; FAILED=1; }
 
 # mutate <label> <file> <sed-expression>
+# ── A TRAP THAT HAS NOW BITTEN TWICE ────────────────────────────────────
+# The GATE strips comments before scanning; this HARNESS does not. So a perl
+# substitution without /g will happily mutate the first match — which is very
+# often the explanatory comment at the top of the controller, not the code it
+# describes. The file changes (so it is not reported BROKEN), the code is
+# untouched, the gate passes, and the harness reports NOT CAUGHT against a
+# gate that is actually fine. Both 14h and the COALESCE mutation failed this
+# way the moment the header comment grew to quote the SQL it documents.
+# RULE: any mutation whose pattern could also appear in prose takes /g.
+
 mutate() {
   local label="$1" file="$2" expr="$3"
   cp "$BACKUP_DIR/$(basename "$file")" "$file"
@@ -261,7 +271,7 @@ mutate "daily series stops selecting span_days" "$CTRL" \
 # 14a. The proxy put ahead of a real unit count, so a true figure from an
 #      export is thrown away in favour of dollars ÷ an assumed price.
 mutate "dollar proxy overrides a real unit count" "$CTRL" \
-  's/COALESCE\(units, net_sales \/ \?\)/net_sales \/ ?/'
+  's/COALESCE\(units, net_sales \/ \?\)/net_sales \/ ?/g'
 
 # 14b. Month length left in, so February reads as a slump and July as a boom.
 #      Aimed at the SELECT line via its "AS span" alias, not at the bare
@@ -306,7 +316,7 @@ mutate "grain rule duplicated instead of calling rflGrainOk()" "$VIEW" \
 # 14h. A second hard-coded divisor, which is how the constant drifts out of
 #      sync with the number people believe it to be.
 mutate "second hard-coded RFL divisor introduced" "$CTRL" \
-  's/net_sales \/ \?/net_sales \/ 1430/'
+  's/net_sales \/ \?/net_sales \/ 1430/g'
 
 # 14j. Indexing applied to ONLY the RFL line — a second y-axis implemented
 #      in JavaScript. The small line gets stretched until it tracks the big
@@ -364,6 +374,24 @@ mutate "localStorage access unguarded in savePrefs" "$VIEW" \
 #      "NOT scope-filtered on purpose" comment actively invited.
 mutate "product scope dropped from the WC chart series" "$CTRL" \
   "s/DEDUPED_BASE\('', SC\.sql\)/DEDUPED_BASE('')/"
+
+# 14s. The handover bridge moved BEFORE the indexing block. Valid JS, no
+#      error, a point still appears — but it is the raw units figure pushed
+#      through the GVS rebase, so it lands off the solid line and the gap the
+#      bridge exists to close is still visibly open. This is the failure mode
+#      that looks fixed in code review and wrong on the screen.
+mutate "handover bridge runs before indexing" "$VIEW" \
+  's/if \(idxBox && idxBox\.checked\) \{/var bridgeHandover = null;\n      if (idxBox \&\& idxBox.checked) {/'
+
+# 14t. The bridge allowed to overwrite a populated bucket. A real month of
+#      RFLPOS data would be silently restated as GVS and drawn dashed.
+mutate "handover bridge overwrites real data" "$VIEW" \
+  's/if \(dash\.data\[j\] !== null && dash\.data\[j\] !== undefined\) return;//'
+
+# 14u. The bridge made to COMPUTE its value instead of copying the one the
+#      solid line shows. The lines meet approximately, the join is fiction.
+mutate "handover bridge invents its value" "$VIEW" \
+  's/dash\.data\[j\] = solid\.data\[j\];/dash.data[j] = (solid.data[j] + dash.data[last]) \/ 2;/'
 
 # 12f. The codebook made to read from disk — the hbuilds trap, which would
 #      break it on the next deploy and only the next deploy.

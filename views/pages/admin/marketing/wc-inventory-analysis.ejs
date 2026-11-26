@@ -952,6 +952,44 @@ const dimCards = [
         });
       }
 
+      /* ── BRIDGE THE HANDOVER ───────────────────────────────────────
+       * The GVS line ends Dec-2023 and the RFLPOS line starts Jan-2024, so
+       * without this the two sit either side of a gap and the last Shopify
+       * month reads as the series simply stopping. One segment is drawn from
+       * GVS's final point to RFLPOS's first.
+       *
+       * APPLIED AFTER INDEXING, DELIBERATELY. If the raw RFLPOS value were
+       * copied in before the rebase, it would be divided by the GVS series'
+       * own mean and the bridge would land somewhere other than the solid
+       * line — the two would still visibly fail to meet, which is the whole
+       * thing this is for. Copying the already-scaled value makes the join
+       * exact in both modes.
+       *
+       * WHAT IT IS ALLOWED TO DO, AND NOTHING MORE: copy the value that the
+       * RFLPOS line already shows, into the ONE bucket immediately after the
+       * GVS line's last point, and only if that slot is empty. It cannot
+       * overwrite a real figure, cannot invent one, and cannot extend the
+       * dashed line any further than a single segment. The bridge inherits
+       * the GVS dash and its "low confidence" legend entry, which is the
+       * honest reading: it belongs to the weaker series reaching the
+       * handover, and the seam it crosses is the divisor step recorded in
+       * WC_REPORTS_SPEC §10.6 — the least reliable comparison on the chart.
+       */
+      (function bridgeHandover() {
+        var solid = sets.find(function (d) { return /RFLPOS/.test(d.label); });
+        var dash  = sets.find(function (d) { return /GVS/.test(d.label); });
+        if (!solid || !dash) return;
+        var last = -1;
+        for (var i = 0; i < dash.data.length; i++) {
+          if (dash.data[i] !== null && dash.data[i] !== undefined) last = i;
+        }
+        var j = last + 1;
+        if (last < 0 || j >= dash.data.length) return;
+        if (dash.data[j] !== null && dash.data[j] !== undefined) return;  // never overwrite
+        if (solid.data[j] === null || solid.data[j] === undefined) return;
+        dash.data[j] = solid.data[j];
+      })();
+
       var sum = function (s, f) { return s.reduce(function (q, e) { return q + e[f]; }, 0); };
       var ra = sum(a, 'days') ? sum(a, 'units') / sum(a, 'days') : 0;
       var txt = '<strong>' + ra.toFixed(1) + '</strong> units/day · '
