@@ -269,6 +269,17 @@ const _inScope = (_scopes[_scopeKey] && _scopes[_scopeKey].families) || null;
           <span id="wc-rfl-lbl">RFL sales (est. units)</span>
         </label>
       </div>
+      <%# Indexing exists because the shared axis, while correct, is
+          unreadable here: WC national runs 80-191 units/day against RFL's
+          1.4-3.8, so the RFL lines sit flat on the baseline. Measured on
+          real data 2026-11-26, not anticipated. %>
+      <div class="wc-fld">
+        <label class="adm-label" for="wc-idx">Scale</label>
+        <label class="adm-input" style="display:flex;align-items:center;gap:7px;border:none;padding-left:0">
+          <input type="checkbox" id="wc-idx">
+          <span>Index each line to 100</span>
+        </label>
+      </div>
       <% } %>
     </div>
 
@@ -705,6 +716,7 @@ const dimCards = [
     var p1 = document.getElementById('wc-p1');
     var p2 = document.getElementById('wc-p2');
     var rflBox = document.getElementById('wc-rfl');
+    var idxBox = document.getElementById('wc-idx');
     var rflLbl = document.getElementById('wc-rfl-lbl');
 
     /* RFL buckets, keyed the same way the WC buckets are, split by source.
@@ -819,6 +831,38 @@ const dimCards = [
         });
       }
 
+      /* ── INDEXING ──────────────────────────────────────────────────
+       * Why it exists: the shared axis is the right call, but with WC
+       * national at 80–191 units/day and RFL at 1.4–3.8, the RFL lines
+       * render as a flat trace on the baseline. Measured on real data,
+       * 2026-11-26 — the overlay was unreadable without this.
+       *
+       * EVERY dataset is rebased, by the same rule, to its own first
+       * non-null point = 100. That is the whole safeguard. Rebasing only
+       * the smaller line would be a second y-axis wearing a disguise:
+       * stretch one series until it tracks the other and the chart invents
+       * a correlation. Rebasing all of them discards level and keeps
+       * shape, which is a different and declared question — hence the
+       * axis title changes too, so nobody reads an index as a unit count.
+       *
+       * Each series indexes to ITS OWN first point, not to a shared date:
+       * the WC line starts 2021 and the RFLPOS line starts 2024, so there
+       * is no common base bucket. 100 therefore means "this line's own
+       * starting level", which the axis label says outright.
+       */
+      if (idxBox && idxBox.checked) {
+        sets.forEach(function (d) {
+          var base = null;
+          for (var i = 0; i < d.data.length; i++) {
+            if (d.data[i] !== null && d.data[i] !== 0) { base = d.data[i]; break; }
+          }
+          if (!base) return;                       // all-null or all-zero: leave alone
+          d.data = d.data.map(function (v) {
+            return v === null ? null : Math.round(v / base * 1000) / 10;
+          });
+        });
+      }
+
       var sum = function (s, f) { return s.reduce(function (q, e) { return q + e[f]; }, 0); };
       var ra = sum(a, 'days') ? sum(a, 'units') / sum(a, 'days') : 0;
       var txt = '<strong>' + ra.toFixed(1) + '</strong> units/day · '
@@ -842,7 +886,9 @@ const dimCards = [
           interaction: { mode: 'index', intersect: false },
           plugins: { legend: { position: 'bottom' } },
           scales: { y: { beginAtZero: true,
-            title: { display: true, text: 'units / observed day' } } },
+            title: { display: true, text: (idxBox && idxBox.checked)
+              ? 'index (100 = each line\u2019s own first point)'
+              : 'units / observed day' } } },
         },
       });
     }
@@ -859,6 +905,7 @@ const dimCards = [
     p1.addEventListener('change', render);
     p2.addEventListener('change', render);
     if (rflBox) rflBox.addEventListener('change', render);
+    if (idxBox) idxBox.addEventListener('change', render);
 
     /* RFL is monthly. Say that in the control at Daily/Weekly instead of
        offering a checkbox that silently draws nothing. */

@@ -785,6 +785,36 @@ section('13. RFL overlay — one axis, rates, real units win, seam visible');
          'A caller that bypasses it draws RFL at a grain RFL does not have.');
   }
 
+  /* 13j. INDEXING MUST APPLY TO EVERY LINE, OR IT IS A SECOND AXIS.
+   *
+   * Indexing exists because WC national (80–191 units/day) and RFL (1.4–3.8)
+   * cannot share a linear axis legibly. Rebasing all series to their own
+   * first point discards level and keeps shape — a different, declared
+   * question. Rebasing only the smaller one would stretch it until it
+   * tracked the bigger one, which is precisely the correlation-by-rescaling
+   * that §13d forbids, just implemented in JavaScript instead of in the
+   * scales config.
+   *
+   * So: the rebase must iterate the whole `sets` array, and the axis title
+   * must change with the mode — an index left labelled "units / observed
+   * day" is a number that reads as something it is not.
+   */
+  const idxBlock = (v.match(/if \(idxBox && idxBox\.checked\)[\s\S]*?\n      \}/) || [''])[0];
+  const allSets  = /sets\.forEach/.test(idxBlock);
+  const noCherry = !/datasets\[\s*[12]\s*\]|sets\[\s*[12]\s*\]/.test(idxBlock);
+  const axisMoves = /idxBox && idxBox\.checked[\s\S]{0,120}index \(100/.test(v);
+
+  if (allSets && noCherry && axisMoves) {
+    pass('indexing rebases every series and relabels the axis');
+  } else if (!allSets || !noCherry) {
+    fail('indexing does not rebase every series uniformly',
+         'Rebasing a subset stretches one line to meet another — a second ' +
+         'y-axis by other means. Iterate all of sets, or do not index.');
+  } else {
+    fail('the y-axis title does not change when indexed',
+         'An index labelled "units / observed day" reads as a unit count.');
+  }
+
   /* NOTE — there is no separate check here for "the chart series carries
      the product scope". §9 already asserts that every DEDUPED_BASE call
      passes the scope fragment, which covers the chart series along with the

@@ -308,6 +308,17 @@ mutate "grain rule duplicated instead of calling rflGrainOk()" "$VIEW" \
 mutate "second hard-coded RFL divisor introduced" "$CTRL" \
   's/net_sales \/ \?/net_sales \/ 1430/'
 
+# 14j. Indexing applied to ONLY the RFL line — a second y-axis implemented
+#      in JavaScript. The small line gets stretched until it tracks the big
+#      one, and nothing on the page says so.
+mutate "indexing cherry-picks one series instead of all" "$VIEW" \
+  's/sets\.forEach\(function \(d\) \{/[sets[2]].forEach(function (d) {/'
+
+# 14k. Axis title frozen on units while the data is an index, so a reader
+#      sees "units / observed day" above numbers that are not units.
+mutate "y-axis still says units when indexed" "$VIEW" \
+  "s/\? 'index \(100 = each line\\\\u2019s own first point\)'/? 'units \/ observed day'/"
+
 # 14i. The product scope removed from the chart series CLEANLY — valid SQL,
 #      no error, no empty card. The WC line quietly starts summing faucets,
 #      kitchen sinks, wash stands and accessories alongside vanities and is
