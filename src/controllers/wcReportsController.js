@@ -34,8 +34,15 @@
  * SOURCE NOTE required on every chart and table:
  *   "Water Creation national wholesale shipments — not BVO sales, not RFL sales."
  *
- * NO PRICING. Units only (Sam, 2026-11-24). There is no price column in the
- * schema and no revenue figure anywhere in this file. Do not add one.
+ * NO PRICING ON THE WC SIDE. Units only (Sam, 2026-11-24). There is no price
+ * column in wc_snapshots and no WC revenue figure anywhere in this file. Do
+ * not add one.
+ *
+ *   AMENDED 2026-11-26 (Sam): one price constant now exists, RFL_UNIT_PRICE,
+ *   and it is NOT a WC price. It is the divisor that converts RFL showroom
+ *   DOLLARS into an approximate unit count so the RFL line can share an axis
+ *   with the WC drawdown line. The rule above is unchanged in substance: no
+ *   WC SKU carries a price here, and no figure on this page is WC revenue.
  *
  * Admin routes:
  *   GET  /admin/marketing/wc            — main dashboard
@@ -49,6 +56,39 @@ const LAYOUT = { layout: 'layouts/admin' };
 
 /* Default trailing window for the "recent" cards, in days. */
 const DEFAULT_WINDOW = 90;
+
+/* ─────────────────────────────────────────────────────────────────────
+   RFL OVERLAY — dollars → approximate units
+
+   RFL reports dollars; the WC series is units. To put them on one axis the
+   RFL dollars are divided by an average selling price per vanity. ONE
+   constant, here, so retuning it is a one-line change and never a data
+   migration.
+
+   HOW $1,430 WAS DERIVED (2026-11-26): Home Depot retail, base
+   configurations only — cabinet + top, no mirror, no faucet — across the
+   three best-selling collections, averaged per collection then across
+   collections:
+       Palace  (60", 72" only; double-sink only)   ~$1,948
+       Madison (24", 36", 60", 72")                ~$1,144
+       Queen   (24"–72")                           ~$1,200
+   Base configurations on purpose: the WC line is deduped to base_sku, i.e.
+   one cabinet, so a mirror-inclusive price would inflate the divisor against
+   a series that does not count mirrors.
+
+   ⚠️ TWO THINGS THIS CONSTANT IS NOT.
+   First, it is not RFL's own average ticket. HD list is a retail reference;
+   RFL discounts off it, so dividing RFL dollars by this number runs units
+   LOW. When an RFLPOS export gives a real average ticket, replace this.
+   Second, per-row `units` in rfl_monthly_sales always wins — the proxy is a
+   fallback, not a preference. See the COALESCE in cards.rflSeries.
+
+   Non-vanity categories (tile, flooring, faucets) stay in the dollar figure.
+   Sam, 2026-11-26: they have always run under 10% of revenue. They move the
+   level slightly; they do not move the shape, and the shape is what the
+   chart is read for.
+───────────────────────────────────────────────────────────────────── */
+const RFL_UNIT_PRICE = 1430;
 
 /* ─────────────────────────────────────────────────────────────────────
    PRODUCT SCOPE
@@ -389,6 +429,43 @@ async function dashboard(req, res) {
          FROM ( ${DEDUPED_BASE('', SC.sql)} ) g
         GROUP BY g.movement_date
         ORDER BY g.movement_date ASC`, [...SC.params]));
+
+    /* ── RFL overlay series, monthly ───────────────────────────────────
+     *
+     * Returned as avg units per DAY, matching the WC series exactly, so the
+     * two share one axis and one unit. No second axis: a dual axis is free to
+     * rescale either line until they appear to track each other, which
+     * manufactures a correlation out of nothing. Same unit, same axis, and if
+     * the levels are far apart the chart says so honestly.
+     *
+     * DAY(LAST_DAY(month)) is the day count of that month — the divisor that
+     * stops a 31-day month from looking busier than a 28-day one.
+     *
+     * COALESCE(units, net_sales / price): a real unit count always beats the
+     * proxy. The proxy exists because the exports currently carry dollars.
+     *
+     * Stores are summed, not split: this is a company-level line against a
+     * national one. `sources` rides along so the view can mark the
+     * gvs_shopify → rflpos seam, which is a system change and not a trend.
+     *
+     * Table may legitimately not exist yet (migration 032 is applied by
+     * hand), so an empty series here is normal, not an error — hence the
+     * guarded probe rather than letting card() report a failure.
+     */
+    cards.rflSeries = await card('rflSeries', async () => {
+      const [t] = await q(
+        `SELECT COUNT(*) AS n FROM information_schema.tables
+          WHERE table_schema = DATABASE() AND table_name = 'rfl_monthly_sales'`);
+      if (!Number(t?.n)) return [];
+      return q(
+        `SELECT DATE_FORMAT(month,'%Y-%m-01')                AS d,
+                ROUND(SUM(COALESCE(units, net_sales / ?)), 1) AS units,
+                DAY(LAST_DAY(month))                          AS span,
+                GROUP_CONCAT(DISTINCT source ORDER BY source) AS sources
+           FROM rfl_monthly_sales
+          GROUP BY month
+          ORDER BY month ASC`, [RFL_UNIT_PRICE]);
+    });
 
     /* ── KPI strip. The four numbers worth reading before scrolling. ──── */
     cards.kpis = await card('kpis', async () => {

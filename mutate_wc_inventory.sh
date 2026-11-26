@@ -227,6 +227,60 @@ mutate "daily series stops binding SC.params" "$CTRL" \
 mutate "daily series stops selecting span_days" "$CTRL" \
   's/GREATEST\(COALESCE\(MAX\(g\.span_days\),1\),1\) AS span/1 AS span/'
 
+# ─── 14. THE RFL OVERLAY ──────────────────────────────────────────────
+# Each of these is a way the overlay could flatter the data instead of
+# reporting it. The gate has to bite on every one.
+
+# 14a. The proxy put ahead of a real unit count, so a true figure from an
+#      export is thrown away in favour of dollars ÷ an assumed price.
+mutate "dollar proxy overrides a real unit count" "$CTRL" \
+  's/COALESCE\(units, net_sales \/ \?\)/net_sales \/ ?/'
+
+# 14b. Month length left in, so February reads as a slump and July as a boom.
+#      Aimed at the SELECT line via its "AS span" alias, not at the bare
+#      expression: perl -0 replaces the FIRST match, and the first mention of
+#      DAY(LAST_DAY(month)) in the controller is the comment explaining it.
+#      The first version of this mutation edited that comment and left the
+#      query untouched, then reported the gate as holed. It wasn't.
+mutate "RFL month length no longer divided out" "$CTRL" \
+  's/DAY\(LAST_DAY\(month\)\)(\s+)AS span/30$1AS span/'
+
+# 14c. A SECOND Y-AXIS. The one that matters most: with two scales either
+#      line can be stretched until the pair appears to move together, and
+#      nothing on the page says it happened.
+mutate "second y-axis added to the trend chart" "$VIEW" \
+  "s/scales: \{ y: \{ beginAtZero: true,/scales: { y1: { position: 'right' }, y: { beginAtZero: true,/"
+
+# 14d. The overlay plotted as a bucket total rather than a per-day rate,
+#      putting two different metrics on one axis.
+mutate "RFL overlay plots bucket totals instead of a rate" "$VIEW" \
+  's/m\.units \/ m\.cal \* 10/m.units * 10/'
+
+# 14e. The GVS seam erased — pre-2024 and post-2024 drawn as one line, so a
+#      2.5x system-migration step reads as growth.
+mutate "GVS Shopify months merged into the RFLPOS line" "$VIEW" \
+  's/low confidence/same thing really/'
+
+# 14f. The monthly-grain restriction dropped, so Daily and Weekly offer an
+#      overlay that has no data behind it.
+#      Aimed at the PLOTTING path only, on purpose. The first version of this
+#      mutation exposed a real hole: the M/Q/Y test was written out twice, so
+#      breaking the plotting copy left the control-label copy satisfying the
+#      gate while the chart drew RFL at Daily grain. The rule now lives in
+#      rflGrainOk() and the gate requires every caller to route through it.
+mutate "plotting path bypasses the grain restriction" "$VIEW" \
+  's/rflBox\.checked && rflGrainOk\(\)/rflBox.checked/'
+
+# 14g. The grain rule written out a second time instead of called — the
+#      duplication that caused 14f's hole in the first place.
+mutate "grain rule duplicated instead of calling rflGrainOk()" "$VIEW" \
+  "s/var ok = rflGrainOk\(\);/var ok = (SEL_G === 'M' || SEL_G === 'Q' || SEL_G === 'Y');/"
+
+# 14h. A second hard-coded divisor, which is how the constant drifts out of
+#      sync with the number people believe it to be.
+mutate "second hard-coded RFL divisor introduced" "$CTRL" \
+  's/net_sales \/ \?/net_sales \/ 1430/'
+
 # 12f. The codebook made to read from disk — the hbuilds trap, which would
 #      break it on the next deploy and only the next deploy.
 #      /m is required: perl -0 slurps the file, so ^ only anchors per-line

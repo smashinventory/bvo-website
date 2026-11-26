@@ -98,8 +98,18 @@ section('2. Units only — no pricing anywhere');
 
   const PRICE = /\b(msrp|map_price|unit_price|revenue|wholesale_cost|compare_price)\b/i;
 
+  /* ONE EXEMPTION, named explicitly. RFL_UNIT_PRICE is the divisor that turns
+     RFL showroom DOLLARS into approximate units so the RFL overlay can share
+     the WC axis. It is not a WC price and no WC SKU carries it.
+     Named here rather than left to luck: `\bunit_price\b` happens not to match
+     inside RFL_UNIT_PRICE because underscore is a word character, which would
+     have let the constant through without anyone deciding that it should. The
+     rule is "no WC pricing", so the exemption is stated, and anything else
+     price-shaped still fails. */
+  const EXEMPT = /\bRFL_UNIT_PRICE\b/g;
+
   for (const f of [JOB, CONTROLLER, MIGRATION]) {
-    const body = strip(read(f));
+    const body = strip(read(f)).replace(EXEMPT, 'RFL_DIVISOR');
     const hit  = body.match(PRICE);
     if (hit) fail(`${f} references "${hit[0]}" in code`,
                   'WC reports are units only. See WC_REPORTS_SPEC.md §1.');
@@ -653,6 +663,136 @@ section('12. Trend chart — observed-day normalisation and CSP');
     pass("no contentFor('script') (it would wipe the chart)");
   } else {
     fail("contentFor('script') found in the view", 'It silently removes all page JS.');
+  }
+}
+
+/* ── 13. THE RFL OVERLAY ──────────────────────────────────────────────
+ *
+ * The overlay puts an RFL showroom line next to a WC national wholesale
+ * line. Four ways that can lie, and a check for each:
+ *
+ *   a. A SECOND Y-AXIS. Give each line its own scale and either can be
+ *      stretched until they appear to move together. That is manufacturing a
+ *      correlation, and it is the single most likely thing to be "helpfully"
+ *      added later. One axis, same unit.
+ *   b. RAW DOLLARS OR RAW UNITS. Both series must be per-day rates. A 31-day
+ *      month must not read as busier than a 28-day one.
+ *   c. THE PROXY OVERRIDING REAL DATA. net_sales/price is a fallback. If an
+ *      export carries a true unit count, that count wins.
+ *   d. THE GVS SEAM DRAWN AS A TREND. Pre-2024 GVS Shopify and post-2024
+ *      RFLPOS are different measurements (WC_MARKET_ANALYSIS §1: a 2.5x
+ *      level shift across the system change alone). One continuous line
+ *      across that boundary presents a migration as growth.
+ */
+section('13. RFL overlay — one axis, rates, real units win, seam visible');
+{
+  /* COMMENTS STRIPPED FIRST. This gate has now been fooled twice by its own
+     prose: once by a COLLATE count inside a comment, once by __dirname in
+     the codebook's header. The RFL section nearly made it three — the
+     controller comment explains DAY(LAST_DAY(month)), so a check reading the
+     raw file passed happily after the real SQL had been replaced with a
+     hard-coded 30. Scan code, never commentary. */
+  const decomment = (src) => src
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*(\/\/|--|\*).*$/gm, '');
+
+  const c = decomment(read(CONTROLLER));
+  const v = decomment(read(VIEW)).replace(/<%#[\s\S]*?%>/g, '');
+
+  /* 13a. The divisor lives in exactly one place. */
+  const defs = (c.match(/^const RFL_UNIT_PRICE\s*=/gm) || []).length;
+  const uses = (c.match(/\bRFL_UNIT_PRICE\b/g) || []).length;
+  if (defs === 1 && uses >= 2) {
+    pass(`RFL_UNIT_PRICE declared once, used ${uses - 1}x`);
+  } else {
+    fail(`RFL_UNIT_PRICE: ${defs} declaration(s), ${uses} mention(s)`,
+         'One constant, one place. A second literal divisor drifts out of sync.');
+  }
+
+  /* 13b. A real unit count must take precedence over the dollar proxy. */
+  if (/COALESCE\(\s*units\s*,\s*net_sales\s*\/\s*\?\s*\)/.test(c)) {
+    pass('COALESCE(units, net_sales / ?) — real units beat the proxy');
+  } else {
+    fail('rflSeries does not prefer a stored unit count over the proxy',
+         'The proxy is a fallback. COALESCE(units, net_sales / ?), units first.');
+  }
+
+  /* 13c. Per-month day count, so month length cannot masquerade as demand. */
+  if (/DAY\(\s*LAST_DAY\(\s*month\s*\)\s*\)/.test(c)) {
+    pass('month length divided out via DAY(LAST_DAY(month))');
+  } else {
+    fail('rflSeries returns no per-month day count',
+         'Without it a 31-day month outranks a 28-day one for free.');
+  }
+
+  /* 13d. ONE y-axis. Chart.js spells a second one yAxisID / y1 / position. */
+  const chartBlock = (v.match(/new Chart\(trendEl[\s\S]*?\n    \}\);/) || [''])[0];
+  if (!/yAxisID|['"]y1['"]|\by1\s*:/.test(chartBlock)) {
+    pass('trend chart has a single y-axis');
+  } else {
+    fail('the trend chart declares a second y-axis',
+         'Two scales let either line be stretched until they seem to track. ' +
+         'Same unit, same axis — if the levels differ, show that.');
+  }
+
+  /* 13e. The overlay is plotted as a rate, never as a bucket total.
+     `cal` deliberately, not `days`: RFL's denominator is calendar days and
+     the WC bucketiser's is observed days. When both were called `days`, this
+     check and §12's could be satisfied by the wrong one of the two
+     accumulators — which the harness caught. Different quantity, different
+     name, so each check can only be satisfied by its own code. */
+  if (/m\.units\s*\/\s*m\.cal\b/.test(v)) {
+    pass('RFL overlay plots units ÷ calendar days, not a bucket total');
+  } else {
+    fail('the RFL overlay does not divide by its day count',
+         'Both series are per observed/calendar day. A raw sum is a different metric.');
+  }
+
+  /* 13f. The GVS seam is a separate dataset, labelled as lower confidence. */
+  const gvsSplit = /gvs_shopify/.test(v) &&
+                   /legacy/.test(v) &&
+                   /low confidence/i.test(v);
+  if (gvsSplit) {
+    pass('GVS Shopify months drawn separately and labelled low-confidence');
+  } else {
+    fail('the GVS Shopify months are not separated from the RFLPOS months',
+         'WC_MARKET_ANALYSIS §1: a 2.5x shift across a pure system change. ' +
+         'One line across the seam reads as a trend that did not happen.');
+  }
+
+  /* 13g. Monthly grain is honoured — no overlay at Daily or Weekly.
+     Checked through the SINGLE predicate, and the predicate's definition
+     checked separately. The condition was duplicated at first — once in the
+     plotting path, once in the control label — and the harness showed that
+     breaking one left the other satisfying this check while the chart drew
+     RFL at Daily grain. One definition, and every caller must route
+     through it, or a gate can only ever see half the rule. */
+  const grainDef = /function rflGrainOk\(\)\s*\{[^}]*'M'[^}]*'Q'[^}]*'Y'[^}]*\}/.test(v);
+  const grainUse = (v.match(/rflGrainOk\(\)/g) || []).length;
+  const grainDup = /SEL_G\s*===\s*'M'\s*\|\|\s*SEL_G\s*===\s*'Q'/.test(
+                     v.replace(/function rflGrainOk\(\)\s*\{[^}]*\}/, ''));
+  if (grainDef && grainUse >= 3 && !grainDup) {
+    pass('overlay grain rule defined once and routed through everywhere');
+  } else if (!grainDef) {
+    fail('rflGrainOk() does not restrict the overlay to M/Q/Y',
+         'RFL is held monthly. At Daily/Weekly there is nothing honest to draw.');
+  } else if (grainDup) {
+    fail('the M/Q/Y grain test is written out a second time',
+         'Two copies means this gate can only check one of them. Call rflGrainOk().');
+  } else {
+    fail(`rflGrainOk() is referenced ${grainUse}x, expected the definition plus ` +
+         'both the plotting path and the control label',
+         'A caller that bypasses it draws RFL at a grain RFL does not have.');
+  }
+
+  /* 13h. The table the overlay reads must actually be migrated. */
+  const M032 = 'database/migrations/032_rfl_monthly_sales.sql';
+  if (fs.existsSync(path.join(ROOT, M032)) &&
+      /CREATE TABLE IF NOT EXISTS rfl_monthly_sales/.test(read(M032))) {
+    pass('migration 032 creates rfl_monthly_sales');
+  } else {
+    fail('rfl_monthly_sales has no migration',
+         'The controller queries it; without the migration the card is silently empty.');
   }
 }
 

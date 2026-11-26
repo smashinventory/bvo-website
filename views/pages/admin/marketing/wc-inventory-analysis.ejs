@@ -418,6 +418,19 @@ const dimCards = [
         <label class="adm-label" for="wc-p2">Compare to</label>
         <select id="wc-p2" class="adm-input"></select>
       </div>
+      <%# RFL overlay. Hidden entirely when no RFL months are loaded, rather
+          than offered as a control that does nothing. Disabled at Daily and
+          Weekly because RFL is held at monthly grain — the honest response to
+          "no data at this grain" is an empty line, not an interpolated one. %>
+      <% if ((rows('rflSeries') || []).length) { %>
+      <div class="wc-fld">
+        <label class="adm-label" for="wc-rfl">Map against</label>
+        <label class="adm-input" style="display:flex;align-items:center;gap:7px;border:none;padding-left:0">
+          <input type="checkbox" id="wc-rfl">
+          <span id="wc-rfl-lbl">RFL sales (est. units)</span>
+        </label>
+      </div>
+      <% } %>
     </div>
 
     <p id="wc-trend-legend" class="adm-label" style="margin:10px 0 6px"></p>
@@ -611,6 +624,23 @@ const dimCards = [
                    return [r.d, Number(r.units) || 0, Number(r.span) || 1];
                  })) %>;
 
+  /* RFL showroom sales, monthly, already converted to units/day by the
+   * controller (dollars ÷ RFL_UNIT_PRICE ÷ days in month, or a real unit
+   * count where the export carried one).
+   *
+   * [month-start ISO, units, days-in-month, sources]
+   *
+   * Same unit and the SAME AXIS as the WC line, deliberately. A second y-axis
+   * would let either line be rescaled until the two appeared to move
+   * together, which is a way of inventing a correlation. If the levels are
+   * far apart — a national wholesale line against two showrooms, so they will
+   * be — the chart should show that rather than hide it.
+   */
+  var RFL = <%- JSON.stringify((rows('rflSeries') || []).map(function (r) {
+                  return [String(r.d), Number(r.units) || 0,
+                          Number(r.span) || 30, String(r.sources || '')];
+                })) %>;
+
   var trendEl = document.getElementById('wcTrendChart');
   if (trendEl && DAILY.length && window.Chart) {
     var wcChart = null;
@@ -660,6 +690,56 @@ const dimCards = [
     var SEL_G = 'M';
     var p1 = document.getElementById('wc-p1');
     var p2 = document.getElementById('wc-p2');
+    var rflBox = document.getElementById('wc-rfl');
+    var rflLbl = document.getElementById('wc-rfl-lbl');
+
+    /* RFL buckets, keyed the same way the WC buckets are, split by source.
+     *
+     * Two datasets rather than one: the pre-2024 GVS Shopify months and the
+     * RFLPOS months are not the same measurement. WC_MARKET_ANALYSIS §1
+     * records a 2.5x level shift across that system change with no business
+     * event behind it, plus 85% of GVS revenue carrying blank
+     * title/vendor/type. Drawing them as one continuous line would present a
+     * system migration as a trend. Two lines, named in the legend, lets the
+     * seam be seen and the earlier half be discounted by eye.
+     *
+     * Aligned by BUCKET KEY, not by position: the WC series may be a single
+     * year while RFL spans several, and index 0 of one is not index 0 of the
+     * other. Keys absent from RFL come back null, which Chart.js leaves as a
+     * gap — correct, because no RFL data exists for that bucket.
+     */
+    /* ONE source of truth for "can RFL be drawn at this granularity".
+     *
+     * Both the plotting path and the control label ask this. It was written
+     * twice at first, and the mutation harness caught exactly what that
+     * costs: breaking the plotting copy left the control's copy satisfying
+     * the gate, so the gate stayed green while the overlay drew RFL data at
+     * Daily grain. Two copies of a rule means a gate can only ever check one
+     * of them. */
+    function rflGrainOk() {
+      return SEL_G === 'M' || SEL_G === 'Q' || SEL_G === 'Y';
+    }
+
+    function rflBuckets(g) {
+      var map = {};
+      RFL.forEach(function (r) {
+        var k = bucketOf(r[0], g);
+        var legacy = r[3].indexOf('gvs_shopify') !== -1;
+        /* `cal`, not `days`: RFL's denominator is CALENDAR days in the month,
+           where the WC bucketiser's is OBSERVED days from span_days. Two
+           genuinely different quantities, so they get different names — and
+           naming them the same cost something real. The mutation harness
+           showed it: with both accumulators written as `days += r[2]`,
+           breaking the WC one left this one satisfying the gate, and the gate
+           stayed green while the WC line plotted per-observation instead of
+           per-day. */
+        if (!map[k]) map[k] = { units: 0, cal: 0, legacy: false };
+        map[k].units += r[1];
+        map[k].cal   += r[2];
+        if (legacy) map[k].legacy = true;
+      });
+      return map;
+    }
 
     var yearSet = {}, years = [];
     DAILY.forEach(function (r) {
@@ -696,6 +776,35 @@ const dimCards = [
         borderWidth: 2, borderDash: [5, 4], tension: 0.25, pointRadius: 0, spanGaps: true,
       });
 
+      /* RFL overlay. Monthly grain only — at Daily and Weekly there is
+         nothing to draw, and the control says so rather than the chart
+         quietly showing a flat line. */
+      var rflOn = rflBox && rflBox.checked && rflGrainOk();
+      if (rflOn) {
+        /* Named rmap, not rb: `rb` is already the compare-period rate in the
+           legend block below, and var is function-scoped. */
+        var rmap = rflBuckets(SEL_G);
+        var pick = function (wantLegacy) {
+          return a.map(function (e) {
+            var m = rmap[e.k];
+            if (!m || !m.cal || m.legacy !== wantLegacy) return null;
+            return Math.round(m.units / m.cal * 10) / 10;
+          });
+        };
+        var live = pick(false), old = pick(true);
+        if (live.some(function (v) { return v !== null; })) sets.push({
+          label: 'RFL — RFLPOS (est. units)',
+          data: live, borderColor: '#3f7d58', backgroundColor: 'transparent',
+          borderWidth: 2.2, tension: 0.25, pointRadius: 2, spanGaps: false,
+        });
+        if (old.some(function (v) { return v !== null; })) sets.push({
+          label: 'RFL — GVS Shopify (low confidence)',
+          data: old, borderColor: '#9aa98f', backgroundColor: 'transparent',
+          borderWidth: 1.8, borderDash: [3, 3], tension: 0.25, pointRadius: 0,
+          spanGaps: false,
+        });
+      }
+
       var sum = function (s, f) { return s.reduce(function (q, e) { return q + e[f]; }, 0); };
       var ra = sum(a, 'days') ? sum(a, 'units') / sum(a, 'days') : 0;
       var txt = '<strong>' + ra.toFixed(1) + '</strong> units/day · '
@@ -730,10 +839,23 @@ const dimCards = [
       this.querySelectorAll('button').forEach(function (z) { z.classList.remove('on'); });
       b.classList.add('on');
       SEL_G = b.dataset.g;
+      syncRfl();
       render();
     });
     p1.addEventListener('change', render);
     p2.addEventListener('change', render);
+    if (rflBox) rflBox.addEventListener('change', render);
+
+    /* RFL is monthly. Say that in the control at Daily/Weekly instead of
+       offering a checkbox that silently draws nothing. */
+    function syncRfl() {
+      if (!rflBox) return;
+      var ok = rflGrainOk();
+      rflBox.disabled = !ok;
+      rflLbl.textContent = ok ? 'RFL sales (est. units)'
+                              : 'RFL sales — monthly grain only';
+    }
+    syncRfl();
     render();
   }
 

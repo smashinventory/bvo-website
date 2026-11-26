@@ -395,3 +395,64 @@ parser, no Gmail dependency. Any of these is net-new work, not wiring.
 ⚠️ And whatever runs it, an inbound upload endpoint is a file-write primitive
 pointed at the server. It must be constrained to CSV, to one fixed directory,
 and to an authenticated caller — never a general write.
+
+---
+
+## §10 — RFL overlay on the trend chart (2026-11-26)
+
+**What it is.** An optional second line on the trend chart: RFL showroom
+sales, monthly, next to the WC national drawdown line. Off by default,
+toggled by "Map against".
+
+**Scaling.** Both series are plotted as **units per day on one shared
+y-axis**. No second axis — two scales would let either line be stretched
+until the pair appeared to move together, which invents a correlation. The WC
+denominator is *observed* days (span_days); RFL's is *calendar* days in the
+month. Different quantities, so they carry different names in the code
+(`days` vs `cal`) — when both were called `days` the gate could be satisfied
+by the wrong accumulator, and the mutation harness proved it.
+
+**Units are a proxy, by decision.** RFL reports dollars. Units =
+`net_sales ÷ RFL_UNIT_PRICE`, one constant in wcReportsController.
+`RFL_UNIT_PRICE = 1430`, derived 2026-11-26 from Home Depot retail, **base
+configurations only** (cabinet + top, no mirror, no faucet — the WC line is
+deduped to base_sku, so a mirror-inclusive price would inflate the divisor
+against a series that doesn't count mirrors):
+
+| Collection | Sizes | Avg base price |
+|---|---|---|
+| Palace (PA) | 60, 72 — double-sink only | ~$1,948 |
+| Madison (MS) | 24, 36, 60, 72 | ~$1,144 |
+| Queen (QU) | 24–72 | ~$1,200 |
+
+Two things it is not. It is **not RFL's own average ticket** — HD list is a
+retail reference and RFL discounts off it, so the proxy runs units LOW;
+replace the constant when an RFLPOS export yields a real average ticket. And
+it is **not preferred over real data**: `rfl_monthly_sales.units` wins
+wherever a row carries it (`COALESCE(units, net_sales / ?)`), so supplying a
+true unit count retires the price assumption for that month.
+
+Non-vanity categories (tile, flooring, faucets) stay in the dollar figure.
+Sam, 2026-11-26: they have always run under 10% of revenue — they move the
+level slightly, not the shape, and the shape is what the chart is read for.
+
+**The GVS seam is drawn, not smoothed.** Pre-2024 GVS Shopify and post-2024
+RFLPOS are separate datasets with separate legend entries, the earlier one
+labelled low-confidence, because WC_MARKET_ANALYSIS §1 records a 2.5× level
+shift across that system change with no business event behind it. One
+continuous line across the boundary would present a migration as growth.
+
+**Monthly grain only.** RFL is held monthly, so the overlay is available at
+Monthly / Quarterly / Annual and the control says "monthly grain only" at
+Daily and Weekly. An empty line is the honest answer at those grains;
+interpolation is not.
+
+**Loading.** Manual, by decision — no cron, no watcher:
+`node scripts/loadRflMonthlySales.js <file.csv> --source=rflpos|gvs_shopify`
+(`--dry` to validate first). `--source` is required and never inferred from
+the date, so a backfill crossing 2024-01 cannot be silently mislabelled.
+Rejected rows are listed, never dropped quietly. Re-running a file overwrites
+by (month, store, source).
+
+Gate: `gate_wc_inventory.js` §13 (8 checks). Mutations: `mutate_wc_inventory.sh`
+14a–14h, all caught.
