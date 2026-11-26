@@ -583,3 +583,32 @@ Still unresolved: which showroom `bathroom-vanities-outlet` is. It bills
 $68K in October 2021 while WC_MARKET_ANALYSIS §1 has Norcross opening May
 2022, so either that date is wrong or the store served an earlier location.
 It does not affect the arithmetic — all three are summed regardless.
+
+### §10.4 — Norcross identified; pre-2024 put on a POS-only basis (2026-11-26)
+
+**`bathroom-vanities-outlet` is Norcross.** Sam: lease signed May 2021,
+selling from Sept/Oct 2021. The channel split confirms it — POS revenue is
+nil through July 2021, then $14,794 (20 orders) in August, $25,576 (34) in
+September, $64,619 (87) in October. WC_MARKET_ANALYSIS §1's "Norcross opened
+May 2022" is wrong: May 2021 is the lease, not the opening, and the year is
+off by one. §1 should be corrected.
+
+(One oddity left alone: Feb 2021 carries $13,047 of POS on 4 orders, with
+nothing either side until August. Pre-opening sales rung up on that register,
+most likely. Too small to chase.)
+
+**Basis corrected while confirming it.** Roswell's export ran
+`WHERE is_pos_sale = true` and BVP's was grouped by POS location — both
+POS-only — but the Norcross figures had been pulled across ALL channels, so
+they carried ~$58K of Online Store revenue the other two excluded. Two bases
+in one series. Reloaded with `is_pos_sale = true` on all three:
+
+    was  36 months, 2021-01 .. 2023-12, $4,754,008   (mixed basis)
+    now  35 months, 2021-02 .. 2023-12, $4,695,474   (POS only)
+
+2021 $1,098,153 · 2022 $1,811,986 · 2023 $1,785,335. The 1.2% difference does
+not move the chart; the point is that every month in the series now counts
+the same thing, and the pre-2024 line is showroom trade only — which is what
+it is being compared against.
+
+2021-01 drops out: its only activity was two online orders.
