@@ -496,3 +496,44 @@ later reads that step as a business event. Changing it is one constant.
 
 **Norcross opens and closes inside the window** ($682K in 2024, last month
 2025-09). The combined line steps down when it closes. That one is real.
+
+### §10.2 — Pre-2024 GVS rows REMOVED (2026-11-26)
+
+The 29 `gvs_shopify` rows loaded earlier that day were deleted the same day.
+They were not wrong about the store they came from; they were wrong about
+what they represented.
+
+**What they actually were.** `bathroom-vanities-outlet.myshopify.com`
+("Bathroom Vanities Outlet" — not today's BVO), 2021-08 → 2023-12,
+$1,878,637. Channel split: Point of Sale $1,820,103 / 1,998 orders, Online
+Store $58,135 / 99, Google Shopping $399 / 1. So 97% genuine showroom POS,
+and it reconciles with WC_MARKET_ANALYSIS §1's GVS figure (2,000 orders /
+$1,935,076). A `pos_location_name` breakdown returns a single undifferentiated
+location literally named "Renovate for Less Outlet" — no per-showroom split
+exists in that store, exactly as §1 recorded.
+
+**Why they were removed.** Sam, 2026-11-26: each showroom ran its OWN Shopify
+POS — ShopifyBVO, ShopifyGVS, ShopifyBVP. The connector reaches only one of
+the three, so these rows are ONE store's business, while the post-2024
+RFLPOS rows cover all three showrooms. Loaded together:
+
+    pre-2024   ~$64.8K/month   partial coverage (1 of 3 stores)
+    post-2024  ~$132K/month    full coverage   (3 showrooms)
+
+— roughly a 2x step at the 2024-01 seam created purely by stores appearing in
+the data, on top of the divisor step already recorded in §10.1. A reader
+would see the business doubling at exactly the system change. Same failure
+class as the 2025-08-25 liquidation: plausible-looking, measuring the wrong
+thing.
+
+Sam's belief that this store was Norcross-only does not fit the dates — it is
+already doing $68K in October 2021, and §1 has Norcross opening May 2022. So
+it is at minimum one earlier showroom. Which one is unresolved and does not
+matter for the decision: whichever it is, it is one of three.
+
+**To restore the pre-2024 line properly**, all three Shopify POS exports are
+needed, summed per month, loaded with `--source=gvs_shopify`. The generated
+SQL for the partial load is still at `load_rfl.sql` in the project folder if
+the single-store series is ever wanted deliberately and labelled as such.
+Until then the RFL line starts 2024-01, where coverage is complete and the
+units are real counts rather than a dollar proxy.
