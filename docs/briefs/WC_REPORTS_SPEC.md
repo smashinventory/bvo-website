@@ -537,3 +537,49 @@ SQL for the partial load is still at `load_rfl.sql` in the project folder if
 the single-store series is ever wanted deliberately and labelled as such.
 Until then the RFL line starts 2024-01, where coverage is complete and the
 units are real counts rather than a dollar proxy.
+
+### §10.3 — Pre-2024 RELOADED from all three Shopify POS stores (2026-11-26)
+
+§10.2's removal is reversed, properly. Sam supplied the two missing stores,
+so the pre-2024 line is now complete coverage rather than one store in three.
+
+| store (Shopify) | showroom | months | net sales |
+|---|---|---|---|
+| `reno4lessroswell` | 5120 Old Ellis Point, Roswell | 2021-02 → 2023-12 | $2,385,286 |
+| `bathroom-vanities-outlet` | single unsplit POS location | 2021-01 → 2023-12 | $1,878,637 |
+| `bathvanitiesplus` | Kennesaw Mall Showroom, Marietta | 2023-03 → 2023-12 | $490,085 |
+| **combined, loaded** | | **36 months** | **$4,754,008** |
+
+All figures are **net sales** = gross − discounts − sales reversals, the same
+basis as the RFLPOS rows, so returns are netted on both sides of the seam.
+
+Reconciliation before loading: BVP's subtotal equals its lifetime dashboard
+figure exactly ($533,242.35 gross), so that store lived only Mar–Dec 2023 and
+cannot overlap 2024. BVO matches the earlier ShopifyQL pull to the cent.
+Roswell's Feb-21→Dec-23 subset sits inside its Jan-18→Dec-23 total of
+$3,148,798, leaving $763K for 2018–Jan 2021 — consistent with its ramp.
+
+Bounded at 2023-12. BVO shows $5,855 on 3 orders in 2024-01; dropped, because
+RFLPOS already covers that month and `rflSeries` sums across sources per
+month, so an overlap would double-count.
+
+**⚠️ THE 2023→2024 COMPARISON IS DIVISOR-DEPENDENT, AND ITS SIGN FLIPS.**
+Pre-2024 divides dollars by the $1,000 ticket; post-2024 uses measured units
+implying ~$1,422 per vanity (§10.1). On the chart that reads
+4.9 → 3.8 units/day, a 23% fall. Re-run the pre-2024 side at $1,422 and the
+same data reads 3.5 → 3.8, a 10% RISE. The seam cannot settle the direction
+of that one step, and nobody should read it as if it could.
+
+**For RFL's own trend, read dollars, not the units proxy** — no divisor, no
+ambiguity:
+
+    2021 $1.12M · 2022 $1.83M · 2023 $1.80M · 2024 $2.01M
+    2025 $1.62M · 2026 $0.99M (11 months, ~$1.08M annualised)
+
+Peak 2024, then −46% to 2026 annualised. The units proxy exists only so the
+RFL line can share an axis with WC; it is not the better measure of RFL.
+
+Still unresolved: which showroom `bathroom-vanities-outlet` is. It bills
+$68K in October 2021 while WC_MARKET_ANALYSIS §1 has Norcross opening May
+2022, so either that date is wrong or the store served an earlier location.
+It does not affect the arithmetic — all three are summed regardless.
