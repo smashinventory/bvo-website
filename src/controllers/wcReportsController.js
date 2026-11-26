@@ -65,35 +65,42 @@ const DEFAULT_WINDOW = 90;
    constant, here, so retuning it is a one-line change and never a data
    migration.
 
-   $1,000 — RFL's OWN AVERAGE TICKET across the 4.5 years of sales data in
-   scope (Sam, 2026-11-26). This is the right kind of number for the job: it
-   is what RFL actually transacts at, measured over the whole span the chart
-   covers, so the proxy is anchored to the business rather than to a
-   reference price.
+   $1,150 — THE PRE-2024 AVERAGE TICKET, FROM THE BOOKS (Sam, 2026-11-26).
 
-   IT REPLACED $1,430, AND THE REASON MATTERS. That figure came from Home
-   Depot retail on base configurations of the three best-selling collections
-   (Palace ~$1,948, Madison ~$1,144, Queen ~$1,200). HD list is a retail
-   reference and RFL discounts off it, so dividing RFL dollars by HD list
-   understated units by roughly 30%. Observed ticket beats inferred list;
-   do not re-derive this from published retail prices.
+   WHICH ROWS THIS ACTUALLY TOUCHES, AND WHY THAT MAKES IT PRE-2024-ONLY.
+   The divisor is applied only where a row has no real unit count
+   (COALESCE(units, net_sales / ?) in cards.rflSeries). Every RFLPOS row
+   carries a counted figure from the sell lines, so the divisor never reaches
+   2024 onward. In practice it governs the Shopify era and nothing else, and
+   it is now set to that era's own ticket rather than a blended one.
+
+   THE VALUE HAS MOVED TWICE; THE DIRECTION OF TRAVEL IS THE POINT.
+     $1,430  derived from Home Depot retail on base configurations of the
+             three best-selling collections (Palace ~$1,948, Madison ~$1,144,
+             Queen ~$1,200). HD list is a retail REFERENCE and RFL discounts
+             off it, so this understated units by roughly 30%.
+     $1,000  RFL's blended average ticket across the whole span.
+     $1,150  the pre-2024 ticket, read off the books.
+   Each step replaced an inferred number with a measured one, and each was
+   closer to the period it is actually applied to. Do not re-derive this from
+   published retail prices; that is the mistake the first value made.
 
    ⚠️ ONE THING THIS CONSTANT IS NOT: preferred over real data. Per-row
    `units` in rfl_monthly_sales always wins — the proxy is a fallback, not a
    preference. See the COALESCE in cards.rflSeries. Supplying a true unit
    count for a month retires the divisor entirely for that month.
 
-   If the ticket is ever found to differ materially between the GVS Shopify
-   era and the RFLPOS era, this becomes a per-source lookup and the division
-   moves inside the SUM. It is a single number today because one number is
-   what the evidence supports.
+   It remains a single constant rather than a per-source lookup because only
+   one era ever reads it. If a future era also arrives without unit counts
+   AND transacts at a different ticket, this becomes a per-source map and the
+   division moves inside the SUM.
 
    Non-vanity categories (tile, flooring, faucets) stay in the dollar figure.
    Sam, 2026-11-26: they have always run under 10% of revenue. They move the
    level slightly; they do not move the shape, and the shape is what the
    chart is read for.
 ───────────────────────────────────────────────────────────────────── */
-const RFL_UNIT_PRICE = 1000;
+const RFL_UNIT_PRICE = 1150;
 
 /* ─────────────────────────────────────────────────────────────────────
    NON-RETAIL EVENT CAPS

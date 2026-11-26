@@ -643,3 +643,43 @@ Roswell's own Feb-2021 trade is untouched; that showroom was open.
 Worth noting what this does NOT do: it does not remove the amount from
 Shopify, and anyone reconciling the chart against the Norcross dashboard will
 find a $13,047 difference. That is intended and is why it is written down.
+
+### §10.6 — Divisor $1,000 → $1,150, from the books (2026-11-26)
+
+Sam checked the books: the pre-2024 average ticket is **$1,150**.
+
+This is a pre-2024 number and it only ever applies pre-2024, because the
+divisor is reached only where a row has no counted units
+(`COALESCE(units, net_sales / ?)`). Every RFLPOS row carries a figure counted
+from the sell lines, so the divisor never touches 2024 onward. Setting it to
+the Shopify era's own ticket is therefore strictly better than the blended
+one it replaces — the blend was averaging in years the constant never
+governs.
+
+Effect on the pre-2024 line:
+
+| year | dollars | units @ $1,000 | units @ $1,150 |
+|---|---|---|---|
+| 2021 (Feb–Dec) | $1,085,106 | 1,085 | **944** |
+| 2022 | $1,811,986 | 1,812 | **1,576** |
+| 2023 | $1,785,335 | 1,785 | **1,552** |
+
+**The 2024 seam, which is what the divisor was always really about:**
+
+    $1,000   4.89 -> 3.80 units/day   -22.2%
+    $1,150   4.25 -> 3.80 units/day   -10.6%   <- current
+    $1,422   3.44 -> 3.80 units/day   +10.6%
+
+§10.3 flagged that this step's SIGN was divisor-dependent. It still is. What
+has changed is that the divisor is now measured for the period it governs
+rather than estimated across periods, so −10.6% is the best available read of
+that step — not that the ambiguity has gone. A ±13% error in the ticket still
+flips it.
+
+Third value this constant has taken: $1,430 (inferred from Home Depot
+retail), $1,000 (blended observed ticket), $1,150 (pre-2024 observed ticket).
+Each replaced an inferred number with a measured one, and each was closer to
+the period it is applied to.
+
+Unchanged: for RFL's own trend, read dollars. They need no divisor and carry
+none of this ambiguity.
