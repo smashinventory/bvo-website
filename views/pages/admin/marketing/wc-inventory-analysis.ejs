@@ -61,6 +61,38 @@ const sizeLabel = v => (v === null || v === undefined || v === '') ? '—' : (Nu
   </div>
 </div>
 
+<%
+/* ── FAILED-CARD STRIP ────────────────────────────────────────────────
+   card() in the controller catches a failing query, logs it, and returns
+   an empty result so one broken card cannot blank the dashboard. That is
+   the right behaviour — but until now the failure was INVISIBLE here: the
+   card simply rendered its empty state, which looks identical to "no data
+   yet". The interactive trend chart shipped broken for exactly this
+   reason — the query failed, the view showed "Not enough history yet",
+   and nothing anywhere said otherwise.
+
+   An empty card and a broken card must never look the same. */
+const _failed = Object.keys(cards || {})
+  .map(k => cards[k])
+  .filter(x => x && x.error);
+%>
+<% if (_failed.length) { %>
+  <div class="admin-card" style="border-left:4px solid #b4532a; margin-bottom:14px">
+    <h3 class="admin-card-title" style="color:#b4532a">
+      <%= _failed.length %> card<%= _failed.length > 1 ? 's' : '' %> failed to load
+    </h3>
+    <p class="adm-label">
+      These sections are showing their empty state because the query errored, not
+      because there is no data. Everything else on this page is unaffected.
+    </p>
+    <ul class="adm-label" style="margin:8px 0 0 18px">
+      <% _failed.forEach(f => { %>
+        <li><code><%= f.name %></code> — <%= f.error %></li>
+      <% }) %>
+    </ul>
+  </div>
+<% } %>
+
 <p class="adm-label" style="margin:0 0 14px">
   <strong>Water Creation national wholesale shipments</strong> — inferred from daily
   inventory snapshots across all WC dealers. <strong>Not BVO sales. Not RFL sales.</strong>
