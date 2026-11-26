@@ -189,6 +189,31 @@ mutate "Top finish card re-added to the view" "$VIEW" \
 mutate "Mounting card re-added to the controller" "$CTRL" \
   "s/    cards.bySinks      = await card\('bySinks',      \(\) => byDim\('sinks'\)\);/    cards.byMounting   = await card('byMounting',   () => byDim('mounting'));\n    cards.bySinks      = await card('bySinks',      () => byDim('sinks'));/"
 
+# ── 13. THE TREND CHART ────────────────────────────────────────────────
+#   The expensive mistake here is plotting raw units instead of a rate.
+#   It looks completely normal and is wrong by ~10 points on the YoY read.
+
+# 13a. The chart stops dividing by observed days.
+mutate "chart plots raw units instead of units/observed-day" "$VIEW" \
+  's/e\.rate = e\.days \? e\.units \/ e\.days : 0;/e.rate = e.units;/'
+
+# 13b. span_days dropped from the bucket accumulator, so the denominator
+#      silently becomes a count of observations rather than days covered.
+mutate "span_days no longer accumulated into the bucket" "$VIEW" \
+  's/map\[k\]\.days  \+= r\[2\];/map[k].days += 1;/'
+
+# 13c. A granularity removed.
+mutate "quarterly granularity dropped from the control" "$VIEW" \
+  's/<button type="button" data-g="Q">Quarterly<\/button>\n//'
+
+# 13d. An inline handler sneaks in — the admin CSP would silently kill it.
+mutate "inline onchange handler added to the period select" "$VIEW" \
+  's/<select id="wc-p1" class="adm-input"><\/select>/<select id="wc-p1" class="adm-input" onchange="render()"><\/select>/'
+
+# 13e. span_days dropped from the server payload entirely.
+mutate "daily series stops selecting span_days" "$CTRL" \
+  's/GREATEST\(COALESCE\(MAX\(g\.span_days\),1\),1\) AS span/1 AS span/'
+
 # 12f. The codebook made to read from disk — the hbuilds trap, which would
 #      break it on the next deploy and only the next deploy.
 #      /m is required: perl -0 slurps the file, so ^ only anchors per-line

@@ -544,6 +544,92 @@ section('11. SKU codebook — decode, precedence, and honest gaps');
   }
 }
 
+/* ── 12. THE INTERACTIVE TREND CHART ──────────────────────────────────
+ *
+ * The chart lets any period be compared against any other at five
+ * granularities. That makes one mistake very easy and very expensive:
+ * plotting raw unit totals instead of a per-observed-day rate.
+ *
+ * WHY THAT WOULD BE WRONG, IN NUMBERS. The WC feed skips days — 157 of
+ * 1,627 adjacent snapshot pairs are non-consecutive — so an observation can
+ * cover several calendar days, which is what span_days records. 2026 has
+ * 315 observed days against 2025's 363. Summing raw units would show 2026
+ * down ~38% when the like-for-like rate is down 28.7%. The error is largest
+ * precisely in the year-over-year read the chart exists to produce.
+ */
+section('12. Trend chart — observed-day normalisation and CSP');
+{
+  const v = read(VIEW);
+  const c = read(CONTROLLER);
+
+  /* 12a. The server must ship span_days with every point. Without it the
+     client cannot normalise, no matter what the plotting code does. */
+  /* Scope the check to the dailySeries query ITSELF. A bare search for
+     "span_days" across the controller passes on DEDUPED_BASE's own
+     MAX(m.span_days), which is a different query — the mutation harness
+     proved it by replacing the span column with a literal 1 and sailing
+     through. Test the block that has to be right. */
+  const dsBlock = (c.match(/cards\.dailySeries[\s\S]{0,700}?ORDER BY/) || [''])[0];
+  if (dsBlock && /g\.span_days/.test(dsBlock) && /AS span\b/.test(dsBlock)) {
+    pass('daily series derives span from g.span_days (observed coverage) per row');
+  } else {
+    fail('the daily series does not carry real span_days',
+         'Found: ' + (dsBlock ? dsBlock.replace(/\s+/g, ' ').slice(0, 150) : 'no dailySeries query') +
+         '\n          A literal or missing span silently turns the rate into a per-observation ' +
+         'average, which is not what the axis claims.');
+  }
+
+  /* 12b. The client must divide by it. Looks for the rate computation
+     rather than its absence, so a refactor that drops it fails loudly. */
+  if (/\.days\s*\+=\s*r\[2\]/.test(v) && /\.rate\s*=\s*e\.days\s*\?\s*e\.units\s*\/\s*e\.days/.test(v)) {
+    pass('buckets accumulate span_days and plot units ÷ observed days');
+  } else {
+    fail('the chart is not normalising by observed days',
+         'Plot units/observed-day. A raw total makes a sparsely-observed period ' +
+         'look weak and corrupts every year-over-year comparison.');
+  }
+
+  /* 12c. The plotted dataset must be the rate, never the raw total. */
+  if (/data:\s*[ab]\.map\(function \(e\) \{ return Math\.round\(e\.rate/.test(v)
+      && !/data:\s*[ab]\.map\([^)]*e\.units/.test(v)) {
+    pass('datasets plot e.rate, never e.units');
+  } else {
+    fail('a dataset is plotting raw units', 'Every series must plot the rate.');
+  }
+
+  /* 12d. All five granularities the report was asked for. */
+  const grans = ['D', 'W', 'M', 'Q', 'Y'].filter(g => v.includes(`data-g="${g}"`));
+  if (grans.length === 5) pass('all five granularities present (day/week/month/quarter/year)');
+  else fail(`only ${grans.length}/5 granularities present`, `found: ${grans.join(', ')}`);
+
+  /* 12e. The compare selector, and position-based alignment. Comparing by
+     DATE instead of position would put Jan 2026 beside Jan 2025 on a shared
+     axis and run one series off the end. */
+  if (/id="wc-p2"/.test(v) && /bucketise\(subset\(p2\.value\), SEL_G\)/.test(v)) {
+    pass('compare-to selector wired, aligned by position in the period');
+  } else {
+    fail('the compare-to period is missing or not aligned by position');
+  }
+
+  /* 12f. CSP. The admin forbids inline handlers; this chart adds three
+     listeners and a <select>, which is exactly where one slips in. */
+  const body = v.replace(/<%[\s\S]*?%>/g, '');          // strip EJS first
+  if (!/\son(click|change|input|submit)\s*=/i.test(body)) {
+    pass('no inline event handlers (admin CSP)');
+  } else {
+    fail('an inline event handler is present',
+         'The admin CSP blocks them — use addEventListener in the nonce\'d block.');
+  }
+
+  /* 12g. contentFor('script') anywhere in this view wipes every script on
+     the page, chart included. PROJECT_BRIEF §9. */
+  if (!/contentFor\(\s*['"]script/.test(v)) {
+    pass("no contentFor('script') (it would wipe the chart)");
+  } else {
+    fail("contentFor('script') found in the view", 'It silently removes all page JS.');
+  }
+}
+
 /* ── 10. THE VALIDITY GATE MUST NOT BE A ONE-WAY DOOR ─────────────────
  *
  * THE BUG THIS EXISTS TO PREVENT, because it shipped once and hid itself.

@@ -356,31 +356,64 @@ const dimCards = [
   <% } %>
 </div>
 
-<!-- ══ TREND ══════════════════════════════════════════════════════ -->
+<!-- ══ TREND — INTERACTIVE ════════════════════════════════════════
+     Granularity (day/week/month/quarter/year) and two period selectors, so
+     any year can be compared against any other. All of it runs client-side
+     off one daily series — see the script block for why, and for the
+     observed-day normalisation that makes the comparison honest. -->
 <h2 class="report-section-title" style="margin-top:28px">Trend — units per observed day</h2>
 <div class="admin-card">
-  <h3 class="admin-card-title">Monthly rate, one line per year</h3>
-  <% if (!trend.length) { %>
+  <% const series = rows('dailySeries'); %>
+  <% if (!series.length) { %>
     <p class="adm-empty">Not enough history yet.</p>
   <% } else { %>
-    <canvas id="wcTrendChart" height="110"></canvas>
-    <p class="adm-label">
-      Rates, not totals — a short or sparsely-observed month is not a weak month.
-      Days actually observed are in the table below.
-    </p>
-    <div class="adm-table-wrap jmv-scroll-wrap">
-      <table class="adm-table">
-        <thead><tr><th>Month</th><th>Units/observed day</th><th>Drawdown</th><th>Days observed</th></tr></thead>
-        <tbody>
-        <% trend.slice().reverse().forEach(r => { %>
-          <tr><td><%= r.yr %>-<%= String(r.mo).padStart(2,'0') %></td>
-              <td><%= fmt1(r.units_per_day) %></td>
-              <td><%= fmt(r.drawdown) %></td>
-              <td class="<%= Number(r.observed_days) < 10 ? 'jmv-row--warn' : '' %>"><%= fmt(r.observed_days) %></td></tr>
-        <% }) %>
-        </tbody>
-      </table>
+    <div class="wc-trend-ctl">
+      <div class="wc-fld">
+        <label class="adm-label" for="wc-gran">Granularity</label>
+        <div class="wc-seg" id="wc-gran">
+          <button type="button" data-g="D">Daily</button>
+          <button type="button" data-g="W">Weekly</button>
+          <button type="button" data-g="M" class="on">Monthly</button>
+          <button type="button" data-g="Q">Quarterly</button>
+          <button type="button" data-g="Y">Annual</button>
+        </div>
+      </div>
+      <div class="wc-fld">
+        <label class="adm-label" for="wc-p1">Period</label>
+        <select id="wc-p1" class="adm-input"></select>
+      </div>
+      <div class="wc-fld">
+        <label class="adm-label" for="wc-p2">Compare to</label>
+        <select id="wc-p2" class="adm-input"></select>
+      </div>
     </div>
+
+    <p id="wc-trend-legend" class="adm-label" style="margin:10px 0 6px"></p>
+    <canvas id="wcTrendChart" height="110"></canvas>
+    <p class="adm-label" style="margin-top:9px">
+      Every point is drawdown divided by the days actually observed in that bucket.
+      The feed skips days, so a raw total would make a sparsely-observed period look
+      weak — and in a year-on-year read that error lands on the number you act on.
+      The comparison line is aligned by <strong>position within the period</strong>,
+      not by date, so Jan sits above Jan.
+    </p>
+
+    <details style="margin-top:10px">
+      <summary class="adm-label" style="cursor:pointer">Monthly table — rate, drawdown and days observed</summary>
+      <div class="adm-table-wrap jmv-scroll-wrap" style="margin-top:9px">
+        <table class="adm-table">
+          <thead><tr><th>Month</th><th>Units/observed day</th><th>Drawdown</th><th>Days observed</th></tr></thead>
+          <tbody>
+          <% trend.slice().reverse().forEach(r => { %>
+            <tr><td><%= r.yr %>-<%= String(r.mo).padStart(2,'0') %></td>
+                <td><%= fmt1(r.units_per_day) %></td>
+                <td><%= fmt(r.drawdown) %></td>
+                <td class="<%= Number(r.observed_days) < 10 ? 'jmv-row--warn' : '' %>"><%= fmt(r.observed_days) %></td></tr>
+          <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </details>
   <% } %>
 </div>
 
@@ -524,33 +557,152 @@ const dimCards = [
   var SEASON = <%- JSON.stringify(seasonality || []) %>;
   var MONTH  = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
+  /* ══ INTERACTIVE TREND ════════════════════════════════════════════
+   *
+   * One daily series from the server; the browser re-buckets it. Changing
+   * granularity or period is instant and costs no round trip, which matters
+   * because comparing periods is an exploratory act — you try several.
+   *
+   * ⚠️ THE ONE RULE: PLOT units ÷ observedDays, NEVER raw units.
+   * Each row carries `span` (span_days) because the feed skips days — a
+   * single observation can cover several. Summing raw units makes a
+   * sparsely-observed bucket look weak, and that error is worst exactly
+   * where it matters most: a year-over-year comparison where the two years
+   * have different observation density. 2026 has 315 observed days against
+   * 2025's 363, so the raw totals are not comparable and the rates are.
+   *
+   * Buckets are compared BY POSITION, not by date — index 0 against index 0.
+   * That is what lets "2026 vs 2024", or "last 90 days vs 2025", line up
+   * instead of running off the end of the axis.
+   */
+  var DAILY = <%- JSON.stringify((rows('dailySeries') || []).map(function (r) {
+                   return [r.d, Number(r.units) || 0, Number(r.span) || 1];
+                 })) %>;
+
   var trendEl = document.getElementById('wcTrendChart');
-  if (trendEl && TREND.length && window.Chart) {
-    var years = [];
-    TREND.forEach(function (r) { if (years.indexOf(r.yr) < 0) years.push(r.yr); });
-    var palette = ['#8c6b4f','#2f6f6b','#9c5b3f','#4a6fa5','#6b7f4a','#a05c7b'];
-    var sets = years.map(function (y, i) {
-      var byMonth = new Array(12).fill(null);
-      TREND.forEach(function (r) {
-        if (r.yr === y) byMonth[r.mo - 1] = Number(r.units_per_day);
+  if (trendEl && DAILY.length && window.Chart) {
+    var wcChart = null;
+
+    function bucketOf(iso, g) {
+      var y = iso.slice(0, 4), m = +iso.slice(5, 7);
+      if (g === 'D') return iso;
+      if (g === 'M') return iso.slice(0, 7);
+      if (g === 'Q') return y + '-Q' + Math.ceil(m / 3);
+      if (g === 'Y') return y;
+      var t = new Date(iso + 'T00:00:00Z');          // ISO week start (Mon)
+      t.setUTCDate(t.getUTCDate() - ((t.getUTCDay() + 6) % 7));
+      return t.toISOString().slice(0, 10);
+    }
+
+    function subset(sel) {
+      if (sel === 'NONE') return null;
+      if (sel === 'ALL')  return DAILY;
+      var last = DAILY[DAILY.length - 1][0];
+      if (sel === 'L90' || sel === 'L12') {
+        var c = new Date(last + 'T00:00:00Z');
+        if (sel === 'L90') c.setUTCDate(c.getUTCDate() - 90);
+        else               c.setUTCMonth(c.getUTCMonth() - 12);
+        var cut = c.toISOString().slice(0, 10);
+        return DAILY.filter(function (r) { return r[0] >= cut; });
+      }
+      return DAILY.filter(function (r) { return r[0].slice(0, 4) === sel; });
+    }
+
+    /* → [{k, units, days, rate}] in calendar order. */
+    function bucketise(rowsIn, g) {
+      if (!rowsIn) return null;
+      var map = {}, order = [];
+      rowsIn.forEach(function (r) {
+        var k = bucketOf(r[0], g);
+        if (!map[k]) { map[k] = { k: k, units: 0, days: 0 }; order.push(k); }
+        map[k].units += r[1];
+        map[k].days  += r[2];               // span_days, not a day count
       });
-      return {
-        label: String(y), data: byMonth,
-        borderColor: palette[i % palette.length],
-        backgroundColor: 'transparent',
-        borderWidth: 2, tension: 0.25, spanGaps: true, pointRadius: 2,
-      };
+      return order.sort().map(function (k) {
+        var e = map[k];
+        e.rate = e.days ? e.units / e.days : 0;
+        return e;
+      });
+    }
+
+    var SEL_G = 'M';
+    var p1 = document.getElementById('wc-p1');
+    var p2 = document.getElementById('wc-p2');
+
+    var yearSet = {}, years = [];
+    DAILY.forEach(function (r) {
+      var y = r[0].slice(0, 4);
+      if (!yearSet[y]) { yearSet[y] = 1; years.push(y); }
     });
-    new Chart(trendEl, {
-      type: 'line',
-      data: { labels: MONTH.slice(1), datasets: sets },
-      options: {
-        responsive: true, maintainAspectRatio: true, aspectRatio: 3,
-        plugins: { legend: { position: 'bottom' },
-          title: { display: true, text: 'WC national shipments — units per observed day' } },
-        scales: { y: { beginAtZero: true, title: { display: true, text: 'units / observed day' } } },
-      },
+    years.sort().reverse();
+
+    function opt(v, t) { return '<option value="' + v + '">' + t + '</option>'; }
+    p1.innerHTML = opt('L90', 'Last 90 days') + opt('L12', 'Last 12 months')
+      + years.map(function (y) { return opt(y, y); }).join('') + opt('ALL', 'All time');
+    p2.innerHTML = opt('NONE', '— none —')
+      + years.map(function (y) { return opt(y, y); }).join('') + opt('L90', 'Last 90 days');
+    /* Default to the most useful question: this year against last year. */
+    p1.value = years[0] || 'L12';
+    p2.value = years[1] || 'NONE';
+
+    function render() {
+      var a = bucketise(subset(p1.value), SEL_G) || [];
+      var b = bucketise(subset(p2.value), SEL_G);
+      var labels = a.map(function (e) {
+        return SEL_G === 'M' ? e.k.slice(5) : SEL_G === 'Y' ? e.k : e.k.replace(/^\d{4}-/, '');
+      });
+      var sets = [{
+        label: p1.options[p1.selectedIndex].text,
+        data: a.map(function (e) { return Math.round(e.rate * 10) / 10; }),
+        borderColor: '#8a6a3b', backgroundColor: 'transparent',
+        borderWidth: 2.4, tension: 0.25, pointRadius: 2, spanGaps: true,
+      }];
+      if (b) sets.push({
+        label: p2.options[p2.selectedIndex].text,
+        data: b.map(function (e) { return Math.round(e.rate * 10) / 10; }),
+        borderColor: '#5b7fa6', backgroundColor: 'transparent',
+        borderWidth: 2, borderDash: [5, 4], tension: 0.25, pointRadius: 0, spanGaps: true,
+      });
+
+      var sum = function (s, f) { return s.reduce(function (q, e) { return q + e[f]; }, 0); };
+      var ra = sum(a, 'days') ? sum(a, 'units') / sum(a, 'days') : 0;
+      var txt = '<strong>' + ra.toFixed(1) + '</strong> units/day · '
+              + sum(a, 'units').toLocaleString() + ' units over '
+              + sum(a, 'days').toLocaleString() + ' observed days';
+      if (b && sum(b, 'days')) {
+        var rb = sum(b, 'units') / sum(b, 'days');
+        var dp = rb ? (ra - rb) / rb * 100 : 0;
+        txt += ' &nbsp;·&nbsp; vs <strong>' + rb.toFixed(1) + '</strong> units/day ('
+             + sum(b, 'days').toLocaleString() + ' days) &nbsp;·&nbsp; <strong>'
+             + (dp >= 0 ? '+' : '') + dp.toFixed(1) + '%</strong>';
+      }
+      document.getElementById('wc-trend-legend').innerHTML = txt;
+
+      if (wcChart) { wcChart.destroy(); }
+      wcChart = new Chart(trendEl, {
+        type: 'line',
+        data: { labels: labels, datasets: sets },
+        options: {
+          responsive: true, maintainAspectRatio: true, aspectRatio: 3,
+          interaction: { mode: 'index', intersect: false },
+          plugins: { legend: { position: 'bottom' } },
+          scales: { y: { beginAtZero: true,
+            title: { display: true, text: 'units / observed day' } } },
+        },
+      });
+    }
+
+    document.getElementById('wc-gran').addEventListener('click', function (ev) {
+      var b = ev.target.closest('button[data-g]');
+      if (!b) return;
+      this.querySelectorAll('button').forEach(function (z) { z.classList.remove('on'); });
+      b.classList.add('on');
+      SEL_G = b.dataset.g;
+      render();
     });
+    p1.addEventListener('change', render);
+    p2.addEventListener('change', render);
+    render();
   }
 
   var seasonEl = document.getElementById('wcSeasonChart');

@@ -354,6 +354,54 @@ async function dashboard(req, res) {
         .sort((a, b) => a.mo - b.mo);
     })();
 
+    /* ── DAILY SERIES — the interactive trend chart ────────────────────
+     *
+     * One row per observed movement date, for the WHOLE history. The browser
+     * re-buckets it to day / week / month / quarter / year and overlays a
+     * comparison period, so changing granularity or period costs no round
+     * trip. ~1,460 rows at 2026-11; three small numbers each, so the payload
+     * is tens of KB, not megabytes.
+     *
+     * ⚠️ WHY span_days TRAVELS WITH EVERY ROW, AND WHY THE CHART DIVIDES BY IT
+     * This series is NOT one row per calendar day. The feed skips days, and
+     * 157 of 1,627 adjacent pairs are non-consecutive, so a single
+     * observation can cover several days — that is what span_days records.
+     * Summing raw units per bucket therefore makes a sparsely-observed period
+     * look weak and a densely-observed one look strong, and in a
+     * year-over-year comparison that error lands squarely on the number
+     * someone is about to act on.
+     *
+     * So the unit of this chart is ALWAYS units ÷ observed days, where
+     * observed days is SUM(span_days) for the bucket. Never plot the raw sum.
+     *
+     * NOT scope-filtered on purpose: the client holds the full series so the
+     * scope selector does not force a reload. Scope is applied in SQL for the
+     * cards above, which are the figures people quote.
+     */
+    cards.dailySeries = await card('dailySeries', () => q(
+      `SELECT DATE_FORMAT(g.movement_date,'%Y-%m-%d') AS d,
+              ROUND(SUM(g.base_drawdown))            AS units,
+              GREATEST(COALESCE(MAX(g.span_days),1),1) AS span
+         FROM ( ${DEDUPED_BASE('', scopeClause(scopeKey))} ) g
+        GROUP BY g.movement_date
+        ORDER BY g.movement_date ASC`));
+
+    /* ── KPI strip. The four numbers worth reading before scrolling. ──── */
+    cards.kpis = await card('kpis', async () => {
+      const [w] = await q(
+        `SELECT ROUND(SUM(g.base_drawdown))        AS units,
+                COUNT(DISTINCT g.base_sku)         AS models,
+                SUM(g.span_days)                   AS days
+           FROM ( ${DEDUPED_BASE(
+             'AND m.movement_date >= DATE_SUB(?, INTERVAL ? DAY)',
+             scopeClause(scopeKey))} ) g`, [lastDate, windowDays]);
+      return [{
+        units:  Number(w?.units  || 0),
+        models: Number(w?.models || 0),
+        rate:   w?.days ? Number(w.units) / Number(w.days) : 0,
+      }];
+    });
+
     /* ── Snapshot history, for auditing coverage ──────────────────────── */
     cards.history = await card('history', () => q(
       `SELECT DATE_FORMAT(snapshot_date,'%Y-%m-%d') AS d,

@@ -358,3 +358,27 @@
 /* The row flag. Deliberately small and unmissable rather than large and
    ignorable — it sits beside the RAG dot and answers a different question. */
 .inv-flag            { margin-left:.3rem; color:#b7791f; font-size:.75rem; cursor:help; }
+
+/* ── WC trend chart controls (2026-11-26) ──────────────────────────────
+   Granularity segmented control + the two period selects. Lives here, not
+   in an inline <style>, because the admin CSP is tight and site4.css is the
+   admin-only sheet. Remember to bump ?v= in layouts/admin.ejs. */
+.wc-trend-ctl{
+  display:flex; flex-wrap:wrap; gap:18px; align-items:flex-end;
+  padding-bottom:13px; border-bottom:1px solid var(--adm-line,#e5e7eb);
+}
+.wc-fld{ display:flex; flex-direction:column; gap:4px; }
+.wc-fld .adm-label{ margin:0; }
+.wc-fld .adm-input{ min-width:170px; }
+.wc-seg{
+  display:flex; border:1px solid var(--adm-line,#e5e7eb);
+  border-radius:7px; overflow:hidden; background:#fff;
+}
+.wc-seg button{
+  border:0; background:#fff; padding:7px 12px; font-size:13px; cursor:pointer;
+  color:#6b7280; border-right:1px solid var(--adm-line,#e5e7eb); font:inherit;
+  line-height:1.2;
+}
+.wc-seg button:last-child{ border-right:0; }
+.wc-seg button:hover{ background:#f6f7f9; }
+.wc-seg button.on{ background:#8a6a3b; color:#fff; font-weight:600; }
