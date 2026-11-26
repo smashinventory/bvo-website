@@ -213,6 +213,117 @@ const _inScope = (_scopes[_scopeKey] && _scopes[_scopeKey].families) || null;
   </p>
 </div>
 
+<!-- ══ CHARTS FIRST ════════════════════════════════════════════════
+     The two charts lead the report (Sam, 2026-11-26). They used to sit
+     last, below five sections of tables — so the question most people
+     open this page to ask (is WC demand up or down, and is this month
+     seasonal?) was the last thing they reached.
+
+     The scope selector and coverage strip stay ABOVE them deliberately:
+     both charts are drawn within the selected scope, and a reader has to
+     know they are looking at vanity cabinets only before reading a line.
+     Stock position, movers and breakdowns now follow the charts.
+
+     This is a move of markup only. The chart JS lives in the nonce'd
+     block at the foot of the file and binds by element id, so DOM order
+     does not affect it. -->
+<!-- ══ TREND — INTERACTIVE ════════════════════════════════════════
+     Granularity (day/week/month/quarter/year) and two period selectors, so
+     any year can be compared against any other. All of it runs client-side
+     off one daily series — see the script block for why, and for the
+     observed-day normalisation that makes the comparison honest. -->
+<h2 class="report-section-title" style="margin-top:28px">Trend — units per observed day</h2>
+<div class="admin-card">
+  <% const series = rows('dailySeries'); %>
+  <% if (!series.length) { %>
+    <p class="adm-empty">Not enough history yet.</p>
+  <% } else { %>
+    <div class="wc-trend-ctl">
+      <div class="wc-fld">
+        <label class="adm-label" for="wc-gran">Granularity</label>
+        <div class="wc-seg" id="wc-gran">
+          <button type="button" data-g="D">Daily</button>
+          <button type="button" data-g="W">Weekly</button>
+          <button type="button" data-g="M" class="on">Monthly</button>
+          <button type="button" data-g="Q">Quarterly</button>
+          <button type="button" data-g="Y">Annual</button>
+        </div>
+      </div>
+      <div class="wc-fld">
+        <label class="adm-label" for="wc-p1">Period</label>
+        <select id="wc-p1" class="adm-input"></select>
+      </div>
+      <div class="wc-fld">
+        <label class="adm-label" for="wc-p2">Compare to</label>
+        <select id="wc-p2" class="adm-input"></select>
+      </div>
+      <%# RFL overlay. Hidden entirely when no RFL months are loaded, rather
+          than offered as a control that does nothing. Disabled at Daily and
+          Weekly because RFL is held at monthly grain — the honest response to
+          "no data at this grain" is an empty line, not an interpolated one. %>
+      <% if ((rows('rflSeries') || []).length) { %>
+      <div class="wc-fld">
+        <label class="adm-label" for="wc-rfl">Map against</label>
+        <label class="adm-input" style="display:flex;align-items:center;gap:7px;border:none;padding-left:0">
+          <input type="checkbox" id="wc-rfl">
+          <span id="wc-rfl-lbl">RFL sales (est. units)</span>
+        </label>
+      </div>
+      <% } %>
+    </div>
+
+    <p id="wc-trend-legend" class="adm-label" style="margin:10px 0 6px"></p>
+    <canvas id="wcTrendChart" height="110"></canvas>
+    <p class="adm-label" style="margin-top:9px">
+      Every point is drawdown divided by the days actually observed in that bucket.
+      The feed skips days, so a raw total would make a sparsely-observed period look
+      weak — and in a year-on-year read that error lands on the number you act on.
+      The comparison line is aligned by <strong>position within the period</strong>,
+      not by date, so Jan sits above Jan.
+    </p>
+
+    <details style="margin-top:10px">
+      <summary class="adm-label" style="cursor:pointer">Monthly table — rate, drawdown and days observed</summary>
+      <div class="adm-table-wrap jmv-scroll-wrap" style="margin-top:9px">
+        <table class="adm-table">
+          <thead><tr><th>Month</th><th>Units/observed day</th><th>Drawdown</th><th>Days observed</th></tr></thead>
+          <tbody>
+          <% trend.slice().reverse().forEach(r => { %>
+            <tr><td><%= r.yr %>-<%= String(r.mo).padStart(2,'0') %></td>
+                <td><%= fmt1(r.units_per_day) %></td>
+                <td><%= fmt(r.drawdown) %></td>
+                <td class="<%= Number(r.observed_days) < 10 ? 'jmv-row--warn' : '' %>"><%= fmt(r.observed_days) %></td></tr>
+          <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </details>
+  <% } %>
+</div>
+
+<div class="admin-card">
+  <h3 class="admin-card-title">Seasonality — year-normalised index</h3>
+  <% if (!seasonality.length) { %>
+    <p class="adm-empty">Needs at least one year with 8+ observed months.</p>
+  <% } else { %>
+    <canvas id="wcSeasonChart" height="90"></canvas>
+    <div class="adm-table-wrap">
+      <table class="adm-table">
+        <thead><tr><th>Month</th><th>Index (100 = that year's average)</th><th>Years in sample</th></tr></thead>
+        <tbody>
+        <% seasonality.forEach(r => { %>
+          <tr><td><%= MONTHS[r.mo] %></td><td><%= fmt1(r.index) %></td><td><%= r.years %></td></tr>
+        <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <p class="adm-label">
+      Each month is indexed against its own year's mean before averaging across years,
+      so the multi-year decline cannot leak into the seasonal shape.
+    </p>
+  <% } %>
+</div>
+
 <!-- ══ ROW 1 — ALERT STRIP ════════════════════════════════════════ -->
 <h2 class="report-section-title">Stock position — as of <%= status.last_date %></h2>
 <% const ss = rows('stockoutSummary')[0] || {}; %>
@@ -385,103 +496,6 @@ const dimCards = [
       </tbody>
     </table>
   </div>
-  <% } %>
-</div>
-
-<!-- ══ TREND — INTERACTIVE ════════════════════════════════════════
-     Granularity (day/week/month/quarter/year) and two period selectors, so
-     any year can be compared against any other. All of it runs client-side
-     off one daily series — see the script block for why, and for the
-     observed-day normalisation that makes the comparison honest. -->
-<h2 class="report-section-title" style="margin-top:28px">Trend — units per observed day</h2>
-<div class="admin-card">
-  <% const series = rows('dailySeries'); %>
-  <% if (!series.length) { %>
-    <p class="adm-empty">Not enough history yet.</p>
-  <% } else { %>
-    <div class="wc-trend-ctl">
-      <div class="wc-fld">
-        <label class="adm-label" for="wc-gran">Granularity</label>
-        <div class="wc-seg" id="wc-gran">
-          <button type="button" data-g="D">Daily</button>
-          <button type="button" data-g="W">Weekly</button>
-          <button type="button" data-g="M" class="on">Monthly</button>
-          <button type="button" data-g="Q">Quarterly</button>
-          <button type="button" data-g="Y">Annual</button>
-        </div>
-      </div>
-      <div class="wc-fld">
-        <label class="adm-label" for="wc-p1">Period</label>
-        <select id="wc-p1" class="adm-input"></select>
-      </div>
-      <div class="wc-fld">
-        <label class="adm-label" for="wc-p2">Compare to</label>
-        <select id="wc-p2" class="adm-input"></select>
-      </div>
-      <%# RFL overlay. Hidden entirely when no RFL months are loaded, rather
-          than offered as a control that does nothing. Disabled at Daily and
-          Weekly because RFL is held at monthly grain — the honest response to
-          "no data at this grain" is an empty line, not an interpolated one. %>
-      <% if ((rows('rflSeries') || []).length) { %>
-      <div class="wc-fld">
-        <label class="adm-label" for="wc-rfl">Map against</label>
-        <label class="adm-input" style="display:flex;align-items:center;gap:7px;border:none;padding-left:0">
-          <input type="checkbox" id="wc-rfl">
-          <span id="wc-rfl-lbl">RFL sales (est. units)</span>
-        </label>
-      </div>
-      <% } %>
-    </div>
-
-    <p id="wc-trend-legend" class="adm-label" style="margin:10px 0 6px"></p>
-    <canvas id="wcTrendChart" height="110"></canvas>
-    <p class="adm-label" style="margin-top:9px">
-      Every point is drawdown divided by the days actually observed in that bucket.
-      The feed skips days, so a raw total would make a sparsely-observed period look
-      weak — and in a year-on-year read that error lands on the number you act on.
-      The comparison line is aligned by <strong>position within the period</strong>,
-      not by date, so Jan sits above Jan.
-    </p>
-
-    <details style="margin-top:10px">
-      <summary class="adm-label" style="cursor:pointer">Monthly table — rate, drawdown and days observed</summary>
-      <div class="adm-table-wrap jmv-scroll-wrap" style="margin-top:9px">
-        <table class="adm-table">
-          <thead><tr><th>Month</th><th>Units/observed day</th><th>Drawdown</th><th>Days observed</th></tr></thead>
-          <tbody>
-          <% trend.slice().reverse().forEach(r => { %>
-            <tr><td><%= r.yr %>-<%= String(r.mo).padStart(2,'0') %></td>
-                <td><%= fmt1(r.units_per_day) %></td>
-                <td><%= fmt(r.drawdown) %></td>
-                <td class="<%= Number(r.observed_days) < 10 ? 'jmv-row--warn' : '' %>"><%= fmt(r.observed_days) %></td></tr>
-          <% }) %>
-          </tbody>
-        </table>
-      </div>
-    </details>
-  <% } %>
-</div>
-
-<div class="admin-card">
-  <h3 class="admin-card-title">Seasonality — year-normalised index</h3>
-  <% if (!seasonality.length) { %>
-    <p class="adm-empty">Needs at least one year with 8+ observed months.</p>
-  <% } else { %>
-    <canvas id="wcSeasonChart" height="90"></canvas>
-    <div class="adm-table-wrap">
-      <table class="adm-table">
-        <thead><tr><th>Month</th><th>Index (100 = that year's average)</th><th>Years in sample</th></tr></thead>
-        <tbody>
-        <% seasonality.forEach(r => { %>
-          <tr><td><%= MONTHS[r.mo] %></td><td><%= fmt1(r.index) %></td><td><%= r.years %></td></tr>
-        <% }) %>
-        </tbody>
-      </table>
-    </div>
-    <p class="adm-label">
-      Each month is indexed against its own year's mean before averaging across years,
-      so the multi-year decline cannot leak into the seasonal shape.
-    </p>
   <% } %>
 </div>
 

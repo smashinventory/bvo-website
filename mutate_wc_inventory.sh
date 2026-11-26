@@ -18,15 +18,42 @@ MIG=database/migrations/030_wc_inventory_analysis.sql
 CODEBOOK=src/data/wcCodebook.js
 GATE="node gates/gate_wc_inventory.js"
 
+FILES=("$JOB" "$CTRL" "$VIEW" "$MIG" "$CODEBOOK")
+
+# ── CRASH RECOVERY ───────────────────────────────────────────────────
+# The EXIT/INT/TERM trap below covers the normal ways this script ends.
+# It does NOT cover SIGKILL — and on 2026-11-26 a 120-second command
+# timeout killed a run mid-mutation and left DEFAULT_SCOPE = 'all' sitting
+# in the committed controller. The gate caught it on the next run, but only
+# because it happened to assert that exact constant; a mutation to anything
+# ungated would have been committed silently.
+#
+# So the in-flight backup directory is recorded on disk. If this file still
+# exists at startup, the previous run died without restoring, and we put the
+# sources back BEFORE doing anything else. A mutation harness that can
+# corrupt the tree it is testing is worse than no harness.
+INFLIGHT=".mutate_wc_inflight"
+
+if [ -f "$INFLIGHT" ]; then
+  PREV=$(cat "$INFLIGHT")
+  echo "  WARNING   previous run did not restore (killed?). Recovering from $PREV"
+  for f in "${FILES[@]}"; do
+    [ -f "$PREV/$(basename "$f")" ] && cp "$PREV/$(basename "$f")" "$f" && echo "            restored $f"
+  done
+  rm -rf "$PREV"; rm -f "$INFLIGHT"
+  echo "            recovery done — re-check 'git diff' before trusting this run"
+fi
+
 BACKUP_DIR=$(mktemp -d)
 restore() {
-  for f in "$JOB" "$CTRL" "$VIEW" "$MIG" "$CODEBOOK"; do
+  for f in "${FILES[@]}"; do
     [ -f "$BACKUP_DIR/$(basename "$f")" ] && cp "$BACKUP_DIR/$(basename "$f")" "$f"
   done
-  rm -rf "$BACKUP_DIR"
+  rm -rf "$BACKUP_DIR"; rm -f "$INFLIGHT"
 }
 trap restore EXIT INT TERM
-for f in "$JOB" "$CTRL" "$VIEW" "$MIG" "$CODEBOOK"; do cp "$f" "$BACKUP_DIR/$(basename "$f")"; done
+for f in "${FILES[@]}"; do cp "$f" "$BACKUP_DIR/$(basename "$f")"; done
+echo "$BACKUP_DIR" > "$INFLIGHT"
 
 FAILED=0
 pass() { echo "  CAUGHT    $1"; }
