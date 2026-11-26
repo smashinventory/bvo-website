@@ -96,6 +96,75 @@ const DEFAULT_WINDOW = 90;
 const RFL_UNIT_PRICE = 1000;
 
 /* ─────────────────────────────────────────────────────────────────────
+   NON-RETAIL EVENT CAPS
+
+   WC's feed records inventory leaving the warehouse. Nearly all of that is
+   dealer demand, which is what this page measures. Occasionally it is not —
+   a liquidation, a catalogue purge, a bulk transfer — and a single day of it
+   swamps the trend.
+
+   MEASURED, 2026-11-26. Top days by units-per-moving-model across the whole
+   archive (vanity scope):
+       2025-08-25   5,832 units over  62 models   94.1 per model
+       2024-07-09   1,885 units over 121 models   15.6 per model
+       2021-09-06   1,877 units over 135 models   13.9 per model
+       a busy normal day                          ~5   per model
+   2025-08-25 is six times worse than the next worst day in five years. Sam
+   identified it as a WC liquidation: not retail business (2026-11-26).
+   Uncapped it adds ~16 units/day to the 2025 annual average on its own and
+   is most of the reason 2025 read HIGHER than 2024 and 2026, which is the
+   opposite of what the business did.
+
+   WHAT THIS IS NOT. It is not a general outlier filter. Trimming whatever
+   looks too big is how a chart gets quietly shaped into the story someone
+   expected. This is an explicit, dated list of events identified by name,
+   and every capped day is printed on the page with its original figure, so
+   the adjustment is visible rather than silent. Adding a row here is a
+   deliberate act that should carry a reason.
+
+   2024-07-09 is deliberately NOT capped yet: it is the day the feed changed
+   schema (legacy → modern), so it is more likely a parsing artifact than an
+   event, and that deserves investigating rather than hiding.
+───────────────────────────────────────────────────────────────────── */
+const WC_EVENT_CAPS = [
+  { from: '2025-08-17', to: '2025-09-07',
+    note: 'WC liquidation — not retail demand (Sam, 2026-11-26)' },
+];
+
+/* The trigger is UNITS PER MOVING MODEL, not total units for the day.
+   That distinction is the whole correctness of this feature. A flat
+   units-per-day cap over the window also caught 2025-08-29 — 279 units,
+   but spread across 103 models, i.e. 2.7 each, an ordinary busy day. Only
+   the per-model figure separates "a lot of models moved" from "a few models
+   dumped a warehouse":
+       2025-08-25   62 models, 94.1 units each   <- the event
+       2025-08-29  103 models,  2.7 units each   <- a normal day
+   TRIGGER is set well above the busiest normal day ever observed (15.6, and
+   that one is the feed's schema-change date), so an ordinary peak cannot
+   trip it. A tripped day is rescaled to the typical per-model rate, which
+   puts 2025-08-25 at 62 x 1.5 = 93 units — in line with its neighbours. */
+const WC_CAP_TRIGGER_PER_MODEL = 6.0;
+const WC_CAP_RESCALE_PER_MODEL = 1.5;
+
+/** Apply the caps to a [{d, units, span, models}] series. {rows, capped}. */
+function applyEventCaps(rows) {
+  const capped = [];
+  const out = rows.map(r => {
+    const hit = WC_EVENT_CAPS.find(c => r.d >= c.from && r.d <= c.to);
+    const models = Number(r.models) || 0;
+    const units  = Number(r.units)  || 0;
+    if (!hit || !models) return r;
+    const perModel = units / models;
+    if (perModel <= WC_CAP_TRIGGER_PER_MODEL) return r;   // a busy day, not an event
+    const now = Math.round(models * WC_CAP_RESCALE_PER_MODEL);
+    capped.push({ d: r.d, was: units, now, models,
+                  perModel: Math.round(perModel * 10) / 10, note: hit.note });
+    return { ...r, units: now };
+  });
+  return { rows: out, capped };
+}
+
+/* ─────────────────────────────────────────────────────────────────────
    PRODUCT SCOPE
 
    The WC feed is NOT all bathroom vanities. Across the archive:
@@ -455,10 +524,20 @@ async function dashboard(req, res) {
     cards.dailySeries = await card('dailySeries', () => q(
       `SELECT DATE_FORMAT(g.movement_date,'%Y-%m-%d') AS d,
               ROUND(SUM(g.base_drawdown))            AS units,
+              COUNT(DISTINCT g.base_sku)             AS models,
               GREATEST(COALESCE(MAX(g.span_days),1),1) AS span
          FROM ( ${DEDUPED_BASE('', SC.sql)} ) g
         GROUP BY g.movement_date
         ORDER BY g.movement_date ASC`, [...SC.params]));
+
+    /* Caps applied AFTER the query, not in SQL: the capped days have to be
+       reportable, and a LEAST() in the SELECT would silently swallow them.
+       cards.cappedDays drives the note under the chart. */
+    {
+      const capped = applyEventCaps(cards.dailySeries.rows || []);
+      if (cards.dailySeries.rows) cards.dailySeries.rows = capped.rows;
+      cards.cappedDays = { name: 'cappedDays', rows: capped.capped, error: null };
+    }
 
     /* ── RFL overlay series, monthly ───────────────────────────────────
      *

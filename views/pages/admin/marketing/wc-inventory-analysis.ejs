@@ -295,6 +295,18 @@ const _inScope = (_scopes[_scopeKey] && _scopes[_scopeKey].families) || null;
       <% } %>
     </div>
 
+    <%# A capped day that is not named is a doctored chart. Every adjustment
+        is printed here with its original figure. %>
+    <% const capd = rows('cappedDays'); %>
+    <% if (capd.length) { %>
+      <p class="adm-label" style="margin:10px 0 0;color:#8a5a2b">
+        <strong><%= capd.length %> day<%= capd.length > 1 ? 's' : '' %> capped as non-retail:</strong>
+        <% capd.forEach(function (r, i) { %><%= i ? ' · ' : ' ' %><%= r.d %>
+          <%= Number(r.was).toLocaleString() %> &rarr; <%= r.now %> units (<%= r.perModel %>/model across <%= r.models %>)<% }) %>
+        &nbsp;—&nbsp;<%= capd[0].note %>.
+        Everything else on this chart is unadjusted.
+      </p>
+    <% } %>
     <p id="wc-trend-legend" class="adm-label" style="margin:10px 0 6px"></p>
     <canvas id="wcTrendChart" height="110"></canvas>
     <p class="adm-label" style="margin-top:9px">

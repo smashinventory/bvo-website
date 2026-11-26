@@ -857,6 +857,38 @@ section('13. RFL overlay — one axis, rates, real units win, seam visible');
          'One-sided filtering shows more data than the controls claim.');
   }
 
+  /* 13m. NON-RETAIL CAPS MUST TRIGGER ON UNITS-PER-MODEL AND BE SHOWN.
+   *
+   * Two ways this feature turns into quietly doctoring the chart:
+   *
+   *   a. Trigger on TOTAL units for the day. A flat per-day cap over the
+   *      liquidation window also caught 2025-08-29 — 279 units, but across
+   *      103 models, 2.7 each, an ordinary busy day. Only the per-model
+   *      figure separates "many models moved" (real) from "a few models
+   *      dumped a warehouse" (not retail). 2025-08-25 was 94.1 per model
+   *      against a busy-day norm near 5.
+   *   b. Cap silently. An adjusted series that does not say which days were
+   *      adjusted, and to what from what, is not evidence of anything.
+   *
+   * The cap list is also deliberately an explicit dated table, not a
+   * general "drop anything that looks too big" rule — trimming by eye is
+   * how a chart gets shaped into the answer someone was hoping for.
+   */
+  if (/WC_CAP_TRIGGER_PER_MODEL/.test(c) && /units \/ models/.test(c)) {
+    pass('event caps trigger on units-per-model, not total units');
+  } else {
+    fail('event caps do not trigger on units-per-model',
+         'A per-day total cap also removes ordinary busy days. Only the ' +
+         'per-model rate distinguishes a liquidation from real breadth.');
+  }
+
+  if (/cards\.cappedDays/.test(c) && /cappedDays/.test(v) && /capped as non-retail/.test(v)) {
+    pass('capped days are listed on the page with their original figures');
+  } else {
+    fail('capped days are not surfaced in the view',
+         'A silent adjustment is indistinguishable from a doctored chart.');
+  }
+
   /* NOTE — there is no separate check here for "the chart series carries
      the product scope". §9 already asserts that every DEDUPED_BASE call
      passes the scope fragment, which covers the chart series along with the

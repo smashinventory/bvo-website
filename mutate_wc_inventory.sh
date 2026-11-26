@@ -331,6 +331,16 @@ mutate "index base reverted to a single bucket instead of the mean" "$VIEW" \
 mutate "range filter reduced to one endpoint" "$VIEW" \
   's/return k >= f && k <= t;/return k >= f;/'
 
+# 14n. Caps triggered on the day's TOTAL units instead of units-per-model,
+#      which also silently removes ordinary busy days (2025-08-29: 279 units
+#      but only 2.7 per model across 103 models).
+mutate "event cap triggers on total units, not per-model" "$CTRL" \
+  's/const perModel = units \/ models;/const perModel = units;/'
+
+# 14o. Capped days no longer surfaced - the chart is adjusted and says nothing.
+mutate "capped days hidden from the view" "$VIEW" \
+  's/capped as non-retail:/adjusted:/'
+
 # 14i. The product scope removed from the chart series CLEANLY — valid SQL,
 #      no error, no empty card. The WC line quietly starts summing faucets,
 #      kitchen sinks, wash stands and accessories alongside vanities and is
