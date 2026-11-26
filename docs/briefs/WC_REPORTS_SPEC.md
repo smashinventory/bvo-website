@@ -459,3 +459,40 @@ by (month, store, source).
 
 Gate: `gate_wc_inventory.js` §13 (8 checks). Mutations: `mutate_wc_inventory.sh`
 14a–14h, all caught.
+
+### §10.1 — What was actually loaded (2026-11-26)
+
+**RFLPOS, 2024-01 → 2026-11. Real units, no divisor.** 91 month×store rows,
+$4,620,197 net of returns, **3,250 vanity units** counted from
+`transaction_sell_lines` joined to products in the vanity categories
+(49 Bathroom Vanities, 151 Vanities, 158 Special Order Vanities, 159 24"
+Vanities). Only `sell`/`final`; `sell_return`/`final` netted off;
+`Factory INV` and `In-Ocean INV` excluded as warehouses, not showrooms.
+Stores: Roswell, Norcross, Kennesaw.
+
+Because these rows carry a true `units` value, `COALESCE(units, net_sales/?)`
+takes the count and **RFL_UNIT_PRICE is never applied to the 2024+ line.**
+
+Reconciliation: these net figures land 3–5% under the gross store figures on
+record (Roswell $603,056 vs $622,788; Kennesaw $724,944 vs $761,054). The gap
+is the returns, which is the expected direction and size.
+
+**GVS Shopify, 2021-08 → 2023-12. Dollars only.** 29 rows, $1,852,120, units
+NULL. `net_items_sold` was re-checked and is still unusable — 2,278 items on
+6 orders (Feb-21), 2,505 on 70 (May-23), 1,568 on 47 (Oct-23): the tile and
+flooring contamination recorded in WC_MARKET_ANALYSIS §1. Jan–Jul 2021 was
+left out as pre-launch (3.6 orders/month average). 2024-01 Shopify ($5,855,
+3 orders) was left out too: RFLPOS already covers that month, and loading
+both would double-count it, since rflSeries groups by month across sources.
+
+**⚠️ THE SEAM AT 2024-01 IS PARTLY ARITHMETIC.** The RFLPOS data implies
+**$1,422 per vanity unit** net of returns. The GVS line divides by
+RFL_UNIT_PRICE = $1,000, the average *ticket* — a different denominator,
+because a ticket often carries a top, mirror or delivery alongside the
+vanity. So the pre-2024 line converts ~42% more units per dollar than the
+post-2024 line does, and the step down at the seam overstates any real
+decline. Sam chose $1,000 knowingly (2026-11-26) — recorded here so nobody
+later reads that step as a business event. Changing it is one constant.
+
+**Norcross opens and closes inside the window** ($682K in 2024, last month
+2025-09). The combined line steps down when it closes. That one is real.
