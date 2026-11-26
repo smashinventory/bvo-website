@@ -234,8 +234,8 @@ mutate "quarterly granularity dropped from the control" "$VIEW" \
   's/<button type="button" data-g="Q">Quarterly<\/button>\n//'
 
 # 13d. An inline handler sneaks in — the admin CSP would silently kill it.
-mutate "inline onchange handler added to the period select" "$VIEW" \
-  's/<select id="wc-p1" class="adm-input"><\/select>/<select id="wc-p1" class="adm-input" onchange="render()"><\/select>/'
+mutate "inline onchange handler added to the range select" "$VIEW" \
+  's/<select id="wc-from" class="adm-input"><\/select>/<select id="wc-from" class="adm-input" onchange="render()"><\/select>/'
 
 # 13f. THE BUG THAT ACTUALLY SHIPPED: the scopeClause OBJECT passed to
 #      DEDUPED_BASE instead of SC.sql. Stringifies to "[object Object]",
@@ -317,7 +317,19 @@ mutate "indexing cherry-picks one series instead of all" "$VIEW" \
 # 14k. Axis title frozen on units while the data is an index, so a reader
 #      sees "units / observed day" above numbers that are not units.
 mutate "y-axis still says units when indexed" "$VIEW" \
-  "s/\? 'index \(100 = each line\\\\u2019s own first point\)'/? 'units \/ observed day'/"
+  "s/\? 'index \(100 = each line\\\\u2019s own mean over the range\)'/? 'units \/ observed day'/"
+
+# 14l. THE BUG SAM CAUGHT: index base reverted to a single bucket. GVS's
+#      first month was 0.48 units/day (a ramp-up month), so dividing by it
+#      sent that line to 779, stretched the axis to 0-800, and flattened
+#      WC's real 23% decline into the bottom eighth of the plot.
+mutate "index base reverted to a single bucket instead of the mean" "$VIEW" \
+  's/var base = vals\.reduce\(function \(s2, v\) \{ return s2 \+ v; \}, 0\) \/ vals\.length;/var base = vals[0];/'
+
+# 14m. From/To range collapsed back to a single-value filter, so "2023 to
+#      now" becomes inexpressible again.
+mutate "range filter reduced to one endpoint" "$VIEW" \
+  's/return k >= f && k <= t;/return k >= f;/'
 
 # 14i. The product scope removed from the chart series CLEANLY — valid SQL,
 #      no error, no empty card. The WC line quietly starts summing faucets,

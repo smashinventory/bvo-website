@@ -804,8 +804,34 @@ section('13. RFL overlay — one axis, rates, real units win, seam visible');
   const noCherry = !/datasets\[\s*[12]\s*\]|sets\[\s*[12]\s*\]/.test(idxBlock);
   const axisMoves = /idxBox && idxBox\.checked[\s\S]{0,120}index \(100/.test(v);
 
-  if (allSets && noCherry && axisMoves) {
-    pass('indexing rebases every series and relabels the axis');
+  /* 13k. THE BASE MUST BE THE MEAN, NOT ONE BUCKET.
+   *
+   * This shipped wrong once. Indexing to each line's FIRST point divided the
+   * GVS series by 0.48 units/day — its ramp-up month — which sent that line
+   * to 779, stretched the shared axis to 0–800, and compressed WC's genuine
+   * 23% decline (2023: 109.6 → 2026: 84.8 units/day) into the bottom eighth
+   * of the plot, where it read as flat. Sam spotted both symptoms; the cause
+   * was a single arbitrary denominator. A mean over the visible window
+   * cannot be hijacked by one anomalous bucket.
+   *
+   * Measured on the real series, 2026-11-26:
+   *     base          WC           GVS          RFLPOS
+   *     first point   17–121       100–779      55–212
+   *     own mean      40–287       23–177       45–172
+   */
+  /* [\s\S]*? and not [^)]* : the reduce callback contains its own parens,
+     so a negated-paren class stops inside the lambda and never reaches
+     "/ vals.length". That mis-read correct code as broken on first run. */
+  const meanBase = /var base = vals\.reduce[\s\S]*?\/\s*vals\.length/.test(idxBlock) &&
+                   !/var base = vals\[0\]/.test(idxBlock);
+
+  if (allSets && noCherry && axisMoves && meanBase) {
+    pass('indexing rebases every series on its own mean and relabels the axis');
+  } else if (!meanBase) {
+    fail('the index base is a single bucket, not the mean of the range',
+         'A ramp-up or anomalous first month becomes the denominator for ' +
+         'the whole line. That is what flattened the WC series to ' +
+         'invisibility. Use the mean of the visible window.');
   } else if (!allSets || !noCherry) {
     fail('indexing does not rebase every series uniformly',
          'Rebasing a subset stretches one line to meet another — a second ' +
@@ -813,6 +839,22 @@ section('13. RFL overlay — one axis, rates, real units win, seam visible');
   } else {
     fail('the y-axis title does not change when indexed',
          'An index labelled "units / observed day" reads as a unit count.');
+  }
+
+  /* 13l. THE RANGE MUST BE BOUNDED AT BOTH ENDS.
+   *
+   * The period control was a single preset dropdown that could say "2023" or
+   * "all time" but not "2023 to now" — the range anyone actually asks for.
+   * It is now From/To. Dropping either bound silently widens every figure on
+   * the chart while the dropdowns above it still claim the narrow range,
+   * which is worse than the limitation it replaced.
+   */
+  const rr = (v.match(/function rangeRows\(\)[\s\S]*?\n    \}/) || [''])[0];
+  if (/k >= f/.test(rr) && /k <= t/.test(rr)) {
+    pass('chart range is bounded at both ends (From and To)');
+  } else {
+    fail('rangeRows() does not bound both ends of the range',
+         'One-sided filtering shows more data than the controls claim.');
   }
 
   /* NOTE — there is no separate check here for "the chart series carries
