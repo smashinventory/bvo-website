@@ -413,24 +413,27 @@ month. Different quantities, so they carry different names in the code
 by the wrong accumulator, and the mutation harness proved it.
 
 **Units are a proxy, by decision.** RFL reports dollars. Units =
-`net_sales ÷ RFL_UNIT_PRICE`, one constant in wcReportsController.
-`RFL_UNIT_PRICE = 1430`, derived 2026-11-26 from Home Depot retail, **base
-configurations only** (cabinet + top, no mirror, no faucet — the WC line is
-deduped to base_sku, so a mirror-inclusive price would inflate the divisor
-against a series that doesn't count mirrors):
+`net_sales / RFL_UNIT_PRICE`, one constant in wcReportsController.
 
-| Collection | Sizes | Avg base price |
-|---|---|---|
-| Palace (PA) | 60, 72 — double-sink only | ~$1,948 |
-| Madison (MS) | 24, 36, 60, 72 | ~$1,144 |
-| Queen (QU) | 24–72 | ~$1,200 |
+`RFL_UNIT_PRICE = 1000` — **RFL's own average ticket across the 4.5 years of
+sales data in scope** (Sam, 2026-11-26). Observed, not inferred: it is what
+RFL actually transacts at, measured over the whole span the chart covers.
 
-Two things it is not. It is **not RFL's own average ticket** — HD list is a
-retail reference and RFL discounts off it, so the proxy runs units LOW;
-replace the constant when an RFLPOS export yields a real average ticket. And
-it is **not preferred over real data**: `rfl_monthly_sales.units` wins
-wherever a row carries it (`COALESCE(units, net_sales / ?)`), so supplying a
-true unit count retires the price assumption for that month.
+It replaced a derived $1,430, and the reason is worth keeping. That figure
+came from Home Depot retail on base configurations of the three best-selling
+collections (Palace ~$1,948 across 60"/72" double-sink only, Madison ~$1,144,
+Queen ~$1,200). HD list is a *retail reference* and RFL discounts off it, so
+dividing RFL dollars by HD list understated units by roughly 30%. Do not
+re-derive this divisor from published retail prices.
+
+It is not preferred over real data: `rfl_monthly_sales.units` wins wherever a
+row carries it (`COALESCE(units, net_sales / ?)`), so supplying a true unit
+count retires the divisor entirely for that month.
+
+One divisor covers both eras, because one number is what the evidence
+supports. If the ticket is ever found to differ materially between the GVS
+Shopify years and the RFLPOS years, this becomes a per-source lookup and the
+division moves inside the SUM.
 
 Non-vanity categories (tile, flooring, faucets) stay in the dollar figure.
 Sam, 2026-11-26: they have always run under 10% of revenue — they move the

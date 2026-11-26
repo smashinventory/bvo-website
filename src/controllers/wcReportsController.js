@@ -65,30 +65,35 @@ const DEFAULT_WINDOW = 90;
    constant, here, so retuning it is a one-line change and never a data
    migration.
 
-   HOW $1,430 WAS DERIVED (2026-11-26): Home Depot retail, base
-   configurations only — cabinet + top, no mirror, no faucet — across the
-   three best-selling collections, averaged per collection then across
-   collections:
-       Palace  (60", 72" only; double-sink only)   ~$1,948
-       Madison (24", 36", 60", 72")                ~$1,144
-       Queen   (24"–72")                           ~$1,200
-   Base configurations on purpose: the WC line is deduped to base_sku, i.e.
-   one cabinet, so a mirror-inclusive price would inflate the divisor against
-   a series that does not count mirrors.
+   $1,000 — RFL's OWN AVERAGE TICKET across the 4.5 years of sales data in
+   scope (Sam, 2026-11-26). This is the right kind of number for the job: it
+   is what RFL actually transacts at, measured over the whole span the chart
+   covers, so the proxy is anchored to the business rather than to a
+   reference price.
 
-   ⚠️ TWO THINGS THIS CONSTANT IS NOT.
-   First, it is not RFL's own average ticket. HD list is a retail reference;
-   RFL discounts off it, so dividing RFL dollars by this number runs units
-   LOW. When an RFLPOS export gives a real average ticket, replace this.
-   Second, per-row `units` in rfl_monthly_sales always wins — the proxy is a
-   fallback, not a preference. See the COALESCE in cards.rflSeries.
+   IT REPLACED $1,430, AND THE REASON MATTERS. That figure came from Home
+   Depot retail on base configurations of the three best-selling collections
+   (Palace ~$1,948, Madison ~$1,144, Queen ~$1,200). HD list is a retail
+   reference and RFL discounts off it, so dividing RFL dollars by HD list
+   understated units by roughly 30%. Observed ticket beats inferred list;
+   do not re-derive this from published retail prices.
+
+   ⚠️ ONE THING THIS CONSTANT IS NOT: preferred over real data. Per-row
+   `units` in rfl_monthly_sales always wins — the proxy is a fallback, not a
+   preference. See the COALESCE in cards.rflSeries. Supplying a true unit
+   count for a month retires the divisor entirely for that month.
+
+   If the ticket is ever found to differ materially between the GVS Shopify
+   era and the RFLPOS era, this becomes a per-source lookup and the division
+   moves inside the SUM. It is a single number today because one number is
+   what the evidence supports.
 
    Non-vanity categories (tile, flooring, faucets) stay in the dollar figure.
    Sam, 2026-11-26: they have always run under 10% of revenue. They move the
    level slightly; they do not move the shape, and the shape is what the
    chart is read for.
 ───────────────────────────────────────────────────────────────────── */
-const RFL_UNIT_PRICE = 1430;
+const RFL_UNIT_PRICE = 1000;
 
 /* ─────────────────────────────────────────────────────────────────────
    PRODUCT SCOPE
