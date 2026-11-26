@@ -281,6 +281,15 @@ mutate "grain rule duplicated instead of calling rflGrainOk()" "$VIEW" \
 mutate "second hard-coded RFL divisor introduced" "$CTRL" \
   's/net_sales \/ \?/net_sales \/ 1430/'
 
+# 14i. The product scope removed from the chart series CLEANLY — valid SQL,
+#      no error, no empty card. The WC line quietly starts summing faucets,
+#      kitchen sinks, wash stands and accessories alongside vanities and is
+#      no longer comparable to RFL. §12's scope checks catch a MALFORMED
+#      scope; only this catches a removed one, which is the mistake the stale
+#      "NOT scope-filtered on purpose" comment actively invited.
+mutate "product scope dropped from the WC chart series" "$CTRL" \
+  "s/DEDUPED_BASE\('', SC\.sql\)/DEDUPED_BASE('')/"
+
 # 12f. The codebook made to read from disk — the hbuilds trap, which would
 #      break it on the next deploy and only the next deploy.
 #      /m is required: perl -0 slurps the file, so ^ only anchors per-line

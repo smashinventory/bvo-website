@@ -419,9 +419,34 @@ async function dashboard(req, res) {
      * So the unit of this chart is ALWAYS units ÷ observed days, where
      * observed days is SUM(span_days) for the bucket. Never plot the raw sum.
      *
-     * NOT scope-filtered on purpose: the client holds the full series so the
-     * scope selector does not force a reload. Scope is applied in SQL for the
-     * cards above, which are the figures people quote.
+     * SCOPE-FILTERED, and that is load-bearing. SC.sql carries the family
+     * restriction into DEDUPED_BASE, so at the default scope this series is
+     * VANITY CABINETS ONLY. The WC feed is not all vanities — across the
+     * archive it also holds 393 faucets, 197 kitchen sinks, 165 wash stands,
+     * 53 accessories, 12 mirrors and a coffee table. A chart summing all of
+     * that would not be comparable to RFL vanity sales, or to anything else.
+     *
+     * ONE UNIT ON THIS LINE = ONE CABINET, AND ITS TOP CAME WITH IT. WC
+     * publishes the vanity and top as one combo SKU, so there is no separate
+     * top family and never will be (see §PRODUCT SCOPE). base_sku then
+     * collapses the mirror and faucet permutations onto the single cabinet
+     * they all draw stock from, via MAX per base per day — so a cabinet that
+     * went out as a combo SKU with a mirror and/or faucet included counts
+     * once, same as a bare one. Not double-counted, not dropped.
+     *
+     * WHICH IS WHY THE DIVISOR IS A BLENDED TICKET, NOT A CABINET PRICE.
+     * Those combo SKUs sell for more than the bare cabinet, and RFL sells a
+     * mix of both. $1,000 is the average across that actual mix, which is
+     * exactly what it needs to be: dividing blended dollars by a bare-cabinet
+     * list price would overstate units. It is also why re-deriving the
+     * divisor from a catalogue price is wrong in principle, not just stale.
+     *
+     * ⚠️ An earlier version of this comment said the series was deliberately
+     * NOT scope-filtered. That was true of the first draft and became false
+     * when the scopeClause bug below was fixed; it sat here claiming the
+     * opposite of the code. Anyone trusting it would have concluded the chart
+     * already included faucets and mirrors. Gate §13i now asserts the scope
+     * is carried, so the code and this paragraph cannot drift apart again.
      */
     /* ⚠️ scopeClause() returns { sql, params }, NOT a string. Pass SC.sql and
        bind SC.params — exactly as every other card on this page does. The

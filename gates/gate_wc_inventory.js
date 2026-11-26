@@ -785,6 +785,15 @@ section('13. RFL overlay — one axis, rates, real units win, seam visible');
          'A caller that bypasses it draws RFL at a grain RFL does not have.');
   }
 
+  /* NOTE — there is no separate check here for "the chart series carries
+     the product scope". §9 already asserts that every DEDUPED_BASE call
+     passes the scope fragment, which covers the chart series along with the
+     other seven, and mutate 14i proves it bites on that call specifically.
+     A second check of the same invariant was written and removed: a gate
+     with duplicate assertions is one people skim. The hazard it was reacting
+     to — a stale comment claiming the series was deliberately NOT
+     scope-filtered — is recorded in wcReportsController at the query. */
+
   /* 13h. The table the overlay reads must actually be migrated. */
   const M032 = 'database/migrations/032_rfl_monthly_sales.sql';
   if (fs.existsSync(path.join(ROOT, M032)) &&
