@@ -341,6 +341,21 @@ mutate "event cap triggers on total units, not per-model" "$CTRL" \
 mutate "capped days hidden from the view" "$VIEW" \
   's/capped as non-retail:/adjusted:/'
 
+# 14p. Monthly trend repointed at the raw rows, bypassing the caps - the
+#      table under the chart then disagrees with the chart.
+mutate "monthly trend bypasses the event caps" "$CTRL" \
+  's/for \(const r of \(cards\.dailySeries\.rows \|\| \[\]\)\)/for (const r of (capped.rows || []))/'
+
+# 14q. Preference persistence removed - the index toggle resets on every
+#      reload and the RFL overlay goes back to lying flat on the axis.
+mutate "trend control state no longer persisted" "$VIEW" \
+  's/localStorage\.setItem\(PREF_KEY/void(PREF_KEY/'
+
+# 14r. localStorage left unguarded - throws in private mode and takes the
+#      whole chart script down with it.
+mutate "localStorage access unguarded in savePrefs" "$VIEW" \
+  's/      try \{\n        localStorage\.setItem/      {\n        localStorage.setItem/'
+
 # 14i. The product scope removed from the chart series CLEANLY — valid SQL,
 #      no error, no empty card. The WC line quietly starts summing faucets,
 #      kitchen sinks, wash stands and accessories alongside vanities and is

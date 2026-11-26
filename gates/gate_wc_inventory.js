@@ -889,6 +889,66 @@ section('13. RFL overlay — one axis, rates, real units win, seam visible');
          'A silent adjustment is indistinguishable from a doctored chart.');
   }
 
+  /* 13n. THE MONTHLY TABLE AND SEASONALITY MUST USE THE CAPPED SERIES.
+   *
+   * Sam asked "don't we need to patch the table in SQL?" — the answer was no
+   * (the rollup rebuilds movement rows, so a hand-edit gets reverted, and the
+   * raw feed is evidence that should not be overwritten), but the question
+   * exposed that the caps only reached the chart. The monthly table beneath
+   * it and the seasonality index ran their own uncapped query over the full
+   * history, so August 2025 still carried the liquidation and was reading as
+   * the strongest month of the year.
+   *
+   * Deriving both from cards.dailySeries fixes that AND removes a second,
+   * older defect: the old query divided by COUNT(DISTINCT movement_date)
+   * while the chart divides by SUM(span_days). In years where the feed
+   * skipped days those differ, so the table and the chart directly above it
+   * disagreed with each other.
+   */
+  if (/const trend = \(\(\) =>[\s\S]{0,600}cards\.dailySeries\.rows/.test(c) &&
+      !/const trend = await q\(/.test(c)) {
+    pass('monthly trend derives from the capped daily series');
+  } else {
+    fail('the monthly trend runs its own query instead of using the capped series',
+         'It then carries liquidation days the chart above it has removed, ' +
+         'and can divide by a different denominator than the chart.');
+  }
+
+  /* Test the DIVISION, not the mere presence of the words: observed_days is
+     still a legitimate field on each row (it is reported in the table), so a
+     negative match on the identifier flags correct code. That is exactly the
+     false positive this check produced on its first run. */
+  if (/e\.drawdown \/ e\.span_total/.test(c) &&
+      !/NULLIF\(COUNT\(DISTINCT gd\.movement_date\)/.test(c)) {
+    pass('monthly rate divides by span_days, same as the chart');
+  } else {
+    fail('the monthly rate does not divide by span_days',
+         'The table and the chart above it must use one divisor or they ' +
+         'will report different numbers for the same month.');
+  }
+
+  /* 13o. THE SCALE SETTING MUST SURVIVE A RELOAD.
+   *
+   * Sam reported the indexing had been "cancelled out". It had not — the
+   * toggle defaults off and every deploy reset it, dropping him back onto
+   * raw units/day where WC (80-190) and RFL (1.4-3.8) cannot share an axis.
+   * A setting that has to be re-applied after every deploy is indistinguish-
+   * able from one that broke, so the controls now persist.
+   *
+   * localStorage access must stay wrapped: it throws in private mode and on
+   * locked-down profiles, and an unguarded throw here kills the chart script
+   * for the whole page, which is a far worse failure than a lost preference.
+   */
+  const prefs = (v.match(/function savePrefs\(\)[\s\S]*?function loadPrefs\(\)[\s\S]*?\n    \}/) || [''])[0];
+  if (/localStorage\.setItem/.test(prefs) && /localStorage\.getItem/.test(prefs) &&
+      (prefs.match(/try \{/g) || []).length >= 2) {
+    pass('trend controls persist, with localStorage access guarded');
+  } else {
+    fail('trend control state is not persisted, or localStorage is unguarded',
+         'Unpersisted, the index setting resets on every deploy and reads ' +
+         'as broken. Unguarded, a private-mode throw kills the chart.');
+  }
+
   /* NOTE — there is no separate check here for "the chart series carries
      the product scope". §9 already asserts that every DEDUPED_BASE call
      passes the scope fragment, which covers the chart series along with the

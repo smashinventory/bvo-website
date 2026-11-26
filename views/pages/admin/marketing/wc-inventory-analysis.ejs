@@ -1007,6 +1007,62 @@ const dimCards = [
       rflLbl.textContent = ok ? 'RFL sales (est. units)'
                               : 'RFL sales — monthly grain only';
     }
+    /* ── THE CONTROLS REMEMBER THEMSELVES ──────────────────────────────
+     * Sam, 2026-11-26: "whatever you did cancelled out the 10x adjustment."
+     * Nothing had: the Index toggle simply defaults off and every reload or
+     * deploy reset it, so he kept landing back on raw units/day where WC
+     * (80-190) and RFL (1.4-3.8) cannot share an axis and RFL lies flat on
+     * the baseline. A setting you have to re-apply after every deploy reads
+     * as a setting that broke.
+     *
+     * Wrapped in try/catch because localStorage throws in private mode and
+     * on some locked-down profiles; losing the preference is a shrug,
+     * losing the whole chart is not.
+     *
+     * FIRST VISIT: Index follows the overlay. Someone who has just asked to
+     * see RFL against WC wants them comparable; that is the only reason the
+     * toggle exists. Once they set it themselves, their choice is kept. */
+    var PREF_KEY = 'wc-trend-prefs-v1';
+
+    function savePrefs() {
+      try {
+        localStorage.setItem(PREF_KEY, JSON.stringify({
+          g: SEL_G, from: fromSel.value, to: toSel.value, p2: p2.value,
+          rfl: rflBox ? rflBox.checked : false,
+          idx: idxBox ? idxBox.checked : false,
+        }));
+      } catch (e) { /* preference lost, chart unaffected */ }
+    }
+
+    function loadPrefs() {
+      var p;
+      try { p = JSON.parse(localStorage.getItem(PREF_KEY) || 'null'); }
+      catch (e) { p = null; }
+      if (!p) return false;
+      if (p.g) {
+        SEL_G = p.g;
+        var btns = document.getElementById('wc-gran').querySelectorAll('button');
+        btns.forEach(function (b) { b.classList.toggle('on', b.dataset.g === SEL_G); });
+      }
+      if (p.from && months.indexOf(p.from) !== -1) fromSel.value = p.from;
+      if (p.to   && months.indexOf(p.to)   !== -1) toSel.value   = p.to;
+      if (p.p2) p2.value = p.p2;
+      if (rflBox) rflBox.checked = !!p.rfl;
+      if (idxBox) idxBox.checked = !!p.idx;
+      return true;
+    }
+
+    if (!loadPrefs() && rflBox && idxBox) {
+      /* no saved state: index follows the overlay the first time it is used */
+      rflBox.addEventListener('change', function () {
+        if (rflBox.checked && !idxBox.checked) { idxBox.checked = true; }
+      });
+    }
+    [fromSel, toSel, p2, rflBox, idxBox].forEach(function (el) {
+      if (el) el.addEventListener('change', savePrefs);
+    });
+    document.getElementById('wc-gran').addEventListener('click', savePrefs);
+
     syncRfl();
     render();
   }

@@ -427,47 +427,6 @@ async function dashboard(req, res) {
     /* ── TREND — monthly units/day, one series per year ────────────────
        Rates, not sums, so a short or sparsely-observed month is not read as
        a weak one. observed_days is carried through so the view can show it. */
-    const trend = await q(
-      `SELECT YEAR(gd.movement_date)  AS yr,
-              MONTH(gd.movement_date) AS mo,
-              SUM(gd.base_drawdown)   AS drawdown,
-              SUM(gd.span_days)       AS span_total,
-              COUNT(DISTINCT gd.movement_date) AS observed_days,
-              ROUND(SUM(gd.base_drawdown)
-                    / NULLIF(COUNT(DISTINCT gd.movement_date),0), 1) AS units_per_day
-         FROM (${DEDUPED_BASE('', SC.sql)}) gd
-        GROUP BY YEAR(gd.movement_date), MONTH(gd.movement_date)
-        ORDER BY yr, mo`, SC.params
-    ).catch(err => { console.error('[wc-reports] trend failed:', err.message); return []; });
-
-    /* ── SEASONALITY — year-normalised so trend cannot contaminate it ──
-       Each month is indexed against its OWN year's mean, then averaged across
-       years. A raw month-of-year average would just re-report the decline. */
-    const seasonality = (() => {
-      const byYear = new Map();
-      for (const r of trend) {
-        if (!byYear.has(r.yr)) byYear.set(r.yr, []);
-        byYear.get(r.yr).push(r);
-      }
-      const idx = new Map();
-      for (const [, months] of byYear) {
-        if (months.length < 8) continue;        // too few months to normalise
-        const mean = months.reduce((s, m) => s + Number(m.units_per_day || 0), 0) / months.length;
-        if (!mean) continue;
-        for (const m of months) {
-          if (!idx.has(m.mo)) idx.set(m.mo, []);
-          idx.get(m.mo).push(100 * Number(m.units_per_day || 0) / mean);
-        }
-      }
-      return [...idx.entries()]
-        .map(([mo, vals]) => ({
-          mo,
-          index: Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10,
-          years: vals.length,
-        }))
-        .sort((a, b) => a.mo - b.mo);
-    })();
-
     /* ── DAILY SERIES — the interactive trend chart ────────────────────
      *
      * One row per observed movement date, for the WHOLE history. The browser
@@ -538,6 +497,72 @@ async function dashboard(req, res) {
       if (cards.dailySeries.rows) cards.dailySeries.rows = capped.rows;
       cards.cappedDays = { name: 'cappedDays', rows: capped.capped, error: null };
     }
+
+    /* ── MONTHLY TREND + SEASONALITY, DERIVED FROM THE CAPPED SERIES ───
+     *
+     * These used to be their own SQL query over the full history. That was
+     * wrong in two ways, and Sam's question — "don't we need to patch the
+     * table?" — is what surfaced it:
+     *
+     *   1. UNCAPPED. The event caps applied to the chart only, so the table
+     *      under the chart and the seasonality index still carried the
+     *      2025-08-25 liquidation. August was reading as the strongest month
+     *      of the year partly because of one warehouse dump.
+     *   2. A DIFFERENT DIVISOR. The old query divided by
+     *      COUNT(DISTINCT movement_date) while the chart divides by
+     *      SUM(span_days). In years where the feed skipped days those are not
+     *      the same number, so the table and the chart directly above it
+     *      disagreed. span_days is the documented-correct divisor (see the
+     *      daily series note below), so that is the one kept.
+     *
+     * Deriving both from cards.dailySeries makes one source of truth: the
+     * chart, its table and the seasonal index cannot drift apart again.
+     */
+    const trend = (() => {
+      const byMonth = new Map();
+      for (const r of (cards.dailySeries.rows || [])) {
+        const yr = Number(r.d.slice(0, 4)), mo = Number(r.d.slice(5, 7));
+        const k = yr * 100 + mo;
+        if (!byMonth.has(k)) byMonth.set(k, { yr, mo, drawdown: 0, span_total: 0, observed_days: 0 });
+        const e = byMonth.get(k);
+        e.drawdown      += Number(r.units) || 0;
+        e.span_total    += Number(r.span)  || 0;
+        e.observed_days += 1;
+      }
+      return [...byMonth.values()]
+        .map(e => ({ ...e, units_per_day: e.span_total
+                       ? Math.round(e.drawdown / e.span_total * 10) / 10 : 0 }))
+        .sort((a, b) => a.yr - b.yr || a.mo - b.mo);
+    })();
+
+    /* ── SEASONALITY — year-normalised so trend cannot contaminate it ──
+       Each month is indexed against its OWN year's mean, then averaged across
+       years. A raw month-of-year average would just re-report the decline. */
+    const seasonality = (() => {
+      const byYear = new Map();
+      for (const r of trend) {
+        if (!byYear.has(r.yr)) byYear.set(r.yr, []);
+        byYear.get(r.yr).push(r);
+      }
+      const idx = new Map();
+      for (const [, months] of byYear) {
+        if (months.length < 8) continue;        // too few months to normalise
+        const mean = months.reduce((s, m) => s + Number(m.units_per_day || 0), 0) / months.length;
+        if (!mean) continue;
+        for (const m of months) {
+          if (!idx.has(m.mo)) idx.set(m.mo, []);
+          idx.get(m.mo).push(100 * Number(m.units_per_day || 0) / mean);
+        }
+      }
+      return [...idx.entries()]
+        .map(([mo, vals]) => ({
+          mo,
+          index: Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10,
+          years: vals.length,
+        }))
+        .sort((a, b) => a.mo - b.mo);
+    })();
+
 
     /* ── RFL overlay series, monthly ───────────────────────────────────
      *
