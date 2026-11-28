@@ -57,6 +57,12 @@ const LAYOUT = { layout: 'layouts/admin' };
 /* Default trailing window for the "recent" cards, in days. */
 const DEFAULT_WINDOW = 90;
 
+/* The presets offered in the UI. `all` is the whole archive. Kept here so the
+   view renders the buttons from the same list the controller validates
+   against — a preset that cannot be parsed is a preset that should not be
+   drawn. */
+const WINDOW_PRESETS = [30, 60, 90, 180, 365, 'all'];
+
 /* ─────────────────────────────────────────────────────────────────────
    RFL OVERLAY — dollars → approximate units
 
@@ -175,6 +181,95 @@ function applyEventCaps(rows) {
 }
 
 /* ─────────────────────────────────────────────────────────────────────
+   THE REPORTING WINDOW — one resolver, every table
+
+   Added 2026-11-28 (Sam): "I need date range filter on all the sub
+   tables/charts. Ex. If I want to see the most popular units in the last 60
+   days, I can see that snapshot vs all time."
+
+   Before this the tables were ALREADY windowed at 90 days — there was simply
+   no control to change it, and nothing on the cards said so. A reader looking
+   at "Top models" had no way to know they were looking at a quarter rather
+   than five years. The window existing but being invisible is worse than
+   either extreme, so the label is part of this feature, not decoration.
+
+   ONE SQL SHAPE FOR EVERY MODE. A preset ("last 60 days") is resolved to
+   explicit dates here, in JS, against the last snapshot date — so the SQL is
+   always `BETWEEN ? AND ?`, always two params, whichever control the user
+   touched. The alternative (DATE_SUB for presets, BETWEEN for ranges) means
+   two fragments with different param counts flowing into the same card
+   queries, and the param-order comment below exists precisely because that
+   class of mistake filters silently instead of erroring.
+
+   THE LIQUIDATION IS EXCLUDED FROM THE TABLES, NOT RESCALED.
+   The trend chart rescales 2025-08-25 (see WC_EVENT_CAPS): it needs a value
+   for that bucket, and a day-level total can be rescaled honestly. The tables
+   cannot do the same thing, because splitting a rescaled day back across 62
+   individual SKUs is a guess about which models the clearance moved — it
+   would be inventing per-model figures and printing them as a ranking. So the
+   dated event windows are dropped from the table path entirely, and the page
+   says so. Same constant drives both; the treatments differ because the
+   questions differ.
+───────────────────────────────────────────────────────────────────── */
+
+/** 'YYYY-MM-DD' minus n days, as 'YYYY-MM-DD'. */
+function shiftDays(isoDate, n) {
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Resolve the request's window against the archive's real bounds.
+ * Returns { mode, days, from, to, label, isAll } — `from`/`to` are always
+ * populated, so callers never branch on mode when building SQL.
+ */
+function resolveWindow(query, firstDate, lastDate) {
+  const clamp = (d) => (d < firstDate ? firstDate : (d > lastDate ? lastDate : d));
+
+  /* Explicit dates win over a preset: if the user typed a range, honour it
+     even when a stale days= is still on the URL from the scope links. */
+  const rawFrom = String(query.from || '').trim();
+  const rawTo   = String(query.to   || '').trim();
+  if (ISO_DATE.test(rawFrom) && ISO_DATE.test(rawTo)) {
+    let from = clamp(rawFrom), to = clamp(rawTo);
+    if (from > to) { const t = from; from = to; to = t; }   // tolerate reversed
+    return { mode: 'range', days: null, from, to, isAll: false,
+             label: `${from} → ${to}` };
+  }
+
+  const rawDays = String(query.days || '').trim().toLowerCase();
+  if (rawDays === 'all') {
+    return { mode: 'all', days: null, from: firstDate, to: lastDate, isAll: true,
+             label: `all time (${firstDate} → ${lastDate})` };
+  }
+
+  const days = Math.max(7, Math.min(3650, parseInt(rawDays, 10) || DEFAULT_WINDOW));
+  const from = clamp(shiftDays(lastDate, days));
+  /* The label carries the resolved dates, not just the preset. A 365-day
+     window on a 200-day archive is 200 days of data, and saying only "last
+     365 days" invites the reader to divide by the wrong denominator. */
+  return { mode: 'days', days, from, to: lastDate, isAll: false,
+           label: `last ${days} days (${from} → ${lastDate})` };
+}
+
+/**
+ * SQL + params excluding every dated non-retail event from a movement query.
+ * Driven by WC_EVENT_CAPS so the chart and the tables can never disagree
+ * about which days are not retail business.
+ */
+function eventExclusionClause() {
+  if (!WC_EVENT_CAPS.length) return { sql: '', params: [] };
+  return {
+    sql: WC_EVENT_CAPS.map(() =>
+      ' AND NOT (m.movement_date BETWEEN ? AND ?)').join(''),
+    params: WC_EVENT_CAPS.flatMap(c => [c.from, c.to]),
+  };
+}
+
+/* ─────────────────────────────────────────────────────────────────────
    PRODUCT SCOPE
 
    The WC feed is NOT all bathroom vanities. Across the archive:
@@ -251,9 +346,19 @@ async function card(name, fn) {
   }
 }
 
+/* The view reads windowInfo unconditionally. The empty and fatal paths have
+   no archive bounds to resolve against, so they hand over this stand-in
+   rather than letting the template guard every field — a half-rendered window
+   label on an error page is how a stale window gets believed. */
+const EMPTY_WINDOW = {
+  mode: 'days', days: DEFAULT_WINDOW, from: null, to: null, isAll: false,
+  label: `last ${DEFAULT_WINDOW} days`, observedDays: null, excludedDays: 0,
+  events: WC_EVENT_CAPS.slice(), presets: WINDOW_PRESETS,
+  archiveFrom: null, archiveTo: null,
+};
+
 async function dashboard(req, res) {
   try {
-    const windowDays = Math.max(7, Math.min(3650, parseInt(req.query.days, 10) || DEFAULT_WINDOW));
     const scopeKey   = SCOPES[req.query.scope] ? req.query.scope : DEFAULT_SCOPE;
     const SC         = scopeClause(scopeKey);
 
@@ -268,12 +373,13 @@ async function dashboard(req, res) {
         path: req.originalUrl,
         empty: true,
         status: status || {},
-        windowDays, scopeKey, scopes: SCOPES, families: [],
+        windowInfo: EMPTY_WINDOW, scopeKey, scopes: SCOPES, families: [],
         cards: {}, coverage: {}, trend: [], seasonality: [],
       });
     }
 
     const lastDate = status.last_date;
+    const WIN      = resolveWindow(req.query, status.first_date, lastDate);
 
     /* ── Coverage. Shown at the top of the page, always, because every
        attribute cut below is only as complete as this. ───────────────── */
@@ -310,11 +416,46 @@ async function dashboard(req, res) {
       collection_pct: cov.skus ? (100 * Number(cov.with_collection) / Number(cov.skus)) : 0,
     };
 
-    const W = `AND m.movement_date >= DATE_SUB(?, INTERVAL ? DAY)`;
+    /* The window, and the non-retail days dropped out of it. Both fragments
+       land inside DEDUPED_BASE's WHERE, in this order. */
+    const EX = eventExclusionClause();
+    const W  = `AND m.movement_date BETWEEN ? AND ?${EX.sql}`;
     /* Param order must mirror fragment order inside DEDUPED_BASE: the scope
-       IN(...) placeholders come before the date window. Getting this backwards
-       silently filters on the wrong values rather than erroring. */
-    const WP = [...SC.params, lastDate, windowDays];
+       IN(...) placeholders come before the date window, which comes before the
+       event exclusions. Getting this backwards silently filters on the wrong
+       values rather than erroring. */
+    const WP = [...SC.params, WIN.from, WIN.to, ...EX.params];
+
+    /* How much of the window the feed actually covered, and how much of it the
+       exclusion removed. Printed on the cards: a 365-day window observed on 180
+       days is a different thing from one observed on 360, and the reader cannot
+       tell from the ranking alone. */
+    const [winObs] = await q(
+      `SELECT COUNT(DISTINCT m.movement_date) AS observed_days
+         FROM wc_daily_movement m
+        WHERE m.is_valid = 1 AND m.demand_min > 0
+          AND m.movement_date BETWEEN ? AND ?${EX.sql}`,
+      [WIN.from, WIN.to, ...EX.params]
+    ).catch(() => [{ observed_days: null }]);
+
+    const [winExcl] = await q(
+      `SELECT COUNT(DISTINCT m.movement_date) AS excluded_days
+         FROM wc_daily_movement m
+        WHERE m.is_valid = 1 AND m.demand_min > 0
+          AND m.movement_date BETWEEN ? AND ?
+          AND NOT (1=1${EX.sql})`,
+      [WIN.from, WIN.to, ...EX.params]
+    ).catch(() => [{ excluded_days: 0 }]);
+
+    const windowInfo = {
+      ...WIN,
+      observedDays: winObs ? Number(winObs.observed_days) : null,
+      excludedDays: winExcl ? Number(winExcl.excluded_days) : 0,
+      events: WC_EVENT_CAPS.slice(),
+      presets: WINDOW_PRESETS,
+      archiveFrom: status.first_date,
+      archiveTo: lastDate,
+    };
 
     /* ── ROW 1 — ALERT STRIP ───────────────────────────────────────────
        Reads the latest snapshot only. A SKU at zero WITH an ETA is a wait;
@@ -614,7 +755,7 @@ async function dashboard(req, res) {
     /* ── KPI strip. The four numbers worth reading before scrolling. ──── */
     cards.kpis = await card('kpis', async () => {
       /* WP is the existing binding for exactly this shape:
-         [...SC.params, lastDate, windowDays]. Param order follows the SQL
+         [...SC.params, WIN.from, WIN.to, ...EX.params]. Param order follows the SQL
          TEXT, not the argument list — DEDUPED_BASE interpolates ${scopeSql}
          BEFORE ${whereExtra}, so the scope placeholders come first. (The
          stockout queries bind [lastDate, ...SC.params] because their own ?
@@ -643,7 +784,7 @@ async function dashboard(req, res) {
       pageTitle: 'WC Inventory Analysis',
       path: req.originalUrl,
       empty: false,
-      status, coverage, cards, trend, seasonality, windowDays,
+      status, coverage, cards, trend, seasonality, windowInfo,
       scopeKey, scopes: SCOPES, families,
     });
   } catch (err) {
@@ -653,7 +794,7 @@ async function dashboard(req, res) {
       pageTitle: 'WC Inventory Analysis',
       path: req.originalUrl,
       empty: true, fatal: err.sqlMessage || err.message,
-      status: {}, coverage: {}, cards: {}, trend: [], seasonality: [], windowDays: DEFAULT_WINDOW,
+      status: {}, coverage: {}, cards: {}, trend: [], seasonality: [], windowInfo: EMPTY_WINDOW,
       scopeKey: DEFAULT_SCOPE, scopes: SCOPES, families: [],
     });
   }

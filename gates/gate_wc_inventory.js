@@ -80,8 +80,15 @@ section('1. Option-config dedupe (the 3.8–6.0x hazard)');
     pass('no SUM over raw per-config demand_min');
   }
 
-  if (/m\.is_valid\s*=\s*1/.test(ctrl)) {
-    pass('feed-gap exclusion present (is_valid = 1)');
+  /* Scoped to DEDUPED_BASE deliberately. This was a file-wide test until
+     2026-11-28, when the window-coverage queries added their own
+     `m.is_valid = 1` elsewhere in the controller — enough to keep the test
+     green while DEDUPED_BASE itself had lost the filter. A presence test
+     anywhere in a file stops being a test of the thing it names the moment a
+     second caller says the same words. */
+  const dedupedSrc = (ctrl.match(/const DEDUPED_BASE[\s\S]*?\n`;/) || [''])[0];
+  if (/m\.is_valid\s*=\s*1/.test(dedupedSrc)) {
+    pass('feed-gap exclusion present in DEDUPED_BASE (is_valid = 1)');
   } else {
     fail('DEDUPED_BASE must filter is_valid = 1', 'Invalid days are missing, not zero demand.');
   }
@@ -1159,6 +1166,105 @@ section('10. VALIDITY GATE — recovery from a catalogue step change');
         fail('the bridge no longer guards the slot it writes, or no longer copies',
              'It must refuse a non-null slot and assign solid.data[j] verbatim — ' +
              'anything computed there is invented data wearing a dashed line.');
+      }
+    }
+
+    /* ════ 14. THE REPORTING WINDOW ════════════════════════════════════
+       Added 2026-11-28 with the window control. The hazard this section
+       exists for is not that the window breaks — it is that the window
+       becomes INVISIBLE or INCONSISTENT. Both failures look fine on screen
+       and produce confidently wrong readings:
+         · a card that does not say which window produced it gets
+           screenshotted and read as all-time;
+         · two cards on different windows side by side invite a comparison
+           that was never valid;
+         · the liquidation creeping back into the tables puts a warehouse
+           clearance at the top of "most popular models". */
+    {
+      const w  = read('src/controllers/wcReportsController.js');
+      const wc = w.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*(\/\/|--|\*).*$/gm, '');
+      const wv = read('views/pages/admin/marketing/wc-inventory-analysis.ejs')
+                   .replace(/<%#[\s\S]*?%>/g, '');
+      const wvc = wv.replace(/\/\*[\s\S]*?\*\//g, '');
+
+      /* 14a. ONE SQL SHAPE. A preset must be resolved to dates in JS, not
+         branched into a second fragment with a different param count. The
+         param-order bug this prevents filters silently; it does not error. */
+      if (/movement_date BETWEEN \? AND \?/.test(wc) && !/DATE_SUB\(\?, INTERVAL \? DAY\)/.test(wc)) {
+        pass('the window is one BETWEEN shape for presets and ranges alike');
+      } else {
+        fail('the window SQL has more than one shape',
+             'A preset must resolve to dates in resolveWindow, so every card ' +
+             'binds the same two params. Two fragments with different param ' +
+             'counts flowing into DEDUPED_BASE is how the scope and the dates ' +
+             'get bound to each other.');
+      }
+
+      /* 14b. The exclusion is DERIVED from WC_EVENT_CAPS. A literal date
+         here is how the chart and the tables end up disagreeing about which
+         days were not retail business. */
+      const excl = (wc.match(/function eventExclusionClause\(\)[\s\S]*?\n\}/) || [''])[0];
+      if (/WC_EVENT_CAPS/.test(excl) && !/\d{4}-\d{2}-\d{2}/.test(excl)) {
+        pass('table exclusions derive from WC_EVENT_CAPS, no literal dates');
+      } else {
+        fail('the table exclusion does not read WC_EVENT_CAPS, or hard-codes a date',
+             'One list of non-retail days. The chart rescales them and the ' +
+             'tables drop them, but they must agree on WHICH days.');
+      }
+
+      /* 14c. The exclusion actually reaches the card queries. Building the
+         clause and forgetting to bind it is a silent no-op: every table
+         still renders, and the liquidation is still in them. */
+      if (/const W\s*=\s*`AND m\.movement_date BETWEEN \? AND \?\$\{EX\.sql\}`/.test(wc)
+          && /const WP\s*=\s*\[\.\.\.SC\.params,\s*WIN\.from,\s*WIN\.to,\s*\.\.\.EX\.params\]/.test(wc)) {
+        pass('the exclusion is bound into the shared card window (W + WP)');
+      } else {
+        fail('the event exclusion is not wired into the card window',
+             'W must carry EX.sql and WP must carry EX.params, in that order. ' +
+             'Omitting either leaves the clearance in every ranking.');
+      }
+
+      /* 14d. EVERY windowed card states its window. Counted against the
+         cards actually fed by WP, so adding a card without a note fails. */
+      const windowedCards = (wc.match(/await card\('(topCollections|topModels|collectionBySize|onboarding|kpis)'/g) || []).length;
+      const dimCards      = /const byDim = \(col\)/.test(wc) ? 1 : 0;
+      const notes         = (wvc.match(/winNote\(\)/g) || []).length;
+      /* kpis is computed but not rendered, so it is not expected to carry a
+         note; the dimension cards share one template line. */
+      const expected = windowedCards - 1 + dimCards;
+      if (notes >= expected && notes > 0) {
+        pass(`every windowed card states its window (${notes} notes for ${expected} card sources)`);
+      } else {
+        fail(`only ${notes} of ${expected} windowed cards state their window`,
+             'A ranking with no window printed on it will be read as all-time ' +
+             'the first time someone screenshots the card on its own.');
+      }
+
+      /* 14e. Links elsewhere must carry the window, or clicking a scope
+         silently resets the reader to the default mid-analysis. */
+      if (/href="\?scope=<%= k %>&<%= _winQS\(\) %>"/.test(wv)) {
+        pass('scope links preserve the active window');
+      } else {
+        fail('the scope links drop the window',
+             'Switching scope would reset to the default window without ' +
+             'saying so, and the reader would compare two different periods.');
+      }
+
+      /* 14f. The window must be resolved against the archive, not trusted
+         raw. An unclamped from= lets the label claim a period the data does
+         not cover. */
+      const rw = (wc.match(/function resolveWindow[\s\S]*?\n\}/) || [''])[0];
+      /* Tests the DEFINITION, not a call site. `clamp(rawFrom)` still reads
+         as clamping after `const clamp = (d) => d`, so matching the call
+         proves nothing — the same shape of false pass as the is_valid test
+         above. */
+      const clampDef = (rw.match(/const clamp = [^\n]*/) || [''])[0];
+      if (/firstDate/.test(clampDef) && /lastDate/.test(clampDef) && /clamp\(/.test(rw)) {
+        pass('requested dates are clamped to the archive bounds');
+      } else {
+        fail('resolveWindow does not clamp to the archive',
+             'A from= before the first snapshot makes the label describe a ' +
+             'window wider than any data behind it.');
       }
     }
 

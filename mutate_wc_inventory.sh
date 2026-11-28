@@ -393,6 +393,41 @@ mutate "handover bridge overwrites real data" "$VIEW" \
 mutate "handover bridge invents its value" "$VIEW" \
   's/dash\.data\[j\] = solid\.data\[j\];/dash.data[j] = (solid.data[j] + dash.data[last]) \/ 2;/'
 
+# ── 15. THE REPORTING WINDOW ───────────────────────────────────────────
+
+# 15a. The window reverted to a trailing-days fragment. Valid SQL, the page
+#      renders — but presets and ranges now bind different param counts into
+#      the same DEDUPED_BASE, which is the silent-wrong-filter trap.
+mutate "window SQL splits back into two shapes" "$CTRL" \
+  's/const W  = `AND m\.movement_date BETWEEN \? AND \?\$\{EX\.sql\}`;/const W  = `AND m.movement_date >= DATE_SUB(?, INTERVAL ? DAY)`;/'
+
+# 15b. The exclusion hard-coded instead of read from WC_EVENT_CAPS. Today it
+#      agrees with the chart; the next time a date is added to the caps list
+#      it silently will not.
+mutate "table exclusion hard-codes the liquidation dates" "$CTRL" \
+  "s/params: WC_EVENT_CAPS\.flatMap\(c => \[c\.from, c\.to\]\),/params: ['2025-08-17', '2025-09-07'],/"
+
+# 15c. The exclusion built but never bound — the clause exists, the tests
+#      that look for it pass, and the clearance is still in every ranking.
+mutate "exclusion built but not bound into WP" "$CTRL" \
+  's/const WP = \[\.\.\.SC\.params, WIN\.from, WIN\.to, \.\.\.EX\.params\];/const WP = [...SC.params, WIN.from, WIN.to];/'
+
+# 15d. The window note stripped off the cards. The tables are still correct
+#      and still windowed; they just no longer say so, which is how a 60-day
+#      ranking gets pasted into an email as an all-time one.
+mutate "windowed cards stop stating their window" "$VIEW" \
+  's/<p class="adm-label jmv-winnote"><%= winNote\(\) %><\/p>//g'
+
+# 15e. Scope links drop the window, resetting the reader to the default
+#      mid-analysis without a word.
+mutate "scope links drop the active window" "$VIEW" \
+  's/href="\?scope=<%= k %>&<%= _winQS\(\) %>"/href="?scope=<%= k %>"/'
+
+# 15f. Requested dates no longer clamped to the archive, so the label can
+#      describe a period wider than the data behind it.
+mutate "window not clamped to the archive bounds" "$CTRL" \
+  's/const clamp = \(d\) => \(d < firstDate \? firstDate : \(d > lastDate \? lastDate : d\)\);/const clamp = (d) => d;/'
+
 # 12f. The codebook made to read from disk — the hbuilds trap, which would
 #      break it on the next deploy and only the next deploy.
 #      /m is required: perl -0 slurps the file, so ^ only anchors per-line

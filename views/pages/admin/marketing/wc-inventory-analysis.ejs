@@ -106,6 +106,44 @@ const _scopeKey = locals.scopeKey || 'vanity';
 const _fams = locals.families || [];
 const _famTotal = _fams.reduce((s,f)=>s+Number(f.skus||0),0);
 const _inScope = (_scopes[_scopeKey] && _scopes[_scopeKey].families) || null;
+
+/* ── THE REPORTING WINDOW ───────────────────────────────────────────────
+   Every card below the trend chart is computed over ONE window, resolved
+   server-side (see resolveWindow in the controller). The window was always
+   there — 90 days — but nothing on the page said so, so a reader could take
+   a quarter's ranking for an all-time one. `winNote` is therefore printed on
+   every windowed card, not just the section headers: cards get screenshotted
+   and pasted into emails on their own, and a ranking with no window on it is
+   a ranking that will eventually be read as the wrong window.
+
+   The trend chart is NOT windowed by this control. It carries its own From/To
+   because it plots the whole series and lets you narrow it client-side, and
+   collapsing the two would mean either the chart losing its history or the
+   tables losing their point. Said plainly on the page so the difference is
+   not read as a bug. */
+const _win = locals.windowInfo || { label: 'last 90 days', presets: [], events: [] };
+const _winPresets = _win.presets || [];
+const _winEvents  = _win.events  || [];
+
+/* Links elsewhere on the page must carry the window, or clicking a scope
+   silently resets the reader to 90 days mid-analysis. */
+const _winQS = () => (_win.mode === 'range')
+  ? 'from=' + encodeURIComponent(_win.from || '') + '&to=' + encodeURIComponent(_win.to || '')
+  : 'days=' + encodeURIComponent(_win.isAll ? 'all' : String(_win.days || 90));
+
+/* One sentence, reused. Stated as the resolved dates rather than the preset,
+   because "last 365 days" on a shorter archive is not 365 days of data. */
+const winNote = () => {
+  let t = 'Window: ' + (_win.label || '—');
+  if (_win.observedDays !== null && _win.observedDays !== undefined) {
+    t += ' · ' + fmt(_win.observedDays) + ' days observed';
+  }
+  if (Number(_win.excludedDays) > 0) {
+    t += ' · ' + fmt(_win.excludedDays) + ' non-retail day'
+       + (Number(_win.excludedDays) === 1 ? '' : 's') + ' excluded';
+  }
+  return t;
+};
 %>
 <div class="admin-card">
   <h3 class="admin-card-title">Product scope</h3>
@@ -117,7 +155,7 @@ const _inScope = (_scopes[_scopeKey] && _scopes[_scopeKey].families) || null;
   <div class="adm-toolbar" style="gap:8px;flex-wrap:wrap;margin:8px 0 4px">
     <% Object.keys(_scopes).forEach(function(k){ %>
       <a class="btn <%= k === _scopeKey ? 'btn-outline jmv-sort--active' : 'btn-outline' %>"
-         href="?scope=<%= k %>&days=<%= windowDays %>"><%= _scopes[k].label %></a>
+         href="?scope=<%= k %>&<%= _winQS() %>"><%= _scopes[k].label %></a>
     <% }) %>
   </div>
   <% if (_fams.length) { %>
@@ -154,6 +192,73 @@ const _inScope = (_scopes[_scopeKey] && _scopes[_scopeKey].families) || null;
     <% } %>
   <% } %>
 </div>
+
+<!-- ══ REPORTING WINDOW ═══════════════════════════════════════════
+     Drives every table below the trend chart. A plain GET form: the window
+     is part of the URL, so a particular view can be bookmarked and sent to
+     someone else and they see the same numbers. No JS, which also means no
+     CSP nonce and nothing to break on this page. -->
+<% if (!empty) { %>
+<div class="admin-card">
+  <h3 class="admin-card-title">Reporting window</h3>
+  <p class="adm-label">
+    Every table below — headline movers, dimension breakdowns, onboarding
+    priority — is computed over this window. The <strong>trend and seasonality
+    charts above keep their own From/To</strong>, because they plot the whole
+    history and narrow it in the browser; this control does not touch them.
+  </p>
+
+  <div class="adm-toolbar" style="gap:8px;flex-wrap:wrap;margin:8px 0 4px">
+    <% _winPresets.forEach(function(d){
+         const isAll  = (d === 'all');
+         const active = isAll ? _win.isAll
+                              : (_win.mode === 'days' && Number(_win.days) === Number(d)); %>
+      <a class="btn <%= active ? 'btn-outline jmv-sort--active' : 'btn-outline' %>"
+         href="?scope=<%= _scopeKey %>&days=<%= d %>"><%= isAll ? 'All time' : ('Last ' + d + ' days') %></a>
+    <% }) %>
+  </div>
+
+  <form method="get" class="adm-toolbar" style="gap:8px;flex-wrap:wrap;margin:10px 0 4px">
+    <input type="hidden" name="scope" value="<%= _scopeKey %>">
+    <label class="adm-label" style="margin:0">From
+      <input type="date" name="from" class="adm-input"
+             min="<%= _win.archiveFrom || '' %>" max="<%= _win.archiveTo || '' %>"
+             value="<%= _win.mode === 'range' ? (_win.from || '') : '' %>">
+    </label>
+    <label class="adm-label" style="margin:0">To
+      <input type="date" name="to" class="adm-input"
+             min="<%= _win.archiveFrom || '' %>" max="<%= _win.archiveTo || '' %>"
+             value="<%= _win.mode === 'range' ? (_win.to || '') : '' %>">
+    </label>
+    <button class="btn btn-outline" type="submit">Apply range</button>
+  </form>
+
+  <p class="adm-label">
+    Showing <strong><%= _win.label %></strong><% if (_win.observedDays !== null && _win.observedDays !== undefined) { %>
+      · the feed recorded movement on <strong><%= fmt(_win.observedDays) %></strong> of those days<% } %>.
+    Archive runs <%= _win.archiveFrom || '—' %> → <%= _win.archiveTo || '—' %>.
+  </p>
+
+  <% if (_winEvents.length) { %>
+    <p class="adm-label">
+      <strong>Non-retail days are excluded from these tables.</strong>
+      <% _winEvents.forEach(function(e){ %>
+        <%= e.from %> → <%= e.to %> (<%= e.note %>).
+      <% }) %>
+      <% if (Number(_win.excludedDays) > 0) { %>
+        <strong><%= fmt(_win.excludedDays) %></strong> such day<%= Number(_win.excludedDays) === 1 ? '' : 's' %>
+        fell inside the current window and <%= Number(_win.excludedDays) === 1 ? 'was' : 'were' %> dropped.
+      <% } else { %>
+        None fall inside the current window.
+      <% } %>
+      The trend chart handles the same days differently — it rescales them and
+      prints the adjustment, because a chart needs a value in that bucket. A
+      ranking does not: splitting a rescaled day back across individual models
+      would be inventing which models the clearance moved.
+    </p>
+  <% } %>
+</div>
+<% } %>
 
 <% if (typeof fatal !== 'undefined' && fatal) { %>
   <div class="admin-card kpi-card kpi-card--warn">
@@ -403,12 +508,13 @@ const _inScope = (_scopes[_scopeKey] && _scopes[_scopeKey].families) || null;
 
 <!-- ══ ROW 2 — HEADLINE MOVERS ════════════════════════════════════ -->
 <h2 class="report-section-title" style="margin-top:28px">
-  Headline movers — last <%= windowDays %> days
+  Headline movers — <%= _win.label %>
   · <%= (locals.scopes && locals.scopes[locals.scopeKey] && locals.scopes[locals.scopeKey].label) || 'Vanities' %>
 </h2>
 
 <div class="admin-card">
   <h3 class="admin-card-title">Top collections by observed drawdown</h3>
+  <p class="adm-label jmv-winnote"><%= winNote() %></p>
   <p class="adm-label">Scope: <strong><%= (locals.scopes && locals.scopes[locals.scopeKey] && locals.scopes[locals.scopeKey].label) || 'Vanities' %></strong></p>
   <% if (!rows('topCollections').length) { %>
     <p class="adm-empty">No movement in this window<%= c('topCollections').error ? ' — ' + c('topCollections').error : '' %>.</p>
@@ -431,6 +537,7 @@ const _inScope = (_scopes[_scopeKey] && _scopes[_scopeKey].families) || null;
 
 <div class="admin-card">
   <h3 class="admin-card-title">Top models</h3>
+  <p class="adm-label jmv-winnote"><%= winNote() %></p>
   <% if (!rows('topModels').length) { %>
     <p class="adm-empty">No movement in this window.</p>
   <% } else { %>
@@ -489,6 +596,7 @@ const dimCards = [
 <% dimCards.forEach(([key, title, noun, covPct]) => { %>
   <div class="admin-card">
     <h3 class="admin-card-title"><%= title %></h3>
+  <p class="adm-label jmv-winnote"><%= winNote() %></p>
     <% if (!rows(key).length) { %>
       <p class="adm-empty">No described rows for <%= noun %> in this window.</p>
     <% } else { %>
@@ -518,6 +626,7 @@ const dimCards = [
 
 <div class="admin-card">
   <h3 class="admin-card-title">Collection × size</h3>
+  <p class="adm-label jmv-winnote"><%= winNote() %></p>
   <% if (!rows('collectionBySize').length) { %>
     <p class="adm-empty">No described rows in this window.</p>
   <% } else { %>
@@ -538,6 +647,7 @@ const dimCards = [
 <h2 class="report-section-title" style="margin-top:28px">Onboarding priority</h2>
 <div class="admin-card">
   <h3 class="admin-card-title">Selling nationally — we don't carry it</h3>
+  <p class="adm-label jmv-winnote"><%= winNote() %></p>
   <p class="adm-label">
     BVO carries no Water Creation today, so this is currently the whole moving
     catalogue ranked by national drawdown. Rows drop off by themselves as SKUs are
